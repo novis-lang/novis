@@ -5,7 +5,7 @@
 //     bun nv verify                  every step the change reaches
 //     bun nv verify -p nvs-ir        the same build; only nvs-ir's test binaries run
 //     bun nv verify --fast           build and test only, for a mid-work check
-//     bun nv verify --doc            the rustdoc gate alone; the driver's goal-end call
+//     bun nv verify --doc            the rustdoc gate alone; the sweep's goal-end call
 //     bun nv verify --start          run it detached through `nv bg` and return at once
 //     bun nv verify --wait           collect what --start left, with its exit status
 //     bun nv verify --full           do not truncate the failing step's output
@@ -40,8 +40,10 @@
 // selected or when a later step that uses the binary runs. A step that is not selected is not started,
 // and prints `--` with the summary of its last green run. `--no-cache` selects everything.
 //
-// Every run records: each atom that ran records its footprint and verdict in the store, green or red.
-// The run then moves the store's tree to the one it was selected against (`record.ts` `advance`),
+// Every run records: each atom that ran records its footprint and verdict in the store, green or red,
+// the moment it ends, stamped with the tree the run was selected against, so a run that is killed
+// halfway is not paid for again (`store.ts`). A run that ends then moves the store's tree to that one
+// (`record.ts` `advance`),
 // whether it was green or red: every atom the change selected that this run did not run is marked
 // owed first, so a proof program, another case tree or a step `--fast` skipped stays selected for
 // whoever runs it next, and a red atom stays selected as red until a run of it is green. So the run
@@ -79,13 +81,14 @@
 //
 // `-p` narrows which test binaries run, off the one build, and the steps that run `nvs` over the trees
 // do not run; what it leaves out is owed. `cargo doc` with broken intra-doc links denied is `--doc`, run
-// alone. The documentation gates (`rules`, `records`, links, the plan, the playbook) are not steps: `nv
-// session --wrap` refuses a wrap that breaks them.
+// alone. The documentation gates (`rules`, `records`, links, the plan) are not steps: CI's `docs` job
+// runs them.
 //
 // Every process verify starts is killed with the processes it started when it runs out of time, and a
 // test binary or case batch that fails has what it left running killed (`lib/proc.ts`).
 //
-// `.agent-tmp/verify-progress.json` names the step in flight, for the loop driver's status line.
+// `.agent-tmp/verify-progress.json` names the step in flight and its process, which is how a person
+// tells a slow `--start` run from a stuck one.
 //
 // Exits 0 when every step is green, 1 when one is red, and 2 on a bad argument or a `--wait` with nothing
 // to collect.
@@ -107,7 +110,7 @@ import { recordName } from "../proofs/run.ts";
 import { caseFiles, caseId, nvTestFiles, nvTestId } from "../select/atoms.ts";
 import { buildScripts } from "../select/build.ts";
 import { WILD, repoPath } from "../select/keys.ts";
-import { advance, depInfoPaths, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen } from "../select/record.ts";
+import { advance, depInfoPaths, fullChange, pool, putTestGreen, Recorder, recordCases, testGreen, unexplainedReds } from "../select/record.ts";
 import { type ChangeSet, computeChange, discover, type Selection, query, rustFiles } from "../select/select.ts";
 import { NV_TSC, runNvTest, runTsc } from "../select/nvtests.ts";
 import { nvKeys, testKeys } from "../select/seed.ts";
@@ -482,9 +485,10 @@ async function runTests(r: Run, s: Step): Promise<[number, string]> {
     recording.push(
       r.rec.keysOf(recordName(id), [j.argv[0]!, nvs]).then((ext) => {
         const verdict: Verdict = code === 0 && ext ? "green" : "red";
+        // The lines first, so a binary recorded green always has the lines of that run.
+        putTestGreen(r.store, j.name, verdict, text);
         r.store.recordRun(id, { def: "", verdict, keys: testKeys(ext, j.name) });
         r.ran.add(id);
-        putTestGreen(r.store, j.name, verdict, text);
       }),
     );
   };
@@ -566,7 +570,8 @@ async function runCases(r: Run, s: Step): Promise<[number, string]> {
   const red = [...got.verdicts.values()].filter((v) => v === "red").length;
   const head = `${cases.length} of ${total} case(s) of tests/${s.name} selected`;
   const lost = got.unrecorded.length ? `${got.unrecorded.length} passed case(s) left no recording: ${got.unrecorded.join(", ")}\n` : "";
-  return [red > 0 || got.failed > 0 ? 1 : 0, `${head}\n${got.out}\n${lost}${got.passed} passed, ${got.failed} failed, ${got.skipped} skipped\n`];
+  const silent = red > 0 ? unexplainedReds(got) : "";
+  return [red > 0 || got.failed > 0 ? 1 : 0, `${head}\n${got.out}\n${lost}${silent}${got.passed} passed, ${got.failed} failed, ${got.skipped} skipped\n`];
 }
 
 // ---- the tools' own gate ---------------------------------------------------------------------------

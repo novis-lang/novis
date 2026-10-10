@@ -33,7 +33,7 @@ run over the slow 9p mount: it syncs its own copy of the tree onto the distro's 
 | PHP on `PATH`, at the version in [the plan](implementation-plan.md)'s status block § *Toolchain* — **optional, for the PHP benchmarks only** | The PHP engine of the cross-language bench: `bun nv bench` runs the `.php` twin of every case under [benches/userland/](../benches/userland/), and `bun nv bench --serve-vs-fpm` measures `nvs serve` against PHP with opcache. No test and no check runs PHP. | `php -v` |
 | Node.js 20 LTS or newer, with `npm` — **from M4B onward** | `editors/vscode` is TypeScript, and its headless tests — the TextMate grammar snapshots and the LSP protocol round-trip against the real `nvs lsp` binary — are acceptance checks. Without Node they do not fail, they cannot run. Only the machine's native side needs it: those checks run once, not once per leg, so the WSL distro does not. | `node --version`, `npm --version` |
 | Bun, at the version `package.json`'s `engines` pins | It runs the repository's tools: `bun nv <command>`, from `tools/nv/`. Run `bun install` once after a clone and again whenever `bun.lock` changes. It installs `typescript`, `@types/bun` and `smol-toml` into the git-ignored `node_modules/`. `nv verify`'s `nv` step runs `bun nv selftest`, so a machine without Bun fails the gate. It is also the fourth engine in [benches/userland/](../benches/userland/), which runs the `.ts` twin of every case (`rule:tooling/bench-engine-list-is-data`). Its Windows installer does not always land on `PATH`; `bun nv bench --bun <path>` takes the executable explicitly. | `bun --version`, then `bun nv selftest` |
-| Docker, with Compose — Docker Desktop on Windows and macOS | The floor's database matrix, `bun nv db-matrix --all`, runs each database server in a container, and a goal whose record names `env.docker` stops before its first session when `docker` is not on `PATH` or its daemon does not answer (`tools/nv/driver/gates.ts`). `bun nv bench-proxied` is containers too. `--driver sqlite` needs no container. | `docker compose version` |
+| Docker, with Compose — Docker Desktop on Windows and macOS | The floor's database matrix, `bun nv db-matrix --all`, runs each database server in a container, and a goal whose record names `env.docker` stops before its first session when `docker` is not on `PATH` or its daemon does not answer (`tools/nv/cmd/services.ts`). `bun nv bench-proxied` is containers too. `--driver sqlite` needs no container. | `docker compose version` |
 | VS Code — **from M4B onward** | Two different things. `@vscode/test-electron` downloads its **own** pinned build into `editors/vscode/.vscode-test/` for the extension-host tier, so a system install is not what that test runs against; the system install is what you drive the extension in by hand, which is the entire point of pulling M4B ahead of M10. Fetch the test build once (below) and nothing afterwards touches the network. | `code --version` |
 
 Novis generates native code, so "it compiles here" is a weaker claim in this repository than in most. CI
@@ -93,7 +93,7 @@ cargo install cargo-fuzz --locked
 
 `rust-src` is not optional here: `tools/tsan.sh` builds the standard library from source under the thread
 sanitizer, and without that component the leg stops before it compiles anything of Novis's. `git` is what
-the WSL leg syncs its copy of the tree with (`tools/nv/driver/mirror.ts`), and Ubuntu's WSL image usually
+the WSL leg syncs its copy of the tree with (`tools/nv/accept/mirror.ts`), and Ubuntu's WSL image usually
 has it already. `time` is `/usr/bin/time`, which the machine probe uses to measure one fixture; without it
 the probe records less and the valgrind sweep still runs.
 
@@ -170,7 +170,7 @@ bun nv verify                                            # build, fmt, test, the
 ```
 
 The WSL leg and the valgrind sweep are the driver's: every `bun nv loop` sweep runs them once the native
-sweep is green (`tools/nv/driver/legs.ts`).
+sweep is green (`tools/nv/accept/legs.ts`).
 
 From M4B onward, one more one-time step, because the extension-host tier downloads a VS Code build and
 the acceptance run must never go to the network:

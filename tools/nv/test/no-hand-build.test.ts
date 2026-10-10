@@ -1,14 +1,13 @@
 // The pipeline runs one debug build, the `covws` tree (`lib/covws.ts`), and names it to what it starts
 // as `{nvs}` in a check's argv or as `NVS_BIN`. `target/debug` is what a person builds by hand: a check,
 // a fixture or a tool that runs it passes on whatever stale build is on disk, and fails where there is
-// none. This holds every goal record's checks, and every file the pipeline runs, to never naming it.
+// none. This holds every goal file's checks, and every file the pipeline runs, to never naming it.
 
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { goalPaths, goalPlan } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
-import { load } from "../lib/store.ts";
-import { goal as goalType, sideGoal as sideGoalType } from "../schema/goal.ts";
 
 /** `target/debug`, `target\debug`, or `"target", "debug"` as a path join spells it. */
 const HAND_BUILD = /target(?:[\\/]+|["'`]\s*,\s*["'`])debug\b/;
@@ -21,7 +20,7 @@ const PIPELINE = ["tools/nv", "examples", "tests", "docs/examples", "benches/mem
 const ALLOWED: Record<string, string> = {
   "tools/nv/cmd/disk.ts": "it measures and sweeps the hand build's files, and runs none of them",
   "tools/nv/keys/escape.ts": "it recognises a test that names the hand build",
-  "tools/nv/driver/legs.ts": "off Windows, the valgrind sweep builds `target/debug` itself just before it runs it",
+  "tools/nv/accept/legs.ts": "off Windows, the valgrind sweep builds `target/debug` itself just before it runs it",
 };
 
 /** A line that is only a comment, in any of the languages under `PIPELINE`. */
@@ -32,12 +31,12 @@ function namesHandBuild(text: string): number[] {
 }
 
 describe("the pipeline never runs a hand build", () => {
-  test("no goal record's check names target/debug, in its argv or in the program it runs", () => {
+  test("no goal file's check names target/debug, in its argv or in the program it runs", () => {
     const found: string[] = [];
-    const records = [...load(goalType), ...load(sideGoalType)];
-    expect(records.length).toBeGreaterThan(0);
-    for (const { id, value } of records) {
-      for (const c of value.checks) {
+    const slugs = [...goalPaths().keys()];
+    expect(slugs.length).toBeGreaterThan(0);
+    for (const id of slugs) {
+      for (const c of goalPlan(id)?.checks ?? []) {
         const spec = JSON.stringify({ argv: c.argv, args: c.args, file: c.file, cwd: c.cwd });
         if (HAND_BUILD.test(spec)) found.push(`${id}: check ${c.id} names it in ${spec}`);
         if (c.file && existsSync(join(ROOT, c.file))) {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { builtUrls, DOCS, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, wrapProblems, type Served, type World } from "../cmd/site.ts";
+import { builtUrls, DOCS, errVerdict, FRONT_PAGE, GUIDE_SECTIONS, guidesProblems, IN_DEPTH_SECTIONS, inDepthProblems, paragraphs, parseRequest, proseProblems, serveRun, snippetOutputs, snippetRun, snippetShape, stamp, staleness, syntaxProblems, type Served, type World } from "../cmd/site.ts";
 import type { Entry } from "../proofs/roster.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -67,18 +67,6 @@ describe("nv site --stale", () => {
     const found = staleness(world(), root);
     expect(found.uncovered).toEqual(["lang:statements/while"]);
     expect(found.unlisted).toEqual(["guides/index.mdx"]);
-  });
-
-  test("the wrap gate names every broken id, and only the stale pages the session's changes reach", () => {
-    const root = site().root;
-    const renamed = world([LENGTH, entry("lang:statements/matches", "lang", "lang/statements/matches", "docs/reference/lang/statements.md:1"), WHILE]);
-    expect(wrapProblems(renamed, [], root)).toEqual(["broken: syntax/match.mdx: lang:statements/match"]);
-    expect(wrapProblems(world(), ["docs/examples/core/Str/other/about.md"], root)).toEqual([]);
-    expect(wrapProblems(world(), ["docs/examples/core/Str/length/about.md"], root)).toEqual(["stale: reference/strings.mdx: Core\\Str::length (never stamped)"]);
-    expect(wrapProblems(world(), ["docs/reference/lang/statements.md", `${DOCS}/reference/strings.mdx`], root)).toEqual([
-      "stale: reference/strings.mdx: Core\\Str::length (never stamped)",
-      "stale: syntax/match.mdx: lang:statements/match (never stamped)",
-    ]);
   });
 
   test("a generated Reference page is not a handwritten one", () => {

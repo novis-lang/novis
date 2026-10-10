@@ -4,4 +4,4 @@
   cannot resolve vanishes silently — unranked, uncounted, unreported. Treat the tool as a *ranking*
   over most of the tree: check `registry()` against `grep -c CoreClass` before believing a total,
   and read `nvs_stdlib::registry::CLASSES` directly for anything that must hold of **every** member.
-  [until: gone tools/nv/cmd/gaps.ts:NAME_CONST_RE]
+  `until: gone tools/nv/cmd/gaps.ts:NAME_CONST_RE`

@@ -26,9 +26,9 @@ limited to what ships; this page also carries what is only planned, which that c
 | PHPBench | benchmarking | `#[Bench]` reports the deterministic counter stream, so CI can gate on it | [0079](../decisions/0079.md) § 15 | M10 |
 | PHPStan / Psalm / Phan | static analysis | `nvs check` — the compiler is the analyzer; see below | [0007](../decisions/0007.md) and the section below | on disk |
 | Psalm `--taint-analysis` | taint analysis | `tainted` and `secret` are type qualifiers, enforced as hard errors | [0024](../decisions/0024.md), [0033](../decisions/0033.md) | on disk |
-| PHP CS Fixer / PHP_CodeSniffer | layout and style | `nvs fmt`, canonical and unconfigurable — and the bug-adjacent rules are compile errors already | [0039](../decisions/0039.md); [0029](../decisions/0029.md), [0094](../decisions/0094.md) | errors on disk; `nvs fmt` M10 |
-| Rector | automated codebase rewrites | `nvs convert` for PHP→Novis; Novis→Novis declined, with a recorded reopen trigger | [0089](../decisions/0089.md); [0039](../decisions/0039.md) § 9 | M11 |
-| Xdebug — step debugging | breakpoints, stepping | `nvs dap`, on the safepoints codegen already emits | [0016](../decisions/0016.md) | M10 |
+| PHP CS Fixer / PHP_CodeSniffer | layout and style | `nvs fmt`, canonical and unconfigurable — and the bug-adjacent rules are compile errors already | `rule:tooling/fmt-is-one-canonical-style`; [0029](../decisions/0029.md), [0094](../decisions/0094.md) | errors on disk; `nvs fmt` M10 |
+| Rector | automated codebase rewrites | `nvs convert` for PHP→Novis; Novis→Novis declined, with a recorded reopen trigger | [0089](../decisions/0089.md); `rule:tooling/fmt-is-never-a-diagnostic` | M11 |
+| Xdebug — step debugging | breakpoints, stepping | `nvs dap`, on the safepoints codegen already emits | `rule:ide/the-debug-adapter-does-not-wait-for-an-editor` | M10 |
 | Xdebug — coverage, trace, profile | observing a run | `Core\Debug` over always-compiled probe sites; Clover/lcov/Callgrind out | [0018](../decisions/0018.md) | probes on disk (M3); surface M10 |
 | phpDocumentor / Doctum | API docs from source | none — the one tool category with no answer; see the gaps below | — | open |
 | Deptrac / phpat / PHPStan custom rules | project-specific structural rules | a `#[Test]` walking `Core\Ast` / `Core\Reflect` / `Core\Program` | [0019](../decisions/0019.md), [0079](../decisions/0079.md) | blocked; see the gaps below |
@@ -51,7 +51,7 @@ packages.
 PHPStan and Psalm exist because PHP's own compiler checks almost nothing. Novis's checker *is* the
 strict configuration: every binding typed with real generics ([0007](../decisions/0007.md)),
 definite property initialization ([0022](../decisions/0022.md)), `lateinit`
-read-before-write ([0038](../decisions/0038.md)), member existence and
+read-before-write (`rule:classes/lateinit-read-before-write`), member existence and
 every-path-returns at compile time, literal regex/format/URI validation
 ([0057](../decisions/0057.md)), the route table checked while compiling
 ([0077](../decisions/0077.md)), and taint/secret flow as type qualifiers
@@ -68,9 +68,9 @@ One axis, two ends, both decided: what can hide a bug is a hard compile error wi
 casing ([0029](../decisions/0029.md)), written visibility
 ([0094](../decisions/0094.md)), one spelling per construct
 throughout `docs/divergences.md` — and what is purely layout is `nvs fmt`
-([0039](../decisions/0039.md)): canonical, zero-configuration, never wired into the
+(`rule:tooling/fmt-is-one-canonical-style`): canonical, zero-configuration, never wired into the
 compiler. The entire configure-a-ruleset category (`.php-cs-fixer.php`, sniff selection) is designed
-out rather than replaced, which is that ADR's § 3.
+out rather than replaced.
 
 ## The three gaps, and what was decided about each
 
@@ -82,6 +82,6 @@ out rather than replaced, which is that ADR's § 3.
    [crates/nvs-stdlib/src/ast.rs](../../crates/nvs-stdlib/src/ast.rs)'s known gap 2, which is that
    fact's one home and now names this use case as what it blocks.
 3. **No `nvs fix` for Novis-to-Novis upgrades.** Declined in
-   [0039](../decisions/0039.md) § 9 while nobody needs it. Decided: the reopen trigger
+   `rule:tooling/fmt-is-never-a-diagnostic` while nobody needs it. Decided: the reopen trigger
    is recorded in [docs/future-ideas.md](../future-ideas.md) — the first post-1.0 breaking surface
    change ships with an automated rewrite, as part of that change's cost.

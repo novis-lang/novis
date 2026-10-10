@@ -2,5 +2,5 @@
   what the row means and it refuses every `fn (): int` body a program may reasonably write, where
   `Ty::Void` *is* assignable to `mixed` in return position — so `mixed` takes a `fn (): void` body
   and a value-returning one alike, and still constrains the parameters. Write `CoreTy::Mixed` at any
-  callback the member does not read back, and a concrete return only where it uses the answer.
-  [until: gone crates/nvs-stdlib/src/registry.rs:CoreTy::Mixed]
+  callback the member does not read back, and a concrete return only where it uses the answer. See `crates/nvs-stdlib/src/registry.rs`.
+  `until: gone crates/nvs-stdlib/src/registry.rs:CoreTy::Mixed`

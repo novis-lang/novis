@@ -931,14 +931,6 @@ jobs:
         run: bun nv layout --check
       - name: Every milestone row parses and agrees with the file it names
         run: bun nv plan --check
-      # The schedule the loop actually walks, which `nv plan` above does not see: every entry's
-      # records exist, the driver can run its acceptance list, and its `[context]` manifest
-      # resolves. A manifest naming a shape `conventions.md` has no heading for costs nothing
-      # until the run reaches the entry, and then costs that session the section it needed.
-      - name: Every chain entry is walkable and its [context] manifest resolves
-        run: bun nv chain --check
-      - name: Every playbook bullet names a file and expires by a condition the tree decides
-        run: bun nv playbook --check
       # The workspace version, the `[workspace.dependencies]` pins that restate it and the newest
       # release tag all agree, and a released version has a changelog section. It runs here
       # because no `nv verify` step runs it: verify runs the steps whose footprint in the
@@ -1112,9 +1104,9 @@ jobs:
   # ---------------------------------------------------------------------------
   # The half Miri cannot reach: the crates that execute generated machine code,
   # where the refcount and COW protocols compiled code manipulates by raw
-  # pointer actually run. Nothing here overlaps the valgrind sweep of
-  # `bun nv loop` — that runs the `examples/` fixtures end to end through the
-  # release binary, and never runs a crate's own tests.
+  # pointer actually run. Nothing here overlaps the loop's valgrind check —
+  # that runs the `examples/` fixtures end to end through the release binary,
+  # and never runs a crate's own tests.
   #
   # `nvs-codegen` and `nvs-stdlib` link `nvs-runtime` as an ordinary dependency,
   # so it compiles with `debug_assertions` on and `cfg(test)` off and takes the

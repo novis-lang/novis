@@ -22,3 +22,8 @@ so there is one.
 that it was *honoured*.** An application that hand-rolls dispatch and never reads the access name gets
 no enforcement from anyone. Closing that would require recognising a dispatch site, which is an
 opinion the route table refuses to hold.
+
+**Declined:**
+- **The decision readable only through `Core\Attributes::get` on the handler.** That call names the
+  method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
+  and nothing reports the omission.

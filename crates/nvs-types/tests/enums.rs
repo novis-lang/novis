@@ -8,7 +8,7 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-// ADR 0010 § 4-5: an enum's name is a real, distinct type — a case
+// `rule:enums/closed-integer-type`: an enum's name is a real, distinct type — a case
 // access recovers `Ty::Enum`, not `mixed`, so it type-checks like any
 // other declared type rather than accepting anything at all.
 

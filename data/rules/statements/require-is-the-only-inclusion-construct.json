@@ -2,7 +2,6 @@
   "title": "`require` is the only file-inclusion construct, and it runs every time it is reached",
   "status": "shipped",
   "because": [
-    "0021",
     "0049",
     "0011",
     "0017"
@@ -15,6 +14,7 @@
   "guardedBy": [
     "tests/conformance/reject/include-is-refused-in-favour-of-require.nvst",
     "tests/conformance/reject/require-once-is-refused.nvst",
-    "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst"
+    "tests/conformance/lang/a-required-file-runs-its-own-top-level-statements.nvst",
+    "crates/nvs-syntax/src/parser/tests/stmt.rs"
   ]
 }

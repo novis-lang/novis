@@ -21,9 +21,18 @@
 // acceptance sweeps do. POSIX needs none of this, since unlinking a running binary is ordinary there; the
 // code is not guarded by platform regardless, because a failure it does not recognise falls through
 // untouched.
+//
+// **A caller that runs the binary many times runs a pinned copy of it** (`pinned`), never the path cargo
+// writes. The loop's sessions and a person in a terminal build the same `target/` at once, so the binary
+// a bench pass or a proof run started on can be moved aside or replaced by another process's build
+// between two of its spawns: the next spawn finds no file, or measures a different build than the one
+// before it. A pinned copy is a hard link beside the original, named for the build it was taken from, so
+// it reads the same `.nvsdata` folder, every caller on one build shares it, and no build ever writes it.
+// Each process that pins a copy claims it with an empty file naming its pid. A copy of an older build
+// is deleted by the next `pinned` once no live process claims it.
 
-import { existsSync, readdirSync, renameSync, unlinkSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { copyFileSync, existsSync, linkSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { basename, dirname, extname, join } from "node:path";
 import { ROOT } from "./paths.ts";
 
 /** What cargo prints when the old executable could not be removed. Everything after it is the operating
@@ -93,4 +102,96 @@ export async function linked<R extends { code: number }>(exe: string, build: () 
   if (r.code !== 0 && held(errOf(r), exe) && free(exe) !== null) r = await build();
   sweep(exe);
   return r;
+}
+
+/** What a pinned copy's name carries between the binary's stem and the build it was taken from. */
+const PIN = "-run-";
+/** What a claim's name carries between its copy's name and the pid of the process that made it. */
+const CLAIM = ".claim-";
+/** What a whole copy still being written carries before the pid of the process writing it. */
+const PART = ".part-";
+
+/** The claims this process made, deleted when it exits. */
+const claims = new Set<string>();
+let releasing = false;
+
+/** Whether process `pid` is running. `EPERM` is a process this user may not signal, which is alive. */
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** Returns a copy of `exe` that this process may run for as long as it lives: a hard link beside `exe`,
+ *  named for the size and modification time of the build it was taken from, and claimed for this process.
+ *  A copy of another build that no live process claims is deleted on the way. */
+export function pinned(exe: string): string {
+  const at = statSync(exe);
+  const ext = extname(exe);
+  const stem = basename(exe, ext);
+  const dir = dirname(exe);
+  const pin = join(dir, `${stem}${PIN}${at.size.toString(36)}-${Math.floor(at.mtimeMs).toString(36)}${ext}`);
+  const claim = `${pin}${CLAIM}${process.pid}`;
+  writeFileSync(claim, "");
+  claims.add(claim);
+  if (!releasing) {
+    releasing = true;
+    process.on("exit", () => {
+      for (const c of claims) {
+        try {
+          unlinkSync(c);
+        } catch {}
+      }
+    });
+  }
+  if (!existsSync(pin)) take(exe, pin);
+  unpin(dir, `${stem}${PIN}`, ext, basename(pin));
+  return pin;
+}
+
+/** Puts a copy of `exe` at `pin`: a hard link, or a whole copy where the file system has none. Another
+ *  process that made the same copy first leaves it in place. */
+function take(exe: string, pin: string): void {
+  try {
+    linkSync(exe, pin);
+    return;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EEXIST") return;
+  }
+  const part = `${pin}${PART}${process.pid}`;
+  copyFileSync(exe, part);
+  try {
+    renameSync(part, pin);
+  } catch {
+    try {
+      unlinkSync(part);
+    } catch {}
+    if (!existsSync(pin)) throw new Error(`could not copy ${exe} to ${pin}`);
+  }
+}
+
+/** Deletes the claims in `dir` whose process has exited, and every pinned copy other than `keep` that is
+ *  left with none. A copy something still runs stays where it is on Windows, and the next call retries. */
+function unpin(dir: string, prefix: string, ext: string, keep: string): void {
+  const names = readdirSync(dir).filter((n) => n.startsWith(prefix));
+  const live = new Set<string>();
+  for (const name of names) {
+    const at = name.lastIndexOf(CLAIM);
+    if (at < 0) continue;
+    if (alive(Number(name.slice(at + CLAIM.length)))) live.add(name.slice(0, at));
+    else {
+      try {
+        unlinkSync(join(dir, name));
+      } catch {}
+    }
+  }
+  for (const name of names) {
+    if (name === keep || live.has(name) || name.includes(CLAIM) || name.includes(PART) || !name.endsWith(ext)) continue;
+    try {
+      unlinkSync(join(dir, name));
+    } catch {}
+  }
 }

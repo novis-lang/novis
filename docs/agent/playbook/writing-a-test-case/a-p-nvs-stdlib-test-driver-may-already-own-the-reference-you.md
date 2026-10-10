@@ -3,4 +3,4 @@
   by value and ends with `files.release()`, so a test adding `dropped(files)` panics in
   `nvs_runtime::object::drop_one`. Read the tail of any `Value`-taking helper first; its
   `#[expect(unsafe_code, reason = …)]` says whether it releases its argument.
-  [until: gone crates/nvs-stdlib/src/request.rs:fn parts_of]
+  `until: gone crates/nvs-stdlib/src/request.rs:fn parts_of`

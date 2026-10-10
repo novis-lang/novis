@@ -5,4 +5,4 @@
   doublings of five bytes, in
   `tests/conformance/error/a-loop-that-calls-nothing-is-stopped-by-the-memory-ceiling.nvst` — and
   leave a pure-CPU spin unbounded, since only the first takes the host with it.
-  [until: gone crates/nvs-test/src/lib.rs:CASE_TIMEOUT]
+  `until: gone crates/nvs-test/src/lib.rs:CASE_TIMEOUT`

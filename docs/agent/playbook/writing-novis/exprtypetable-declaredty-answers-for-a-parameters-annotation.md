@@ -3,4 +3,4 @@
   out of it and not spans. So a modifier read off `declared_ty` at a property declaration is always zero
   and fails no build. Read it off the access's own `ExprInfo::Property` entry instead, the way
   `nvs_lsp::semantic`'s `qualifiers_recorded` does — or, at a declaration where there is no access to
-  ask, off `ExprTypeTable::property_default_ty`. [until: gone crates/nvs-lsp/src/semantic.rs:copies types out of and not]
+  ask, off `ExprTypeTable::property_default_ty`. See `crates/nvs-lsp/src/semantic.rs`. `until: gone crates/nvs-lsp/src/semantic.rs:copies types out of and not`

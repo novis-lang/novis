@@ -4,4 +4,4 @@
   server `ERR` packet as `PermissionDenied` strips `kind`, `sqlState` and `driverCode` with every
   driver unit test green. A server-worded refusal is `io::Error::other(ServerError { … })`;
   `ServerError::of` tells it from a wire failure, never the `ErrorKind`.
-  [until: gone crates/nvs-stdlib/src/db/bind.rs:std::io::ErrorKind::Other =>]
+  `until: gone crates/nvs-stdlib/src/db/bind.rs:std::io::ErrorKind::Other =>`

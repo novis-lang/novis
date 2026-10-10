@@ -14,6 +14,10 @@ whole input and returning its whole output. There is no per-pixel, per-row or pe
 none is added later: `raw()` exports the whole buffer once for the caller that genuinely needs
 pixels. The rule for any future entry point is a refusal — a member that would be called in a loop
 over the image's own contents is not admitted, because its cost is the boundary rather than the work.
+A call is a fixed cost and a bulk copy is memcpy-bound, and a pixel buffer is the largest thing a
+request holds — a 24-megapixel frame is 96 MB at RGBA8 — so a request pays one instance and one
+crossing per terminal, and the pixel buffer never leaves the guest. The builder grows a member
+without touching the ABI, because a new operation is a new plan step rather than a new export.
 
 A pipeline starts from one of four sources — encoded bytes (`open`), a blank canvas (`create`), RGBA8
 pixels (`fromRaw`) or text set in a font (`measureText`) — and `run` returns one of three outputs: the
@@ -42,6 +46,18 @@ every level, so a few rows that each draw the one before twice cannot double the
 rows and then the overlay to the table, renumbering the overlay's steps by the rows already there. `variants` decodes once and costs one host-to-guest call, counted by
 `nvs_ext::call::Request::crossings` (`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
-`Image` with every member of 0120 § 2's table, and `Color` with `rgba` and `hex` and no named constants yet
-(`tests/conformance/novis/`). A canvas or pixel source is held to the default pixel cap, not the
-`[image]` one.
+`Image` with every member `IMAGE_MEMBERS` in `crates/nvs-stdlib/tests/ext_world.rs` places, and
+`Color` with `rgba` and `hex` and no named constants yet (`tests/conformance/novis/`). A canvas or
+pixel source is held to the default pixel cap, not the `[image]` one.
+
+**Declined:**
+- **A gd-shaped handle with a call per operation.** It materialises every intermediate, prevents
+  fusion, and either mutates in place, which no other Novis value does, or copies a frame per
+  operation.
+- **The resampling kernel at Tier 2, only the codecs in the sandbox.** It moves the pixel buffer
+  across the boundary twice per pipeline, which costs more than the wasm penalty saves, and splits
+  one job across two tiers. If a committed benchmark puts in-guest resampling far below native for a
+  real workload, the exit is Tier 2 for that kernel alone, never `dlopen`.
+- **ImageMagick or libvips compiled to wasm wholesale.** A surface that large is the long tail the
+  component declines to own, and a C codebase that size is still one to build and audit inside the
+  sandbox.

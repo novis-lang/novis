@@ -3,5 +3,5 @@
   `nvs_dead_jobs`, which no server answers: every catalog query in `nvs_db::catalog` orders
   by table name, so the dump is alphabetical and the check read as unwritten work forever.
   Before writing output to satisfy a `want`, ask whether the order it names is one the data
-  can have — and when it is not, fix the `want` and say in the goal's prose which ordering is real.
-  [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  can have — and when it is not, fix the `want` and say in the goal's prose which ordering is real. See `tools/nv/cmd/orient.ts`.
+  `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

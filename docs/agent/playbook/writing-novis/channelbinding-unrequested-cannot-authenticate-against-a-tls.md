@@ -3,4 +3,4 @@
   server offers no channel binding, and a server offering `SCRAM-SHA-256-PLUS` — every SSL
   connection — reads it as a downgrade and fails with "channel binding check failed". Use
   `unsupported` (`n,,`); `crates/nvs-db/src/pg.rs`'s module doc holds the reasoning.
-  [until: gone crates/nvs-db/src/pg.rs:unrequested]
+  `until: gone crates/nvs-db/src/pg.rs:unrequested`

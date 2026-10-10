@@ -505,22 +505,11 @@ function outline(patterns: string[], deep: boolean): number {
   return 0;
 }
 
-/** Under the loop driver each session has its own transcript, so the newest log names it. */
-function sessionKey(): string {
-  const logs = join(ROOT, ".loop", "logs");
-  try {
-    let newest: [string, number] | null = null;
-    for (const name of readdirSync(logs)) {
-      if (!name.endsWith(".log")) continue;
-      const t = statSync(join(logs, name)).mtimeMs;
-      if (!newest || t > newest[1]) newest = [name, t];
-    }
-    if (newest) return newest[0];
-  } catch {
-    // no loop logs: an interactive session, which the idle timer separates
-  }
-  return "interactive";
-}
+/**
+ * The ledger's session. Nothing names a session to the commands its agent runs, so every call shares
+ * this one and `LEDGER_IDLE_SECONDS` of silence separates one session from the next.
+ */
+const SESSION = "interactive";
 
 interface Ledger {
   session: string;
@@ -535,7 +524,7 @@ interface Ledger {
  */
 function noteReads(targets: string[]): string[] {
   const now = Date.now() / 1000;
-  const key = sessionKey();
+  const key = SESSION;
   const record: Ledger = { session: key, at: now, files: {}, solo: 0 };
   try {
     if (existsSync(LEDGER)) {

@@ -4,4 +4,4 @@
   state nothing reads back — `Jwe\Key`, `Jwt\KeySet` — fails on that assertion rather than on
   anything in its own file. Add its `NAME`, made `pub(crate)`, to the test's `HANDLES` list in the
   slice that registers the class.
-  [until: gone crates/nvs-stdlib/src/registry.rs:const HANDLES]
+  `until: gone crates/nvs-stdlib/src/registry.rs:const HANDLES`

@@ -16,8 +16,9 @@
 // citation token everywhere is `rule:` and the id. A chapter's place is its topic record's `order`,
 // and a rule's place is its position in that record's `rules` list.
 //
-// `docs/rules/<topic>.md` and `docs/ground-rules.md` are rendered from the two and never edited. `because` points at decision records, and nothing about the reverse direction is
-// written by hand. A file that teaches the citation syntax rather than using it carries the marker
+// `docs/rules/<topic>.md` and `docs/ground-rules.md` are rendered from the two and never edited.
+// `because` names the decision records on disk not yet merged into the rule, and may be empty; each
+// one must be a file under `docs/decisions/`. A file that teaches the citation syntax rather than using it carries the marker
 // `rules-py:examples`, and its `rule:` tokens are then examples rather than citations. This file
 // carries it.
 //
@@ -180,9 +181,9 @@ export class Rulebook {
         if (!existsSync(r.bodyPath)) out.push({ where, what: `body fragment ${rel(r.bodyPath)} is absent` });
         else if (body(r).trim() === "") out.push({ where, what: "body fragment is empty" });
         seen.add(rel(r.bodyPath).toLowerCase());
-        if (r.because.length === 0) out.push({ where, what: "names no decision in `because`" });
         for (const dec of r.because) {
           if (!/^\d{4}$/.test(dec)) out.push({ where, what: `because ${pyRepr(dec)} is not a four-digit record id` });
+          else if (!existsSync(join(ROOT, "docs", "decisions", `${dec}.md`))) out.push({ where, what: `because ${dec} names no record on disk` });
         }
         for (const other of r.seeAlso) {
           if (!this.byId.has(other)) out.push({ where, what: `seeAlso ${pyRepr(other)} resolves to nothing` });

@@ -4,4 +4,4 @@
   `no_key_with_a_reader_still_claims_to_be_unread`. Grep the dotted key across `crates/` first;
   where a reader exists, describe the directive plainly and put what is still owed in the
   consuming crate's own `# Known gaps`.
-  [until: gone crates/nvs-config/tests/directives.rs:no_key_with_a_reader_still_claims_to_be_unread]
+  `until: gone crates/nvs-config/tests/directives.rs:no_key_with_a_reader_still_claims_to_be_unread`

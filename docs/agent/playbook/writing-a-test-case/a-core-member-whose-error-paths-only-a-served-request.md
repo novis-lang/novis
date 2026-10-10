@@ -2,4 +2,4 @@
   both obvious declarations.** "unreachable from source" claims the checker refuses the call, and
   `OWED_A_CASE` claims a case nobody can write. Use `ASSERTED_OFF_THE_CORPUS`: "no case can reach
   this" within eight lines above the site plus a `#[test]` asserting it, only when no case can
-  exist. [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:ASSERTED_OFF_THE_CORPUS]
+  exist. See `crates/nvs-stdlib/tests/conformance_coverage.rs`. `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:ASSERTED_OFF_THE_CORPUS`

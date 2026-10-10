@@ -1,8 +1,7 @@
 <?nvs
 // What an archive is allowed to contain, decided when it is read.
 //
-// [ADR 0051](/docs/decisions/0051.md) § 3 places `Core\Zip` in Tier 0 for the
-// same reason it places `Core\Compress` there: a `../` entry, an absolute-path
+// `Core\Zip` is part of every Novis program. A `../` entry, an absolute-path
 // entry, a symlink entry and a decompression bomb are *policy*, and policy must
 // be non-optional. This file is what that looks like from a program — and what
 // it mostly looks like is that there is nothing to remember to do.

@@ -52,6 +52,10 @@ describe("prose", () => {
     ]);
   });
 
+  test("a bare section cite is a record only when its number leads with a zero", () => {
+    expect(citations("RFC 3986 § 3 and 0199 § 1\n")).toEqual([{ kind: "decision", target: "0199", line: 1 }]);
+  });
+
   test("CRLF text reads the same as LF", () => {
     expect(headings(DOC.replace(/\n/g, "\r\n"))).toEqual(headings(DOC));
   });

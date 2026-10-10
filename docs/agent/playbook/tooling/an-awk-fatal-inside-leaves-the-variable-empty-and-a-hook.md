@@ -2,4 +2,4 @@
   then fails OPEN.** `\[` in a *dynamic* awk regex (one built from a string) is consumed by the
   string literal first, so awk sees a bare `[`, dies with `invalid regexp`, and the surrounding `[
   -z "$offenders" ] && exit 0` allows the commit. Write it `[[]`, and always capture `$?` from the
-  awk itself and refuse on a non-zero status — a gate must fail closed. [until: gone tools/git-hooks/commit-msg:awk]
+  awk itself and refuse on a non-zero status — a gate must fail closed. See `tools/git-hooks/commit-msg`. `until: gone tools/git-hooks/commit-msg:awk`

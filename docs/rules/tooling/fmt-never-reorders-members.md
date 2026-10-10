@@ -10,3 +10,8 @@ same line `rule:core-api/written-visibility` takes when it refuses to let the fo
 A developer who wants the reordering can have it as a deliberate, diff-visible code action. It
 is never something a formatter does on save. The `use` block (`rule:tooling/fmt-sorts-the-use-block`) is
 the only reordering anywhere.
+
+**Declined:**
+- **A canonical member order**, as PHP-CS-Fixer's `ordered_class_elements` writes one. PER has no
+  member-ordering rule to defer to, so it would be a rule Novis invents, paid for in output bytes that
+  change at every site above.

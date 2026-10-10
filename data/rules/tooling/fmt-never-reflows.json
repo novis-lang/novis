@@ -2,7 +2,6 @@
   "title": "`nvs fmt` never breaks or joins a line to fit a width: whether a construct spans one line or several is the line break its author wrote",
   "status": "shipped",
   "because": [
-    "0039",
     "0267"
   ],
   "seeAlso": [

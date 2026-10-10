@@ -3,7 +3,8 @@
 # `§<section> <Class>::<member>` where the spec's bullet names a class, and
 # `§<section> <member>` where a table row does not -- then the goal that will
 # strike it, named by its slug: `§18 streamAs  # gap-zero`, read against
-# docs/agent/goals/ by `every_outstanding_key_names_an_owner`. That test's doc
+# the chain in docs/goals/README.md by `every_outstanding_key_names_an_owner`.
+# That test's doc
 # owns the column.
 #
 # `tests/spec_registry_coverage.rs` owns this file, and its module doc says why it

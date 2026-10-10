@@ -278,9 +278,27 @@ quietly disappears on one target is worse than one plainly refused there.
 The browser is not a target Novis builds. A `wasm32` backend for a browser tab is off the roadmap: its
 standing cost is instruction selection and calling-convention lowering happening twice for every
 codegen feature thereafter, and nothing is asking for it. The rule above governs the targets that
-exist and any that is added later.
+exist and any that is added later. Wasm as an extension host ([`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component))
+runs in the opposite direction and is not this target.
 
-<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0025](../decisions/0025.md).</sub>
+Such a target would drop three things, each a diagnostic: `spawn`, because a tab has no OS thread or
+process substrate and no shared compiled-code cache; suspension, because native stack-switching has no
+standard `wasm32` equivalent; and `.nvsx` extensions, because no browser ships a Component Model host.
+What would reopen it is an embedding that wants Novis in a browser tab, and only that. A cheap, widely
+shipped browser stack-switching mechanism would remove the suspension exclusion, and the Component
+Model shipping in browsers the extension one, but neither removes the second backend's cost.
+
+**Declined:**
+- **Compiling the native JIT itself to wasm and JIT-ing Novis source at page load.** A wasm module
+  cannot mark its own memory executable, so no browser permits it.
+- **Asyncify, to keep one execution model on every target.** It instruments every function reachable
+  from a suspend point, not only the ones that suspend, which is a whole-module cost paid by default.
+- **A weaker isolation primitive for `spawn` on a target that lacks the substrate**, such as a silent
+  same-thread call. That is the weaker substitute the rule above forbids.
+- **Modelling a new host context as `Core\Request` or `Core\Cli` with methods added.** It makes "is this
+  call legal in this context" ambiguous again; a new context gets its own accessor class.
+
+<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).</sub>
 
 <a id="programs-no-runtime-autoload"></a>
 
@@ -363,7 +381,7 @@ Path traversal is structurally impossible, with no sanitizer: a resolved suffix 
 namespace segments, which are `PascalCase` identifiers that may not begin with `_`, so `.`, `..` and a
 path separator cannot occur in one.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case). Decided in [0061](../decisions/0061.md), [0021](../decisions/0021.md), [0029](../decisions/0029.md), [0215](../decisions/0215.md).</sub>
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case). Decided in [0061](../decisions/0061.md), [0029](../decisions/0029.md), [0215](../decisions/0215.md).</sub>
 
 <a id="programs-one-declaration-per-autoloaded-file"></a>
 
@@ -413,7 +431,7 @@ Three properties keep the check honest:
   wrote are compared; how the entry file was named on the command line is not this diagnostic's
   business.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md), [0021](../decisions/0021.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md).</sub>
 
 <a id="programs-relative-paths-resolve-from-their-file"></a>
 
@@ -554,7 +572,7 @@ be stable for years; a framework's opinions need to move. Putting the whole fram
 would lock its cadence to the runtime's, and putting all of it in a package would push privileged
 operations across a boundary they cannot cross.
 
-<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new). Decided in [0082](../decisions/0082.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new). Decided in [0082](../decisions/0082.md).</sub>
 
 <a id="programs-framework-core-half"></a>
 
@@ -585,7 +603,7 @@ third-party framework can be written over this public surface, but it can comput
 and never declare it safe. A member added to this half later carries the test that placed it; one
 arriving with no test is a bug in the roster.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0082](../decisions/0082.md), [0051](../decisions/0051.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0082](../decisions/0082.md), [0024](../decisions/0024.md).</sub>
 
 <a id="programs-framework-web-package"></a>
 

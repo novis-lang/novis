@@ -3,4 +3,4 @@
   `crates/nvs-codegen/tests/backend_policy.rs` reads `crates/nvs-codegen/src/lib.rs` as text and
   asserts the literal `("enable_probestack", "true")`, so respelling the tuple or splitting the list
   per backend silently drops the stack-clash guarantee. Grep that test for the flag before touching
-  the list. [until: gone crates/nvs-codegen/tests/backend_policy.rs:enable_probestack]
+  the list. `until: gone crates/nvs-codegen/tests/backend_policy.rs:enable_probestack`

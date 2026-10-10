@@ -8,12 +8,12 @@ import { ENV, readLog } from "../lib/reads.ts";
 const LOG = join(CACHE, `registers-reads-${process.pid}.ndjson`);
 afterAll(() => rmSync(LOG, { force: true }));
 
-/** Every path under `data/playbook/` that `bun nv <args>` read, listed or tested for. */
+/** Every path under `docs/agent/playbook/` that `bun nv <args>` read, listed or tested for. */
 async function playbookReads(args: string[]): Promise<string[]> {
   rmSync(LOG, { force: true });
   await run([process.execPath, join(ROOT, "tools", "nv", "main.ts"), ...args], { env: { [ENV]: LOG, NO_COLOR: "1" } });
   const got = readLog(LOG)!;
-  return [...got.files, ...got.dirs, ...got.exists].filter((p) => p.startsWith("data/playbook"));
+  return [...got.files, ...got.dirs, ...got.exists].filter((p) => p.startsWith("docs/agent/playbook"));
 }
 
 describe("a register is read only by a command whose answer it can change", () => {

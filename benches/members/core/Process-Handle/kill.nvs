@@ -9,7 +9,7 @@ class Bench {
         // `/usr/bin/yes` on Linux and macOS, and a `cmd.exe` loop on Windows. Neither stops by itself.
         string $path = "/usr/bin/yes";
         array<array<string>> $lists = [["y"], ["a longer line"]];
-        if (Core\Path::SEPARATOR == "\\") {
+        if (Core\Env::OS == "Windows") {
             $path = "C:\\Windows\\System32\\cmd.exe";
             $lists = [
                 ["/c", "for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe"],

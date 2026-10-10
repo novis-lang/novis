@@ -408,7 +408,7 @@ diagnostic an ordinary run would give.
 This rule is the home for every closed-world target, and any other inherits it rather than restating
 it.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../decisions/0048.md), [0021](../decisions/0021.md), [0025](../decisions/0025.md).</sub>
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../decisions/0048.md).</sub>
 
 <a id="packaging-a-bundle-is-found-by-its-footer-before-argv-is-read"></a>
 
@@ -753,7 +753,7 @@ registry whose maintainers do not depend on it does not stay good.
 
 Names are first-come, and the squatting policy is the registry operator's own operational document.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0081](../decisions/0081.md), [0062](../decisions/0062.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0081](../decisions/0081.md), [0062](../decisions/0062.md).</sub>
 
 <a id="packaging-a-package-is-its-digest"></a>
 
@@ -783,7 +783,7 @@ what makes "the digest is the identity" a statement about code a human could rea
 subcommand, no `package.toml` or `package.lock` reader, and nothing in the tree digests a package
 archive.
 
-<sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0120](../decisions/0120.md), [0042](../decisions/0042.md), [0003](../decisions/0003.md).</sub>
+<sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0042](../decisions/0042.md), [0003](../decisions/0003.md).</sub>
 
 <a id="packaging-package-toml-is-a-tool-input"></a>
 
@@ -1398,7 +1398,7 @@ Which tier a candidate lands at is decided by [`core-api/tier-placement`](core-a
 and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Those tests decide the partition, and no
 other runtime's packaging is a reason to place a candidate.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md), [0247](../decisions/0247.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md).</sub>
 
 <a id="packaging-the-first-party-components-are-built-in"></a>
 
@@ -1421,12 +1421,21 @@ reserved for Tier 0 ([`core-api/core-means-always-present`](core-api.md#core-api
 Nothing is paid until a program calls one. The embedded bytes are compiled on a component's first use
 in a process and stored in the artifact cache like any other module
 ([`packaging/a-wasm-module-cache-reuses-the-artifact-cache`](packaging.md#packaging-a-wasm-module-cache-reuses-the-artifact-cache)). What it spends is the binary's size:
-mostly CLDR data and the codecs, on disk and in the page cache.
+mostly CLDR data and the codecs, on disk and in the page cache. The intl component is ICU4X with every
+CLDR locale compiled in, and its classes are [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster). Should that growth make
+the single-file executable impractical for CLI programs, the answer is a smaller locale set, never an
+optional component.
+
+- **Memory:** nothing until a program calls a component. Then the compiled module is held once per
+  process and shared by every core, and each calling request has its own instance under its own cap.
 
 A build script compiles their Rust crates, under `extensions/` and outside the workspace, for
 `wasm32-wasip2`, and packs each with the packer `nvs ext build` uses
-([`packaging/nvs-ext-is-the-authoring-tool`](packaging.md#packaging-nvs-ext-is-the-authoring-tool)). `rust-toolchain.toml` lists the target. The one C
-library is prebuilt ([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](packaging.md#packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci)).
+([`packaging/nvs-ext-is-the-authoring-tool`](packaging.md#packaging-nvs-ext-is-the-authoring-tool)). `rust-toolchain.toml` lists the target, so no contributor installs it by hand. Because the
+crates are outside the workspace, the ordinary `cargo build` never resolves them for the host target.
+A clean build compiles both for wasm, ICU4X's compiled data among them, and an incremental build reuses
+their target directory. The one C library is prebuilt
+([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](packaging.md#packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci)).
 
 **Partly on disk.** The image crate is `extensions/image/`, excluded from the workspace, and builds for
 `wasm32-wasip2` with `simd128` on. Its implemented exports are `info`, `run` and `variants`; the others return `runtime`.
@@ -1444,7 +1453,16 @@ embedded the same way as `nvs_ext::builtin::INTL` with its digest folded in besi
 manifest class is `Novis\Intl\Icu`, of whose exports `collateOrder` and `sortKeys` are implemented and
 the others return `runtime`; its Novis half is `Novis\Intl\Collator` (`crates/nvs-ext/tests/intl.rs`).
 
-<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0247](../decisions/0247.md).</sub>
+**Declined:**
+- **Embedded, but removable by a setting or a Cargo feature.** Whether `Novis\Image` exists would
+  depend on configuration again, the failure [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present) prevents.
+- **Installed beside the binary, with an `[[extension]]` entry per deployment.** That is one
+  configuration step for two features every web application uses, and a program could not know
+  whether either exists without asking its deployment.
+- **Both finished `.nvsx` files committed.** Tens of megabytes of binary in git on every CLDR or codec
+  update.
+
+<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster).</sub>
 
 <a id="packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci"></a>
 
@@ -1469,7 +1487,11 @@ differs from its pin. `--check` holds the committed bytes to their digest, and C
 runs `--verify`, which rebuilds and compares (`tools/nv/test/webp-lib.test.ts`). The image crate
 does not link the library yet.
 
-<sub>See also [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in). Decided in [0247](../decisions/0247.md).</sub>
+**Declined:**
+- **libwebp compiled from source on every clean build.** Every contributor and every CI leg would need
+  wasi-sdk before `cargo build` works.
+
+<sub>See also [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in).</sub>
 
 <a id="packaging-an-nvsx-is-one-file-carrying-its-manifest"></a>
 
@@ -1545,7 +1567,7 @@ a name under that namespace to the carried file with no `autoload` line
 from the set's manifests
 (`tests/conformance/ext/an-extension-source-class-resolves-with-no-autoload-line.nvst`).
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0120](../decisions/0120.md), [0081](../decisions/0081.md), [0123](../decisions/0123.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0081](../decisions/0081.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-extension-loading-is-root-controlled"></a>
 
@@ -1963,7 +1985,7 @@ a comparator, because sorting ten thousand strings through a per-comparison boun
 130,000 crossings; the image component crosses once per terminal
 ([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
 
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0003](../decisions/0003.md).</sub>
 
 <a id="packaging-a-c-dependency-answers-two-questions"></a>
 
@@ -1990,7 +2012,11 @@ The test is enforced rather than remembered: `bun nv gen-attribution --check-c-d
 default binary's C dependencies from the resolved graph and fails CI on any without a recorded answer
 ([`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)).
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0051](../decisions/0051.md).</sub>
+**Declined:**
+- **Each C dependency argued on its own merits.** A growing list of individually reasoned exceptions is
+  how a pure-Rust default stops being one.
+
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
 
 <a id="packaging-pdf-decoding-ships-in-the-image-package"></a>
 
@@ -2013,7 +2039,12 @@ interpreter with an RCE history long enough that ImageMagick's stock policy ship
 disabled. A PDF interpreter is a strictly larger hostile-bytes case than any format already on the
 roster, and the sandbox is where a parser that size belongs.
 
-<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads). Decided in [0128](../decisions/0128.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md).</sub>
+**Declined:**
+- **Leaving PDF rasterising to the third-party channel.** Thumbnailing and counting the pages of an
+  uploaded PDF is a universal job, and owning one sandboxed way to do it removes the host-interpreter
+  shell-out as a class.
+
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads).</sub>
 
 <a id="packaging-a-service-is-one-stored-argv"></a>
 
@@ -2294,7 +2325,7 @@ Socket activation — a privileged port with an empty capability set — is defe
 it changes how `nvs serve` acquires its listener, which makes it a server change the unit generator
 would simply follow.
 
-<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../decisions/0093.md), [0097](../decisions/0097.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../decisions/0093.md), [0097](../decisions/0097.md).</sub>
 
 <a id="packaging-a-bundle-may-not-install-itself"></a>
 

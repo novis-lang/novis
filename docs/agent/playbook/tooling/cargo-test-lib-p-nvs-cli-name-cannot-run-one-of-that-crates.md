@@ -2,4 +2,4 @@
   target.** The cases live in the `nvs` binary, so the answer is `no library targets found in
   package` and not a missing test. Run `cargo test --bin nvs <name>` — no `-p`, which is what
   `AGENTS.md` asks for anyway, and the bin name is unique across the workspace.
-  [until: exists crates/nvs-cli/src/lib.rs]
+  `until: exists crates/nvs-cli/src/lib.rs`

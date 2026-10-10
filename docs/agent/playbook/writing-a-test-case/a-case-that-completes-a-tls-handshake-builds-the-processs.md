@@ -4,4 +4,4 @@
   dialling `rediss://` ahead of `http::transport`'s `trusted()` decided nine of its cases'
   outcomes from another module. Call `crate::tests::outbound_client()` before opening a session —
   it is the one place the client is built, and the `OnceLock` is what makes test order stop
-  mattering. [until: gone crates/nvs-stdlib/src/lib.rs:outbound_client]
+  mattering. `until: gone crates/nvs-stdlib/src/lib.rs:outbound_client`

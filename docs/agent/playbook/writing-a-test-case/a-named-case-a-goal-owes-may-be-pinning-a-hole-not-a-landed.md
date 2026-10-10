@@ -3,4 +3,4 @@
   freezing what `nvs run` printed pins the hole as the expectation, and nothing else checks the case
   against its rule. Write the output each rule the case cites says it prints first, then run the
   shapes in a scratch `.agent-tmp/*.nvs` and diff the two before filling in `--EXPECT--`.
-  [until: gone crates/nvs-test/src/case.rs:--EXPECT--]
+  `until: gone crates/nvs-test/src/case.rs:--EXPECT--`

@@ -3,4 +3,4 @@
   is `Core\Reflect::forClass` (which answers `?Core\Reflect\ClassInfo`) holds no class, every `->member(`
   in it attributes to nobody, and a new member reads as `asked by 0 case(s)` however many cases call
   it. Name the class in a comment — or reach it through a member returning the bare `Instance` — and
-  the same cases count. [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:holders]
+  the same cases count. See `crates/nvs-stdlib/tests/corpus/mod.rs`. `until: gone crates/nvs-stdlib/tests/corpus/mod.rs:holders`

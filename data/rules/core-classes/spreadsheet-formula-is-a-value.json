@@ -2,7 +2,6 @@
   "title": "Only an explicit `Formula` value writes a formula cell, so an export built from user data is inert",
   "status": "designed",
   "because": [
-    "0123",
     "0024"
   ],
   "seeAlso": [

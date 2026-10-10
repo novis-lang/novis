@@ -3,4 +3,4 @@
   the same line a name that is nowhere in the tree gets, and a symbol it cannot find exits 1 — so the
   windows you batched read as files holding nothing. Ask for anchors in their own call, or use a
   `file.rs:re:fn name` target, which prints `file:line` and the matching line beside the other
-  windows. [until: gone tools/nv/cmd/peek.ts:--locate]
+  windows. See `tools/nv/cmd/peek.ts`. `until: gone tools/nv/cmd/peek.ts:--locate`

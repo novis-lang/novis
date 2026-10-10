@@ -12,3 +12,8 @@ The usual alternative is ImageMagick delegating to Ghostscript — an installed,
 interpreter with an RCE history long enough that ImageMagick's stock policy ships with the PDF coder
 disabled. A PDF interpreter is a strictly larger hostile-bytes case than any format already on the
 roster, and the sandbox is where a parser that size belongs.
+
+**Declined:**
+- **Leaving PDF rasterising to the third-party channel.** Thumbnailing and counting the pages of an
+  uploaded PDF is a universal job, and owning one sandboxed way to do it removes the host-interpreter
+  shell-out as a class.

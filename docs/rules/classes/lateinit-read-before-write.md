@@ -9,6 +9,13 @@ narrowest shape — a straight-line or branchy, call-free stretch that reads bef
 nothing about the cross-method, cross-object case `lateinit` exists for, which relies entirely on the
 runtime throw.
 
-Nothing interprocedural is attempted. Whole-program analysis would widen the blast radius of every
-edit under per-file hot reload, for cases that fall through to the runtime throw anyway. This check is
-a bonus, not a safety net to rely on.
+Within that shape the error is as certain as any other definite-assignment error, and it reuses the
+pass the constructor check already runs, so it adds no second analysis. Most real `lateinit` use never
+triggers it: it is a bonus, not a safety net to rely on.
+
+**Declined:**
+- **Interprocedural or whole-program checking**, tracing which methods can write a `lateinit` property
+  before which read it. Hot reload revalidates one file's compiled unit at a time
+  (`rule:config/an-edit-reaches-the-next-request-without-a-restart`), and a whole-program analysis
+  would widen every edit's blast radius, for cases that are cross-method by nature and fall through to
+  the runtime throw anyway.

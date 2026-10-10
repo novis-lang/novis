@@ -4,4 +4,4 @@
   /iterations*, and a Python dump through `str()` prints all four as quoted strings and hides it. Read a
   count with `webcrypto::number` (`crates/nvs-stdlib/src/tests/vectors.rs:89`) and print
   `type(v[k]).__name__` rather than the value when checking what a pointer will answer.
-  [until: gone crates/nvs-stdlib/src/tests/vectors.rs:webcrypto.json]
+  `until: gone crates/nvs-stdlib/src/tests/vectors.rs:webcrypto.json`

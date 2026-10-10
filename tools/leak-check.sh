@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # `valgrind --leak-check=full` over the fixtures named on the command line — the
-# narrow counterpart of the valgrind sweep `bun nv loop` runs over every fixture.
+# narrow counterpart of the acceptance sweep's valgrind leg over every fixture.
 #
 # Run one of these for **any** new refcount edge, before it reaches a session's
 # last commit: the whole-suite leg only covers `examples/`, and this repository's

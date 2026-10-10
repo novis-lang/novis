@@ -1,8 +1,7 @@
 <?nvs
 // What this host is, as five facts about the process asking.
 //
-// [ADR 0051](/docs/decisions/0051.md) § 3 places `Core\Os` in Tier 0 as the
-// answer to `posix_*` minus fork, `php_uname`, `getrusage` and
+// `Core\Os` replaces `posix_*` minus fork, `php_uname`, `getrusage` and
 // `sys_getloadavg`. One member per fact and never one string or one array to
 // take apart: `php_uname`'s migration row is the whole argument, since a
 // program that wanted the host's name had to parse it out of a sentence whose

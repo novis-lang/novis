@@ -4,4 +4,4 @@
   stage asked for would have gone red on a stage that passed sessions ago. Before you reword any
   line a tool prints, grep `data/goals/` for a fragment of it — a mode whose output is a verdict can
   take the new form while the human-facing roster keeps the frozen sentence.
-  [until: gone tools/nv/driver/accept.ts:want]
+  `until: gone tools/nv/accept/accept.ts:want`

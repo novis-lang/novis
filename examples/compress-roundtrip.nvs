@@ -2,11 +2,9 @@
 // Five codecs behind one pair of members, and a bound the program cannot
 // switch off.
 //
-// [ADR 0051](/docs/decisions/0051.md) § 3 places `Core\Compress` in Tier 0 for
-// one reason: what a compressed input can do to a server is *policy*, and
-// policy must be non-optional. [ADR 0166](/docs/decisions/0166.md) is that
-// policy — `rule:core-classes/decompression-bound` — and this file is what it
-// looks like from a program.
+// `Core\Compress` is part of every Novis program, so its size limit always
+// applies. `rule:core-classes/decompression-bound` is that
+// limit, and this file is what it looks like from a program.
 //
 // **Nothing here asks a capability.** Compressing octets a program is already
 // holding reaches no file, no socket and no other request, so there is nothing

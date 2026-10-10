@@ -2,4 +2,4 @@
   test first and its helpers after it.** Declaring the callee at the top, `.nvst`-style, snapshots
   the callee's own body — a `safepoint`, a `param` per declaration and a `return` — which reads as a
   lowering that produced nothing rather than as the wrong function. Reorder the two members.
-  [until: gone crates/nvs-ir/src/lower/tests.rs:fn lower_first_method]
+  `until: gone crates/nvs-ir/src/lower/tests.rs:fn lower_first_method`

@@ -119,7 +119,7 @@
 //! scope itself and never forwards one here, so arriving is proof of nesting
 //! — inside a method body, a property hook, an anonymous function's body, or a block at
 //! file scope — and [`nested_declaration`] reports `E0233` on the spot.
-//! The decision is `docs/adr/README.md` § *Decisions taken at project start*:
+//! The rule is `rule:classes/a-type-is-declared-at-file-scope`:
 //! a name whose existence depends on control flow has no reading the static
 //! class table can give it. Nothing below the checker ever sees one, which
 //! is why `nvs_ir::lower::stmt`'s dispatch does not carry an arm for it.

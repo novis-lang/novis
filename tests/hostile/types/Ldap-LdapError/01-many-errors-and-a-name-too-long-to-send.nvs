@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program creates a very large number of `LdapError` objects, and sends the
+// directory a name of one million characters. Every error should be freed, and nothing may crash.
+// hostile: timeout-ms 60000
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $people = Core\Ldap\Filter::equals('objectClass', 'user');
+
+// 1. The program throws 100000 errors it creates itself, each with a long message.
+uint $i = 0;
+uint $protocol = 0;
+string $long = Core\Str::repeat('x', 10000);
+while ($i < 100000) {
+    try {
+        throw new Core\Ldap\LdapError($long);
+    } catch (Core\Ldap\LdapError $error) {
+        if ($error->kind == Core\Ldap\ErrorKind::Protocol && $error->code == null) {
+            $protocol = $protocol + 1;
+        }
+    }
+    $i = $i + 1;
+}
+echo '1 protocol: ', $protocol, "\n";
+
+// 2. Five hundred searches under a unit that does not exist. Each one throws an error.
+$i = 0;
+uint $missing = 0;
+while ($i < 500) {
+    try {
+        foreach ($corp->search($people, { base: 'OU=Nowhere,DC=example,DC=test' }) as Core\Ldap\Entry $entry) {
+        }
+    } catch (Core\Ldap\LdapError $error) {
+        if ($error->kind == Core\Ldap\ErrorKind::NoSuchObject) {
+            $missing = $missing + 1;
+        }
+    } catch (Throwable $other) {
+    }
+    $i = $i + 1;
+}
+echo '2 missing: ', $missing, "\n";
+
+// 3. A name of one million characters. The server may close the connection, so this step is last.
+string $huge = 'OU=' . Core\Str::repeat('a', 1000000) . ',DC=example,DC=test';
+try {
+    foreach ($corp->search($people, { base: $huge }) as Core\Ldap\Entry $entry) {
+    }
+    echo '3 found nothing', "\n";
+} catch (Throwable $last) {
+    echo '3 threw, message length under 2000000: ', Core\Str::length($last->message) < 2000000 ? 'yes' : 'no', "\n";
+}

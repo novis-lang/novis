@@ -4,4 +4,4 @@
   bound, each wrong alone though the sum is right. Copy into an allocation the bracket makes and
   release the caller's temporary outside it (`crates/nvs-stdlib/src/cache.rs:@store_put`); a store
   whose entry is an `Rc` the request also holds cannot be bracketed at all.
-  [until: gone crates/nvs-runtime/src/budget.rs:pub struct Detached]
+  `until: gone crates/nvs-runtime/src/budget.rs:pub struct Detached`

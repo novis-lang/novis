@@ -3,7 +3,7 @@
 
 # Classes
 
-*3 of 42 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 43 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="classes-no-free-functions-or-constants"></a>
 
@@ -28,6 +28,35 @@ creating one anywhere is unaffected. A script's own top-level statements are its
 declaration at file scope. What it costs is a class name on every call to a library function, on top of the annotations [`types/declaration`](types.md#types-declaration) already asks for.
 
 <sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant). Decided in [0011](../decisions/0011.md), [0008](../decisions/0008.md), [0003](../decisions/0003.md).</sub>
+
+<a id="classes-a-type-is-declared-at-file-scope"></a>
+
+## A `class`, `interface` or `enum` is declared at file scope, or not at all
+
+`rule:classes/a-type-is-declared-at-file-scope`
+
+A `class`, `interface` or `enum` is declared at file scope, or not at all. A declaration written
+inside a method body, a property hook, a closure body or a nested block at file scope is `E0233` where
+it is written. An anonymous class (`new class { … }`) is the same declaration in expression position,
+and is `E0244`.
+
+Every type name resolves against a static table built before any code runs: the `require` and
+autoload graph, then the member and hierarchy tables, then the field layouts. None of those has a
+reading for a name that may or may not exist yet. `nvs_types::locals`' per-body walk reports `E0233`,
+and it is reached only from inside a body, so it needs no test of whether it is nested.
+
+What it costs is the conditional-class idiom. Its two real uses, a polyfill and a feature switch, are a
+`require` of one file or the other, which is static and already works. An anonymous class has no name
+for the static table to hold, and its two real uses, a one-off implementation of an interface and a
+test double, are a named class in the same file or a closure.
+
+**Declined:**
+- **Declaring a nested type unconditionally at file scope.** It silently changes what the program
+  says: `if ($legacy) { class Session { … } }` would declare `Session` whether or not the branch runs.
+- **A conditional entry in the class table.** Every name resolution, layout and dispatch decision
+  below it would carry a run-time question, paid at every lookup instead of once here.
+
+<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`types/class-scoped-alias`](types.md#types-class-scoped-alias).</sub>
 
 <a id="classes-names-resolve-case-sensitively"></a>
 
@@ -190,7 +219,7 @@ copy depth reopens the gap — `clone` starts from a live object and cannot prod
 one, and the graph copy either copies a live source or refuses a payload missing a declared property
 ([`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format)).
 
-<sub>See also [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`types/declaration`](types.md#types-declaration). Decided in [0022](../decisions/0022.md), [0043](../decisions/0043.md), [0023](../decisions/0023.md), [0038](../decisions/0038.md).</sub>
+<sub>See also [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`types/declaration`](types.md#types-declaration). Decided in [0022](../decisions/0022.md), [0043](../decisions/0043.md), [0023](../decisions/0023.md).</sub>
 
 <a id="classes-no-undefined-value"></a>
 
@@ -237,7 +266,7 @@ zero additional bytes per property: the tagged value representation already had 
 and the compiled read goes by the payload — null in this state and in no other, because `lateinit` is
 restricted to a non-nullable class or interface type.
 
-<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/lateinit`](classes.md#classes-lateinit), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0022](../decisions/0022.md), [0038](../decisions/0038.md), [0019](../decisions/0019.md).</sub>
+<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/lateinit`](classes.md#classes-lateinit), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0022](../decisions/0022.md), [0019](../decisions/0019.md).</sub>
 
 <a id="classes-lateinit"></a>
 
@@ -261,7 +290,18 @@ every use, which is an ergonomic wall rather than a guarantee. Nothing else chan
 object whose `lateinit` slot is still unwritten inherits the same unwritten slot and throws under the
 same rule.
 
-<sub>See also [`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions), [`classes/lateinit-read-before-write`](classes.md#classes-lateinit-read-before-write), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0038](../decisions/0038.md), [0022](../decisions/0022.md).</sub>
+- **Memory:** none. The unwritten state is a spare discriminant of the tagged value every property
+  already has, so a `lateinit` property costs no byte an ordinary property does not.
+
+**Declined:**
+- **Leaving deferred assignment to reflection alone.** Ordinary setter injection would have to build
+  its objects through reflection just to get an initialization order the language can express
+  directly.
+- **A write-once variant, assignable once at any time and then frozen.** It needs a tracked write
+  count that a freely reassignable property does not, and `lateinit readonly` is refused
+  ([`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions)).
+
+<sub>See also [`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions), [`classes/lateinit-read-before-write`](classes.md#classes-lateinit-read-before-write), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0022](../decisions/0022.md).</sub>
 
 <a id="classes-lateinit-restrictions"></a>
 
@@ -283,7 +323,7 @@ opposite claims about one property rather than a composable pair.
 Each refusal is its own diagnostic, which is one more modifier and three more rejected combinations a
 developer has to learn are refused rather than silently allowed.
 
-<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`types/declaration`](types.md#types-declaration). Decided in [0038](../decisions/0038.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`types/declaration`](types.md#types-declaration). Decided in [0022](../decisions/0022.md).</sub>
 
 <a id="classes-readonly-is-written-once"></a>
 
@@ -327,11 +367,18 @@ narrowest shape — a straight-line or branchy, call-free stretch that reads bef
 nothing about the cross-method, cross-object case `lateinit` exists for, which relies entirely on the
 runtime throw.
 
-Nothing interprocedural is attempted. Whole-program analysis would widen the blast radius of every
-edit under per-file hot reload, for cases that fall through to the runtime throw anyway. This check is
-a bonus, not a safety net to rely on.
+Within that shape the error is as certain as any other definite-assignment error, and it reuses the
+pass the constructor check already runs, so it adds no second analysis. Most real `lateinit` use never
+triggers it: it is a bonus, not a safety net to rely on.
 
-<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0038](../decisions/0038.md), [0022](../decisions/0022.md), [0017](../decisions/0017.md).</sub>
+**Declined:**
+- **Interprocedural or whole-program checking**, tracing which methods can write a `lateinit` property
+  before which read it. Hot reload revalidates one file's compiled unit at a time
+  ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)), and a whole-program analysis
+  would widen every edit's blast radius, for cases that are cross-method by nature and fall through to
+  the runtime throw anyway.
+
+<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0022](../decisions/0022.md), [0017](../decisions/0017.md).</sub>
 
 <a id="classes-no-dynamic-properties"></a>
 
@@ -613,7 +660,7 @@ as it would be without the clause.
 It spends one pointer-sized property per delegated interface per instance, plus the delegate object,
 and that state is an ordinary property a reader can inspect.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0043](../decisions/0043.md), [0022](../decisions/0022.md), [0038](../decisions/0038.md).</sub>
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0043](../decisions/0043.md), [0022](../decisions/0022.md).</sub>
 
 <a id="classes-comparable"></a>
 

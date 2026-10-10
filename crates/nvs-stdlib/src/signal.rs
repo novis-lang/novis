@@ -1,9 +1,8 @@
 //! `Core\Signal` — what a program gets to run when the process is asked to
 //! stop, and nothing else that `pcntl_*` had.
 //!
-//! `rule:core-api/tier-roster` places the class
-//! ([0051](/docs/decisions/0051.md) § 3) in one clause: `fork` is refused, and
-//! what remains is "a narrow `Core\Signal` for graceful shutdown". The spec's
+//! `rule:core-api/tier-roster` places the class in one clause: `fork` is
+//! refused, and what remains is the graceful-shutdown part of `pcntl`. The spec's
 //! § 16 row says the same thing and lists no members, so the surface is the
 //! narrowest one that answers the row — a single registration.
 //!

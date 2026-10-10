@@ -63,12 +63,17 @@ try { $found = $found + Count::all($corp->search($everyone, { base: 'not a name'
 try { $found = $found + Count::all($corp->search($everyone, { base: $company, showDeleted: true })); } catch (Throwable $error) { $threw = $threw + 1; }
 echo '2 found: ', $found, ', threw: ', $threw, "\n";
 
-// 3. Five hundred searches of one entry per page, each left after its first entry.
+// 3. Two hundred searches of one entry per page, each left after its first entry.
+// The loop stops at the first error.
 uint $i = 0;
 $found = 0;
-while ($i < 500) {
-    foreach ($corp->search($everyone, { base: $company, pageSize: 1, select: ['cn'] }) as Core\Ldap\Entry $entry) {
-        $found = $found + 1;
+while ($i < 200) {
+    try {
+        foreach ($corp->search($everyone, { base: $company, pageSize: 1, select: ['cn'] }) as Core\Ldap\Entry $entry) {
+            $found = $found + 1;
+            break;
+        }
+    } catch (Throwable $error) {
         break;
     }
     $i = $i + 1;

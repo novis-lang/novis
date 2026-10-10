@@ -2,4 +2,4 @@
   one per task, and any `NvsStream::poll_read` answering `Pending` files the socket's over whatever a
   body just filed, so the connection wakes at the wait it was to act before. Publish the instant
   through a shared cell and file it from `serve_connection`'s drive loop once the connection future
-  has answered `Pending` — `crate::bounds::wake_at`. [until: gone crates/nvs-host/src/timer.rs:one-timer-per-task]
+  has answered `Pending` — `crate::bounds::wake_at`. See `crates/nvs-host/src/timer.rs`. `until: gone crates/nvs-host/src/timer.rs:one-timer-per-task`

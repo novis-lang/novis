@@ -2,8 +2,7 @@
   "title": "A generator is a lazy sequence and nothing more",
   "status": "shipped",
   "because": [
-    "0053",
-    "0051"
+    "0053"
   ],
   "seeAlso": [
     "iteration/generators",

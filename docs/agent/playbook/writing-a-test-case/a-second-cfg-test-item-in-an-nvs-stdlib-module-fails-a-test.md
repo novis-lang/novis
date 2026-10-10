@@ -2,4 +2,4 @@
   scan rather than your item.** `nvs_stdlib_reaches_the_os_only_through_the_gate` reads each module
   to its first `#[cfg(test)]` and refuses a second, so a test-only helper beside the state it reads
   turns the crate red elsewhere. Put every test-only item in the module's `mod tests`, reaching
-  private state through `super::`. [until: gone crates/nvs-stdlib/tests/capability.rs:more than one]
+  private state through `super::`. See `crates/nvs-stdlib/tests/capability.rs`. `until: gone crates/nvs-stdlib/tests/capability.rs:more than one`

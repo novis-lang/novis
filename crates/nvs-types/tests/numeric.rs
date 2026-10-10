@@ -8,9 +8,10 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-/// ADR 0035: a condition — `if`/`while`/`for`'s middle clause/`?:`/`&&`/
-/// `||`/`!` — accepts any type at all, judged by PHP's full truthy table
-/// at runtime, never `E_TYPE_MISMATCH` for not already being `bool`.
+/// `rule:expressions/truthy-positions`: a condition — `if`/`while`/`for`'s
+/// middle clause/`?:`/`&&`/`||`/`!` — accepts any type at all, judged by
+/// PHP's full truthy table at runtime, never `E_TYPE_MISMATCH` for not
+/// already being `bool`.
 /// `bool`-typed positions elsewhere (a parameter, a property, `== `/`===`)
 /// are unaffected and still need an explicit `as bool` or comparison.
 #[test]

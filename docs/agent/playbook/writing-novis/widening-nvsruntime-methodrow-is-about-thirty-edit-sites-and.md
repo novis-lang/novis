@@ -4,4 +4,4 @@
   struct literal in two dozen test fixtures across five crates. Make the core edits, let `cargo
   build` enumerate the rest, and apply those as one `nv splice --patch` anchored on `param_tags:`
   plus the line under it — `grep -rn "param_tags:"` is the real roster.
-  [until: gone crates/nvs-runtime/src/object.rs:pub struct MethodRow]
+  `until: gone crates/nvs-runtime/src/object.rs:pub struct MethodRow`

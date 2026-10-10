@@ -1,0 +1,13 @@
+{
+  "title": "A `class`, `interface` or `enum` is declared at file scope, or not at all",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "classes/no-free-functions-or-constants",
+    "types/class-scoped-alias"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/a-type-declared-inside-a-body-is-a-compile-error.nvst",
+    "tests/conformance/reject/a-type-alias-declared-inside-a-body-is-refused-by-name.nvst"
+  ]
+}

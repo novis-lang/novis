@@ -4,4 +4,4 @@
   above a section heading under `docs/reference/lang/` or `docs/reference/tools/`, and expect the
   same slice to owe `bun nv reference --no-examples` and `docs/novis.md` in its commit,
   because every chapter edit makes the generated file stale.
-  [until: gone docs/reference/README.md]
+  `until: gone docs/reference/README.md`

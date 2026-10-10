@@ -3,4 +3,4 @@
   `SafepointFlags::MEMORY_LIMIT` at the crossing, so a fixture that grows inside a `while` stops
   inside it; straight-line growth reaches nothing until `run_helper` asks ahead of a member's body.
   Put the loop or the member call where you want the breach reported, and expect nothing printed
-  after the crossing. [until: gone crates/nvs-runtime/src/budget.rs:fn publish]
+  after the crossing. See `crates/nvs-runtime/src/budget.rs`. `until: gone crates/nvs-runtime/src/budget.rs:fn publish`

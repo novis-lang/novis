@@ -2,5 +2,5 @@
   `9223372036854775807` followed by `$a[] = v` trips `Table::append`'s `"the append counter never
   names a live key"` `debug_assert`, and `nvs run` dies mid-file, so every later row is lost and the
   failure reads as the harness. Why that is a crash rather than PHP's `Error` is open work, not a
-  case's to pin.
-  [until: gone crates/nvs-runtime/src/array.rs:the append counter never names a live key]
+  case's to pin. See `crates/nvs-runtime/src/array.rs`.
+  `until: gone crates/nvs-runtime/src/array.rs:the append counter never names a live key`

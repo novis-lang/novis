@@ -2,8 +2,8 @@ import { afterAll, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "../lib/paths.ts";
-import type { Check } from "../driver/accept.ts";
-import { needLine, sharedResources, takeSweepLock } from "../driver/sweep-lock.ts";
+import type { Check } from "../accept/accept.ts";
+import { needLine, sharedResources, takeSweepLock } from "../accept/sweep-lock.ts";
 
 const DIR = join(ROOT, ".agent-tmp", `sweep-lock-test-${process.pid}`);
 mkdirSync(DIR, { recursive: true });

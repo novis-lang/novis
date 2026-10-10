@@ -4,4 +4,4 @@
   with `internal error: reading a value of representation 'void'` — a third outcome
   `crates/nvs-ir/tests/type_atoms.rs` cannot see, because it stops at `lower_program`. Two minutes
   of `nvs run` on a two-line scratch file tells a shape that panics, one that is refused, and one
-  that reaches codegen apart. [until: gone crates/nvs-ir/tests/type_atoms.rs:lower_program]
+  that reaches codegen apart. `until: gone crates/nvs-ir/tests/type_atoms.rs:lower_program`

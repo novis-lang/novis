@@ -1,9 +1,7 @@
 {
   "title": "The CSS subset is documented, and the render result lists every declaration it dropped",
   "status": "designed",
-  "because": [
-    "0121"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/pdf-one-engine",
     "core-classes/spreadsheet-evaluation-and-roster"

@@ -4,4 +4,4 @@
   and no attribute. The last edit of a slice that answers a hole at the checker is to reword the
   assert to state what reached lowering and name the code that refuses it ("… reached lowering: …
   refuses this where it is written, as `E0494`"), or the worklist you quote is one higher than the
-  tree. [until: gone tools/nv/cmd/holes.ts:REFUSAL]
+  tree. `until: gone tools/nv/cmd/holes.ts:REFUSAL`

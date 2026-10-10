@@ -2,5 +2,5 @@
   string key and a reader is a symbol under some other name.** `[limits] max_output` read as "unread
   by anything in the tree" for a whole goal on that evidence, while `Ctx::output_limit` had been
   reading it through `configured_bytes("max_output")` since it landed. Locate a *symbol*; find a
-  directive with `bun nv peek "crates/**/*.rs:re:<key>"`, which reads the string literals too.
-  [until: gone tools/nv/cmd/peek.ts:--locate]
+  directive with `bun nv peek "crates/**/*.rs:re:<key>"`, which reads the string literals too. See `tools/nv/cmd/peek.ts`.
+  `until: gone tools/nv/cmd/peek.ts:--locate`

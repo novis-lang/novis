@@ -21,3 +21,8 @@ spellings of one buffer never disagree.
 Where the static type is a scalar, array, class, `callable` or enum, the compiler knows the row and
 lowers to the matching native test with no dispatch. Only a `mixed` or union condition pays for a
 runtime helper.
+
+The table's own surprises are kept with it: `"0"` is falsy while `"0.0"` and `"false"` are truthy,
+and an array of falsy elements is truthy. Code review, not the compiler, catches a condition that
+meant something else. A ported program that treats `"0.0"` as falsy has a bug of its own, since
+PHP never did either.

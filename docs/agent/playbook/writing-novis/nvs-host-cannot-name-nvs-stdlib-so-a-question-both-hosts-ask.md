@@ -3,4 +3,4 @@
   spelling `nvs_stdlib::…` is unreachable from `crates/nvs-host/src/`, and the error reads like a
   missing manifest line rather than like the cycle it would be. Move the predicate and its constant
   down to `nvs-runtime`, and leave a `pub use` in the stdlib module so callers outside the host keep
-  their spelling. [until: gone crates/nvs-stdlib/Cargo.toml:nvs-host.workspace]
+  their spelling. `until: gone crates/nvs-stdlib/Cargo.toml:nvs-host.workspace`

@@ -103,7 +103,7 @@ question ([`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](ob
 without one still accumulates into the per-core registry, so behaviour is identical across builds
 except for the export path. A program that never calls it and serves no requests holds zero series.
 
-<sub>See also [`observability/a-name-is-fixed-to-one-kind`](observability.md#observability-a-name-is-fixed-to-one-kind), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse). Decided in [0076](../decisions/0076.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`observability/a-name-is-fixed-to-one-kind`](observability.md#observability-a-name-is-fixed-to-one-kind), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse). Decided in [0076](../decisions/0076.md).</sub>
 
 <a id="observability-default-series"></a>
 
@@ -525,7 +525,7 @@ program that calls it holds a registry nothing will ever read, bounded and tiny,
 is worse. It is the same split the Core roster already uses for `Core\Cache`'s Redis backend, where
 the class is always there and the driver is a feature.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates). Decided in [0076](../decisions/0076.md), [0051](../decisions/0051.md), [0048](../decisions/0048.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`observability/metrics-three-members`](observability.md#observability-metrics-three-members), [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates). Decided in [0076](../decisions/0076.md), [0048](../decisions/0048.md).</sub>
 
 <a id="observability-the-exporters-are-crates"></a>
 

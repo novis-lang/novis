@@ -24,18 +24,17 @@
 // registry in `crates/nvs-diagnostics/src/lib.rs` gives its constant, and `no-such-constant` for one it
 // does not declare. `crates/nvs-ir/tests/refusals.rs` holds each code to a conformance case.
 //
-// The items are the live goal's numbered items in its prose, `docs/agent/goals/<slug>.md`, and the
+// The items are the live goal's numbered items in its goal file, `docs/goals/<slug>.md`, and the
 // carried ones in `docs/agent/carried-refusals.md`, which number from 900. A site belongs to the item
 // that names its enclosing function in backticks, or else to the item with the nearest `crates/…:NN`
 // anchor in the same file; a site neither claims is unattributed. The named cases are the `cases`
-// lists of the live goal's checks, in `data/goals/<slug>.json`. Nothing here is a gate.
+// lists of the live goal's checks, in the same file's front matter. Nothing here is a gate.
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { liveGoal } from "../lib/chain.ts";
+import { goalPlan, liveGoal } from "../lib/chain.ts";
 import { ROOT } from "../lib/paths.ts";
-import { loadFile } from "../lib/store.ts";
-import { goal as goalType } from "../schema/goal.ts";
+
 
 export const summary = "the shapes the language still refuses: nv holes [--item N | --unattributed | --cases | --sites | --guarded | --json]";
 
@@ -277,9 +276,8 @@ function goalProse(): string | null {
 
 function namedCases(): Case[] {
   const live = liveGoal();
-  const path = live === null ? "" : `data/goals/${live.slug}.json`;
-  if (live === null || !existsSync(join(ROOT, path))) return [];
-  const goal = loadFile(goalType, path).value;
+  const goal = live === null ? null : goalPlan(live.slug);
+  if (goal === null) return [];
   const labels = new Map(goal.stages.map((s) => [s.number, `${s.number} ${s.title}`]));
   return goal.checks.flatMap((check) =>
     (check.cases ?? []).map((path) => ({

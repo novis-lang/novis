@@ -28,7 +28,7 @@ point in the same block, so a counter in the header costs nothing in time or spa
 work and neither is rewritten into the other; a counter read after its loop, or shared by two loops,
 is the case that still wants the declaration above.
 
-<sub>See also [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../decisions/0109.md), [0007](../decisions/0007.md), [0037](../decisions/0037.md).</sub>
+<sub>See also [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../decisions/0109.md), [0007](../decisions/0007.md).</sub>
 
 <a id="iteration-for-counter-scope"></a>
 
@@ -227,7 +227,7 @@ coroutines already and they are not spelled `yield`.
 
 `yield` is a statement, so it produces no value to consume.
 
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement). Decided in [0053](../decisions/0053.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement). Decided in [0053](../decisions/0053.md).</sub>
 
 <a id="iteration-yield-lexical-confinement"></a>
 

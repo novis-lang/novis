@@ -2,8 +2,7 @@
   "title": "A stored password hash is read from a roster of exactly two shapes, and the roster grows only by amendment",
   "status": "shipped",
   "because": [
-    "0129",
-    "0051"
+    "0129"
   ],
   "seeAlso": [
     "security/hash-writes-argon2id-only",

@@ -4,4 +4,4 @@
   makes the client fail where a case wanted it to re-dial, and the failure reads as a broken handshake
   rather than as a script that never reached the reconnect. Answer once, drop the socket, and assert on
   what the second command put on the second connection.
-  [until: gone crates/nvs-stdlib/src/cache/redis.rs:failure.sent && replay]
+  `until: gone crates/nvs-stdlib/src/cache/redis.rs:failure.sent && replay`

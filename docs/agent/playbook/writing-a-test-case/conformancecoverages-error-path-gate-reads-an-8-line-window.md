@@ -4,5 +4,5 @@
   its call site wrote, and a leading paragraph covering all three reaches only the first —
   `every_error_path_is_asserted_or_declared_unreachable` then names one line and reads like a
   missing case. Write "unreachable from source" plus the diagnostic that refuses the call
-  directly above **each** guard.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:DECLARATION_WINDOW]
+  above **each** guard. See `crates/nvs-stdlib/tests/conformance_coverage.rs`.
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:DECLARATION_WINDOW`

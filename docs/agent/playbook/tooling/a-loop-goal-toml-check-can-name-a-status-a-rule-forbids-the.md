@@ -4,4 +4,4 @@
   the program's decision over the table's answer. When a check name carries a wire-level effect (a
   status, a header, a close), find who may emit it before writing the test, and move the check to
   the crate owning the computation (`crates/nvs-runtime/src/routes.rs` here) with a sentence in the
-  goal's prose saying why the name is not a claim about who sends it. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  goal's prose saying why the name is not a claim about who sends it. `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

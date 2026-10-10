@@ -4,4 +4,4 @@
   (`crates/nvs-config/src/snapshot.rs:158`), so a block is readable only through its `[app.limits]`
   and `[app.capabilities]` — as `limits.*` and `capabilities.*`, never under an `app.` prefix. Show
   a block through one of those, or through behaviour the way `examples/routes.nvs` does.
-  [until: gone crates/nvs-config/src/snapshot.rs:table.remove("app")]
+  `until: gone crates/nvs-config/src/snapshot.rs:table.remove("app")`

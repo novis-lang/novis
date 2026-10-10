@@ -4,4 +4,4 @@
   nvs-stdlib` green and turns two `-p nvs-lsp` tests red, naming
   `rule:ide/stdout-belongs-to-the-protocol` rather than the member you were writing. Build a test
   context as `Ctx::new(OutputSink::Sink)`, which is what every other `nvs-stdlib` unit test already
-  does. [until: gone crates/nvs-lsp/tests/stdout_policy.rs]
+  does. `until: gone crates/nvs-lsp/tests/stdout_policy.rs`

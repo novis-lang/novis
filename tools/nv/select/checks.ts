@@ -12,7 +12,7 @@
 // | `bun test <file>` of the tools | `nvtest:<file>` | that file |
 // | any other `bun nv` command | `nv:<id>` | the command, its reads recorded |
 // | any other command | `check:<id>` | the command, recorded |
-// | a heavy check (`driver/accept.ts` `isHeavy`) | `heavy:<id>` | the command, with the floor gate open |
+// | a heavy check (`accept/accept.ts` `isHeavy`) | `heavy:<id>` | the command, with the floor gate open |
 //
 // The atoms a test binary, a case, a test file or a proof program is are shared with `nv verify` and
 // `nv proofs`, so a run of any one of them answers all three. A check's own atom (`check:`, `nv:`,
@@ -44,7 +44,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sqliteLeg } from "../cmd/db-matrix.ts";
-import { type Check, heavyRole, isHeavy, PROGRAM_KINDS, proofGroups, subsetRun } from "../driver/accept.ts";
+import { type Check, heavyRole, isHeavy, PROGRAM_KINDS, proofGroups, subsetRun } from "../accept/accept.ts";
 import { allTestBinaries, dependencySet, type Graph, testBinaries } from "../keys/graph.ts";
 import { digest } from "../keys/scan.ts";
 import { abs, ROOT } from "../lib/paths.ts";
@@ -445,7 +445,7 @@ export function legAtoms(plan: Check[], groups: Map<string, Grouped>): string[] 
 }
 
 /** What a leg's own atom holds: code only Linux compiles, and the modules that run the legs. */
-export const LEG_KEYS = [PLATFORM_ONLY, "mod:tools/nv/driver/legs.ts", "mod:tools/nv/driver/mirror.ts"];
+export const LEG_KEYS = [PLATFORM_ONLY, "mod:tools/nv/accept/legs.ts", "mod:tools/nv/accept/mirror.ts"];
 
 /**
  * The workspace packages a heavy check builds: what fuzz and TSan are keyed on, and what a check whose

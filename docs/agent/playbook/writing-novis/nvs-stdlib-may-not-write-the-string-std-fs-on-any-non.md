@@ -4,4 +4,4 @@
   operating system directly" about a line that reaches nothing. Spell the type
   `nvs_runtime::capability::Metadata`, convert a `TryLockError` through `std::io::Error`'s
   `ErrorKind::WouldBlock`, and keep `std::fs` to `//` lines.
-  [until: gone crates/nvs-stdlib/tests/capability.rs:nvs_stdlib_reaches_the_os_only_through]
+  `until: gone crates/nvs-stdlib/tests/capability.rs:nvs_stdlib_reaches_the_os_only_through`

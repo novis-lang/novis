@@ -10,7 +10,8 @@
 // | `keys` | every key any footprint holds, numbered, with the digest it had when last recorded |
 // | `footprint` | `(key, atom)`: the reverse index a selection reads, keyed on the key |
 // | `items` | each Rust file's items as `nv-scan --items` read them at the base tree, per platform |
-// | `verdicts` | a slot's digest and verdict, for the memos this store replaces |
+// | `verdicts` | a slot's digest and verdict, for the memos this store replaces, and each judged verdict a run has not recorded yet (`judged:<platform>:<atom>`) |
+// | `trees` | each tree an atom's last run was taken at, per platform: its commit and overlay, the items of its overlay's Rust files and what the proof scans read of its overlay paths |
 //
 // An atom is `<kind>:<name>`: `case:tests/conformance/a.nvst`, `proof:docs/examples/.../01-x.nvs`,
 // `test:nvs-cli test footprint`, `nv:<check id>`, `nvtest:<file>` for one `bun test` file of the tools,
@@ -26,6 +27,15 @@
 //
 // An atom's own key list is kept as a blob of key numbers beside the reverse index, so a new run can
 // replace or widen one atom's footprint by point writes rather than a scan of the whole index.
+//
+// A run counts the moment it is recorded. The selection a run makes names the tree it was taken at
+// (`runAt`), and every run recorded through this store from then on stamps its atom with that tree
+// (`settled`, a row of `trees`, written in the same transaction as the run). The selection then reads a
+// stamped atom against the change since its own tree, not since the base, so a run killed halfway
+// loses only the atoms still running. Moving the base clears every stamp it covers and deletes every
+// tree no atom is stamped at, so `trees` holds at most one row per atom and never grows with the
+// number of runs. A judged verdict is kept the same way, keyed by its atom and the tree it was judged
+// at, until the atom's run is recorded.
 
 import { Database, type Statement } from "bun:sqlite";
 import { mkdirSync, statSync } from "node:fs";
@@ -97,13 +107,28 @@ const DDL = `
     judged_ms INTEGER NOT NULL DEFAULT 0,
     recorded_ms INTEGER NOT NULL DEFAULT 0,
     owed_items TEXT NOT NULL DEFAULT '',
+    settled INTEGER NOT NULL DEFAULT 0,
     UNIQUE (id, platform)
   );
   CREATE TABLE IF NOT EXISTS keys (n INTEGER PRIMARY KEY, key TEXT NOT NULL UNIQUE, digest TEXT NOT NULL DEFAULT '');
   CREATE TABLE IF NOT EXISTS footprint (key INTEGER NOT NULL, atom INTEGER NOT NULL, PRIMARY KEY (key, atom)) WITHOUT ROWID;
   CREATE TABLE IF NOT EXISTS items (platform TEXT NOT NULL, file TEXT NOT NULL, raw TEXT NOT NULL, json TEXT NOT NULL, PRIMARY KEY (platform, file));
   CREATE TABLE IF NOT EXISTS verdicts (slot TEXT PRIMARY KEY, digest TEXT NOT NULL, verdict TEXT NOT NULL DEFAULT '', at INTEGER NOT NULL);
+  CREATE TABLE IF NOT EXISTS trees (n INTEGER PRIMARY KEY, platform TEXT NOT NULL, sig TEXT NOT NULL, tree TEXT NOT NULL, UNIQUE (platform, sig));
 `;
+
+/** A tree an atom's last run was taken at, as `trees` keeps it: the commit and overlay, the items of
+ * every Rust file of the overlay that was on disk then, and what the proof scans read of each overlay
+ * path (`select.ts` `recordOverlayMarkers`). A Rust file of the overlay with no items here is unknown. */
+export interface RunTree {
+  commit: string;
+  overlay: Overlay;
+  items: FileItems[];
+  markers: Record<string, unknown>;
+}
+
+/** The slot a judged verdict not recorded yet is kept in. */
+const judgedSlot = (platform: string, id: string) => `judged:${platform}:${id}`;
 
 /** A footprint as it is recorded: each key with the digest it had, `""` where a key has none. */
 export type Keyed = Map<string, string>;
@@ -117,6 +142,9 @@ export class SelectStore {
   private readonly statements = new Map<string, Statement>();
   private keyIds = new Map<string, number>();
   private keyDigests = new Map<string, string>();
+  /** The tree runs recorded through this store are taken at (`runAt`), and the row kept for it, made
+   * once and only when a run is first recorded. */
+  private at: { sig: string; row: () => RunTree; json: string | null } | null = null;
 
   constructor(
     readonly file: string = storeFile(),
@@ -133,7 +161,7 @@ export class SelectStore {
     const schema = this.tryMeta("schema");
     if (schema !== null && schema !== SCHEMA) {
       // A store of another layout is read by nothing here; dropping it costs a reseed, never a wrong answer.
-      for (const t of ["meta", "atoms", "keys", "footprint", "items", "verdicts"]) this.db.exec(`DROP TABLE IF EXISTS ${t}`);
+      for (const t of ["meta", "atoms", "keys", "footprint", "items", "verdicts", "trees"]) this.db.exec(`DROP TABLE IF EXISTS ${t}`);
     }
     this.db.exec(DDL);
     this.addColumns();
@@ -144,7 +172,7 @@ export class SelectStore {
    * that exists by the time this one adds it is the same column. */
   private addColumns(): void {
     const have = new Set((this.db.query("PRAGMA table_info(atoms)").all() as { name: string }[]).map((c) => c.name));
-    for (const [col, type] of [["judged_ms", "INTEGER NOT NULL DEFAULT 0"], ["recorded_ms", "INTEGER NOT NULL DEFAULT 0"], ["owed_items", "TEXT NOT NULL DEFAULT ''"]] as const) {
+    for (const [col, type] of [["judged_ms", "INTEGER NOT NULL DEFAULT 0"], ["recorded_ms", "INTEGER NOT NULL DEFAULT 0"], ["owed_items", "TEXT NOT NULL DEFAULT ''"], ["settled", "INTEGER NOT NULL DEFAULT 0"]] as const) {
       if (have.has(col)) continue;
       try {
         this.db.exec(`ALTER TABLE atoms ADD COLUMN ${col} ${type}`);
@@ -236,6 +264,100 @@ export class SelectStore {
     } catch (e) {
       if (this.db.inTransaction) this.db.exec("ROLLBACK");
       throw e;
+    }
+  }
+
+  // ---- trees ---------------------------------------------------------------------------------------
+
+  /** Takes every run recorded through this store from here on as run on the tree `sig` names. `row`
+   * gives what `trees` keeps for it, and is called only when the first run is recorded. */
+  runAt(sig: string, row: () => RunTree): void {
+    if (this.at?.sig !== sig) this.at = { sig, row, json: null };
+  }
+
+  /** The signature of the tree runs are taken at, or null when no selection named one. */
+  runSig(): string | null {
+    return this.at?.sig ?? null;
+  }
+
+  /** The row of the tree runs are taken at, made when it is missing; 0 when no selection named one. It
+   * is read again each time, so a row another process deleted is made again. */
+  private stamp(): number {
+    if (!this.at) return 0;
+    const got = this.stmt("SELECT n FROM trees WHERE platform = ? AND sig = ?").get(this.platform, this.at.sig) as { n: number } | null;
+    if (got) return got.n;
+    this.at.json ??= JSON.stringify(this.at.row());
+    return (this.stmt("INSERT INTO trees (platform, sig, tree) VALUES (?, ?, ?) RETURNING n").get(this.platform, this.at.sig, this.at.json) as { n: number }).n;
+  }
+
+  /** The row number of the tree `sig` names, or null when no atom was ever stamped with it. */
+  treeN(sig: string): number | null {
+    const r = this.stmt("SELECT n FROM trees WHERE platform = ? AND sig = ?").get(this.platform, sig) as { n: number } | null;
+    return r?.n ?? null;
+  }
+
+  /** Each atom on this platform stamped with a tree, with the tree's row number. */
+  stamps(): Map<string, number> {
+    const rows = this.stmt("SELECT id, settled FROM atoms WHERE platform = ? AND settled != 0").all(this.platform) as { id: string; settled: number }[];
+    return new Map(rows.map((r) => [r.id, r.settled]));
+  }
+
+  /** Each tree an atom on this platform is stamped with, with its signature and what `trees` keeps for
+   * it; null for a tree whose row is gone or does not read. */
+  stampTrees(): Map<number, { sig: string; tree: RunTree } | null> {
+    const rows = this.stmt("SELECT DISTINCT a.settled AS n, t.sig AS sig, t.tree AS tree FROM atoms a LEFT JOIN trees t ON t.n = a.settled WHERE a.platform = ? AND a.settled != 0").all(this.platform) as { n: number; sig: string | null; tree: string | null }[];
+    const out = new Map<number, { sig: string; tree: RunTree } | null>();
+    for (const r of rows) {
+      let tree: RunTree | null = null;
+      try {
+        tree = r.tree === null ? null : (JSON.parse(r.tree) as RunTree);
+      } catch {
+        tree = null;
+      }
+      out.set(r.n, tree && r.sig !== null ? { sig: r.sig, tree } : null);
+    }
+    return out;
+  }
+
+  /** Clears the stamp of each atom on this platform `drop` names; returns how many it cleared. */
+  unstamp(drop: (id: string, n: number) => boolean): number {
+    let cleared = 0;
+    const q = this.stmt("UPDATE atoms SET settled = 0 WHERE id = ? AND platform = ? AND settled = ?");
+    this.transaction(() => {
+      for (const [id, n] of this.stamps()) if (drop(id, n)) cleared += q.run(id, this.platform, n).changes;
+    });
+    return cleared;
+  }
+
+  /** Deletes every tree of this platform no atom is stamped with, and every judged verdict of this
+   * platform not taken at the tree `keep` names. */
+  dropStale(keep: string): void {
+    this.transaction(() => {
+      this.stmt("DELETE FROM trees WHERE platform = ? AND n NOT IN (SELECT settled FROM atoms WHERE platform = ? AND settled != 0)").run(this.platform, this.platform);
+      for (const [slot, v] of this.verdictsWithPrefix(judgedSlot(this.platform, ""))) if (!v.digest.startsWith(`${keep}|`)) this.deleteVerdict(slot);
+    });
+  }
+
+  /** The key a verdict judged now is kept under: the tree runs are taken at, then `tag`, which names
+   * what else the verdict depends on. Null when no selection named a tree. */
+  judgedKey(tag: string): string | null {
+    return this.at ? `${this.at.sig}|${tag}` : null;
+  }
+
+  /** Keeps a judged verdict of `id` that no run has recorded yet, under `key` (`judgedKey`). Recording
+   * a run of `id` deletes it. */
+  putJudged(id: string, key: string, value: unknown): void {
+    this.putVerdict(judgedSlot(this.platform, id), key, JSON.stringify(value));
+  }
+
+  /** The judged verdict of `id` kept under `key`, or null when none is. */
+  judged<T>(id: string, key: string): T | null {
+    const v = this.verdict(judgedSlot(this.platform, id));
+    if (v === null || v.digest !== key) return null;
+    try {
+      return JSON.parse(v.verdict) as T;
+    } catch {
+      return null;
     }
   }
 
@@ -360,8 +482,9 @@ export class SelectStore {
       for (const k of ids) if (fresh || !oldSet.has(k)) ins.run(k, n);
       const sorted = [...ids].sort((a, b) => a - b);
       this.db
-        .query("UPDATE atoms SET def = ?, verdict = ?, last_run = ?, nkeys = ?, keys = ?, owed_items = '' WHERE n = ?")
-        .run(run.def, run.verdict, run.at ?? Date.now(), sorted.length, pack(sorted), n);
+        .query("UPDATE atoms SET def = ?, verdict = ?, last_run = ?, nkeys = ?, keys = ?, owed_items = '', settled = ? WHERE n = ?")
+        .run(run.def, run.verdict, run.at ?? Date.now(), sorted.length, pack(sorted), this.stamp(), n);
+      this.deleteVerdict(judgedSlot(this.platform, id));
     });
   }
 
@@ -387,9 +510,11 @@ export class SelectStore {
     return new Map(rows.map((r) => [r.id, { judged: r.judged_ms, recorded: r.recorded_ms }]));
   }
 
-  /** Sets an atom's verdict without touching its footprint. */
+  /** Sets an atom's verdict without touching its footprint, stamped with the tree runs are taken at. */
   setVerdict(id: string, verdict: Verdict): void {
-    this.stmt("UPDATE atoms SET verdict = ?, last_run = ?, owed_items = '' WHERE id = ? AND platform = ?").run(verdict, Date.now(), id, this.platform);
+    this.transaction(() => {
+      this.stmt("UPDATE atoms SET verdict = ?, last_run = ?, owed_items = '', settled = ? WHERE id = ? AND platform = ?").run(verdict, Date.now(), this.stamp(), id, this.platform);
+    });
   }
 
   /** Marks each known atom of `ids` owed, keeping a red one red; returns how many it marked. An atom

@@ -9,7 +9,7 @@ A child that exited by itself before the program ended is no error, even though 
 
 string $path = "/bin/echo";
 array<string> $arguments = ["done"];
-if (Core\Path::SEPARATOR == "\\") {
+if (Core\Env::OS == "Windows") {
     $path = "C:\\Windows\\System32\\cmd.exe";
     $arguments = ["/c", "echo done"];
 }

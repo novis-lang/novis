@@ -3,4 +3,4 @@
   `benches/abi-probe/tests/` are the ABI and cost-class guards, a workspace member the goal names
   like any other, and the only tests outside those two roots. Grep `fn <name>` from the repository
   root, or you will file a slice to write a test that already exists.
-  [until: gone benches/abi-probe/tests/perf_guards.rs]
+  `until: gone benches/abi-probe/tests/perf_guards.rs`

@@ -3,7 +3,6 @@
   `require` graph out of an appended payload, so the path handed to `nvs run` is synthetic — and
   `nvs_config::Snapshot::build` canonicalizes that same path through `trust::canonical` to key
   `rule:config/an-application-is-its-entry-file-path`'s `[[app]]` blocks, refusing the run with
-  `E0605` after the program compiled cleanly (`run_run` now substitutes the executable's own path,
-  since a bundle is one trust domain). Before changing a byte source, `grep -n
-  'canonicalize\|read_to_string' crates/` for the other readers; only one of them is in `nvs-hir`.
-  [until: gone crates/nvs-cli/src/main.rs:trust::canonical]
+  `E0605` after the program compiled cleanly. Before changing a byte source, `grep -n
+  'canonicalize\|read_to_string' crates/` for the other readers.
+  `until: gone crates/nvs-cli/src/main.rs:trust::canonical`

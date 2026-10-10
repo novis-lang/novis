@@ -4,4 +4,4 @@
   `defmt`'s `links` is Cargo's one-version token rather than a native library. An enumeration is a
   **signal** and the ledger entry is the finding: a `no-native-code` verdict resting on a feature
   names it in `C_DEPENDENCIES`'s `requires` column, and the crate's own `Cargo.toml` comment settles
-  each in one look. [until: gone tools/nv/cmd/gen-attribution.ts:C_DEPENDENCIES]
+  each in one look. `until: gone tools/nv/cmd/gen-attribution.ts:C_DEPENDENCIES`

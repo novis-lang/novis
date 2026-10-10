@@ -4,4 +4,4 @@
   an item's body runs to the *next* item mark, all of its anchors are absorbed by the item above —
   `--unattributed` drops to 0 and the gate goes green over a fiction. `bun nv holes --item N` is the
   check; it prints "no item N" for the item you just wrote.
-  [until: gone tools/nv/cmd/holes.ts:(.+?)\*\*/gm]
+  `until: gone tools/nv/cmd/holes.ts:(.+?)\*\*/gm`

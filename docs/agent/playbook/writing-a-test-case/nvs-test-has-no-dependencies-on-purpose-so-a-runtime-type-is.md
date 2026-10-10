@@ -3,4 +3,4 @@
   tests failing. A slice asked to route the `.nvst` sections through a runtime type routes them
   through the `.nvsr` *file* instead, whose one reader is `inbound_from` in
   `crates/nvs-cli/src/main.rs`, and names the other writer where the derivation is duplicated.
-  [until: gone crates/nvs-test/Cargo.toml:No dependencies on purpose]
+  `until: gone crates/nvs-test/Cargo.toml:No dependencies on purpose`

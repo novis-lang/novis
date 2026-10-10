@@ -1851,7 +1851,7 @@ fn json_reachable(
         | Ty::False
         | Ty::SingleValueString(_)
         | Ty::SingleValueInt(_) => true,
-        // ADR 0010: an enum travels as its backing value, range-checked on
+        // `rule:enums/representation`: an enum travels as its backing value, range-checked on
         // the way back in.
         Ty::Enum(..) | Ty::EnumCase(..) => true,
         // `rule:types/object-top`'s inline shape, and `array<T>`, both

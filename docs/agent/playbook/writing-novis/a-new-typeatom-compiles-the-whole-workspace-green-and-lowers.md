@@ -2,4 +2,4 @@
   `nvs_types::lower`'s atom match ends in `_ => env.interner.mixed()`, so the type parses, every
   declaration slot accepts it and every value in it is unchecked — a loosening no test asks about.
   Add the `nvs_types::ty::Ty` variant in the same slice; its exhaustive matches then name every arm
-  to write. [until: gone crates/nvs-types/src/lower.rs:_ => env.interner.mixed(),]
+  to write. See `crates/nvs-types/src/lower.rs`. `until: gone crates/nvs-types/src/lower.rs:_ => env.interner.mixed(),`

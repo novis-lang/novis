@@ -4,4 +4,4 @@
   next instruction dereferences, not a panic a test log would show. `ReceiverProof` in
   `crates/nvs-ir/src/lower/expr.rs` is the switch; put the check in the runtime helper that already
   checks the *name*, not in a fallible untag, which would need the receiver staged as an owned
-  temporary first. [until: gone crates/nvs-ir/src/lower/expr.rs:ReceiverProof]
+  temporary first. `until: gone crates/nvs-ir/src/lower/expr.rs:ReceiverProof`

@@ -15,6 +15,11 @@
 // is green, and moving the base can lose nothing. An atom that ran red stays `red`, selected again.
 // `owed` is written over whatever verdict the store holds, so an atom another process ran green after
 // this run read its selection is owed too and runs once more: a concurrent run costs a run, never a miss.
+//
+// A run counts before `advance`: `record` writes each atom's run the moment it ends, stamped with the
+// tree the run's selection was read at (`store.ts`), so a run that is killed, times out or crashes
+// loses only the atoms still running, and the next selection reads each stamped atom against the change
+// since its own tree. `advance` then clears the stamps the new base covers (`settle`).
 
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { cpus } from "node:os";
@@ -28,7 +33,7 @@ import { run } from "../lib/proc.ts";
 import { recordName } from "../proofs/run.ts";
 import { caseDef, caseId, treeOf } from "./atoms.ts";
 import { buildScripts, type Generated, generatedDigest, generatedIncludes, generatedMeta } from "./build.ts";
-import { snapshot } from "./change.ts";
+import { snapshot, treeSig } from "./change.ts";
 import { CovMap, type Extracted, extract, ItemIndex, type Recorded, recordedIn, recordsIn } from "./extract.ts";
 import { fileWild, fnKey, WILD } from "./keys.ts";
 import { type ChangeSet, changedItems, embedders, graphScope, recordOverlayMarkers, rustFiles, type Selection } from "./select.ts";
@@ -272,7 +277,41 @@ export interface CaseRun {
   verdicts: Map<string, Verdict>;
   /** Each case that passed and left no recording, which makes it red. */
   unrecorded: string[];
+  /** Each red case, with why it is red and what its batch's `nvs test` ended with (`redReason`). */
+  reds: Map<string, string>;
   processes: number;
+}
+
+const NO_RECORDING = "it left no recording";
+
+/** Why one case of a batch is red, or null when it is green: the verdict and its reason are one test. */
+export function redReason(c: { failed: boolean; recorded: boolean; skipped: boolean; timedOut: boolean; counted: boolean }): string | null {
+  if (c.failed) return "it failed";
+  if (!c.recorded && !c.skipped) return NO_RECORDING;
+  if (c.timedOut) return "its batch ran out of time";
+  if (!c.counted) return "its batch printed no count line";
+  return null;
+}
+
+/**
+ * The lines that name each red case the output does not already explain: a red case is explained by its
+ * `FAIL` line or by the list of passed cases that left no recording. Every other red case is listed with
+ * its reason, grouped by reason, so a step that is red while every case passed says why.
+ */
+export function unexplainedReds(got: CaseRun): string {
+  const failed = caseLabels(got.out, "FAIL");
+  const lost = new Set(got.unrecorded);
+  const byWhy = new Map<string, string[]>();
+  for (const [path, v] of got.verdicts) {
+    if (v !== "red" || failed.has(path) || lost.has(path)) continue;
+    const why = got.reds.get(path) ?? "no reason was kept";
+    (byWhy.get(why) ?? byWhy.set(why, []).get(why)!).push(path);
+  }
+  if (byWhy.size === 0) return "";
+  const n = [...byWhy.values()].reduce((a, xs) => a + xs.length, 0);
+  const out = [`${n} case(s) are red, and nothing above says why:`];
+  for (const [why, paths] of byWhy) out.push(`  ${paths.length}: ${why}: ${few(paths, 3)}`);
+  return out.join("\n") + "\n";
 }
 
 /** What one batch of `recordCases` lost: the passed cases that left no recording, and what the case
@@ -287,6 +326,9 @@ export interface LostBatch {
   /** How many atoms the listing at extraction time held, and the error it threw, if it threw one. */
   listed: number;
   listError: string | null;
+  /** The lost cases the listing at extraction time holds when each is looked up again: a case here was
+   * listed, and the lookup that judged it missed it. */
+  relooked: string[];
   /** Whether the `nvs test` parent left a recording. */
   parent: boolean;
   /** "exists", "missing", or what reading the directory's status threw. */
@@ -298,14 +340,16 @@ export interface LostBatch {
 
 const few = (xs: string[], n: number): string => xs.slice(0, n).join(", ") + (xs.length > n ? ` (+${xs.length - n} more)` : "");
 
-/** The few lines a batch with lost recordings adds to the step's output. When the second listing finds a
- * recording of a lost case, it says so: the first listing missed a file that was there. */
+/** The few lines a batch with lost recordings adds to the step's output. When the first listing holds a
+ * lost case under a second lookup, it says so: the lookup missed, not the listing. When the second
+ * listing finds a recording of a lost case, it says so: the first listing missed a file that was there. */
 export function lostBlock(b: LostBatch): string {
   const out = [
     `coverage lost: batch ${b.index}/${b.batches} of ${b.tree} (${b.size} cases): ${b.lost.length} passed case(s) left no recording`,
     `  cases: ${few(b.lost, 3)}`,
     `  at extraction: ${b.listError ? `listing threw ${b.listError}` : `${b.listed} recorded atom(s) listed`}; parent recorded: ${b.parent ? "yes" : "no"}; directory: ${b.dir}`,
   ];
+  if (b.relooked.length > 0) out.push(`  ${b.relooked.length} of the ${b.lost.length} are in that listing when looked up again, so the lookup missed names it held: ${few(b.relooked, 3)}`);
   if (typeof b.fresh === "string") out.push(`  listed again: threw ${b.fresh}`);
   else {
     const profraws = b.fresh.filter((f) => f.endsWith(".profraw")).length;
@@ -350,8 +394,10 @@ const CASES_RE = /(\d+) passed, (\d+) failed, (\d+) skipped/;
  * Runs `cases` through `nvs test --cases <list> --record <dir>`, one tree and one batch at a time, and
  * records every case. The `nvs test` parent is recorded too, and what it ran is part of every case of
  * its batch; its listings of the tree are not, since what else a tree holds decides nothing about one
- * case's verdict. A case that failed, that left no record and was not skipped, or whose batch ran out
- * of time is red. A batch with a passed case that left no record adds `lostBlock`'s lines to the output.
+ * case's verdict. A case is red for the reason `redReason` gives: it failed, it left no record and was
+ * not skipped, or its batch ran out of time or printed no count line. Each case's record is looked up
+ * once per batch, and both its verdict and the batch's lost list are read from that one lookup, so a
+ * batch with a passed case red for a missing record always adds `lostBlock`'s lines to the output.
  */
 export async function recordCases(
   r: Recorder,
@@ -362,7 +408,7 @@ export async function recordCases(
   const root = o.root ?? ROOT;
   const byTree = new Map<string, string[]>();
   for (const f of cases) (byTree.get(treeOf(f)) ?? byTree.set(treeOf(f), []).get(treeOf(f))!).push(f);
-  const result: CaseRun = { out: "", passed: 0, failed: 0, skipped: 0, verdicts: new Map(), unrecorded: [], processes: 0 };
+  const result: CaseRun = { out: "", passed: 0, failed: 0, skipped: 0, verdicts: new Map(), unrecorded: [], reds: new Map(), processes: 0 };
   let done = 0;
   for (const [tree, all] of byTree) {
     const batches = chunks(all, o.batch ?? 64);
@@ -402,13 +448,19 @@ export async function recordCases(
       } catch (e) {
         listError = errText(e);
       }
-      const lost = p.timedOut || !counts ? [] : batch.filter((path) => !recorded.has(recordName(path)) && !failed.has(path) && !skipped.has(path));
+      // One lookup per case, before any extraction starts: the verdict and the lost list are both read
+      // from it, so a case red for a missing recording is always one the lost block names.
+      const found = new Map(batch.map((path) => [path, recorded.get(recordName(path)) ?? null]));
+      const reasons = new Map(batch.map((path) => [path, redReason({ failed: failed.has(path), recorded: found.get(path) !== null, skipped: skipped.has(path), timedOut: p.timedOut, counted: !!counts })]));
+      const lost = p.timedOut || !counts ? [] : batch.filter((path) => reasons.get(path) === NO_RECORDING);
       await pool(batch, o.jobs, async (path) => {
-        const got = recorded.get(recordName(path));
+        const got = found.get(path) ?? null;
         const ext = got ? await r.extract(got, [nvs]) : null;
         const keys: Keyed = new Map(parentKeys);
         for (const [k, d] of ext?.keys ?? []) keys.set(k, d);
-        const verdict: Verdict = failed.has(path) || (!got && !skipped.has(path)) || p.timedOut || !counts ? "red" : "green";
+        const why = reasons.get(path) ?? null;
+        const verdict: Verdict = why === null ? "green" : "red";
+        if (why !== null) result.reds.set(path, `${why} (batch ${index + 1}/${batches.length} of ${tree}: exit ${p.code}, ${p.stderr.length} byte(s) on stderr, ${recorded.size} recorded)`);
         r.record(caseId(path), caseDef(path, root), verdict, keys);
         r.store.putVerdict(caseSkipSlot(path), "", skipped.has(path) ? "skip" : "");
         result.verdicts.set(path, verdict);
@@ -422,7 +474,8 @@ export async function recordCases(
           fresh = errText(e);
         }
         result.unrecorded.push(...lost);
-        result.out += lostBlock({ tree, index: index + 1, batches: batches.length, size: batch.length, lost, listed: recorded.size, listError, parent: !!parentRec, dir: dirState(dir), fresh });
+        const relooked = lost.filter((path) => recorded.has(recordName(path)));
+        result.out += lostBlock({ tree, index: index + 1, batches: batches.length, size: batch.length, lost, listed: recorded.size, listError, relooked, parent: !!parentRec, dir: dirState(dir), fresh });
       }
       done += batch.length;
       o.onBatch?.(done, cases.length);
@@ -500,7 +553,22 @@ export function advance(store: SelectStore, change: ChangeSet, sel: Selection | 
   for (const g of generatedIncludes(change.view.values(), (f) => scope.pkgOf(f), root)) store.setMeta(generatedMeta(store.platform, g), generatedDigest(scripts.get(g.pkg), g.name));
   store.setBase(change.tree.commit, change.tree.overlay);
   recordOverlayMarkers(store, change.tree.overlay, root);
+  settle(store, treeSig(change.tree), sel, ran);
   return { owed };
+}
+
+/**
+ * Clears each stamp the base, now the tree `sig` names, covers: a stamp of that tree; the stamp of an
+ * atom `sel` selected that did not run, which is owed or red; and the stamp of an atom `sel` read against
+ * its own tree and did not select, whose last run holds on this tree too. A stamp another process wrote
+ * after `sel` was read is kept. Then every tree no atom is stamped with is deleted, and every judged
+ * verdict taken on another tree.
+ */
+function settle(store: SelectStore, sig: string, sel: Selection | null, ran: Set<string>): void {
+  const at = store.treeN(sig);
+  const seen = sel?.stamps ?? new Map<string, number>();
+  store.unstamp((id, n) => n === at || (sel !== null && (sel.selected.has(id) ? !ran.has(id) : seen.get(id) === n)));
+  store.dropStale(sig);
 }
 
 /** A change that selects every atom, for a store with no recorded tree: every Rust file scanned as it is
@@ -520,5 +588,6 @@ export async function fullChange(root: string = ROOT, why = "the store has no re
     view,
     tree,
     full: true,
+    root,
   };
 }

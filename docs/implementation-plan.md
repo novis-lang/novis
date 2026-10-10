@@ -40,12 +40,12 @@
 > that owns a topic, and `bun nv records --stats` shapes the whole set. What a crate still owes is
 > its own module doc's `# Known gaps`. What landed in which session is in `git log`.
 >
-> **Open now:** **`data/chain.json` is the list of what is open**, in the order the loop walks it,
-> and each goal is its prose at `docs/agent/goals/<slug>.md` plus its record under `data/goals/` —
-> this field restates neither. A goal's plan is its own record: the goal switch deletes the goal it
-> leaves and carries none of its checks. What a feature still owes of `rule:testing/feature-proofs`
-> is `bun nv proofs --owed`, and what a crate still owes is a gap record under `data/gaps/` naming
-> its owner.
+> **Open now:** **Looper's chain, `docs/goals/README.md`, is the list of what is open**, in the
+> order the loop walks it, and each goal is its file under `docs/goals/`. This field restates
+> neither. A goal's plan is its own front matter: looper deletes a goal once it is reached and
+> carries none of its checks. What a feature still owes of `rule:testing/feature-proofs` is
+> `bun nv proofs --owed`, and what a crate still owes is a gap record under `data/gaps/` naming its
+> owner.
 >
 > **Blocking:** Every `spec-*-outstanding.txt` ratchet under `crates/nvs-stdlib/tests/` holds zero
 > keys, and what a shipped feature still owes is a gap record under `data/gaps/` naming its owner.
@@ -70,8 +70,8 @@ Each milestone ends with something runnable and its own tests. Do not start the 
 one's verification passes.
 
 **A milestone's number is its identity, and the schedule is not in this table.** The schedule is
-`data/chain.json` — the goals in the order the driver walks them, each tagged with the milestone whose
-work it does — and a milestone's state is its record under `data/plan/milestones/`. The **Carried by**
+looper's chain, `docs/goals/README.md` — the goals in the order the loop walks them, each tagged in
+its `extra` with the milestone whose work it does — and a milestone's state is its record under `data/plan/milestones/`. The **Carried by**
 cell names the goals that do a milestone's work. Every cell of the table is written from those two, and
 `bun nv plan --check` compares each one with them and fails CI when one has drifted, so this table cannot
 drift away from what is actually being run. A
@@ -98,7 +98,7 @@ somebody has already followed.
 | done | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
 | done | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
 | done | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
-| goal `ldap` | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| goal `env-context` | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
 | ongoing | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (not yet sized) | not estimated |
 | goals `decision-records-retired`, `nvs-code` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | ongoing | [M12](plan/m12.md) | Optimising JIT tier (ongoing) | measurement-bound |

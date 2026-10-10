@@ -24,7 +24,7 @@
 
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, join, normalize, parse } from "node:path";
-import { Tree } from "../driver/proctree.ts";
+import { Tree } from "../lib/proctree.ts";
 import { covwsNvs } from "../lib/covws.ts";
 import { jobs as machineJobs } from "../lib/machine.ts";
 import { ROOT } from "../lib/paths.ts";

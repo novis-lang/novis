@@ -4,4 +4,4 @@
   recoveries, none naming the cause. Before renaming an option away from what its rule spells, check
   `crates/nvs-syntax/src/token.rs`'s keyword table;
   `nvs_syntax::parser::expr::parse_anon_object_fields` is where an anonymous-object field was
-  widened to take one. [until: gone crates/nvs-syntax/src/parser/expr.rs:parse_anon_object_fields]
+  widened to take one. `until: gone crates/nvs-syntax/src/parser/expr.rs:parse_anon_object_fields`

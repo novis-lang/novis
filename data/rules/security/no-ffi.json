@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0052",
-    "0003",
-    "0051"
+    "0003"
   ],
   "seeAlso": [
     "security/closed-doors",

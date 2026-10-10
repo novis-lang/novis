@@ -4,4 +4,4 @@
   again, so a value put back once at build is lost on the next carry. Carry the value beside the
   table and re-apply it inside `retype`; before believing a value is lost in the resolver, check
   `Snapshot::table` — `nvs config dump --toml` prints exactly that.
-  [until: gone crates/nvs-config/src/snapshot.rs:fn retype]
+  `until: gone crates/nvs-config/src/snapshot.rs:fn retype`

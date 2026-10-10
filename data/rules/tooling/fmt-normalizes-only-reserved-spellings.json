@@ -1,9 +1,7 @@
 {
   "title": "`nvs fmt` lower-cases a mis-cased reserved spelling only where that spelling has no other legal meaning — a duration unit and the open tag, never a keyword or an identifier",
   "status": "shipped",
-  "because": [
-    "0039"
-  ],
+  "because": [],
   "seeAlso": [
     "types/duration",
     "classes/reserved-spellings-are-lower-case",

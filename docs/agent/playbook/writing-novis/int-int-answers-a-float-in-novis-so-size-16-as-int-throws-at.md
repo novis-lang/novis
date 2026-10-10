@@ -2,5 +2,5 @@
   division is not exact.** A bench computing a piece size that way died with `cannot convert this
   value to int` on a frame whose length was odd, which reads as the member being broken rather than
   the arithmetic. Pick the divisor-free spelling in a proof — a fixed piece size with a `$take`
-  clamp for the last one — rather than a cast that depends on the input's length.
-  [until: gone crates/nvs-types/src/expr/operators.rs:Div]
+  clamp for the last one — rather than a cast that depends on the input's length. See `crates/nvs-types/src/expr/operators.rs`.
+  `until: gone crates/nvs-types/src/expr/operators.rs:Div`

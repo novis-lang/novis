@@ -3,4 +3,4 @@
   panel never passes `--strict` — by matching the file, and the module doc explaining why it does
   not do that names the very string the assertion refuses. Strip the comments before matching, the
   way `editors/vscode/test/surfaces/ast.test.ts` does, or keep the prose off that spelling.
-  [until: gone editors/vscode/test/surfaces/tasks.test.ts:child_process]
+  `until: gone editors/vscode/test/surfaces/tasks.test.ts:child_process`

@@ -16,3 +16,7 @@ C dependency.
 The test is enforced rather than remembered: `bun nv gen-attribution --check-c-deps` enumerates the
 default binary's C dependencies from the resolved graph and fails CI on any without a recorded answer
 (`rule:testing/attribution-is-diffed-in-ci`).
+
+**Declined:**
+- **Each C dependency argued on its own merits.** A growing list of individually reasoned exceptions is
+  how a pure-Rust default stops being one.

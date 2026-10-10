@@ -4,4 +4,4 @@
   `benches/proxied/php/pool.conf.in` is rendered by the driver; OPcache is linked statically, so the
   settings apply and only stderr says *"Failed loading Zend extension"*. Prove an ini took with `php
   -d opcache.enable_cli=1 -r '…opcache_get_status()…'`, since `enable_cli=0` makes the obvious check
-  return `false`. [until: gone benches/proxied/php/pool.conf.in]
+  return `false`. `until: gone benches/proxied/php/pool.conf.in`

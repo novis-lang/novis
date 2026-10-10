@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { binaryGreen } from "../driver/runner.ts";
+import { binaryGreen } from "../accept/runner.ts";
 
 describe("a test binary's verdict for the sweep that judges it", () => {
   test("the sweep's own run decides, whatever another process wrote in the store since", () => {

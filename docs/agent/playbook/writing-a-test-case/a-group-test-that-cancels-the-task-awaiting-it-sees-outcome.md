@@ -3,5 +3,5 @@
   so a bare Rust closure parked inside `run_group` is torn down where it parks and never reaches the
   line that records the answer — the assertion then reads as though the group answered something else.
   Open `nvs_runtime::HelperFrame::enter()` at the top of the awaiting task's body, which is what a real
-  `Core\Task::all` stands on.
-  [until: gone crates/nvs-host/src/scheduler.rs:unwindable]
+  `Core\Task::all` stands on. See `crates/nvs-host/src/scheduler.rs`.
+  `until: gone crates/nvs-host/src/scheduler.rs:unwindable`

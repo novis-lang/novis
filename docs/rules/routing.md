@@ -124,7 +124,7 @@ was wanted for — one name, one `url()` target, one metrics series. What it doe
 `methodsFor` and the CSRF classification read it. A method serving a safe and an unsafe verb carries
 one `#[Access]` for both, and the CSRF check is still per verb from that one declaration.
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0096](../decisions/0096.md), [0010](../decisions/0010.md).</sub>
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0096](../decisions/0096.md).</sub>
 
 <a id="routing-precedence-is-structural"></a>
 
@@ -408,7 +408,7 @@ Typed `callable` would not move this line: routes share no signature and handler
 routing is not a case that forces [`types/grammar`](types.md#types-grammar)'s deferral. Signing a route's identity is
 [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url).
 
-<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`types/grammar`](types.md#types-grammar), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0199](../decisions/0199.md), [0255](../decisions/0255.md).</sub>
+<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`types/grammar`](types.md#types-grammar), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`routing/a-match-is-not-invocable`](routing.md#routing-a-match-is-not-invocable). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0255](../decisions/0255.md).</sub>
 
 <a id="routing-a-match-is-not-invocable"></a>
 
@@ -423,6 +423,19 @@ matched method would need `callable` to carry a signature, which [`types/grammar
 routing is not a forcing case for that deferral, and typed `callable` would not remove the dispatch
 `switch`, for three independent reasons.
 
+What a match returns beyond its name and captures, and why:
+
+- **`access()` returns the decision's name**, such as `App\Role::Admin`, never the constant's value.
+  The compiler checks that the name resolves and promises nothing about what it means, so the name is
+  the one thing the row carries without interpreting it. `null` comes only from a table built by hand,
+  because a route with no decision does not compile, and a dispatcher treats `null` as denied.
+- **`method()` returns the verb the matched row declares.** Two `#[Route]`s on one method may share a
+  `name` when they share a path, so only the verb tells a `Get` match from a `Post` match.
+- **The handler's `Class::method` label stays off the match**, because it is the one field of the row
+  a program could turn into a call.
+- **Memory:** each read of `Core\Request::route()` or `Core\Router::match` holds one string, the length
+  of the decision's name, and one integer. A program that never reads a match pays nothing.
+
 Routes do not share a signature: `show(uint $id)`, `index()` and `blog(uint $y, uint $m, string $slug)`
 cannot inhabit one `handler` field, and pre-binding the converted parameters into a zero-argument callable
 is dispatch. Handlers have no common return type, and a `callable(): Response` would force one, which is
@@ -435,7 +448,13 @@ The ergonomic cost is paid where the framework layer already sits: `Web\Controll
 declining the framework writes it itself, permanently. The roster of compiler-recognised attributes this
 table draws on has one home ([`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute)), and no rule restates its size.
 
-<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`types/grammar`](types.md#types-grammar), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0007](../decisions/0007.md), [0199](../decisions/0199.md).</sub>
+**Declined:**
+- **The server calls the matched method.** Calling it would be dispatch
+  ([`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing)).
+- **`params` as a shape per route, narrowed by comparing `name`.** The checker has no such narrowing,
+  and it would save only one `as`. A generated dispatch `switch` binds typed parameters without it.
+
+<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`types/grammar`](types.md#types-grammar), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0007](../decisions/0007.md).</sub>
 
 <a id="routing-matched-once-before-the-handler"></a>
 
@@ -752,7 +771,7 @@ OpenAPI 3.1 only, whose schema dialect is JSON Schema, so every declared type ma
 type system says something it cannot express. A handler answering HTML or a stream appears as an
 operation with an opaque response — honest, and not very useful.
 
-<sub>See also [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change). Decided in [0085](../decisions/0085.md), [0082](../decisions/0082.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change). Decided in [0085](../decisions/0085.md), [0082](../decisions/0082.md).</sub>
 
 <a id="routing-api-diff-fails-a-breaking-change"></a>
 

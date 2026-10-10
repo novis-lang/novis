@@ -1,11 +1,10 @@
-// `lib/progress.ts` shows what a command is doing without adding a byte to what it prints, and the loop's
-// status row reads it back; `proc.run` hands a caller each line as it arrives.
+// `lib/progress.ts` shows what a command is doing without adding a byte to what it prints; `proc.run`
+// hands a caller each line as it arrives.
 
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { run } from "../lib/proc.ts";
-import { cargoStatus, readProgress } from "../lib/progress.ts";
+import { cargoStatus } from "../lib/progress.ts";
 import { scratch } from "./scratch.ts";
 
 const PROGRESS = join(import.meta.dir, "../lib/progress.ts").replace(/\\/g, "/");
@@ -33,39 +32,15 @@ describe("progress", () => {
     expect(status("    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.21s")).toBe("finished");
   });
 
-  test("with stderr a pipe and no directory, a command prints exactly what it would without progress", async () => {
+  test("with stderr a pipe, a command prints exactly what it would without progress", async () => {
     const script = join(dir.root, "none.ts");
     const release = join(dir.root, "none.go");
     dir.put("none.ts", child("building", release));
     dir.put("none.go", "");
-    const r = await run([process.execPath, script], { env: { NV_PROGRESS_DIR: "" } });
+    const r = await run([process.execPath, script]);
     expect(r.code).toBe(0);
     expect(r.stdout.replace(/\r\n/g, "\n")).toBe("done\n");
     expect(r.stderr).toBe("");
-  });
-
-  test("under a directory, the text is in a file while the command runs, and the file is gone after", async () => {
-    const at = join(dir.root, "progress");
-    const release = join(dir.root, "file.go");
-    dir.put("file.ts", child("proofs: 3/12 programs run", release));
-    const running = run([process.execPath, join(dir.root, "file.ts")], { env: { NV_PROGRESS_DIR: at } });
-    let seen: string[] = [];
-    for (let i = 0; i < 250 && seen.length === 0; i++) {
-      await Bun.sleep(20);
-      seen = readProgress(at);
-    }
-    expect(seen).toEqual(["proofs: 3/12 programs run"]);
-    dir.put("file.go", "");
-    const r = await running;
-    expect(r.code).toBe(0);
-    expect(r.stderr).toBe("");
-    expect(readdirSync(at)).toEqual([]);
-  });
-
-  test("a file whose process is gone is not read, and is deleted", () => {
-    dir.put("stale/999999.json", JSON.stringify({ pid: 999999, started: 0, text: "left behind" }));
-    expect(readProgress(join(dir.root, "stale"))).toEqual([]);
-    expect(existsSync(join(dir.root, "stale/999999.json"))).toBe(false);
   });
 
   test("proc.run passes each line as it arrives and still returns the whole output", async () => {

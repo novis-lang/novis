@@ -3,4 +3,4 @@
   predicate that already excluded every other atom owes `collect::<Option<_>>`, not a diagnostic,
   while each of the item's spellings hits a different site one call apart. Run the item's spellings
   as scratch files under `.agent-tmp/` before designing anything — the panic a worklist item names
-  is often not the one that fires. [until: gone tools/nv/cmd/holes.ts]
+  is often not the one that fires. `until: gone tools/nv/cmd/holes.ts`

@@ -2,7 +2,6 @@
   "title": "A `require` used for its value hands back `mixed`, and converts like any other boundary",
   "status": "shipped",
   "because": [
-    "0021",
     "0007"
   ],
   "seeAlso": [

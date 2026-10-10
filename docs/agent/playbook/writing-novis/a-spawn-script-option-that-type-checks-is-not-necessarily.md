@@ -5,4 +5,4 @@
   writes a narrowing gets none of it. Read the lowering's `written(SpawnOptionKey::…)` arms before
   writing a case over an option, because a `.nvst` that asserts a narrowing took effect will fail for
   a reason no diagnostic names.
-  [until: gone crates/nvs-ir/src/lower/expr.rs:SpawnOptionKey::Limits]
+  `until: gone crates/nvs-ir/src/lower/expr.rs:SpawnOptionKey::Limits`

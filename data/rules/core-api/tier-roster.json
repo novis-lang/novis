@@ -2,14 +2,10 @@
   "title": "Every subsystem's tier is recorded once in the roster, including the ones no milestone has built",
   "status": "designed",
   "because": [
-    "0051",
     "0067",
     "0076",
     "0086",
-    "0120",
-    "0121",
-    "0122",
-    "0123"
+    "0122"
   ],
   "seeAlso": [
     "core-api/tier-placement",

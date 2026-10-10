@@ -9,6 +9,7 @@
 // (`store.ts`), so the change since it is the diff against the commit, with each overlay path judged by
 // its bytes (`sinceOverlay`). `snapshot` takes the tree as it is, for the store to record.
 
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { digest } from "../keys/scan.ts";
@@ -116,6 +117,15 @@ export async function snapshot(root: string = ROOT): Promise<{ commit: string; o
   const overlay: Overlay = {};
   for (const c of await changedPaths(commit, root)) overlay[c.path] = c.status === "deleted" ? null : diskDigest(c.path, root);
   return { commit, overlay };
+}
+
+/** A tree's signature: one commit and one overlay, in any key order, give one signature. */
+export function treeSig(tree: { commit: string; overlay: Overlay }): string {
+  const paths = Object.keys(tree.overlay).sort();
+  return createHash("sha256")
+    .update(JSON.stringify([tree.commit, paths.map((p) => [p, tree.overlay[p]])]))
+    .digest("hex")
+    .slice(0, 32);
 }
 
 /** The bytes of `path` at commit `rev`, or null when it has none there. */

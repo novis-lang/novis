@@ -7,4 +7,7 @@ document test is a byte comparison. This is the same rule the PDF writer holds
 (`rule:core-classes/pdf-output-is-inert`), and it exists for the same reason: a test that cannot
 compare bytes ends up comparing nothing.
 
+The component's fixtures owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
+stream in, and the same input serialized twice and compared byte for byte.
+
 **Not shipped.** There is no spreadsheet package in the tree.

@@ -2,4 +2,4 @@
   reports `E0405` as if its registry row never landed.** The driver builds that binary at session
   start and nothing afterwards refreshes it — a green `cargo test -p nvs-stdlib` does not, because a
   test binary is its own. One `cargo build` before `bun nv try` is the fix, not anything in
-  `registry.rs`. [until: gone tools/nv/cmd/try.ts]
+  `registry.rs`. `until: gone tools/nv/cmd/try.ts`

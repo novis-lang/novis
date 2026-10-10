@@ -3,4 +3,4 @@
   throws `cannot convert `int` -9223372036854775808 to `float`` even though -2^63 is exactly
   representable. A case sweeping a `float`-typed member over an `int` table is bounded at
   ±9007199254740992; reaching `int`'s extremes on the float side needs a `float` *literal* (`0.0 -
-  9223372036854775808.0`). [until: gone crates/nvs-runtime/src/helpers.rs:F64_EXACT_INT_LIMIT]
+  9223372036854775808.0`). See `crates/nvs-runtime/src/helpers.rs`. `until: gone crates/nvs-runtime/src/helpers.rs:F64_EXACT_INT_LIMIT`

@@ -19,10 +19,17 @@ export interface Citation {
   line: number;
 }
 
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
+/** A goal named by its number. Every one is a defect, because the number is a position. */
+export const NUMBER_CITE = /(?<![`\w])[Gg]oals?\s+\d+/g;
+
+const FENCE_OPEN =/^ {0,3}(`{3,}|~{3,})/;
 const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
 const RULE = /rule:([a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*)/g;
-const DECISION = /(?:\bADRs? (\d{4})\b|decisions\/(\d{4})\.md|(?<![\w.])(\d{4}) §)/g;
+/**
+ * A decision record named as `ADR NNNN`, `decisions/NNNN.md` or a bare `NNNN §`. A record number leads
+ * with a zero, so a bare section cite needs one, and an RFC's `3986 §` is not a record.
+ */
+export const DECISION = /(?:\bADRs? (\d{4})\b|decisions\/(\d{4})\.md|(?<![\w.])(0\d{3}) §)/g;
 const LINK = /\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 const CODE_SPAN = /(`+)[\s\S]*?\1/g;
 
@@ -90,7 +97,7 @@ export function section(text: string, select: string): string | null {
 
 /**
  * Every citation and link outside a fence: `rule:<topic>/<slug>`, a decision named as `ADR NNNN`,
- * `decisions/NNNN.md` or `NNNN §`, and a Markdown link's target. A rule or a decision is read inside
+ * `decisions/NNNN.md` or `0NNN §`, and a Markdown link's target. A rule or a decision is read inside
  * an inline code span too, because that is how this tree writes them; a link inside a code span is
  * an example of a link, and is skipped. One citation per line per kind and target.
  */

@@ -9,14 +9,16 @@
 // - every Rust test executable of the covws build (`seed.ts` `seedTests`);
 // - the tools' `tsc` and every tools test file (`nvtests.ts`);
 // - every check of the plan that a shut floor gate does not hold and that is its own atom, a fixture or a
-//   command, `bun nv` ones among them, as the sweep runs it (`driver/runner.ts` `PlanSweep`).
+//   command, `bun nv` ones among them, as the sweep runs it (`accept/runner.ts` `PlanSweep`).
 //
 // The cases and the proof programs run a copy of the covws `nvs` taken when the build ends
 // (`Recorder.pin`), so a rebuild by another process during the run changes nothing they record. The
 // test executables start the build's own `nvs`, the path they were compiled with.
 //
-// The heavy checks keep the floor gate's own cadence and are not run here. The store's tree then moves
-// past the change, as after any sweep.
+// The heavy checks keep the floor gate's own cadence and are not run here. Each atom's run counts the
+// moment it is recorded, stamped with the tree the selection was read at (`store.ts`), so a selected
+// run after a full run that was killed skips what it finished; the full run itself runs everything
+// again. The store's tree then moves past the change, as after any sweep.
 //
 // A selection miss is an atom red in this run that the selection did not pick. The selection picks every
 // atom last red, owed or never recorded, and every atom the tree names that the store does not know, so
@@ -25,11 +27,11 @@
 // run finds the atom green again, and makes the command exit 1.
 
 import { cpus } from "node:os";
-import type { Check } from "../driver/accept.ts";
-import { heldByGate, tiers } from "../driver/accept.ts";
-import { holdOrigin } from "../driver/origin.ts";
-import { PlanSweep } from "../driver/runner.ts";
-import { needLine, sharedResources, takeSweepLock } from "../driver/sweep-lock.ts";
+import type { Check } from "../accept/accept.ts";
+import { heldByGate, tiers } from "../accept/accept.ts";
+import { holdOrigin } from "../accept/origin.ts";
+import { PlanSweep } from "../accept/runner.ts";
+import { needLine, sharedResources, takeSweepLock } from "../accept/sweep-lock.ts";
 import { currentPlan } from "../lib/chain.ts";
 import { buildCovws } from "../lib/covws.ts";
 import { ROOT } from "../lib/paths.ts";
@@ -178,7 +180,7 @@ export async function fullRun(store: SelectStore, opts: FullOptions = {}): Promi
       });
     }
     // The plan checks take the sweep lock and hold the origin up by the rule a sweep follows
-    // (`driver/sweep-lock.ts`): a fixture of `examples/http.nvs` needs both. No leg runs here, and a
+    // (`accept/sweep-lock.ts`): a fixture of `examples/http.nvs` needs both. No leg runs here, and a
     // heavy check only when it is a setup.
     if (kinds.has("check")) {
       const own = ownChecks(plan, (c) => sweep.groups.get(c.id)?.how);

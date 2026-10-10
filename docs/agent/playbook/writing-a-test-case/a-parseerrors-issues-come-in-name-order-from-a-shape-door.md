@@ -3,5 +3,5 @@
   set that is not already alphabetical. `Core\Arr::shapeAs<{ok: int, bad: int, alsoOk: string, alsoBad:
   bool}>` reports `alsoBad` before `bad`, while a `#[Core\Json\Derive]` class declaring `zeta, alpha,
   mid` reports them in exactly that order. Run the program before writing the `--EXPECT--` block, and
-  name fields whose two orders differ when the order is what a case pins.
-  [until: gone crates/nvs-stdlib/src/arr.rs:shapeAs]
+  name fields whose two orders differ when the order is what a case pins. See `crates/nvs-stdlib/src/arr.rs`.
+  `until: gone crates/nvs-stdlib/src/arr.rs:shapeAs`

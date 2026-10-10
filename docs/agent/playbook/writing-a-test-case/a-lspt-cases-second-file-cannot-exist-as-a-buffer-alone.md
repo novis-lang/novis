@@ -4,4 +4,4 @@
   that named the wrong path rather than as a runner that never wrote it. `nvs_lsp::suite`'s
   `Materialised` writes every section into a scratch directory and opens the buffers over those real
   paths — anything else that drives the front end from text alone owes the same.
-  [until: gone crates/nvs-lsp/src/suite.rs:Materialised]
+  `until: gone crates/nvs-lsp/src/suite.rs:Materialised`

@@ -5,4 +5,4 @@
   than the rule. Put a shared fixture *inside* the test module and make the module `pub(crate) mod
   tests`, which is what `crates/nvs-stdlib/src/keyring.rs` does for the ring builders its own tests
   and `signature.rs`'s both use.
-  [until: gone crates/nvs-stdlib/tests/capability.rs:has more than one]
+  `until: gone crates/nvs-stdlib/tests/capability.rs:has more than one`

@@ -24,11 +24,11 @@ const OLD = ["doss", "ier"].join("");
 
 describe("nv audit goals", () => {
   test("a goal file named by position is an offender, a slug-named one is not", () => {
-    const paths = ["docs/agent/goals/12-parses.md", "docs/agent/goals/side/restart-free.md", "docs/agent/goals/parses.md", "data/goals/3-x.json", "docs/decisions/0001.md"];
-    expect(numberedGoalFiles(paths)).toEqual(["docs/agent/goals/12-parses.md", "data/goals/3-x.json"]);
+    const paths = ["docs/goals/12-parses.md", "docs/goals/parses.md", "docs/goals/3-x.md", "docs/rules/routing.md"];
+    expect(numberedGoalFiles(paths)).toEqual(["docs/goals/12-parses.md", "docs/goals/3-x.md"]);
   });
 
-  test("the driver's copies, the handoff and a goal's toml or handoff are copies", () => {
+  test("the driver's copies, the handoff and any file under the old goals directory are copies", () => {
     const paths = [
       "docs/agent/loop-goal.md",
       "docs/agent/loop-goal.toml",
@@ -36,9 +36,10 @@ describe("nv audit goals", () => {
       "docs/agent/goals/parses.toml",
       "docs/agent/goals/side/x.handoff.md",
       "docs/agent/goals/parses.md",
+      "docs/goals/parses.md",
       "data/goals/parses.handoff.json",
     ];
-    expect(goalCopies(paths)).toEqual(paths.slice(0, 5));
+    expect(goalCopies(paths)).toEqual(paths.slice(0, 6));
   });
 });
 
@@ -118,10 +119,9 @@ describe("nv audit python", () => {
     expect(docNamingPython("x.md", "`bun nv links` is the gate\n", re)).toBeNull();
   });
 
-  test("a record under data/ is read unless it is a decision's", () => {
+  test("every JSON record under data/ is read", () => {
     const paths = [
       "data/chain.json",
-      "data/decisions/0221.json",
       "data/goals/webcrypto.json",
       "data/goals/webcrypto.handoff.json",
       "data/goals/tooling-overhaul.json",
@@ -162,19 +162,13 @@ describe("nv audit python", () => {
       "AGENTS.md",
       "CHANGELOG.md",
       "docs/decisions/0179.md",
-      "docs/agent/goals/webcrypto.md",
-      "docs/agent/goals/tooling-overhaul.md",
-      "docs/agent/goals/ci-green.md",
-      "docs/agent/goals/side/restart-free.md",
+      "docs/goals/webcrypto.md",
+      "docs/goals/tooling-overhaul.md",
+      "docs/goals/restart-free.md",
       "tools/nv/cmd/audit.ts",
       ".agent-tmp/notes.md",
     ];
-    expect(currentDocs(paths, "webcrypto")).toEqual([
-      "AGENTS.md",
-      "docs/agent/goals/tooling-overhaul.md",
-      "docs/agent/goals/ci-green.md",
-      "docs/agent/goals/side/restart-free.md",
-    ]);
+    expect(currentDocs(paths, "webcrypto")).toEqual(["AGENTS.md", "docs/goals/tooling-overhaul.md", "docs/goals/restart-free.md"]);
   });
 });
 

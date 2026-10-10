@@ -5,4 +5,4 @@
   *later* call as returned rather than timed out. Before adding a flag, ask whether one context
   raising it should stop every other context in the tree; if not it is a field on `Ctx`, the way
   `cancelled` is, and not a bit in `SafepointFlags`.
-  [until: gone crates/nvs-runtime/src/ctx/mod.rs:safepoint_word]
+  `until: gone crates/nvs-runtime/src/ctx/mod.rs:safepoint_word`

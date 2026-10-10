@@ -5,4 +5,4 @@
   is the recognition test. A borrowing read is no building block for a write path: use a helper
   whose ownership answer is the same in both cases, as `Helper::ArrayRowForWrite` retains what it
   found or allocates what it did not.
-  [until: gone crates/nvs-runtime/src/array.rs:unwrap_or_default]
+  `until: gone crates/nvs-runtime/src/array.rs:unwrap_or_default`

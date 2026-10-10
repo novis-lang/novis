@@ -4,4 +4,4 @@
   (*"Do not rename one to something already green"*). When an acceptance failure names a test that
   "did not run", read that stage's section in `docs/agent/goals/<slug>.md` and the check's line in
   `bun nv loop --list --stage <n>` before deciding what the failure means; the two together are the
-  specification. [until: gone tools/nv/cmd/orient.ts:const TRIAGE]
+  specification. `until: gone tools/nv/cmd/orient.ts:const TRIAGE`

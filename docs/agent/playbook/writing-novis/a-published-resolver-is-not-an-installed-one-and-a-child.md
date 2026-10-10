@@ -3,4 +3,4 @@
   starts, while the publishing thread still compiles through its own thread-local — so a `spawn
   script` path that falls through to the calling core answers `ResolveError::NoResolver` while the
   identical placed one succeeds. Wrap the caller in `SharedResolver::scoped`, as `nvs-cli` does for
-  the core it booted on. [until: gone crates/nvs-runtime/src/script.rs:pub fn publish]
+  the core it booted on. See `crates/nvs-runtime/src/script.rs`. `until: gone crates/nvs-runtime/src/script.rs:pub fn publish`

@@ -2,8 +2,7 @@
   "title": "A `switch` label and a `match` arm compare by the equality rule and by nothing else",
   "status": "shipped",
   "because": [
-    "0090",
-    "0035"
+    "0090"
   ],
   "seeAlso": [
     "expressions/one-equality-operator",

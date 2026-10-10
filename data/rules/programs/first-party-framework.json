@@ -2,8 +2,7 @@
   "title": "Novis ships the framework, split by the standard-library placement tests",
   "status": "designed",
   "because": [
-    "0082",
-    "0051"
+    "0082"
   ],
   "seeAlso": [
     "programs/framework-core-half",

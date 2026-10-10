@@ -13,3 +13,14 @@ reflection. The alternative was making every injected dependency `?T` forever an
 every use, which is an ergonomic wall rather than a guarantee. Nothing else changes: a copy of an
 object whose `lateinit` slot is still unwritten inherits the same unwritten slot and throws under the
 same rule.
+
+- **Memory:** none. The unwritten state is a spare discriminant of the tagged value every property
+  already has, so a `lateinit` property costs no byte an ordinary property does not.
+
+**Declined:**
+- **Leaving deferred assignment to reflection alone.** Ordinary setter injection would have to build
+  its objects through reflection just to get an initialization order the language can express
+  directly.
+- **A write-once variant, assignable once at any time and then frozen.** It needs a tracked write
+  count that a freely reassignable property does not, and `lateinit readonly` is refused
+  (`rule:classes/lateinit-restrictions`).

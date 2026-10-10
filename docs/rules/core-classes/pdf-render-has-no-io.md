@@ -1,5 +1,5 @@
-PDF generation is a first-party Tier 1 extension package, sandboxed, with everything a program names
-under one namespace and one registered class. It is not `Core`: a layout engine, a font parser and
+PDF generation is a first-party Tier 1 extension package, `nvs/pdf`, sandboxed, with everything a
+program names under `Novis\Pdf` and one registered class. It is not `Core`: a layout engine, a font parser and
 image codecs unsandboxed in every binary would contradict the reason the image component is an
 extension at all. It is not native: nothing in it holds state or privilege.
 
@@ -13,6 +13,22 @@ under the outbound policy, and passes the bytes.
 The class of exploit that defines HTML-to-PDF rendering — server-side request forgery and local file
 read through a `<img src>` — is thereby absent by construction: there is nothing to trick into
 fetching, because there is no fetching. Fonts follow the same rule, with a small embedded default set
-so a plain document renders out of the box, and the guest needs no clock.
+so a plain document renders out of the box, and the guest needs no clock: a rendered date is text
+the program already put in its HTML. HTML, CSS, font files, embedded images and SVG are still hostile
+bytes, and the sandbox's memory cap and epoch deadline contain that surface.
+
+The component's fixtures owe: a render with **no capability grants** that succeeds, so the no-I/O
+claim is demonstrated rather than asserted; and fixtures referencing `file:///…`, an `http:` URL and
+a name absent from the asset map, each throwing, with no network or filesystem access observable from
+the guest.
 
 **Not shipped.** There is no PDF package in the tree; M17 builds it.
+
+**Declined:**
+- **`Core`.** A layout engine, a font parser and image decoders would sit unsandboxed in every binary
+  and every in-flight request.
+- **Native.** Nothing here needs a connection lifetime or a runtime privilege, and the sandbox is the
+  feature rather than a cost to route around.
+- **Leaving the category to the third-party channel.** That produces incompatible libraries with
+  disjoint CSS subsets, and the popular ones fetch whatever the HTML names, which is the category's
+  vulnerability class. One first-party no-I/O way to do the job prevents both.

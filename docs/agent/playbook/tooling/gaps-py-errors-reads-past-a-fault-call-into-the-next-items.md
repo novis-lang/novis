@@ -3,4 +3,4 @@
   carries no literal, and the window `tools/nv/cmd/gaps.ts` reads finds the *following* function's
   `///` prose instead, listing a stem no case can contain. `conformance_coverage.rs` stops its window
   at a line-leading `///`, so the two counts differ by that row; a message built above the call is
-  outside both and cannot be matched by its stem. [until: gone tools/nv/cmd/gaps.ts:--errors]
+  outside both and cannot be matched by its stem. `until: gone tools/nv/cmd/gaps.ts:--errors`

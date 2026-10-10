@@ -3,6 +3,5 @@
   `catch` slotted into `parse_assignment_inner` in one line, and `f() catch (A) => $y ?: 1 catch (B)
   => 2` still came out with one arm because `parse_ternary`'s else called `parse_assignment`, which
   re-entered `parse_catch`; `parse_ternary_else` is the same body over `parse_ternary`, for the else
-  branch only, since the `then` branch is delimited by its own `:`. Any future level added above the
-  ternary owes the same check, and a unit test in `crates/nvs-syntax/src/parser/tests/expr.rs` is
-  what catches it, not a `.nvst`. [until: gone crates/nvs-syntax/src/parser/expr.rs:parse_assignment_inner]
+  branch only. A unit test in `crates/nvs-syntax/src/parser/tests/expr.rs` is
+  what catches it, not a `.nvst`. `until: gone crates/nvs-syntax/src/parser/expr.rs:parse_assignment_inner`

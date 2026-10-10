@@ -4,4 +4,4 @@
   written member type — so `{note: ?string}` reads as having no JSON representation while
   `?{note: string}` is fine. Write `rule:types/shape-type`'s optional column instead,
   `{note?: string}`, which is the independent question and is reachable.
-  [until: gone crates/nvs-types/src/derive.rs:Ty::Shape(fields) => fields]
+  `until: gone crates/nvs-types/src/derive.rs:Ty::Shape(fields) => fields`

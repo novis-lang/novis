@@ -4,4 +4,4 @@
   `file.rs:NN-NN` spans that move when the block they name moves. Grep the
   old title *and* the old line span across `crates/` and `docs/agent/goals/` in the same call that
   makes the edit.
-  [until: gone crates/nvs-server/src/lib.rs:§]
+  `until: gone crates/nvs-server/src/lib.rs:§`

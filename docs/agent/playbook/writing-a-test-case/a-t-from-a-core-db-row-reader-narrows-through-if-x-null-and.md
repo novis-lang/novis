@@ -3,5 +3,5 @@
   `E0401` (expected `Core\Time\Date`, found `null|Core\Time\Date`) even though the scalar `string
   $unwrapped = $named->string("owner");` next door compiles, and `if ($a != null && $b != null)`
   still raises `E0459` on both receivers in the body. Write one `if` per object receiver; a
-  `?decimal` or `?bool` needs none, since `echo` and a ternary condition take them.
-  [until: gone crates/nvs-stdlib/src/db/row.rs:Core\Time\Date]
+  `?decimal` or `?bool` needs none, since `echo` and a ternary condition take them. See `crates/nvs-stdlib/src/db/row.rs`.
+  `until: gone crates/nvs-stdlib/src/db/row.rs:Core\Time\Date`

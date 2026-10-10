@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { sinceOverlay } from "../select/change.ts";
 import { CovMap, recordedIn } from "../select/extract.ts";
 import { ALL_NAMES, pathKeys, readsKeys, spawnKeys } from "../select/keys.ts";
-import { advance, caseLabels, depInfoPaths, lostBlock, NO_ADVANCE_ENV, Recorder } from "../select/record.ts";
+import { advance, caseLabels, depInfoPaths, lostBlock, NO_ADVANCE_ENV, Recorder, redReason, unexplainedReds } from "../select/record.ts";
 import { type ChangeSet, query } from "../select/select.ts";
-import { SelectStore } from "../select/store.ts";
+import { SelectStore, type Verdict } from "../select/store.ts";
 import { digest } from "../keys/scan.ts";
 import { scratch } from "./scratch.ts";
 
@@ -160,7 +160,7 @@ describe("the readers a recorded run needs", () => {
 
   test("a batch with passed cases that left no recording prints both listings, and a recording only the second one saw", () => {
     const lost = ["tests/t/a.nvst", "tests/t/b.nvst", "tests/t/c.nvst", "tests/t/d.nvst"];
-    const block = lostBlock({ tree: "tests/t", index: 2, batches: 3, size: 128, lost, listed: 124, listError: null, parent: true, dir: "exists", fresh: ["tests~t~b.nvst-77.profraw", "tests~t~b.nvst.log"] });
+    const block = lostBlock({ tree: "tests/t", index: 2, batches: 3, size: 128, lost, listed: 124, listError: null, relooked: [], parent: true, dir: "exists", fresh: ["tests~t~b.nvst-77.profraw", "tests~t~b.nvst.log"] });
     expect(block).toBe(
       "coverage lost: batch 2/3 of tests/t (128 cases): 4 passed case(s) left no recording\n" +
         "  cases: tests/t/a.nvst, tests/t/b.nvst, tests/t/c.nvst (+1 more)\n" +
@@ -168,8 +168,33 @@ describe("the readers a recorded run needs", () => {
         "  listed again: 1 .profraw, 1 .log, 0 other: tests~t~b.nvst-77.profraw, tests~t~b.nvst.log\n" +
         "  1 of the 4 have a recording now, so the listing at extraction time missed files that were there: tests/t/b.nvst\n",
     );
-    const gone = lostBlock({ tree: "tests/t", index: 1, batches: 1, size: 1, lost: ["tests/t/a.nvst"], listed: 0, listError: "EPERM", parent: false, dir: "EPERM", fresh: "EPERM" });
+    const gone = lostBlock({ tree: "tests/t", index: 1, batches: 1, size: 1, lost: ["tests/t/a.nvst"], listed: 0, listError: "EPERM", relooked: [], parent: false, dir: "EPERM", fresh: "EPERM" });
     expect(gone).toContain("at extraction: listing threw EPERM; parent recorded: no; directory: EPERM\n  listed again: threw EPERM\n");
+    const missed = lostBlock({ tree: "tests/t", index: 1, batches: 1, size: 2, lost: ["tests/t/a.nvst", "tests/t/b.nvst"], listed: 2, listError: null, relooked: ["tests/t/a.nvst"], parent: true, dir: "exists", fresh: [] });
+    expect(missed).toContain("directory: exists\n  1 of the 2 are in that listing when looked up again, so the lookup missed names it held: tests/t/a.nvst\n  listed again: 0 .profraw");
+  });
+
+  test("a red case gets its reason, and a red case no FAIL line or lost recording explains is listed with it", () => {
+    const base = { failed: false, recorded: true, skipped: false, timedOut: false, counted: true };
+    expect(redReason(base)).toBeNull();
+    expect(redReason({ ...base, recorded: false, skipped: true })).toBeNull();
+    expect(redReason({ ...base, failed: true })).toBe("it failed");
+    expect(redReason({ ...base, recorded: false })).toBe("it left no recording");
+    expect(redReason({ ...base, timedOut: true })).toBe("its batch ran out of time");
+    expect(redReason({ ...base, counted: false })).toBe("its batch printed no count line");
+    const got = {
+      out: "FAIL tests/t/a.nvst\n3 passed, 1 failed, 0 skipped\n",
+      passed: 3,
+      failed: 1,
+      skipped: 0,
+      verdicts: new Map<string, Verdict>([["tests/t/a.nvst", "red"], ["tests/t/b.nvst", "red"], ["tests/t/c.nvst", "red"], ["tests/t/d.nvst", "green"]]),
+      unrecorded: ["tests/t/b.nvst"],
+      reds: new Map([["tests/t/a.nvst", "it failed (batch 1/1)"], ["tests/t/b.nvst", "it left no recording (batch 1/1)"]]),
+      processes: 0,
+    };
+    expect(unexplainedReds(got)).toBe("1 case(s) are red, and nothing above says why:\n  1: no reason was kept: tests/t/c.nvst\n");
+    got.verdicts.set("tests/t/c.nvst", "green");
+    expect(unexplainedReds(got)).toBe("");
   });
 
   test("a record directory that cannot be listed is an error, and one that does not exist is empty", () => {

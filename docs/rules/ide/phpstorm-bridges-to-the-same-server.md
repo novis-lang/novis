@@ -14,3 +14,14 @@ request gives, structural search and replace, intention actions backed by its ow
 PhpStorm's native debugger UI (`rule:ide/the-debug-adapter-does-not-wait-for-an-editor`). Those are the
 real quality gap between an LSP bridge and PhpStorm's PHP support, and a full native plugin is a later,
 explicit decision if usage justifies it — kept open, not silently skipped, and not scheduled.
+
+**Declined:**
+- **A full native PhpStorm plugin from the start**, with its own lexer, parser and PSI mirroring
+  `nvs-syntax`'s grammar. It is a second front end, a project on the scale of a language plugin, and it
+  would be built before anyone has used Novis in PhpStorm.
+- **The LSP bridge as the permanent answer.** Ruling the native plugin out for good forecloses it in
+  the case where real PhpStorm adoption makes the refactoring and debugger gap worth paying down.
+- **A PhpStorm-native formatter**, so the Code Style settings page applies. Two formatters drift the
+  first time either one's rules change (`rule:ide/one-server-two-thin-clients`).
+- **VS Code only, with PhpStorm out of scope.** PhpStorm is the editor many PHP developers already work
+  in, and leaving it out gives them no Novis support at all.

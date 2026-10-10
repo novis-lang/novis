@@ -4,4 +4,4 @@
   `os error 112`. The refusal is about a *concurrent build*, not the driver: check `Get-Process
   cargo,rustc,link`, then `Remove-Item -Recurse -Force target/debug/incremental`, a pure cache
   costing one cold build — and run `bun nv disk` before a slice that adds a dependency.
-  [until: gone tools/nv/cmd/disk.ts:RUNNING]
+  `until: gone tools/nv/cmd/disk.ts:RUNNING`

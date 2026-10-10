@@ -2,8 +2,7 @@
   "title": "`var $x;` and a bare `int $x;` in a class body report the missing visibility, not a statement error",
   "status": "shipped",
   "because": [
-    "0094",
-    "0037"
+    "0094"
   ],
   "seeAlso": [
     "core-api/written-visibility",

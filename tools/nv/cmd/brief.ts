@@ -18,7 +18,7 @@ const HOMES: [string, string, string][] = [
   ["plan milestone schedule goal", "docs/plan/ + docs/implementation-plan.md",
     "the status block and the milestone table; one file per milestone; the chain is the schedule"],
   ["tools commands scripts", "docs/agent/commands.md",
-    "how the repo is driven: nv peek, nv verify, nv session, nv splice, nv plan, nv disk"],
+    "how the repo is driven: nv peek, nv verify, nv splice, nv plan, nv disk"],
   ["benches benchmark", "benches/ + docs/perf/",
     "the benchmark programs, and the figures with the methodology that took them"],
   ["perf performance latency throughput", "docs/perf/",
@@ -131,7 +131,7 @@ function where(terms: string[]): number {
 export async function run(args: string[]): Promise<number> {
   const at = args.indexOf("--where");
   if (at < 0) {
-    console.error("usage: bun nv brief --where [<keyword>...]\n  `bun nv orient` prints the orientation, and `--full` widens its map to every module");
+    console.error("usage: bun nv brief --where [<keyword>...]\n  `looper orient --full` prints the orientation");
     return 2;
   }
   return where(args.slice(at + 1).filter((a) => !a.startsWith("--")));

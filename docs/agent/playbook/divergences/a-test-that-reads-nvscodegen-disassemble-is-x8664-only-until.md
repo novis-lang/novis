@@ -4,4 +4,4 @@
   a "no more calls than sites" guard passes while looking at nothing. Anything walking calls or
   branches out of the disassembly wants a `target_arch` gate, as `perf_guards.rs`'s `path_calls`
   has; macos-aarch64 is in the test matrix.
-  [until: gone benches/abi-probe/tests/perf_guards.rs:path_calls]
+  `until: gone benches/abi-probe/tests/perf_guards.rs:path_calls`

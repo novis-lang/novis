@@ -117,7 +117,7 @@ is per-directive and is argued in [0005](../decisions/0005.md).
 
 **Pure-Rust dependencies by default.** A memory-safe runtime cannot contain arbitrary C. Deviations are
 explicit, argued and few — currently only SQLite (`rusqlite`), where no credible pure-Rust implementation
-exists. The admission test is [0051](../decisions/0051.md) § 4's.
+exists. The admission test is `rule:packaging/a-c-dependency-answers-two-questions`.
 
 **Domain logic is an existing first-class Rust crate; compiler passes and scheduler primitives are ours.**
 The neighbouring question to the one above — not *what may we depend on*, but *what may we write ourselves*.
@@ -338,24 +338,6 @@ whichever band filled next, and types is what filled it — a second time, at `E
 [0136](../decisions/0136.md) opens **`E08xx` at `E0800`** for the diagnostics a
 written `callable` signature needs, a third row in that legend table for the one stage. `E10xx` is the
 reserve that replaces it, `E09xx` being internal compiler errors.
-
-**A `class`, `interface` or `enum` is declared at file scope, or not at all.** PHP declares a nested type
-when the statement *runs*, so `if ($legacy) { class Session { … } }` makes the very existence of a name a
-run-time fact. Novis resolves every type name against a static table built before any code runs — the
-`require`/autoload graph of [0021](../decisions/0021.md), then `nvs_hir`'s member and
-hierarchy tables, then `nvs_types::layout`'s field offsets — and none of those has a reading to give a
-name that may or may not exist yet. So a declaration written inside a method body, a property hook, a
-closure body or a nested block at file scope is `E0233` where it is written, reported by
-`nvs_types::locals`' per-body walk, which is reached only from inside a body and therefore needs no
-"am I nested" test of its own. Both cheaper readings were rejected: declaring it unconditionally at file
-scope silently changes the program PHP wrote, and admitting a conditional entry in the class table would
-put a run-time question inside every name resolution, layout and dispatch decision below it — priority 4,
-paid for once here rather than at every later lookup. What it costs is PHP's conditional-class idiom,
-whose two real uses — a polyfill and a feature switch — are `require` of one file or the other, which is
-static and already works. An anonymous class — PHP's `new class { … }` — is the same nested declaration in
-expression position and is refused the same way: it has no name for the static table to hold, and its two
-real uses, a one-off implementation of an interface and a test double, are a named class in the same file
-or a closure ([0031](../decisions/0031.md)).
 
 **A `try` has at least one `catch` or a `finally`, and a `catch` clause names exactly one class.** PHP
 refuses a bare `try { … }` too, and the parser here accepted it only by omission. `catch (A | B $e)` is

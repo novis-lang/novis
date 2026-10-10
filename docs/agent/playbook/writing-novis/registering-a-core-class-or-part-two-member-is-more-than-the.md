@@ -4,4 +4,4 @@
   `spec_registry_coverage.rs` fails a stale line as loudly as a missing one, only from a full `-p
   nvs-stdlib` run. `grep -n '<Class>'` both files before writing the row; a class's first member
   strikes its class line and the header sentence counting rows too.
-  [until: gone crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt]
+  `until: gone crates/nvs-stdlib/tests/spec-classes-part-two-outstanding.txt`

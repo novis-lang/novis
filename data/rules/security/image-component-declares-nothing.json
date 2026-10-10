@@ -2,7 +2,6 @@
   "title": "The image component declares no qualifier deviation and requests no capability",
   "status": "designed",
   "because": [
-    "0120",
     "0055",
     "0118"
   ],

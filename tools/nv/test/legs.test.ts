@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { type Check, type Outcome } from "../driver/accept.ts";
+import { type Check, type Outcome } from "../accept/accept.ts";
 import { ROOT } from "../lib/paths.ts";
-import { type LegName, type LegsOptions, type LegsSeams, legSteps, linuxLegs, q, startWslBuild, valgrindFailLine, valgrindLine, wslPath } from "../driver/legs.ts";
-import { CARRIED, carryLine, mirrorPath, targetLine } from "../driver/mirror.ts";
+import { type LegName, type LegsOptions, type LegsSeams, legSteps, linuxLegs, q, startWslBuild, valgrindFailLine, valgrindLine, wslPath } from "../accept/legs.ts";
+import { CARRIED, carryLine, mirrorPath, targetLine } from "../accept/mirror.ts";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 

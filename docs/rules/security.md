@@ -292,7 +292,7 @@ The wasm component tier exists so this is unnecessary. Wrapping an existing C or
 stated purpose, and it delivers the same capability with a memory boundary, a capability grant, a CPU
 deadline and a memory cap — which is the whole of what an FFI gives up.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md).</sub>
 
 <a id="security-no-eval"></a>
 
@@ -856,7 +856,7 @@ The exception is the same one [`security/net-address-policy`](security.md#securi
 operator has already approved by writing it — and it is a property of the address, not of the client
 that dials it.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0055](../decisions/0055.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0055](../decisions/0055.md).</sub>
 
 <a id="security-tainted-qualifier"></a>
 
@@ -1840,9 +1840,10 @@ program's side of the boundary, where the grant already is
 ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)) — and it is recorded because "declares nothing" is a
 claim worth being able to check rather than an absence nobody looked at.
 
-**Not on disk.** There is no image component in the tree.
+**On disk.** `extensions/image/manifest.json` declares no qualifier and no capability; no test
+holds the absence yet.
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0120](../decisions/0120.md), [0055](../decisions/0055.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0055](../decisions/0055.md), [0118](../decisions/0118.md).</sub>
 
 <a id="security-one-tls-client"></a>
 
@@ -2204,7 +2205,12 @@ that it was *honoured*.** An application that hand-rolls dispatch and never read
 no enforcement from anyone. Closing that would require recognising a dispatch site, which is an
 opinion the route table refuses to hold.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0082](../decisions/0082.md), [0199](../decisions/0199.md), [0255](../decisions/0255.md).</sub>
+**Declined:**
+- **The decision readable only through `Core\Attributes::get` on the handler.** That call names the
+  method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
+  and nothing reports the omission.
+
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0082](../decisions/0082.md), [0255](../decisions/0255.md).</sub>
 
 <a id="security-bidi-predicate"></a>
 
@@ -2316,7 +2322,7 @@ successful login at a time ([`security/needs-rehash-answers-weaker`](security.md
 kilobytes transiently per verification of a legacy row, on the calling task — bounded by in-flight
 logins, and shrinking as the table converges.
 
-<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws). Decided in [0129](../decisions/0129.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws). Decided in [0129](../decisions/0129.md).</sub>
 
 <a id="security-needs-rehash-answers-weaker"></a>
 

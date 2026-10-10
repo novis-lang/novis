@@ -69,7 +69,7 @@
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { Tree } from "../driver/proctree.ts";
+import { Tree } from "../lib/proctree.ts";
 import { ROOT } from "../lib/paths.ts";
 import { passthrough } from "../lib/proc.ts";
 import { ArgError, parseArgs, pyRepr } from "../lib/py.ts";

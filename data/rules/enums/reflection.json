@@ -2,8 +2,7 @@
   "title": "Reflection describes an enum's shape and grants it nothing a class has",
   "status": "shipped",
   "because": [
-    "0019",
-    "0010"
+    "0019"
   ],
   "seeAlso": [
     "enums/no-class-machinery",

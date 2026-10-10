@@ -5,4 +5,4 @@
   `corpus.contains(&stem)` over raw `.nvst` text, so a stem holding `Core\IO::` needs a backslash no
   Novis string writes unescaped. Open a refusal with a backslash-free sentence naming the rule and
   put the member name in the interpolated tail.
-  [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:OWED_A_CASE]
+  `until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:OWED_A_CASE`

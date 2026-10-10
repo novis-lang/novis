@@ -3,5 +3,5 @@
   landed rule, so a control-structure brace on its own line, or a `?>` at column 0 inside a block,
   fails the case for a reason that has nothing to do with what it asserts. Write the input as the
   formatter already answers it and vary only the bytes under test — the assertion prints both whole
-  files, and the line that differs names the rule that actually moved.
-  [until: gone crates/nvs-fmt/tests/fixtures.rs:formatted(]
+  files, and the line that differs names the rule that actually moved. See `crates/nvs-fmt/tests/fixtures.rs`.
+  `until: gone crates/nvs-fmt/tests/fixtures.rs:formatted(`

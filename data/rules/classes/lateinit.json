@@ -2,7 +2,6 @@
   "title": "A `lateinit` property is assigned after the constructor rather than inside it",
   "status": "shipped",
   "because": [
-    "0038",
     "0022"
   ],
   "seeAlso": [

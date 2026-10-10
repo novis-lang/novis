@@ -614,7 +614,7 @@ added to the list in a commit that says why.
 The acceptance property is **mutation XSS**: sanitizing an answer again changes nothing, which is what
 says the approved document is the one a browser will build.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0051](../decisions/0051.md), [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0122](../decisions/0122.md).</sub>
 
 <a id="core-classes-html-parsing"></a>
 
@@ -663,7 +663,7 @@ rather than gaps. A `<!DOCTYPE …>` leaves nothing behind, which is this door's
 other door refuses outright. A `<template>`'s contents stay on the element, because the DOM's
 separate fragment has no kind here and a program looks for them under the element it wrote.
 
-<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0121](../decisions/0121.md), [0223](../decisions/0223.md).</sub>
+<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0223](../decisions/0223.md).</sub>
 
 <a id="core-classes-xml-tree-and-stream"></a>
 
@@ -881,7 +881,7 @@ It is **not** built on the shared cache, which is deliberately lossy — right f
 for a message a subscriber is waiting on. Cross-machine fan-out is not the runtime's: a fleet bridges
 topics to a broker in application code.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0023](../decisions/0023.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0051](../decisions/0051.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0023](../decisions/0023.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0076](../decisions/0076.md).</sub>
 
 <a id="core-classes-db-one-api"></a>
 
@@ -910,7 +910,7 @@ one injection into a compromise; `LOAD DATA LOCAL INFILE`; `PDO::quote` and
 `lastInsertId` state; `PDO::ATTR_*`; and `PDO::inTransaction`. Query builders, ORMs and migration
 tooling are not `Core` at all.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0051](../decisions/0051.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-db-connection-is-named"></a>
 
@@ -1331,7 +1331,7 @@ which is exactly what a sans-IO crate is. Sequencing — what to send next, what
 means, when the connection is reusable — is where this project's own decisions live, and borrowing it
 is what would have dragged an async runtime in. TDS has no such crate and is written by hand.
 
-<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-schema-is-a-value"></a>
 
@@ -1482,7 +1482,7 @@ anyway, and the introspector must exist for the diff regardless — so a parser 
 worse implementation of a job already done. Offline `.sql` input, if it is ever wanted, is a separate
 tool with its own decision.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-schema-plan"></a>
 
@@ -1632,7 +1632,7 @@ field. So the refusal is of the call that asks for a whole instance out of a doc
 than of the declaration, at every door that reads a derived codec. There is no whole-class naming policy — that would make a wire
 format depend on a setting rather than on the source.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0071](../decisions/0071.md), [0022](../decisions/0022.md), [0038](../decisions/0038.md), [0030](../decisions/0030.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0071](../decisions/0071.md), [0022](../decisions/0022.md), [0030](../decisions/0030.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-derive-reports-every-field"></a>
 
@@ -2083,15 +2083,24 @@ large output, so what a decode compares against is `min(input × ratio, ceiling)
 `[limits] max_decompressed` and `[limits] max_decompression_ratio` carry the ceiling, default to
 64 MiB and 1000:1, and are `System`-class — an operator's decision, never a request's. A call names
 `$maxBytes` and `$maxRatio` to ask for less, and gets the smaller of the ask and the configured
-value on each axis independently. **There is no spelling for an unbounded decompression**: not an
+value on each axis independently. 64 MiB is far above any document a request decompresses, such as
+a JSON body, an HTML page, a spreadsheet or a CSV export, and below what a request may hold under the
+default `[limits] memory`, so a breach is an error the request survives. 1000:1 is above every input
+that is not built to compress: text under gzip runs about 3:1 to 8:1, JSON with repeated keys up to
+about 60:1, and a log of near-identical lines into the low hundreds, while published bombs start
+around 10,000:1. Neither key is under `[limits.hard]`, which bounds a value a request sets for
+itself, and a request has no setting to lower them: the call's own arguments are that. **There is no spelling for an unbounded decompression**: not an
 argument, since the largest `uint` is still clamped and `0` is a bound of zero; and not a
 configuration, since `false` — which [`config/three-changeability-classes`](config.md#config-three-changeability-classes) reads as "no ceiling"
-for the limits a request may raise — reads here as the shipped default.
+for the limits a request may raise — reads here as the shipped default, as a malformed value does. A
+configuration that spells an unbounded decompression would be written once for a debugging session
+and left in place.
 
 A breach throws rather than truncating, because a truncated decompression that looks like success is
 the failure this bound exists to prevent. The throw is a `ParseError` naming this rule, never an
 `IOError`: a hostile archive and a failing disk are different questions, and a caller that cannot
-tell them apart retries the one it should have refused. The bound is applied while the output grows
+tell them apart retries the one it should have refused. Its message names this rule, the half of
+the bound that stopped the decode, and the two keys a call may lower. The bound is applied while the output grows
 rather than to a buffer already allocated, so a bomb costs the ceiling and never the size its own
 header claims.
 
@@ -2101,7 +2110,25 @@ attack one level up. This is why both classes are Tier 0 rather than sandboxed c
 ([`core-api/tier-roster`](core-api.md#core-api-tier-roster)): a sandboxed decoder gets a memory cap for free and this rule not at
 all.
 
-<sub>See also [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0166](../decisions/0166.md).</sub>
+A handler that decompresses something genuinely larger than the ceiling, such as a 200 MB archive
+member, is refused until the operator raises `max_decompressed` for that deployment. The default is
+chosen for the deployment that has not thought about it.
+
+- **Memory:** the output buffer, at most the smaller of the two numbers, held by the request that
+  asked for it. Nothing else outlives the call.
+
+**Declined:**
+- **An optional bound defaulting to unlimited, `?int $maxLength = null`.** The default of an optional
+  bound is the whole decision, and `null` spells the wrong one.
+- **The request's own `[limits] memory` as the only bound.** Reaching it stops the request and nothing
+  catches that ([`errors/on-limit`](errors.md#errors-on-limit)), where a bomb should be an error the handler answers with a
+  `400`. A heap ceiling also has no way to express a ratio.
+- **A `Core\Compress\Bound` value object holding both numbers.** Two `uint` parameters carry the same
+  two numbers without a class, a reference card and tests of their own.
+- **Refusing early on the uncompressed size a frame or archive header declares.** The input's author
+  wrote that number, so no member uses it, not even as a hint, and the output is measured as it grows.
+
+<sub>See also [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="core-classes-image-pipeline"></a>
 
@@ -2125,6 +2152,10 @@ whole input and returning its whole output. There is no per-pixel, per-row or pe
 none is added later: `raw()` exports the whole buffer once for the caller that genuinely needs
 pixels. The rule for any future entry point is a refusal — a member that would be called in a loop
 over the image's own contents is not admitted, because its cost is the boundary rather than the work.
+A call is a fixed cost and a bulk copy is memcpy-bound, and a pixel buffer is the largest thing a
+request holds — a 24-megapixel frame is 96 MB at RGBA8 — so a request pays one instance and one
+crossing per terminal, and the pixel buffer never leaves the guest. The builder grows a member
+without touching the ABI, because a new operation is a new plan step rather than a new export.
 
 A pipeline starts from one of four sources — encoded bytes (`open`), a blank canvas (`create`), RGBA8
 pixels (`fromRaw`) or text set in a font (`measureText`) — and `run` returns one of three outputs: the
@@ -2153,11 +2184,23 @@ every level, so a few rows that each draw the one before twice cannot double the
 rows and then the overlay to the table, renumbering the overlay's steps by the rows already there. `variants` decodes once and costs one host-to-guest call, counted by
 `nvs_ext::call::Request::crossings` (`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
-`Image` with every member of 0120 § 2's table, and `Color` with `rgba` and `hex` and no named constants yet
-(`tests/conformance/novis/`). A canvas or pixel source is held to the default pixel cap, not the
-`[image]` one.
+`Image` with every member `IMAGE_MEMBERS` in `crates/nvs-stdlib/tests/ext_world.rs` places, and
+`Color` with `rgba` and `hex` and no named constants yet (`tests/conformance/novis/`). A canvas or
+pixel source is held to the default pixel cap, not the `[image]` one.
 
-<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md), [0063](../decisions/0063.md), [0003](../decisions/0003.md), [0276](../decisions/0276.md).</sub>
+**Declined:**
+- **A gd-shaped handle with a call per operation.** It materialises every intermediate, prevents
+  fusion, and either mutates in place, which no other Novis value does, or copies a frame per
+  operation.
+- **The resampling kernel at Tier 2, only the codecs in the sandbox.** It moves the pixel buffer
+  across the boundary twice per pipeline, which costs more than the wasm penalty saves, and splits
+  one job across two tiers. If a committed benchmark puts in-guest resampling far below native for a
+  real workload, the exit is Tier 2 for that kernel alone, never `dlopen`.
+- **ImageMagick or libvips compiled to wasm wholesale.** A surface that large is the long tail the
+  component declines to own, and a C codebase that size is still one to build and audit inside the
+  sandbox.
+
+<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0063](../decisions/0063.md), [0003](../decisions/0003.md), [0276](../decisions/0276.md).</sub>
 
 <a id="core-classes-image-pixel-model"></a>
 
@@ -2175,16 +2218,31 @@ a rectangle is a blank canvas composited, text is a real font, and charts and di
 client; a shape layer is not planned, and a third-party extension may carry one. The affine matrix
 members go, replaced by the four cases a web application reaches for, named: resize, rotate, flip,
 crop. Screen and window capture go, a screen not being a request's business. Format detection by
-positional array and integer constants goes, replaced by a typed header shape and a format enum that
-carries its own MIME type and extension.
+positional array and integer constants goes, replaced by a typed header shape (`info`) and a format
+enum whose MIME type and extension `Image::mime` and `Image::extension` give
+([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)). A resource to destroy goes, because an image is a value.
 
 What this costs is that a program doing genuine raster drawing has no home here. That is deliberate:
 the component exists to transform images a web application receives and produces, and every concept
 above was priced against that.
 
-**Not shipped.** No image component exists in the tree.
+What a gd program becomes, one row per concept:
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster). Decided in [0120](../decisions/0120.md).</sub>
+| gd / exif | Novis |
+|---|---|
+| `imagecreatefrom*`, `imagecreatefromstring` | `Image::open`, the format detected from the bytes |
+| `imagejpeg`, `imagepng`, `imagegif`, `imagewebp`, `imageavif` | `format(...)` then `encode()`; a path is written by the program from the result |
+| `imagecopyresampled`, `imagecopyresized`, `imagescale`, `imagecrop`, `imagecropauto`, `imagerotate`, `imageflip`, `imagecopy`, `imagecopymerge` | `resize`, `crop`, `trim`, `rotate`, `flip`, `composite` |
+| `imagefilter`, `imageconvolution`, `imagegammacorrect` | `sharpen`, `blur`, `grayscale`, `brightness`, `contrast`, `gamma`, `tint` |
+| `imagettftext`, `imagefttext`, `imagettfbbox`, `imageftbbox` | `text`, `measureText` |
+| `getimagesize*`, `imagesx`, `imagesy`, `exif_read_data`, `exif_imagetype`, `exif_thumbnail` | `Image::info`; a thumbnail is `resize` |
+| `imagesetpixel`, `imagecolorat` | `raw()` and `fromRaw()`, once, the whole buffer |
+| palettes, mode flags, drawing primitives, affine matrices, screen capture, gd's own formats | dropped, with the replacement above where one exists |
+
+**Not shipped.** The component works on RGBA8 frames throughout, and a pixel source and the `raw`
+output are RGBA8 rows (`extensions/image/src/lib.rs`).
+
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster).</sub>
 
 <a id="core-classes-image-format-roster"></a>
 
@@ -2198,12 +2256,16 @@ Rust encoder exists and the C library is not admitted. SVG and PDF decode only, 
 a second wave. TIFF, BMP, TGA, ICO, PNM, HEIC and gd's own formats do neither.
 
 Each absence is a decision rather than an omission. HEIC is out because the codec is
-patent-encumbered and has no Rust decoder, and iOS browsers upload JPEG by default. gd's own formats
-are out because nothing outside gd reads them.
+patent-encumbered and has no Rust decoder, and iOS browsers upload JPEG by default. TIFF is a large
+reader with a long CVE history, for a format web browsers do not display. gd's own formats are out
+because nothing outside gd reads them. A third-party extension may carry any of them.
 
 Every crate is pure Rust and on the licence allowlist, with exactly one C library — the lossy WebP
-encoder — admitted because it runs only inside the sandbox. AVIF encoding costs seconds of CPU per
-image and is documented as queue work rather than a request-path call.
+encoder — admitted because it runs only inside the sandbox. It is a build cost carried for one
+feature, and it is dropped once a pure-Rust lossy WebP encoder exists. Resampling is
+`fast_image_resize`, for its SIMD paths, and the guest is built with `simd128`
+(`extensions/image/.cargo/config.toml`). AVIF encoding costs seconds of CPU per image and is
+documented as queue work rather than a request-path call.
 
 **Not shipped.** The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
 the guest and refuses to encode JPEG XL (`crates/nvs-ext/tests/image_decode.rs`). AVIF decodes
@@ -2212,7 +2274,7 @@ encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.r
 through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
 APNG is neither decoded as an animation nor encoded.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap). Decided in [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0128](../decisions/0128.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap).</sub>
 
 <a id="core-classes-image-pixel-cap"></a>
 
@@ -2251,7 +2313,7 @@ smaller of the call's and the key's value in the request's snapshot before the c
 (`tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`). The
 `Novis\Image` builder that would pass a program's own `{maxPixels}` is not written.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0120](../decisions/0120.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
 
 <a id="core-classes-image-correct-by-default"></a>
 
@@ -2283,7 +2345,13 @@ metadata unless a `metadata` step keeps the EXIF block, which an AVIF never carr
 `crates/nvs-ext/tests/image_pipeline.rs`). AVIF and JPEG XL inputs are neither oriented nor
 converted. The `Novis\Image` builder's `open` turns both on unless its options say `false`.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md).</sub>
+**Declined:**
+- **Keep metadata by default, strip on request.** It is the least surprising default to someone who
+  expects a resize to change nothing else. The surprising outcome it allows is a public thumbnail
+  carrying a home address, and a default is the only place that outcome is prevented for every
+  program rather than for the careful ones.
+
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job).</sub>
 
 <a id="core-classes-image-one-entry-point-per-job"></a>
 
@@ -2301,7 +2369,8 @@ method, so a test asserts on the comparison's own numbers and the failure ledger
 detection. **Placeholders** and **palette extraction** serve the front end.
 
 **Text** renders over a font supplied as bytes, with no system font lookup, since the guest has no
-filesystem. **QR codes** are one entry point, because a QR code is an image a web application
+filesystem. The first wave sets Latin script only: complex shaping, ligatures and right-to-left
+text are not applied, and the reference card says so until they are. **QR codes** are one entry point, because a QR code is an image a web application
 produces daily. **SVG** is an input format whose declared canvas counts against the pixel cap, whose
 scripts and foreign objects are ignored, and where **no external reference is ever resolved** —
 there is nothing in the guest to resolve it with. Rasterising is how an uploaded SVG is displayed
@@ -2325,9 +2394,10 @@ says how `size`, `margin` and the level make the image and what each default is,
 disk: the `text` step and the `text` source over `ab_glyph`, whose module doc
 `extensions/image/src/text.rs` says how a size, a line, kerning, `maxWidth` and `align` set the
 text and what the box is, and `Image::text`, `Image::measureText` and `Font::fromBytes`, which
-checks only the file's first four bytes and calls no export. SVG is not.
+checks only the file's first four bytes and calls no export. SVG is not, and its fixtures owe an SVG
+that references an external file and rasterises with the reference unresolved.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0120](../decisions/0120.md), [0079](../decisions/0079.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-intl-roster"></a>
 
@@ -2439,8 +2509,8 @@ keyword; the fields cross as ISO fields and the guest converts them.
 
 `rule:core-classes/pdf-render-has-no-io`
 
-PDF generation is a first-party Tier 1 extension package, sandboxed, with everything a program names
-under one namespace and one registered class. It is not `Core`: a layout engine, a font parser and
+PDF generation is a first-party Tier 1 extension package, `nvs/pdf`, sandboxed, with everything a
+program names under `Novis\Pdf` and one registered class. It is not `Core`: a layout engine, a font parser and
 image codecs unsandboxed in every binary would contradict the reason the image component is an
 extension at all. It is not native: nothing in it holds state or privilege.
 
@@ -2454,11 +2524,27 @@ under the outbound policy, and passes the bytes.
 The class of exploit that defines HTML-to-PDF rendering — server-side request forgery and local file
 read through a `<img src>` — is thereby absent by construction: there is nothing to trick into
 fetching, because there is no fetching. Fonts follow the same rule, with a small embedded default set
-so a plain document renders out of the box, and the guest needs no clock.
+so a plain document renders out of the box, and the guest needs no clock: a rendered date is text
+the program already put in its HTML. HTML, CSS, font files, embedded images and SVG are still hostile
+bytes, and the sandbox's memory cap and epoch deadline contain that surface.
+
+The component's fixtures owe: a render with **no capability grants** that succeeds, so the no-I/O
+claim is demonstrated rather than asserted; and fixtures referencing `file:///…`, an `http:` URL and
+a name absent from the asset map, each throwing, with no network or filesystem access observable from
+the guest.
 
 **Not shipped.** There is no PDF package in the tree; M17 builds it.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0121](../decisions/0121.md), [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
+**Declined:**
+- **`Core`.** A layout engine, a font parser and image decoders would sit unsandboxed in every binary
+  and every in-flight request.
+- **Native.** Nothing here needs a connection lifetime or a runtime privilege, and the sandbox is the
+  feature rather than a cost to route around.
+- **Leaving the category to the third-party channel.** That produces incompatible libraries with
+  disjoint CSS subsets, and the popular ones fetch whatever the HTML names, which is the category's
+  vulnerability class. One first-party no-I/O way to do the job prevents both.
+
+<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-pdf-one-engine"></a>
 
@@ -2487,14 +2573,30 @@ never shipped in the default path, and documented as trading the no-I/O guarante
 a second *engine*, not a second API, which is the whole reason a single interface was worth fixing
 first.
 
-What it spends, per request that renders: the HTML, the asset map, the layout tree and the output
-document, all inside the extension's memory cap, none of it outliving the request. Wall-clock is
-milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
-queue.
+No HTML paged-media engine exists to link as a library, so the engine is assembled from production
+Rust crates — `html5ever`, `taffy` for layout, `rustybuzz` for shaping, `resvg` for SVG and
+`krilla`/`pdf-writer` for the file — plus the pagination layer nobody ships, which is ours to write.
+The rules on this component are written against the interface, not the crates: a production-grade Rust
+paged-media engine may replace the assembled one wholesale, and it must still meet them.
+
+- **Memory:** per request that renders, the HTML, the asset map, the layout tree and the output
+  document, all inside the extension's memory cap, none of it outliving the request. Wall-clock is
+  milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
+  queue.
 
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0121](../decisions/0121.md), [0051](../decisions/0051.md), [0120](../decisions/0120.md), [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
+**Declined:**
+- **An engine written in Novis.** It would be a second, unfuzzed implementation of shaping, bidi, line
+  breaking, cascade and layout, buying nothing the wasm build does not already give. Novis code
+  belongs in the builder and the templates.
+- **Headless Chromium as the engine.** It is a browser process per render, hundreds of megabytes
+  outside any request's attribution, with its own sandbox and lifecycle to operate. It is the opt-in
+  fidelity backend above, not the foundation.
+- **A first-party imperative PDF API.** The first-party answer to drawing at a coordinate is HTML, CSS
+  and SVG; a third-party package may carry one.
+
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-pdf-css-subset"></a>
 
@@ -2509,11 +2611,15 @@ CSS's own forward-compatible parsing: an unknown declaration is dropped, never g
 What this rule adds to that standard behaviour is **visibility**. The render result carries the list
 of dropped declarations, so a test asserts the list is empty and a document that silently depends on
 unsupported CSS cannot survive CI. "Renders fine in the browser, wrong in the library" is the failure
-an invisible drop produces, and a visible list is what turns it into a test.
+an invisible drop produces, and a visible list is what turns it into a test. The subset stays a
+permanent compatibility surface: the list names each gap, and does not close it.
+
+The component's fixtures owe a fixture using an unsupported property that renders with that property
+in the dropped-declarations list, and a clean fixture whose list is empty.
 
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0121](../decisions/0121.md).</sub>
+<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
 
 <a id="core-classes-pdf-output-is-inert"></a>
 
@@ -2524,7 +2630,7 @@ an invisible drop produces, and a visible list is what turns it into a test.
 The writer never emits JavaScript, launch actions, embedded files, or any construct that makes a
 reader fetch or execute on open. Links exist only where the source wrote one with an `http(s):` or
 `mailto:` target. Rendering `tainted` input is safe by construction — the render is a transform, not
-a sink — and a program embedding untrusted markup that wants its *tags* constrained sanitizes first.
+a sink — and a program embedding untrusted markup that wants its *tags* constrained sanitizes first ([`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)).
 
 The writer also embeds **no timestamps and no generator entropy**, so two renders of equal input are
 byte-equal. That turns a document test into a byte comparison and removes the class of flaky fixture
@@ -2533,9 +2639,13 @@ every PDF test suite otherwise grows.
 The second, fidelity backend ([`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine)) makes no exception to any of this:
 it trades the no-I/O guarantee, not the inertness of what it writes.
 
+The component's fixtures owe a scanner over the output of the whole fixture corpus that finds no
+`/JavaScript`, `/Launch`, `/OpenAction` or `/EmbeddedFile` object, and the same input rendered twice
+and compared byte for byte.
+
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source). Decided in [0121](../decisions/0121.md), [0024](../decisions/0024.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source). Decided in [0024](../decisions/0024.md), [0079](../decisions/0079.md).</sub>
 
 <a id="core-classes-pdf-page-is-an-image-source"></a>
 
@@ -2548,22 +2658,47 @@ a writer and an interpreter share no code, and a raster produced there would hav
 boundary to enter the pipeline that is the whole point of loading one. No new entry point is added;
 the format enum simply gains a case.
 
-`open` gains two options meaningful for a paged source: a 1-based **page** and a **dpi**. One call
-rasterises exactly that page, so a document's pages become images by iterating and cost stays
-proportional to what was asked for. The pixel price is the page box scaled to the requested
-resolution, counted against the pixel cap before any buffer is allocated
-([`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap)), and a page beyond the document throws naming the page count.
-The header reader parses the cross-reference table and page tree and never a content stream, so
-counting pages allocates no pixel.
+`open` gains two options meaningful for a paged source: a 1-based **page**, default `1`, and a
+**dpi**, default `150`. One call rasterises exactly that page, so a document's pages become images by
+iterating and cost stays proportional to what was asked for. The pixel price is the page box scaled
+to the requested resolution, `ceil(width_pt × dpi / 72) × ceil(height_pt × dpi / 72)`, counted
+against the pixel cap before any buffer is allocated ([`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap)), so the
+same bytes refused at one dpi pass at a lower one. A page beyond the document throws a `RuntimeError`
+naming the page count.
+
+`info` parses the cross-reference table and page tree and never a content stream: `format` is
+`Format::Pdf`, `frames` is the **page count**, and `width` and `height` are the first page's box in
+whole points. Counting pages is one header-only call that allocates no pixel.
 
 Rasterising is a pure function of the bytes and the options — no clock, no I/O, no system fonts — so
-equal input gives byte-equal output. The interpreter is pure Rust, compiled into the sandbox beside
-the codecs, with substitutes for the standard fonts embedded so an unembedded-font document renders.
+equal input gives byte-equal output. The interpreter is **hayro**, pure Rust, compiled into the
+sandbox beside the codecs, with substitutes for the standard-14 fonts embedded in the component's data
+section so an unembedded-font document renders. It is linked only once it builds for the component's
+`wasm32` target and its dependency tree passes `deny.toml`. The sandbox is where a parser this large
+belongs: the hostile-bytes surface it leaves is contained by the sandbox's memory cap and epoch
+deadline like every other decoder's, and the build gains no C.
 
-**Not shipped.** There is no image component in the tree, so there is nothing for this to be a format
-of.
+The decoder's fixtures owe, asserted inside the guest: a 100-page document whose `info` gives
+`frames: 100` and `Format::Pdf` with no pixel buffer allocated and one host-to-guest call; a page box
+over the cap at one `dpi` that passes at a lower one; `{page: 7}` of a three-page document throwing
+with the count 3; the same page rasterised twice byte-equal; and a benchmark of one text page and one
+image-heavy page, guest against the same crate native.
 
-<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals). Decided in [0128](../decisions/0128.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md), [0051](../decisions/0051.md).</sub>
+- **Memory:** a request that opens a PDF holds the encoded document and one page's raster of at most
+  the pixel cap, 96 MiB at the default cap in RGBA8, inside the extension's existing store limits, and
+  nothing outlives the request. The interpreter and the font substitutes grow the binary by
+  single-digit megabytes. CPU is the request's epoch deadline, and bulk rasterising is queue work.
+
+**Not shipped.** There is no PDF decoder in the image component. `Format::Pdf` exists, and `run`
+refuses to encode it (`extensions/image/src/encode.rs`).
+
+**Declined:**
+- **A `rasterize` entry on the PDF generation package.** The writer and an interpreter share nothing,
+  and every raster would recross the boundary as bytes to reach `resize`.
+- **pdfium or MuPDF compiled to wasm.** pdfium is a large C++ build no other component needs a
+  toolchain for, and MuPDF is AGPL and outside `deny.toml`, while a pure-Rust interpreter exists.
+
+<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals).</sub>
 
 <a id="core-classes-pdf-decode-refusals"></a>
 
@@ -2571,10 +2706,11 @@ of.
 
 `rule:core-classes/pdf-decode-refusals`
 
-An **encrypted document throws** naming the encryption. There is no password option, and decrypting
-stays in the third-party channel. An **embedded object the engine recognises but cannot decode
-throws** naming the object, rather than rendering a blank region: a generated image must be
-deterministic, not approximately right. An external reference never resolves, because nothing in the
+An **encrypted document throws** a `ParseError` naming the encryption. There is no password option,
+and decrypting stays in the third-party channel. An **embedded object the engine recognises but cannot
+decode throws** naming the object, rather than rendering a blank region: a generated image must be
+deterministic, not approximately right, and a silently incomplete raster is a repair
+([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)). An external reference never resolves, because nothing in the
 guest can resolve one, and JavaScript, launch actions and embedded files are inert by construction,
 since rasterising reads a page's appearance and never executes an action.
 
@@ -2588,9 +2724,17 @@ The surface this leaves open is an *approximated* construct — one the interpre
 renders imperfectly — which is a silent fidelity miss rather than a detectable omission, and is owned
 as a known consequence rather than closed by a rule.
 
-**Not shipped.** There is no image component in the tree.
+The decoder's fixtures hold this inside the guest, and owe:
+- an encrypted fixture that throws `ParseError` naming the encryption, and a fixture embedding an
+  object the engine cannot decode that throws naming it;
+- a fixture carrying an external reference, a JavaScript action and an embedded file that rasterises
+  with nothing resolved, nothing executed and no network or filesystem access observable;
+- a **bomb corpus** — recursive form XObjects, an xref loop, a stream-length lie and a deflate bomb —
+  where each case ends in a throw or a contained trap under the epoch deadline, never a hang.
 
-<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0128](../decisions/0128.md), [0095](../decisions/0095.md), [0121](../decisions/0121.md), [0044](../decisions/0044.md).</sub>
+**Not shipped.** There is no PDF decoder in the image component.
+
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md), [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-spreadsheet-has-no-io"></a>
 
@@ -2598,10 +2742,18 @@ as a known consequence rather than closed by a rule.
 
 `rule:core-classes/spreadsheet-has-no-io`
 
-Spreadsheet reading and generation are one first-party Tier 1 extension package, sandboxed, with one
-registered class and everything else Novis source that calls it. It is not `Core`: a
-PhpSpreadsheet-sized API is a permanent simplicity cost, and its parsers unsandboxed in every
-in-flight request is exactly the outcome the tier system exists to prevent.
+Spreadsheet reading and generation are one first-party Tier 1 extension package, `nvs/spreadsheet`,
+sandboxed, with `Novis\Spreadsheet\Engine` as its one registered class and everything else under
+`Novis\Spreadsheet` Novis source that calls it. It is not `Core`: a PhpSpreadsheet-sized API is a
+permanent simplicity cost, and its parsers unsandboxed in every in-flight request is exactly the
+outcome the tier system exists to prevent. It is not Native either, because nothing in it holds
+connection state or privilege, and the sandbox is the feature. CSV stays `Core\Csv`'s, so each job
+has one way to write it.
+
+The placement holds because an uploaded workbook is the tier's exact hostile-bytes material: xlsx is a
+zip of XML, where external entities and decompression bombs are the genre's vulnerability history, and
+legacy xls is an OLE compound binary. Parsing or serializing a document costs milliseconds, so the
+boundary crossing is noise.
 
 A workbook crosses the boundary as bytes and the result returns as bytes; **the component fetches
 nothing**. An external-workbook reference, a linked image or a remote data connection in a read file
@@ -2614,9 +2766,25 @@ cached value is a claim by the author rather than a computation by us. VBA and e
 are inert payload the reader may enumerate but can never execute. Cells read from `tainted` bytes are
 `tainted`.
 
+The component's fixtures owe, asserted inside the guest: a read and a write with no capability grants
+that succeed with no network or filesystem access observable; and an xlsx whose sheet XML declares an
+external entity, and one carrying an external-workbook reference, each read with the reference
+surfaced as data and nothing resolved.
+
 **Not shipped.** There is no spreadsheet package in the tree; M17 builds it.
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0123](../decisions/0123.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md), [0051](../decisions/0051.md), [0055](../decisions/0055.md).</sub>
+**Declined:**
+- **Written in Novis.** It would reimplement OOXML and BIFF parsing that production crates already
+  carry, unfuzzed and ours to maintain, and buy nothing the wasm build does not give. Novis code
+  belongs in the builder.
+- **Leaving the category to the third-party channel.** The read surface belongs where the sandbox and
+  the cap are always present, the typed formula only protects when it is the one way everybody writes
+  a cell ([`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value)), and the existing engines make
+  first-party assembly cheap.
+- **Exposing the crates' surfaces directly.** That is three disjoint APIs for one job inside a single
+  component.
+
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0055](../decisions/0055.md).</sub>
 
 <a id="core-classes-spreadsheet-formula-is-a-value"></a>
 
@@ -2634,11 +2802,16 @@ separated by type, not by inspection — applied at a boundary that is otherwise
 security advisory.
 
 What it costs is one wrapper at the call sites that genuinely mean a formula, which is the smaller
-half of any real export.
+half of any real export. Because the writer cannot be tricked into emitting code, it needs no
+launderer, which is part of why it can live outside `Core`.
+
+The component's fixtures owe a `tainted` string beginning `=` that lands as a text cell, and the same
+expression as a `Formula` value that lands as a formula cell, both asserted on the written bytes
+rather than the builder's state.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0123](../decisions/0123.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-spreadsheet-bulk-boundary"></a>
 
@@ -2655,16 +2828,19 @@ image component makes.
 Before any sheet buffer is allocated, the component reads the declared dimensions and the container's
 declared uncompressed sizes, and refuses a workbook over a cell cap with a throw naming the cap and
 the declared size. The cap is policy and the sandbox's memory cap is the backstop, which is the shape
-the image component's pixel cap already has.
+the image component's pixel cap already has. The cap's knob, default and config block are the
+building milestone's to set. The component's fixtures owe a workbook whose declared dimensions or
+declared uncompressed size exceed the cap and throw before a sheet buffer is allocated, and the same
+bytes passing when the cap is raised.
 
-What it spends, per request that calls it: the document model and its serialized form, inside the
-extension's memory cap, none of it outliving the request. A million-row export belongs in the queue,
-and the write path must offer a bounded-memory streaming mode, so a large export costs rows in
-flight rather than rows total.
+- **Memory:** a request that calls the component holds the document model and its serialized form,
+  inside the extension's memory cap, and none of it outlives the request. A million-row export belongs
+  in the queue, and the write path must offer a bounded-memory streaming mode, so a large export costs
+  rows in flight rather than rows total.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0123](../decisions/0123.md), [0120](../decisions/0120.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io).</sub>
 
 <a id="core-classes-spreadsheet-evaluation-and-roster"></a>
 
@@ -2672,24 +2848,34 @@ flight rather than rows total.
 
 `rule:core-classes/spreadsheet-evaluation-and-roster`
 
-The roster is **read-wide and write-narrow**. The modern XML format reads and writes, and is the
-parity target: styles, merged cells, charts, conditional formats, tables, autofilters, images and
-defined names. The macro-enabled variant reads data only, with its macros enumerable and inert, and
-**is never written** — a filled template emits the macro-free format. The binary and legacy formats
-read and do not write, because a writer for a 1997 binary format is legacy nothing should produce.
-The open format reads, and writes in a second wave. Template fill is named explicitly, because it is
-the workflow behind most real exports: open a styled workbook, set values, save — styling preserved,
-macros dropped.
+The roster is **read-wide and write-narrow**. xlsx reads and writes, and is the parity target: styles,
+merged cells, charts, conditional formats, tables, autofilters, images and defined names. xlsm reads
+data only, with its macros enumerable and inert, and **is never written** — a filled template emits
+xlsx with no VBA stream. xlsb and xls (BIFF8) read and do not write, because a writer for a 1997
+binary format is legacy nothing should produce. ods reads, and writes in a second wave. Template fill
+is named explicitly, because it is the workflow behind most real exports: open a styled workbook, set
+values, save — styling preserved, macros dropped.
+
+Reading is `calamine`, generation `rust_xlsxwriter`, template fill `umya-spreadsheet` and the
+second-wave ods writer `spreadsheet-ods`: every crate pure Rust, wasm-clean and on `deny.toml`'s
+allowlist, with no C in the build.
 
 **Nothing evaluates implicitly** — not on read, and not on write, where a formula cell is written for
-the opening application to compute. An explicit evaluate call is second-wave work, and its result
-carries the list of functions and references it could not compute, so a test asserts that list is
-empty. That is the same visibility rule the PDF component applies to dropped CSS: silent wrongness
-becomes a named, testable diagnostic.
+the opening application to compute. An explicit evaluate call is second-wave work over IronCalc, the
+one credible Rust engine, and the wave waits on its 1.0 release: a version test rather than a
+judgment. Its function set is documented, and its result carries the list of functions and references
+it could not compute, so a test asserts that list is empty. That is the same visibility rule the PDF
+component applies to dropped CSS: silent wrongness becomes a named, testable diagnostic. Until that
+wave, a workbook's cached formula results are returned where PhpSpreadsheet would recalculate, and the
+API tells the two apart, so the gap is visible.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset). Decided in [0123](../decisions/0123.md), [0051](../decisions/0051.md), [0121](../decisions/0121.md).</sub>
+**Declined:**
+- **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
+  running the attacker's program ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
+
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset).</sub>
 
 <a id="core-classes-spreadsheet-output-is-inert"></a>
 
@@ -2706,9 +2892,12 @@ document test is a byte comparison. This is the same rule the PDF writer holds
 ([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)), and it exists for the same reason: a test that cannot
 compare bytes ends up comparing nothing.
 
+The component's fixtures owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
+stream in, and the same input serialized twice and compared byte for byte.
+
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0123](../decisions/0123.md), [0121](../decisions/0121.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="core-classes-net-one-api-three-transports"></a>
 

@@ -5,4 +5,4 @@
   where it names 4x on a commit that prints 13.2x once the box is idle. Build it with `--no-run`
   first and run the filter as a second call, and never read one red cost margin as a regression
   before that.
-  [until: gone crates/nvs-cli/build.rs:join("index")]
+  `until: gone crates/nvs-cli/build.rs:join("index")`

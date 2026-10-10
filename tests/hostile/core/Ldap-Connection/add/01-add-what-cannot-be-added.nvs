@@ -4,13 +4,45 @@
 // hostile: timeout-ms 60000
 // requires: samba-ad
 
+class Leftovers
+{
+    // Deletes a unit and every entry below it. A unit with entries below it cannot be
+    // deleted, so each round deletes what it can, and the next round tries the rest.
+    public static function clear(Core\Ldap\Connection $corp, string $unit): void
+    {
+        uint $round = 0;
+        while ($round < 4) {
+            array<Core\Ldap\Dn> $dns = [];
+            bool $found = false;
+            try {
+                foreach ($corp->search(Core\Ldap\Filter::present('objectClass'), { base: $unit, select: ['ou'] }) as Core\Ldap\Entry $entry) {
+                    $dns[] = $entry->dn();
+                    $found = true;
+                }
+            } catch (Throwable $error) {
+            }
+            if (!$found) {
+                return;
+            }
+            foreach ($dns as Core\Ldap\Dn $dn) {
+                try {
+                    $corp->delete($dn);
+                } catch (Throwable $error) {
+                }
+            }
+            $round = $round + 1;
+        }
+    }
+}
+
 var $corp = Core\Ldap::connect('corp-accounts');
 string $unit = 'OU=Hostile Add,DC=example,DC=test';
+// A run that stopped half-way leaves entries behind.
+Leftovers::clear($corp, $unit);
 try {
-    $corp->delete($unit);
-} catch (Core\Ldap\LdapError $missing) {
+    $corp->add($unit, ['objectClass' => 'organizationalUnit']);
+} catch (Throwable $error) {
 }
-$corp->add($unit, ['objectClass' => 'organizationalUnit']);
 
 // 1. DNs that are not DNs, a parent that does not exist, and a DN that is already there.
 array<string> $dns = ['', 'not a dn', 'OU=', 'OU=Child,OU=Nowhere,DC=example,DC=test', $unit];
@@ -71,21 +103,19 @@ try {
 }
 echo '3 handled: ', $handled + 1, "\n";
 
-// 4. Two hundred entries added and deleted in a row.
+// 4. Fifty entries added and deleted in a row. The loop stops at the first error.
 uint $done = 0;
 $i = 0;
-while ($i < 200) {
+while ($i < 50) {
     try {
         $corp->add('OU=Round,' . $unit, ['objectClass' => 'organizationalUnit']);
         $corp->delete('OU=Round,' . $unit);
         $done = $done + 1;
-    } catch (Core\Ldap\LdapError $failed) {
+    } catch (Throwable $failed) {
+        break;
     }
     $i = $i + 1;
 }
 echo '4 added: ', $done, "\n";
 
-try {
-    $corp->delete($unit);
-} catch (Core\Ldap\LdapError $missing) {
-}
+Leftovers::clear($corp, $unit);

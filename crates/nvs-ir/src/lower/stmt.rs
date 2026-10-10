@@ -104,8 +104,8 @@ impl<'a> Lowering<'a> {
             // instead of a type read off the AST. The parser/checker both
             // guarantee `value` is present whenever `ty` is `None` — see
             // `StmtKind::LocalDecl`'s own doc comment — and a bare
-            // array-literal initializer is already a checker error (ADR
-            // 0037's own refused shape), so it never reaches this arm.
+            // array-literal initializer whose elements do not share one type
+            // is already a checker error, so it never reaches this arm.
             StmtKind::LocalDecl {
                 ty: None,
                 name: local_name,

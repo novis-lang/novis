@@ -4,4 +4,4 @@
   a class kind the checker excused, and believing the message would have rebuilt a feature that was
   there. Enumerate the arms of whatever records the table entry and probe one scratch
   `.agent-tmp/*.nvs` per arm before taking the panic's own account of itself.
-  [until: gone crates/nvs-ir/src/lower/stmt.rs:object]
+  `until: gone crates/nvs-ir/src/lower/stmt.rs:object`

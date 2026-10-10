@@ -4,4 +4,4 @@
   request end reaches the connection's context and never the record `Core\Session::start` opened.
   Whatever a request's end owes a context happens in `isolate::finish` and `nvs run`'s root task;
   where `nvs-host` cannot name `nvs-stdlib`, it travels as a `fn` pointer on the state itself.
-  [until: gone crates/nvs-stdlib/src/session.rs:Core\Session::start]
+  `until: gone crates/nvs-stdlib/src/session.rs:Core\Session::start`

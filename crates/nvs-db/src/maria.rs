@@ -28,7 +28,7 @@
 //! `client_ed25519` and `parsec` are answered by `mysql_common`'s own
 //! implementations, behind its `client_ed25519` and `client_parsec` features —
 //! pure Rust, which is
-//! [ADR 0051 § 4](/docs/decisions/0051.md)'s answer
+//! `rule:packaging/a-c-dependency-answers-two-questions`'s answer
 //! for exactly this case. That section names these plugins in advance and
 //! allows either a Rust implementation or a documented refusal; this is the
 //! implementation. Both send a signature over the server's nonce, so what

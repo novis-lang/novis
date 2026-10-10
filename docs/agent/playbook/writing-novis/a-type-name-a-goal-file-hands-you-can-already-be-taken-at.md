@@ -4,4 +4,4 @@
   new one flat would have put two types of that name in `crates/nvs-server/src/serve.rs`, which
   imports both. Keep such a pair inside its module and write `stream::Drain` at every call site
   rather than aliasing one of them into a second name.
-  [until: gone crates/nvs-runtime/src/drain.rs:pub struct Drain]
+  `until: gone crates/nvs-runtime/src/drain.rs:pub struct Drain`

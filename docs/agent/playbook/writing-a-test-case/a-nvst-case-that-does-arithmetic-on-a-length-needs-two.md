@@ -5,4 +5,4 @@
   into equal pieces needs `Core\Math::intDiv`. Write `(Core\Bytes::length($b) as int)` for the
   subtraction and `Core\Math::intDiv($a, $b)` for the division, and run
   `target/debug/nvs.exe test <one case>` before believing either shape.
-  [until: gone crates/nvs-stdlib/src/bytes.rs:Core\Bytes::length]
+  `until: gone crates/nvs-stdlib/src/bytes.rs:Core\Bytes::length`

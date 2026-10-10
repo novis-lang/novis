@@ -2,7 +2,6 @@
   "title": "`nvs dap` is complete without any editor's debugger UI; VS Code's wiring is a descriptor factory and a `launch.json` schema, and PhpStorm's stays deferred",
   "status": "designed",
   "because": [
-    "0016",
     "0040"
   ],
   "seeAlso": [

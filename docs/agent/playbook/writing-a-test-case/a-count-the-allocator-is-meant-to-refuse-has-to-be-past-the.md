@@ -4,4 +4,4 @@
   refuse the same count outright and the case reads as green. Ask for a petabyte — still far under
   the `isize::MAX` seam, past every 64-bit address space — as
   `count-shaped-producers-refuse-alike.nvst` does.
-  [until: gone tests/conformance/core/count-shaped-producers-refuse-alike.nvst:1000000000000000]
+  `until: gone tests/conformance/core/count-shaped-producers-refuse-alike.nvst:1000000000000000`

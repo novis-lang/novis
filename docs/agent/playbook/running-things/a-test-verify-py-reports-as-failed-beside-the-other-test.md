@@ -4,4 +4,4 @@
   as CPU time, a channel checked after its sender's thread may have exited, a cost margin that holds
   only on an idle box. Give the test what it depends on (`nvs_host::cpuclock::burn_at_least`, an
   assertion that tolerates a dropped sender, `#[cfg_attr(debug_assertions, ignore)]` into the
-  driver's release slot) in a commit of its own. [until: gone tools/nv/cmd/verify.ts:alone]
+  driver's release slot). See `tools/nv/cmd/verify.ts`. `until: gone tools/nv/cmd/verify.ts:alone`
