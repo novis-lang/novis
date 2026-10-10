@@ -7,8 +7,10 @@ import {
   buildRecord,
   CASES,
   COMPARE_DIR,
+  checkResult,
   comparable,
   crashResult,
+  csrfResult,
   ESCAPE_TERM,
   escapeResult,
   headersResult,
@@ -127,13 +129,39 @@ describe("the agreement mapping", () => {
 });
 
 describe("the feature scenarios", () => {
-  test("every row has a program for every peer", () => {
-    const files = ["main.nvs", "index.php", "server.ts", "main.go"];
-    for (const s of SCENARIOS) for (const f of files) expect(existsSync(join(COMPARE_DIR, s.tree, s.case, f))).toBe(true);
+  test("every row has a program for every peer it does not give a fixed result", () => {
+    const files: Record<string, string> = { nvs: "main.nvs", php: "index.php", bun: "server.ts", go: "main.go" };
+    for (const s of SCENARIOS) {
+      for (const peer of PEERS) {
+        expect(existsSync(join(COMPARE_DIR, s.tree, s.case, files[peer.id]!))).toBe(s.fixed?.[peer.id] === undefined);
+      }
+    }
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["isolation", "crash", "escape", "headers"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["isolation", "crash", "escape", "taint", "secret", "csrf", "headers"]);
+  });
+
+  test("a fixed result is `no` and links the peer's own documentation", () => {
+    for (const s of SCENARIOS) {
+      for (const r of Object.values(s.fixed ?? {})) {
+        expect(r.result).toBe("no");
+        expect(String(r.evidence.docs)).toStartWith("https://");
+      }
+    }
+  });
+
+  test("the cross-site POST is rejected when its reply does not say the state changed", () => {
+    const changed = { status: 200, headers: {}, body: "changed\n" };
+    expect(csrfResult(changed, { status: 403, headers: {}, body: "" })).toEqual({ result: "built-in", evidence: { cross_site_status: 403, rejected: true } });
+    expect(csrfResult(changed, changed).result).toBe("your-code");
+    expect(() => csrfResult({ status: 404, headers: {}, body: "" }, changed)).toThrow("same-site");
+  });
+
+  test("a check is built in only when it refuses with the row's own error", () => {
+    expect(checkResult(1, "error[E0401]: expected `string`", "E0401")).toEqual({ result: "built-in", evidence: { check_exit: 1, error: "E0401" } });
+    expect(checkResult(0, "No errors", "E0401").result).toBe("no");
+    expect(checkResult(1, "error[E0001]: syntax", "E0401").result).toBe("no");
   });
 
   test("isolation is built in only when no request found another's value", () => {

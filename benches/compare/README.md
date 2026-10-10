@@ -98,6 +98,15 @@ escape, the developer calls an escaper, so the result is `your-code` and not `no
 - `crash` sends one request that throws or panics, then one that does not. The second must answer
   `200` from a backend that is still running. No stack sets a restart policy, so a crashed backend
   stays down and shows.
+- `taint` and `secret` run `nvs check` over a program that puts a request value into an SQL string,
+  and over one that prints a secret, in a one-off app container with no stack up. The check must
+  fail with the row's own error code, so a program that fails for another reason is not counted.
+  PHP, Bun and Go have no such check, so they run nothing. Their result is `no`, and the evidence
+  links the page in their own documentation that warns about the mistake.
+- `csrf` sends two `POST`s to a route that changes state: one with no `Origin`, which must change
+  it, and one with `Origin: https://other.example`. The second is rejected when its reply does not
+  say the state changed, whatever the status. Accepted is `your-code`, because a check of the
+  `Origin` or a token is code or a library the developer adds.
 - `headers` reads hello's response for `X-Content-Type-Options: nosniff`, a frame policy
   (`X-Frame-Options` or a `frame-ancestors` CSP) and a `Referrer-Policy`. Any one missing is
   `your-code`.

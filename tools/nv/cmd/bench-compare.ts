@@ -285,8 +285,12 @@ export interface Reply {
 /** What a row's probe can do against one peer's running stack. */
 export interface Probe {
   get(path: string): Promise<Reply>;
+  /** One request with its own method and headers, for a row that is about more than a `GET`. */
+  send(method: string, path: string, headers: Record<string, string>): Promise<Reply>;
   /** Whether the backend container is still running. No stack sets a restart policy, so a crash stays down. */
   running(): boolean;
+  /** `nvs check` over a file of the row's folder, in a one-off app container: the exit code and what it printed. */
+  check(file: string): { code: number; output: string };
 }
 
 export interface Scenario {
@@ -294,6 +298,10 @@ export interface Scenario {
   /** The folder under `benches/compare/` and the program folder in it the stack serves. */
   tree: string;
   case: string;
+  /** `false` for a row that only checks a program, so no stack is brought up. */
+  serves?: boolean;
+  /** The result of a peer that has nothing to run for this row, with the documentation that says so. */
+  fixed?: Record<string, RowResult>;
   probe(p: Probe): Promise<RowResult>;
 }
 
@@ -334,6 +342,30 @@ export function escapeResult(body: string): RowResult {
   return { result: raw ? "your-code" : "built-in", evidence: { raw_script_in_body: raw } };
 }
 
+/** The `Origin` the csrf row's cross-site request names. */
+export const OTHER_ORIGIN = "https://other.example";
+
+/**
+ * The same-site `POST` must change state, or the row cannot say anything. The cross-site one is rejected
+ * when its reply does not carry `changed`, whatever status says so.
+ */
+export function csrfResult(sameSite: Reply, crossSite: Reply): RowResult {
+  if (sameSite.status !== 200 || !sameSite.body.includes("changed")) {
+    throw new Fail(`the same-site POST: status ${sameSite.status}, body ${pyRepr(sameSite.body.slice(0, 200))}`);
+  }
+  const rejected = !crossSite.body.includes("changed");
+  return { result: rejected ? "built-in" : "your-code", evidence: { cross_site_status: crossSite.status, rejected } };
+}
+
+/** `nvs check` refused the program with the error `code`, or it has no such check. */
+export function checkResult(code: number, output: string, expected: string): RowResult {
+  const refused = code !== 0 && output.includes(`error[${expected}]`);
+  return { result: refused ? "built-in" : "no", evidence: { check_exit: code, error: refused ? expected : null } };
+}
+
+/** A peer with no check for the row's mistake: `no`, and the page it documents the mistake on. */
+const noCheck = (docs: string): RowResult => ({ result: "no", evidence: { check: "none", docs } });
+
 /** A reply the row needs to be a 200, or the row cannot say anything. */
 function ok(reply: Reply, what: string): Reply {
   if (reply.status !== 200) throw new Fail(`${what}: status ${reply.status}, body ${pyRepr(reply.body.slice(0, 200))}`);
@@ -367,6 +399,42 @@ export const SCENARIOS: Scenario[] = [
     tree: "scenarios",
     case: "escape",
     probe: async (p) => escapeResult(ok(await p.get(`/?q=${encodeURIComponent(ESCAPE_TERM)}`), "the term").body),
+  },
+  {
+    id: "taint",
+    tree: "scenarios",
+    case: "taint",
+    serves: false,
+    fixed: {
+      php: noCheck("https://www.php.net/manual/en/security.database.sql-injection.php"),
+      bun: noCheck("https://bun.sh/docs/api/sql"),
+      go: noCheck("https://go.dev/doc/database/sql-injection"),
+    },
+    probe: async (p) => {
+      const c = p.check("main.nvs");
+      return checkResult(c.code, c.output, "E0401");
+    },
+  },
+  {
+    id: "secret",
+    tree: "scenarios",
+    case: "secret",
+    serves: false,
+    fixed: {
+      php: noCheck("https://www.php.net/manual/en/class.sensitiveparameter.php"),
+      bun: noCheck("https://bun.sh/docs/runtime/env"),
+      go: noCheck("https://pkg.go.dev/log/slog#LogValuer"),
+    },
+    probe: async (p) => {
+      const c = p.check("main.nvs");
+      return checkResult(c.code, c.output, "E0790");
+    },
+  },
+  {
+    id: "csrf",
+    tree: "scenarios",
+    case: "csrf",
+    probe: async (p) => csrfResult(await p.send("POST", "/change", {}), await p.send("POST", "/change", { Origin: OTHER_ORIGIN })),
   },
   {
     id: "headers",
@@ -570,10 +638,11 @@ async function onePass(peer: Peer, c: Case, ctx: PeerCtx, load: Load | null): Pr
   }
 }
 
-/** One GET from the host through nginx, for a scenario's probe. */
-async function replyOf(peer: Peer, path: string): Promise<Reply> {
+/** One request from the host through nginx, for a scenario's probe. */
+async function replyOf(peer: Peer, path: string, method = "GET", extra: Record<string, string> = {}): Promise<Reply> {
   const res = await fetch(`https://127.0.0.1:${peer.port}${path}`, {
-    headers: { "Accept-Encoding": "identity" },
+    method,
+    headers: { "Accept-Encoding": "identity", ...extra },
     tls: { rejectUnauthorized: false },
     signal: AbortSignal.timeout(30_000),
   });
@@ -584,18 +653,28 @@ async function replyOf(peer: Peer, path: string): Promise<Reply> {
   return { status: res.status, headers, body: await res.text() };
 }
 
-/** Brings the peer's stack up fresh for one row, runs the row's probe against it, and always tears it down. */
+/**
+ * Brings the peer's stack up fresh for one row, runs the row's probe against it, and always tears it down.
+ * A peer the row gives a fixed result runs nothing, and a row that does not serve brings nothing up.
+ */
 async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx): Promise<RowResult> {
+  const fixed = s.fixed?.[peer.id];
+  if (fixed !== undefined) return fixed;
   const env = stackEnv(peer, ctx);
   const stack = stackPath(peer);
   peer.prepare?.(ctx);
   try {
-    up(stack, env, "app", "nginx");
+    if (s.serves !== false) up(stack, env, "app", "nginx");
     return await s.probe({
       get: (path) => replyOf(peer, path),
+      send: (method, path, headers) => replyOf(peer, path, method, headers),
       running: () => {
         const ps = compose(stack, ["ps", "--status", "running", "--services"], env, true);
         return ps.code === 0 && ps.stdout.split(/\r?\n/).includes("app");
+      },
+      check: (file) => {
+        const done = compose(stack, ["run", "--rm", "--no-deps", "--build", "app", "check", `/app/${file}`], env, true);
+        return { code: done.code, output: done.stdout + done.stderr };
       },
     });
   } catch (e) {
