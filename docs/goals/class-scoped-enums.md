@@ -170,7 +170,7 @@ extra:
     wsl:
       targetDir: /var/tmp/nvs-target-wsl
   context:
-    adrs: ["0190"]
+    adrs: []
     milestones: []
     plan: [Open now, Blocking]
     playbook: ["Tooling > the end", "Tooling > one call reads", "Tooling > a commit message", "Tooling > another agent"]
@@ -337,8 +337,8 @@ One file set: `docs/decisions/`, `docs/rules/enums/`, `docs/rules/types/`,
 - **The record**, this goal's one slot, written first: the declaration sites, the two spellings and
   the three-part value form, no modifiers, no inheritance, one name per owner, no import of a
   member, the name an owned enum reports, the placement rule and the full rename table for `Core`
-  and the built-in components (§ *Standing decisions*), and the tradeoffs. It amends ADR 0190 (the
-  reading order of `Owner::Name`) and the `docs/adr/README.md:342` paragraph.
+  and the built-in components (§ *Standing decisions*), and the tradeoffs. It amends
+  `rule:types/class-scoped-alias` (the reading order of `Owner::Name`) and the `docs/adr/README.md:342` paragraph.
 - **The fragments.** It creates `enums/class-scoped-enum` (the member itself) and
   `enums/an-enum-lives-in-the-class-that-uses-it` (the placement rule, binding `Core`, the built-in
   components and every published example), and rewrites the five fragments Stage 0 names.
@@ -546,7 +546,7 @@ Facts about the tree as the goal was written. `class Order { enum Status { Open,
 
 **Stage 2: the record and its fragments**, one file set: `docs/decisions/`, `docs/rules/enums/`, `docs/rules/types/`, `docs/rules/statements/`, `docs/rules/ide/`, `docs/adr/README.md`.
 
-- [ ] **The record** — one new record, its number checked against `docs/decisions/` right before it is written: the declaration sites, `Owner::Name` and `Owner::Name::Case` from anywhere and the bare name inside the owner, the refusals with their codes, no member import, the name a program sees (`Shop\Order::Status`), the placement rule, the `Core` and built-in rename tables, and the tradeoffs. Its front matter amends ADR 0190 and creates the two fragments below. `docs/decisions/0281.md:1`
+- [ ] **The record** — one new record, its number checked against `docs/decisions/` right before it is written: the declaration sites, `Owner::Name` and `Owner::Name::Case` from anywhere and the bare name inside the owner, the refusals with their codes, no member import, the name a program sees (`Shop\Order::Status`), the placement rule, the `Core` and built-in rename tables, and the tradeoffs. Its front matter amends `rule:types/class-scoped-alias` and creates the two fragments below. `docs/decisions/0281.md:1`
 - [ ] **The fragments** — create `enums/class-scoped-enum` and `enums/an-enum-lives-in-the-class-that-uses-it`; rewrite `types/class-scoped-alias` § *A name is one thing*, `statements/an-enum-name-is-a-type-everywhere`, `enums/reflection` and `ide/the-stub-tree-is-where-core-is-declared`; rewrite the `docs/adr/README.md:342` paragraph so a class body is the one place besides file scope an enum may be declared. `docs/rules/enums/reflection.md:1`
 - [ ] **The stage contexts** — add `enums/class-scoped-enum` to the `context.rules` of Stages 3 to 6 and `enums/an-enum-lives-in-the-class-that-uses-it` to Stages 7 to 9 in `data/goals/class-scoped-enums.json`, now that both exist. `docs/goals/class-scoped-enums.md:1`
 

@@ -1118,7 +1118,7 @@ Aliases are resolved eagerly and a cycle is a diagnostic — `type A = B; type B
 check time rather than left to loop or bottom out at `mixed`. They are non-parametric:
 `type Rows<T> = …` is out of scope while user-defined generics are.
 
-<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0036](../decisions/0036.md), [0011](../decisions/0011.md), [0190](../decisions/0190.md).</sub>
+<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0036](../decisions/0036.md), [0011](../decisions/0011.md).</sub>
 
 <a id="types-alias-is-never-a-bare-class"></a>
 
@@ -1186,12 +1186,26 @@ and an enum's alias has nothing to do with its cases.
   order — it exists so the diagnostic for a name that resolves to nothing can say what was looked
   for.
 
-The member costs nothing per request, because nothing about it survives the checker, and one
-alias-table entry per declaration at compile time, keyed by the owner's `QName` and the member name
-rather than by a namespace path — `Ns\Order\Meta` is also the spelling of a class `Meta` in namespace
+The member exists so a type that describes one class's data is named by its owner, as that class's
+constants and methods are, and not by an owner prefix written by hand into a file-scope name
+(`OrderMeta`, `InvoiceMeta`). `nvs meta --json` lists it inside its owner's entry, and the file-scope
+roster holds only file-scope aliases. Its declaration is keyed by the owner's `QName` and the member
+name, never by a namespace path: `Ns\Order\Meta` is also the spelling of a class `Meta` in namespace
 `Ns\Order`, and the two must not share a key.
 
-<sub>See also [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/shape-type`](types.md#types-shape-type). Decided in [0190](../decisions/0190.md).</sub>
+- **Memory:** nothing per request, because nothing about the member survives the checker and the
+  compiled program is the one the file-scope form produces. At compile time it costs one alias-table
+  entry per declaration, the same entry the file-scope form pays for.
+
+**Declined:**
+- **Aliases at file scope only.** Every program would pay for it with owner prefixes spelled by hand,
+  to save one member kind in the parser.
+- **An owner-scoped alias that is a distinct type from its expansion.** That is a newtype, and an alias
+  is transparent ([`types/type-alias`](types.md#types-type-alias)).
+- **A parametric `type Rows<T> = …` in a body.** It is out of scope at both sites while user-defined
+  generics are ([`types/type-alias`](types.md#types-type-alias)).
+
+<sub>See also [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/shape-type`](types.md#types-shape-type).</sub>
 
 <a id="types-callable-values"></a>
 
