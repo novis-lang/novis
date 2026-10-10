@@ -504,7 +504,11 @@ offered only where the compiler already derives the value for another reason, ne
 scan or an annotation dialect. That closed rule is the whole answer to "framework support", and why no
 per-framework module enters `nvs-lsp`.
 
-<sub>See also [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0099](../decisions/0099.md), [0108](../decisions/0108.md).</sub>
+**Declined:**
+- **Diagnostic severity configurable per file**, through `.editorconfig`, settings globs or tags in the
+  source. It is the door [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression) keeps closed.
+
+<sub>See also [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-diagnostics-are-phase-gated"></a>
 
@@ -552,7 +556,7 @@ diagnostic the text renderer prints, with the same codes and spans.
 `nvs check` on the command line analyses what it is given, as it always has — the scope setting of
 [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace) is the editor's, not the CLI's.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0108](../decisions/0108.md), [0172](../decisions/0172.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0172](../decisions/0172.md).</sub>
 
 <a id="ide-check-scope-defaults-to-the-workspace"></a>
 
@@ -583,7 +587,7 @@ than wrong.
 Both identifiers, with `nvs.codeLens.enable`, `nvs.template.services` and the `nvs/regions` request, are
 added to the extension's frozen roster under that roster's own rule: a name is added and never renamed.
 
-<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md), [0193](../decisions/0193.md).</sub>
+<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0193](../decisions/0193.md).</sub>
 
 <a id="ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows"></a>
 
@@ -827,14 +831,17 @@ and **narrow an `array<mixed>` to its literal's type**
 ([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal)), which writes an annotation rather than a declaration
 under the same bound.
 
-Applying a generator produces text that compiles, and applying it twice is a no-op.
+Applying a generator produces text that compiles, and applying it twice is a no-op. Implementing
+missing members is the most-used action of its kind in PHP editors, and Novis's explicit types make
+it mechanical where PHP's make it a guess. A class with it applied passes `nvs check` with only the
+inserted `throw`s reachable.
 
 **Getter/setter generation is refused** under this bound and under [`classes/property-observer`](classes.md#classes-property-observer):
 property hooks mean the pair of methods that action exists to save typing has no reason to be written.
 Code snippets are refused for a neighbouring reason — a snippet body is a second copy of a syntactic shape
 the grammar already owns, silently stale after a grammar change.
 
-<sub>See also [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`classes/property-observer`](classes.md#classes-property-observer), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md), [0114](../decisions/0114.md).</sub>
+<sub>See also [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`classes/property-observer`](classes.md#classes-property-observer), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0114](../decisions/0114.md).</sub>
 
 <a id="ide-no-refactoring-introduces-an-alias"></a>
 
@@ -1134,7 +1141,7 @@ builds no walk of its own either.
 The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all six
 readers read it.
 
-<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md), [0268](../decisions/0268.md).</sub>
+<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0268](../decisions/0268.md).</sub>
 
 <a id="ide-completion-offers-only-what-the-compiler-derived"></a>
 
@@ -1190,14 +1197,35 @@ checker seeds its signatures from, so a suggestion never writes a call that then
 editor that writes such a call is worse than one that offers nothing, because the developer cannot tell
 the suggestion's mistake from their own.
 
+The rule buys a stronger guarantee than framework-aware completion elsewhere gives. A route name
+completed from the compile-time route table is correct, where one recovered by scanning a conventions
+directory is a good guess. Columns recovered from migrations, facades followed through a runtime
+container and components found by directory convention are each a heuristic replacing a fact the
+language does not make available; Novis makes those facts available, so the heuristic has nothing to
+replace. Stating the rule as a property of where a value comes from keeps `nvs-lsp` free of
+per-framework modules, which would otherwise arrive one framework at a time and never leave.
+
+What it costs: a package whose route-like table is built while the program runs gets no completion for
+it, and the answer is to make that table compile-time. An editor that talks to a third party while a
+developer types is the same class of surprise [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address) refuses for
+a running program, which is why no completion source fetches anything.
+
 **Declined:**
+- **Framework support built from convention scans, an annotation dialect and a patch file** for what
+  neither reaches. Each is a second description of a program's shape that nothing checks against the
+  first.
+- **A module for the first-party web framework inside `nvs-lsp`.** It would be the server's first
+  special case, and a third-party package would then ask for the same treatment with no principle left
+  to refuse it.
+- **Package-name and version completion in the manifest, from a registry.** It needs a network request
+  while the user types. A lockfile's resolved versions are on disk and may be shown.
 - **PHP built-in names as candidates, each answered with its Novis destination.** The answer needs a
   table from PHP names to Novis ones, and there is none ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)).
 - **A PHP name that resolves while the program runs, as an alias of a `Core` member.** It is a second
   name for one member ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)), and it keeps PHP names in
   committed source for good.
 
-<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0108](../decisions/0108.md), [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
+<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
 
 <a id="ide-completion-files-offer-values-at-named-parameters"></a>
 
@@ -1475,7 +1503,8 @@ terms — the holes are Novis and the segments are HTML, which is the boundary t
 grammar, for the reason [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server) gives for redaction
 ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
 the extension did not write is not language logic in the client. The request carries an optional `text`,
-and then answers for that text rather than the open buffer.
+and then answers for that text rather than the open buffer. Its cost is protocol surface: it is a second
+request of Novis's own, and one more a client other than VS Code implements to reach the same depth.
 
 **Formatting is `nvs fmt` first, then the editor's own HTML formatter over the markup, starting where the
 Novis code is.** A format request runs `nvs fmt` over the whole file, asks `nvs/regions` for the regions
@@ -1499,7 +1528,7 @@ off stops the forwarding, `nvs.template.format` off stops the markup pass. A use
 tooling, or with markup whose whitespace is output, has to be able to get out of the way of ours. With
 the second off, format-on-save is `nvs fmt` and nothing else.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
 
 <a id="ide-case-files-have-their-own-grammar"></a>
 
@@ -1849,7 +1878,7 @@ M10 adds, under the same rule and not as an exception to it: the settings `nvs.c
 request of Novis's own, `nvs/regions`. A contributions test asserts `package.json` declares exactly
 what the roster names.
 
-<sub>See also [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0108](../decisions/0108.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0274](../decisions/0274.md).</sub>
 
 <a id="ide-tasks-carry-a-problem-matcher"></a>
 
@@ -1881,7 +1910,7 @@ That one line is the difference between working in every remote configuration an
 them with a message about `nvs` not being on `PATH`. The same contributions test that checks the frozen
 identifiers asserts it.
 
-<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-the-extension-runs-where-the-binary-is"></a>
 
@@ -2155,13 +2184,14 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   a handled throw inside it does not stop the session.
 - **Path mappings**, because the container case is the normal case: the file the adapter reports and the
   file in the editor differ whenever the program runs anywhere but the workspace root.
-- **The value a function just returned**, in the variables pane after stepping out.
+- **The value a function just returned**, in the variables pane after stepping out. It is one frame's
+  worth of state the adapter already has, and the UI renders it with no work of its own.
 - **A `spawn`ed isolate is a DAP thread** — the standard presentation, needing no protocol extension. The
   *tree* of isolates would need one and is not built.
 
 A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-stdout-belongs-to-the-protocol"></a>
 

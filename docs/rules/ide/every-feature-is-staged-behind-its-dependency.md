@@ -19,3 +19,7 @@ Completion from the compiler's own tables — route names, `nvs.toml` directives
 offered only where the compiler already derives the value for another reason, never from a convention
 scan or an annotation dialect. That closed rule is the whole answer to "framework support", and why no
 per-framework module enters `nvs-lsp`.
+
+**Declined:**
+- **Diagnostic severity configurable per file**, through `.editorconfig`, settings globs or tags in the
+  source. It is the door `rule:core-api/casing-has-no-suppression` keeps closed.

@@ -59,8 +59,7 @@ every-path-returns at compile time, literal regex/format/URI validation
 `rule:security/secret-qualifier`). Levels and baseline files have no
 analogue because they exist to bolt gradual strictness onto untyped code, and there is no untyped
 code. CI reads `nvs check --json`
-([0108](../decisions/0108.md)
-§ 6, M10).
+(`rule:ide/check-json-is-the-diagnostic-record-as-a-document`).
 
 ## Why style needed no package
 

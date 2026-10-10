@@ -46,7 +46,28 @@ checker seeds its signatures from, so a suggestion never writes a call that then
 editor that writes such a call is worse than one that offers nothing, because the developer cannot tell
 the suggestion's mistake from their own.
 
+The rule buys a stronger guarantee than framework-aware completion elsewhere gives. A route name
+completed from the compile-time route table is correct, where one recovered by scanning a conventions
+directory is a good guess. Columns recovered from migrations, facades followed through a runtime
+container and components found by directory convention are each a heuristic replacing a fact the
+language does not make available; Novis makes those facts available, so the heuristic has nothing to
+replace. Stating the rule as a property of where a value comes from keeps `nvs-lsp` free of
+per-framework modules, which would otherwise arrive one framework at a time and never leave.
+
+What it costs: a package whose route-like table is built while the program runs gets no completion for
+it, and the answer is to make that table compile-time. An editor that talks to a third party while a
+developer types is the same class of surprise `rule:http-server/allow-url-pins-the-address` refuses for
+a running program, which is why no completion source fetches anything.
+
 **Declined:**
+- **Framework support built from convention scans, an annotation dialect and a patch file** for what
+  neither reaches. Each is a second description of a program's shape that nothing checks against the
+  first.
+- **A module for the first-party web framework inside `nvs-lsp`.** It would be the server's first
+  special case, and a third-party package would then ask for the same treatment with no principle left
+  to refuse it.
+- **Package-name and version completion in the manifest, from a registry.** It needs a network request
+  while the user types. A lockfile's resolved versions are on disk and may be shown.
 - **PHP built-in names as candidates, each answered with its Novis destination.** The answer needs a
   table from PHP names to Novis ones, and there is none (`rule:programs/no-compatibility-promise`).
 - **A PHP name that resolves while the program runs, as an alias of a `Core` member.** It is a second
