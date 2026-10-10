@@ -1764,7 +1764,7 @@
         [
           "`Core\\Decimal`, `Core\\BigInt`",
           "the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp`",
-          "[0054](../decisions/0054.md)"
+          "`rule:types/decimal`"
         ],
         [
           "`Core\\Serialize`",

@@ -3242,9 +3242,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp`",
-      "adrs": [
-        "0054"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -11737,9 +11735,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp`",
-      "adrs": [
-        "0054"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [

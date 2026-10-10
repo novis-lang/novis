@@ -1,9 +1,7 @@
 {
   "title": "A numeric literal is untyped until it is placed, and `as T` is a placing position",
   "status": "shipped",
-  "because": [
-    "0054"
-  ],
+  "because": [],
   "seeAlso": [
     "types/decimal",
     "types/integer-literals",
@@ -15,6 +13,8 @@
     "tests/conformance/core/a-literal-adapts-to-a-generic-uint.nvst",
     "tests/conformance/lang/a-number-literal-at-a-union-holding-decimal-becomes-a-decimal.nvst",
     "tests/conformance/reject/an-int-variable-is-not-a-decimal-at-a-union-holding-decimal.nvst",
-    "crates/nvs-types/tests/decimal.rs"
+    "crates/nvs-types/tests/decimal.rs",
+    "crates/nvs-syntax/src/lexer.rs",
+    "crates/nvs-syntax/src/parser/tests/ty.rs"
   ]
 }

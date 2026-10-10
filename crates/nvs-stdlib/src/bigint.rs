@@ -1,5 +1,5 @@
 //! `Core\BigInt` — an integer of any magnitude, immutable and method-based,
-//! which is what [ADR 0054](/docs/decisions/0054.md) § 5 named as the
+//! which is what `rule:types/decimal` names as the
 //! replacement for `gmp` and the integer half of `bcmath`.
 //!
 //! The `decimal` scalar beside it ([`crate::decimal`]) is the *human-magnitude*
@@ -41,8 +41,8 @@
 //! sort over these needs no `{comparator: ...}`.
 //!
 //! **There are no operators.** `$a + $b` over two objects is the compile error
-//! it is for any class, because Novis has no operator overloading (ADR 0054's
-//! own ground), so modular exponentiation is [`CLASS`]'s `powMod` and addition
+//! it is for any class, because Novis has no operator overloading
+//! (`rule:types/decimal`'s own ground), so modular exponentiation is [`CLASS`]'s `powMod` and addition
 //! is `+` on two `decimal`s.
 //!
 //! **`parse` is not `rule:expressions/try-parse`'s member**, and nothing here
@@ -58,8 +58,7 @@
 //! [`nvs_runtime::affordable`] a step at a time. `pow` and `shl` are the two
 //! that turn a small receiver into an arbitrarily wide answer in **one** call,
 //! and both refuse ahead of the work at [`MAX_BITS`] rather than allocating
-//! toward the cap first. That bound is this module's, recorded here because
-//! ADR 0054 left it to whoever built the class.
+//! toward the cap first. That bound is this module's, and no rule sets it.
 //!
 //! The refusal classes are `decimal`'s, for `decimal`'s reasons:
 //! `ArithmeticError` for a zero divisor, a zero modulus, a negative `sqrt`, a

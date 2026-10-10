@@ -1851,7 +1851,7 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR 0054's claim, measured rather than asserted
+// `rule:types/decimal`'s claim, measured rather than asserted
 // ---------------------------------------------------------------------------
 //
 // `decimal` is the arithmetic type whose operators are out-of-line helper calls
@@ -1919,7 +1919,7 @@ fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
     judge(
         "typed decimal arithmetic loop iteration, against a checked-return frame",
         ITERATION_PER_FRAME,
-        "ADR 0054 § *Consequences* claims a helper call per operator and no allocation; at \
+        "`rule:types/decimal` claims a helper call per operator and no allocation; at \
          this ratio one of those two has stopped being true.",
         |yard| {
             let t_shallow = ns_per_op(200_000, 5, || {

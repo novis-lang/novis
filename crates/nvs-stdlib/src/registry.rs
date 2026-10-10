@@ -1758,7 +1758,7 @@ pub const CLASSES: &[CoreClass] = &[
     // own roster table points at that ADR for the non-operator members of the
     // `decimal` scalar.
     crate::decimal::CLASS,
-    // And the other half of ADR 0054: the exact scalar above is the
+    // And the other half of `rule:types/decimal`: the exact scalar above is the
     // human-magnitude answer, and this is the arbitrary one. Spec § 13's row
     // names the pair together, and `crate::bigint`'s module doc owns why
     // neither subsumes the other.

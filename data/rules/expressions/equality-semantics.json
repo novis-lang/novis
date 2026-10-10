@@ -2,8 +2,7 @@
   "title": "Equality has one row per type, and every row is the strict reading",
   "status": "shipped",
   "because": [
-    "0090",
-    "0054"
+    "0090"
   ],
   "seeAlso": [
     "expressions/one-equality-operator",

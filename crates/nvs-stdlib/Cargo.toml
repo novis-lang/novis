@@ -70,7 +70,7 @@ nvs-db.workspace = true
 # bodies are here, and the LDAP wire is `nvs-ldap`'s, which names no crate of
 # this one's.
 nvs-ldap.workspace = true
-# ADR 0054 § 5's own naming: `Core\BigInt` is `num-bigint`, and `num-integer`
+# `rule:types/decimal`'s naming: `Core\BigInt` is `num-bigint`, and `num-integer`
 # is the trait its `gcd` and `lcm` are members of. The root manifest's row is
 # where the dependency is argued; what belongs here is that `crate::bigint` is
 # its only caller, and that the class stores a sign and magnitude bytes rather

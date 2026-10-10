@@ -422,7 +422,7 @@ blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 brainsort = "0.5"
 
 # --- Arbitrary-magnitude integers (`Core\BigInt`) ---
-# ADR 0054 § 5 names this crate by name as what replaces `gmp` and the integer
+# `rule:types/decimal` names this crate's class as what replaces `gmp` and the integer
 # half of `bcmath`; `crates/nvs-stdlib/src/bigint.rs` owns the class built over
 # it. Pure Rust with no build script and no C, so
 # `rule:packaging/a-c-dependency-answers-two-questions` is answered at its first
@@ -537,7 +537,7 @@ jiff = "0.2"
 # block tree: ADR 0064 § 3's unknown-key refusal *is* `deny_unknown_fields`, an
 # attribute on a struct rather than machinery we write, so the macro replaces
 # code here rather than adding any.
-# `raw_value` is what lets an ADR 0054 `decimal` be written as an exact JSON
+# `raw_value` is what lets a `decimal` (`rule:types/decimal`) be written as an exact JSON
 # number rather than a lossy `f64`, and `unbounded_depth` is what lets section
 # 6 of docs/spec/01-core-library.md have its own `maxDepth` be the bound
 # rather than the crate's fixed 128.
