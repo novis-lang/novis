@@ -76,7 +76,7 @@ isolate that asks for more than its share is refused at the call that asked, wit
 naming the directive, and never by a page fault at an address nobody chose
 ([`errors/on-limit`](errors.md#errors-on-limit)).
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md).</sub>
 
 <a id="security-isolate-failure-is-a-value"></a>
 
@@ -136,7 +136,7 @@ another member's field slot; a member the tally does not exactly account for is 
 and is left alone, along with everything under it. Freeing memory somebody still holds is a
 use-after-free, so security decides a question memory footprint would have answered the other way.
 
-<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0274](../decisions/0274.md).</sub>
 
 <a id="security-arena-is-an-ownership-root"></a>
 
@@ -157,7 +157,7 @@ reuse what it freed, so a loop appending to a string would make the footprint O(
 O(live), which [`programs/memory-priority`](programs.md#programs-memory-priority) calls a leak; and the latency a region is reached for
 is already collected by the pooled allocator.
 
-<sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md).</sub>
 
 <a id="security-one-isolation-implementation"></a>
 
@@ -717,7 +717,7 @@ Every member that reaches this check is by construction about to make a syscall,
 never on a hot path**. That is the whole latency argument, and it holds because of *where* the check
 is rather than because of how it is written.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0118](../decisions/0118.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="security-package-authority-is-granted-one-line-at-a-time"></a>
 

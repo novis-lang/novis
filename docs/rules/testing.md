@@ -74,7 +74,7 @@ Each test isolate spends its parent's budget, so a suite has the same enforceabl
 and CPU that a request has, and a runaway test is terminated rather than left to consume the
 machine.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0079](../decisions/0079.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0079](../decisions/0079.md), [0006](../decisions/0006.md).</sub>
 
 <a id="testing-private-in-the-same-file"></a>
 
@@ -1208,7 +1208,7 @@ this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0041](../decisions/0041.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0041](../decisions/0041.md).</sub>
 
 <a id="testing-perf-two-mechanisms"></a>
 

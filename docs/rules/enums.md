@@ -128,7 +128,7 @@ Crossing an isolate boundary copies a plain scalar, with no object identity to p
 - **Memory:** an enum value costs exactly what its `int` or `uint` costs, in the same payload. Nothing
   is held per enum, per request or per isolate: no case table, no singleton and no type descriptor.
 
-<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md), [0261](../decisions/0261.md).</sub>
+<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0261](../decisions/0261.md).</sub>
 
 <a id="enums-truthiness"></a>
 

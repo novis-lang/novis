@@ -50,7 +50,7 @@
 //! except during the moment a scrape is copying it — and no two cores ever
 //! touch the same word. The alternative considered was a message, the scraping
 //! core poking each of the others and waiting for it to publish, and
-//! `docs/decisions/0004.md`'s ordering refused it: the two cost the same per
+//! `rule:programs/memory-priority`'s ordering refused it: the two cost the same per
 //! request, nothing either of them does being measurable against the map lookup
 //! a count already makes, and the message needs a wake, a reply and a timeout
 //! for the core that is idle or is deep inside one long request, where a lock

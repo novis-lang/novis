@@ -16,7 +16,7 @@
 //! * **It can be driven without its own `Value` tree.** [`Decode`] is a
 //!   `serde::de::Visitor`, so a document becomes [`nvs_runtime::NvsArray`]s and
 //!   [`Value`]s *directly* — nothing is ever materialized twice. That is what
-//!   keeps latency, in [``rule:programs/memory-priority``](/docs/decisions/0004.md)'s
+//!   keeps latency, in `rule:programs/memory-priority`'s
 //!   ordering, honest on a member every request path uses.
 //! * **Every byte of the document is the crate's.** Novis writes no JSON
 //!   grammar of its own at all: one scalar at a time goes through the crate's
@@ -144,7 +144,7 @@
 //! it as an `f64`, including [`Decode`], so a `decimal` written as a number
 //! comes back rounded — the degradation the integer band above already refuses.
 //! The cost is that a client sees a string where it may have expected a number,
-//! spent under [ADR 0004](/docs/decisions/0004.md) to buy exactness, which is
+//! spent under `rule:programs/memory-priority` to buy exactness, which is
 //! the whole of what `rule:types/decimal` makes the type for.
 //!
 //! An `Instant` is RFC 3339: `"2024-03-01T12:00:00Z"`, the spelling

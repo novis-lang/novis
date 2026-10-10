@@ -90,7 +90,7 @@ colouring*: any Novis function may perform I/O and yield without being marked `a
 chains become concurrent with no rewriting. The cost is a stack per in-flight task (default 64 KiB,
 configurable, grown lazily) and a small audited unsafe core for stack switching, taken as a dependency
 (`corosensei`) rather than hand-rolled. The memory is paid deliberately, under
-[0004](../decisions/0004.md).
+`rule:programs/memory-priority`.
 
 **Isolated workers for CPU parallelism.** Work dispatched to another core gets its own heap; values
 crossing the boundary are deep-copied, or moved when the refcount is 1. Data races are impossible by
@@ -253,7 +253,8 @@ an erased receiver (`rule:types/erased-member-access`) carries no label at all a
 to a name-keyed fetch. A binding that *does* carry a label is read and written at a fixed offset, so the
 lie is a type confusion rather than a wrong answer — two `final` classes and one wrong `Core\Arr::filter`
 callback wrote an `int` over a `string` field and the next read dereferenced it — which is
-[0004](../decisions/0004.md)'s priority 1 and not a matter of taste.
+security and request isolation, the first priority of `rule:programs/memory-priority`, and not a
+matter of taste.
 
 Two boundaries could pay, and the cheaper one is not the safer one's equal. Making every named-class
 property access name-keyed would close it everywhere and spend priority 3 in every program, most of which

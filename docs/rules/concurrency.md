@@ -443,7 +443,7 @@ observable only as speed, and a metrics registry holds approximate aggregates th
 read and nothing decides on. Both are charged to a core and capped, which is the same accounting
 [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) records.
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0059](../decisions/0059.md), [0052](../decisions/0052.md), [0004](../decisions/0004.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0059](../decisions/0059.md), [0052](../decisions/0052.md), [0181](../decisions/0181.md).</sub>
 
 <a id="concurrency-the-process-tier-is-one-store-per-process"></a>
 
@@ -559,7 +559,7 @@ explicitly **not** O(requests served): an entry's lifetime is governed by TTL an
 how much traffic has passed through. That multiplication is the price of the isolation it buys, and
 it is recorded so it is a known number rather than a surprise in production.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0059](../decisions/0059.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0059](../decisions/0059.md).</sub>
 
 <a id="concurrency-a-cross-request-stores-bytes-are-its-own-balance"></a>
 
@@ -941,7 +941,7 @@ request.
 An application that wants a longer-lived connection sends anything at all — a ping is a frame, and
 the loop never sees one.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md), [0075](../decisions/0075.md), [0004](../decisions/0004.md), [0177](../decisions/0177.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md), [0075](../decisions/0075.md), [0177](../decisions/0177.md), [0219](../decisions/0219.md).</sub>
 
 <a id="concurrency-a-connection-keeps-its-compiled-unit"></a>
 

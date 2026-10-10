@@ -32,7 +32,7 @@ For web servers and the command line. Familiar syntax (Hello PHP).
   runtime bug or a resource-limit breach kills one request, never the process.
 - **Fast and simple first; memory is what pays for that.** Novis targets server-class hardware, so where a
   design can be safer, faster or simpler by holding more memory, it holds more memory — deliberately, within
-  an enforced per-request cap ([ADR 0004](docs/decisions/0004.md)). It is not a
+  an enforced per-request cap ([the memory rule](docs/rules/programs.md#programs-memory-priority)). It is not a
   low-footprint runtime, and sizing it means sizing for concurrency.
 - **Extensible without giving up any of that.** Extensions are sandboxed WebAssembly components: one
   precompiled binary runs on every platform, written in whatever language you like, and a crashing or

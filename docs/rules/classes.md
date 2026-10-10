@@ -579,7 +579,7 @@ them here prices this rule for two other mechanisms.
 The measurement rather than the assertion is what guards it: three more unhooked accesses emit no
 machine-code call at all, and cost a fraction of the same accesses behind a per-property hook.
 
-<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0004](../decisions/0004.md).</sub>
+<sub>See also [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="classes-member-conflict-is-an-error"></a>
 
@@ -933,7 +933,7 @@ request, or skip whatever is still reachable at teardown, which is PHP's own inc
   every object whose count reaches zero mid-request, which is the per-object cost the wholesale drop
   avoids.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0002](../decisions/0002.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0002](../decisions/0002.md).</sub>
 
 <a id="classes-no-debug-hook"></a>
 

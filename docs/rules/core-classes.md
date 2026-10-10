@@ -272,7 +272,7 @@ and there is no in-language setter, because a program that can exempt its own fi
 hoard them. The program's own `remove` and `removeDir` are unchanged and still throw: a deliberate
 action's failure is the program's to hear about.
 
-<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0131](../decisions/0131.md), [0127](../decisions/0127.md), [0072](../decisions/0072.md), [0106](../decisions/0106.md), [0078](../decisions/0078.md), [0059](../decisions/0059.md), [0004](../decisions/0004.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0131](../decisions/0131.md), [0127](../decisions/0127.md), [0072](../decisions/0072.md), [0106](../decisions/0106.md), [0078](../decisions/0078.md), [0059](../decisions/0059.md), [0281](../decisions/0281.md).</sub>
 
 <a id="core-classes-temporary-dir-orphan-sweep"></a>
 
@@ -1140,7 +1140,7 @@ every later set, and it cannot route a statement that answers with a result set,
 mean one program leaving different rows in two servers. The price is N round trips where one command
 would do, and it is recorded here rather than hidden.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md), [0004](../decisions/0004.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-db-parameters"></a>
 

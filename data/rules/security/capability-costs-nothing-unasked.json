@@ -2,8 +2,7 @@
   "title": "A member that needs no capability pays nothing, and one that does pays only beside a syscall",
   "status": "shipped",
   "because": [
-    "0118",
-    "0004"
+    "0118"
   ],
   "seeAlso": [
     "security/capability-check-at-the-door",

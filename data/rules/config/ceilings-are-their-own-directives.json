@@ -2,8 +2,7 @@
   "title": "A ceiling is a `System` directive with the default's key name, and `false` removes it",
   "status": "shipped",
   "because": [
-    "0091",
-    "0004"
+    "0091"
   ],
   "seeAlso": [
     "config/three-changeability-classes",

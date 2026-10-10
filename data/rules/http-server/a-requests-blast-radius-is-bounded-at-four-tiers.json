@@ -4,8 +4,7 @@
   "because": [
     "0106",
     "0002",
-    "0020",
-    "0004"
+    "0020"
   ],
   "seeAlso": [
     "http-server/containment-does-not-end-at-the-helper",

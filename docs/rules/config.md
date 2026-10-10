@@ -810,7 +810,7 @@ reader learns once; a third would need its own argument.
   serves many requests at once, so one script that removes its own memory limit would take the host
   from every request beside it. The ceiling is what makes the freedom to widen affordable.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0091](../decisions/0091.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0091](../decisions/0091.md).</sub>
 
 <a id="config-system-means-a-request-may-not-set-it"></a>
 
