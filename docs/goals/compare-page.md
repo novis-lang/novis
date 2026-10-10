@@ -284,28 +284,32 @@ File set: `benches/compare.json`, `website/src/data/compare.json`.
 
 ### State
 
-**Side goal `compare-page`, stage 5 in progress: 4 of 15 rows run.** `bun nv bench-compare --scenarios --smoke` exits 0 in Docker and prints a line per row from `SCENARIOS` (`tools/nv/cmd/bench-compare.ts:344`). Each row maps what a peer did to a `Verdict` through a pure function, unit-tested in `tools/nv/test/bench-compare.test.ts`. The compose files and `go/Dockerfile` serve `${TREE}/${CASE}`, so a row folder under `benches/compare/scenarios/` is served as a case is. `benches/compare/README.md` § *The feature scenarios* is why.
+**Side goal `compare-page`, stage 5 in progress: 7 of 15 rows run.** `bun nv bench-compare --scenarios --smoke` exits 0 in Docker and prints a line per row from `SCENARIOS` (`tools/nv/cmd/bench-compare.ts:376`). Each row maps what a peer did to a `Verdict` through a pure function, unit-tested in `tools/nv/test/bench-compare.test.ts`. A row may give a peer a `fixed` result, so that peer runs nothing, and `serves: false` brings no stack up. `Probe` (`tools/nv/cmd/bench-compare.ts:286`) has `get`, `send`, `running` and `check`. `benches/compare/README.md` § *The feature scenarios* is why.
 
-The first run's results, none a surprise for Novis:
+Results so far, none a surprise for Novis:
 
 - `isolation`: Novis built-in, PHP built-in, Bun no, Go no (19 of 20 requests saw another's value).
-- `crash`: all four built-in. PHP answers the throw with `200` (no `php.ini`, so `display_errors` is on), and Go with `502`.
+- `crash`: all four built-in. PHP answers the throw with `200`, and Go with `502`.
 - `escape`: Novis and Go built-in, PHP and Bun your-code.
-- `headers`: Novis built-in, the other three your-code with none of the three headers.
+- `taint`: Novis built-in (`nvs check` fails with E0401), the other three no.
+- `secret`: Novis built-in (E0790), the other three no.
+- `csrf`: Novis built-in (`403`), the other three your-code (`200`).
+- `headers`: Novis built-in, the other three your-code.
 
-The `every-scenario-runs` check stays red until all 15 row ids are printed. That is the 11 rows not written, not a regression.
+The documentation links in `taint` and `secret`'s fixed results are not checked: no session has opened them. The `every-scenario-runs` check stays red until all 15 row ids are printed. That is the 8 rows not written, not a regression.
 
 ### Next
 
-**Stage 5: the rows that need no load**, same file set: `benches/compare/scenarios/<id>/` and `tools/nv/cmd/bench-compare.ts`.
+**Stage 5: `live-edit` and `config`**, same file set: `benches/compare/scenarios/<id>/` and `tools/nv/cmd/bench-compare.ts`.
 
-- [ ] **`csrf`**: a cross-site `POST` with `Origin: https://other.example` to a route that changes state, through `Probe` at `tools/nv/cmd/bench-compare.ts:286` (add a method and headers to `get`). Rejected is `built-in`. Goal prose § *Stage 5*.
-- [ ] **`taint` and `secret`**: `nvs check` over a program that puts a request value into SQL, and one that prints a secret. Run it in the app container (`compose(... ["run", "--rm", "app", "check", ...])` beside `scenarioPass` at `tools/nv/cmd/bench-compare.ts:588`). The other peers get `no` with their documentation linked in the evidence. Rule `core-classes/html-auto-escape` is the sibling shape.
-- [ ] **`live-edit` and `config`**: these need a writable copy of the row folder, since the stacks mount `:ro` (`benches/compare/compose.nvs.yaml:23`). Rules `config/an-edit-reaches-the-next-request-without-a-restart` and `config/a-request-keeps-the-unit-it-resolved`.
+- [ ] **Decide the "never, but one setting away" mapping first.** PHP's stack sets `opcache.validate_timestamps=0` (`benches/proxied/php/opcache.ini:33`), so an edit never shows. Bun shows one only under `bun --hot`. Measured, both are `never`. The safe default is `one-setting` naming the setting, with the measured `never` in the evidence, and the README says why. Go compiles its source into the image, so it gets a `fixed` `no`.
+- [ ] **`live-edit`**: copy the row folder into `benches/compare/generated/` (git-ignored), point `TREE` at it, edit the copy, and poll for the new answer. The stacks mount `:ro` (`benches/compare/compose.nvs.yaml:24`), which still shows host edits. Rule `config/an-edit-reaches-the-next-request-without-a-restart`.
+- [ ] **`config`**: a response header in each peer's config file changes. Rule `config/a-request-keeps-the-unit-it-resolved`, and `[http.headers]` reloads (`crates/nvs-cli/tests/live_config.rs:628`).
 
 ### Backlog
 
 - The load rows (`cores`, `runaway`, `waiting`, `parallel`, `deploy`, `upgrade`), goal prose § *Stage 5*. `cores` and `waiting` read stage 3's arms rather than new programs.
+- `--scenarios` has no way to run one row, so every fix reruns all of them (about 6 minutes). A `--row <id>` filter in `scenarios()` would help.
 - `--scenarios` refuses `--record` for now. Stage 7's record needs the rows under a `scenarios` key in `buildRecord`.
 - Stage 6: `website/src/content/docs/in-depth/compare.mdx`, goal prose § *Stage 6*.
 - `wait`: Novis reached 0.39x of best at 1000 connections on one CPU, with no `503`. The page reports it as measured, since the standing decisions keep the runtime unchanged. Why it is slower is not checked.
