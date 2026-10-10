@@ -284,7 +284,7 @@ File set: `benches/compare.json`, `website/src/data/compare.json`.
 
 ### State
 
-**Side goal `compare-page`, stage 5 in progress: 7 of 15 rows run.** `bun nv bench-compare --scenarios --smoke` exits 0 in Docker and prints a line per row from `SCENARIOS` (`tools/nv/cmd/bench-compare.ts:376`). Each row maps what a peer did to a `Verdict` through a pure function, unit-tested in `tools/nv/test/bench-compare.test.ts`. A row may give a peer a `fixed` result, so that peer runs nothing, and `serves: false` brings no stack up. `Probe` (`tools/nv/cmd/bench-compare.ts:286`) has `get`, `send`, `running` and `check`. `benches/compare/README.md` § *The feature scenarios* is why.
+**Side goal `compare-page`, stage 5 in progress: 9 of 15 rows run.** `bun nv bench-compare --scenarios --smoke` exits 0 in Docker and prints a line per row from `SCENARIOS`. `--row <id>` runs one row. Each row maps what a peer did to a `Verdict` through a pure function, unit-tested in `tools/nv/test/bench-compare.test.ts`. A row may give a peer a `fixed` result, so that peer runs nothing; `serves: false` brings no stack up; `copy: true` serves a copy under `generated/`. `Probe` has `get`, `send`, `running`, `check`, `exec`, `peer` and `dir`. `benches/compare/README.md` § *The feature scenarios* is why.
 
 Results so far, none a surprise for Novis:
 
@@ -295,21 +295,22 @@ Results so far, none a surprise for Novis:
 - `secret`: Novis built-in (E0790), the other three no.
 - `csrf`: Novis built-in (`403`), the other three your-code (`200`).
 - `headers`: Novis built-in, the other three your-code.
+- `live-edit`: Novis built-in (1 s), PHP one-setting (`opcache.validate_timestamps=1`), Bun one-setting (`bun --hot`), Go no.
+- `config`: Novis built-in (2.8 s, no command), PHP one-setting (`php-fpm reload`, 0.5 s after USR2), Bun and Go your-code.
 
-The documentation links in `taint` and `secret`'s fixed results are not checked: no session has opened them. The `every-scenario-runs` check stays red until all 15 row ids are printed. That is the 8 rows not written, not a regression.
+The documentation links in `taint` and `secret`'s fixed results are not checked: no session has opened them. The `every-scenario-runs` check stays red until all 15 row ids are printed. That is the 6 load rows not written, not a regression.
 
 ### Next
 
-**Stage 5: `live-edit` and `config`**, same file set: `benches/compare/scenarios/<id>/` and `tools/nv/cmd/bench-compare.ts`.
+**Stage 5: `cores` and `waiting`**, which read stage 3's arms rather than new programs. Same file: `tools/nv/cmd/bench-compare.ts`.
 
-- [ ] **Decide the "never, but one setting away" mapping first.** PHP's stack sets `opcache.validate_timestamps=0` (`benches/proxied/php/opcache.ini:33`), so an edit never shows. Bun shows one only under `bun --hot`. Measured, both are `never`. The safe default is `one-setting` naming the setting, with the measured `never` in the evidence, and the README says why. Go compiles its source into the image, so it gets a `fixed` `no`.
-- [ ] **`live-edit`**: copy the row folder into `benches/compare/generated/` (git-ignored), point `TREE` at it, edit the copy, and poll for the new answer. The stacks mount `:ro` (`benches/compare/compose.nvs.yaml:24`), which still shows host edits. Rule `config/an-edit-reaches-the-next-request-without-a-restart`.
-- [ ] **`config`**: a response header in each peer's config file changes. Rule `config/a-request-keeps-the-unit-it-resolved`, and `[http.headers]` reloads (`crates/nvs-cli/tests/live_config.rs:628`).
+- [ ] **`cores`**: throughput at one CPU against four for hello. A row whose probe runs `onePass` (`tools/nv/cmd/bench-compare.ts:732`) with a `Load` twice, at `cpus` 1 and 4, and reports the ratio. `Scenario` has no way to run a timed arm yet; add one rather than bending `Probe`. Rule `testing/userland-benchmarks`.
+- [ ] **`waiting`**: memory per request in flight from the wait case: `memory.peak` minus `memory.current` over the concurrency, from the same timed pass (`tools/nv/cmd/bench-compare.ts:699`).
+- [ ] Decide each row's `Verdict` from the measured figure, and write the mapping into `benches/compare/README.md:78`.
 
 ### Backlog
 
-- The load rows (`cores`, `runaway`, `waiting`, `parallel`, `deploy`, `upgrade`), goal prose § *Stage 5*. `cores` and `waiting` read stage 3's arms rather than new programs.
-- `--scenarios` has no way to run one row, so every fix reruns all of them (about 6 minutes). A `--row <id>` filter in `scenarios()` would help.
+- The other load rows (`runaway`, `parallel`, `deploy`, `upgrade`), goal prose § *Stage 5*. `deploy` can reuse `copy: true` and `p.dir`.
 - `--scenarios` refuses `--record` for now. Stage 7's record needs the rows under a `scenarios` key in `buildRecord`.
 - Stage 6: `website/src/content/docs/in-depth/compare.mdx`, goal prose § *Stage 6*.
 - `wait`: Novis reached 0.39x of best at 1000 connections on one CPU, with no `503`. The page reports it as measured, since the standing decisions keep the runtime unchanged. Why it is slower is not checked.
