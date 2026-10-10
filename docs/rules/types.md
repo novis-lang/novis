@@ -155,7 +155,9 @@ are return-only. `array<T>` is parsed **only in type position**, where a `<` is 
 type-argument list; two expression positions also admit one, a call site's own `<...>` and a `new`
 target's, both settled by a checkpointed trial parse that commits only when the list parses cleanly
 and a `(` follows, so `new Foo < $x` stays a comparison. Only a compiler-owned generic declaration may
-carry one.
+carry one. `class<T>` is read in type position only too, and adds no ambiguity: `class` is already a
+keyword and a class declaration is `class Name`, never `class <`. Its argument closes through the same
+`>`-splitting close `array<T>` uses, so `array<class<Animal>>` parses.
 
 `Name` covers four kinds of atom told apart by resolution: a class or interface name, an enum's name,
 an enum case ([`types/enum-case-type`](types.md#types-enum-case-type)), and a `type` alias ([`types/type-alias`](types.md#types-type-alias)). A class name
@@ -171,7 +173,7 @@ name already says. The refusal recovers as `mixed`, which is what keeps one miss
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
 
 <a id="types-integer-literals"></a>
 
@@ -1030,7 +1032,7 @@ The rule at the site follows and adds nothing: `$obj->$key` requires `$obj`'s ty
 `T` is the key's argument. A key made against `Animal` reads a `Dog`; a key made against `Dog` does not
 read an `Animal`.
 
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/property-key-access`](types.md#types-property-key-access). Decided in [0126](../decisions/0126.md), [0125](../decisions/0125.md).</sub>
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/property-key-access`](types.md#types-property-key-access). Decided in [0126](../decisions/0126.md).</sub>
 
 <a id="types-property-key-access"></a>
 
@@ -1352,7 +1354,7 @@ reads the wrong value later.
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
   ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
@@ -2074,14 +2076,40 @@ class<Shop\Animal> $c = 'Shop\Dog' as class<Shop\Animal>;   // loads src/Dog.nvs
 A qualifier is stripped, as every checked conversion strips one, and here for a narrower reason than
 that row's: the conversion's whole output range is the set of classes declared to be `Animal`s in this
 program's own source. A tainted string cannot widen that set, name a class the source does not
-declare, or reach outside the hierarchy the author wrote down.
+declare, or reach outside the hierarchy the author wrote down. What survives is a choice among the
+author's own subclasses, which is what a discriminator field is for. That bound is narrower than a
+hand-written `match` over string literals gives, because the compiler cannot tell whether one arm of
+the `match` was mistyped.
+
+The type exists because the refusal alone is a dead end. A driver chosen by configuration, a handler
+chosen by a discriminator field and a factory over a closed set of subclasses are ordinary programs.
+Without a type, each falls back to a `match` the compiler cannot check is exhaustive, or to a table of
+closures that erases the constructor. With one, the dynamic `new` and the dynamic static call are
+typed call sites: arguments, arity and return type are checked. The cost is that `class<T>` and
+`Foo::class` are visibly different things, and that distinction is what the safety rests on.
+
+A run-time conversion is a walk up the named class's parent chain and interface set, as deep as the
+program's own inheritance, once per conversion at the place the string arrives. A written-out name
+skips it.
 
 It is its own **equality domain**: two class references compare by descriptor identity, nothing else is
 ever equal to one — `$cls == "Dog"` is exactly the string-as-a-class confusion this type keeps out —
-and ordering one is refused with the other unordered types ([`types/ordering`](types.md#types-ordering)). A descriptor is
-immortal and process-wide, so holding one costs a word and frees nothing.
+and ordering one is refused with the other unordered types ([`types/ordering`](types.md#types-ordering)).
 
-<sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion). Decided in [0125](../decisions/0125.md), [0250](../decisions/0250.md).</sub>
+- **Memory:** a class reference is one word pointing at a descriptor that already exists for the life
+  of the process, so holding one frees nothing. Nothing is spent per request or per instance.
+
+**Declined:**
+- **Keep the refusal and offer nothing.** It makes ordinary programs unwritable and pushes authors to a
+  closure table, which checks less than the syntax it replaces.
+- **A `Core` function that takes a class name and a base as two strings.** It checks only at run time
+  and gives back a value the checker cannot type, so the `new` site stays untyped. A type is the only
+  shape that reaches the call site.
+- **A bare `string` accepted at the three sites when the base is written beside it.** The check moves
+  from the source to every use, so a string flows through the program unchecked and one forgotten
+  annotation is PHP's behaviour ([`types/class-reference-sites`](types.md#types-class-reference-sites)).
+
+<sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion). Decided in [0250](../decisions/0250.md).</sub>
 
 <a id="types-class-reference-variance"></a>
 
@@ -2102,7 +2130,12 @@ widened view out of the narrow one's storage ([`types/arrays`](types.md#types-ar
 one that widens on neither argument, because its argument bounds a receiver instead
 ([`types/property-key-variance`](types.md#types-property-key-variance)).
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/arrays`](types.md#types-arrays). Decided in [0125](../decisions/0125.md), [0188](../decisions/0188.md).</sub>
+**Declined:**
+- **`class<T>` invariant, with no widening.** It is simpler to state, and it makes passing a
+  `class<Dog>` to a `class<Animal>` parameter impossible without a redundant narrowing checked at run
+  time. Covariance is sound here and costs one rule.
+
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/arrays`](types.md#types-arrays). Decided in [0188](../decisions/0188.md).</sub>
 
 <a id="types-class-reference-sites"></a>
 
@@ -2123,6 +2156,10 @@ therefore still refused at all three sites — one refusal, with a fix the autho
 constant read, `$cls::CONST`, is not a site at all: a constant is inlined where it is read, so its
 class side is a written name and any value there, a `class<T>` included, is `E0496`.
 
+`new $cls(...)` pays the constructor lookup by name that `new static(...)` already pays, and nothing
+more: the descriptor is in hand, so there is no resolution step. `new Dog()` gains no branch, no field
+and no wider value.
+
 `new $cls(...)` types its arguments against **`T`'s** constructor, exactly as `new static(...)` types
 them against the current class's; that is the only signature the site can see, and the value may be
 any implementor of `T`. So the site is refused **at the `new`**, naming the subclass, when any
@@ -2136,7 +2173,7 @@ the reference already promised. No second operator tests a class ([`types/one-ty
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
 member" ([`types/property-key-access`](types.md#types-property-key-access)).
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0192](../decisions/0192.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0126](../decisions/0126.md), [0192](../decisions/0192.md).</sub>
 
 <a id="types-class-constant"></a>
 
@@ -2172,7 +2209,7 @@ The narrowing that lifts the refusal is the one `->` already requires of the sam
 Per evaluation the run-time form spends one load, one call and one string allocation for the name,
 charged to the isolate that asked.
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0144](../decisions/0144.md), [0125](../decisions/0125.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0144](../decisions/0144.md).</sub>
 
 <a id="types-absent-storage-is-never-a-zero-value"></a>
 

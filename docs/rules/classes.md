@@ -211,14 +211,15 @@ and the value may be any implementor of `T`.
 So the site is refused, at the `new`, when any implementor of `T` declares a constructor incompatible
 with `T`'s — the same compatibility test the override check already makes, and the diagnostic names
 that subclass. The mismatch is found at the site that can cause it, not when the wrong subclass
-arrives at run time.
+arrives at run time. This is stricter than PHP and never different from it: every program it accepts,
+PHP runs the same way.
 
 It is checked at the `new` and not at the class declaration on purpose. A subclass never instantiated
 through a class reference is nobody's problem, and refusing it at its declaration would make an
 unrelated file's `new` the reason a class cannot be written. The cost is one hierarchy-wide question
 asked per dynamic `new` site; `new Dog()` pays nothing.
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0125](../decisions/0125.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization).</sub>
 
 <a id="classes-definite-property-initialization"></a>
 

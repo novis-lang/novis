@@ -1,9 +1,7 @@
 {
   "title": "A `new` through a class reference checks `T`'s constructor, and an implementor whose constructor diverges is refused there",
   "status": "shipped",
-  "because": [
-    "0125"
-  ],
+  "because": [],
   "seeAlso": [
     "types/class-reference",
     "types/class-reference-sites",

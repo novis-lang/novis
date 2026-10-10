@@ -11,6 +11,10 @@ therefore still refused at all three sites — one refusal, with a fix the autho
 constant read, `$cls::CONST`, is not a site at all: a constant is inlined where it is read, so its
 class side is a written name and any value there, a `class<T>` included, is `E0496`.
 
+`new $cls(...)` pays the constructor lookup by name that `new static(...)` already pays, and nothing
+more: the descriptor is in hand, so there is no resolution step. `new Dog()` gains no branch, no field
+and no wider value.
+
 `new $cls(...)` types its arguments against **`T`'s** constructor, exactly as `new static(...)` types
 them against the current class's; that is the only signature the site can see, and the value may be
 any implementor of `T`. So the site is refused **at the `new`**, naming the subclass, when any

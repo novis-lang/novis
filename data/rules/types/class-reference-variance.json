@@ -2,7 +2,6 @@
   "title": "`class<T>` widens wherever `T` widens, and never narrows without an `as`",
   "status": "shipped",
   "because": [
-    "0125",
     "0188"
   ],
   "seeAlso": [

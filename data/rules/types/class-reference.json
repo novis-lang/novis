@@ -2,7 +2,6 @@
   "title": "`class<T>` is a type whose value is a class descriptor, and `as` is its only source",
   "status": "shipped",
   "because": [
-    "0125",
     "0250"
   ],
   "seeAlso": [
