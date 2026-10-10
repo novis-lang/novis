@@ -2,7 +2,6 @@
   "title": "A `.nvsx` is a single WebAssembly component whose manifest is an `nvs.manifest` custom section",
   "status": "designed",
   "because": [
-    "0055",
     "0246"
   ],
   "seeAlso": [

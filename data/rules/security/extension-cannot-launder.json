@@ -2,7 +2,6 @@
   "title": "No extension may remove the `tainted` qualifier, in any manifest spelling",
   "status": "designed",
   "because": [
-    "0055",
     "0060"
   ],
   "seeAlso": [

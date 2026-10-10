@@ -55,7 +55,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
 - **Extension sandbox or capability escape** — a wasm component reaching outside its grant, or a manifest
   loosening the qualifier analysis instead of tightening it
   ([`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component),
-  [0055](docs/decisions/0055.md)).
+  [`security/extension-manifest-only-tightens`](docs/rules/security.md#security-extension-manifest-only-tightens)).
 - **Memory unsafety** — any undefined behaviour reachable from safe Novis or from safe Rust, including in
   the three audited `unsafe` modules, and any JIT miscompilation that emits unsound code.
 - **Process-wide impact from one request** — a panic, resource-limit bypass or budget evasion that takes

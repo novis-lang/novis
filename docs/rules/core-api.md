@@ -577,7 +577,7 @@ What this buys is that a reviewer reads authority off the call site: whether an 
 attacker-controlled data is a property of the member being called, visible in its entry, and a member with
 no answer fails the build rather than being assumed neutral.
 
-<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0063](../decisions/0063.md), [0055](../decisions/0055.md), [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0063](../decisions/0063.md), [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-nothing-mutates"></a>
 

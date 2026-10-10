@@ -1550,7 +1550,7 @@ reads both sections and parses the manifest and the source list without linking 
 checks a manifest against its component's exports and the world's version
 (`crates/nvs-ext/tests/load.rs`), and nothing builds a component against the world.
 
-<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0055](../decisions/0055.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-an-extension-package-carries-two-payloads"></a>
 

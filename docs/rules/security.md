@@ -812,7 +812,7 @@ process's authority* to *arbitrary computation with no authority at all*.
 
 **Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md), [0112](../decisions/0112.md), [0055](../decisions/0055.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md), [0112](../decisions/0112.md).</sub>
 
 <a id="security-process-exec-capability"></a>
 
@@ -931,7 +931,7 @@ The exception is the same one [`security/net-address-policy`](security.md#securi
 operator has already approved by writing it — and it is a property of the address, not of the client
 that dials it.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0055](../decisions/0055.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md).</sub>
 
 <a id="security-tainted-qualifier"></a>
 
@@ -1265,7 +1265,7 @@ Which return type a launderer takes is a predicate rather than a per-member choi
 ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)). Where no built-in launderer fits, the way out is
 [`security/assert-trusted`](security.md#security-assert-trusted) — written, greppable, and carrying a reason — and never a silent cast.
 
-<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0055](../decisions/0055.md), [0248](../decisions/0248.md).</sub>
+<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0248](../decisions/0248.md).</sub>
 
 <a id="security-launderer-answers-a-carrier"></a>
 
@@ -1823,7 +1823,7 @@ refuses any other key, and refuses a `secret` or `tainted` written into a type
 `MethodSig` fields a `Core` row fills, and the call is checked by the code a `Core` call goes through
 (`crates/nvs-types/tests/extensions.rs`).
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0055](../decisions/0055.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0088](../decisions/0088.md).</sub>
 
 <a id="security-extension-grants-are-an-intersection"></a>
 
@@ -1890,10 +1890,18 @@ number is still tainted. An extension cannot itself be a sink — it is a compon
 authority, so everything it does to the world outside travels through a `Core` member, and that member
 is classified ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).
 
+The boundary has to take part because a first-party component crosses it too. A `tainted` string from
+the request is routinely handed to the internationalization component and comes back formatted; if that
+round trip cleaned it, the standard library would itself be the bypass.
+
 **On disk.** A parameter with no declaration is `Qual::Contagious` in `nvs_types::ext_lib`
 (`tests/conformance/ext/an-extension-result-is-tainted-when-an-argument-was.nvst`).
 
-<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing). Decided in [0055](../decisions/0055.md), [0088](../decisions/0088.md).</sub>
+**Declined:**
+- **Stripping qualifiers at the boundary.** Nothing to design and nothing to freeze into the extension
+  ABI, but unsound rather than merely limited: passing a value through any `.nvsx` would launder it.
+
+<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing). Decided in [0088](../decisions/0088.md).</sub>
 
 <a id="security-extension-declares-sink-or-source"></a>
 
@@ -1911,11 +1919,20 @@ call site fail that would otherwise have compiled, and the second can only add a
 must then launder. The axis exists only in the manifest, for the compiler — a guest's generated
 bindings ignore both, since neither affects the wire representation.
 
+Extensions are most useful exactly where these two apply: a template engine, a query builder, an LDAP
+filter builder and a Markdown renderer are sinks, and an extension that fetches or decodes remote data
+is a source.
+
 **On disk.** A manifest's `"sink": true` parameter and `"source": true` method are both checked
 (`tests/conformance/reject/a-tainted-argument-to-an-extension-sink-does-not-compile.nvst`,
 `tests/conformance/ext/an-extension-declared-source-taints-its-result.nvst`).
 
-<sub>See also [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/extension-contagion`](security.md#security-extension-contagion), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0055](../decisions/0055.md).</sub>
+**Declined:**
+- **Sinks only, with no source declaration.** An extension that fetches remote data or decodes an
+  untrusted file would return plain output from plain arguments, so untrusted bytes would enter the
+  program clean.
+
+<sub>See also [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/extension-contagion`](security.md#security-extension-contagion), [`security/sink-predicate`](security.md#security-sink-predicate).</sub>
 
 <a id="security-extension-cannot-launder"></a>
 
@@ -1936,7 +1953,14 @@ the caller to say so out loud. The rejected option is the invisible one.
 **On disk.** A manifest key other than `sink` and `source` does not load, nor does a `tainted` written
 into a type, so no spelling reaches a parameter mark that launders (`crates/nvs-ext/tests/load.rs`).
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0055](../decisions/0055.md), [0060](../decisions/0060.md).</sub>
+**Declined:**
+- **A signature-verified, operator-trusted extension that declares a laundering function.** It reopens
+  the false confidence [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named) closes, behind a trust gate, and it
+  breaks [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), the property that lets the analysis stand
+  without depending on signature checks being configured correctly. "The operator installed it" is a
+  much weaker guarantee than a `Core` member that names the one sink it is safe for.
+
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0060](../decisions/0060.md).</sub>
 
 <a id="security-secret-does-not-cross-an-extension"></a>
 
@@ -1961,7 +1985,13 @@ two reasons the protocol roster stays in `Core` ([`security/protocol-roster`](se
 (`tests/conformance/reject/a-secret-argument-to-an-extension-does-not-compile.nvst`), and a manifest
 declaring a `secret` return does not load (`crates/nvs-ext/tests/load.rs`).
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0055](../decisions/0055.md), [0060](../decisions/0060.md).</sub>
+**Declined:**
+- **A declared, capability-gated `secret` parameter**, so that protocol extensions could hold keys. It
+  is the argument serialization's refusal already answers, and the reveal already gives the escape
+  hatch with the property that matters: it is at the call site, in the application's own source, and
+  greppable.
+
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0060](../decisions/0060.md).</sub>
 
 <a id="security-image-component-declares-nothing"></a>
 
@@ -1983,7 +2013,7 @@ claim worth being able to check rather than an absence nobody looked at.
 **On disk.** `extensions/image/manifest.json` declares no qualifier and no capability; no test
 holds the absence yet.
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0055](../decisions/0055.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="security-one-tls-client"></a>
 
@@ -2071,7 +2101,7 @@ What the roster still owes is not a member but the flow around one: fetching, ca
 a key set are a package's job ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)), and every member here is
 stateless over the key it is handed.
 
-<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0060](../decisions/0060.md), [0055](../decisions/0055.md), [0146](../decisions/0146.md), [0179](../decisions/0179.md).</sub>
+<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0060](../decisions/0060.md), [0146](../decisions/0146.md), [0179](../decisions/0179.md).</sub>
 
 <a id="security-protocol-admission-test"></a>
 

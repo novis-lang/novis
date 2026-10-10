@@ -2,7 +2,6 @@
   "title": "An extension call is an ordinary operation for taint, so contagion is the default and needs no declaration",
   "status": "designed",
   "because": [
-    "0055",
     "0088"
   ],
   "seeAlso": [

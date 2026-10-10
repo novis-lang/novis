@@ -10,3 +10,10 @@ the caller to say so out loud. The rejected option is the invisible one.
 
 **On disk.** A manifest key other than `sink` and `source` does not load, nor does a `tainted` written
 into a type, so no spelling reaches a parameter mark that launders (`crates/nvs-ext/tests/load.rs`).
+
+**Declined:**
+- **A signature-verified, operator-trusted extension that declares a laundering function.** It reopens
+  the false confidence `rule:security/launderers-are-sink-named` closes, behind a trust gate, and it
+  breaks `rule:security/extension-manifest-only-tightens`, the property that lets the analysis stand
+  without depending on signature checks being configured correctly. "The operator installed it" is a
+  much weaker guarantee than a `Core` member that names the one sink it is safe for.
