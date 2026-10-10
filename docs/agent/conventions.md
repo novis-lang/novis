@@ -9,8 +9,8 @@ snippet can. Where a shape is short enough to write out, it is written out; wher
 is the answer. If a skeleton here disagrees with the file it names, **the file is right** — fix this.
 
 The rules themselves live elsewhere: [AGENTS.md](../../AGENTS.md) for what binds every agent, the
-rulebook under [docs/rules/](../rules/) for a settled rule, the decision record a rule's `because` names
-for its reasoning, the crate's module doc for how a subsystem works, [playbook.md](playbook.md) for traps.
+rulebook under [docs/rules/](../rules/) for a settled rule and the reasons behind it, the crate's module
+doc for how a subsystem works, [playbook.md](playbook.md) for traps.
 
 ## A commit message
 
@@ -361,20 +361,18 @@ repository, `bun nv rules --check` reports one that resolves to nothing, and the
 chapters linkify it on the way out. A rule id is its fragment's path — `types/conversion` is
 `docs/rules/types/conversion.md` — so the token also says where the prose is.
 
-**A decision record is linked, never cited as the rule.** `docs/decisions/NNNN.md` is frozen rationale:
-link to it when the *reasoning* is the point — why this shape, what it cost, what was rejected — and
-name the rule beside it when a reader needs what is currently true. A record's text was true on its
-date and is not maintained afterwards, so a citation that means "the current rule" and points at a
-record is stale from the first later decision that touches it. `bun nv brief --where <keyword>`
-routes a topic to the rule that owns it.
+**A decision record is never cited.** The records under `docs/decisions/` are being merged into the rules
+and deleted, so a line that needs a record's reasoning cites the rule the reasoning moved to, or states
+the reason in place. `bun nv records --check` fails on a citation of a record that is no longer on disk,
+and `bun nv brief --where <keyword>` routes a topic to the rule that owns it.
 
-**When a record is linked, the form depends on whether a renderer resolves it, and there are exactly
-two.**
+**A link to another document depends on whether a renderer resolves it, and there are exactly two
+forms.**
 
 | Where you are writing | The form | Why |
 |---|---|---|
-| a `.md` file | relative to the file — `](../decisions/0067.md)` | GitHub and the website render it, and both resolve against the file's own location |
-| a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/decisions/0067.md)` | nothing renders it, so the readers are people, agents and `grep` |
+| a `.md` file | relative to the file — `](../plan/m8.md)` | GitHub and the website render it, and both resolve against the file's own location |
+| a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/plan/m8.md)` | nothing renders it, so the readers are people, agents and `grep` |
 
 A source file's link had a `../` prefix until it was measured: 465 of 1,640 were dead — 442 with the
 wrong number of `../`, 23 naming a filename the record no longer had. A prefix encodes the **citing**
@@ -394,8 +392,7 @@ HTML page, where `../../../docs/` has never existed, so `cargo doc` was never a 
 
 ## A rule fragment
 
-A rule is **two files**, and a decision that creates or modifies one writes both in the same commit as
-the record. The pair is `data/rules/<topic>/<slug>.json` — the structure, which carries no prose — and
+A rule is **two files**, and a change that creates or modifies one writes both in one commit. The pair is `data/rules/<topic>/<slug>.json` — the structure, which carries no prose — and
 `docs/rules/<topic>/<slug>.md` — the prose, which carries no structure. The rule's place is its id in
 the `rules` list of its topic's record, `data/rules/<topic>.json`, inserted at the position § *Where a
 rule sits in the order* below gives it — never appended because it is the newest. `docs/rules/<topic>.md`
@@ -408,7 +405,7 @@ The record, `data/rules/core-classes/schema-plan.json`:
 {
   "title": "Every plan step carries a grade and its complete SQL, and an unknown grade grades up",
   "status": "shipped",
-  "because": ["0145", "0067"],
+  "because": [],
   "seeAlso": ["core-classes/schema-converges"],
   "guardedBy": ["tests/conformance/core/db-schema-plans-every-difference.nvst"]
 }
@@ -422,9 +419,9 @@ The record, `data/rules/core-classes/schema-plan.json`:
 - **`status` is `shipped` or `designed`**, and `designed` is the honest answer for a rule the tree does
   not hold yet. `docs/novis.md` filters to `shipped` so every line in it runs; the rulebook carries both,
   and the pack marks a designed rule where it prints one.
-- **`because` is decision records, first-created-then-amended**, and it is the only place that says
-  which decisions shaped a rule. `bun nv records --check` refuses a `because` that names something that
-  is not a record, or names one twice.
+- **`because` is the decision records on disk not yet merged into this rule**, and it may be empty.
+  A record's number leaves every `because` when the record is merged, and a new rule writes `[]`.
+  `bun nv rules --check` refuses a `because` that names a record not on disk.
 - **`guardedBy` is what holds the rule** — a test path, not a description. It is how a reader gets from
   the rule to the thing that fails when it is broken, and the pack samples it rather than printing it all.
 
@@ -432,6 +429,30 @@ The fragment is ordinary markdown with **no heading and no front matter**: the t
 so the file opens on the first sentence of the rule. Its **opening sentence is cut verbatim** into
 `ground-rules.md`, so write a sentence that stands alone. Body length is the rule's own business — one
 paragraph where one is enough, four where the rule has a table of cases in it.
+
+**A rule keeps its own reasons.** After the statement of what is true, the fragment says why it holds,
+in the same present-tense voice: the bound it sets, the attack it closes, the cost it avoids. It never
+says where a reason came from: no record number, no report, no date, no "the rule used to say". A
+reason the code or a test contradicts is not written; a still-wanted change becomes a gap under
+`data/gaps/`. Why a crate is built the way it is goes into the crate's module doc instead.
+
+**What the rule spends is a `**Memory:**` bullet**, per request or per task, stated as what is held
+and when: "**Memory:** each read of a match costs one string and one integer. A program that never
+reads a match pays nothing."
+
+**What was declined goes under a bold `**Declined:**` line at the end**, one bullet per alternative.
+A bullet opens with the declined thing in bold and gives the reason in one or two sentences, citing
+the rule that already says it where one does:
+
+```markdown
+**Declined:**
+- **The server calls the matched method.** Calling it would be dispatch
+  (`rule:routing/the-servers-match-dispatches-nothing`).
+```
+
+Something declined that no rule covers becomes a rule of its own whose title says it does not exist,
+the way `rule:routing/no-wildcard-verb` does. `rule:routing/a-match-is-not-invocable` is a worked
+example of all three.
 
 **Then run `bun nv rules --render`**, which rewrites the three generated files. `--check` and
 `--render --check` are CI's `docs` job, and a session that touched `docs/rules/` runs both before it
@@ -473,87 +494,23 @@ reorder is cheap: moving an entry changes no content, and `--render` rewrites th
 
 ## A decision record
 
-A record is the reasoning behind a rule, frozen on acceptance at `docs/decisions/NNNN.md`. **The rule
-is not in it** — the rule is a fragment under [docs/rules/](../rules/), written to the shape in
-§ *A rule fragment* above, and the record is what its `because` list names. Writing one without the
-other is half a decision, and the two are one commit. There is no scaffolder. A new record claims the
-next free number, which is one more than the highest file in `docs/decisions/`, and is two files
-written by hand:
+**No decision record is written.** A new decision becomes a goal right away, or it goes into the plan.
+When it lands, what is now true, why, what it spends and what it declined go into its rule fragment, in
+the shape § *A rule fragment* gives. A decision about how a crate is built goes into the crate's module
+doc. `git log` keeps the history.
 
-- `data/decisions/NNNN.json` — the fields: `title`, `status`, `scope`, `dependsOn`, and `validatedBy`
-  and `summary` when it has them. `tools/nv/schema/decision.ts` is the field list.
-- `docs/decisions/NNNN.md` — the reasoning, in the shape below. Its YAML block and its bold field lines
-  repeat the record's fields, and no renderer writes them yet, so they are written to agree with it.
+**Merging a record that is still on disk.** `bun nv records --left <from>-<to>` lists the records in a
+range with the rules whose `because` names each one. For one record:
 
-Newest worked example: [0104](../decisions/0104.md).
-
-```markdown
----
-status: accepted            # accepted | retired
-changes:
-  creates:
-    - types/nullable-conversion
-  modifies:
-    - types/conversion
-    - core-api/no-try-prefix
----
-# ADR NNNN — the decision, as a statement of what is now true
-
-- **Scope:** what this decides, and what it deliberately leaves to another record.
-- **Depends on:** the records this one builds on, as links.
-- **Validated by:** the guard test or the measurement that holds it.
-
-> **In short:** the decision in one paragraph. A reader who only needs the rule
-> stops here.
-
-## Context
-## Investigation
-## Options considered
-## Decision
-## Diagnostics
-## Consequences
-## Alternatives rejected
-## Revisiting
-## Verification
-```
-
-**What the shape means, so none of it is a matter of care:**
-
-- **The rules' `because` lists say which rules a decision shaped, and nothing else does.** Every rule
-  the decision brings into the rulebook gets a new record whose `because` opens with this number; every
-  rule whose fragment it edits gets this number appended to its `because`. The prose's `changes:` block
-  is a copy of that: `creates` names the first kind by id (`types/conversion`), `modifies` the second,
-  never a record. A decision touching no rule is not a decision — put the paragraph in the module doc
-  or the plan instead.
-- **`bun nv records --check` audits the set**, and refuses a `because` that names something that is
-  not a record. `bun nv records --graph NNNN` prints what a record created and modified and which
-  records share a rule with it, derived from every rule's `because`.
-- **The H1 is `# ADR NNNN — <the decision as a statement>`**, and it is the title every index derives
-  from. `Scope`, `Depends on` and `Validated by` are the three bullets that may follow it, each present
-  only when the record has one. Nothing else goes above *In short* — there is no `Status:` line, no
-  `Amends:`, no `Amended by:`, no `Relates to:`; all of that is either in the record's fields or
-  derived from the rules' `because` lists.
-- **The heading set is closed and ordered**: `Context`, `Investigation`, `Options considered`,
-  `Decision`, `Diagnostics`, `Consequences`, `Alternatives rejected`, `Revisiting`, `Verification`.
-  `tools/nv/cmd/records.ts`'s `CANONICAL` list is that set, `--check` refuses any other `##`, and anything else is
-  a `###` subsection under `Decision`. Use only the sections that have content; `Revisiting` is for a
-  decision with a real trigger to reconsider it.
-- **Sections are numbered `### N.` and never renumbered.** `0007 § 3` is cited from `crates/`, from
-  `docs/spec/` and from the goal manifests; a new section between two others is `§ 3a`.
-- **A record is frozen on acceptance.** Its body states what was decided when it was written and is not
-  edited when a later decision moves the rule: that decision is a new record whose number the rule's
-  `because` gains, and **the rule's fragment is where the current text lives.** A body therefore carries
-  no history and no maintenance — no "this previously said", no withdrawn-section tombstone, no running
-  total of anything — and the reader who wants to know what is true now reads the rule, never the
-  record.
-- **A record carries no date, and neither does its body.** When it was accepted, and when anything in it
-  was measured or superseded, is `git log`'s answer to give; a stamp in the file cannot be checked
-  against anything and tells a reader years later only that time has passed. The same rule the code
-  comments follow — § *A code comment*, *A date* — applies to every file under `docs/`.
-
-Retiring a decision is `status: retired` in its record and its YAML block, in the same commit that edits or
-removes the rules it created; there is no `Superseded` status and nothing to move in an index, because
-every index is derived.
+1. Read it once, beside the fragment of every rule that names it.
+2. Write into those fragments what is still true and not there yet: reasons, the memory cost, bounds,
+   and every declined alternative. Drop the story, the dates, the scope and dependency lines, the
+   option numbering, and any claim the code or a test contradicts.
+3. Move the test paths from its *Validated by* and *Verification* into the rules' `guardedBy`.
+4. Rewrite every citation of it outside `docs/decisions/`, and unlink each link to it in the records
+   left. `git grep -n -E 'ADR NNNN|decisions/NNNN|NNNN §'` finds them.
+5. Remove its number from each `because`, delete it, and run `bun nv rules --render` and
+   `bun nv records --check`.
 
 ## A diagnostic
 
