@@ -56,7 +56,7 @@ and there is no runtime, latency or memory consequence.
   a CLI script. It is the alternative to reopen if the template half of the language is ever
   reconsidered on its own terms.
 
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree).</sub>
 
 <a id="tooling-no-repl"></a>
 

@@ -1,10 +1,10 @@
 //! The two things a reader cannot see, written where the source left them out.
 //!
 //! `rule:ide/every-feature-is-staged-behind-its-dependency` lists inlay hints
-//! among what the VS Code client eventually gets, and ADR 0099 § 3 deferred
-//! them past M4B for one reason: they "want a settings story and
-//! encode idioms that are still moving through M5–M9". Both halves of that have
-//! since settled, and this module reverses the deferral **only** for the two
+//! among what the VS Code client eventually gets, and
+//! `rule:ide/the-request-set-is-closed` kept them out of M4B because they
+//! wanted a settings story and the idioms they would show were still moving.
+//! Both halves of that have settled, and this module answers **only** the two
 //! idioms that stopped moving:
 //!
 //! | Shape | Hint |

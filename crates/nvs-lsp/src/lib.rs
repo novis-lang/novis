@@ -32,8 +32,8 @@
 //! standard request answered here, three code actions and four of Novis's own
 //! — [`redactions`], [`regions`] and the two in [`imports`] — and
 //! [`capabilities`] is the single place that declaration is written.
-//! A request that is not on that list is a decision, not an addition — ADR 0099
-//! § 3 holds the test a candidate has to pass, and ADR 0171 § 2 is what it
+//! A request that is not on that list is a decision, not an addition — that
+//! rule holds the test a candidate has to pass, and ADR 0171 § 2 is what it
 //! looks like applied to eight of them.
 //!
 //! # The open documents

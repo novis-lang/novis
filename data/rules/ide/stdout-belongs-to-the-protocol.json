@@ -2,11 +2,12 @@
   "title": "Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`",
   "status": "designed",
   "because": [
-    "0099",
     "0158"
   ],
   "seeAlso": [
     "ide/the-server-is-synchronous"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-lsp/tests/stdout_policy.rs"
+  ]
 }

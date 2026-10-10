@@ -2,7 +2,6 @@
   "title": "The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` and published nowhere",
   "status": "shipped",
   "because": [
-    "0099",
     "0155"
   ],
   "seeAlso": [

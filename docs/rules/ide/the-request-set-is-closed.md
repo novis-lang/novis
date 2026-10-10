@@ -29,7 +29,8 @@ show this to the room".
 The last three standard ones are admitted on that test rather than on being useful, and the test is what
 keeps the list from growing: a candidate either reads a structure the milestone already built or waits for
 the milestone that builds it. `codeDescription` is not set: it takes a URL per code and there is no site to
-point one at.
+point one at, and a link into the repository would point at a Rust constant, which is worse than none.
+When there is a site, it is the one field that changes.
 
 M10's eight are admitted the same way, and the structure each one reads is named for the same reason the
 nine are. `references` and `documentHighlight` are the workspace symbol index's read side, whole-workspace
@@ -38,9 +39,11 @@ and narrowed to the open file; `codeLens` counts that index's uses and walks its
 edge both ways. Those four, with unused-member dimming, are
 `rule:ide/five-features-are-one-reference-index`'s five readers of the one index. `signatureHelp`,
 `typeDefinition` and `implementation` read what `hover` and `definition` already resolve. `inlayHint` is the
-eighth, and it is where ADR 0099 § 3's deferral is reversed — for the two idioms
-that stopped moving and no others, a `var` declaration's inferred type and a bare literal argument's
-parameter name, both read out of the type phase's own tables and never re-derived.
+eighth. It was kept out of M4B because it wanted a settings story and the idioms it would show were still
+moving, and it is admitted for the two idioms that stopped moving and no others: a `var` declaration's
+inferred type and a bare literal argument's parameter name, both read out of the type phase's own tables
+and never re-derived. `documentHighlight` waited for the index for a reason of its own: it applies
+resolution to every occurrence of a name, which is a different walk from resolving the one under a cursor.
 
 M10's own second non-standard request is `nvs/regions`
 (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`), and it passes the same test the

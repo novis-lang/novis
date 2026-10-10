@@ -2,7 +2,6 @@
   "title": "`--EXPECT--` is exact and frozen, and every response is rendered by `nvs_lsp::render` so no case invents a spelling",
   "status": "designed",
   "because": [
-    "0099",
     "0203"
   ],
   "seeAlso": [

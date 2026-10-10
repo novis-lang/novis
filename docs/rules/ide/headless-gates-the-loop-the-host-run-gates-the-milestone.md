@@ -28,3 +28,6 @@ in the tree, which is what makes a remembered verdict sound; this one also reads
 build and an installed package tree that no footprint records, since only `nvs`, the test binaries and
 `bun nv` log what they read (`tools/nv/select/keys.ts`), so a remembered green here would report an
 editor run on a machine where no editor started.
+
+The cost is a second test toolchain beside Cargo: npm, TypeScript and a Mocha suite, a CI job for each
+tier, and a setup step on a fresh machine that the Rust half does not need.

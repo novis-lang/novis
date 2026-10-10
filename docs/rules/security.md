@@ -2069,7 +2069,7 @@ dump this rule has already redacted.
 
 **Not on disk.** The dump emits no such placeholder.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server). Decided in [0099](../decisions/0099.md), [0092](../decisions/0092.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server). Decided in [0092](../decisions/0092.md), [0158](../decisions/0158.md).</sub>
 
 <a id="security-extension-manifest-only-tightens"></a>
 

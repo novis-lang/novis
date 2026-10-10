@@ -875,7 +875,8 @@ mod tests {
             assert_eq!(answer.render(), "none\n", "{:?}", answer.request());
         }
 
-        // The spellings themselves, one per kind, as ADR 0099 § 5 writes them.
+        // The spellings themselves, one per kind, as
+        // `rule:ide/the-rendering-has-one-home` writes them.
         assert_eq!(
             Response::Diagnostics(vec![
                 diagnostic_of(3, "E0301", "`$x` is assigned to but was never declared"),

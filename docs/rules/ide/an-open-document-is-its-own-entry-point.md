@@ -1,5 +1,6 @@
 Document sync is `Full` at M4B: a whole-document push per keystroke over a pipe is not the cost that
-matters when the analysis behind it is a full reparse anyway. Analysis is debounced (150 ms,
+matters when the analysis behind it is a full reparse anyway. Incremental sync arrives with
+incremental analysis or not at all. Analysis is debounced (150 ms,
 `nvs.lsp.debounce`) and cancelled by the next keystroke.
 
 The unit of analysis is one open document as its own entry point. Its `require`/`autoload` graph is

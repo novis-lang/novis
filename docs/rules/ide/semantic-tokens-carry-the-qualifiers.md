@@ -18,3 +18,7 @@ it holds, so `Core\Http\Method::Get` inside `#[...]` reads as it does in a body.
 The legend the client registers must equal the legend the server declares. A mismatch silently colours
 everything one token type off, which no unit test on either side alone can see, so the extension-host run
 proves it.
+
+**Declined:**
+- **The TextMate grammar alone, with semantic tokens left for later.** A regex grammar cannot produce the
+  qualifier modifiers at any price, and they are the reason this layer exists.

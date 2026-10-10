@@ -2,7 +2,6 @@
   "title": "A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed",
   "status": "designed",
   "because": [
-    "0099",
     "0274"
   ],
   "seeAlso": [

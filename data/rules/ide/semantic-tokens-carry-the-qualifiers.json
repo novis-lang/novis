@@ -2,7 +2,6 @@
   "title": "Semantic tokens use LSP's standard types plus two modifiers of Novis's own, `tainted` and `secret`, and the client's legend must equal the server's",
   "status": "designed",
   "because": [
-    "0099",
     "0214"
   ],
   "seeAlso": [

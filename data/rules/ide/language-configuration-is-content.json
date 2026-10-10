@@ -2,7 +2,6 @@
   "title": "`language-configuration.json` carries comments, pairs, indentation, folding and a `wordPattern` that includes `$`",
   "status": "designed",
   "because": [
-    "0099",
     "0149"
   ],
   "seeAlso": [

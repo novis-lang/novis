@@ -2,7 +2,6 @@
   "title": "On a version mismatch at `initialize` the client says so in the status item and does not start",
   "status": "designed",
   "because": [
-    "0099",
     "0158"
   ],
   "seeAlso": [

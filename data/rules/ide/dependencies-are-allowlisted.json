@@ -2,7 +2,6 @@
   "title": "The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests",
   "status": "designed",
   "because": [
-    "0099",
     "0158"
   ],
   "seeAlso": [

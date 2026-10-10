@@ -2,7 +2,6 @@
   "title": "Each open document is analysed as its own entry point, with open buffers overlaid on disk, and diagnostics are published only for open documents",
   "status": "designed",
   "because": [
-    "0099",
     "0198",
     "0207"
   ],
@@ -13,5 +12,7 @@
     "ide/a-full-reanalysis-stays-under-a-bound",
     "ide/five-features-are-one-reference-index"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-lsp/tests/publish.rs"
+  ]
 }

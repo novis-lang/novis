@@ -28,3 +28,6 @@ linked into what `nvs run` compiles, so it costs nothing on security or on the r
 - **A second, error-recovering parse entry point beside the strict one.** The strict parser is already
   infallible, so a second entry point would add a thing to keep in step and recover nothing the first
   does not.
+- **A `rowan` tree for the productions the server needs most, and the AST for the rest.** Two half-grammars
+  drift apart the way a second implementation does, and the server would read a different shape
+  depending on where the cursor is.
