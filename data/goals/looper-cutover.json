@@ -17,7 +17,7 @@
       "dropped",
       "lost"
     ],
-    "everyMin": 30
+    "everyMin": 3
   },
   "handover": "looper",
   "files": [],
