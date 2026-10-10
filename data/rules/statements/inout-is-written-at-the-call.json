@@ -2,7 +2,6 @@
   "title": "An argument that binds an `inout` parameter says so at the call",
   "status": "shipped",
   "because": [
-    "0107",
     "0080"
   ],
   "seeAlso": [

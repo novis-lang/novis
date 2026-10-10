@@ -299,9 +299,8 @@ ADRs already name — for shared mutable state, § 2's ordinary object captured 
 taking the value and `yield`ing what the body computes from it. **Capturing** an enclosing `inout` parameter
 is a different question and is *not* refused: § 2's capture is by value, so what it owes is a snapshot of
 the cell's value at the literal, which `nvs-ir` has not written yet (its gap 9). **The spelling is
-[0107](../decisions/0107.md)'s** — `inout` before the type and
-again at the call site, `&` rejected in every by-reference position — and this paragraph states the rule in
-it; the tree still spells it `&` until that ADR's M4 items land.
+`rule:statements/inout-is-the-by-reference-spelling`'s** — `inout` before the type and again at the call
+site, `&` rejected in every by-reference position — and this paragraph states the rule in it.
 
 **Architecture assumptions are tested, not remembered.** Several decisions here rest on how Cranelift,
 `corosensei` and Wasmtime behave rather than on our own code, and a dependency bump can invalidate them

@@ -1,9 +1,7 @@
 {
   "title": "An `inout` argument is a local, and never an element or a property",
   "status": "shipped",
-  "because": [
-    "0107"
-  ],
+  "because": [],
   "seeAlso": [
     "statements/inout-is-written-at-the-call",
     "statements/inout-is-the-by-reference-spelling"

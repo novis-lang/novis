@@ -585,7 +585,17 @@ one path that does not reach the write-back, so a caller sees no partial write. 
 is the other mechanism, pushing each assignment through to the array element as it happens. Neither is an
 alias. Which declarations may carry one is unchanged: an anonymous function may not, and a generator may not.
 
-<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0107](../decisions/0107.md).</sub>
+Languages split on this word by mechanism. Those that alias write `ref`, `&` or `var`; those that copy in
+and copy back write `inout`, as Hack and Swift do. Novis copies, so it takes the second word.
+
+**Declined:**
+- **`ref`.** In the languages that spell it so, `ref` is a true alias, and Novis has no alias: `$a = &$b`
+  is refused because there is nowhere to put a reference. The word describes neither of the two mechanisms
+  above.
+- **`&` kept at the declaration.** It is one of `&`'s five meanings, and it names the aliasing PHP does
+  and Novis does not ([`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker)).
+
+<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local).</sub>
 
 <a id="statements-inout-is-written-at-the-call"></a>
 
@@ -610,7 +620,21 @@ says so where nothing binds it — including a call through a `callable`.
 `foreach` and destructuring have no call site, so for them the declaration spelling
 ([`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling)) is the whole of it.
 
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0107](../decisions/0107.md), [0080](../decisions/0080.md).</sub>
+Without the marker, `Adder::bump($n)` and `Adder::sum($a, $b)` look the same at the call, and only one of
+them writes its argument. Somebody reviewing code they did not write has to see that write where it
+happens, so an invisible mutation is a security question and not a matter of taste. The price is typing:
+`bump(inout $n)` is longer than `bump($n)`, and it says what `bump($n)` did not.
+
+**Declined:**
+- **`&` at the call site, beside `&` at the declaration.** `f(&$x)` reads as an address-of or a bitwise
+  AND, and `&` keeps every one of its meanings ([`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker)).
+  PHP removed call-time `&` for exactly that confusion.
+- **The declaration renamed, with no marker at the call.** It spends a breaking change on the name and
+  leaves the mutation invisible, which is the larger of the two problems.
+- **The marker inferred at the call, with a warning where it is missing.** That is the compiler filling it
+  in, which the paragraph above already rules out.
+
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0080](../decisions/0080.md).</sub>
 
 <a id="statements-an-inout-argument-is-a-local"></a>
 
@@ -629,7 +653,7 @@ second time.
 The rewrite is the mechanism written out — read into a local, pass the local, store it back — and it is
 what the diagnostic's help says.
 
-<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0107](../decisions/0107.md).</sub>
+<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling).</sub>
 
 <a id="statements-there-is-no-out-mode"></a>
 
@@ -644,7 +668,7 @@ It is a separate feature needing its own definite-assignment analysis pointed at
 properties, and nothing asks for it. This is recorded so it is not reopened as a corollary of the `inout`
 spelling.
 
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0107](../decisions/0107.md).</sub>
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling).</sub>
 
 <a id="statements-ampersand-is-not-a-by-reference-marker"></a>
 
@@ -657,7 +681,9 @@ produces an error node — the AST keeps no variant for it. `E0237`: *`&` is not
 Novis — write `inout` before the type.*
 
 `&` keeps its other three jobs unchanged: `$a & $b` is bitwise AND, `$a && $b` is logical AND, and `A&B` is
-an intersection type. The one-token lookahead that told `int &$x` apart from an intersection continuation
+an intersection type. Its other two PHP meanings, a by-reference binding and a by-reference return
+(`function &bump`), are both `E0237`. With them gone, an `&` in a type position always means an
+intersection. The one-token lookahead that told `int &$x` apart from an intersection continuation
 survives the removal of the meaning it was written for, because meaning it and parsing it are two different
 questions: the type parser reaches that `&` first, and consuming it as an intersection member would leave
 the site above it nothing to report but a malformed intersection.
@@ -665,7 +691,7 @@ the site above it nothing to report but a malformed intersection.
 The already-refused spellings keep their own codes and gain the new word in their help text: `$a = &$b` is
 `E0701`, an anonymous function parameter `E0493`, a generator's `E0492`.
 
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0107](../decisions/0107.md).</sub>
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call).</sub>
 
 <a id="statements-exit-is-the-only-termination-keyword"></a>
 
