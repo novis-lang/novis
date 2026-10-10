@@ -305,7 +305,7 @@ window for N listed directories — tens, not thousands — spent by the backgro
 compiled build and the wasm target the question does not arise; resolution happens once, at build
 time.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
 
 <a id="packaging-a-wasm-module-cache-reuses-the-artifact-cache"></a>
 
@@ -849,7 +849,7 @@ It is TOML with unknown fields refused ([`config/a-duplicate-key-is-an-error-and
 and its integration with the program is the generated file
 [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line) describes.
 
-<sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0081](../decisions/0081.md), [0061](../decisions/0061.md), [0064](../decisions/0064.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0081](../decisions/0081.md), [0064](../decisions/0064.md), [0112](../decisions/0112.md).</sub>
 
 <a id="packaging-a-package-file-stays-under-its-declared-prefix"></a>
 
@@ -914,7 +914,7 @@ compilation ([`packaging/a-package-file-stays-under-its-declared-prefix`](packag
 
 **Not on disk.** `autoload` is shipped; `nvs fetch` and the generated file are not.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/autoload-probes-fold-into-the-cache-key`](packaging.md#packaging-autoload-probes-fold-into-the-cache-key). Decided in [0081](../decisions/0081.md), [0061](../decisions/0061.md).</sub>
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`packaging/a-package-file-stays-under-its-declared-prefix`](packaging.md#packaging-a-package-file-stays-under-its-declared-prefix), [`packaging/package-toml-is-a-tool-input`](packaging.md#packaging-package-toml-is-a-tool-input), [`packaging/autoload-probes-fold-into-the-cache-key`](packaging.md#packaging-autoload-probes-fold-into-the-cache-key). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-nothing-runs-before-the-program"></a>
 

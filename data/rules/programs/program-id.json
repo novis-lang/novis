@@ -2,7 +2,6 @@
   "title": "`Core\\Program::id()` is 64 hex characters naming this program's code and environment",
   "status": "shipped",
   "because": [
-    "0061",
     "0042"
   ],
   "seeAlso": [

@@ -233,7 +233,10 @@ scan at all**, and a program calling any of them pays the directory-listing depe
 many it calls. Type checking and lowering stay lazy regardless — a discovered class nobody calls is
 never checked past its declaration and never reaches codegen.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/constructors`](programs.md#programs-constructors). Decided in [0061](../decisions/0061.md), [0253](../decisions/0253.md).</sub>
+- **Memory:** the scan's symbol entries are O(declarations under the autoload roots), held per host and
+  only by a program that runs a scan.
+
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/constructors`](programs.md#programs-constructors). Decided in [0253](../decisions/0253.md).</sub>
 
 <a id="programs-implementing-with"></a>
 
@@ -363,7 +366,7 @@ time, and a name held in a string can never pull in a new file — `Core\Reflect
 reaches only the compiled program. A string *literal* under `as class<T>` is a name written in the
 source, not one held at run time, and is loaded while compiling ([`types/class-reference`](types.md#types-class-reference)).
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file). Decided in [0061](../decisions/0061.md), [0250](../decisions/0250.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file). Decided in [0250](../decisions/0250.md).</sub>
 
 <a id="programs-autoload"></a>
 
@@ -382,7 +385,13 @@ autoload discover '../../*/src';                       // each directory names i
 
 Paths resolve **relative to the file that declares them**, never to the entry point, which is what lets
 one framework directory serve many unrelated project trees. A concatenated or interpolated path is
-`E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY`. A prefix carries no trailing separator; matching appends one.
+`E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY`, reported by the parser, the only place the difference is still
+visible. A prefix carries no trailing separator; matching appends one. A single-quoted `'Acme\Legacy\'`
+could not be written anyway: its `\'` escapes the quote and swallows the rest of the line.
+
+Because the map is source, it travels with the code: it resolves identically under `nvs run`,
+`nvs serve`, `nvs build --compile`, the wasm target and an editor's `nvs check`, none of which share a
+deployment configuration, and there is no configuration file under a document root to reach.
 
 Every prefix segment is a `PascalCase` namespace segment, or the declaration is
 `E_AUTOLOAD_PREFIX_SHAPE`: a prefix that no name can match, such as the PSR-4 `'App\*'`, is reported
@@ -419,7 +428,29 @@ Path traversal is structurally impossible, with no sanitizer: a resolved suffix 
 namespace segments, which are `PascalCase` identifiers that may not begin with `_`, so `.`, `..` and a
 path separator cannot occur in one.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case). Decided in [0061](../decisions/0061.md), [0215](../decisions/0215.md).</sub>
+A hard cross-module reference requires that module while compiling: `Blog\Thing extends Shop\Base` does
+not build if `Shop` is not deployed, where PHP fails only if the line is reached. Modules that depend on
+interfaces the framework owns, rather than on each other's concrete classes, are unaffected.
+
+- **Memory:** the effective map is O(prefixes) per host, a few hundred bytes, and nothing of it is held
+  per request.
+
+**Declined:**
+- **A manifest file found by walking up from the entry file.** It lands inside or beside a document
+  root, and a walk-up finds the wrong root when many project trees share one framework directory. It
+  would also need a format, a discovery rule, an `extends` key and path anchors that a declaration in
+  the framework's own bootstrap file gets for free ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)).
+- **An `[autoload]` table in `nvs.toml`.** The map is a property of the source tree, not of the
+  deployment ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)).
+- **A `declare()`-style pragma.** Novis has no `declare()` grammar to extend, and a top-level statement
+  shaped like `require` already fits.
+- **Convention only, the entry file's directory as the global namespace root.** It cannot express
+  `src/` beside `tests/` beside `vendor/`, several roots for one prefix, or a framework outside the
+  project tree.
+- **A generated classmap.** A build step producing a file that goes stale is strictly worse than
+  resolving from the source the compiler already reads.
+
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case). Decided in [0215](../decisions/0215.md).</sub>
 
 <a id="programs-one-declaration-per-autoloaded-file"></a>
 
@@ -439,9 +470,10 @@ declaring a namespace other than its map path does the same thing another way: i
 only when something probed or `implementing` scanned that path.
 
 Files reached by `require` are unaffected and may declare anything. The cost is that a helper enum or
-`type` alias used by one class needs its own file.
+`type` alias used by one class needs its own file, which PSR-4 already imposes as a convention and
+Novis makes a diagnostic.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0061](../decisions/0061.md), [0215](../decisions/0215.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0215](../decisions/0215.md).</sub>
 
 <a id="programs-path-case"></a>
 
@@ -560,7 +592,10 @@ function Core\Program::id(): string;
 64 characters, never truncated by the runtime, because a caller that wants eight of them can take eight
 and one that wants all 32 cannot get them back. Program order rather than sorted order: a graph whose
 units resolve in a different order is a different program, and an identity that cannot see that is not
-one.
+one. Both inputs are the two halves of the artifact cache's address
+([`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file)), so a program's identity is one
+combine over digests the caches already hold, and `nvs_config::cache::program_id` owns the combine
+because it owns both inputs.
 
 It is the one member of its class with a body, and that is circularity rather than preference. Folding
 it into a constant would write the id into a unit as a literal, which changes that unit's bytes, hence
@@ -570,16 +605,20 @@ member reads that string back.
 
 **Computed at program resolution and at the hot-reload pointer swap, never per call and never lazily.**
 Those are the only two moments a running host's set of units changes; a lazy first-call compute would
-put a hash of every unit digest on one unlucky request's path. It holds 32 bytes per program and one
-BLAKE3 combine per resolution ([`programs/memory-priority`](programs.md#programs-memory-priority)).
+put a hash of every unit digest on one unlucky request's path, and a per-call compute on every request.
 
 Plain `string`, never `secret`: every use of the id is an echo — a cache-busting URL segment, a
 response header, the field that tells one deployment's log lines from another's — and `secret` refuses
-an echo by design. A context nobody wrote an id onto makes the member **throw**, rather than answer an
+an echo by design. The id does tell a reader that a deployment's code changed, and when; that is a
+fingerprinting caveat rather than a disclosure, since a digest reveals no source and says nothing about
+what changed, and nothing enforces it. A context nobody wrote an id onto makes the member **throw**, rather than answer an
 empty string or invent one, because callers key caches and invalidate CDNs on this value and a wrong
 identity is worse than no answer.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md).</sub>
+- **Memory:** 32 bytes per program and one BLAKE3 combine per resolution, nothing per request
+  ([`programs/memory-priority`](programs.md#programs-memory-priority)).
+
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="programs-bundle-trust-domain"></a>
 

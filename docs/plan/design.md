@@ -128,7 +128,7 @@ listener for it (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
 - **An existing PHP application's framework and packages do not come along.** No trait, no `__call`, no
   `ArrayAccess`, no runtime autoloader (`rule:classes/no-traits`,
   `rule:iteration/no-magic-collection-interfaces`, `rule:classes/no-call-magic`,
-  [0061](../decisions/0061.md)) means the ecosystem built on those is
+  `rule:programs/no-runtime-autoload`) means the ecosystem built on those is
   unreachable at any price — so `nvs convert` (M11) ports an application's own code onto Novis's own
   framework, and never onto its old one. `rule:programs/audience` records
   why this is survivable and what the alternative cost.

@@ -3214,7 +3214,7 @@ class Unreached {}
         assert!(module.symbols.contains(&QName::parse(r"Framework\Mailer")));
     }
 
-    /// `rule:routing/table-is-opt-in`'s opt-in is 0061 § 3's, reused: every
+    /// `rule:routing/table-is-opt-in`'s opt-in is `rule:programs/implementing`'s, reused: every
     /// `Core\Router` or `Core\Request` member whose answer comes from the route
     /// table needs the scan, and the table is built from this same
     /// enumeration. Each member is asserted alone, because a member list is the

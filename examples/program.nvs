@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0061 § 3's program enumeration, as a program.
+// `Core\Program::implementing<T>()` lists classes that nothing names, as a program.
 //
 // Nothing below names `App\Alpha`, `App\Beta` or `App\Gamma`, and no `require`
 // anywhere reaches their files. The one declaration that can find them is the

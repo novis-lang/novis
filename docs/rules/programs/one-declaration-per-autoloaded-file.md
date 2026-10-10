@@ -10,4 +10,5 @@ declaring a namespace other than its map path does the same thing another way: i
 only when something probed or `implementing` scanned that path.
 
 Files reached by `require` are unaffected and may declare anything. The cost is that a helper enum or
-`type` alias used by one class needs its own file.
+`type` alias used by one class needs its own file, which PSR-4 already imposes as a convention and
+Novis makes a diagnostic.

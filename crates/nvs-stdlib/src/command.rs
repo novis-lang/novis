@@ -1,8 +1,8 @@
 //! `Core\Command` — the compiled command table, as the members that read it.
 //!
 //! `rule:tooling/commands-are-compiled`
-//! builds the table *while compiling*, from the `#[Command]` methods the ADR
-//! 0061 § 3 scan found, and this class is the whole of what a program does with
+//! builds the table *while compiling*, from the `#[Command]` methods the
+//! `rule:programs/implementing` scan found, and this class is the whole of what a program does with
 //! it. `nvs_runtime::commands` is the table as a running program holds it, and
 //! its module doc owns why the rows cross the boundary at all rather than being
 //! folded while checking — the short version is that `help`'s `?string $name`

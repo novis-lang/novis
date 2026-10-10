@@ -3,8 +3,7 @@
   "status": "designed",
   "because": [
     "0112",
-    "0081",
-    "0061"
+    "0081"
   ],
   "seeAlso": [
     "security/no-runtime-grant",

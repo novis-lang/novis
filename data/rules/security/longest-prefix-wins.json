@@ -2,8 +2,7 @@
   "title": "The longest matching grant key wins, and a subtree is spelled out because it reaches code that does not exist yet",
   "status": "designed",
   "because": [
-    "0112",
-    "0061"
+    "0112"
   ],
   "seeAlso": [
     "security/grants-are-keyed-on-a-namespace",

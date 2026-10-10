@@ -600,7 +600,7 @@ it reaches code no package manager ever touched.
 
 **Not on disk.** Nothing in the tree reads a per-namespace grant table.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
 
 <a id="security-grants-are-keyed-on-a-namespace"></a>
 
@@ -644,7 +644,7 @@ thing costs two extra characters and is visible in review as its own token.
 
 **Not on disk.** No grant table is keyed this way in the tree.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0061](../decisions/0061.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md).</sub>
 
 <a id="security-an-unmatched-namespace-holds-the-application"></a>
 
@@ -772,7 +772,7 @@ widens ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 checking. The required/optional manifest split, the guard at an optional call site and the compile
 error for a required one have no representation in the tree.
 
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md).</sub>
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
 
 <a id="security-no-runtime-grant"></a>
 
