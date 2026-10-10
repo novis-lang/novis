@@ -15,3 +15,13 @@ implementation rather than five.
 
 One crate — `nvs-render` — owns the model and every rendering of it, and both the runtime and the
 compiler front end depend on it.
+
+Closing the model is what keeps the renderings from drifting apart. The obligation on them is a table
+of every node kind against every rendering, and that table is finite only because no producer can add
+a kind.
+
+- **Memory:** a record is built before it is rendered, so each log write or dump holds one tree of
+  nodes rather than formatting straight to bytes: one extra allocation and one extra walk per record,
+  bounded by the elision caps (`rule:errors/record-transformations`) and charged to the request. It
+  buys a dump that cannot reach a production response and a plaintext log target that cannot be
+  forged.

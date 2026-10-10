@@ -1,6 +1,6 @@
 [package]
 name = "nvs-render"
-description = "ADR 0092's one diagnostic record model and its renderings: the closed node tree every developer-facing output is built from, and the plaintext view of it"
+description = "The one diagnostic record model and its renderings: the closed node tree every developer-facing output is built from, and the plaintext view of it"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,10 +13,11 @@ repository.workspace = true
 # not run rustdoc over it. A crate that gains one deletes this table.
 doctest = false
 
-# This crate depends on no `nvs-*` crate, and that is the property ADR 0092 § 1
-# asks of it: the model sits below both the runtime and the compiler front end,
-# so every edge to it runs downward. The `rule:security/bidi-predicate` check,
-# which ADR 0092 § 5 routes through rather than restating, lives in `src/bidi.rs` for that
+# This crate depends on no `nvs-*` crate, and that is the property
+# `rule:errors/diagnostic-record` asks of it: the model sits below both the
+# runtime and the compiler front end, so every edge to it runs downward. The
+# `rule:security/bidi-predicate` check, which
+# `rule:errors/record-transformations` routes through rather than restating, lives in `src/bidi.rs` for that
 # reason — it moved down out of `nvs-syntax` when the tier-4 floor became a
 # dependent, and `nvs-syntax` reads it from here now.
 [dependencies]

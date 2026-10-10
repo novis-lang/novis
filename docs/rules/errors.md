@@ -427,7 +427,17 @@ implementation rather than five.
 One crate — `nvs-render` — owns the model and every rendering of it, and both the runtime and the
 compiler front end depend on it.
 
-<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/log-fields`](errors.md#errors-log-fields). Decided in [0092](../decisions/0092.md).</sub>
+Closing the model is what keeps the renderings from drifting apart. The obligation on them is a table
+of every node kind against every rendering, and that table is finite only because no producer can add
+a kind.
+
+- **Memory:** a record is built before it is rendered, so each log write or dump holds one tree of
+  nodes rather than formatting straight to bytes: one extra allocation and one extra walk per record,
+  bounded by the elision caps ([`errors/record-transformations`](errors.md#errors-record-transformations)) and charged to the request. It
+  buys a dump that cannot reach a production response and a plaintext log target that cannot be
+  forged.
+
+<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/log-fields`](errors.md#errors-log-fields).</sub>
 
 <a id="errors-record-producers"></a>
 
@@ -462,7 +472,12 @@ builds the trace as the throw unwinds — so those three parts are the whole of 
 object a record of a throw carries is the throw itself, whose declared properties are walked like
 any other value and redact like any other value.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md).</sub>
+**Declined:**
+- **Logs and dumps only, with throws, test results and diagnostics outside.** It is the smallest
+  scope, and it would duplicate redaction and substitution in each producer left out rather than
+  remove the duplication.
+
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump).</sub>
 
 <a id="errors-a-record-names-where-it-was-produced"></a>
 
@@ -516,14 +531,16 @@ someone is looking at, or the renderings stop being views of one record.
 newline inside a tainted value cannot forge an entry. That property is the condition on a
 human-readable target existing at all.
 
-Elision belongs to the model precisely so the renderings agree on what was cut, and a cycle is an
+Elision belongs to the model precisely so the renderings agree on what was cut. A cut made per
+formatter, as PHP and Python make it, leaves one value complete in one output and cut in another,
+and no reader can tell which. A cycle is an
 identity rather than a `*RECURSION*` marker, so the HTML rendering can link the repeat and the JSON
 rendering can emit a reference.
 
 Tainted data flows into a record freely, because the record frames it and **the rendering is what
 makes it safe**. There is no raw escape hatch, and no rendering may be selected by an argument.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write). Decided in [0092](../decisions/0092.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="errors-renderings"></a>
 
@@ -546,12 +563,31 @@ renderings from becoming fifteen.
 **Zero new carrier types.** Every one already existed, which is what lets a capture around a dump
 return something that re-emits correctly instead of being escaped twice.
 
-Colour is the only thing that varies with a tty; structure, substitution and redaction never do.
-`[log] format` has two values rather than three because HTML is not a log *target* rendering — a
-web-facing log viewer is an HTTP response, and reaches the HTML rendering through the response sink
-like everything else.
+Colour is the only thing that varies with a tty, and the plaintext rendering reads it from the one
+resolved terminal profile ([`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once)); structure,
+substitution and redaction never vary. `[log] format` has two values rather than three because HTML
+is not a log *target* rendering — a web-facing log viewer is an HTTP response, and reaches the HTML
+rendering through the response sink like everything else, so a framework's log viewer gets it with no
+second implementation.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md).</sub>
+The HTML block carries its own style, inline and once per response, under the response's CSP nonce:
+the default headers block a linked asset, and a debug block the project's own security defaults stop
+from rendering would be no use.
+
+A rendering is not a grammar. A grammar is a string the program writes that something parses
+([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)); a rendering is output the runtime produces, so the count
+of four is unchanged.
+
+**Declined:**
+- **A format argument on each producer**, such as `dump($x, "html")`. The call site is the one place
+  that does not know where the output goes: the same handler runs under `nvs serve`, under a test and
+  inside a spawned isolate, and the sink table ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)) already answers
+  it in all three.
+- **Choosing the rendering from the `Content-Type` header at dump time.** The body is typed
+  ([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)), so the rendering is a compile-time fact, and
+  reading a header would put a run-time decision in its place.
+
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook).</sub>
 
 <a id="errors-no-render-hook"></a>
 
@@ -570,7 +606,7 @@ lying view of the state a dump exists to show.
 Adding a fourth rendering later is a change to one crate, not to any call site — which is the
 property that makes refusing one now cheap to revisit.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump).</sub>
 
 <a id="errors-debug-dump"></a>
 
@@ -608,14 +644,23 @@ direction for a bug to point. So a development-mode API response is byte-identic
 production counterpart.
 
 `[debug] inline` can only be tightened at run time: a request may turn its own inline output off and
-can never turn it on, so the run mode's default is the only thing that can enable it.
+can never turn it on, so the run mode's default is the only thing that can enable it, and
+[`http-server/the-mode-ceiling-defaults-to-the-startup-mode`](http-server.md#http-server-the-mode-ceiling-defaults-to-the-startup-mode) bounds reaching that mode at all.
 
 **This is the security half of the rule.** The most-exploited information disclosure from a debug
 dump is not a bug in the dump; it is that the dump writes to output, so a forgotten call and a
 production deployment are enough. Here the forgotten call writes a log line, and the spelling that would put it
 in a response does not exist outside a mode whose ceiling is closed by default.
 
-<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md).</sub>
+**Declined:**
+- **A `debug` key injected into a JSON body in development.** The served shape would contradict the
+  published API document ([`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact)), for the
+  reason above.
+- **A response header carrying a dump id**, the shape some PHP frameworks use for a debug token. It
+  keeps the body intact and the dump discoverable, but it is a second mechanism: an id, a lookup, and a
+  viewer to look it up in, and no such viewer exists.
+
+<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/no-render-hook`](errors.md#errors-no-render-hook).</sub>
 
 <a id="errors-log-write"></a>
 
@@ -641,7 +686,7 @@ JSON was chosen over `logfmt` because an arbitrary error message or a multi-line
 escaping that is correct on the first and only attempt at the floor, and JSON's escaping is a
 solved, mechanical problem where `logfmt`'s quoting of embedded quotes, newlines and spaces is not.
 
-<sub>See also [`errors/log-level`](errors.md#errors-log-level), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md).</sub>
+<sub>See also [`errors/log-level`](errors.md#errors-log-level), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record).</sub>
 
 <a id="errors-log-level"></a>
 
@@ -663,7 +708,15 @@ spans and sampling belong to tracing and a trace *level* would be a second home 
 
 `[log] level` sets the minimum level written.
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md).</sub>
+`Core\Log::write` takes the enum rather than a `string` level, because a closed set of values is an
+enum in every other position in the language.
+
+**Declined:**
+- **PSR-3's eight levels.** They are what PHP standardised on, but nobody has a rule for choosing
+  `notice` over `info`, or `alert` over `emergency` over `critical`: they are three ways to say one
+  thing.
+
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record).</sub>
 
 <a id="errors-log-fields"></a>
 
@@ -686,7 +739,7 @@ without changing it.
 A record is charged to the request's budget, and a record shed under burst pressure **increments a
 counter that is exported**, because a silently dropped log line is worse than a counted one.
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md).</sub>
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record).</sub>
 
 <a id="errors-a-repeat-is-bounded-at-the-sink-that-suffers"></a>
 

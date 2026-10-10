@@ -1,9 +1,7 @@
 {
   "title": "`[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says",
   "status": "designed",
-  "because": [
-    "0092"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/the-trace-id-is-the-request-identifier",
     "http-server/health-path-is-off-and-checks-nothing",

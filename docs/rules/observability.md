@@ -79,7 +79,7 @@ record was written.
 Two fields added to a shape that already exists, and they are what lets an operator jump from a
 log line to the trace that produced it — the single highest-value thing an observability stack does.
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request). Decided in [0092](../decisions/0092.md).</sub>
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request).</sub>
 
 <a id="observability-metrics-three-members"></a>
 

@@ -13,8 +13,8 @@
 //! `rule:security/reflection-enforces-visibility` makes a reflective read face the check
 //! ordinary code at that site would face, and a `private int $n` is
 //! byte-identical to a `public int $n` in every representation below the
-//! checker. So the bit is carried down from `nvs_types::layout`, exactly as ADR
-//! 0092 § 5's `secret` bit is, and
+//! checker. So the bit is carried down from `nvs_types::layout`, exactly as
+//! `rule:errors/record-transformations`' `secret` bit is, and
 //! [`nvs_runtime::ClassDesc::field_is_public`] is what this module asks. The
 //! rejected alternative was a compile-time table keyed by class name: it answers
 //! nothing for a class reached through a `mixed`, which is the only receiver

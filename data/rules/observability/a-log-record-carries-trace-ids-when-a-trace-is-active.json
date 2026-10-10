@@ -1,9 +1,7 @@
 {
   "title": "A log record inside an active trace carries `trace_id` and `span_id`, and outside one omits both rather than writing them empty",
   "status": "shipped",
-  "because": [
-    "0092"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/log-write",
     "errors/log-fields",

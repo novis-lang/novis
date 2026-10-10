@@ -24,8 +24,8 @@ doctest = false
 # hashes the data folder's `nvs.toml` with it to tell a template nobody changed
 # from an operator's file.
 #
-# `nvs-render` is here for one type: `[log] level` names one of ADR 0092 § 2's
-# five levels, and that roster's home is the enum the record carries. A copy of
+# `nvs-render` is here for one type: `[log] level` names one of
+# `rule:errors/log-level`'s five levels, and that roster's home is the enum the record carries. A copy of
 # it under `src/log.rs` would be a second roster to keep in step, which is the
 # failure the module doc there already names for the target's grammar. The edge
 # runs downward — `nvs-render` depends on no `nvs-*` crate at all.

@@ -722,7 +722,7 @@ mod tests {
         );
     }
 
-    /// ADR 0092 § *Verification*'s M4 bullet: a `secret`-typed property on an
+    /// `rule:errors/record-transformations`: a `secret`-typed property on an
     /// object in a stack frame is redacted in the uncaught record too.
     ///
     /// Novis's frames carry a label and nothing else —

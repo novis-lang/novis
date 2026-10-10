@@ -11,3 +11,11 @@ and a level is where an alerting rule can read that difference. There is no `Tra
 spans and sampling belong to tracing and a trace *level* would be a second home for that fact.
 
 `[log] level` sets the minimum level written.
+
+`Core\Log::write` takes the enum rather than a `string` level, because a closed set of values is an
+enum in every other position in the language.
+
+**Declined:**
+- **PSR-3's eight levels.** They are what PHP standardised on, but nobody has a rule for choosing
+  `notice` over `info`, or `alert` over `emergency` over `critical`: they are three ways to say one
+  thing.

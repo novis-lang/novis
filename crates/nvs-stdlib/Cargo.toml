@@ -30,7 +30,7 @@ html5ever.workspace = true
 # capability table names that enum rather than a string this crate would have to
 # compare against the configuration's own.
 nvs-config.workspace = true
-# ADR 0092 § 1: the record model and its renderings live in one crate that both
+# `rule:errors/diagnostic-record`: the record model and its renderings live in one crate that both
 # the runtime and the front end can depend on. `Core\Debug::dump` is its first
 # producer -- `crate::debug` builds a record and hands it to the plaintext
 # rendering, rather than formatting a value here.

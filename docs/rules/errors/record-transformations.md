@@ -17,7 +17,9 @@ someone is looking at, or the renderings stop being views of one record.
 newline inside a tainted value cannot forge an entry. That property is the condition on a
 human-readable target existing at all.
 
-Elision belongs to the model precisely so the renderings agree on what was cut, and a cycle is an
+Elision belongs to the model precisely so the renderings agree on what was cut. A cut made per
+formatter, as PHP and Python make it, leaves one value complete in one output and cut in another,
+and no reader can tell which. A cycle is an
 identity rather than a `*RECURSION*` marker, so the HTML rendering can link the repeat and the JSON
 rendering can emit a reference.
 

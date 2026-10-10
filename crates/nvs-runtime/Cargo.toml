@@ -38,7 +38,7 @@ nvs-config.workspace = true
 # renderer `Core\Log::write` reaches, so that a log pipeline never has to
 # reconcile two shapes depending on which tier produced a line — and a floor
 # with its own JSON writer would be exactly the two-writers-that-agree-today
-# failure ADR 0092 exists to prevent. `src/floor.rs` is the caller. The edge is
+# failure `rule:errors/diagnostic-record` exists to prevent. `src/floor.rs` is the caller. The edge is
 # one-way and this crate stays the bottom of the tree: `nvs-render` depends on
 # no `nvs-*` crate at all, which is what the `rule:security/bidi-predicate`
 # check moving down into it bought.

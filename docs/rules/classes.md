@@ -987,7 +987,7 @@ one is a built-in view, the other a call site a script constructs, and they have
 models. A `secret`-typed property is redacted wherever it is dumped, which is the qualifier's rule and
 not an exception to this one.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook).</sub>
 
 <a id="classes-two-copy-depths"></a>
 

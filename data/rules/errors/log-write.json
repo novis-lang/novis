@@ -1,9 +1,7 @@
 {
   "title": "One write path, and the engine floor is its other caller",
   "status": "shipped",
-  "because": [
-    "0092"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/log-level",
     "errors/log-fields",

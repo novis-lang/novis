@@ -11634,7 +11634,6 @@
       "summary": "",
       "surface": "`dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls",
       "adrs": [
-        "0092",
         "0018"
       ],
       "enums": [],
@@ -12852,9 +12851,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the `secret` axis (`rule:security/secret-sinks-refuse`); on the `tainted` axis neither is a sink, because a field is *data* (`rule:security/log-is-not-a-sink`) and logging tainted input is the point",
-      "adrs": [
-        "0092"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -20028,9 +20025,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the `secret` axis (`rule:security/secret-sinks-refuse`); on the `tainted` axis neither is a sink, because a field is *data* (`rule:security/log-is-not-a-sink`) and logging tainted input is the point",
-      "adrs": [
-        "0092"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [

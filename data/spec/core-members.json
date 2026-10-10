@@ -1867,12 +1867,12 @@
         [
           "`Core\\Log`, `Core\\Fatal`",
           "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the `secret` axis (`rule:security/secret-sinks-refuse`); on the `tainted` axis neither is a sink, because a field is *data* (`rule:security/log-is-not-a-sink`) and logging tainted input is the point",
-          "`rule:errors/log-write`, [0092](../decisions/0092.md)"
+          "`rule:errors/log-write`, `rule:errors/log-level`"
         ],
         [
           "`Core\\Debug`",
           "`dump(mixed ...$values)` and `render(mixed)` — replacing `var_dump`, `print_r`, `var_export`, `debug_zval_refcount` — plus the coverage, tracing and profiling controls",
-          "`dump`/`render`: [0092](../decisions/0092.md); the probes: `rule:testing/debug-probes`"
+          "`dump`/`render`: `rule:errors/debug-dump`; the probes: `rule:testing/debug-probes`"
         ],
         [
           "`Core\\Signal`",

@@ -1,9 +1,7 @@
 {
   "title": "The floor cannot fill the disk it writes to: a file target rotates under a retention bound, repeats coalesce into one record with a count, and a cache write failure compiles in memory",
   "status": "shipped",
-  "because": [
-    "0092"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/engine-floor",
     "errors/diagnostic-record",

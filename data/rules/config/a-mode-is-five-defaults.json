@@ -1,9 +1,7 @@
 {
   "title": "A mode is a shorthand for the defaults of five `Runtime` directives, and governs nothing else",
   "status": "shipped",
-  "because": [
-    "0092"
-  ],
+  "because": [],
   "seeAlso": [
     "config/two-modes-and-the-default-is-production",
     "config/a-startup-default-is-never-flipped",

@@ -25,7 +25,7 @@
 //! **Class names and nothing else** — no inline style, no script, no colour.
 //! The text reads without a stylesheet, and the caller that has a response
 //! supplies one: `[debug] inline`'s block carries its style under the CSP
-//! nonce (`docs/decisions/0092.md:423`), which is a property of that request
+//! nonce (`rule:errors/renderings`), which is a property of that request
 //! rather than of the markup. An identity is numbered within its own record,
 //! so a page that embeds two records is what scopes their anchors.
 //!
