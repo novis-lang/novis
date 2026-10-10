@@ -203,7 +203,7 @@ parent re-emit a captured result without escaping it twice, and it is why `'inhe
 separate rule: the two carriers already match. `Core\Cli`'s *members* still throw inside an isolate —
 that rule is about owning the terminal, which an isolate's buffered output never touches.
 
-<sub>See also [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing).</sub>
 
 <a id="security-isolate-teardown-is-a-drain-then-a-sweep"></a>
 
@@ -1259,7 +1259,13 @@ grammars the library parses are all instructions by it
 ([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)), and a member nobody classified fails closed
 ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).
 
-<sub>See also [`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters). Decided in [0088](../decisions/0088.md).</sub>
+**Declined:**
+- **Denying `tainted` at the process boundary, so it may leave only through a typed carrier.** Strictly
+  stronger and wrong: it refuses a file's contents, an outbound request body, a bound database parameter
+  and a log field, each of which is safe and common. The predicate is what separates them, so a boundary
+  rule would be this rule with its useful half deleted.
+
+<sub>See also [`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters).</sub>
 
 <a id="security-unclassified-parameter-refuses-tainted"></a>
 
@@ -1274,7 +1280,14 @@ time in production; now it refuses where the call is written.
 
 The classification lives once, beside the parameter list and the return type in the member registry,
 and a member with an unclassified parameter **fails the library's own test suite** — the default is
-what a program sees, the test is what stops such a member from shipping at all.
+what a program sees, the test is what stops such a member from shipping at all. Userland was already
+fail-closed, because a plain `string` parameter of a user's function refuses a tainted argument, so the
+library's own table was the one fail-open surface, and flipping its default was one pass over one table
+rather than a language change. The pass marks most parameters *contagious*, because most genuinely
+are, and it never recurs: the next member added is safe until its author says otherwise.
+
+Every mark is checked before the program runs and erased before code is generated, so the default
+costs nothing on the request path: no representation, no branch.
 
 A **union parameter** carries the mark its arms declare — `Pattern|string` is a sink because the
 `string` arm is written as one — and carries none where its arms disagree or where an arm that could
@@ -1282,11 +1295,20 @@ hold a mark does not. The classification is still written once beside the parame
 has a cell for it, and the refusing default still covers everything nobody classified.
 
 A mark that admits `tainted` admits a union carrying it, arm by arm, and the contagion is read back
-out with at least that reach. The two directions are deliberately asymmetric: the answer that decides
+out with at least that reach. `Core\Env::get` returns `?tainted string`, so `$name ?? "default"` is a
+`string|tainted string`, and that is the shape every environment read arrives in: a launderer that
+took only the atom would refuse the one form its own source produces. The admission does not weaken,
+because each arm is narrowed and then compared, so one tainted arm at a sink still refuses the whole
+union. The two directions are deliberately asymmetric: the answer that decides
 whether to *set* the qualifier on a result reaches further than the narrowing that decides whether to
 *admit* an argument, because reaching too far over-taints in the first case and leaks in the second.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0088](../decisions/0088.md).</sub>
+**Declined:**
+- **Keeping *contagious* as the default and stating the sink predicate as guidance.** The predicate was
+  already derivable, and a member taking a format template was still added unmarked. A rule held by
+  attention fails exactly when nobody is paying it.
+
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test).</sub>
 
 <a id="security-every-grammar-is-a-sink"></a>
 
@@ -1308,7 +1330,7 @@ A regex quoting member remains the one exception on the roster, because a regex 
 that routinely needs a runtime value *inside* it rather than *as* it
 ([`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink)).
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments).</sub>
 
 <a id="security-regex-pattern-is-a-sink"></a>
 
@@ -1330,7 +1352,7 @@ The **subject** may be tainted, and contagion applies unchanged: a substring mat
 subject is tainted ([`security/taint-propagation`](security.md#security-taint-propagation)). The denial-of-service half is answered
 separately, by tiering the pattern onto a linear-time engine and budgeting the backtracking tier.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers). Decided in [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers).</sub>
 
 <a id="security-outbound-url-is-a-sink"></a>
 
@@ -1372,7 +1394,7 @@ stays two lines, the second of which is the launderer that records the decision.
   incompletely, and a language that makes SQL and HTML injection compile errors would be treating this one
   as a matter of care.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments).</sub>
 
 <a id="security-metric-label-refuses-tainted"></a>
 
@@ -1419,14 +1441,15 @@ log.
 
 The same holds for a bidirectional control, which the writer escapes by construction
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)), and for a JSON decode, whose input is data the parse returns to the
-program and whose result is `tainted`.
+program and whose result is `tainted`; its risk is bounded by the decoder's nesting cap, which is on
+by default.
 
 The `secret` axis does not follow: a log field **refuses** a `secret` value, because that axis is
 about confidentiality rather than structure and a log is an output
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)). Stating both here is what stops a future reader from applying
 one rule's answer to the other axis.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write). Decided in [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="security-launderers-are-sink-named"></a>
 
@@ -1500,7 +1523,7 @@ This is the third instance of one rule rather than three members that each argue
 two being a laundering escape and an approved URL — and stating it once is what keeps a future
 capturing member from answering the wrong type ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)).
 
-<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0088](../decisions/0088.md), [0133](../decisions/0133.md).</sub>
+<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0133](../decisions/0133.md).</sub>
 
 <a id="security-route-capture-is-laundered-by-its-type"></a>
 
@@ -1586,7 +1609,7 @@ regex pattern, where no transform makes an attacker-authored pattern safe
 It removes `tainted` and nothing else: a `secret` operand is refused there, because confidentiality is
 a separate axis and this member makes no claim about it.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted).</sub>
 
 <a id="security-response-body-is-one-typed-member"></a>
 
@@ -1635,7 +1658,15 @@ the same compiled unit the command line runs, so nothing distinguishes the two u
 There the default decides instead of the refusal — `echo` alone means `text/html`, and a typed member
 written beside it wins the content type it declared last.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0088](../decisions/0088.md), [0177](../decisions/0177.md).</sub>
+**Declined:**
+- **Keying the body's rule on its `Content-Type` rather than on the member that wrote it.** The header
+  can be set after the first byte of the body is written, so the rule would depend on a fact not yet
+  decided where it must be enforced.
+- **One `Response::write` that takes `Core\Html\Markup` for every body.** One rule instead of several
+  members, but it makes [`security/assert-trusted`](security.md#security-assert-trusted) the ordinary way to write an API handler, which
+  trains the escape hatch on the most common handler there is.
+
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0177](../decisions/0177.md).</sub>
 
 <a id="security-db-pool-reset-is-a-boundary"></a>
 
@@ -1901,7 +1932,7 @@ name of where to read the secret from.
   output ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)), which is what the refusal is for. If such commands turn
   out to be common, the answer is a narrow, named `Core\Cli` member, never a wider `echo`.
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0086](../decisions/0086.md), [0092](../decisions/0092.md).</sub>
 
 <a id="security-secret-crosses-no-boundary"></a>
 
@@ -2047,7 +2078,7 @@ refuses any other key, and refuses a `secret` or `tainted` written into a type
 `MethodSig` fields a `Core` row fills, and the call is checked by the code a `Core` call goes through
 (`crates/nvs-types/tests/extensions.rs`).
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi).</sub>
 
 <a id="security-extension-grants-are-an-intersection"></a>
 
@@ -2125,7 +2156,7 @@ round trip cleaned it, the standard library would itself be the bypass.
 - **Stripping qualifiers at the boundary.** Nothing to design and nothing to freeze into the extension
   ABI, but unsound rather than merely limited: passing a value through any `.nvsx` would launder it.
 
-<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing). Decided in [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing).</sub>
 
 <a id="security-extension-declares-sink-or-source"></a>
 

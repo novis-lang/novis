@@ -1977,8 +1977,8 @@ pub const CLASSES: &[CoreClass] = &[
     // `PART_CONTENT` docs own why a walk over a *part* needs one where a walk
     // over a body does not.
     crate::request::PART_CONTENT,
-    // § 15's fourth request-facing class, and the first one that *writes*: ADR
-    // 0088 § 4's five body members, of which `text` is registered. Beside
+    // § 15's fourth request-facing class, and the first one that *writes*: the
+    // typed body members of `rule:security/response-body-is-one-typed-member`. Beside
     // `Core\Server` because the two are the same request's two halves, and
     // [`crate::response`]'s module doc owns what a written body is — the bytes
     // are `echo`'s output and the member adds the `Content-Type`.

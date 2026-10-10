@@ -38,3 +38,11 @@ check and stays there: a mount's entry script, whose top-level frame is the requ
 the same compiled unit the command line runs, so nothing distinguishes the two uses at compile time.
 There the default decides instead of the refusal — `echo` alone means `text/html`, and a typed member
 written beside it wins the content type it declared last.
+
+**Declined:**
+- **Keying the body's rule on its `Content-Type` rather than on the member that wrote it.** The header
+  can be set after the first byte of the body is written, so the rule would depend on a fact not yet
+  decided where it must be enforced.
+- **One `Response::write` that takes `Core\Html\Markup` for every body.** One rule instead of several
+  members, but it makes `rule:security/assert-trusted` the ordinary way to write an API handler, which
+  trains the escape hatch on the most common handler there is.

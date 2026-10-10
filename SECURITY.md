@@ -46,7 +46,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
   a dump, a `Throwable` or serialization, or a sink that should refuse and doesn't
   (`rule:security/sink-predicate`,
   `rule:security/secret-sinks-refuse`,
-  [0088](docs/decisions/0088.md)).
+  `rule:security/unclassified-parameter-refuses-tainted`).
 - **Request or isolate boundary escape** — one request reading, corrupting or influencing another;
   anything shared between requests but compiled code; a poisoned artifact or hot-reload cache
   ([`security/isolate-shares-nothing`](docs/rules/security.md#security-isolate-shares-nothing),

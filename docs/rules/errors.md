@@ -551,7 +551,7 @@ Colour is the only thing that varies with a tty; structure, substitution and red
 web-facing log viewer is an HTTP response, and reaches the HTML rendering through the response sink
 like everything else.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="errors-no-render-hook"></a>
 

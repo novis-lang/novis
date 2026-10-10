@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Taint::assertTrusted` is the one generic way out, and it carries a written reason at the call site",
   "status": "shipped",
-  "because": [
-    "0088"
-  ],
+  "because": [],
   "seeAlso": [
     "security/launderers-are-sink-named",
     "security/every-grammar-is-a-sink",

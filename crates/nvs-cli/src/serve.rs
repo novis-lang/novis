@@ -1119,8 +1119,9 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // The loop runs *as a task*, which is not a formality: every connection it
     // accepts is a child of it (`rule:concurrency/a-child-belongs-to-the-calling-task`), and `serve_on_this_core` refuses
     // to run anywhere else. Its own context writes nothing — a connection's
-    // bytes are its request's isolate's, captured and handed back as data (ADR
-    // 0088 § 3) — so `OutputSink::Sink` is what it holds rather than stdout.
+    // bytes are its request's isolate's, captured and handed back as data
+    // (`rule:tooling/echo-always-has-a-sink`) — so `OutputSink::Sink` is what it
+    // holds rather than stdout.
     // `rule:config/a-scheduled-run-is-a-root-isolate`'s roster, armed on the one
     // worker that ticks it and armed here rather than at the boot, because an
     // `Armed` holds an `Rc` and cannot cross onto this thread. `nvs_server::arm`

@@ -203,8 +203,7 @@ else.** That is the fail-closed direction, for the terminal sink's own reason: i
 uniform rather than tty-dependent precisely because a CI log is written to a pipe and read by a human
 later, which is exactly what a scheduled run's and a job worker's output is. A context with no
 attached sink does not exist, so `echo` never has an undefined meaning — and where the meaning had to
-be chosen, it was chosen to neutralize. Routing a sinkless context's `echo` to `Core\Log` instead was
-rejected: it silently reshapes free text into the structured writer.
+be chosen, it was chosen to neutralize.
 
 The same table selects a rendering ([`errors/renderings`](errors.md#errors-renderings)): the sink in force decides not only
 where a log record, a dump, a trace or a diagnostic goes but whether it is drawn as plaintext, JSON or
@@ -213,7 +212,14 @@ HTML, so no call site names a format. It also gives `Core\Out::capture` its answ
 than an `echo` the HTML sink would escape into corruption
 ([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0092](../decisions/0092.md), [0177](../decisions/0177.md).</sub>
+**Declined:**
+- **Routing `echo` to `Core\Log` in a context with no response and no tty.** It silently reshapes free
+  text into the structured writer, and a scheduled script's output is read by an operator in a terminal
+  often enough that the terminal sink's neutralization is the property that matters there.
+- **Making `echo` a compile error in a context with no sink.** The terminal default leaves no such
+  context, and an error for a construct with a safe, obvious meaning is friction that buys no security.
+
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0086](../decisions/0086.md), [0092](../decisions/0092.md), [0177](../decisions/0177.md).</sub>
 
 <a id="tooling-terminal-output-is-a-sink"></a>
 
@@ -264,7 +270,7 @@ sends both the same bytes. Closing it would make the sink's carrier
 ([`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier)) two representations instead of one, and that trade is
 not worth making while `echo` writes standard output and nothing else can observe the difference.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-an-escape-in-source-text-is-a-compile-error"></a>
 
@@ -403,7 +409,7 @@ throws is claiming the *terminal*; writing text never does. An isolate's `echo` 
 parent owns, never a tty ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)), which is why the two rules are
 consistent rather than in tension.
 
-<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-in-place-output-is-a-scoped-live-region"></a>
 

@@ -2,8 +2,7 @@
   "title": "The tty belongs to the main task of a CLI program, so a `Core\\Cli` member throws in a request and in a spawned isolate",
   "status": "designed",
   "because": [
-    "0086",
-    "0088"
+    "0086"
   ],
   "seeAlso": [
     "tooling/echo-always-has-a-sink",

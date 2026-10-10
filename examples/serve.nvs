@@ -10,8 +10,8 @@
 // even if it wanted to.
 //
 // What makes it runnable before the listener exists is
-// [ADR 0088](/docs/decisions/0088.md)
-// § 3: `echo` always has a sink and the *context* attaches it. Under `nvs run`
+// `rule:tooling/echo-always-has-a-sink`:
+// `echo` always has a sink and the *context* attaches it. Under `nvs run`
 // that is the terminal and these lines are stdout; under `nvs serve` it is the
 // response body, carried by `Core\Html\Markup` and auto-escaping. The program
 // does not branch on which, and there is no member here that would have to —

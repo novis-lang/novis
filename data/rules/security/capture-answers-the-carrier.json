@@ -2,7 +2,6 @@
   "title": "Capturing a sink yields that sink's carrier, never a plain `string`",
   "status": "shipped",
   "because": [
-    "0088",
     "0133"
   ],
   "seeAlso": [
