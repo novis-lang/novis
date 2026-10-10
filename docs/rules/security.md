@@ -324,7 +324,7 @@ The child's grants are the parent's effective grants, optionally narrowed at the
 widens: a parent that has dropped `net.connect` cannot regain it by spawning
 ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed).</sub>
 
 <a id="security-request-state-throws-in-an-isolate"></a>
 
@@ -536,7 +536,7 @@ need a grant precisely because it would then be an effect. The two rules hold ea
 is free to be open because there is nothing behind it
 ([`security/no-eval`](security.md#security-no-eval), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
 
-<sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility).</sub>
 
 <a id="security-capability-check-at-the-door"></a>
 
@@ -557,9 +557,21 @@ modules, because an address parser and a process abort live beside the doors wit
 Every other placement leaves the check *beside* the effect, where omitting it is a silent hole that
 reviews are expected to catch. This one puts it *in* the effect, where omitting it means not
 performing the effect. The friction is the point: the door is where the check, the path rule and the
-diagnostic already are.
+diagnostic already are, so a member that goes through it inherits all three.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0118](../decisions/0118.md).</sub>
+**Declined:**
+- **A check emitted at every call site, driven by the member's row.** It costs a branch and a snapshot
+  read at every call site rather than one inside the effect, misses a member reached any way other
+  than a compiled call, and has to carry the scoped argument into the check at every site: more
+  machinery for less coverage.
+- **A guard the member-definition macro emits before every member body.** The macro cannot see the
+  row, so it would look the member up on every `Core` call, a table lookup on a string member to learn
+  that it needs nothing ([`security/capability-costs-nothing-unasked`](security.md#security-capability-costs-nothing-unasked)).
+- **The check written by hand as the first line of each body.** The completeness test would then have
+  to prove it by reading source for a call, a test about text rather than data; putting the check
+  inside the only door makes the same guarantee with no such test.
+
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test).</sub>
 
 <a id="security-capability-question-is-grant-and-scope"></a>
 
@@ -580,7 +592,7 @@ The decision procedure is pure — a snapshot, a capability, an argument, a bool
 context, throws nothing, and is therefore testable without a compiler in front of it. Holding a
 capability is not a promise about any one argument; the scope is asked every time.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/no-runtime-grant`](security.md#security-no-runtime-grant).</sub>
 
 <a id="security-capability-declaration-is-one-table"></a>
 
@@ -605,7 +617,7 @@ is empty on the overwhelming majority of rows documents nothing while being main
 The locality it gives up is bought back mechanically: a test fails on an entry naming a class or
 member that does not exist, and another fails on a member that owes an entry and has none.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0117](../decisions/0117.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0117](../decisions/0117.md).</sub>
 
 <a id="security-capability-roster-is-closed"></a>
 
@@ -629,7 +641,7 @@ A member that reaches nothing declares that by entering the table with no capabi
 being absent from it ([`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)), so the standard library's
 own surface is a closed claim rather than a list with an exception column.
 
-<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades).</sub>
 
 <a id="security-authority-is-the-enclosing-namespace"></a>
 
@@ -790,7 +802,7 @@ A granted root that does not exist yet — a socket nothing has bound — is res
 so both sides are spelled by one resolution. A root left as typed could not match a canonical
 argument wherever a directory above it is a symlink, as `/tmp` and `/var` are on macOS.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0118](../decisions/0118.md), [0104](../decisions/0104.md).</sub>
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0104](../decisions/0104.md).</sub>
 
 <a id="security-writes-open-beneath-a-handle"></a>
 
@@ -840,7 +852,13 @@ name is the string they will add to their configuration.
 A predicate that would otherwise answer `false` is refused rather than answered, so an ungranted
 deployment never looks like a negative result.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0118](../decisions/0118.md).</sub>
+**Declined:**
+- **A dedicated `SecurityError` class.** It would let a program catch a denial specifically, but it
+  costs a class in the exception tree and its cross-references, and it invites `catch (SecurityError)`
+  as a way to make a policy refusal look handled. `RuntimeError` with the capability in the message is
+  enough for the program that wants to degrade.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
 
 <a id="security-optional-capability-degrades"></a>
 
@@ -927,7 +945,7 @@ Every member that reaches this check is by construction about to make a syscall,
 never on a hot path**. That is the whole latency argument, and it holds because of *where* the check
 is rather than because of how it is written.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="security-package-authority-is-granted-one-line-at-a-time"></a>
 
@@ -990,7 +1008,7 @@ which is the resolution the grant was compared against, so the program the opera
 the one the check approved — a name a `PATH` entry would have answered instead is a program from a
 directory no grant named.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target).</sub>
 
 <a id="security-net-address-policy"></a>
 
@@ -1041,7 +1059,7 @@ no policy of its own.
   private address, a container network or loopback, so every ordinary deployment would be denied
   ([`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)).
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0162](../decisions/0162.md), [0182](../decisions/0182.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0142](../decisions/0142.md), [0162](../decisions/0162.md), [0182](../decisions/0182.md).</sub>
 
 <a id="security-net-listen-is-a-separate-grant-from-net-connect"></a>
 
@@ -1096,7 +1114,7 @@ The exception is the same one [`security/net-address-policy`](security.md#securi
 operator has already approved by writing it — and it is a property of the address, not of the client
 that dials it.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink).</sub>
 
 <a id="security-tainted-qualifier"></a>
 
@@ -2268,7 +2286,7 @@ claim worth being able to check rather than an absence nobody looked at.
 **On disk.** `extensions/image/manifest.json` declares no qualifier and no capability; no test
 holds the absence yet.
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline).</sub>
 
 <a id="security-one-tls-client"></a>
 

@@ -1351,7 +1351,7 @@ cache is used for, need, and none of them needs coherence.
 - **No local tier, with everything in the shared store.** It puts a network round trip in front of the
   cases that need no coherence at all.
 
-<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0142](../decisions/0142.md), [0118](../decisions/0118.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0142](../decisions/0142.md), [0181](../decisions/0181.md).</sub>
 
 <a id="core-api-one-temporary-directory-member"></a>
 

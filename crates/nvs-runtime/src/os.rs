@@ -4,7 +4,7 @@
 //! `Core\Os` is the surface these answer — `crates/nvs-stdlib/src/os.rs` — and
 //! this is the half of it that has to say `libc` or `windows-sys`. The split is
 //! `rule:security/capability-check-at-the-door`'s
-//! shape and not an arrangement of convenience: ADR 0118 § 2 forbids
+//! shape and not an arrangement of convenience: that rule forbids
 //! `nvs-stdlib` from reaching the operating system itself, `src/terminal.rs`
 //! made the same move for the terminal profile, and
 //! `nvs_stdlib_reaches_the_os_only_through_the_gate` is what holds it shut.

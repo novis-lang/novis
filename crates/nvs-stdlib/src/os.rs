@@ -19,8 +19,9 @@
 //! nothing, and a class becomes a door in that table's reading the moment any
 //! row names it, so five `None` rows here would make this class look like one.
 //!
-//! The syscalls themselves are [`nvs_runtime::os`]'s, because ADR 0118 § 2
-//! forbids this crate from reaching the operating system itself and
+//! The syscalls themselves are [`nvs_runtime::os`]'s, because
+//! `rule:security/capability-check-at-the-door` forbids this crate from
+//! reaching the operating system itself and
 //! `nvs_stdlib_reaches_the_os_only_through_the_gate` holds it to that.
 //!
 //! # Why `memoryUsage` is not here

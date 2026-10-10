@@ -2,8 +2,7 @@
   "title": "`Core\\Cli::arguments` is how a program reads the words it was started with, at every depth",
   "status": "shipped",
   "because": [
-    "0086",
-    "0118"
+    "0086"
   ],
   "seeAlso": [
     "core-classes/script-args",

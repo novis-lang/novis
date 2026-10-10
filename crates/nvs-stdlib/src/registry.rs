@@ -2628,9 +2628,10 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // declaration, and `rule:security/capability-check-at-the-door` is why the two are separate.
     (crate::io::NAME, "open", Some(nvs_config::Cap::FsWrite)),
     // The one member of this class that opens nothing and resolves no name:
-    // standard input is a descriptor the process was started holding, so ADR
-    // 0118 § 1 has no door to put a check at — the same reading as the handle
-    // members below, one step earlier, since here there was never even a path.
+    // standard input is a descriptor the process was started holding, so
+    // `rule:security/capability-check-at-the-door` has no door to put a check
+    // at — the same reading as the handle members below, one step earlier,
+    // since here there was never even a path.
     // A grant would be a boolean over an authority the invoker already
     // exercised by running the program with its input attached.
     (crate::io::NAME, "stdin", None),

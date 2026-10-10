@@ -1,9 +1,7 @@
 {
   "title": "The capability check lives inside the function that performs the effect, and that door is the only way out of the process",
   "status": "shipped",
-  "because": [
-    "0118"
-  ],
+  "because": [],
   "seeAlso": [
     "security/capability-question-is-grant-and-scope",
     "security/capability-declaration-is-one-table",
@@ -12,6 +10,7 @@
   ],
   "guardedBy": [
     "crates/nvs-stdlib/tests/capability.rs",
+    "examples/capability.nvs",
     "tests/conformance/cap/an-ungranted-capability-throws-naming-it.nvst",
     "tests/conformance/core/file-asks-for-the-capability-before-it-touches-the-path.nvst"
   ]
