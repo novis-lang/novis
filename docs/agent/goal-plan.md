@@ -5,14 +5,20 @@ Every goal on the chain, in the order the loop walks them, with the stages of ea
 goals, which are off the chain. `bun nv render` writes this file from `data/chain.json` and
 `data/goals/`: change those, never this file.
 
-The chain holds 1 goals. 0 are walked, `looper-cutover` is live at 1 of 1, and 0 are ahead.
+The chain holds 7 goals. 0 are walked, `nv-loop-retired` is live at 1 of 7, and 6 are ahead.
 
 The loop runs a goal's own record and no check of any other goal. A walked goal whose record keeps no
 checks and no stages is read in its prose.
 
 | # | Goal | What it builds | State | Milestone | Stages |
 |--:|---|---|---|---|---|
-| 1 | [`looper-cutover`](goals/looper-cutover.md) | Novis's goals, checks, hooks and rules are in looper's format, and the next goal on looper's chain deletes the old driver | **live**, pinned last |  | **2** register and configure · **3** import · **4** hooks, checks and rules |
+| 1 | [`nv-loop-retired`](goals/nv-loop-retired.md) | no record on disk | **live** |  |  |
+| 2 | [`decision-records-retired`](goals/decision-records-retired.md) | no record on disk | ahead |  |  |
+| 3 | [`class-scoped-enums`](goals/class-scoped-enums.md) | no record on disk | ahead |  |  |
+| 4 | [`nvs-code`](goals/nvs-code.md) | no record on disk | ahead |  |  |
+| 5 | [`env-context`](goals/env-context.md) | no record on disk | ahead |  |  |
+| 6 | [`pdf`](goals/pdf.md) | no record on disk | ahead |  |  |
+| 7 | [`spreadsheet`](goals/spreadsheet.md) | no record on disk | ahead |  |  |
 
 ## Side goals
 
