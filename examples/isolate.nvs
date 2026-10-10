@@ -26,8 +26,8 @@ echo 'captured=', $captured->output, "\n";
 // Item 22: a child's uncaught throw is a *value* on this side. It does not
 // propagate as a throw — there is no `catch` around this call and none is
 // needed — because a child that fails may not be able to end its parent.
-// The same is true of a limit breach and of a contained panic inside it
-// (ADR 0106 § 2), which is the whole point of the boundary.
+// The same is true of a limit breach and of a panic inside the child.
+// That is the purpose of the boundary.
 var $bad = spawn script 'isolate/throws.nvs' with(
     output: 'capture',
 );

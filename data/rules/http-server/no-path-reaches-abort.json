@@ -1,9 +1,7 @@
 {
   "title": "No path reaches `abort()`: nothing on a teardown path panics, teardown is iterative, and an allocation sized by request data is fallible",
   "status": "shipped",
-  "because": [
-    "0106"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/containment-does-not-end-at-the-helper",
     "http-server/engine-depth-is-bounded-per-decoder",

@@ -809,7 +809,8 @@ const DEFAULT_MAX_IN_FLIGHT: u64 = 10_000;
 /// `per_request` and `budget` are both `Option` because both are genuinely absent on real
 /// deployments, and the absences mean different things: a tree that states no `[limits] memory` has
 /// no per-request cap for a concurrency ceiling to have a relationship *with*, and a host that
-/// answers no budget has not been asked a question this crate can put to it. § 13's arithmetic is
+/// answers no budget has not been asked a question this crate can put to it. The admission
+/// arithmetic is
 /// inert either way, and inert means the configured number stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Capacity {
@@ -818,23 +819,25 @@ pub struct Capacity {
     /// The bytes one request may hold at its most: `[limits.hard] memory` where a ceiling is
     /// written, and otherwise the `[limits] memory` a request starts with. `None` where the tree
     /// states neither, and where `[limits.hard] memory = false` removed the ceiling — `rule:config/three-changeability-classes`'s
-    /// spelling for "no ceiling" is exactly the case § 13 has nothing to divide by.
+    /// spelling for "no ceiling" is exactly the case the admission arithmetic has nothing to
+    /// divide by.
     pub per_request: Option<u64>,
     /// What this machine affords the process, as [`memory_budget`] read it.
     pub budget: Option<u64>,
 }
 
-/// § 5's `max_in_flight` and the numbers § 13 divides against it.
+/// § 5's `max_in_flight` and the numbers the admission arithmetic divides against it.
 ///
 /// A tree with no `[server]` block is § 5's default ceiling and not an absence, for [`waits_for`]'s
 /// reason. The per-request cap is read from `[limits]` rather than from `[server]` because that is
 /// where it is written; this function is the one place the two blocks are read together, which is
-/// the whole of what § 13 added.
+/// the whole of what the admission rule added.
 ///
 /// # Errors
 ///
 /// `E0622` for a `max_in_flight` of `0`, and whatever [`mod@crate::value`] refuses a `[limits]`
-/// memory setting for. Nothing here refuses a configured ceiling the budget cannot afford: § 13
+/// memory setting for. Nothing here refuses a configured ceiling the budget cannot afford: the
+/// admission rule
 /// clamps that one and logs it, which is `nvs_server::admit`'s and is a decision rather than an
 /// omission — a server that will not boot because two directives disagree is the worse outage.
 pub fn capacity_for(
@@ -934,7 +937,8 @@ fn per_request_cap(
 /// keeping the out-of-memory killer from being the real admission control — it had already given
 /// away. That is why this reads the cgroup files before `/proc/meminfo`.
 ///
-/// `None` is not a failure: it is a host this function has no question for, and § 13's arithmetic
+/// `None` is not a failure: it is a host this function has no question for, and the admission
+/// arithmetic
 /// treats it as an absent bound rather than as a zero. Every path here is read once at boot and
 /// never on a request.
 #[must_use]
@@ -1209,7 +1213,8 @@ mod tests {
         }
     }
 
-    /// § 13's inputs, read from the blocks they are written in. The *hard* ceiling wins
+    /// The admission arithmetic's inputs, read from the blocks they are written in. The *hard*
+    /// ceiling wins
     /// where one is there, because that is the number a request can actually reach — a cap read
     /// from `[limits] memory` under a `[limits.hard] memory` four times its size would afford four
     /// times the concurrency the machine can hold.
@@ -1234,7 +1239,8 @@ mod tests {
             "the cap a request can raise itself to did not win"
         );
 
-        // `rule:config/three-changeability-classes`'s spelling for "no ceiling" is exactly the case § 13 has nothing to divide by,
+        // `rule:config/three-changeability-classes`'s spelling for "no ceiling" is exactly the
+        // case the admission arithmetic has nothing to divide by,
         // and reading it as the `[limits] memory` underneath would afford a concurrency the
         // request is free to exceed.
         let unbounded = capacity_for(
@@ -1272,7 +1278,8 @@ mod tests {
     }
 
     /// The one magnitude of `max_in_flight` that is a refusal rather than a clamp: a ceiling the
-    /// budget cannot afford is § 13's clamp-and-log, but a ceiling the *operator* wrote as zero is
+    /// budget cannot afford is the admission clamp-and-log, but a ceiling the *operator* wrote
+    /// as zero is
     /// a server that accepts a connection and answers `503` to everything on it.
     #[test]
     fn a_ceiling_of_zero_is_a_server_that_refuses_every_request() {

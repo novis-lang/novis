@@ -2,7 +2,6 @@
   "title": "A request whose client goes away runs to its end under its `wall_time`, or `disconnect_grace` when it has none, unless its method is listed in `cancel_on_disconnect`",
   "status": "shipped",
   "because": [
-    "0106",
     "0115",
     "0265"
   ],

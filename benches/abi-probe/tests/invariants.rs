@@ -238,7 +238,7 @@ fn many_coroutines_can_be_created_and_driven() {
 }
 
 // ---------------------------------------------------------------------------
-// The outer containment boundary — ADR 0106 § 2
+// The outer containment boundary — `rule:http-server/containment-does-not-end-at-the-helper`
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -266,7 +266,7 @@ fn a_panic_in_a_worker_task_is_contained_at_the_task() {
     assert_eq!(fault.message(), "the worker's own code faulted");
     assert!(
         fault.retires_worker(),
-        "no request owns it, so ADR 0106 § 2 retires the worker rather than \
+        "no request owns it, so the outer containment boundary retires the worker rather than \
          charging it to anyone"
     );
 
@@ -283,7 +283,7 @@ fn a_panic_in_a_worker_task_is_contained_at_the_task() {
 
 #[test]
 fn a_request_owned_panic_leaves_the_worker_running() {
-    // The other half of § 2's split, on the same stack shape: a fault a request
+    // The other half of the containment rule's split, on the same stack shape: a fault a request
     // owns fails that request and nothing else, so the worker is not retired.
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
@@ -303,7 +303,8 @@ fn a_request_owned_panic_leaves_the_worker_running() {
 
 #[test]
 fn a_teardown_path_that_panics_does_not_recurse() {
-    // ADR 0106 § 3's bullets, which only bite together: a value graph is
+    // `rule:http-server/no-path-reaches-abort`'s bullets, which only bite together: a value
+    // graph is
     // released *while a panic is unwinding*, which is the one place where a
     // recursive teardown or a fallible one stops being containable. A stack
     // overflow or a second panic there aborts the process before any
@@ -342,7 +343,7 @@ fn a_teardown_path_that_panics_does_not_recurse() {
 }
 
 // ---------------------------------------------------------------------------
-// Depth on the engine's own stack — ADR 0106 § 4
+// Depth on the engine's own stack — `rule:http-server/engine-depth-is-bounded-per-decoder`
 // ---------------------------------------------------------------------------
 
 #[test]

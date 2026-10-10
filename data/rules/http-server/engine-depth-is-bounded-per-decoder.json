@@ -1,9 +1,7 @@
 {
   "title": "Every engine-side recursive descent over request data carries a depth counter and refuses past it, with a limit per decoder and `512` for JSON",
   "status": "shipped",
-  "because": [
-    "0106"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/no-path-reaches-abort",
     "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",

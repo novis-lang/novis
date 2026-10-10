@@ -105,7 +105,8 @@ object = { version = "0.39", default-features = false, features = ["read", "std"
 # --- coroutines (stackful; validated on windows-msvc by the M0 spike) ---
 corosensei = "0.2"
 
-# --- CPU affinity (ADR 0106 § 6's "one scheduler of our own pinned per core") ---
+# --- CPU affinity (one scheduler pinned per core) ---
+# `rule:http-server/a-core-is-never-blocked-on-a-syscall` is why each core runs one scheduler.
 # Pinning is three different syscalls — `sched_setaffinity`, `thread_policy_set`,
 # `SetThreadAffinityMask` — and getting the CPU *set* is a fourth per platform.
 # `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no": nothing attacker-controlled reaches a
@@ -229,7 +230,8 @@ windows-sys = { version = "0.61", features = [
     "Win32_Security_Authorization",
     "Win32_Storage_FileSystem",
     "Win32_System_Console",
-    # `GlobalMemoryStatusEx`: ADR 0106 § 13's admission arithmetic divides the memory budget by the
+    # `GlobalMemoryStatusEx`: `rule:http-server/admission-is-arithmetic-not-a-number` divides
+    # the memory budget by the
     # per-request cap, and on Windows this is the one call that answers what the budget is.
     "Win32_System_SystemInformation",
     # `ACCESS_ALLOWED_ACE_TYPE` and `ACCESS_DENIED_ACE_TYPE`: ADR 0103 § 6's trust check walks a
@@ -1084,7 +1086,8 @@ print_stderr = "warn"
 # ---------------------------------------------------------------------------
 [profile.dev]
 # `catch_unwind` at the helper and worker-task boundaries is how Novis contains
-# a runtime panic to one request (ADR 0106 § 2 moved the outer one out to the
+# a runtime panic to one request
+# (`rule:http-server/containment-does-not-end-at-the-helper` puts the outer one at the
 # task root). `panic = "abort"` would break that guarantee, so unwinding is
 # mandatory in every profile. See docs/adr/0003.
 panic = "unwind"

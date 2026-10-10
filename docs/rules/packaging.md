@@ -123,7 +123,10 @@ What the entry contains, how it is verified before it becomes executable, and wh
 extension set ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) are unchanged by how its bytes
 arrive; only the read path is.
 
-<sub>See also [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0106](../decisions/0106.md).</sub>
+**Memory:** one in-memory copy of each loaded unit's bytes for the process. It grows with the units a
+program loads, never with requests served.
+
+<sub>See also [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers).</sub>
 
 <a id="packaging-a-warm-hit-skips-codegen-not-the-front-end"></a>
 

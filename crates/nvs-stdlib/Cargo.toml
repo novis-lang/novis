@@ -46,7 +46,8 @@ nvs-syntax.workspace = true
 # a `Core` member either parks on readiness (`nvs_host::net`, an outbound
 # socket) or hands the core to the blocking pool (`nvs_host::blocking::run`,
 # waiting for a child), and a copy of either here would be a second
-# implementation of ADR 0115 § 3's park-and-resume. ADR 0106 § 6 says there is
+# implementation of ADR 0115 § 3's park-and-resume.
+# `rule:http-server/a-core-is-never-blocked-on-a-syscall` says there is
 # no third option, so this stays a two-entry list. `nvs-host` depends on
 # `nvs-runtime` and on nothing this crate exports, so the graph stays a tree.
 nvs-host.workspace = true
