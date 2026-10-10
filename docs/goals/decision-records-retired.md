@@ -6,7 +6,7 @@ context: [tools/nv/cmd/records.ts, tools/nv/cmd/rules.ts, tools/nv/schema/rule.t
 stages:
   - id: 2
     title: "the new rule shape, the merge tool and the pilot"
-    status: open
+    status: done
     extra:
       context:
         adrs: []
@@ -569,25 +569,23 @@ One file set: `AGENTS.md`, `docs/agent/*.md`, `docs/agent/goals/README.md`, `dat
 
 ### State
 
-**Goal `decision-records-retired` — there are no decision records: a rule says what is true, why, and what was declined — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries.
+**Stage 2 is done.** The merge shape is in `docs/agent/conventions.md` § *A rule fragment* (reasons, a `**Memory:**` bullet, a `**Declined:**` list) and § *A decision record* (no new record; the five merge steps). `because` may be empty and must name a record on disk (`tools/nv/cmd/rules.ts:184-186`). `data/decisions/` went with the summaries, so the `decision` schema went too: `because` is a list of plain strings now, which pulls part of Stage 12 forward (`tools/nv/schema/decision.ts` is already gone). Record 0199 is merged into `rule:routing/a-match-is-not-invocable` and `rule:security/access-is-checked-for-presence-not-meaning`; `routing/matching-is-not-dispatching` already said everything 0199 added.
 
-The user asked for it on 2026-10-08 and placed it in front of goal `class-scoped-enums`. The user's calls: records go completely and never come back, the reasoning behind accepted and declined features is kept in the docs that already exist, a rule says what is implemented and what was explicitly declined, and a new decision becomes a goal or goes into the plan. The goal file's § *Standing decisions* holds those calls and the writer's own calls. No session re-decides one.
+`bun nv records` is now only the merge tracker: `--left [<from>-<to> | adr]` and `--check` (the `links` check inside the records, and the tree-wide `citations` check). The old record audit is gone. A record left on disk that links to a merged one must be unlinked to plain text, which the `links` check reports; `docs/decisions/0255.md` was the one for 0199. Citations inside `docs/decisions/` and this goal's own file are not checked. A "cited by N file(s)" count in `--left` includes the generated chapter under `docs/rules/`, which drops out with the record's `because` entry.
 
-Facts about the tree as the goal was written: 275 records in `docs/decisions/` (0025 and 0089 retired), 1,036 rules in 21 topics with every one naming a record in `because`, and about 600 files citing a record outside the record set. Declined reasoning sits in 251 `## Alternatives rejected` and 78 `## Options considered` sections. `crates/nvs-stdlib/src/reflect.rs:4883-4925` is a test that reads record 0019 at test time. A bare `NNNN §` pattern also matches RFC citations such as `3986 §`, so the citation pattern is `\b0[0-9]{3} §`.
+`bun nv rules --check` is red before this goal touched it: queued goals (`class-scoped-enums`, `pdf`, `spreadsheet`, `nvs-code`, `env-context`) cite rules they will create. Stage 13's guard check needs it green.
 
 ### Next
 
-**Stage 2: the new rule shape, the merge tool and the pilot**, one file set: `docs/agent/conventions.md`, `tools/nv/cmd/records.ts`, `tools/nv/cmd/rules.ts`, `tools/nv/schema/rule.ts`, `tools/nv/lib/prose.ts`, `tools/nv/cmd/decisions.ts`, `tools/nv/main.ts`, `docs/rules/routing/`, `docs/rules/security/`.
+**Stage 3: the queued goals stop writing records**, one file set: `docs/goals/class-scoped-enums.md`, `docs/goals/pdf.md`, `docs/goals/spreadsheet.md`, and the rules the records below reach.
 
-- [ ] **The shape** — `docs/agent/conventions.md` § *A rule fragment* (`:395`) gains the `**Declined:**` block, the `**Memory:**` bullet and how a merged reason is written; something declined that no rule covers becomes a rule whose title says it does not exist. `docs/agent/conventions.md:1`
-- [ ] **`because` may be empty** — `tools/nv/schema/rule.ts:22-26` and `tools/nv/cmd/rules.ts:183-186` stop refusing an empty list.
-- [ ] **The merge tool** — `bun nv records --left [<from>-<to> | adr]` groups the records left by topic with their rule ids and citing-file counts; `bun nv records --check` fails on a citation of a record not on disk, using the `DECISION` pattern in `tools/nv/lib/prose.ts:92-113` narrowed to `\b0[0-9]{3} §`.
-- [ ] **The summaries go** — delete `tools/nv/cmd/decisions.ts` and its `main.ts:37` entry, `data/decisions/`, `docs/decisions.md` and `docs/agent/decisions-summary.md`.
-- [ ] **The pilot** — merge record 0199 into `routing/matching-is-not-dispatching`, `routing/a-match-is-not-invocable` and `security/access-is-checked-for-presence-not-meaning` as the goal file's example shows, move its three test paths into `guardedBy`, rewrite its citations, delete it, and run `bun nv rules --render`. `docs/agent/conventions.md:1`
+- [ ] **The checks name the right files.** Both Stage 3 checks grep `data/goals/*.json` and `docs/agent/goals/*.md`, which do not exist, so they pass with nothing read. Point them at `docs/goals/<slug>.md` and use a pattern for looper's YAML (`adrs: \[[0-9]`). `docs/goals/decision-records-retired.md:133-141`
+- [ ] **The records** — merge 0051, 0120, 0121, 0123, 0128, 0166, 0190 and 0247 the way conventions.md § *A decision record* says; `bun nv records --left` lists each one's rules. `docs/agent/conventions.md:495`
+- [ ] **The goals** — each "One record slot", "the record" item, `docs/decisions/` file-set entry and "ADR NNNN" mention becomes the rule id or the fragment it writes, and "A decision record" leaves each `shapes` list. `docs/goals/class-scoped-enums.md:317` `docs/goals/pdf.md:389` `docs/goals/pdf.md:465`
 
 ### Backlog
 
-- Stage 3: merge 0051, 0120, 0121, 0123, 0128, 0166, 0190 and 0247, then rewrite goals `class-scoped-enums`, `pdf` and `spreadsheet` to write fragments and name rule ids.
 - Stages 4 to 10: merge every record by number range, rewrite each one's citations in the same slice, and delete it.
-- Stage 11: merge and delete `docs/adr/`.
-- Stages 12 and 13: the tools forget records, then the process docs and the `nv rules --check` guard.
+- Stage 11: merge and delete `docs/adr/`; `class-scoped-enums` cites `docs/adr/README.md:342`.
+- Stage 12: the rest of the tools forget records (`tools/nv/cmd/pack.ts:47` `SHAPE_IMPLIES`, `pack.ts:221`).
+- Stage 13: the process docs (`docs/agent/doc-cleanup.md:129`, `docs/agent/loop-authoring.md:125`, the playbook bullet `tooling/a-decision-records-changes-block-needs-modifies-spelled-out`) and the guard; `nv rules --check` must be green first.
