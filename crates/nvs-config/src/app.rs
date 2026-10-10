@@ -634,7 +634,7 @@ fn no_key(index: usize) -> Diagnostic {
     )
     .with_help(
         "add the directory this application lives in as `root`, or the one file as `entry`; a \
-         host-wide default is a block with the widest `root`, which § 2 layers under the others"
+         host-wide default is a block with the widest `root`, which applies before the others"
             .to_string(),
     )
 }
