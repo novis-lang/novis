@@ -1,4 +1,629 @@
 {
+  "/reference/cli/a-worked-session/": {
+    "feature": "tools:agents/a-worked-session",
+    "hash": "d85168cc28ea0341",
+    "questions": [
+      "How does an AI coding assistant find the right Novis method?",
+      "Example of an AI agent looking up a function step by step",
+      "What happens when I search for a function name that does not exist?",
+      "How do I find the method that counts characters in a string?",
+      "Walkthrough of looking up a keyword in the reference from the terminal"
+    ]
+  },
+  "/reference/cli/files-extensions-and-tags/": {
+    "feature": "tools:cli/files-extensions-and-tags",
+    "hash": "355b7387fe2c8b4f",
+    "questions": [
+      "What file extension should a Novis program use?",
+      "How do I start the code in a Novis file?",
+      "Why does my file with an old opening tag not compile?",
+      "Make a script I can run directly as ./tool on Linux",
+      "Does the file name matter when I run a program?",
+      "Why is my opening tag printed as plain text?"
+    ]
+  },
+  "/reference/cli/nvs-agent/": {
+    "feature": "tools:agents/nvs-agent",
+    "hash": "66026cdd7232a40e",
+    "questions": [
+      "How can an AI assistant look up the language from the command line?",
+      "Search the standard library by keyword in the terminal",
+      "Print the signature and description of a built-in function",
+      "Get a list of every built-in function, class and error code",
+      "Look up what an error code means from the terminal",
+      "Get library documentation as JSON for a tool"
+    ]
+  },
+  "/reference/cli/nvs-agent-init/": {
+    "feature": "tools:agents/nvs-agent-init",
+    "hash": "90be9593963db0ba",
+    "questions": [
+      "Set up my project so Claude Code or Cursor knows about Novis",
+      "Add instructions for coding assistants to AGENTS.md",
+      "Automatically check code after my AI assistant edits a file",
+      "Keep AI assistant setup files up to date after upgrading",
+      "Check in CI that coding agent files are current",
+      "Remove the editor hooks added for my AI assistant"
+    ]
+  },
+  "/reference/cli/nvs-agent-primer/": {
+    "feature": "tools:agents/nvs-agent-primer",
+    "hash": "e9f8a717208749c7",
+    "questions": [
+      "What should an AI assistant read before writing Novis code?",
+      "Print a short introduction to the language for a coding agent",
+      "Get one annotated example program and the chapter list",
+      "Quick overview document for AI tools that matches my installed version"
+    ]
+  },
+  "/reference/cli/nvs-api-diff/": {
+    "feature": "tools:cli/nvs-api-diff",
+    "hash": "babb698c2ddc7405",
+    "questions": [
+      "How do I find breaking changes between two versions of my API?",
+      "Compare two OpenAPI documents",
+      "Stop a release in CI when the API breaks clients",
+      "List added and removed endpoints between releases",
+      "Check whether a new API version is backward compatible"
+    ]
+  },
+  "/reference/cli/nvs-ast/": {
+    "feature": "tools:cli/nvs-ast",
+    "hash": "062fe228b1c468d1",
+    "questions": [
+      "How do I see the syntax tree of my code?",
+      "Print the parse tree of a file as JSON",
+      "Debug how the parser reads my source file",
+      "Build a code tool that needs comments and positions from source",
+      "Get a parse tree from a file that has syntax errors"
+    ]
+  },
+  "/reference/cli/nvs-build-compile/": {
+    "feature": "tools:cli/nvs-build-compile",
+    "hash": "9fd5f61f8a79cc22",
+    "questions": [
+      "Build a single executable from my program",
+      "How do I ship my script as one file without installing Novis?",
+      "Bundle all required source files into a standalone binary",
+      "Where does a bundled executable read its configuration from?",
+      "Choose the output file name for a packaged program"
+    ]
+  },
+  "/reference/cli/nvs-build-openapi/": {
+    "feature": "tools:cli/nvs-build-openapi",
+    "hash": "3f7c9d0152e9614c",
+    "questions": [
+      "Generate API documentation from my route methods",
+      "How do I create an OpenAPI spec for my web server?",
+      "Export my HTTP routes as an OpenAPI 3.1 JSON file",
+      "Describe my endpoints in a standard format without running the server"
+    ]
+  },
+  "/reference/cli/nvs-check/": {
+    "feature": "tools:cli/nvs-check",
+    "hash": "a21fbb63e849f1a1",
+    "questions": [
+      "How do I check my code for errors without running it?",
+      "Type-check a program in a pre-commit hook or CI",
+      "Check a single class file that is loaded by autoload",
+      "See which folders my autoload rules resolve to",
+      "What do error codes like E0401 in compiler output mean?",
+      "Measure how much work the compiler does for a file"
+    ]
+  },
+  "/reference/cli/nvs-config-check-and-nvs-config-dump/": {
+    "feature": "tools:cli/nvs-config-check-and-nvs-config-dump",
+    "hash": "4e5ddc3e07caaab7",
+    "questions": [
+      "Validate my nvs.toml configuration before deploying",
+      "Run a configuration check in my CI pipeline",
+      "Print the resolved settings as a TOML file",
+      "Compare the resolved configuration of two environments",
+      "Find unknown keys or broken includes in my config"
+    ]
+  },
+  "/reference/cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin/": {
+    "feature": "tools:cli/nvs-ext-inspect-nvs-ext-verify-and-nvs-ext-pin",
+    "hash": "c0fc85ad44ffa3c9",
+    "questions": [
+      "Is it safe to load an extension somebody else built?",
+      "See which folders and hosts an extension wants to access",
+      "Read the methods and source inside an extension file",
+      "Generate the config entry with a checksum for an extension",
+      "Test that an extension file loads without running its code"
+    ]
+  },
+  "/reference/cli/nvs-ext-new-and-nvs-ext-build/": {
+    "feature": "tools:cli/nvs-ext-new-and-nvs-ext-build",
+    "hash": "e3aaea3bc1115747",
+    "questions": [
+      "How do I write an extension in C or another compiled language?",
+      "Create a new WebAssembly extension project",
+      "Package my compiled wasm file as a Novis extension",
+      "Add a native class to the language with WebAssembly",
+      "Why does my WASI preview 1 module fail to build?"
+    ]
+  },
+  "/reference/cli/nvs-ext-test/": {
+    "feature": "tools:cli/nvs-ext-test",
+    "hash": "a03e476ba7acb984",
+    "questions": [
+      "How do I run unit tests for my extension?",
+      "Test an extension with folder and network permissions",
+      "Why do my extension tests say the project changed since the build?",
+      "Call my WebAssembly class from test methods"
+    ]
+  },
+  "/reference/cli/nvs-info/": {
+    "feature": "tools:cli/nvs-info",
+    "hash": "bcfc70e166e52750",
+    "questions": [
+      "Which version of Novis do I have installed?",
+      "Show the build details and commit of my Novis binary",
+      "Print the operating system and CPU count Novis sees",
+      "What open source licenses does Novis include?",
+      "Print the full license text of every third-party component"
+    ]
+  },
+  "/reference/cli/nvs-lsp/": {
+    "feature": "tools:editor/nvs-lsp",
+    "hash": "9d98c8b085cb4c73",
+    "questions": [
+      "How do I get error highlighting and autocomplete in my editor?",
+      "Set up a language server for Novis in Vim or Neovim",
+      "Why does the editor command hang with no output in my terminal?",
+      "Jump to where a class or function is declared from my editor",
+      "Why does my editor show only the syntax error while I type?",
+      "Quick fix to convert a string into an HTML template"
+    ]
+  },
+  "/reference/cli/nvs-lsp-test/": {
+    "feature": "tools:editor/nvs-lsp-test",
+    "hash": "1f33f210ffc1bff4",
+    "questions": [
+      "How do I test what my editor completion returns?",
+      "Write a test for hover text at a cursor position",
+      "What is an .lspt file and how is it written?",
+      "Which kinds of syntax do my editor tests cover?",
+      "Check language server output against an expected result"
+    ]
+  },
+  "/reference/cli/nvs-meta-json/": {
+    "feature": "tools:cli/nvs-meta-json",
+    "hash": "42f483f2db81ea02",
+    "questions": [
+      "Export the standard library documentation as JSON",
+      "Get a machine-readable list of every Core class and method",
+      "Which standard library functions need a permission?",
+      "List every configuration key in a JSON file",
+      "Generate API documentation from my own classes and doc comments"
+    ]
+  },
+  "/reference/cli/nvs-run/": {
+    "feature": "tools:cli/nvs-run",
+    "hash": "0be0af743ddd163a",
+    "questions": [
+      "How do I run a Novis script from the command line?",
+      "Execute my program with a different configuration file",
+      "What exit codes does a program return when it fails?",
+      "Where does my program read its settings from when it starts?",
+      "Show the generated machine code for my program",
+      "Why is an uncaught error printed to standard error?"
+    ]
+  },
+  "/reference/cli/nvs-serve/": {
+    "feature": "tools:server/nvs-serve",
+    "hash": "1a53a76b0b987dfb",
+    "questions": [
+      "Start a local web server for my program",
+      "How do I serve my app on a different port?",
+      "Use the same server for development and production",
+      "Why is a variable empty again on the next request?",
+      "Serve several apps from one config file",
+      "Run scheduled jobs and queue workers next to my website"
+    ]
+  },
+  "/reference/cli/nvs-service/": {
+    "feature": "tools:server/nvs-service",
+    "hash": "480bf3160f32a2bc",
+    "questions": [
+      "Start my web server automatically when the machine boots",
+      "Install my app as a systemd unit on Linux",
+      "Run my server as a Windows service",
+      "Restart my server automatically after it crashes",
+      "Where does the log go when the server runs in the background?",
+      "Preview the service file before installing it"
+    ]
+  },
+  "/reference/cli/nvs-test/": {
+    "feature": "tools:cli/nvs-test",
+    "hash": "e2243c199c7b99b0",
+    "questions": [
+      "How do I run my unit tests?",
+      "Run only the tests whose name matches some text",
+      "Produce a JUnit report for my CI pipeline",
+      "Generate a code coverage report in lcov or Cobertura format",
+      "Update failing inline snapshots automatically",
+      "List all tests without running them"
+    ]
+  },
+  "/reference/cli/one-binary/": {
+    "feature": "tools:cli/one-binary",
+    "hash": "e9400c1b2508a658",
+    "questions": [
+      "What commands does the Novis command-line tool have?",
+      "Overview of every command and its options",
+      "How do I see the help for a command?",
+      "Is there a short flag for running or checking a file?",
+      "What can I do with the nvs program?"
+    ]
+  },
+  "/reference/cli/the-compile-cache/": {
+    "feature": "tools:cli/the-compile-cache",
+    "hash": "9d15fee1c8705a2b",
+    "questions": [
+      "Why does my program start faster the second time?",
+      "Where are compiled programs stored on disk?",
+      "Do I need to clear the cache after changing my code?",
+      "Turn off caching of compiled code",
+      "Change the folder used for compiled code",
+      "Why do I get a warning about the cache directory permissions?"
+    ]
+  },
+  "/reference/cli/the-vs-code-extension/": {
+    "feature": "tools:editor/the-vs-code-extension",
+    "hash": "92104043e66d80ad",
+    "questions": [
+      "How do I install Novis support in Visual Studio Code?",
+      "Syntax colours and autocomplete for .nvs files in VS Code",
+      "Point VS Code at a specific copy of the nvs binary",
+      "Download the nvs binary from inside the editor",
+      "Why are passwords blurred in my editor?",
+      "Format the HTML inside a template file"
+    ]
+  },
+  "/reference/config/app/": {
+    "feature": "tools:config/app-per-application-blocks",
+    "hash": "c1d382d0dadb7c90",
+    "questions": [
+      "How do I give one program different settings than the rest?",
+      "Run several applications on one server with separate limits",
+      "Give a nightly job less memory than the web app",
+      "Apply settings only to scripts inside one folder",
+      "Which settings win when two configuration blocks cover the same file?",
+      "Set the public URL used when building absolute links"
+    ]
+  },
+  "/reference/config/auditing-a-tree/": {
+    "feature": "tools:config/auditing-a-tree",
+    "hash": "918c34934f08a790",
+    "questions": [
+      "How do I check my configuration file for errors?",
+      "Print every setting that is currently in effect",
+      "Which file set this configuration value?",
+      "Audit a folder of configuration files before a release",
+      "Show the final merged configuration as one file"
+    ]
+  },
+  "/reference/config/cache/": {
+    "feature": "directive:cache.shared",
+    "hash": "1c204bbaf93fce6e",
+    "questions": [
+      "How do I connect the cache to a Redis server?",
+      "Share cached data across every server in a deployment",
+      "Limit how much memory the in-process cache can use",
+      "Read the cache password from a file in a container",
+      "Stop many requests fetching the same missing cache entry at once",
+      "What happens when the cache is full?"
+    ]
+  },
+  "/reference/config/capabilities/": {
+    "feature": "tools:config/capabilities",
+    "hash": "ef116e5c43f1ed0c",
+    "questions": [
+      "How do I allow a program to read files from a folder?",
+      "Why does writing a file throw a permission error?",
+      "Let a script connect only to certain hosts",
+      "Allow running another program or starting a subprocess",
+      "Restrict which directories a script may write to",
+      "Which permissions does a program have by default?"
+    ]
+  },
+  "/reference/config/debug/": {
+    "feature": "directive:debug.keep_temporary",
+    "hash": "820347bb27db6bda",
+    "questions": [
+      "Keep temporary files after a script fails so I can inspect them",
+      "Show debug output in the browser page during development",
+      "Why does my debug dump not appear on the page?",
+      "Hide debug output from visitors on a production site",
+      "Where does debug output go on the command line?"
+    ]
+  },
+  "/reference/config/deferred/": {
+    "feature": "directive:deferred.max_concurrent",
+    "hash": "a2acbe45317d2662",
+    "questions": [
+      "How long can background work run after the response is sent?",
+      "Set a time limit for tasks that run after replying",
+      "Limit how many requests do work after the response at once",
+      "Why did handing off work after the response fail?",
+      "Stop post-response jobs from using up server memory"
+    ]
+  },
+  "/reference/config/errors/": {
+    "feature": "directive:errors.deprecated",
+    "hash": "49ea82ff486fa03f",
+    "questions": [
+      "How do I find calls to deprecated code at runtime?",
+      "Make tests fail when old functions are still used",
+      "Log a warning whenever outdated code runs",
+      "Ignore deprecation warnings in production",
+      "Throw an error when a deprecated method is called"
+    ]
+  },
+  "/reference/config/ext/": {
+    "feature": "directive:ext",
+    "hash": "baa7f7c5bcb5bd84",
+    "questions": [
+      "How do I configure options for a loaded extension?",
+      "Pass settings to an extension from the configuration file",
+      "Why does the server fail to start with an unknown extension key?",
+      "What types can an extension option have?",
+      "Can a program change an extension's options while it runs?"
+    ]
+  },
+  "/reference/config/extension/": {
+    "feature": "directive:extension",
+    "hash": "dbac4b2fa59ad7ef",
+    "questions": [
+      "How do I install a native extension on the server?",
+      "Load a compiled library that adds new classes",
+      "Verify an extension file with a checksum before loading it",
+      "Add or replace an extension without restarting the server",
+      "Why was my native extension not loaded?"
+    ]
+  },
+  "/reference/config/extension-grants-what-a-component-may-reach/": {
+    "feature": "tools:config/extension-grants-what-a-component-may-reach",
+    "hash": "afe89d2decf02aa6",
+    "questions": [
+      "How do I let an extension read files in a folder?",
+      "Allow an extension to send HTTP requests to one host",
+      "What files and hosts can an extension access?",
+      "See which permissions an extension requests before granting them",
+      "Why can an extension not write to a folder I allowed?"
+    ]
+  },
+  "/reference/config/http/": {
+    "feature": "directive:http",
+    "hash": "53cf5cfde053bada",
+    "questions": [
+      "How do I set security headers on every response?",
+      "Allow cross-origin requests from another website",
+      "Protect API requests against cross-site request forgery",
+      "Use a proxy server for outgoing HTTP calls",
+      "Trust my own certificate authority for outbound HTTPS",
+      "Limit the size of incoming WebSocket messages"
+    ]
+  },
+  "/reference/config/image/": {
+    "feature": "directive:image.max_pixels",
+    "hash": "8410f0cfcb197662",
+    "questions": [
+      "How do I stop huge images from crashing the server?",
+      "Protect against decompression bomb image uploads",
+      "Set the largest image size the server will decode",
+      "Why does opening a large photo throw an error?"
+    ]
+  },
+  "/reference/config/include/": {
+    "feature": "tools:config/include-a-tree-of-files",
+    "hash": "7c467fced1121522",
+    "questions": [
+      "How do I split configuration across several files?",
+      "Load every settings file from a conf.d directory",
+      "Keep machine-specific secrets out of the shared config file",
+      "Include an optional file that may not exist",
+      "Which value wins when two config files set the same key?"
+    ]
+  },
+  "/reference/config/io/": {
+    "feature": "directive:io.temp_root",
+    "hash": "2da19c99c9d13cbf",
+    "questions": [
+      "Where are temporary files and directories created?",
+      "Store temporary files on a faster disk",
+      "Change the folder used for scratch files",
+      "Are temporary directories deleted when a script ends?"
+    ]
+  },
+  "/reference/config/limits/": {
+    "feature": "tools:config/limits-and-limits-hard",
+    "hash": "f60052155a4d7401",
+    "questions": [
+      "How do I limit how much memory a request can use?",
+      "Stop a slow request after a few seconds",
+      "Stop a runaway loop that burns the CPU",
+      "Let one report route use more memory than the others",
+      "Protect my server from a zip bomb",
+      "Log a warning when a request gets close to its memory limit"
+    ]
+  },
+  "/reference/config/log/": {
+    "feature": "directive:log",
+    "hash": "4f596afd2ec4bf59",
+    "questions": [
+      "How do I write log records as JSON or plain text?",
+      "Turn on debug logging for one request",
+      "Run my own script when a request fails",
+      "Where are errors written when my error handler fails?",
+      "Send the error log to a file or syslog"
+    ]
+  },
+  "/reference/config/metrics/": {
+    "feature": "directive:metrics",
+    "hash": "6cf252304d26dc34",
+    "questions": [
+      "How do I export request counts to Prometheus?",
+      "Push server statistics to a metrics collector",
+      "Measure requests served, time spent and memory used",
+      "Where do I turn on monitoring numbers for my deployment?"
+    ]
+  },
+  "/reference/config/mode/": {
+    "feature": "tools:config/mode",
+    "hash": "002aba168d8caf76",
+    "questions": [
+      "Run the server with safe settings for a live website",
+      "How do I show full error details while developing?",
+      "Stop an application from turning on development mode in production",
+      "Check in my program whether it runs in production",
+      "Is there a staging mode?"
+    ]
+  },
+  "/reference/config/network-grants-the-addresses-and-endpoints-they-reach/": {
+    "feature": "tools:config/network-grants-the-addresses-and-endpoints-they-reach",
+    "hash": "e37d531b2ebcd370",
+    "questions": [
+      "Which hosts may my program connect to?",
+      "Why is my connection to a private IP address blocked?",
+      "Allow a connection to an internal service on my network",
+      "Let my program open a listening port",
+      "Protect against server-side request forgery to internal addresses"
+    ]
+  },
+  "/reference/config/opcache/": {
+    "feature": "directive:opcache",
+    "hash": "d5d5d3855e324aa3",
+    "questions": [
+      "Why does my code change not show up without a restart?",
+      "How often does the server check for changed source files?",
+      "Where is compiled code stored on disk?",
+      "Detect changed files by content and not by modification time",
+      "Make the server reload code faster while I edit"
+    ]
+  },
+  "/reference/config/queue/": {
+    "feature": "directive:queue.connection",
+    "hash": "ff5e96d8a1f0a70f",
+    "questions": [
+      "How do I run background jobs?",
+      "Which database stores my queued jobs?",
+      "How many jobs run at the same time on one machine?",
+      "Retry a failed job a few times, then give up",
+      "What happens to a job when its worker crashes?",
+      "Only add jobs on the web servers and process them elsewhere"
+    ]
+  },
+  "/reference/config/reading-and-changing-it-from-a-program-core-config/": {
+    "feature": "tools:config/reading-and-changing-it-from-a-program-core-config",
+    "hash": "81f1a2a5f35866c7",
+    "questions": [
+      "How do I read a setting from my program?",
+      "Change a setting for the current request only",
+      "Undo a setting change made earlier in the request",
+      "Get all settings as a map inside my code",
+      "Why does changing a setting from code return false?"
+    ]
+  },
+  "/reference/config/schedule/": {
+    "feature": "directive:schedule",
+    "hash": "0b39fbf2256bfe8d",
+    "questions": [
+      "Run a job every night",
+      "How do I run a script at fixed times like cron?",
+      "Run a scheduled task on only one host in a cluster",
+      "Set the time zone for scheduled jobs",
+      "What happens when the previous run is still going?"
+    ]
+  },
+  "/reference/config/secrets-from-files/": {
+    "feature": "tools:config/secrets-from-files",
+    "hash": "de5668975cfa6559",
+    "questions": [
+      "How do I keep the database password out of the config file?",
+      "Read a password from a Docker or Kubernetes secret",
+      "Use SOPS or Vault to provide credentials",
+      "Can I use environment variables in the configuration?",
+      "Why does the server warn about a space in my password?"
+    ]
+  },
+  "/reference/config/server/": {
+    "feature": "tools:server/the-server-block",
+    "hash": "0ba8bff2aaa3f412",
+    "questions": [
+      "Change the port the web server listens on",
+      "Listen on a Unix socket behind nginx",
+      "Limit how many requests run at the same time",
+      "Close idle connections after a timeout",
+      "Trust the client IP address sent by my reverse proxy",
+      "Serve static files like images and CSS"
+    ]
+  },
+  "/reference/config/session/": {
+    "feature": "directive:session",
+    "hash": "551272f0d1331aef",
+    "questions": [
+      "Where are user sessions stored?",
+      "Keep users logged in across several servers",
+      "How long does a session last without activity?",
+      "Change the name of the session cookie",
+      "Store sessions in a database table"
+    ]
+  },
+  "/reference/config/the-blocks-the-binary-accepts/": {
+    "feature": "tools:config/the-blocks-the-binary-accepts",
+    "hash": "2ca2ef4078e127f4",
+    "questions": [
+      "Which sections can I write in the configuration file?",
+      "Why do I get an unknown key error at startup?",
+      "Configure a database connection or mail server",
+      "Full list of configuration sections and their keys"
+    ]
+  },
+  "/reference/config/the-file-and-where-it-is-read-from/": {
+    "feature": "tools:config/the-file-and-where-it-is-read-from",
+    "hash": "df179f0d74019394",
+    "questions": [
+      "Where does Novis look for its configuration file?",
+      "Use a different configuration file for one command",
+      "What happens if there is no configuration file?",
+      "Combine several configuration files",
+      "Are relative paths in the config resolved from my working directory?"
+    ]
+  },
+  "/reference/config/trace/": {
+    "feature": "directive:trace",
+    "hash": "08ec6df4e45e6a4e",
+    "questions": [
+      "How do I trace a request across several services?",
+      "Send traces to an OpenTelemetry collector",
+      "Record only a fraction of requests for tracing",
+      "Why does my trace collector receive nothing?"
+    ]
+  },
+  "/reference/config/trust/": {
+    "feature": "tools:config/trust",
+    "hash": "7d4517170d933e4b",
+    "questions": [
+      "Why does the server not start after I changed file permissions?",
+      "Which file permissions should the config folder have?",
+      "Who should be allowed to edit the configuration?",
+      "Server fails to start because the config file is group writable"
+    ]
+  },
+  "/reference/config/values-and-units/": {
+    "feature": "tools:config/values-and-units",
+    "hash": "e7a7a9cf662c3e32",
+    "questions": [
+      "How do I write sizes like 256 megabytes?",
+      "Write a timeout in minutes or milliseconds",
+      "What does a number without a unit mean?",
+      "Can I write one and a half minutes?",
+      "How do I remove an upper limit?"
+    ]
+  },
   "/reference/core/arr/": {
     "feature": "Core\\Arr",
     "hash": "0ab01194b1f88e7c",
