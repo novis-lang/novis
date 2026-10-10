@@ -2,7 +2,6 @@
   "title": "A session is a record its store issued: a backend answers `issue`, `load`, `save` and `destroy`, and `load` answering absent is the whole of the strict-id rule",
   "status": "shipped",
   "because": [
-    "0139",
     "0124"
   ],
   "seeAlso": [

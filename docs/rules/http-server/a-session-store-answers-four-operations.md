@@ -15,3 +15,10 @@ length of its life, and the only property it needs is that guessing one is not a
 record crosses the store boundary as the byte carrier a `Core\Cache` entry does
 (`rule:concurrency/a-cached-value-is-copied-across-the-boundary`). `start` is the one member that
 talks to the store (`rule:core-api/session-roster`).
+
+**Declined:**
+- **A signed cookie holding the record itself, with no store.** It costs no round trip, but a store
+  that holds nothing cannot answer *did I issue this id*
+  (`rule:security/a-session-id-the-store-did-not-issue-is-rejected`). A logged-out session would
+  stay valid until its own expiry, and the record's size limit would be a cookie header's.
+  `Core\SignedCookie` remains for an application that wants exactly this.

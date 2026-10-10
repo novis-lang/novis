@@ -2,7 +2,8 @@
 //! `[session] backend`: the stores a session record may live in, and the boot-time refusal of the
 //! two `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed.
 //!
-//! **This module is what § 4's "enforced rather than documented" means.** That section says
+//! **This module is what "enforced rather than documented" means.**
+//! `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` says
 //! `Core\Session`'s configurable backends do not include the local tier, which is a claim about a
 //! roster — and a roster that exists only in prose excludes nothing. [`Backend`] is the roster;
 //! [`Backend::of`] is the one place a written word becomes one; [`validate`] is the refusal. A
@@ -30,7 +31,8 @@ use crate::tree::Config;
 /// The type carries a variant for neither weak tier and must not gain one: what makes
 /// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` enforced is that there is no
 /// value of this type meaning the per-core or the per-process map, so no later reader can select
-/// one however carelessly it matches. A backend added here is another store that answers § 2's
+/// one however carelessly it matches. A backend added here is another store that answers
+/// `rule:http-server/a-session-store-answers-four-operations`'s
 /// operations, and neither weak tier can answer them — `load` where nothing wrote is the question
 /// they get wrong, on the core that never wrote for one and in the next process for the other.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,7 +47,8 @@ pub enum Backend {
     Db,
 }
 
-/// Every backend § 3 admits, in the order the ADR lists them.
+/// Every backend `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`
+/// admits, in the order it lists them.
 ///
 /// Public because the refusal's own help text is built from it and because the roster is the thing
 /// asserted — a test that reads this constant fails when a `Local` is added, where a test that
@@ -53,7 +56,7 @@ pub enum Backend {
 pub const BACKENDS: &[(&str, Backend)] = &[("shared", Backend::Shared), ("db", Backend::Db)];
 
 impl Backend {
-    /// What `written` names, or `None` for a word § 3 does not spell — `local` included, which is
+    /// What `written` names, or `None` for a word the roster does not spell — `local` included, which is
     /// the whole point and is why this answers `None` rather than an error of its own.
     #[must_use]
     pub fn of(written: &str) -> Option<Self> {
@@ -84,7 +87,7 @@ const REFUSED: &[(&str, &str)] = &[
     ),
 ];
 
-/// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` over the merged tree: every `[session] backend` names a store § 3 admits.
+/// `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot` over the merged tree: every `[session] backend` names a store that rule admits.
 ///
 /// The merged tree rather than each file, for [`crate::http::validate`]'s reason — a base file
 /// naming `local` that an include replaces is not a deployment running on `local`, and refusing it
@@ -165,7 +168,7 @@ mod tests {
     fn neither_weak_tier_is_a_backend_and_the_two_stores_resolve() {
         for (word, backend) in BACKENDS {
             assert_eq!(Backend::of(word), Some(*backend));
-            validate(&wrote(word), &BTreeMap::new()).expect("a store § 3 admits");
+            validate(&wrote(word), &BTreeMap::new()).expect("a store the roster admits");
         }
 
         for (word, reach) in REFUSED {
@@ -174,7 +177,7 @@ mod tests {
             let refused = validate(&wrote(word), &BTreeMap::new()).expect_err("a weak tier");
             assert_eq!(refused.code, Some(code::E_SESSION_BACKEND));
             // The *reason*, not the citation that introduces it, and this tier's own half of it:
-            // asserting on the reference alone passes for a note that cites § 4 and then says
+            // asserting on the reference alone passes for a note that cites the rule and then says
             // nothing, and asserting on the shared clause alone passes for a tier that fell
             // through to the generic sentence with the reason pasted on. It also pins a spelling
             // that belongs to the docs rather than to this module, so the citation cannot be
@@ -190,8 +193,8 @@ mod tests {
             );
         }
 
-        // A word that names nothing gets the same code and a different sentence: there is no § 4
-        // reasoning to give about a typo, and giving it anyway would teach that the message is
+        // A word that names nothing gets the same code and a different sentence: there is no
+        // coherence reasoning to give about a typo, and giving it anyway would teach that the message is
         // boilerplate.
         let unknown = validate(&wrote("redis"), &BTreeMap::new()).expect_err("no such store");
         assert!(
@@ -202,7 +205,7 @@ mod tests {
         );
     }
 
-    /// § 3's "absent is not a default": a tree with no `[session]` block, and one that wrote the
+    /// `rule:http-server/no-session-block-means-no-store`: a tree with no `[session]` block, and one that wrote the
     /// block without choosing, both boot — the refusal belongs to `Core\Session::start()`, which is
     /// where a program that actually wants a session says so.
     #[test]

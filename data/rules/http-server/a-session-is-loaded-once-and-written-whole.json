@@ -1,9 +1,7 @@
 {
   "title": "A session record is loaded once at `start`, written back whole only when it changed, and never locked",
   "status": "shipped",
-  "because": [
-    "0139"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/a-session-store-answers-four-operations",
     "security/closed-doors",

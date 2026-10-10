@@ -1,9 +1,7 @@
 {
   "title": "A tree with no `[session]` block has no session store, and `start` throws naming the block to write",
   "status": "shipped",
-  "because": [
-    "0139"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot",
     "http-server/an-unsafe-or-unbounded-default-is-a-defect",

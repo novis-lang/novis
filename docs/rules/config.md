@@ -2067,7 +2067,7 @@ refused where it is written, so a deployment cannot run believing it has a store
 runs as another is worse than one that does not run, because the difference is invisible in exactly
 the review that would have caught it.
 
-<sub>See also [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`core-api/session-roster`](core-api.md#core-api-session-roster). Decided in [0139](../decisions/0139.md).</sub>
+<sub>See also [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`core-api/session-roster`](core-api.md#core-api-session-roster).</sub>
 
 <a id="config-net-local-is-named-and-not-on-the-roster"></a>
 

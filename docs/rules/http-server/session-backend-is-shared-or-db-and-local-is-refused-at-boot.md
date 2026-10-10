@@ -22,3 +22,13 @@ deployment decision. It reloads: a request reads the block from the snapshot it 
 changed backend reaches the next request, and no record moves from the old store to the new one,
 which signs every user out. An absent block is
 not a default backend (`rule:http-server/no-session-block-means-no-store`).
+
+Both backends cost a session one round trip on a read and two on a write. That is latency spent to
+buy security and request isolation: the local tier would cost none, and it is refused because a
+session there is not coherent across cores.
+
+**Declined:**
+- **A file backend.** It is per-machine, so a fleet either shares a filesystem or loses sessions on
+  every deploy, and a file cannot expire itself, which brings back the sweeper
+  `rule:http-server/session-expiry-belongs-to-the-store` declines. A single-machine deployment loses
+  nothing it cannot get from the shared tier on loopback or a socket.

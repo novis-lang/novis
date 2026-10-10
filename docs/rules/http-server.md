@@ -756,7 +756,14 @@ record crosses the store boundary as the byte carrier a `Core\Cache` entry does
 ([`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary)). `start` is the one member that
 talks to the store ([`core-api/session-roster`](core-api.md#core-api-session-roster)).
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary). Decided in [0139](../decisions/0139.md), [0124](../decisions/0124.md).</sub>
+**Declined:**
+- **A signed cookie holding the record itself, with no store.** It costs no round trip, but a store
+  that holds nothing cannot answer *did I issue this id*
+  ([`security/a-session-id-the-store-did-not-issue-is-rejected`](security.md#security-a-session-id-the-store-did-not-issue-is-rejected)). A logged-out session would
+  stay valid until its own expiry, and the record's size limit would be a cookie header's.
+  `Core\SignedCookie` remains for an application that wants exactly this.
+
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary). Decided in [0124](../decisions/0124.md).</sub>
 
 <a id="http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot"></a>
 
@@ -789,7 +796,17 @@ changed backend reaches the next request, and no record moves from the old store
 which signs every user out. An absent block is
 not a default backend ([`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store)).
 
-<sub>See also [`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent), [`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0139](../decisions/0139.md), [0219](../decisions/0219.md).</sub>
+Both backends cost a session one round trip on a read and two on a write. That is latency spent to
+buy security and request isolation: the local tier would cost none, and it is refused because a
+session there is not coherent across cores.
+
+**Declined:**
+- **A file backend.** It is per-machine, so a fleet either shares a filesystem or loses sessions on
+  every deploy, and a file cannot expire itself, which brings back the sweeper
+  [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store) declines. A single-machine deployment loses
+  nothing it cannot get from the shared tier on loopback or a socket.
+
+<sub>See also [`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent), [`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0219](../decisions/0219.md).</sub>
 
 <a id="http-server-no-session-block-means-no-store"></a>
 
@@ -808,7 +825,7 @@ A block that names `shared` but a tree with no `[cache.shared]` is the same shap
 `start` reaches the one store that block names, and says which block is missing when there is
 none, rather than opening a store of its own.
 
-<sub>See also [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly). Decided in [0139](../decisions/0139.md).</sub>
+<sub>See also [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly).</sub>
 
 <a id="http-server-a-session-is-loaded-once-and-written-whole"></a>
 
@@ -831,10 +848,20 @@ writes — and an application for which that matters has state that is not sessi
 counters and idempotency keys go to the shared tier or the database directly
 ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)).
 
-Memory is O(in-flight): one encoded record per request that started a session, released with the
-request heap. A cancelled task is the one end that sends nothing, because the send parks.
+A cancelled task is the one end that sends nothing, because the send parks.
 
-<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`security/closed-doors`](security.md#security-closed-doors), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0139](../decisions/0139.md).</sub>
+- **Memory:** one encoded record per request that started a session, released with the request
+  heap. Nothing accumulates per session served, so it is O(in-flight).
+
+**Declined:**
+- **A per-key write instead of a whole-record one.** It narrows the lost update to the key actually
+  contended, but one session becomes many entries, so `clear`, `regenerate` and `destroy` each become
+  a multi-key operation, and the shared tier has no multi-key atomic step
+  ([`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)).
+- **A request-long lock.** It closes the lost update exactly, but the failure it brings is a wedged
+  session, on the request path of every application whether or not it has concurrent writers.
+
+<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`security/closed-doors`](security.md#security-closed-doors), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers).</sub>
 
 <a id="http-server-session-expiry-belongs-to-the-store"></a>
 
@@ -853,7 +880,7 @@ An expired record is absent, so `load` already answers it and `start` already is
 `ttl` bounds how long an *untouched* record survives. Expiry needs no code path of its own, which
 is the point of choosing backends that expire.
 
-<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration). Decided in [0139](../decisions/0139.md).</sub>
+<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration).</sub>
 
 <a id="http-server-a-session-holds-a-secret-only-sealed"></a>
 

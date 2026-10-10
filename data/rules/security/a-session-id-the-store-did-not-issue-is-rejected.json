@@ -2,8 +2,7 @@
   "title": "A session id the store did not issue is rejected, always, with no toggle",
   "status": "designed",
   "because": [
-    "0124",
-    "0139"
+    "0124"
   ],
   "seeAlso": [
     "core-classes/session-is-started-explicitly",

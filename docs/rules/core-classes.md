@@ -2151,7 +2151,7 @@ not use them pays nothing, which the ambient version could never promise.
 - **A session that starts on the first `Core\Session` access.** A read that starts a session is a side
   effect at a distance, the kind of hidden step the explicit `start` exists to remove.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args). Decided in [0139](../decisions/0139.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args).</sub>
 
 <a id="core-classes-ratelimit-two-members"></a>
 
