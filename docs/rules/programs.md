@@ -137,7 +137,7 @@ whose file name mentions PHP keep their names.
   promise compatibility, and it would throw away a syntax that is good, implemented and familiar.
   The harm is the promise, and this rule removes the promise while keeping the syntax.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0152](../decisions/0152.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="programs-slice-ranking"></a>
 

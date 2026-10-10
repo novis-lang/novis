@@ -796,7 +796,19 @@ doc comment does not — clap renders the parent variant's instead — so `Confi
 are ordinary rustdoc and cite normally. The proof is the output: `nvs --help`, and every
 subcommand's `--help`, grepped for `rule:`, `§` and `docs/`.
 
-<sub>See also [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise). Decided in [0152](../decisions/0152.md).</sub>
+A program in a file not named `.nvs` is read by `nvs test` as a case tree and fails to parse as one;
+the error is the case parser's, not a message about the extension.
+
+**Declined:**
+- **Stripping the citations at build time**, from `build.rs` or a clap `help_template`. It leaves the
+  source the wrong shape and hides the defect, and a reader of `main.rs` still cannot tell which
+  sentences a user sees.
+- **Keeping `.php` in `nvs test` and dropping it only from the prose.** The binary would accept an
+  extension no document names, which is the same defect pointed the other way.
+- **"A `.nvs` file" in the help of `run`, `check`, `ast` and `serve`.** Those commands accept any
+  path, so naming one extension there is a claim about extensions the front end does not make.
+
+<sub>See also [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise).</sub>
 
 <a id="packaging-nvs-info-is-the-one-call"></a>
 
