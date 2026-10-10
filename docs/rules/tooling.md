@@ -271,7 +271,7 @@ colours are class constants — `Color::RED` *is* `Color::index(1)`, written sho
 use site as any scalar constant is — and `Color::rgb(uint, uint, uint)` and `Color::index(uint)`
 construct the rest.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-the-terminal-profile-resolves-once"></a>
 
@@ -346,7 +346,7 @@ the sink closes. Spinners and table rendering, which are pure text composition o
 than Tier 0 ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). And a TUI widget layer — panes, focus, event loops —
 which is an application framework, not a language surface.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-the-tty-belongs-to-the-main-task"></a>
 

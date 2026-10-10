@@ -1241,7 +1241,7 @@ impl Stack {
     /// class that wrote its own encoder answers, and [`Self::answered`] is
     /// where that goes. Neither a member nor a field list means the class
     /// carries no `#[Json\Derive]` and wrote nothing either, which is the
-    /// refusal [ADR 0063](/docs/decisions/0063.md) § 4 asks
+    /// refusal `rule:core-api/written-participation` asks
     /// for: participation in a wire format is written, never inferred.
     ///
     /// Two instances are not declared classes and answer before either is

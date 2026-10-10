@@ -1038,7 +1038,7 @@ pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\ErrorKind";
 ///
 /// **A class per condition was rejected** — § 8's own *Alternatives*: ten more
 /// types in the deliberately small closed exception set
-/// [0063 § 4](/docs/decisions/0063.md) fixes, for
+/// `rule:errors/throwable-hierarchy` fixes, for
 /// boundaries that are driver-dependent anyway. What normalising does not
 /// reach stays readable as the raw `sqlState`, `constraint` and `driverCode`
 /// beside it.

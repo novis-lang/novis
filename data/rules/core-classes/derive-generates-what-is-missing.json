@@ -1,9 +1,7 @@
 {
   "title": "The derive generates only the half the class does not write, at compile time, storing nothing per object",
   "status": "shipped",
-  "because": [
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/derive-attribute",
     "core-classes/derive-field-list",

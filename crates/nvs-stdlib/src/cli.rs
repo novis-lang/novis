@@ -899,8 +899,8 @@ const PROGRESS_CARD: ClassDoc = ClassDoc {
 
 /// `rule:tooling/in-place-output-is-a-scoped-live-region`'s `Cli\Progress` — the handle `progress`'s body is handed.
 ///
-/// One member, as § 5's table writes it. `progress` over `live` is not an ADR
-/// 0063 R17 violation: R17 forbids a procedural twin of a class API and a class
+/// One member, as § 5's table writes it. `progress` over `live` does not break
+/// `rule:core-api/one-paradigm-per-operation`, which forbids a procedural twin of a class API and a class
 /// wrapper around a static, and a closed, named behaviour built on a general
 /// one is neither — which is why this class has a counter and no `set`.
 pub(crate) const PROGRESS: CoreClass = CoreClass {

@@ -3275,8 +3275,8 @@ pub mod code {
     ///
     /// The same rule as [`E_ANON_FN_INOUT_PARAM`], read from the call site's
     /// end rather than the anonymous function's. It has no sibling at a *resolved*
-    /// target: every signature the checker builds names its parameters (ADR
-    /// 0063 R2), so a `name:` there is a spelling question and never an
+    /// target: every signature the checker builds names its parameters
+    /// (`rule:core-api/parameters-are-callable-by-name`), so a `name:` there is a spelling question and never an
     /// absence — [`E_UNKNOWN_ARG_NAME`] is the whole of it. A `...`
     /// argument is not refused here: how many arguments it hands over is its
     /// own run-time length, which needs no parameter list to be meaningful.

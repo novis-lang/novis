@@ -551,7 +551,7 @@ is empty on the overwhelming majority of rows documents nothing while being main
 The locality it gives up is bought back mechanically: a test fails on an entry naming a class or
 member that does not exist, and another fails on a member that owes an entry and has none.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0117](../decisions/0117.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0117](../decisions/0117.md).</sub>
 
 <a id="security-capability-roster-is-closed"></a>
 
@@ -1135,7 +1135,7 @@ grammars the library parses are all instructions by it
 ([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)), and a member nobody classified fails closed
 ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).
 
-<sub>See also [`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters). Decided in [0088](../decisions/0088.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters). Decided in [0088](../decisions/0088.md).</sub>
 
 <a id="security-unclassified-parameter-refuses-tainted"></a>
 
@@ -1184,7 +1184,7 @@ A regex quoting member remains the one exception on the roster, because a regex 
 that routinely needs a runtime value *inside* it rather than *as* it
 ([`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink)).
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0088](../decisions/0088.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0088](../decisions/0088.md).</sub>
 
 <a id="security-regex-pattern-is-a-sink"></a>
 

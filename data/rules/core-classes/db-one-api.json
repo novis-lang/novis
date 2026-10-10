@@ -2,8 +2,7 @@
   "title": "`Core\\Db` is the only database API, and every statement it runs is prepared",
   "status": "shipped",
   "because": [
-    "0067",
-    "0063"
+    "0067"
   ],
   "seeAlso": [
     "core-classes/db-parameters",

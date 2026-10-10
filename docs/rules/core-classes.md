@@ -267,7 +267,7 @@ It is general on purpose: a request body, a decompressed archive, an outbound re
 upload part all reach disk through this one implementation, so the partial-write cleanup lives in one
 place rather than in every call site that hand-wrote the loop.
 
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0105](../decisions/0105.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0105](../decisions/0105.md).</sub>
 
 <a id="core-classes-temporary-dir-sweep"></a>
 
@@ -636,7 +636,7 @@ The name is deliberate. `to…` is the conversion verb, `source` is spelled out,
 `raw` — which in every template language means the opposite direction — nor `unescape`, which is
 reserved for the operation that actually inverts `escape` and which this is not.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0133](../decisions/0133.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0133](../decisions/0133.md).</sub>
 
 <a id="core-classes-html-sanitize"></a>
 
@@ -718,7 +718,7 @@ rather than gaps. A `<!DOCTYPE …>` leaves nothing behind, which is this door's
 other door refuses outright. A `<template>`'s contents stay on the element, because the DOM's
 separate fragment has no kind here and a program looks for them under the element it wrote.
 
-<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0223](../decisions/0223.md).</sub>
+<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0223](../decisions/0223.md).</sub>
 
 <a id="core-classes-xml-tree-and-stream"></a>
 
@@ -819,7 +819,7 @@ What survives is the roster that names no type: `isEmail`, `isIp`, `isMac`, `isD
   `isInteger` reads as a hole, but the hole is only apparent: the removed three name types and the
   survivors name formats, and only a type has an `as`.
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`types/conversion`](types.md#types-conversion). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="core-classes-secret-reveal"></a>
 
@@ -999,7 +999,7 @@ or an allowlist check.
   need. If real programs show untainted text too easy to build without validation, this is the
   stricter mode to reconsider.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-db-connection-is-named"></a>
 
@@ -1210,7 +1210,7 @@ every later set, and it cannot route a statement that answers with a result set,
 mean one program leaving different rows in two servers. The price is N round trips where one command
 would do, and it is recorded here rather than hidden.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-db-parameters"></a>
 
@@ -1284,7 +1284,7 @@ language's own `as`, so `Core\Db` never grows a second stringification table. Ev
 yields is `tainted` where its type can carry it, which closes stored injection by the same mechanism
 as reflected. The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed).
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0063](../decisions/0063.md), [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-streaming"></a>
 
@@ -1394,7 +1394,7 @@ is a `secret` sink. The SQL text may, being developer-authored. The four raw val
 one boxed slice, which is eight bytes narrower than the single slot it replaced and costs one
 allocation on a path that is already allocating the object, the message and the backtrace.
 
-<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../decisions/0067.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-db-crate-boundary"></a>
 
@@ -1829,7 +1829,7 @@ a program that neither carries the attribute nor writes a half pays nothing at a
   ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list)). Until either
   exists, a payload that needs one takes a hand-written encoder.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type).</sub>
 
 <a id="core-classes-ldap-filter-is-a-value"></a>
 
@@ -2033,7 +2033,7 @@ more machinery with no named use case yet.
 - **Backing it with `Core\Db`.** It puts a write on the hot path of every protected endpoint, on the
   database that is usually the scarcest resource in the deployment.
 
-<sub>See also [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/topic`](core-classes.md#core-classes-topic).</sub>
 
 <a id="core-classes-ratelimit-gcra"></a>
 
@@ -2066,7 +2066,7 @@ over our own state.
 - **A sliding-window counter or log.** The counter cannot give an exact `retryAfter`, and the log
   holds O(requests in window) per key in a store somebody pays for.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration).</sub>
 
 <a id="core-classes-ratelimit-unreachable-store-throws"></a>
 
@@ -2092,7 +2092,7 @@ two are different members rather than one with a flag.
 - **Failing closed**, returning `allowed: false`. A store outage would take the whole application
   down, and a quota check is not worth that.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="core-classes-crypto-interop-tier"></a>
 
@@ -2383,7 +2383,7 @@ pixel source is held to the default pixel cap, not the `[image]` one.
   component declines to own, and a C codebase that size is still one to build and audit inside the
   sandbox.
 
-<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0063](../decisions/0063.md), [0276](../decisions/0276.md).</sub>
+<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0276](../decisions/0276.md).</sub>
 
 <a id="core-classes-image-pixel-model"></a>
 

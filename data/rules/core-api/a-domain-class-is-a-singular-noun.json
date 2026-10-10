@@ -1,9 +1,7 @@
 {
   "title": "A domain class is a singular noun and its object types nest under it",
   "status": "shipped",
-  "because": [
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/members-are-full-words",
     "core-api/reserved-namespace",

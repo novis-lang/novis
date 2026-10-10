@@ -824,7 +824,7 @@ Which endings drain the queue is [`observability/three-endings-fire-the-exit-que
 never do are [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook). This is the
 one hook for work that must run at every ending that is not a fatal.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals). Decided in [0127](../decisions/0127.md), [0063](../decisions/0063.md), [0148](../decisions/0148.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals). Decided in [0127](../decisions/0127.md), [0148](../decisions/0148.md).</sub>
 
 <a id="observability-three-endings-fire-the-exit-queue"></a>
 

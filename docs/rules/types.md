@@ -899,7 +899,7 @@ predicate the language already has. A list overlaid element-wise, `[9]` onto `[1
 - **A member for `array_merge_recursive`.** It turns two colliding scalars into a two-element array, a
   change of data shape no typed member can make. `overlayDeep` is the nearest member.
 
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/preserve-keys`](types.md#types-preserve-keys).</sub>
 
 <a id="types-preserve-keys"></a>
 
@@ -1657,7 +1657,7 @@ it declares, which is what lets a one-parameter callback satisfy the `Core` conv
 callback is offered value *and* key. The type system describes that behaviour. An exact-arity rule
 would instead grow an unused `$key` parameter across every callback ever written.
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/callable-variance`](types.md#types-callable-variance). Decided in [0136](../decisions/0136.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/callable-variance`](types.md#types-callable-variance). Decided in [0136](../decisions/0136.md).</sub>
 
 <a id="types-callable-variance"></a>
 

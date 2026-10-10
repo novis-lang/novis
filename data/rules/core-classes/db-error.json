@@ -2,8 +2,7 @@
   "title": "One `DbError` carries a normalised kind across every driver, and never a bound parameter",
   "status": "shipped",
   "because": [
-    "0067",
-    "0063"
+    "0067"
   ],
   "seeAlso": [
     "core-classes/db-transactions",

@@ -1796,7 +1796,7 @@ at the first valid instant after the gap. One landing in a fall-back *repeat* fi
 occurrence. Both are decided in the single place a civil minute becomes an instant, and both are what
 make "runs once a day" true, which is what the operator wrote down.
 
-<sub>See also [`config/overlap-is-skip-queue-or-kill`](config.md#config-overlap-is-skip-queue-or-kill), [`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`config/overlap-is-skip-queue-or-kill`](config.md#config-overlap-is-skip-queue-or-kill), [`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection).</sub>
 
 <a id="config-cache-shared-is-the-grant-over-the-configured-store"></a>
 

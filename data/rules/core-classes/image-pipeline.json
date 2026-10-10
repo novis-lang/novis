@@ -2,7 +2,6 @@
   "title": "An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it",
   "status": "designed",
   "because": [
-    "0063",
     "0276"
   ],
   "seeAlso": [

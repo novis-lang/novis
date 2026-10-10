@@ -1129,7 +1129,7 @@ capability, because they are the only ones that can destroy the record that work
 none because it names no block and so has nothing for a grant to be about, and `status`, `cancel` and
 `stats` read or release what the caller already holds a receipt for.
 
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`concurrency/a-job-between-attempts-is-pending`](concurrency.md#concurrency-a-job-between-attempts-is-pending), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose), [`concurrency/queue-deletion-is-explicit-and-bounded`](concurrency.md#concurrency-queue-deletion-is-explicit-and-bounded). Decided in [0084](../decisions/0084.md), [0063](../decisions/0063.md), [0153](../decisions/0153.md).</sub>
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`concurrency/a-job-between-attempts-is-pending`](concurrency.md#concurrency-a-job-between-attempts-is-pending), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose), [`concurrency/queue-deletion-is-explicit-and-bounded`](concurrency.md#concurrency-queue-deletion-is-explicit-and-bounded). Decided in [0084](../decisions/0084.md), [0153](../decisions/0153.md).</sub>
 
 <a id="concurrency-a-tag-groups-jobs-and-a-key-dedupes-them"></a>
 

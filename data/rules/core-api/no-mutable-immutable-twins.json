@@ -1,9 +1,7 @@
 {
   "title": "Every `Core` value type is immutable, so no mutable twin exists to choose between",
   "status": "shipped",
-  "because": [
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/nothing-mutates",
     "core-api/one-paradigm-per-operation",

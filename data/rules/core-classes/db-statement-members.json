@@ -2,8 +2,7 @@
   "title": "Five members run a statement, results are buffered by default, and only one of them streams",
   "status": "shipped",
   "because": [
-    "0067",
-    "0063"
+    "0067"
   ],
   "seeAlso": [
     "core-classes/db-streaming",

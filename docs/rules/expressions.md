@@ -398,7 +398,7 @@ pattern-shaped argument checked early.
   method foldable. It turns "the compiler knows a few names" into "the compiler runs code a library
   chose while compiling", which is a larger attack surface and much harder to reason about.
 
-<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour).</sub>
 
 <a id="expressions-bracket-destructuring"></a>
 
@@ -612,7 +612,7 @@ with a failable single-`string` parse.
   field at once, each located by a dotted path, which a bare `null` discards: that costs little for a
   `Uri` and everything for a CSV or a decoded object ([`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field)).
 
-<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion).</sub>
 
 <a id="expressions-preparation-preserves-behaviour"></a>
 
@@ -685,7 +685,7 @@ Nothing about the `Core` roster, scalar methods or any security property changes
 Str::format($_, $n)` is refused for the same reason the nested call is. There is no callable allocated
 and no dynamic dispatch.
 
-<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference). Decided in [0098](../decisions/0098.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference). Decided in [0098](../decisions/0098.md).</sub>
 
 <a id="expressions-pipeline-precedence"></a>
 

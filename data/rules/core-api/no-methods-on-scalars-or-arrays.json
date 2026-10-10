@@ -1,9 +1,7 @@
 {
   "title": "A scalar and an `array<T>` never gain methods",
   "status": "shipped",
-  "because": [
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/one-paradigm-per-operation",
     "types/erased-member-access"

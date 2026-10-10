@@ -10,3 +10,11 @@ intrinsics (`rule:expressions/intrinsic-constant-arguments`). There are exactly 
 The gain is that every mode is typo-proof, completable in an editor and exhaustively matchable. The cost is
 one enum declaration per mode family, which is also what makes them documentable one case at a time
 (`rule:core-api/reference-card`).
+
+**Declined:**
+- **A relative-date grammar, `strtotime` or a `shift("+2 weeks")` intrinsic.** `shift("start of month")`
+  is a second spelling of `startOf(Unit::Month)` (`rule:core-api/one-paradigm-per-operation`) and a mode
+  string, and it hides the calendar-versus-exact distinction the `DateTime`/`Instant` split makes
+  visible. A `DateTime` moves by typed calls such as `plus(int $count, Unit $unit)`, an `Instant` by a
+  `Duration`, and the one runtime string a program needs is a duration, which `Duration::parse` reads
+  in the literal grammar (`rule:types/duration`).

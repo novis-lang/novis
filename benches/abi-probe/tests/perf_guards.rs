@@ -1953,7 +1953,7 @@ fn a_refcount_one_array_member_mutates_in_place() {
     // Self-relative, per `rule:testing/perf-two-mechanisms`: the bound compares two writes measured on
     // *this* machine, never an absolute figure quoted from another one.
     //
-    // ADR 0063 R3 says no `Core` member mutates its subject — every one
+    // `rule:core-api/nothing-mutates` says no `Core` member mutates its subject — every one
     // returns a fresh value. That is only affordable because a write into an
     // array nothing else holds is done in place, with no copy at all: the
     // `refcount == 1` fast path in `nvs_runtime::array`. This guard is what
@@ -2007,7 +2007,7 @@ fn a_refcount_one_array_member_mutates_in_place() {
         "{COUNTED} writes to a key of a solely-owned array made {in_place} allocations. A write \
          in place replaces one value and allocates nothing; an allocation there is the \
          `refcount == 1` fast path in `nvs_runtime::array` copying or growing the entries, and \
-         ADR 0063 R3's immutable `Core` API rests on it doing neither."
+         `rule:core-api/nothing-mutates` rests on it doing neither."
     );
     assert!(
         separating > 0,
@@ -2018,7 +2018,7 @@ fn a_refcount_one_array_member_mutates_in_place() {
     judge(
         "array write in place, against a separating one",
         IN_PLACE_PER_SEPARATING,
-        "ADR 0063 R3's immutable `Core` API rests on that write being in place; if this is a \
+        "`rule:core-api/nothing-mutates` rests on that write being in place; if this is a \
          real regression that argument needs revisiting.",
         |yard| {
             let in_place = ns_per_op(200_000, 5, || {

@@ -2,8 +2,7 @@
   "title": "`|>` substitutes one hole at parse time, and has no run-time representation",
   "status": "designed",
   "because": [
-    "0098",
-    "0063"
+    "0098"
   ],
   "seeAlso": [
     "expressions/pipeline-hole-once",

@@ -33,7 +33,7 @@ The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
 so a single `use Core\Test;` places both.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0063](../decisions/0063.md), [0172](../decisions/0172.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0172](../decisions/0172.md).</sub>
 
 <a id="testing-tests-never-reach-a-build"></a>
 
@@ -114,7 +114,7 @@ years later.
 The roster is wide on purpose. Ranking the right member by the subject's type at the call site is
 the language server's job, and not a reason to reshape the API into a chain.
 
-<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots). Decided in [0079](../decisions/0079.md), [0063](../decisions/0063.md), [0090](../decisions/0090.md).</sub>
+<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots). Decided in [0079](../decisions/0079.md), [0090](../decisions/0090.md).</sub>
 
 <a id="testing-failure-ledger"></a>
 

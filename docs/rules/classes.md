@@ -1104,7 +1104,7 @@ loosening of this format.
 - **`decode` passing taint on to its result.** The danger is the reconstructed graph itself, not a
   string that later reaches an output sink, so `decode` is a sink rather than contagious.
 
-<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization).</sub>
 
 <a id="classes-an-encoder-ends-a-cycle-by-identity"></a>
 

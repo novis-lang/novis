@@ -2,7 +2,6 @@
   "title": "No operation is reachable two ways, and a domain class's statics never mirror an object's own methods",
   "status": "shipped",
   "because": [
-    "0063",
     "0122"
   ],
   "seeAlso": [

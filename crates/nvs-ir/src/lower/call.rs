@@ -114,8 +114,8 @@ impl<'a> Lowering<'a> {
              nvs_types is trusted to have mapped every one of them"
         );
         // One entry per fixed parameter, at its own ABI position — `None` until
-        // some argument fills it, and a `Vec` rather than a value because ADR
-        // 0063 R2's options bag flattens into one value per declared option.
+        // some argument fills it, and a `Vec` rather than a value because
+        // `rule:core-api/options-bag`'s bag flattens into one value per declared option.
         let mut filled: Vec<Option<LoweredArgs>> = (0..fixed).map(|_| None).collect();
         let mut tail = Vec::new();
         for (arg, slot) in list.iter().zip(&sig.arg_slots) {
