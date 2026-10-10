@@ -314,9 +314,6 @@ function wholeReads(words: string[], ps: boolean): string[] | null {
 
 const PROOF_DIRS = ["docs/examples/", "tests/hostile/", "benches/members/"];
 const LOOP_WORD = /^(?:for|while|until|foreach|foreach-object|xargs)(?![\w-])|^%$/i;
-const SEARCHERS = new Set(["grep", "egrep", "rg", "sed", "awk", "select-string", "sls", "findstr"]);
-/** A goal's record, the file that holds its checks. */
-const GOAL_CHECKS = [/(?:^|\/)data\/goals\/[a-z0-9]+(?:-[a-z0-9]+)*\.json$/];
 const WRITERS = new Set(["set-content", "out-file", "add-content"]);
 const WRITER_PATH = /^-(path|filepath|literalpath)$/i;
 const WRITER_VALUE = /^-(value|encoding|inputobject|width)$/i;
@@ -367,25 +364,7 @@ export const RULES: Rule[] = [
       );
     },
   },
-  {
-    name: "goal-grep",
-    tools: ["Bash", "PowerShell"],
-    commands: ["loop"],
-    deny(_call, parsed) {
-      for (const seg of parsed!.segments) {
-        const words = plain(seg);
-        const cmd = base(words[0]);
-        if (!SEARCHERS.has(cmd)) continue;
-        const file = words.slice(1).map((w) => w.replace(/\\/g, "/")).find((w) => GOAL_CHECKS.some((re) => re.test(w)));
-        if (!file) continue;
-        return (
-          `\`${cmd}\` over ${file}. \`bun nv loop --list\` prints the live goal's checks, and ` +
-          `\`--stage\`, \`--name\` and \`--feature\` narrow them.`
-        );
-      }
-      return null;
-    },
-  },
+
   {
     name: "sleep-poll",
     tools: ["Bash", "PowerShell"],
@@ -540,9 +519,6 @@ function heavyRun(all: string[], cwd: string): string | null {
   const nv = nvArgs(words);
   if (nv !== null) {
     const [cmd, ...rest] = nv;
-    const narrowed = rest.some((w) => /^--(?:stage|name|feature)(?:=|$)/.test(w));
-
-    if (cmd === "loop" && (rest[0] === "--goal-only" || rest[0] === "--run") && !narrowed) return `\`bun nv loop ${rest[0]}\` runs the whole plan, whatever your change reaches`;
     if (cmd === "benches") return "`bun nv benches` judges every bench the selection picks on the release build, whatever your change reaches; the loop runs it on the floor gate's cadence";
     if (cmd === "proofs" && rest.some((w) => w === "--verify" || w === "--run") && !rest.some((w) => /^--(?:id|only|group)(?:=|$)/.test(w))) {
       return "`bun nv proofs` over every feature runs each one's examples and attacks, whatever your change reaches";
@@ -550,6 +526,9 @@ function heavyRun(all: string[], cwd: string): string | null {
     if (cmd === "verify" && rest.includes("--no-cache")) return "`bun nv verify --no-cache` runs every step whatever its inputs, and the green cache is keyed on exactly what each step reads";
     if (cmd === "select" && rest.includes("--full")) return "`bun nv select --full` runs every atom the store knows, whatever your change reaches; the loop runs it on the floor gate's cadence";
     return null;
+  }
+  if (base(words[0]) === "looper" && words[1] === "check" && !words.some((w) => /^--name(?:=|$)/.test(w))) {
+    return "`looper check` with no `--name` runs the live goal's whole acceptance, whatever your change reaches";
   }
   if (base(words[0]) !== "cargo") return null;
   const args = words.slice(1).filter((w) => !w.startsWith("+"));
