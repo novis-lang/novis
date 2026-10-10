@@ -163,6 +163,12 @@ escape, the developer calls an escaper, so the result is `your-code` and not `no
   peer's documented reload command is `one-setting` naming it, and only after a restart is `no`.
   Bun and Go have no config file that sets a response header, so they run nothing and are
   `your-code`.
+- `upgrade` replaces the runtime binary two seconds into 20 seconds of steady load. The new file is
+  written beside the old one and renamed over it, since a running binary cannot be written in place.
+  Then the peer's documented step makes the new binary run: `php-fpm reload`, which re-executes
+  PHP-FPM's own binary, and a restart for Novis, Bun and Go. Go's runtime is compiled into the
+  program, so its binary is the program. Every peer needs a step, so no failed request is
+  `one-setting` naming it, and anything else is `no`.
 
 `--row <id>` runs one row, which is how a fix to one probe is checked.
 

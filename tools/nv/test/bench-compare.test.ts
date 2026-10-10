@@ -42,6 +42,9 @@ import {
   steadyResult,
   type TableEdit,
   tableEditCommand,
+  UPGRADE_WAYS,
+  upgradeCommand,
+  upgradeResult,
   waitingResult,
 } from "../cmd/bench-compare.ts";
 
@@ -163,7 +166,7 @@ describe("the feature scenarios", () => {
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "isolation", "runaway", "crash", "escape", "taint", "secret", "csrf", "headers", "waiting", "parallel", "live-edit", "deploy", "config"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "isolation", "runaway", "crash", "escape", "taint", "secret", "csrf", "headers", "waiting", "parallel", "live-edit", "deploy", "config", "upgrade"]);
   });
 
   test("every row either probes a stack or times a case, never both, and a timed row names a case", () => {
@@ -256,6 +259,21 @@ describe("the feature scenarios", () => {
     });
     expect(configResult(null, null, "php-fpm reload").result).toBe("no");
     expect(configResult(null, null, undefined).result).toBe("no");
+  });
+
+  test("an upgrade is one-setting naming its step with no failed request, and no otherwise", () => {
+    const load = { requests: 900, failed: 0, failures: null, p99_ms: 3 };
+    const clean = { replies: 40, failed: 0, mixed: 0, seconds: 0.4 };
+    expect(upgradeResult(load, clean, UPGRADE_WAYS.php!.way)).toEqual({
+      result: "one-setting",
+      setting: "php-fpm reload",
+      evidence: { requests: 940, failed_requests: 0, failures: null, p99_ms: 3, seconds_to_answer: 0.4, command: "php-fpm reload", restarts: 0 },
+    });
+    expect(upgradeResult(load, clean, UPGRADE_WAYS.nvs!.way).evidence.restarts).toBe(1);
+    expect(upgradeResult({ ...load, failed: 7, failures: "502 x7" }, clean, UPGRADE_WAYS.nvs!.way).result).toBe("no");
+    expect(upgradeResult(load, { ...clean, seconds: null }, UPGRADE_WAYS.bun!.way).result).toBe("no");
+    expect(Object.keys(UPGRADE_WAYS).sort()).toEqual(PEERS.map((p) => p.id).sort());
+    expect(upgradeCommand("/usr/local/bin/nvs")[2]).toBe('cp "/usr/local/bin/nvs" "/usr/local/bin/nvs.new" && mv "/usr/local/bin/nvs.new" "/usr/local/bin/nvs"');
   });
 
   test("every peer the config row runs has a change, and every other peer a fixed result", () => {

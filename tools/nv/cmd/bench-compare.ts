@@ -729,6 +729,54 @@ export const CONFIG_CHANGES: Record<string, ConfigChange> = {
   },
 };
 
+/** How long the upgrade row's steady load runs, and how long after the load starts the binary is replaced. */
+export const UPGRADE_LOAD_SECONDS = 20;
+export const UPGRADE_START_MS = 2_000;
+
+/**
+ * The runtime binary each peer runs, and the step its documentation gives for a new one to take over.
+ * PHP-FPM's reload re-executes its own binary, so the new one runs without a restart. Go's runtime is
+ * compiled into the program, so its binary is the program, and a new runtime is a new image.
+ */
+export interface UpgradeWay {
+  binary: string;
+  way: DeployWay;
+}
+
+export const UPGRADE_WAYS: Record<string, UpgradeWay> = {
+  nvs: { binary: "/usr/local/bin/nvs", way: { name: "a restart", run: "restart" } },
+  php: { binary: "/usr/local/sbin/php-fpm", way: DEPLOY_WAYS.php! },
+  bun: { binary: "/usr/local/bin/bun", way: DEPLOY_WAYS.bun! },
+  go: { binary: "/srv/cases/hello", way: DEPLOY_WAYS.go! },
+};
+
+/**
+ * Replaces `binary` with a copy of itself the way an upgrade does: written beside it, then renamed over
+ * it, since a running binary cannot be written in place. The process keeps the old file until it starts again.
+ */
+export function upgradeCommand(binary: string): string[] {
+  return ["sh", "-c", `cp "${binary}" "${binary}.new" && mv "${binary}.new" "${binary}"`];
+}
+
+/**
+ * An upgrade with no failed request is `one-setting` naming the step that put the new binary in place,
+ * since every peer needs one. A failed request, or no answer within `CHANGE_WAIT_MS` of the step, is `no`.
+ */
+export function upgradeResult(load: Steady, sample: Omit<DeploySample, "copy_seconds">, way: DeployWay): RowResult {
+  const failed = load.failed + sample.failed;
+  const evidence = {
+    requests: load.requests + sample.replies,
+    failed_requests: failed,
+    failures: load.failures,
+    p99_ms: load.p99_ms,
+    seconds_to_answer: sample.seconds,
+    command: way.name,
+    restarts: way.run === "restart" ? 1 : 0,
+  };
+  if (failed > 0 || sample.seconds === null) return { result: "no", evidence };
+  return { result: "one-setting", setting: way.name, evidence };
+}
+
 /** The parts one request of the parallel row splits its work into, and the backend cpus it has for them. */
 export const PARALLEL_PARTS = 4;
 
@@ -969,6 +1017,26 @@ export const SCENARIOS: Scenario[] = [
       const reloaded = p.exec(change.reload.command);
       if (reloaded.code !== 0) throw new Fail(`${change.reload.name}: ${reloaded.output}`);
       return configResult(null, await secondsUntil(p, change.applied), change.reload.name);
+    },
+  },
+  {
+    id: "upgrade",
+    tree: "cases",
+    case: "hello",
+    probe: async (p) => {
+      const { binary, way } = UPGRADE_WAYS[p.peer]!;
+      const hello = ok(await p.get("/"), "hello").body;
+      const load = p.steady("/", UPGRADE_LOAD_SECONDS);
+      await Bun.sleep(UPGRADE_START_MS);
+      const upgrading: Deploying = { appliedAt: null };
+      const sample = sampleUntil(p, upgrading, (body) => body === hello);
+      const replaced = p.exec(upgradeCommand(binary));
+      if (replaced.code !== 0) throw new Fail(`replacing ${binary}: ${replaced.output}`);
+      const done = way.run === "restart" ? p.restart() : p.exec(way.run);
+      if (done.code !== 0) throw new Fail(`${way.name}: ${done.output}`);
+      upgrading.appliedAt = performance.now();
+      const seen = await sample;
+      return upgradeResult(await load, seen, way);
     },
   },
 ];
