@@ -618,12 +618,11 @@ bun nv plan --apply <wrap-file | -> [--dry]           # check, then write, a wra
 bun nv pack [--goal <slug>] [--stage <n>]             # the pack sections only Novis has
 ```
 
-Each is a piece of the loop driver that a person or a hook can run alone, and the driver calls the same
-code in-process. Each exits 0 green, 1 red and 2 on a usage error, except `bun nv sweep`, which always
+Each is a piece of the old loop driver that a person or a hook can run alone. Each exits 0 green, 1 red and 2 on a usage error, except `bun nv sweep`, which always
 exits 0 and writes what was red to `.loop/last-sweep.md`. `--goal` and `--stage` win over
 `LOOPER_GOAL` and `LOOPER_STAGE`, which win over the live goal and its handoff's next stage.
-[looper-cutover.md](looper-cutover.md) § 3 is which looper hook runs which, and each command's
-`--help` and module doc own its flags.
+`looper.toml` wires only `bun nv verify`, as `[verify] run`, so looper runs none of the others on its
+own. Each command's `--help` and module doc own its flags.
 
 ## Disk
 

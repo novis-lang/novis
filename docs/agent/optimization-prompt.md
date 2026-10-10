@@ -103,8 +103,8 @@ Short, and each entry is here because it fails § *The one rule* — not because
   wrongly ends a run that had work left. It also reads like a bug when it is not: a guard reported as
   `did not run` is almost always the **worklist**, a test no session has written yet, and "fixing" its name
   deletes the goal. Report it; a human can tell those apart in a minute and you cannot.
-- **Rewording, adding or removing a behavioural instruction** — anywhere, `AGENTS.md` and
-  `session-prompt.md` included. You may delete a duplicate of one and fix a dead reference inside one; you
+- **Rewording, adding or removing a behavioural instruction** — anywhere, `AGENTS.md`
+  included. You may delete a duplicate of one and fix a dead reference inside one; you
   may not change what it *tells a session to do*. Nothing you can measure says whether the new wording
   reasons better, and rewording an instruction that was working is how a loop quietly gets worse for a
   hundred sessions before anyone notices.

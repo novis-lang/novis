@@ -199,11 +199,12 @@ docs/
 ```
 <!-- layout:end -->
 
-`docs/agent/` holds how work is driven here: the [work-loop design](docs/agent/coordinator.md), the
-[per-session prompt](docs/agent/session-prompt.md) and the goals' prose; a goal's record and its
-handoff — live state, overwritten by each session — are under `data/goals/`. The schedule is the goal
-chain, `data/chain.json`, described in [docs/agent/goals/](docs/agent/goals/README.md), not the milestone table: a milestone is an
-identity tag one or more goals carry, so "goal `<slug>`" says what is happening and "M7" does not.
+`docs/agent/` holds how work is driven here: the [work-loop design](docs/agent/coordinator.md) and
+the rules a session follows. The loop itself is looper, an external tool configured by `looper.toml`. A
+goal is one file under [docs/goals/](docs/goals/README.md), and its `## Handoff` is live state,
+overwritten by each session. The schedule is the goal chain, the front matter of `docs/goals/README.md`,
+not the milestone table: a milestone is an identity tag one or more goals carry, so "goal `<slug>`" says
+what is happening and "M7" does not.
 
 The two editor clients are not here yet. When they arrive they sit outside the Cargo workspace — the VS
 Code extension is TypeScript/Node tooling, the PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform

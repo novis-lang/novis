@@ -82,13 +82,13 @@ bun nv owners                       # every gap record under data/gaps/, and who
 bun nv plan --show M<n>             # a milestone the search pointed at
 ```
 
-and grep `docs/agent/goals/` (chain and `side/`) and `docs/plan/` for the same words.
+and grep `docs/goals/` and `docs/plan/` for the same words.
 
 **If an item is already planned**, name the goal, milestone or gap in the summary, and add the report's
-requirement to it in neutral words so whoever builds it knows a user needs it: an acceptance line in the
-goal's `.md`, a check in its record under `data/goals/`, or the milestone through a `## milestone: M<n>`
-section in a `bun nv session --wrap` file. The goal the loop is running now — `bun nv orient` names it —
-is not edited from here: the user decides whether it absorbs the item.
+requirement to it in neutral words so whoever builds it knows a user needs it: a line in the goal's
+file under `docs/goals/`, a check through `looper goal check`, or the milestone's file under
+`docs/plan/`. The goal the loop is running now — `looper goal show` names it — is not edited from
+here: the user decides whether it absorbs the item.
 
 ## 4. Examine the rest, and ask
 
@@ -116,11 +116,11 @@ workflow*), does not touch files the running goal is changing — its `context` 
 Otherwise it is a goal, written with [loop-authoring.md](loop-authoring.md):
 
 - **A side goal** when it depends on no unfinished chain goal and shares no file set with the goals
-  ahead of it ([goals/README.md](goals/README.md) § *Side goals*). This is the default for a report,
-  because it lands without waiting for the chain. The driver never picks one on its own: a person
-  starts its run with `bun nv loop --side <slug>`, so say that the report waits for that run.
-- **A chain goal** when it depends on a chain goal, blocks one, or changes the same files, placed with
-  `bun nv chain --new <slug> --after <goal>` right behind the goal it depends on.
+  ahead of it ([AGENTS.md](../../AGENTS.md) § *The schedule is the chain*). This is the default for a
+  report, because it lands without waiting for the chain. The loop never picks one on its own: a
+  person starts its run with `looper loop add --side <slug>`, so say that the report waits for that run.
+- **A chain goal** when it depends on a chain goal, blocks one, or changes the same files, written
+  with `looper goal new <slug>` and placed with `looper goal move` right behind the goal it depends on.
 
 Say which one you chose and why, and let the user confirm the placement.
 

@@ -76,7 +76,7 @@ landed as the second test in [type_atoms.rs](../../crates/nvs-ir/tests/type_atom
 half it is named after.
 
 A future stage that names a test on purpose before writing it adds a bullet here, one per name, with the
-item that owes it, and ends the bullet with the trailer `[until: test <name>]` that
-[tools/nv/cmd/playbook.ts](../../tools/nv/cmd/playbook.ts)'s module doc defines. `bun nv playbook --check`
-reads it, and `--retire` deletes the bullet the moment the test is in the tree — exactly as the
-fifty-four ticked lines were deleted in place, and for the same reason: `git log` holds them.
+item that owes it, and ends the bullet with the trailer `until: test <name>` in the form looper's
+playbook uses (looper's `docs/goal-format.md` § *The playbook*). `looper playbook retire` reads only
+the playbook, so the session that writes the test deletes the bullet — exactly as the fifty-four ticked
+lines were deleted in place, and for the same reason: `git log` holds them.

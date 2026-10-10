@@ -18,8 +18,8 @@ overturn a decision. **One call orients you**, and which one depends on why you 
 
 | You are | Run |
 |---|---|
-| A session of the unattended loop | Nothing — the driver ran `bun nv orient` and piped the pack in ahead of your prompt: everything below, narrowed to the current goal's `[context]` manifest and its current item. Run it yourself only if it is genuinely absent. |
-| Working interactively, on anything | `bun nv orient --full` — the same pack with no narrowing: where the run and the work stand, one line per module, the rules, the shapes and the plan's fields |
+| A session of the unattended loop | Nothing — looper ran `looper orient` and piped the pack in ahead of your prompt: the live goal, its stage, its handoff and the traps, narrowed to the goal's `context` list. Run it yourself only if it is genuinely absent. |
+| Working interactively, on anything | `looper orient --full` — the same pack with no narrowing |
 | Looking for the file that owns a topic | `bun nv brief --where <keyword>` — a search over the rulebook: the chapters under [docs/rules/](docs/rules/) and every rule's title, plus the homes that are not rules — the plan, the tools, the benches, the perf notes. With no keyword, the chapter list |
 
 Those three route to everything else. The five files behind them, none of which is read in full by default:
@@ -28,7 +28,7 @@ Those three route to everything else. The five files behind them, none of which 
   it states. The rule's fragment under `docs/rules/<topic>/` is the rule; the chapter
   `docs/rules/<topic>.md` that renders it is what you read.
 - **[docs/agent/commands.md](docs/agent/commands.md)** — how this repo is driven: `nv peek`, `nv verify`,
-  `nv session`, `nv splice`, `nv plan`, `nv disk`, WSL, valgrind, and the two shell rules below in full.
+  `nv splice`, `nv plan`, `nv disk`, WSL, valgrind, and the two shell rules below in full.
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
 - **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.nvst`
@@ -98,8 +98,9 @@ which are whole where they stand.
    package and writes a second copy of every workspace crate beside the first, and a day of those
    filled the disk. Narrow what *runs* — `bun nv verify -p <crate>`, or a `--test <name>`
    or `--lib` filter under `cargo test` — and leave `--release -p` to the cost guards.
-6. **Finish with one call:** `bun nv session --wrap <file>` applies steps 4 and 5 below — plan
-   fields, playbook bullet, handoff, one commit per slice, status — or refuses and changes nothing.
+6. **Finish with one call:** `looper wrap <file>` applies steps 4 and 5 below — playbook bullet,
+   handoff, one commit per slice, status — or refuses and changes nothing. Plan fields go first
+   through `bun nv plan --apply <file>`.
 7. **A comment says what the code does now, and is rewritten as a whole** — never edited by leaving the
    old sentence beside the new one, so no comment ever reads as a changelog. `git log` is the only
    history this repository keeps: no dates, no counts of things that can change, no measured figures
@@ -265,8 +266,8 @@ trimmed until it passes.
 
 Every session runs the same five steps, in this order, and **stops**:
 
-1. **Orient in one call** — already done for you in the loop (the driver pipes the pack in with the
-   prompt), `bun nv orient --full` interactively.
+1. **Orient in one call** — already done for you in the loop (looper pipes the pack in with the
+   prompt), `looper orient --full` interactively.
    That is the map, where the work stands, the traps that apply to these files, the shapes you are about to
    write, and the rules this goal lives inside. It is narrowed on purpose: if you find yourself needing
    something it did not print, that is a gap in the goal's `[context]` manifest — say so in the handoff.
@@ -280,8 +281,8 @@ Every session runs the same five steps, in this order, and **stops**:
 
    **The gate is the budget, not a count of slices.** A session pays a fixed cost — orienting, verifying,
    wrapping — that is the same for a three-line slice as for a three-hundred-line one, so small slices over
-   one file set share a session and one hard slice fills it alone. `bun nv loop-stats` reports that fixed
-   cost and where the next session will open; read them there, because this file copies no measured figure.
+   one file set share a session and one hard slice fills it alone. looper's session log (`looper log`)
+   shows that fixed cost; read it there, because this file copies no measured figure.
 3. **Verify what you touched, once, at the end of the group** — `bun nv verify` in the loop, `bun nv
    affected --run` anywhere else, plus whatever the change specifically warrants (a `valgrind` run for a
    new refcount edge). **This is the only place
@@ -295,10 +296,10 @@ Every session runs the same five steps, in this order, and **stops**:
 5. **Commit — one per slice, all after step 3 is green**, staging each slice's own files so `git log`
    still reads a slice at a time. Then you are done.
 
-**Steps 4 and 5 are one call.** Write a single wrap file — plan fields, playbook bullet, handoff, a
-`## commit:` per slice, the status line — and apply it with `bun nv session --wrap <file>`
-(`--help` is the format, `--check` first says what the tree still owes). It applies everything or refuses
-everything, so there is no half-written tail.
+**Steps 4 and 5 are one call.** Write a single wrap file — playbook bullet, handoff, a `## commit:` per
+slice, the status line — and apply it with `looper wrap <file>` (`--template` is the format). It applies
+everything or refuses everything, so there is no half-written tail. A plan field is written before it,
+with `bun nv plan --apply <file>`.
 
 **After step 5, stop.** Do not re-run `cargo build`/`test`/`clippy`/`fmt`, do not re-read the orientation,
 do not re-check a doc against a length. Writing prose cannot break a build, so there is nothing a second
