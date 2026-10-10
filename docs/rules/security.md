@@ -1372,7 +1372,7 @@ about confidentiality rather than structure and a log is an output
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)). Stating both here is what stops a future reader from applying
 one rule's answer to the other axis.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write). Decided in [0088](../decisions/0088.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write). Decided in [0088](../decisions/0088.md).</sub>
 
 <a id="security-launderers-are-sink-named"></a>
 
@@ -2580,9 +2580,24 @@ Nine code points open or close a directional scope: four embedding and override 
 terminator, and three isolate forms closed by another. Two more are marks rather than scopes and are
 **not** covered, because they open nothing and therefore cannot be unterminated.
 
+| Code points | Role | Closed by |
+|---|---|---|
+| U+202A `LRE`, U+202B `RLE`, U+202D `LRO`, U+202E `RLO` | embedding and override, the legacy forms every published exploit uses | U+202C `PDF` |
+| U+2066 `LRI`, U+2067 `RLI`, U+2068 `FSI` | isolate, the forms Unicode recommends | U+2069 `PDI` |
+| U+200E `LRM`, U+200F `RLM` | mark: changes one character's resolved direction and opens no scope | *not covered* |
+
 **A span is rejected when it ends with a scope still open.** Two independent counters, one for
 embeddings and overrides and one for isolates: an opener increments, the matching terminator
-decrements with a floor of zero, and both must be zero at the end of the span.
+decrements with a floor of zero, and both must be zero at the end of the span. A stray terminator
+with no opener closes nothing and opens nothing, so it is accepted.
+
+The attack is Trojan Source: text that renders in an order its bytes do not have, so a reviewer
+approves one program and the compiler builds another. Code review is the control being defeated, and
+the published exploits live in comments and string literals. Identifiers are ASCII-only, which
+closes homoglyph and bidi identifiers structurally; what is left is comments, string literals,
+inline-HTML text and runtime data, and the condition is the same in all four. The line is drawn at
+*unterminated*, not at *present*, the line other compilers draw too, because balanced controls are
+what legitimate Arabic, Hebrew and mixed-direction text uses.
 
 This is deliberately simpler than the full bidirectional algorithm, whose directional status stack has
 interactions the counters flatten. That is correct here because the question is not *how does this
@@ -2591,7 +2606,14 @@ answer soundly. The simplification can only over-approximate towards rejecting, 
 direction. It costs nothing measurable: two counters carried through a walk that happens anyway, no
 allocation and no table lookup.
 
-<sub>See also [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`security/bidi-scope-is-the-whole-target`](security.md#security-bidi-scope-is-the-whole-target), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0087](../decisions/0087.md).</sub>
+**Declined:**
+- **Rejecting the eleven code points outright, terminated or not.** It breaks legitimate
+  mixed-direction literals: an Arabic message interpolating a Latin name needs an isolate to render
+  correctly. It also pushes developers to build such strings by concatenation to get past the check.
+- **The full bidirectional algorithm.** The question is whether a scope is left open, not how the
+  span renders ([`security/bidi-scope-is-the-whole-target`](security.md#security-bidi-scope-is-the-whole-target)).
+
+<sub>See also [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`security/bidi-scope-is-the-whole-target`](security.md#security-bidi-scope-is-the-whole-target), [`errors/record-transformations`](errors.md#errors-record-transformations).</sub>
 
 <a id="security-bidi-boundaries"></a>
 
@@ -2603,8 +2625,12 @@ The predicate has one implementation and several callers. **The lexer is an erro
 string literal, a comment, or an inline-HTML run — and additionally each line inside a multi-line one,
 so a heredoc cannot hide a scope across its lines. A doc comment is that same span and reuses that
 same check rather than growing a second one, so the tools that render one emit text the lexer has
-already accepted. **The sinks substitute**: terminal output and the HTML escape each replace an
-unmatched control with a visible replacement character.
+already accepted. **The sinks substitute**: terminal output, whose span is one `echo` operand or one
+`Core\Cli::write` call, and `Core\Html::escape`, whose span is one call, each replace an unmatched
+control with `�` (U+FFFD). The diagnostic record applies the same predicate once, when a record is
+built, so a log line, a dump and a stack trace carry the same answer into every rendering
+([`errors/record-transformations`](errors.md#errors-record-transformations)). Deciding the rule separately at each caller is how one rule
+acquires several slightly different definitions, so a second copy of the predicate is a bug.
 
 The asymmetry is deliberate. Source is written by a developer who can fix it, and a failed build names
 the file and line; runtime data arrives from outside, where refusing to print it would turn a display
@@ -2616,7 +2642,17 @@ a shorter string.
 exist, and an attribute that switched off a security check would be the first exception this project
 grants.
 
-<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0087](../decisions/0087.md), [0086](../decisions/0086.md), [0137](../decisions/0137.md).</sub>
+**Declined:**
+- **A warning rather than an error at the lexer.** A warning nobody fails a build on is not a
+  control, and the project has no suppression story for spelling rules
+  ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)).
+- **Handling it only in `nvs fmt`.** The formatter is never wired into `nvs check`
+  ([`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style)), so a formatter-only rule is one an attacker's change
+  simply does not run.
+- **Handling it only at the sinks, not in source.** That inverts the severity: the source case is the
+  one with a working exploit against code review, and the runtime cases are display deception.
+
+<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0086](../decisions/0086.md), [0137](../decisions/0137.md).</sub>
 
 <a id="security-bidi-scope-is-the-whole-target"></a>
 
@@ -2627,7 +2663,8 @@ grants.
 Three neighbouring hazards are deliberately outside the check, and saying so is what stops a future
 session from adding a fourth mechanism.
 
-**Zero-width and invisible characters** are not targeted: the false-positive cost is real — one is
+**Zero-width and invisible characters** (U+200B `ZWSP`, U+200C `ZWNJ`, U+200D `ZWJ`, U+2060 `WJ`,
+U+FEFF) are not targeted: the false-positive cost is real — one is
 *required* in Persian, another in Indic scripts and in every multi-codepoint emoji sequence — and with
 identifiers ASCII-only they can no longer make two names look alike. They can pad a string, which is a
 deception with no mechanism behind it. **Homoglyphs** are closed structurally by the ASCII identifier
@@ -2639,7 +2676,7 @@ identifiers by construction, everything else by the predicate. One cost is accep
 editor or diff viewer that does not itself neutralize these controls still misrenders a file *before*
 the compiler sees it, so the check protects the merge and not the reading.
 
-<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/bidi-boundaries`](security.md#security-bidi-boundaries). Decided in [0087](../decisions/0087.md).</sub>
+<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/bidi-boundaries`](security.md#security-bidi-boundaries).</sub>
 
 <a id="security-hash-writes-argon2id-only"></a>
 

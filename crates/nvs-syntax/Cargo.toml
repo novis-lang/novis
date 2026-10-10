@@ -11,7 +11,7 @@ repository.workspace = true
 
 [dependencies]
 nvs-diagnostics.workspace = true
-# ADR 0087's bidi predicate, which the lexer calls per source span. It lives in
+# The `rule:security/bidi-predicate` check, which the lexer calls per source span. It lives in
 # `nvs-render` rather than here because ADR 0092 § 1 makes that crate the leaf
 # both the runtime and the front end depend on, and § 5 routes the rendering's
 # bidi transformation through the same predicate — so the module moved down

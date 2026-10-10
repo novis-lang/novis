@@ -468,7 +468,7 @@ other fragment, and `Markup` keeps its one slot.
   person remembering every time, and an omitted call is exactly the bug this rule closes; escaping
   unless the source opts out with a literal is strictly safer.
 
-<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0133](../decisions/0133.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
 
 <a id="core-classes-html-template"></a>
 
@@ -611,7 +611,7 @@ replacement character. Escaping `<`, `>`, `&` and quotes does nothing about disp
 that rule a bidi payload would survive the auto-escape sink intact. A balanced control is legitimate
 mixed-direction text and passes through.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0133](../decisions/0133.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0133](../decisions/0133.md).</sub>
 
 <a id="core-classes-html-to-source"></a>
 

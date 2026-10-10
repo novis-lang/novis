@@ -15,8 +15,8 @@ doctest = false
 
 # This crate depends on no `nvs-*` crate, and that is the property ADR 0092 § 1
 # asks of it: the model sits below both the runtime and the compiler front end,
-# so every edge to it runs downward. ADR 0087's bidi predicate, which ADR 0092
-# § 5 routes through rather than restating, lives in `src/bidi.rs` for that
+# so every edge to it runs downward. The `rule:security/bidi-predicate` check,
+# which ADR 0092 § 5 routes through rather than restating, lives in `src/bidi.rs` for that
 # reason — it moved down out of `nvs-syntax` when the tier-4 floor became a
 # dependent, and `nvs-syntax` reads it from here now.
 [dependencies]

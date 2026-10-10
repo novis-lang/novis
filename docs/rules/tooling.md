@@ -241,7 +241,7 @@ is the sink's named launderer, performing exactly this table, for the program th
 neutralized form as a value. A `secret` value is refused outright with no carrier bypass
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), because substitution does nothing for confidentiality.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-text-is-the-one-raw-path"></a>
 

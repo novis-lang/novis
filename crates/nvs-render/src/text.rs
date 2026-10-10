@@ -37,8 +37,8 @@ const REPLACEMENT: char = '\u{FFFD}';
 /// `rule:security/bidi-predicate`'s whole point is that banning the characters outright breaks
 /// Arabic and Hebrew.
 ///
-/// The whole string is one span for `rule:security/bidi-predicate`'s purposes, which is that ADR's
-/// *"what a span is, is the caller's decision"*: a record's text node is one
+/// The whole string is one span for `rule:security/bidi-predicate`'s purposes, because what a
+/// span is, is the caller's decision (`rule:security/bidi-boundaries`): a record's text node is one
 /// value, so a scope it opens has the whole of that value to close in.
 ///
 /// # Why a [`Cow`] rather than a `String`
