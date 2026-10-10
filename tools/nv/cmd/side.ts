@@ -6,8 +6,7 @@
 // the main tree, or at `--dir`, when either is missing, after checking the disk has room for a second
 // build on top of `--min-free-gb` (`nv disk`'s `MIN_FREE_GB`). Then, each only when it is missing, it
 // installs the tools' packages there, copies in the git-ignored files a sweep reads, and gives the
-// worktree a copy of the selection store. `bun nv loop --side <slug>` calls `prepare` before it hands
-// over to the worktree's own driver (`driver/side.ts`), and a hook can run it alone.
+// worktree a copy of the selection store. A hook runs it before a side loop starts in the worktree.
 //
 // The copies come from the main tree and are never links, and a file already in the worktree is kept.
 // The selection store is copied the same way (`seedStore`): its footprints name the tree's items and
@@ -86,8 +85,8 @@ export async function prepare(slug: string, main: string, dir: string, minFreeGb
     const made = known.code === 0 ? await git(["worktree", "add", dir, branch]) : await git(["worktree", "add", "-b", branch, dir, "main"]);
     if (made) return made;
   }
-  if (!existsSync(join(dir, "docs", "agent", "goals", "side", `${slug}.md`))) {
-    return `branch \`${sideBranch(slug)}\` has no docs/agent/goals/side/${slug}.md -- commit the side goal on \`main\` before its run starts`;
+  if (!existsSync(join(dir, "docs", "goals", `${slug}.md`))) {
+    return `branch \`${sideBranch(slug)}\` has no docs/goals/${slug}.md -- commit the side goal on \`main\` before its run starts`;
   }
   if (!existsSync(join(dir, "node_modules"))) {
     say("side run: bun install --frozen-lockfile");

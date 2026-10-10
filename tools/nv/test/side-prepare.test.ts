@@ -20,7 +20,7 @@ const git = (cwd: string, ...args: string[]) => run(["git", "-c", "user.name=t",
 async function repo(): Promise<{ main: string; dir: string }> {
   tmp = scratch();
   const main = join(tmp.root, "main");
-  tmp.put("main/docs/agent/goals/side/s.md", "# s\n");
+  tmp.put("main/docs/goals/s.md", "# s\n");
   tmp.put("main/.loop/machine.json", '{"cores":4}\n');
   writeFileSync(join(main, ".gitignore"), ".loop/\n");
   expect((await git(main, "init", "-q", "-b", "main")).code).toBe(0);
@@ -49,7 +49,7 @@ describe("bun nv side --prepare", () => {
     expect(await prepareIn(main, dir, installs)).toBe(0);
     expect((await git(main, "rev-parse", "--verify", "--quiet", "refs/heads/side/s")).code).toBe(0);
     expect((await git(dir, "rev-parse", "--abbrev-ref", "HEAD")).stdout.trim()).toBe("side/s");
-    expect(existsSync(join(dir, "docs/agent/goals/side/s.md"))).toBe(true);
+    expect(existsSync(join(dir, "docs/goals/s.md"))).toBe(true);
     expect(readFileSync(join(dir, ".loop/machine.json"), "utf8")).toBe('{"cores":4}\n');
     for (const d of [".agent-tmp", "fuzz/corpus", "node_modules"]) expect(existsSync(join(dir, d))).toBe(true);
     expect(installs).toEqual([dir]);
