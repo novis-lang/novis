@@ -2,7 +2,6 @@
   "title": "The job queue is two tables in a connection the operator names, converged by an explicit command",
   "status": "shipped",
   "because": [
-    "0145",
     "0187"
   ],
   "seeAlso": [

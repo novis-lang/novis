@@ -40,7 +40,7 @@ var $plan = $schema->planAgainst($db);
 // would print every line below and still fail here.
 echo "steps ", Core\Arr::count($plan->steps()), "\n";
 
-// § 6: the steps arrive in the order they must run, which is the order the
+// `rule:core-classes/schema-plan`: the steps arrive in the order they must run, which is the order the
 // schema declared its tables in.
 uint $at = 0;
 foreach ($plan->steps() as Step $step) {
@@ -55,12 +55,12 @@ foreach ($plan->steps() as Step $step) {
 // A second read answers the same list. Nothing is asked of the database again.
 echo "again ", Core\Arr::count($plan->steps()), "\n";
 
-// § 9: once the steps have run the database matches the schema, and
+// `rule:core-classes/schema-apply-capability`: once the steps have run the database matches the schema, and
 // convergence is an empty array rather than an absence a program tests for.
 $schema->applySafe($db);
 echo "after ", Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
 --FILE nvs.toml--
-# § 9's split: `db.connect` is what planning needs, and `db.schema` is the
+# `rule:core-classes/schema-apply-capability`'s split: `db.connect` is what planning needs, and `db.schema` is the
 # separate grant that lets the last step issue the DDL the plan carries.
 [capabilities.db]
 connect = ["main"]

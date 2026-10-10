@@ -2,12 +2,12 @@
 Core\Db\Schema::fromArray normalizes what it reads, so a sparse array and a differently ordered one answer the same canonical form — `rule:core-classes/schema-is-a-value`
 --FILE--
 <?nvs
-// § 1's canonical form is **ordered**, not merely structural: key order is part
+// `rule:core-classes/schema-is-a-value`'s canonical form is **ordered**, not merely structural: key order is part
 // of an array's value (`rule:expressions/object-identity-equality`), so `toArray` emits tables in name order,
 // columns in declaration order — a `create table` has to reproduce it — and
 // constraints and indexes in name order, since nothing observable depends on
 // the order they were added in. An introspector answering the server's own
-// catalog order would otherwise fail § 5's round trip against a database that
+// catalog order would otherwise fail `rule:core-classes/schema-is-a-value`'s round trip against a database that
 // is not wrong in any way.
 //
 // The normalization happens where a value is *built*, so no member downstream

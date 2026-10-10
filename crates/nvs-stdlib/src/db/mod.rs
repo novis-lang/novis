@@ -481,7 +481,7 @@ const STEP_GRADE_SLOT: &str = "grade";
 /// Where [`STEP_GRADE_SLOT`] sits.
 const STEP_GRADE_AT: usize = 0;
 
-/// A [`STEP`]'s one-sentence reason — § 6's, written by the emitter that graded
+/// A [`STEP`]'s one-sentence reason — `rule:core-classes/schema-plan`'s, written by the emitter that graded
 /// it.
 const STEP_REASON_SLOT: &str = "reason";
 
@@ -495,7 +495,7 @@ const STEP_SQL_SLOT: &str = "sql";
 /// Where [`STEP_SQL_SLOT`] sits.
 const STEP_SQL_AT: usize = 2;
 
-/// Whether a [`STEP`] is § 7's report, carried and never applied.
+/// Whether a [`STEP`] is `rule:core-classes/schema-absence-never-destroys`'s report, carried and never applied.
 const STEP_REPORT_SLOT: &str = "report";
 
 /// Where [`STEP_REPORT_SLOT`] sits.

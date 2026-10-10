@@ -2,7 +2,6 @@
   "title": "The schema vocabulary is five constructs shared by all five backends, with no raw escape hatch",
   "status": "shipped",
   "because": [
-    "0145",
     "0187"
   ],
   "seeAlso": [
@@ -12,6 +11,7 @@
     "core-classes/a-unique-key-reads-nulls-as-distinct"
   ],
   "guardedBy": [
-    "tests/conformance/core/db-schema-refuses-what-the-closed-vocabulary-cannot-say.nvst"
+    "tests/conformance/core/db-schema-refuses-what-the-closed-vocabulary-cannot-say.nvst",
+    "crates/nvs-db/src/schema.rs"
   ]
 }

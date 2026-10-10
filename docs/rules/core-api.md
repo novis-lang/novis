@@ -73,7 +73,7 @@ runtime's: the database drivers, the HTTP client and the crypto primitives are a
   third-party ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), and leaving HTTP, JSON, crypto and dates to
   an ecosystem produces several incompatible implementations of each.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half).</sub>
 
 <a id="core-api-five-placements"></a>
 
@@ -316,7 +316,7 @@ ban reads the suffix as a claim about failure; a suffix that is an ordinary adje
 untouched, which is how `Core\Db\Schema::applySafe` is admitted — it is named for the grade of the steps it
 will run and is the more refusing of the two, not the quiet one.
 
-<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/symmetric-names`](core-api.md#core-api-symmetric-names), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/symmetric-names`](core-api.md#core-api-symmetric-names), [`expressions/try-parse`](expressions.md#expressions-try-parse).</sub>
 
 <a id="core-api-symmetric-names"></a>
 

@@ -21,3 +21,18 @@ A dialect's spelling of a vocabulary construct is graded as that construct, not 
 to be: SQL Server's filtered unique index for a nullable unique key
 (`rule:core-classes/a-unique-key-reads-nulls-as-distinct`) is `Locking` built over an existing table
 and `Safe` inside a `CREATE TABLE`, exactly as the constraint form is on the other dialects.
+
+**SQLite's non-additive alters are a create-copy-drop-rename rebuild, graded `Destructive`
+unconditionally.** Its `ALTER TABLE` adds, renames and drops a column and little else, so anything past
+that copies the table's data, and `Destructive` is the honest grade for a copy. Refusing the rebuild would
+make SQLite second-class in the one place a development machine's SQLite is most useful.
+
+The grader ages upward by design. Servers relax constraints faster than the grade tables track them, so a
+plan over-reports `Locking` on a server new enough to make a step instant.
+
+**Declined:**
+- **Two grades.** Either merge of the middle grade is wrong, as above, and the middle grade is the class
+  that actually causes production incidents.
+- **One emitter per driver rather than per dialect.** MariaDB and MySQL share SQL text exactly and differ
+  only in authentication and error tables, which no DDL reaches. A fifth emitter would be a copy of
+  MySQL's to keep in step.

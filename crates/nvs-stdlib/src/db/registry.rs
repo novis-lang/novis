@@ -1682,11 +1682,11 @@ pub(crate) const IN_LIST: CoreClass = CoreClass {
 /// `rule:core-classes/schema-is-a-value`'s `Core\Db\Schema` — a database schema as a value, in the array form
 /// that is its canonical spelling.
 ///
-/// **Two members here and no builders.** § 1 gives a schema three
+/// **Two members here and no builders.** `rule:core-classes/schema-is-a-value` gives a schema three
 /// interchangeable spellings and no privileged one, and the array form is the
 /// one the other two are defined against — so `fromArray` is the door and
 /// `toArray` is the window, and a typed builder surface would be a second way
-/// to say what this one already says. § 9's `planAgainst`, `applySafe` and
+/// to say what this one already says. `rule:core-classes/schema-apply-capability`'s `planAgainst`, `applySafe` and
 /// `applyIncludingRisky` are the members that do something with the value; they
 /// need a connection and this class needs none.
 pub(crate) const SCHEMA: CoreClass = CoreClass {
@@ -1892,7 +1892,7 @@ const PLAN_STEPS_DOC: MethodDoc = MethodDoc {
 /// `rule:core-classes/schema-plan`'s step — one difference, its grade, the sentence explaining the
 /// grade, and the SQL that makes it.
 ///
-/// **Four readers over four slots and no `change()`.** § 2's vocabulary is
+/// **Four readers over four slots and no `change()`.** `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary is
 /// closed and a [`nvs_db::Change`] is closed with it, so exposing the change
 /// itself would mean a Novis class per variant — a surface that grows with the
 /// vocabulary and that no caller of this member needs, since what a program

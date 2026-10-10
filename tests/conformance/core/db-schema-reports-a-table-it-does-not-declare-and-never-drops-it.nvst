@@ -4,7 +4,7 @@ A table the schema value does not declare is reported with the SQL that would dr
 <?nvs
 // covers: Core\Db\Schema::applySafe
 // covers: Core\Db\Schema::applyIncludingRisky
-// § 7's rule is that absence never destroys, because a database an application
+// `rule:core-classes/schema-absence-never-destroys`'s rule is that absence never destroys, because a database an application
 // shares with a queue, a reporting view and whatever an operator put there is
 // the ordinary case rather than the exception. So the difference is *shown*,
 // in full, and left alone.
@@ -40,7 +40,7 @@ foreach ($schema->planAgainst($db)->steps() as Step $step) {
         } else {
             echo "report is something else\n";
         }
-        // § 8: a step Novis will not apply is still a step Novis shows in
+        // `rule:core-classes/schema-plan`: a step Novis will not apply is still a step Novis shows in
         // full, because the deployment that cannot issue DDL hands the plan to
         // a person.
         if (Core\Str::contains(Core\Str::lower($step->sql()), "drop table")) {
@@ -58,7 +58,7 @@ foreach ($schema->planAgainst($db)->steps() as Step $step) {
 echo "reports ", $reports, "\n";
 
 // Neither entry point touches it — accepting risk is not accepting data loss,
-// which is why "risky" is about grades and not about § 7.
+// which is why "risky" is about grades and not about `rule:core-classes/schema-absence-never-destroys`.
 $schema->applySafe($db);
 $schema->applyIncludingRisky($db);
 echo "legacy rows ", $db->query("select id from legacy", [])->count(), "\n";

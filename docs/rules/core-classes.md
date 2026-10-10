@@ -1118,7 +1118,7 @@ at run time does not run until the operator adds a `db.open` grant.
   can get into that zone's DNS, which is what the pinned address of
   [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address) exists to bound.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults). Decided in [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults).</sub>
 
 <a id="core-classes-db-safe-connection-defaults"></a>
 
@@ -1361,7 +1361,7 @@ same predicate a request does, so the two cannot disagree about a pattern.
   can only be a developer-machine mode; a schema read off a live server into a file
   ([`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection)) is the cache it would read.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments).</sub>
 
 <a id="core-classes-db-column-types"></a>
 
@@ -1412,7 +1412,7 @@ used twice rather than two to keep in step.
 - **A named zone sent to the server.** Named zones need MySQL's zone tables populated, which they
   usually are not, so the zone is sent as a numeric offset.
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="core-classes-db-streaming"></a>
 
@@ -1630,7 +1630,13 @@ own spelling of a default are each normalized out on both sides. The acceptance 
 property — apply a schema, introspect it back, and the resulting plan is **empty**, on all five
 backends. Every normalization rule exists because that property failed without it.
 
-<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`types/arrays`](types.md#types-arrays). Decided in [0145](../decisions/0145.md).</sub>
+A schema is `Core` by the placement tests ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). Introspection reads a pooled
+connection the host owns, which a guest re-created per request cannot hold. DDL is a sink its identifiers
+reach unparameterized, and only a `Core` member whose contract names a sink may judge that. And two copies
+would otherwise exist: the job queue's own tables and every framework or application that hand-rolls the
+same job.
+
+<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="core-classes-schema-vocabulary-is-closed"></a>
 
@@ -1640,7 +1646,10 @@ backends. Every normalization rule exists because that property failed without i
 
 The vocabulary is tables, columns, primary keys, unique constraints and indexes — the constructs all
 five backends genuinely share. A column carries a name, a type, nullability, a default, and whether
-it is the table's **identity**, which every backend has and spells differently. A unique constraint
+it is the table's **identity**, which every backend has and spells differently. Identity is in because
+it meets the admission test exactly: every backend has it, it is introspectable, and no schema anybody
+writes fits a vocabulary in which a table cannot have an `id`. It carries the three rules the five
+spellings share: an integer type, at most one per table, and a member of the primary key. A unique constraint
 is the canonical spelling of uniqueness, so an index in the vocabulary is never unique: admitting
 both would make one schema expressible two ways. Its nulls are distinct on every backend
 ([`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct)), which is a property of the vocabulary and
@@ -1665,7 +1674,23 @@ to mean a construct that is in the vocabulary — SQLite's `CREATE UNIQUE INDEX`
 a constraint, SQL Server's filtered index for a nullable unique key — and the introspector reads that
 spelling back as the construct it stands for.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0187](../decisions/0187.md).</sub>
+The vocabulary grows only when a construct exists on **all five backends** *and* something concrete
+needs it, never because a release note appeared. Foreign keys are the exclusion most likely to be lifted,
+and they are harder than they look: the backends agree on the syntax and disagree on the behaviour.
+SQLite enforces them only under a pragma, adding one is `Locking` because the server validates existing
+rows, and several backends create an implicit index for one, which is the normalization trap the
+empty-plan property has to survive. They come in once that property holds on all five without them.
+
+Identifiers are **validated, never delimited**: a table or column name that is not a plain identifier is
+refused where it enters a schema value, by the same judgement `Core\Db::quoteIdentifier` makes, and is
+never escaped into safety by a second answer.
+
+**Declined:**
+- **A raw SQL fragment inside a schema value.** It is the one change that would let the vocabulary cover
+  everything, and it ends the diff's totality: a plan over an opaque fragment is best-effort, and every
+  guarantee above becomes a hedge.
+
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-a-unique-key-reads-nulls-as-distinct"></a>
 
@@ -1731,7 +1756,20 @@ changes and fleet locking stay a blocked gap in the first-party framework
 stops there deliberately: every one of those open questions is a question convergence does not have
 to answer.
 
-<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0145](../decisions/0145.md).</sub>
+Planning is not on the request path in any expected deployment: it is an operator's act, issuing a
+handful of catalog queries rather than one per table.
+
+**Memory:** introspection holds the catalog rows of the tables under comparison, which is O(schema) and
+never O(data), and a plan holds each step's SQL as text. Both are bounded by the schema's size and freed
+with the request. Nothing is cached across requests, because a plan computed from a stale catalog is the
+failure convergence exists to remove.
+
+**Declined:**
+- **Versioned migrations with a history table.** They need ordering, locking, a runner, reversibility and
+  a source of truth inside the target database, and they are wrong after any change the history table did
+  not record. Convergence needs none of it and is correct against a database it has never seen.
+
+<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner).</sub>
 
 <a id="core-classes-schema-introspection"></a>
 
@@ -1754,7 +1792,11 @@ anyway, and the introspector must exist for the diff regardless — so a parser 
 worse implementation of a job already done. Offline `.sql` input, if it is ever wanted, is a separate
 tool with its own decision.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md).</sub>
+**Declined:**
+- **Parsing `CREATE TABLE` to read an existing database.** It means four vendors' DDL grammars, maintained
+  forever, to reproduce what the catalog already gives as rows.
+
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges).</sub>
 
 <a id="core-classes-schema-plan"></a>
 
@@ -1786,7 +1828,22 @@ to be: SQL Server's filtered unique index for a nullable unique key
 ([`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct)) is `Locking` built over an existing table
 and `Safe` inside a `CREATE TABLE`, exactly as the constraint form is on the other dialects.
 
-<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0187](../decisions/0187.md).</sub>
+**SQLite's non-additive alters are a create-copy-drop-rename rebuild, graded `Destructive`
+unconditionally.** Its `ALTER TABLE` adds, renames and drops a column and little else, so anything past
+that copies the table's data, and `Destructive` is the honest grade for a copy. Refusing the rebuild would
+make SQLite second-class in the one place a development machine's SQLite is most useful.
+
+The grader ages upward by design. Servers relax constraints faster than the grade tables track them, so a
+plan over-reports `Locking` on a server new enough to make a step instant.
+
+**Declined:**
+- **Two grades.** Either merge of the middle grade is wrong, as above, and the middle grade is the class
+  that actually causes production incidents.
+- **One emitter per driver rather than per dialect.** MariaDB and MySQL share SQL text exactly and differ
+  only in authentication and error tables, which no DDL reaches. A fifth emitter would be a copy of
+  MySQL's to keep in step.
+
+<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-schema-absence-never-destroys"></a>
 
@@ -1810,9 +1867,14 @@ no `allowDrops` and no strict mode: the escape hatch is the SQL the plan already
 A report is a step the plan carries and never applies, which is what keeps `applySafe` usable at all:
 every plan against a shared database holds reports, and a rule reading *every* step's grade would
 refuse every plan ever computed against a real database. `applySafe` reads the grades of the steps it
-would run.
+would run. Reports are still counted, printed and given complete SQL: a report the plan did not show
+would be worse than one it will not apply.
 
-<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md).</sub>
+**Declined:**
+- **Dropping what the schema value omits, behind a flag or a strict mode.** Such a flag is correct only
+  when the application owns the entire database, so its use anywhere else is a data-loss bug.
+
+<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="core-classes-schema-apply-capability"></a>
 
@@ -1833,7 +1895,14 @@ step it would run is not `Safe`, and throws naming the first that is not.
 **`applyIncludingRisky()`** says so where it is written, so a reviewer reading the call sees the
 claim being made. `nvs schema plan|apply|dump` is the operator's spelling of the same thing.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md).</sub>
+**Declined:**
+- **`applySafe` as the only entry point.** A tool that cannot express a risky change is a tool operators
+  stop using, and they then hand-write the risky change with no grade at all. Naming the risk at the call
+  site is stronger than refusing to have one.
+- **One apply member with a `{risky: true}` option.** The option hides the claim inside an anonymous
+  object, where the member's name puts it in front of the reviewer.
+
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="core-classes-derive-attribute"></a>
 
@@ -2153,7 +2222,7 @@ application's primary database, and that cost is the reason `[queue] connection`
 - **Creating the tables at boot or on first use.** DDL is a privileged act an operator takes, never one
   a running server takes on its own.
 
-<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0145](../decisions/0145.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-session-is-started-explicitly"></a>
 

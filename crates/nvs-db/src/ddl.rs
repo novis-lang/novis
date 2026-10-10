@@ -1,7 +1,7 @@
 //! `rule:core-classes/schema-plan`'s DDL: a [`Schema`] value as SQL an operator could paste.
 //!
 //! Every statement this module returns is **complete, terminated and
-//! dialect-correct**, including the ones the applier will refuse to run. § 8's
+//! dialect-correct**, including the ones the applier will refuse to run. `rule:core-classes/schema-plan`'s
 //! whole argument for that is the deployment where the application's own
 //! credentials cannot issue DDL at all and a DBA runs the change from a ticket:
 //! a plan whose risky steps are elided into "3 unsafe changes" is useless to
@@ -10,7 +10,7 @@
 //! # Two halves: the whole table, and one change to it
 //!
 //! [`create_table`] writes a table that does not exist yet, and [`step`]
-//! answers one [`Change`] to a table that does — with its SQL, its § 6 grade
+//! answers one [`Change`] to a table that does — with its SQL, its `rule:core-classes/schema-plan` grade
 //! and the sentence that justifies the grade, which are one dialect's three
 //! answers to the same reading and are computed together for that reason.
 //! [`crate::plan`] holds the vocabulary and no SQL at all.
@@ -25,7 +25,7 @@
 //!
 //! # The SQL is the dialect's, and the grade is the server's
 //!
-//! § 6 keys a grade on driver **and** server version, so [`step_on`] takes a
+//! `rule:core-classes/schema-plan` keys a grade on driver **and** server version, so [`step_on`] takes a
 //! [`Server`] beside the dialect: the family and the version a connection's
 //! handshake already reported. Only the grade reads it, and only where a version
 //! changes the cost — adding a column with a default. A plan built with no
@@ -58,13 +58,13 @@
 //!
 //! Each of these is one dialect's rule rather than a shape this emitter has
 //! not written: the statement a dialect can say is the statement it emits, and
-//! what that costs the round-trip is § 5's reading rather than a spelling to
+//! what that costs the round-trip is `rule:core-classes/schema-is-a-value`'s reading rather than a spelling to
 //! invent here.
 //!
 //! - **SQL Server cannot index an unbounded text or bytes column at all** — a
 //!   `MAX` type is not a key column there. The statement is still emitted,
-//!   because § 8 says a step is shown in full even when it will not run, and
-//!   § 5's grading is where it becomes a refusal rather than a failure.
+//!   because `rule:core-classes/schema-plan` says a step is shown in full even when it will not run, and
+//!   `rule:core-classes/schema-plan`'s grading is where it becomes a refusal rather than a failure.
 //! - **MySQL bounds an index key, so a wide column is indexed by a prefix of
 //!   it.** InnoDB admits 3072 bytes of one key where the vocabulary's text
 //!   widths are characters, so the columns of an index share that budget and a
@@ -75,8 +75,8 @@
 //!   stricter than the schema asked for, which is [`crate::schema`]'s own
 //!   argument for refusing an unbounded column in any key at all. So a unique
 //!   or primary key over a *bounded* column wider than the budget is emitted
-//!   whole and MySQL refuses it, exactly as the SQL Server case above: § 8
-//!   shows the step in full, and § 5's grading is where a statement the server
+//!   whole and MySQL refuses it, exactly as the SQL Server case above: `rule:core-classes/schema-plan`
+//!   shows the step in full, and `rule:core-classes/schema-plan`'s grading is where a statement the server
 //!   will not take becomes a refusal rather than a failure. Nothing grades
 //!   that one yet.
 //! - **A SQL Server unique key over a nullable column is a filtered index**,
@@ -95,13 +95,13 @@
 //!   one written into a `CREATE TABLE` is a constraint the catalog reports
 //!   under an `sqlite_autoindex_…` name the schema never gave it. [`add_key`]
 //!   takes the index form deliberately, and the two paths reaching the same
-//!   catalog by different spellings is § 5's input.
+//!   catalog by different spellings is `rule:core-classes/schema-is-a-value`'s input.
 //! - **SQLite's declared types carry affinity, and some of them convert.** A
 //!   `JSON` or `DECIMAL` column has NUMERIC affinity, so a document that is a
 //!   bare number and an exact decimal with trailing zeros are stored as
 //!   numbers. That is the SQLite driver's binding question, answered in
 //!   [`crate::sqlite`] where `DECIMAL`'s already is, and not by choosing a
-//!   different declared type here, which would only move the cost into § 5's
+//!   different declared type here, which would only move the cost into `rule:core-classes/schema-is-a-value`'s
 //!   normalisation (`crate::plan`'s `stored_as`).
 //! - **A SQL Server default is a constraint with a name of the server's own**,
 //!   so a change to one is not an `ALTER COLUMN` — that carries a type and a
@@ -274,7 +274,7 @@ fn create_index(table: &Table, key: &Key, dialect: Dialect) -> String {
 /// The SQL type `ty` is written as in `dialect`.
 ///
 /// The spelling is **SQL's and never the canonical one**:
-/// [`ScalarType`]'s `Display` is § 1's array form — `int64`, `text(200)` — and
+/// [`ScalarType`]'s `Display` is `rule:core-classes/schema-is-a-value`'s array form — `int64`, `text(200)` — and
 /// a canonical spelling reaching a statement would be a schema file's syntax in
 /// a server's parser. Every case here is upper case, which is what
 /// `every_construct_in_the_vocabulary_emits_in_all_four_dialects` asserts
@@ -322,7 +322,7 @@ fn postgres_type(ty: &ScalarType) -> String {
 /// `BOOLEAN` is not written here even though MySQL accepts it, because MySQL's
 /// `BOOLEAN` *is* `TINYINT(1)` in the catalog and
 /// `rule:core-classes/db-column-types` reads a `TINYINT(1)` as an `int`.
-/// A column written as a boolean that introspects as an integer is § 5's empty
+/// A column written as a boolean that introspects as an integer is `rule:core-classes/schema-is-a-value`'s empty
 /// plan failing at the first `dump`. `CHAR(36)` for a UUID is the other
 /// direction of the same trade and it is unavoidable: MySQL has no UUID type,
 /// and `BINARY(16)` reads back as `bytes`.
@@ -357,7 +357,7 @@ fn mysql_type(ty: &ScalarType) -> String {
 /// That is not decoration. `pragma table_info` reports the declared name back
 /// verbatim, so writing `TIMESTAMPTZ` for an [`ScalarType::Instant`] — a type
 /// SQLite has no idea about — is what lets stage 4 read the same value back and
-/// § 5's plan be empty. The one place it cannot help is binary: `BLOB` is the
+/// `rule:core-classes/schema-is-a-value`'s plan be empty. The one place it cannot help is binary: `BLOB` is the
 /// only storage class there is, so both [`ScalarType::Bytes`] widths collapse
 /// into it exactly as PostgreSQL's `BYTEA` does.
 fn sqlite_type(ty: &ScalarType) -> String {
@@ -456,7 +456,7 @@ fn identity(dialect: Dialect) -> Option<&'static str> {
 ///
 /// [`ScalarType::Uint`]'s own doc states the rule this implements: the other
 /// three take the next width up, which leaves the negative half of that width
-/// admissible, and the check is what closes it. It is not one of § 11's
+/// admissible, and the check is what closes it. It is not one of `rule:core-classes/schema-vocabulary-is-closed`'s
 /// excluded check constraints — those are a construct a schema could *ask* for,
 /// and this is a type's own spelling on a backend that lacks the type.
 fn unsigned_check(column: &Column, dialect: Dialect) -> Option<String> {
@@ -570,7 +570,7 @@ fn mysql_prefix(ty: &ScalarType, share: u32) -> Option<u32> {
 /// identity inside a composite key has no SQLite spelling at all.
 ///
 /// `pub(crate)` for [`crate::plan::diff`], which needs the same predicate for
-/// the opposite reason: the width this form erases is § 5's to normalise out
+/// the opposite reason: the width this form erases is `rule:core-classes/schema-is-a-value`'s to normalise out
 /// of a comparison, and a second reading of when SQLite writes a rowid would
 /// be a second answer to drift from this one.
 pub(crate) fn rowid_identity(table: &Table, dialect: Dialect) -> Option<&Ident> {
@@ -612,7 +612,7 @@ pub(crate) fn literal(default: &ColumnDefault, ty: &ScalarType, dialect: Dialect
             (_, true) => "1".to_owned(),
             (_, false) => "0".to_owned(),
         },
-        // The one spelling all five share, which is why § 2's closed set has a
+        // The one spelling all five share, which is why `rule:core-classes/schema-vocabulary-is-closed`'s closed set has a
         // case for it rather than an expression — with the one exception this
         // function's doc argues.
         ColumnDefault::Now => match (dialect, ty) {
@@ -679,12 +679,12 @@ fn quoted(text: &str, dialect: Dialect) -> String {
 /// The step that makes `change` in `dialect`: its SQL, its grade and the
 /// reason for that grade.
 ///
-/// This is the only place a [`Step`] is built, because § 6 puts the grade in
+/// This is the only place a [`Step`] is built, because `rule:core-classes/schema-plan` puts the grade in
 /// the dialect emitter: the same change is not the same risk on two backends,
 /// and the two answers are computed from the same reading of the change.
 ///
 /// **The SQL is complete and terminated even when the step is a report** — a
-/// [`Change::is_report`] is § 7's "carried and never applied", not "carried
+/// [`Change::is_report`] is `rule:core-classes/schema-absence-never-destroys`'s "carried and never applied", not "carried
 /// and summarised".
 #[must_use]
 pub fn step(change: Change, dialect: Dialect) -> Step {
@@ -1065,7 +1065,7 @@ fn sqlite_rebuilds(change: &Change, dialect: Dialect) -> bool {
         }
 }
 
-/// § 6's grade for `change` in `dialect`, and the sentence an operator reads
+/// `rule:core-classes/schema-plan`'s grade for `change` in `dialect`, and the sentence an operator reads
 /// instead of taking our word for it.
 fn grade_of(change: &Change, dialect: Dialect, server: Option<Server>) -> (Grade, String) {
     let (grade, reason) = base_grade(change, server);
@@ -1084,7 +1084,7 @@ fn grade_of(change: &Change, dialect: Dialect, server: Option<Server>) -> (Grade
 
 /// The grade every dialect agrees on, before SQLite's rebuild is considered.
 ///
-/// The version-keyed half of § 6 is the one place `server` is read: adding a
+/// The version-keyed half of `rule:core-classes/schema-plan` is the one place `server` is read: adding a
 /// column with a default is instant on PostgreSQL 11+, MySQL 8.0.12+ and
 /// MariaDB 10.3.2+ and a full table rewrite on anything older. With no server,
 /// or one [`Server::adds_a_default_in_place`] does not vouch for, it grades up,
@@ -1188,7 +1188,7 @@ fn base_grade(change: &Change, server: Option<Server>) -> (Grade, &'static str) 
 
 /// Whether every value of `from` fits in `to`.
 ///
-/// Conservative on purpose, and the default arm is § 6's grade-up rule: a pair
+/// Conservative on purpose, and the default arm is `rule:core-classes/schema-plan`'s grade-up rule: a pair
 /// this has no rule for is *not* a widening, which makes the change
 /// destructive and costs an operator a confirmation. The reverse mistake costs
 /// them the column. Nothing here crosses type families — an integer into a
@@ -1918,7 +1918,7 @@ mod tests {
 
         let filtered = add_unique(&table, 0, Dialect::SqlServer);
         assert_eq!(filtered.sql(), [FILTERED]);
-        // § 6 grades the dialect's spelling as the construct: an index built
+        // `rule:core-classes/schema-plan` grades the dialect's spelling as the construct: an index built
         // over a table that already holds rows is what a constraint costs
         // there, and no more.
         assert_eq!(filtered.grade(), Grade::Locking);
@@ -2004,7 +2004,7 @@ mod tests {
     /// One change of every variant the vocabulary has, including every shape
     /// of `AddColumn` and both ends of a type change.
     ///
-    /// The § 7 reports among them — a dropped table, column, unique key and
+    /// The `rule:core-classes/schema-absence-never-destroys` reports among them — a dropped table, column, unique key and
     /// index — are here rather than in a fixture of their own because the
     /// property under test is that they are written in full *alongside* the
     /// steps that will run.
@@ -2071,7 +2071,7 @@ mod tests {
         ]
     }
 
-    /// § 8: every step's SQL is complete, terminated and dialect-correct — and
+    /// `rule:core-classes/schema-plan`: every step's SQL is complete, terminated and dialect-correct — and
     /// the four steps the applier refuses are written out in the same detail
     /// as the eight it would run.
     ///
@@ -2140,7 +2140,7 @@ mod tests {
                 );
             }
 
-            // § 7's four reports, each Destructive, each written out in full.
+            // `rule:core-classes/schema-absence-never-destroys`'s four reports, each Destructive, each written out in full.
             let reports: Vec<&Step> = plan
                 .steps()
                 .iter()
@@ -2299,7 +2299,7 @@ mod tests {
         }
     }
 
-    /// § 6's `Safe`, which is the only grade `applySafe` will run unasked.
+    /// `rule:core-classes/schema-plan`'s `Safe`, which is the only grade `applySafe` will run unasked.
     ///
     /// All four agree, SQLite included: a nullable column with no default is
     /// the one add that dialect can express as an alter ([`sqlite_can_add`]),
@@ -2402,7 +2402,7 @@ mod tests {
         );
     }
 
-    /// § 6's `Locking`, at the case that gives the grade its name: a unique key
+    /// `rule:core-classes/schema-plan`'s `Locking`, at the case that gives the grade its name: a unique key
     /// is validated against every row that is already there.
     ///
     /// Both kinds, because an index earns the same grade for the *other* half
@@ -2446,12 +2446,12 @@ mod tests {
         }
     }
 
-    /// § 6's `Locking` at its other end: `NOT NULL` is checked against every
+    /// `rule:core-classes/schema-plan`'s `Locking` at its other end: `NOT NULL` is checked against every
     /// existing row and fails on the first null, whether it arrives as a new
     /// column or as a tightening of one already there.
     ///
     /// SQLite grades *up* rather than down, and the two claims are one test
-    /// because that is the whole shape of § 6 — the same change is not the same
+    /// because that is the whole shape of `rule:core-classes/schema-plan` — the same change is not the same
     /// risk on two backends. It can express neither of these as an alter, so
     /// both are a create-copy-drop-rename and `Destructive` unconditionally.
     #[test]
@@ -2492,8 +2492,8 @@ mod tests {
         }
     }
 
-    /// § 6's `Destructive` at the two changes that reach it for different
-    /// reasons: one because § 7 makes every removal a report, one because the
+    /// `rule:core-classes/schema-plan`'s `Destructive` at the two changes that reach it for different
+    /// reasons: one because `rule:core-classes/schema-absence-never-destroys` makes every removal a report, one because the
     /// new type does not hold every value the old one did.
     ///
     /// The pair also separates the grade from the report: they share a grade
@@ -2526,7 +2526,7 @@ mod tests {
         }
     }
 
-    /// § 6's version-keyed half, as the claim that a grade is the *server's*
+    /// `rule:core-classes/schema-plan`'s version-keyed half, as the claim that a grade is the *server's*
     /// and not the loaded driver's.
     ///
     /// Adding a column with a default is a catalog write on PostgreSQL 11+,
@@ -2631,7 +2631,7 @@ mod tests {
         assert_eq!(read(Driver::MySql, "unknown"), None);
     }
 
-    /// § 6's grade-up rule, at both places it is spent.
+    /// `rule:core-classes/schema-plan`'s grade-up rule, at both places it is spent.
     ///
     /// [`Grade::up_to`] is the operation, and what it must be is a maximum over
     /// the three — asserted over the whole nine-pair table rather than on a

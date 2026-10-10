@@ -1,12 +1,12 @@
 //! `rule:core-classes/schema-introspection`'s catalog readers: the SQL that reads a database back, per dialect.
 //!
-//! § 4 refuses a DDL parser at every tier, so the reverse direction of
+//! `rule:core-classes/schema-introspection` refuses a DDL parser at every tier, so the reverse direction of
 //! [`crate::ddl`] is **live introspection** — `pg_catalog` for PostgreSQL,
 //! `information_schema` for MySQL, MariaDB and SQL Server, and
 //! `sqlite_master` with the `pragma_*` table-valued functions for SQLite. This
 //! module is the text half of that and holds no rows: [`query`] answers one
 //! statement, `nvs-stdlib` issues it over a connection the program already has
-//! (§ 9 makes planning an ordinary read under `db.connect`), [`scalar_type`]
+//! (`rule:core-classes/schema-apply-capability` makes planning an ordinary read under `db.connect`), [`scalar_type`]
 //! and [`column_default`] read the two spellings in that row back into the
 //! vocabulary, and [`assemble`] turns the two reads' rows into one
 //! [`Schema`].
@@ -39,7 +39,7 @@
 //!   `INFORMATION_SCHEMA.COLUMNS` like MySQL's, which is what
 //!   `postgres_reads_pg_catalog_and_the_others_read_information_schema`
 //!   asserts.
-//! - **An index outside § 11's vocabulary is not reported at all.** A partial
+//! - **An index outside `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary is not reported at all.** A partial
 //!   or expression index is dropped — by `indexprs`/`indpred` on PostgreSQL,
 //!   `partial` and a null `pragma_index_info` name on SQLite, and a null
 //!   `column_name` on MySQL, each in the statement itself. A [`Schema`] cannot
@@ -60,7 +60,7 @@
 //!   together, and only the assembly holds both.
 //! - **The read is one schema deep.** A PostgreSQL search path with two
 //!   schemas on it, or a SQL Server object under a schema other than the
-//!   login's default, is out of view. § 11 has no cross-schema construct, so
+//!   login's default, is out of view. `rule:core-classes/schema-vocabulary-is-closed` has no cross-schema construct, so
 //!   there is nothing in the vocabulary to lose.
 //!
 //! # Nothing here binds a parameter
@@ -317,7 +317,7 @@ ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION";
 /// SQL Server's key columns, and the one statement here that reaches `sys`.
 ///
 /// `INFORMATION_SCHEMA` has `TABLE_CONSTRAINTS` and `KEY_COLUMN_USAGE` and no
-/// view over indexes at all, so a plain non-unique index — which § 11 very much
+/// view over indexes at all, so a plain non-unique index — which `rule:core-classes/schema-vocabulary-is-closed` very much
 /// has — is unreadable there. `type IN (1, 2)` keeps clustered and nonclustered
 /// b-trees and drops the heap, the XML, spatial and columnstore forms, and an
 /// included column is not a key column.
@@ -417,7 +417,7 @@ WHERE m.type = 'table'
 ORDER BY 1, 2, 4"#;
 
 /// The [`ScalarType`] a server's own type spelling names, or `None` for a
-/// spelling § 11's vocabulary has not got.
+/// spelling `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary has not got.
 ///
 /// This is the reverse of [`crate::ddl::column_type`] and **not** of
 /// [`ScalarType::from_spelling`]: that reader takes this vocabulary's own
@@ -437,12 +437,12 @@ ORDER BY 1, 2, 4"#;
 /// neither side can hold is missing from both. Nothing here parses SQL: it is
 /// a closed table of names per dialect, exactly as
 /// [`ScalarType::from_spelling`] is a closed table over the canonical ones,
-/// and § 4 refuses the alternative at every tier.
+/// and `rule:core-classes/schema-introspection` refuses the alternative at every tier.
 ///
 /// # The map is not injective, and these are the choices it makes
 ///
 /// The emitter writes one spelling for two types in the places below, so
-/// reading is a choice — and every one of them is normalised out of § 5's
+/// reading is a choice — and every one of them is normalised out of `rule:core-classes/schema-is-a-value`'s
 /// comparison by `crate::plan`'s `stored_as`, which folds the *declared* side
 /// through [`crate::ddl::column_type`] and this function before the diff. The
 /// choices are therefore what a round trip settles on rather than a loss:
@@ -669,14 +669,14 @@ fn sqlserver_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
 }
 
 /// The [`ColumnDefault`] a server's own default expression names, or `None`
-/// for one § 2's closed set cannot hold.
+/// for one `rule:core-classes/schema-vocabulary-is-closed`'s closed set cannot hold.
 ///
 /// The reverse of `literal` in [`crate::ddl`], and **type-directed** in the
 /// same way that function is: `1` is a `bool` on a `bool` column and an
 /// integer on an integer one, and `CURRENT_TIMESTAMP` is
 /// [`ColumnDefault::Now`] only where a timestamp could be stored. Reading it
 /// any other way would need to know what the server meant, which is the
-/// question § 4 refuses to answer with a parser.
+/// question `rule:core-classes/schema-introspection` refuses to answer with a parser.
 ///
 /// The wrappers below are the server's and never an emitter's, and each is
 /// removed before the literal is read:
@@ -709,9 +709,9 @@ fn sqlserver_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
 ///
 /// `None` is the answer for an expression default — `nextval(…)`,
 /// `uuid_generate_v4()`, a string with an escape this vocabulary does not
-/// write — because § 2's set is closed and an expression is the value a server
+/// write — because `rule:core-classes/schema-vocabulary-is-closed`'s set is closed and an expression is the value a server
 /// is most likely to spell back differently. A default read as `None` costs a
-/// spurious step in § 5's plan; a default read *wrongly* costs a plan that
+/// spurious step in `rule:core-classes/schema-is-a-value`'s plan; a default read *wrongly* costs a plan that
 /// says nothing needs doing when it does, and only one of those is recoverable
 /// by looking at the plan. What the assembly does with a `None` is its own
 /// doc's business, not this function's.
@@ -954,7 +954,7 @@ pub struct IndexRow {
 /// they arrive in, which is the order every statement's `ORDER BY` fixes —
 /// `every_catalog_query_orders_the_rows_the_assembly_walks` is that agreement,
 /// and normalising two schemas that list one table's indexes in two orders is
-/// § 5's job rather than this function's.
+/// `rule:core-classes/schema-is-a-value`'s job rather than this function's.
 ///
 /// # What is refused, and what is merely dropped
 ///
@@ -1371,7 +1371,7 @@ mod tests {
         );
         // The unique constraint is an autoindex whose name SQLite minted, and
         // the plain index kept the name the schema gave it — gap 5 of
-        // `crate::ddl`'s own doc, and § 5's to normalise rather than this
+        // `crate::ddl`'s own doc, and `rule:core-classes/schema-is-a-value`'s to normalise rather than this
         // module's to hide.
         let unique: Vec<_> = keys
             .iter()
@@ -1476,7 +1476,7 @@ mod tests {
         }
     }
 
-    /// Every family in § 11's vocabulary, with both sides of every width and
+    /// Every family in `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary, with both sides of every width and
     /// parameter the reverse map has to choose between.
     fn every_type() -> Vec<ScalarType> {
         vec![
@@ -1560,7 +1560,7 @@ mod tests {
     /// The server is left out and nothing is lost by that: what a server can
     /// answer for a column is what [`scalar_type`] makes of the string
     /// [`ddl::column_type`] wrote, so this composition is the round trip
-    /// itself. It is the half of § 5's acceptance criterion that needs no
+    /// itself. It is the half of `rule:core-classes/schema-is-a-value`'s acceptance criterion that needs no
     /// container, and the one that covers every type rather than a fixture's
     /// selection; that a server really does answer these words back is
     /// [`an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite`] and
@@ -1637,7 +1637,7 @@ mod tests {
         assert_eq!(scalar_type("bit(1)", Dialect::PostgreSql), None);
         assert_eq!(scalar_type("boolean", Dialect::MySql), None);
 
-        // Refusals: a type outside § 11, a precision no vocabulary decimal can
+        // Refusals: a type outside `rule:core-classes/schema-vocabulary-is-closed`, a precision no vocabulary decimal can
         // carry, a zero width, and text that is not a type at all.
         for (spelling, dialect) in [
             ("hstore", Dialect::PostgreSql),
@@ -1654,7 +1654,7 @@ mod tests {
         }
     }
 
-    /// § 2's own name for a default, by a match with no wildcard: a case added
+    /// `rule:core-classes/schema-vocabulary-is-closed`'s own name for a default, by a match with no wildcard: a case added
     /// to [`ColumnDefault`] stops this compiling.
     fn case(default: &ColumnDefault) -> &'static str {
         match default {
@@ -1669,7 +1669,7 @@ mod tests {
         }
     }
 
-    /// Every case of § 2's closed set, on a type it fits, with the text values
+    /// Every case of `rule:core-classes/schema-vocabulary-is-closed`'s closed set, on a type it fits, with the text values
     /// that carry an escape.
     fn every_default() -> Vec<(ColumnDefault, ScalarType)> {
         vec![
@@ -1710,7 +1710,7 @@ mod tests {
     ///
     /// A round trip again rather than a table of expected texts, and here the
     /// equality is exact — unlike a type, a default has no choice to make, so
-    /// anything but the value that went in is a normalisation § 5 would have
+    /// anything but the value that went in is a normalisation `rule:core-classes/schema-is-a-value` would have
     /// to invent to hide.
     ///
     /// [`ColumnDefault::Opaque`] is not swept, and cannot be: nothing emits it,
@@ -1985,7 +1985,7 @@ mod tests {
     /// index, a nullable column and both kinds of default.
     ///
     /// It carries **no `uint` and no bounded `bytes`**, the families where what
-    /// comes back depends on which server answered. Those are § 5's
+    /// comes back depends on which server answered. Those are `rule:core-classes/schema-is-a-value`'s
     /// normalisation to absorb rather than this fixture's to demonstrate, and
     /// they are asserted where the normalisation is: over every dialect by
     /// [`every_type_read_back_off_its_own_emitter_is_an_empty_plan`] and
@@ -2335,9 +2335,9 @@ mod tests {
     ///
     /// The property asserted is a **fixed point**: what a server answers,
     /// emitted and applied again, must be answered back unchanged. That is the
-    /// half of § 5's acceptance criterion this crate can prove alone. The
+    /// half of `rule:core-classes/schema-is-a-value`'s acceptance criterion this crate can prove alone. The
     /// other half — that the value applied and the value read are the same
-    /// schema — is § 5's normalisation, and the places it is owed here are
+    /// schema — is `rule:core-classes/schema-is-a-value`'s normalisation, and the places it is owed here are
     /// pinned below rather than left for it to discover.
     #[test]
     fn a_schema_applied_to_sqlite_assembles_back_into_itself() {
@@ -2377,7 +2377,7 @@ mod tests {
         );
 
         // The differences from the value that was applied, none of them this
-        // module's to hide. § 5 normalises each out of the *comparison*
+        // module's to hide. `rule:core-classes/schema-is-a-value` normalises each out of the *comparison*
         // and not out of the value — `crate::plan`'s `same_key` and
         // `same_column` are where, and
         // `an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite` is
@@ -2532,7 +2532,7 @@ mod tests {
     /// The four cases below are this function and a handshake, because the
     /// property is one property: what differs between the backends is which
     /// spellings [`crate::ddl`] wrote and which words the catalog answered, and
-    /// § 5 normalises every one of those out of the *comparison*. A case that
+    /// `rule:core-classes/schema-is-a-value` normalises every one of those out of the *comparison*. A case that
     /// asserted a per-backend list of tolerated differences would be asserting
     /// this module's current gaps rather than the criterion.
     ///

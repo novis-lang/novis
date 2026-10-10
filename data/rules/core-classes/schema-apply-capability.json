@@ -1,9 +1,7 @@
 {
   "title": "Planning is an ordinary read, and applying takes `db.schema` under a member named for its risk",
   "status": "shipped",
-  "because": [
-    "0145"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/db-capabilities",
     "core-classes/schema-plan",

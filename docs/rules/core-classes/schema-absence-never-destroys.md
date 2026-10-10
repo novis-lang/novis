@@ -14,4 +14,9 @@ no `allowDrops` and no strict mode: the escape hatch is the SQL the plan already
 A report is a step the plan carries and never applies, which is what keeps `applySafe` usable at all:
 every plan against a shared database holds reports, and a rule reading *every* step's grade would
 refuse every plan ever computed against a real database. `applySafe` reads the grades of the steps it
-would run.
+would run. Reports are still counted, printed and given complete SQL: a report the plan did not show
+would be worse than one it will not apply.
+
+**Declined:**
+- **Dropping what the schema value omits, behind a flag or a strict mode.** Such a flag is correct only
+  when the application owns the entire database, so its use anywhere else is a data-loss bug.

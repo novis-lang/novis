@@ -2,26 +2,26 @@
 // A schema is a value: define it, plan it against a real database, and apply
 // the half that cannot lose data.
 //
-// [ADR 0145](/docs/decisions/0145.md)
-// is the design, and this program is § 3's whole model in twenty lines: there
+// `rule:core-classes/schema-converges` is the design, and this program is its
+// whole model in twenty lines: there
 // are no migrations, no version table and no ordering to get right. You say
 // what should exist, and the difference between that and what does exist is
 // computed against the server every time.
 //
-// § 1 is the `[...]` array below. A schema has three interchangeable spellings
+// `rule:core-classes/schema-is-a-value` is the `[...]` array below. A schema has three interchangeable spellings
 // — built in source, serialized to an array, introspected off a live
 // connection — and the array form is the canonical one, so what this program
 // writes is the same form `nvs schema dump` prints and a file on disk holds.
-// Note what cannot be said in it: § 2's vocabulary is closed, a type is one
+// Note what cannot be said in it: `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary is closed, a type is one
 // string, a default is one key, and there is nowhere to put a fragment of SQL.
 // That is what lets the diff be total.
 //
-// § 6 is the second line it prints. Every step carries a grade, and there are
+// `rule:core-classes/schema-plan` is the second line it prints. Every step carries a grade, and there are
 // three rather than two, because "cannot lose data" and "cannot take the site
 // down for an hour" are different promises and merging them is how an
 // automatic tool loses an operator's trust.
 //
-// § 7 is the last two. `schema_legacy` is a table this schema does not declare
+// `rule:core-classes/schema-absence-never-destroys` is the last two. `schema_legacy` is a table this schema does not declare
 // — the ordinary state of a database an application shares with a queue, a
 // reporting view and whatever an operator put there. Convergence **reports**
 // it, with the complete SQL that would drop it, and never drops it: that is
@@ -32,7 +32,7 @@
 // The four lines this prints are frozen by an exact check in a goal record
 // under `data/goals/`; the source is not. The connection is an in-memory SQLite database
 // this program owns rather than the `main` the other database fixtures share,
-// because the step count here is exact and § 7 makes it depend on every other
+// because the step count here is exact and `rule:core-classes/schema-absence-never-destroys` makes it depend on every other
 // table in the database.
 
 use Core\Db;
@@ -69,7 +69,7 @@ var $schema = Schema::fromArray([
     ],
 ]);
 
-// § 9: planning is an ordinary read, under the `db.connect` this program
+// `rule:core-classes/schema-apply-capability`: planning is an ordinary read, under the `db.connect` this program
 // already holds. Nothing about computing a plan is privileged.
 var $plan = $schema->planAgainst($db);
 
@@ -90,14 +90,14 @@ foreach ($plan->steps() as Step $step) {
 echo 'planned ', $total, ' steps', "\n";
 echo 'safe ', $safe, ', locking ', $locking, ', destructive ', $destructive, "\n";
 
-// Applying is not a read: § 9 gates it behind the deny-by-default `db.schema`
+// Applying is not a read: `rule:core-classes/schema-apply-capability` gates it behind the deny-by-default `db.schema`
 // capability, and the two entry points are named for what they risk at the
 // call site. This one refuses the whole plan if a step it would run is not
 // `Safe`; the reported drop is not one of those, so it stays where it is.
 $schema->applySafe($db);
 echo 'applied the safe half', "\n";
 
-// § 7's escape hatch, and the only place in this program a table is dropped:
+// `rule:core-classes/schema-absence-never-destroys`'s escape hatch, and the only place in this program a table is dropped:
 // the SQL the plan already carried, run by the program that decided it wanted
 // that table gone.
 foreach ($plan->steps() as Step $step) {
@@ -106,7 +106,7 @@ foreach ($plan->steps() as Step $step) {
     }
 }
 
-// § 5's property, and the whole feasibility question this design rests on:
+// `rule:core-classes/schema-is-a-value`'s property, and the whole feasibility question this design rests on:
 // apply a schema, read the server back, and the plan is empty. If it is not,
 // something normalizes differently in one direction than the other, and the
 // tool would converge on it forever.

@@ -11,7 +11,7 @@
 //! [`crate::instance`]'s first decision is that a `Core` instance is an
 //! ordinary Novis object, so every slot must be a value Novis can already hold
 //! and there is nowhere to keep an [`nvs_db::schema::Schema`] itself. That is
-//! not a compromise here: § 1 makes the **array form canonical** — two schemas
+//! not a compromise here: `rule:core-classes/schema-is-a-value` makes the **array form canonical** — two schemas
 //! are the same schema exactly when their array forms agree — so the array *is*
 //! the value, and a `Schema` built from it is a derived thing any member that
 //! wants one rebuilds in a few microseconds off a value already proved to
@@ -22,7 +22,7 @@
 //! spelling that reaches it: an input leaving `null` out, listing its tables in
 //! any order, or leaving a table's `indexes` key off entirely comes back with
 //! the same array an introspection of the applied database produces. That is
-//! the property § 5's round trip is asserted over, and normalizing on the way
+//! the property `rule:core-classes/schema-is-a-value`'s round trip is asserted over, and normalizing on the way
 //! *in* means no member downstream has to remember to.
 //!
 //! **What it spends:** one array per schema value, holding one map per table
@@ -49,7 +49,7 @@ const DEPTH_LIMIT: usize = 16;
 /// object or a `null` inside a schema array is refused here rather than
 /// silently rendered into something [`nvs_db::schema::Schema::from_array`]
 /// would then reject under a worse message. `Tag::Decimal` is the one that
-/// looks like an omission and is not — § 2's decimal default is *digits*, so
+/// looks like an omission and is not — `rule:core-classes/schema-vocabulary-is-closed`'s decimal default is *digits*, so
 /// that a value written into a schema file and one written in source are the
 /// same value.
 fn node_of(value: Value, at: &str, depth: usize) -> Result<nvs_db::schema::Node, Fault> {
@@ -130,7 +130,7 @@ fn array_node(value: Value, at: &str, depth: usize) -> Result<nvs_db::schema::No
     }
     // Insertion order on both walks — `keys` is the array's own order and so is
     // the slot cursor — which is what makes zipping them the pairing rather
-    // than a lookup per key. Key order is data here (§ 1), so nothing sorts.
+    // than a lookup per key. Key order is data here (`rule:core-classes/schema-is-a-value`), so nothing sorts.
     let keys = source.keys();
     let mut pairs = Vec::with_capacity(keys.len());
     let mut from = 0usize;
@@ -443,7 +443,7 @@ fn collect_rows<T>(
 /// `rule:core-classes/schema-introspection`'s live introspection: the database behind `key`, as the schema
 /// value the diff compares against.
 ///
-/// Two reads and no parser, which is § 4's whole rule — the catalog is
+/// Two reads and no parser, which is `rule:core-classes/schema-introspection`'s whole rule — the catalog is
 /// structured tables, and [`nvs_db::catalog::assemble`] is the one place rows
 /// become a value, through the same builders a declared schema goes through.
 ///
@@ -505,7 +505,7 @@ fn introspected(
     })
 }
 
-/// § 9's plan: the receiver's schema against the database `$connection` reaches.
+/// `rule:core-classes/schema-apply-capability`'s plan: the receiver's schema against the database `$connection` reaches.
 ///
 /// **An ordinary read.** The catalog queries go out under the `db.connect` the
 /// program already holds, and nothing here asks for a grant — which is the
@@ -527,13 +527,13 @@ fn planned(ctx: &mut nvs_runtime::Ctx, args: &[Value], named: &str) -> Result<nv
 
 /// The `[db.<name>]` block a `db.schema` grant is asked about.
 ///
-/// § 9 makes this capability name **connection blocks**, like `db.connect` and
+/// `rule:core-classes/schema-apply-capability` makes this capability name **connection blocks**, like `db.connect` and
 /// unlike `db.open` — so a connection that has no block cannot be the subject
 /// of a grant, and the honest answer is to say so rather than to invent a name
 /// for it. `Core\Db::open`'s connections are the ones with no block: their
 /// endpoint came out of the program rather than out of root-owned
-/// configuration, which is exactly the difference § 3 of
-/// `rule:core-classes/db-one-api` splits the two grants on.
+/// configuration, which is exactly the difference
+/// `rule:core-classes/db-capabilities` splits the two grants on.
 ///
 /// # Errors
 ///
@@ -552,7 +552,7 @@ fn granted_block<'a>(block: &'a Value, named: &str) -> Result<&'a str, Fault> {
     })
 }
 
-/// Everything `applySafe` and `applyIncludingRisky` share: § 9's grant, the
+/// Everything `applySafe` and `applyIncludingRisky` share: `rule:core-classes/schema-apply-capability`'s grant, the
 /// plan, and running what the plan says may run.
 ///
 /// **The grant is asked first, before a single catalog query goes out.** That
@@ -561,7 +561,7 @@ fn granted_block<'a>(block: &'a Value, named: &str) -> Result<&'a str, Fault> {
 /// refusal assertable without a server, which
 /// `applying_without_the_db_schema_capability_throws_naming_it` is.
 ///
-/// `refuse` is the difference between the two members and the only one: § 9
+/// `refuse` is the difference between the two members and the only one: `rule:core-classes/schema-apply-capability`
 /// names them for what they risk at the call site, so one of them declines a
 /// plan the other runs and neither decides anything else differently.
 ///
@@ -588,7 +588,7 @@ fn applied(
     if let Some(refused) = refuse(&plan) {
         return Err(refused);
     }
-    // § 7: a report is carried and never run, whichever entry point was
+    // `rule:core-classes/schema-absence-never-destroys`: a report is carried and never run, whichever entry point was
     // written. `applyIncludingRisky` says the caller accepts a lock or a
     // rewrite, and says nothing at all about a drop.
     for step in plan.runnable() {
@@ -656,7 +656,7 @@ fn run_ddl(
     Ok(())
 }
 
-/// `applySafe`'s refusal — § 9's "throws naming the first step that is not
+/// `applySafe`'s refusal — `rule:core-classes/schema-apply-capability`'s "throws naming the first step that is not
 /// `Safe`".
 ///
 /// Reads [`nvs_db::Plan::first_refused`], which is the grades of the steps that
@@ -689,7 +689,7 @@ pub(super) fn unsafe_step(plan: &nvs_db::Plan) -> Option<Fault> {
 nvs_runtime::nvs_helper! {
     /// `$schema->planAgainst(Db\Connection $connection): Db\Plan` — `rule:core-classes/schema-apply-capability`'s read.
     ///
-    /// **Planning is not privileged.** It issues § 4's two catalog queries
+    /// **Planning is not privileged.** It issues `rule:core-classes/schema-introspection`'s two catalog queries
     /// through the connection a program already holds, under the `db.connect`
     /// it already has, and asks for nothing else — which is why this member has
     /// a `None` row in `crate::registry::CAPABILITIES` beside the two that ask
@@ -718,15 +718,15 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$schema->applyIncludingRisky(Db\Connection $connection): void` — ADR
-    /// 0145 § 9's second entry point.
+    /// `$schema->applyIncludingRisky(Db\Connection $connection): void` —
+    /// `rule:core-classes/schema-apply-capability`'s second entry point.
     ///
-    /// **The name is the documentation.** § 9's whole argument for two members
+    /// **The name is the documentation.** `rule:core-classes/schema-apply-capability`'s whole argument for two members
     /// rather than one member with a flag is that a reviewer reading the call
     /// site sees the claim being made; a `{risky: true}` option is the same
     /// decision spelled where nobody greps.
     ///
-    /// It still runs no report — § 7's absence-never-destroys is not what
+    /// It still runs no report — `rule:core-classes/schema-absence-never-destroys`'s absence-never-destroys is not what
     /// "risky" opts into, and [`applied`] says so at the loop.
     fn nvs_core_db_schema_apply_including_risky(ctx, args: [2]) {
         applied(ctx, args, APPLY_RISKY, |_| None)
@@ -782,7 +782,7 @@ mod tests {
     /// The sibling call is what makes that evidence rather than a coincidence:
     /// `applySafe` on the *same* context, the same receiver and the same
     /// connection stops at the grant, so the difference between the two
-    /// messages is § 9's split and nothing about the fixture.
+    /// messages is `rule:core-classes/schema-apply-capability`'s split and nothing about the fixture.
     // covers: Core\Db\Schema::planAgainst
     #[test]
     fn plan_against_needs_only_the_db_connect_a_program_already_holds() {
@@ -794,7 +794,7 @@ mod tests {
         let message = said(&planning);
         assert!(
             !message.contains("db.schema") && !message.to_lowercase().contains("capability"),
-            "planning asked for a grant, which § 9 says it does not: {message}"
+            "planning asked for a grant, which `rule:core-classes/schema-apply-capability` says it does not: {message}"
         );
 
         let applying = applied(&mut ctx, &args, APPLY_SAFE, unsafe_step)
@@ -807,7 +807,7 @@ mod tests {
         );
     }
 
-    /// § 9's second half: applying takes `db.schema`, and an ungranted name
+    /// `rule:core-classes/schema-apply-capability`'s second half: applying takes `db.schema`, and an ungranted name
     /// throws **naming it**.
     ///
     /// Naming it is the assertion rather than a detail of the message: the
@@ -815,7 +815,7 @@ mod tests {
     /// write, and a refusal that said only "not permitted" would send them to
     /// the source of the member instead.
     ///
-    /// Both entry points are asked, because § 9 gates them identically — the
+    /// Both entry points are asked, because `rule:core-classes/schema-apply-capability` gates them identically — the
     /// difference between them is which plans they will run, not which grant
     /// they need — and a check written into one body only would pass a case
     /// that asked one of them.
@@ -847,7 +847,7 @@ mod tests {
         }
     }
 
-    /// § 9's `applySafe`: refuses a plan holding a step that is not `Safe`, and
+    /// `rule:core-classes/schema-apply-capability`'s `applySafe`: refuses a plan holding a step that is not `Safe`, and
     /// names the first one.
     ///
     /// **Over a plan built with no server in front of it**, which is what
@@ -857,7 +857,7 @@ mod tests {
     ///
     /// The difference is a widened integer column, because on SQLite that is a
     /// create-copy-drop-rename rebuild and therefore `Destructive` — a step
-    /// that **runs** rather than one of § 7's reports, which is the distinction
+    /// that **runs** rather than one of `rule:core-classes/schema-absence-never-destroys`'s reports, which is the distinction
     /// [`nvs_db::Plan::first_refused`] exists for and the one a rule reading
     /// every step's grade would get wrong.
     // covers: Core\Db\Schema::applySafe
@@ -887,7 +887,7 @@ mod tests {
         );
         assert!(
             plan.runnable().count() == 1,
-            "a widened column is a change and not one of § 7's reports:\n{plan}"
+            "a widened column is a change and not one of `rule:core-classes/schema-absence-never-destroys`'s reports:\n{plan}"
         );
 
         let refused = unsafe_step(&plan).expect("a `Destructive` step is not `Safe`");
