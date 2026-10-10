@@ -2,7 +2,6 @@
   "title": "The application's grant table is keyed on namespace prefixes, and a capability it names must be on the roster",
   "status": "designed",
   "because": [
-    "0112",
     "0081"
   ],
   "seeAlso": [

@@ -2,7 +2,6 @@
   "title": "Every file in a fetched package declares a namespace under the prefix its manifest claims, and two packages claiming one prefix is a fetch error naming both",
   "status": "designed",
   "because": [
-    "0112",
     "0081"
   ],
   "seeAlso": [

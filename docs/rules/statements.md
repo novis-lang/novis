@@ -91,7 +91,7 @@ mistake cannot be written. The price is typing: reaching into a sub-namespace ta
 - **The leading separator as the only way to write an absolute name.** It makes every `use` path and every
   `Core\Str` reference wrong, to reach a rule no easier to decide than this one.
 
-<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0112](../decisions/0112.md).</sub>
+<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name).</sub>
 
 <a id="statements-no-fallback-to-the-root-namespace"></a>
 
@@ -183,7 +183,7 @@ Because a capability grant is keyed on the namespace enclosing the code that ask
 this name sit in" is an authority question and not only a readability one: a resolution rule with two homes
 is a grant lookup with two homes.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0112](../decisions/0112.md).</sub>
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace).</sub>
 
 <a id="statements-nothing-gets-a-second-name"></a>
 

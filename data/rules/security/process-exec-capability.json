@@ -2,8 +2,7 @@
   "title": "Executing a program is deny-by-default under its own capability, and there is no shell to interpolate into",
   "status": "shipped",
   "because": [
-    "0118",
-    "0112"
+    "0118"
   ],
   "seeAlso": [
     "security/capability-check-at-the-door",

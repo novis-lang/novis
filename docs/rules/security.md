@@ -270,7 +270,7 @@ The child's grants are the parent's effective grants, optionally narrowed at the
 widens: a parent that has dropped `net.connect` cannot regain it by spawning
 ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="security-request-state-throws-in-an-isolate"></a>
 
@@ -505,7 +505,7 @@ reviews are expected to catch. This one puts it *in* the effect, where omitting 
 performing the effect. The friction is the point: the door is where the check, the path rule and the
 diagnostic already are.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="security-capability-question-is-grant-and-scope"></a>
 
@@ -575,7 +575,7 @@ A member that reaches nothing declares that by entering the table with no capabi
 being absent from it ([`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)), so the standard library's
 own surface is a closed claim rather than a list with an exception column.
 
-<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="security-authority-is-the-enclosing-namespace"></a>
 
@@ -600,7 +600,7 @@ it reaches code no package manager ever touched.
 
 **Not on disk.** Nothing in the tree reads a per-namespace grant table.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="security-grants-are-keyed-on-a-namespace"></a>
 
@@ -620,10 +620,39 @@ The effective set at a call site is the **intersection** of the operator's confi
 application's grant, the package's own declaration and any narrowing an enclosing isolate applied —
 every one of which may only tighten ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 
+The key is a namespace because a path is the one thing about third-party code a developer is invited
+to change. Overriding one class of a dependency by putting a file in an earlier autoload root is a
+supported pattern, and under a path key that file would hold the application's authority. Code the
+package manager never fetched, such as a git submodule, a `discover` glob or a pasted file, has no
+package path at all, and most untrusted code arrives that way. A namespace is stable exactly where
+the path is not: an override must declare the namespace it overrides, and hand-vendored code keeps
+the namespace its own source declares.
+
+`Core` is never a grantee. The namespace `Core` and everything under it is reserved
+([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), so no grant line can name a namespace that inherits the standard
+library's own authority.
+
+**Memory:** the grant table is compile-time input, and nothing of it is held per request.
+
+What this gives up is that the grant table and the package graph are no longer the same thing. One
+package may declare several prefixes, and hand-vendored code has a prefix and no package, so the line
+written for a package does not promise to cover exactly that package's code. That is the price of
+covering code no package manager fetched, which is the code a package key left holding everything.
+
+**Declined:**
+- **The package key kept, with the override diagnosed.** It closes the override and leaves
+  hand-vendored code, which never had a package, unprotected, and it makes a supported pattern argue
+  with its author.
+- **A `grants` clause on the `autoload` declaration.** A `require`d file may declare a namespace with
+  no `autoload` line involved, so grants on the import site protect only code that arrived by that
+  route. For a fetched package the clause would also sit in a generated file marked *do not edit*,
+  it would state a fact `[grants]` already states, and one `discover` line covers many prefixes, so
+  the clause has no single namespace to attach to.
+
 **Not on disk.** The tree reads the deployment's capability block; it has no per-namespace grant
 table, and the diagnostics this rule needs do not exist.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="security-longest-prefix-wins"></a>
 
@@ -642,9 +671,13 @@ months from now holds the database. That is the opposite of the posture everywhe
 never the default reading of a bare prefix — the narrow thing is what a reader gets, and the broad
 thing costs two extra characters and is visible in review as its own token.
 
+**Declined:**
+- **A bare prefix meaning the subtree.** It saves one form and makes the dangerous reading the
+  default, so a grant would silently extend to modules that did not exist when it was written.
+
 **Not on disk.** No grant table is keyed this way in the tree.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace).</sub>
 
 <a id="security-an-unmatched-namespace-holds-the-application"></a>
 
@@ -666,9 +699,17 @@ namespace whose autoload root lies under a directory the grant table never menti
 correct strength, because the same shape describes a legitimate second source tree of the
 application's own.
 
+A discovery glob happens to skip a directory such as `vendor/` because its name is not legal
+`PascalCase`. That casing convention exists for another reason, and nothing here relies on it.
+
+**Declined:**
+- **Deny by default for an unmatched namespace.** It is safe and refuses to compile every program
+  that exists. A grant line written for every fetched package, empty ones included, gives the same
+  protection where it matters without charging the common case.
+
 **Not on disk.** There is no fetch step and no audit that writes or checks these lines.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="security-path-scope-canonicalise-then-prefix"></a>
 
@@ -763,7 +804,13 @@ The split exists because the compile-time check's granularity is **reachability,
 class no name reaches is never part of your program, but inside a class your program does name, every
 call site is checked including a branch that never runs. Without the split, the reachability of a
 *class* would be the unit of capability granularity, which is far too coarse for a class with two
-halves.
+halves. A library with an in-memory cache and an optional disk-persistence method would fail the build
+of every application that never persists anything, and its author's only remedy would be to split
+one coherent library into two packages over a capability question.
+
+The guard is one predictable branch, emitted only at call sites in a package that declared the
+capability optional. A program that uses no optional capability runs no guard, and the static check
+emits nothing at all.
 
 `Core\Cap::has` reports what the call site already holds. It is **not** a runtime grant: nothing
 widens ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
@@ -772,7 +819,13 @@ widens ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 checking. The required/optional manifest split, the guard at an optional call site and the compile
 error for a required one have no representation in the tree.
 
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
+**Declined:**
+- **Every ungranted capability degrading at run time**, with no required and optional split. It moves
+  every capability failure from the build to production and puts a branch on every `Core` call site on
+  the request path. The split keeps refusal as the default and makes degradation something an author
+  asks for, per capability, in writing.
+
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="security-no-runtime-grant"></a>
 
@@ -795,7 +848,11 @@ in exchange for reintroducing the dynamic escape the language closed elsewhere �
 Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
 further one opened, and every claim above it would have to be qualified.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md).</sub>
+**Declined:**
+- **A runtime grant, symmetrical with the runtime narrow.** It would cost the compile-time property
+  outright. The guarantee that nothing widens is what lets the static check be trusted as total.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades).</sub>
 
 <a id="security-capability-costs-nothing-unasked"></a>
 
@@ -838,7 +895,7 @@ process's authority* to *arbitrary computation with no authority at all*.
 
 **Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="security-process-exec-capability"></a>
 
@@ -866,7 +923,7 @@ which is the resolution the grant was compared against, so the program the opera
 the one the check approved — a name a `PATH` entry would have answered instead is a program from a
 directory no grant named.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="security-net-address-policy"></a>
 

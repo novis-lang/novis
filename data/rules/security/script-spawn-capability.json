@@ -2,8 +2,7 @@
   "title": "Executing code is its own capability, and the entry path is canonicalised and then prefix-checked",
   "status": "shipped",
   "because": [
-    "0118",
-    "0112"
+    "0118"
   ],
   "seeAlso": [
     "security/capability-check-at-the-door",

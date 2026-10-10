@@ -359,10 +359,10 @@ per constant in a migrated file; what the inference did is now a check against w
 
 **`namespace X;` is the only namespace statement — once per file, before any declaration.** The braced form
 `namespace X { … }`, and with it a file holding two namespaces, is refused at parse time.
-[0112](../decisions/0112.md) keys authority on the namespace enclosing the
+`rule:security/authority-is-the-enclosing-namespace` keys authority on the namespace enclosing the
 code and [0104](../decisions/0104.md) keys an application on its entry file; a file
-that is two namespaces is a file whose authority is a function of the line number, and nothing below either
-ADR has a reading to give that. The rewrite is one file per namespace.
+that is two namespaces is a file whose authority is a function of the line number, and neither of
+them has a reading to give that. The rewrite is one file per namespace.
 
 **One `use` names one import; PHP's group form is refused.** `use App\Models\{User, Post};` is `E0238`
 where the `\{` is written, sibling to `E0212` on the other half of
