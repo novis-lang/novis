@@ -32,7 +32,7 @@ default = ["exporter"]
 exporter = ["nvs-server/exporter"]
 
 [dependencies]
-# ADR 0103's tree and ADR 0078 § 1's snapshot: `nvs run` is the first caller
+# ADR 0103's tree and `rule:config/the-config-is-an-immutable-snapshot`: `nvs run` is the first caller
 # that resolves a real `nvs.toml`, and `LocalFiles` in `config.rs` owns which of
 # the two `Files` readers it is.
 nvs-config.workspace = true

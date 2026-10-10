@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0064",
-    "0103",
-    "0078"
+    "0103"
   ],
   "seeAlso": [
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",

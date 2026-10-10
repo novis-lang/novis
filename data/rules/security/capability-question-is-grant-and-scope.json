@@ -2,8 +2,7 @@
   "title": "A capability question is a grant and a scope, asked of the request's own configuration snapshot",
   "status": "shipped",
   "because": [
-    "0118",
-    "0078"
+    "0118"
   ],
   "seeAlso": [
     "security/capability-check-at-the-door",

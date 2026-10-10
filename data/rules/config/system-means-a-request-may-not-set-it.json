@@ -2,7 +2,6 @@
   "title": "A directive is `System` when changing it from inside a request would affect something other than that request, and that is all `System` means",
   "status": "shipped",
   "because": [
-    "0078",
     "0175"
   ],
   "seeAlso": [

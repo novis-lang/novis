@@ -1018,7 +1018,7 @@ loop. The socket belongs to the isolate, so closing it from outside would be wri
 another task is parked on — and a dropped descriptor gives the peer a reset, which is exactly what a
 client cannot tell apart from a network failure.
 
-<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0083](../decisions/0083.md), [0078](../decisions/0078.md), [0186](../decisions/0186.md), [0205](../decisions/0205.md), [0206](../decisions/0206.md), [0209](../decisions/0209.md).</sub>
+<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0083](../decisions/0083.md), [0186](../decisions/0186.md), [0205](../decisions/0205.md), [0206](../decisions/0206.md), [0209](../decisions/0209.md).</sub>
 
 <a id="concurrency-enqueue-commits-with-your-write"></a>
 

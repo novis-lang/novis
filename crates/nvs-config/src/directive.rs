@@ -4,8 +4,8 @@
 //! A [`Directive`] carries its dotted [`key`](Directive::key), the changeability class
 //! `rule:config/three-changeability-classes` defines, and the reloadability field `rule:config/reloadability-is-its-own-field` adds
 //! **orthogonal** to it, and nothing else. The two answer different questions — [`Class`] is *who
-//! may set it*, [`Apply`] is *what applying a change requires* — and the reason 0078 gives
-//! reloadability a field of its own is that `System` would otherwise carry both meanings at once.
+//! may set it*, [`Apply`] is *what applying a change requires* — and reloadability has a field of
+//! its own because `System` would otherwise carry both meanings at once.
 //! A registry that derived either field from the other would re-create that conflation while still
 //! typechecking, so `tests/directives.rs` holds a census of the pairs and fails if it ever does.
 //!

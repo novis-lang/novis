@@ -29,7 +29,7 @@ in this syntax, and [`config/every-block-is-argued-where-it-is-added`](config.md
 The `[limits]`/`[limits.hard]` layout is unchanged from the changeability model; only its spelling
 moved.
 
-<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0078](../decisions/0078.md).</sub>
+<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md).</sub>
 
 <a id="config-a-size-or-duration-is-a-quoted-string-with-its-suffix"></a>
 
@@ -290,7 +290,7 @@ The announcement is half of what makes the two implicit steps of
 When no step finds a file, the shipped-defaults line is printed instead, and the resolved absolute
 path is logged in every case.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0103](../decisions/0103.md), [0078](../decisions/0078.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-include-takes-a-path-or-a-dir"></a>
 
@@ -478,7 +478,7 @@ checked as any file is, with the private data folder as its directory.
 
 Where the check runs is [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered).
 
-<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure). Decided in [0103](../decisions/0103.md), [0078](../decisions/0078.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure). Decided in [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-ownership-check-runs-where-it-can-be-answered"></a>
 
@@ -630,7 +630,13 @@ syntax error, an unknown key or a duplicate key ends it; verify every `[[extensi
 file on disk, on every reload and not only the first; register the directives those extensions
 contribute; validate the assembled registry; then compute `env_hash` and publish the new `Arc`. The
 tree's ownership checks re-run on every file, so a file that became group-writable since boot refuses
-the swap and leaves the previous snapshot serving.
+the swap and leaves the previous snapshot serving. **A reload runs no program code**: one that
+could would be `eval` under another name ([`security/no-eval`](security.md#security-no-eval)).
+
+An immutable snapshot shared by every request is not shared mutable state, so it is the same
+category as the compiled code every request already shares. Replacing it without a restart matters
+because one process holds the whole concurrency: a restart drops every in-flight request, not a
+fraction of a worker pool.
 
 **The server checks its own configuration files, and a saved file is how a reload starts.** Every two
 seconds, one thread off the request path takes the stamp (`mtime` and size) of every path the serving
@@ -643,11 +649,25 @@ no signal and no service manager's control ([`packaging/a-service-answers-its-ma
 whose roots are the shipped defaults read no file, and has nothing to check.
 
 Cost: one `Arc` clone at request start and **no syscall** on the request path, and one `stat` per
-configuration path every two seconds on the checking thread. Two snapshots live during a swap, plus
-one per in-flight request still holding an older one — kilobytes each, bounded by concurrency, never
-by reloads performed.
+configuration path every two seconds on the checking thread.
 
-<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0103](../decisions/0103.md), [0219](../decisions/0219.md), [0271](../decisions/0271.md).</sub>
+- **Memory:** two snapshots live during a swap, plus one per in-flight request still holding an
+  older one, kilobytes each. Bounded by concurrency in flight, never by reloads performed.
+
+**Declined:**
+- **Re-reading `nvs.toml` on every request.** It adds a syscall and a parse to the request path,
+  turns one malformed edit into a per-request failure everywhere instead of a refused reload, and
+  still cannot make `[[extension]]` reloadable, which needs the cache keys to change
+  ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)).
+- **A stat-gated check of the configuration on the request path.** Configuration
+  is edited rarely and every change is global, so a check per request pays on every request for an
+  event that happens a few times a day.
+- **`SIGHUP` as the reload trigger.** It has no Windows equivalent and no payload, so it carries
+  nothing a reload could report back ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)).
+- **Restart only.** Defensible behind a load balancer with rolling deploys, and still not enough
+  when one process holds the whole concurrency.
+
+<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0103](../decisions/0103.md), [0219](../decisions/0219.md), [0271](../decisions/0271.md).</sub>
 
 <a id="config-three-changeability-classes"></a>
 
@@ -687,7 +707,7 @@ what widening trades.
 - **A hardened mode that makes every limit narrowing-only again.** Two configuration semantics to
   implement, test and reason about, for what one ceiling per directive already says.
 
-<sub>See also [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0078](../decisions/0078.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0064](../decisions/0064.md).</sub>
 
 <a id="config-a-directive-flag-is-a-closed-list-at-the-global-layer"></a>
 
@@ -767,7 +787,7 @@ when that block moves, so the next `fleet` fire takes its key in the new store. 
 **does not take effect**: the published snapshot carries the running value forward, and the reload
 names the key ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0154](../decisions/0154.md), [0175](../decisions/0175.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0154](../decisions/0154.md), [0175](../decisions/0175.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-ceilings-are-their-own-directives"></a>
 
@@ -838,7 +858,7 @@ change needs a new snapshot or a restart is [`config/reloadability-is-its-own-fi
 held in a field of its own, and the registry's census test fails if either field is ever derived from
 the other. With that split, `System` means one thing again — a request may not set it.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0078](../decisions/0078.md), [0175](../decisions/0175.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0175](../decisions/0175.md).</sub>
 
 <a id="config-a-runtime-set-is-request-local"></a>
 
@@ -862,7 +882,7 @@ The same property is what makes a request-local mode flip safe at all
 [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot) completes: requests share nothing *mutable*, and an
 overlay each request owns is not shared.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0078](../decisions/0078.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0064](../decisions/0064.md).</sub>
 
 <a id="config-a-refused-set-returns-false"></a>
 
@@ -988,7 +1008,7 @@ switch does not reach a server that mounts one.
 - **Pushing an edit to every process of a fleet.** Sub-second propagation across processes or hosts
   is a distribution problem, not a concurrency one. A signal for it would feed the same pointer swap.
 
-<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0078](../decisions/0078.md), [0218](../decisions/0218.md).</sub>
+<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0218](../decisions/0218.md).</sub>
 
 <a id="config-a-request-keeps-the-unit-it-resolved"></a>
 
@@ -1039,7 +1059,7 @@ would buy availability nothing needs.
 The same policy covers an extension removed while source still references it: nothing proves that at
 reload time, and the units that call it fail when a request next resolves them, and only those.
 
-<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved). Decided in [0078](../decisions/0078.md).</sub>
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved).</sub>
 
 <a id="config-a-reload-names-what-it-could-not-apply"></a>
 
@@ -1071,7 +1091,7 @@ invalidates every unit and an unchanged one invalidates none. What a reload cann
 extension removed while source still references it — those units fail when next resolved
 ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)).
 
-<sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0078](../decisions/0078.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0219](../decisions/0219.md).</sub>
 
 <a id="config-check-and-dump-audit-the-tree-offline"></a>
 
@@ -1919,6 +1939,11 @@ env_hash }`. It is derived from the same `content_hash` the in-memory key carrie
 are hashed once for both. It is constant for the life of a configuration and costs the request path
 nothing.
 
+A manifest lives inside its `.nvsx` as a custom section, so hashing the pins covers each extension's
+declared classes, signatures and qualifier declarations with no separate manifest hash. **A class
+name declared by two extensions is refused at load**, so the set is order-independent and the sorted
+hash is well defined. An entry with no pin contributes its path, so it still rekeys every unit.
+
 `compiler_version_hash` is **the running compiler executable, not the release version**: its path, its
 byte length and its modification time, read once per process. A version string is one string for every
 build of an unreleased tree, so keying on it alone would let a rebuilt compiler read back artifacts its
@@ -1935,11 +1960,21 @@ artifact compiled against one extension set — holding a direct call to a tramp
 moved — could be reused against another.
 
 Invalidation is coarse by design: changing the set rekeys every unit, not only units that call an
-extension. Finer would need per-unit dependency tracking including negative dependencies, a real
-subsystem for a modest win. The compile pool bounds how much of the resulting wave is in flight at
-once.
+extension. The first request to resolve each path afterwards pays a compile, on the compile pool and
+not on a request-serving core, and the pool bounds how much of the wave is in flight at once. That
+is still strictly cheaper than the restart it replaces, which pays the same compiles cold and drops
+every in-flight request.
 
-<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md).</sub>
+- **Memory:** an extension change keeps one extra generation of compiled units, each held exactly
+  as long as some in-flight request holds it. O(in-flight), never O(reloads performed).
+
+**Declined:**
+- **Invalidating only the units that call a changed extension.** It needs per-unit dependency
+  tracking including negative dependencies, since a unit that failed because a class was unknown
+  must retry when the class appears: a real subsystem for a modest win. If the wave ever measures as
+  a real cost, the answer is precompiling entry points before the swap, not that tracking.
+
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system).</sub>
 
 <a id="config-opcache-revalidation-is-system-class"></a>
 
