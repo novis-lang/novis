@@ -919,8 +919,8 @@ pub struct MailEndpoint {
 /// [`MailEndpoint`]'s minus everything an endpoint needs and a directory does not.
 ///
 /// **One field, and there is deliberately no `capabilities.storage` beside it.** The grant over a
-/// disk is the `fs.read`/`fs.write` the operator already writes about `root`, which is what ADR
-/// 0082 § 2's "over `rule:core-api/tier-placement`'s existing `fs.*` capabilities" means and what
+/// disk is the `fs.read`/`fs.write` the operator already writes about `root`, which is what
+/// `rule:programs/framework-core-half`'s "over the existing `fs.*` capabilities" means and what
 /// `nvs_stdlib::storage`'s module doc argues at length: a second grant over one door is the shape
 /// where a deployment is tightened in one of them and stays open through the other.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]

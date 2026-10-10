@@ -2,8 +2,7 @@
   "title": "`nvs build --openapi` writes OpenAPI 3.1 as a build artifact, and two builds of one source are byte-identical",
   "status": "shipped",
   "because": [
-    "0085",
-    "0082"
+    "0085"
   ],
   "seeAlso": [
     "routing/api-document-is-generated-from-the-route-table",

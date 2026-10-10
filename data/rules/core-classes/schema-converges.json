@@ -2,8 +2,7 @@
   "title": "A plan is the difference between a schema value and a live database, and `Core` knows no migrations",
   "status": "shipped",
   "because": [
-    "0145",
-    "0082"
+    "0145"
   ],
   "seeAlso": [
     "core-classes/schema-plan",

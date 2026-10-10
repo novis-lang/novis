@@ -891,7 +891,7 @@ metric label does — a name derived from user input is how one tenant subscribe
 so a name is built from checked values or it does not compile — and a `secret` may never be passed
 through an upgrade's arguments or published to a topic.
 
-<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../decisions/0083.md), [0082](../decisions/0082.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../decisions/0083.md).</sub>
 
 <a id="concurrency-a-stream-that-outlives-its-request-is-a-connection"></a>
 

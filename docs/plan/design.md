@@ -44,7 +44,7 @@ document from implying otherwise.
 
 Intended outcome: a self-hosted toolchain (`nvs` binary) that runs `.nvs` files on the CLI, serves them
 over HTTP from one process, ships a working framework and a supply-chain-safe package system
-([0082](../decisions/0082.md), `rule:packaging/a-package-is-its-digest`),
+(`rule:programs/first-party-framework`, `rule:packaging/a-package-is-its-digest`),
 and can mechanically transpile an existing PHP codebase's *own* application code — including its `.phpt`
 test suites — into Novis.
 

@@ -2,7 +2,6 @@
   "title": "A library candidate is placed by six ordered tests, not by PHP's extension list",
   "status": "shipped",
   "because": [
-    "0082",
     "0145"
   ],
   "seeAlso": [

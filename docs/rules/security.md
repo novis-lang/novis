@@ -2622,7 +2622,7 @@ opinion the route table refuses to hold.
   method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
   and nothing reports the omission.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0082](../decisions/0082.md), [0255](../decisions/0255.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0255](../decisions/0255.md).</sub>
 
 <a id="security-bidi-predicate"></a>
 

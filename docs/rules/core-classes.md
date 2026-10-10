@@ -1647,7 +1647,7 @@ changes and fleet locking stay a blocked gap in the first-party framework
 stops there deliberately: every one of those open questions is a question convergence does not have
 to answer.
 
-<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0145](../decisions/0145.md), [0082](../decisions/0082.md).</sub>
+<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-schema-introspection"></a>
 

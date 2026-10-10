@@ -73,7 +73,7 @@ runtime's: the database drivers, the HTTP client and the crypto primitives are a
   third-party ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), and leaving HTTP, JSON, crypto and dates to
   an ecosystem produces several incompatible implementations of each.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0082](../decisions/0082.md), [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0145](../decisions/0145.md).</sub>
 
 <a id="core-api-five-placements"></a>
 

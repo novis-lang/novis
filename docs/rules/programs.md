@@ -710,7 +710,37 @@ be stable for years; a framework's opinions need to move. Putting the whole fram
 would lock its cadence to the runtime's, and putting all of it in a package would push privileged
 operations across a boundary they cannot cross.
 
-<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new). Decided in [0082](../decisions/0082.md).</sub>
+The project owns that framework permanently: its own compatibility surface, its own security reports
+and its own release cadence. That is the largest ongoing cost the project carries, and it is carried
+because the alternative is the failure mode above. The `Core` half grows the API surface, which is
+the expensive resource the tier tests guard, so each entry there is justified by the test that placed
+it and none by convenience. The framework is also the registry's heaviest user, so every rough edge
+in the package system is felt first-party, first.
+
+A team arriving from an active-record framework will look for the ORM and the container
+([`programs/framework-refusals`](programs.md#programs-framework-refusals)). Those frameworks provide them through reflection and run-time
+magic; Novis provides the same things while compiling, and cannot provide them any other way without
+giving up the guarantees it exists for. That answer belongs on the documentation's first screen.
+
+If the boundary between the halves is crossed repeatedly, by a package member that keeps needing a
+privileged escape hatch, the tier tests are applied to that member again; no escape hatch is added.
+
+**Declined:**
+- **Primitives only: router, session and validation in `Core`, the rest left to the ecosystem.** It
+  keeps the API surface minimal, and it is precisely the position that leaves a good language beside an
+  empty registry. The ecosystem that would fill it does not exist and has no reason to appear first.
+- **The entire framework in the binary.** One download and the best first run, but a framework's
+  opinions must move faster than a language's surface, and every framework fix would become a runtime
+  release.
+- **The entire framework as a package, privileged parts included.** Sessions, validation, queues and
+  persistent connections fail the privilege, sink and waiting tests: a package cannot launder a
+  qualifier or hold state across requests, so the privileged pieces would end in `Core` anyway, behind
+  a worse boundary.
+- **A placement rule specific to framework components.** It would be a second authority over the same
+  question, and the tier tests answered every case without amendment
+  ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)).
+
+<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new).</sub>
 
 <a id="programs-framework-core-half"></a>
 
@@ -741,7 +771,7 @@ third-party framework can be written over this public surface, but it can comput
 and never declare it safe. A member added to this half later carries the test that placed it; one
 arriving with no test is a bug in the roster.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0082](../decisions/0082.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="programs-framework-web-package"></a>
 
@@ -768,7 +798,7 @@ and form binding over `Core\Validate` — the ergonomics, never the laundering; 
 the template engine and the HTML sink already auto-escapes by default, so a second templating language
 would be a second spelling of one job. `Web\Response::view` renders a `.nvs` file and nothing more.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0082](../decisions/0082.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner).</sub>
 
 <a id="programs-framework-refusals"></a>
 
@@ -793,7 +823,7 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
 - **No second way to do anything the language does.** The framework ships no collections of its own, no
   date type, no string helpers and no error hierarchy.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing). Decided in [0082](../decisions/0082.md), [0253](../decisions/0253.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing). Decided in [0253](../decisions/0253.md).</sub>
 
 <a id="programs-no-migration-runner"></a>
 
@@ -814,7 +844,7 @@ root-owned configuration, and none of them is obvious.
 `nvs/web` may ship a migration runner, and one appearing in the package without that decision is a
 review failure.
 
-<sub>See also [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0082](../decisions/0082.md).</sub>
+<sub>See also [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/first-party-framework`](programs.md#programs-first-party-framework).</sub>
 
 <a id="programs-nvs-new"></a>
 
@@ -842,4 +872,4 @@ The scaffold is a load-bearing artifact. It is the first experience, so it is he
 own standard: tested on Windows, Linux and macOS as a first-class CI job, and a change that breaks it
 is a regression.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience). Decided in [0082](../decisions/0082.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience).</sub>
