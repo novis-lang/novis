@@ -24,7 +24,7 @@ const OLD = ["doss", "ier"].join("");
 
 describe("nv audit goals", () => {
   test("a goal file named by position is an offender, a slug-named one is not", () => {
-    const paths = ["docs/goals/12-parses.md", "docs/goals/parses.md", "docs/goals/3-x.md", "docs/decisions/0001.md"];
+    const paths = ["docs/goals/12-parses.md", "docs/goals/parses.md", "docs/goals/3-x.md", "docs/rules/routing.md"];
     expect(numberedGoalFiles(paths)).toEqual(["docs/goals/12-parses.md", "docs/goals/3-x.md"]);
   });
 
@@ -119,10 +119,9 @@ describe("nv audit python", () => {
     expect(docNamingPython("x.md", "`bun nv links` is the gate\n", re)).toBeNull();
   });
 
-  test("a record under data/ is read unless it is a decision's", () => {
+  test("every JSON record under data/ is read", () => {
     const paths = [
       "data/chain.json",
-      "data/decisions/0221.json",
       "data/goals/webcrypto.json",
       "data/goals/webcrypto.handoff.json",
       "data/goals/tooling-overhaul.json",

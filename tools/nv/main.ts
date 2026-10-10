@@ -34,7 +34,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   "ci-changes": () => import("./cmd/ci-changes.ts"),
   "class-cards": () => import("./cmd/class-cards.ts"),
   "db-matrix": () => import("./cmd/db-matrix.ts"),
-  decisions: () => import("./cmd/decisions.ts"),
+
   directives: () => import("./cmd/directives.ts"),
   disk: () => import("./cmd/disk.ts"),
   "exe-icons": () => import("./cmd/exe-icons.ts"),

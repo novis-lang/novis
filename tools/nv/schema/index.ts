@@ -6,7 +6,7 @@
 // Two types share a directory only where their `idOf`s split it: a topic and its rules.
 
 import type { RecordType } from "../lib/schema.ts";
-import { decision } from "./decision.ts";
+
 import { gap } from "./gap.ts";
 import { milestone } from "./milestone.ts";
 import { planStatus } from "./plan-status.ts";
@@ -19,7 +19,6 @@ import { topic } from "./topic.ts";
 export const RECORDS: RecordType<any>[] = [
   topic,
   rule,
-  decision,
   planStatus,
   milestone,
   gap,

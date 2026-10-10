@@ -6,7 +6,7 @@ import { RECORDS } from "../schema/index.ts";
 import { milestone } from "../schema/milestone.ts";
 import { rule } from "../schema/rule.ts";
 import { topic } from "../schema/topic.ts";
-import { decision } from "../schema/decision.ts";
+
 import { scratch, type Scratch } from "./scratch.ts";
 
 let tmp: Scratch;
@@ -16,7 +16,7 @@ afterEach(() => tmp?.cleanup());
 function seed(): Index {
   tmp = scratch();
   write(milestone, "m12", { title: "Measurement", order: 12, loopDays: "measurement-bound", state: "ongoing" }, tmp.root);
-  write(decision, "0134", { title: "Features owe proofs", status: "accepted", scope: "What a feature owes.", dependsOn: [] }, tmp.root);
+
   write(topic, "testing", { title: "Testing", order: 90, rules: ["testing/feature-proofs"] }, tmp.root);
   write(rule, "testing/feature-proofs", { title: "A feature is finished when its proofs exist", status: "shipped", because: ["0134"], seeAlso: [], guardedBy: ["tools/nv/proofs/collect.ts"] }, tmp.root);
   write(gap, "nvs-cli/suite-is-serial", { module: "crates/nvs-cli/src/runner.rs", title: "The suite is serial.", text: "Open.", milestone: "m12" }, tmp.root);
@@ -34,7 +34,7 @@ describe("record types", () => {
     const index = seed();
     index.refresh();
     expect(index.query("SELECT type, id FROM records ORDER BY type, id")).toEqual([
-      { type: "decision", id: "0134" },
+
       { type: "gap", id: "nvs-cli/suite-is-serial" },
       { type: "milestone", id: "m12" },
       { type: "rule", id: "testing/feature-proofs" },

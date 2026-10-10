@@ -14,8 +14,8 @@
 //           engine's workload rather than a tool. No document that describes the present names a Python
 //           tool, as a `tools/<x>.py` path or as a tool's bare `<x>.py`, or cites a home the cutover
 //           deleted (`LEGACY`), as a link, in backticks or as plain text; and no record under `data/`
-//           does either. What describes the past is not read: decision records and their records under
-//           `data/decisions/`, `CHANGELOG.md` and the live goal's prose.
+//           does either. What describes the past is not read: decision records, `CHANGELOG.md` and the
+//           live goal's prose.
 //
 // A passing audit prints its `audit:` lines. A failing one prints a count and every offender under it,
 // and exits 1. An unknown audit name exits 2.
@@ -174,8 +174,6 @@ async function auditCi(): Promise<Finding[]> {
 const PY_WORKLOAD = "benches/userland/";
 /** Documents that are history: frozen records, and a changelog written from `git log`. */
 const HISTORY = ["docs/decisions/", "CHANGELOG.md"];
-/** Records that are history: a decision's record is as frozen as its prose. */
-const RECORD_HISTORY = ["data/decisions/"];
 /** Scratch, never a document. */
 const SCRATCH = ".agent-tmp/";
 
@@ -244,11 +242,11 @@ export function currentDocs(paths: string[], live: string | null): string[] {
 }
 
 /**
- * The tracked records under `data/` that describe the present: all but the decisions'. The live goal's
- * records are read, since they are its state now.
+ * The tracked records under `data/`, which all describe the present. The live goal's records are read,
+ * since they are its state now.
  */
 export function currentRecords(paths: string[]): string[] {
-  return paths.filter((p) => p.startsWith("data/") && p.endsWith(".json") && !RECORD_HISTORY.some((h) => p.startsWith(h)));
+  return paths.filter((p) => p.startsWith("data/") && p.endsWith(".json"));
 }
 
 async function auditPython(): Promise<Finding[]> {
