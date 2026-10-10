@@ -11,6 +11,5 @@ invoked, which is a process-wide fact rather than a per-isolate one, so a spawne
 fakes nor suppresses it the way it does for request state. A program reading arguments a *request*
 supplied wants `rule:core-classes/script-args` instead.
 
-The record this rule comes from specified `args()`/`argc()` and a throw when called while serving
-HTTP. The shipped member is `arguments()`, and inside a request it answers empty rather than throwing
-— the launcher writes the command line and only the CLI entry point writes one.
+Inside a request the array is empty: the launcher writes the command line, and only the CLI entry
+point writes one.

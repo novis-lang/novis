@@ -2,10 +2,7 @@
   "title": "A `#[Route]` missing its `path` gets a quick fix that offers a derived one, and nothing derives a path on its own",
   "status": "designed",
   "because": [
-    "0110",
-    "0077",
-    "0040",
-    "0108"
+    "0110"
   ],
   "seeAlso": [
     "routing/repeated-routes-share-a-name-when-they-share-a-path",

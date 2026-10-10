@@ -83,8 +83,9 @@
 //! answers *the payload* and this one answers a verdict it never lets go of.
 //! A program that wrote `Core\SignedCookie::open($token, [$key]) == $session`
 //! has written the comparison itself — in variable time, with `==`, and inside
-//! a `try` because a forgery throws there — which is precisely the code ADR
-//! 0060 § 1 exists to make unnecessary, not a second route to this member.
+//! a `try` because a forgery throws there — which is precisely the code
+//! `rule:security/protocol-roster` exists to make unnecessary, not a second
+//! route to this member.
 //!
 //! # Constant time
 //!

@@ -20,3 +20,6 @@ a library would usually offer a per-item call. Collation exposes sort-key genera
 a comparator, because sorting ten thousand strings through a per-comparison boundary would be about
 130,000 crossings; the image component crosses once per terminal
 (`rule:core-classes/image-pipeline`).
+
+A capability whose in-guest compute is too slow for a real workload moves to Tier 0 or Tier 2. It never
+opens a native loading path (`rule:security/no-ffi`).

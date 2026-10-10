@@ -20,3 +20,9 @@ response, so the request exceeded no limit — the member declined to hold more 
 allowed to produce, which is a refusal in `rule:security/denial-is-a-runtime-error`'s shape. A caller
 who ran a chattier child than it meant to can catch it and run a different one. `Core\IO::read` holds
 a file to the same directive out of the same pair of methods, so the two answer a program alike.
+
+**Declined:**
+- **Blocking the core's thread for the wait** until profiling showed a problem. With one thread per
+  core and nothing shared between cores, one blocked wait stalls every other request on that core.
+  That is a correctness property, so there was nothing to measure first
+  (`rule:http-server/a-core-is-never-blocked-on-a-syscall`).

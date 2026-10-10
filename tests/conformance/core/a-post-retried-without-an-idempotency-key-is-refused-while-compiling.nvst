@@ -6,8 +6,8 @@
 // repeated one is a second question; `POST` and `PATCH` repeat an *effect*, so
 // their retries need an `Idempotency-Key` the server can recognise, and this
 // case asks the first of those two. Both halves of that
-// question are written at the call — the verb is the member's own name, and ADR
-// 0063 R2 makes the bag a literal — so it is refused while compiling, and no
+// question are written at the call — the verb is the member's own name, and
+// `rule:core-api/options-bag` makes the bag a literal — so it is refused while compiling, and no
 // request is made to discover it.
 string $url = "https://example.test/orders";
 

@@ -4,7 +4,7 @@ covers: []
 description: Novis compiles each file to machine code before it runs, with no build step.
 ---
 
-import { decisionRecord } from '@config/site.mjs'
+import { githubFile } from '@config/site.mjs'
 
 Many languages for the web read your code line by line while it runs. That is an interpreter.
 Novis does not have one. It compiles each file to machine code, and the processor runs that code
@@ -34,4 +34,4 @@ can both write and run is a common target for attacks, so Novis never has it.
 - [What Novis is for](/in-depth/what-for/) explains why speed matters for a web server.
 - [Roadmap](/in-depth/roadmap/) names the faster compiler that comes next.
 
-<a href={decisionRecord('0017')}>Read how compiled code is reused and replaced.</a>
+<a href={githubFile('docs/rules/config/an-edit-reaches-the-next-request-without-a-restart.md')}>Read how compiled code is reused and replaced.</a>

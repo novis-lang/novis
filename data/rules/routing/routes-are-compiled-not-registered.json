@@ -2,7 +2,6 @@
   "title": "A route is a `#[Route]` compiled into the unit's table, and its three runtime bugs are compile errors",
   "status": "shipped",
   "because": [
-    "0077",
     "0102",
     "0110"
   ],

@@ -4,7 +4,7 @@ covers: []
 description: Each request runs on its own, with its own memory, so an error in one request stops only that request.
 ---
 
-import { decisionRecord } from '@config/site.mjs'
+import { githubFile } from '@config/site.mjs'
 
 A web server runs many requests at the same time. In Novis, each request runs on its own. It has
 its own memory and its own copy of every static property. Nothing is shared between two requests.
@@ -31,4 +31,4 @@ does not get ten times the memory. Read more in [Memory and CPU limits](/in-dept
 - [One failure stops one program](/guides/why-novis/one-failure/) shows a child program that fails.
 - [Syntax: isolates](/syntax/concurrency/isolates/) shows how to start one.
 
-<a href={decisionRecord('0006')}>Read the full reasoning.</a>
+<a href={githubFile('docs/rules/security/isolate-shares-nothing.md')}>Read the full reasoning.</a>

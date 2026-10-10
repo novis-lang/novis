@@ -3,9 +3,7 @@
   "status": "shipped",
   "because": [
     "0096",
-    "0102",
-    "0060",
-    "0074"
+    "0102"
   ],
   "seeAlso": [
     "security/access-is-checked-for-presence-not-meaning",

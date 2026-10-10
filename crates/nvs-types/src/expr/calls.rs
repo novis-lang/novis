@@ -12,8 +12,8 @@
 //! neither of which lists a method at all — and it gets
 //! [`report_method_on_erased_receiver`] instead; `mixed` is the one that
 //! neither resolves nor is wrong, and records
-//! [`crate::expr_table::ExprInfo::ErasedCall`] for the run-time dispatch ADR
-//! 0036 § 4 defers it to. [`resolved_call`] is the record `nvs-ir` reads back
+//! [`crate::expr_table::ExprInfo::ErasedCall`] for the run-time dispatch
+//! `rule:types/erased-member-access` defers it to. [`resolved_call`] is the record `nvs-ir` reads back
 //! (see [`crate::expr_table`]), and it always carries the *declaring* class
 //! rather than the receiver's.
 //!
@@ -337,8 +337,9 @@ pub(crate) fn infer_static_call(
                     // owns: `self::f()`/`parent::f()` from an instance method forward
                     // that frame's `$this` and are the ordinary spelling, so what is
                     // refused is a non-static target reached where no receiver is in
-                    // scope — the frame `nvs_ir::lower::expr` would panic on. ADR
-                    // 0027's `Class::method(...)` is not that frame and not a call:
+                    // scope — the frame `nvs_ir::lower::expr` would panic on. A
+                    // method reference, `Class::method(...)`
+                    // (`rule:expressions/method-reference`), is not that frame and not a call:
                     // it names the method, and `Core\Attributes::get<T>(C::m(...))`
                     // folds it at check time without ever needing a receiver
                     // (`docs/reference/lang/90-attributes.md`).
@@ -471,7 +472,7 @@ pub(crate) fn infer_static_call(
         );
         // A member that opens an isolate, which its row says by marking an
         // entry parameter — `rule:concurrency/an-upgrade-is-spawn-shaped`'s `Core\Socket::upgrade`. Its entry
-        // takes ADR 0006 § *Decision*'s operand rule and its other arguments
+        // takes `rule:security/isolate-shares-nothing`'s operand rule and its other arguments
         // take `rule:security/secret-sinks-refuse`'s crossing refusal, both of them the `spawn
         // script` site's own rather than a second copy. Static-only, like
         // every marked row: this is the one call path where an argument's

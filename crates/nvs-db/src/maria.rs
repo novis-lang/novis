@@ -9,7 +9,7 @@
 //! format that would then have two places to go wrong. What it does not borrow
 //! is the part a program can observe: which plugins a server may authenticate
 //! this driver with, what a vendor error code means
-//! ([ADR 0067 § 8](/docs/decisions/0067.md): "MariaDB needs its own
+//! (`rule:core-classes/db-error`: "MariaDB needs its own
 //! code table, not MySQL's"), and `RETURNING`, which MySQL does not have.
 //! `rule:core-classes/db-one-api` argues at length that treating those as
 //! flags on a MySQL connection is a design error; the split here is that
@@ -101,7 +101,7 @@ pub const PARSEC: &str = "parsec";
 /// Claiming it costs a connection nothing and obliges it to nothing: it widens
 /// what this client *may* send and changes no packet the server sends back, so
 /// it is claimed at the handshake and spent later or not at all. **It is not
-/// spent**: [ADR 0067 § 4](/docs/decisions/0067.md) runs `executeMany`
+/// spent**: `rule:core-classes/db-statement-members` runs `executeMany`
 /// as N executions on every driver, because a bulk command ends at a refusal
 /// where the loop carries on and cannot take a set that answers with rows. The
 /// bit stays claimed because that is the word the *server* answers in too, and
@@ -113,7 +113,7 @@ pub const PARSEC: &str = "parsec";
 /// into a result stream, which is a second packet shape on the row path for a
 /// report nothing in `Core\Db` surfaces. `MARIADB_CLIENT_EXTENDED_METADATA` and
 /// `MARIADB_CLIENT_CACHE_METADATA` are decisions about column metadata, and
-/// [ADR 0067 § 9](/docs/decisions/0067.md)'s type map is read off the
+/// `rule:core-classes/db-column-types`'s type map is read off the
 /// metadata MySQL's own framing already carries — a driver that asked for a
 /// wider or a suppressed form would be decoding two layouts to answer one
 /// table. `MARIADB_CLIENT_BULK_UNIT_RESULTS` changes what a bulk command
@@ -129,7 +129,7 @@ pub(crate) const MARIADB: Backend = Backend {
     extended: EXTENDED_CAPABILITIES,
 };
 
-/// The [ADR 0067 § 8](/docs/decisions/0067.md) kind a MariaDB error
+/// The `rule:core-classes/db-error` kind a MariaDB error
 /// code means.
 ///
 /// **Not [`crate::mysql`]'s table, and the divergence is not decorative.** The
@@ -472,7 +472,7 @@ impl MariaConn {
     /// of them is one rule. Where the two drivers will part is MariaDB's own
     /// `RETURNING`, which MySQL does not have and which is not here yet —
     /// `COM_STMT_BULK_EXECUTE` is not a second such place, because
-    /// [§ 4](/docs/decisions/0067.md) runs `executeMany` as N
+    /// `rule:core-classes/db-statement-members` runs `executeMany` as N
     /// executions on every driver.
     ///
     /// # Errors
@@ -557,7 +557,7 @@ impl MariaConn {
         crate::mysql::end_stream_of(&mut self.wire, &self.state, &mut self.reading);
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `executeMany`: one
+    /// `rule:core-classes/db-statement-members`'s `executeMany`: one
     /// prepare, N executions, and the affected counts summed.
     ///
     /// # Errors
@@ -574,7 +574,7 @@ impl MariaConn {
         )
     }
 
-    /// [ADR 0067 § 7](/docs/decisions/0067.md)'s `START TRANSACTION`,
+    /// `rule:core-classes/db-transactions`'s `START TRANSACTION`,
     /// or the `SAVEPOINT` a nested `transaction()` is.
     ///
     /// # Errors
@@ -620,7 +620,7 @@ impl MariaConn {
         crate::mysql::roll_back(&mut self.wire, &self.state, self.capabilities, &self.depth)
     }
 
-    /// [ADR 0067 § 13](/docs/decisions/0067.md)'s reset, before this
+    /// `rule:security/db-pool-reset-is-a-boundary`'s reset, before this
     /// connection may be handed to another request.
     ///
     /// `COM_RESET_CONNECTION` on this server too, and it takes `self` by value

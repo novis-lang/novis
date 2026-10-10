@@ -17,3 +17,8 @@ as `bytes`, so what the copy sees is never a `secret`
 The copy is a real per-`get` cost, paid to keep the request model intact. An implementation may
 later share immutable scalars within a core by refcount, since a core is single-threaded — an
 optimisation, and it must not be observable.
+
+**Declined:**
+- **Reference-sharing, with the cache pinning values against the wholesale drop.** Beyond tying a
+  heap's lifetime to what a request read, it would leak a mutable value between requests unless every
+  cached value were deeply immutable, which is a second value model to maintain.

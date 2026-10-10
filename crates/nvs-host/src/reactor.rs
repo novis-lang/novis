@@ -42,7 +42,7 @@
 //! rather than a trade-off — which is why [`run_until_idle`] retires on every
 //! turn rather than at the end.
 //!
-//! What this module spends, per ADR 0004: one [`mio::Poll`] and one
+//! What this module spends, per `rule:programs/memory-priority`: one [`mio::Poll`] and one
 //! [`EVENT_CAPACITY`]-entry event buffer **per worker**, plus one small table
 //! entry per task with a live registration. Both are O(cores) and O(in-flight);
 //! neither grows with requests served.

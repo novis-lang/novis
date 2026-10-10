@@ -2,9 +2,6 @@
   "title": "One verdict, three renderings, a machine format owns stdout alone, and the JSON one locates every test it reports",
   "status": "shipped",
   "because": [
-    "0079",
-    "0018",
-    "0040",
     "0172"
   ],
   "seeAlso": [

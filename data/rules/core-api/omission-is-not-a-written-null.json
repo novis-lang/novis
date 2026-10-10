@@ -3,9 +3,7 @@
   "status": "shipped",
   "because": [
     "0147",
-    "0063",
-    "0135",
-    "0022"
+    "0135"
   ],
   "seeAlso": [
     "core-api/a-nullable-field-omits-as-the-never-written-marker",

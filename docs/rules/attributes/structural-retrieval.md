@@ -20,3 +20,11 @@ A written `$member` is checked against the target's real declarations and one na
 `E0798` — the answer a misspelling would otherwise fold to is the answer a correct retrieval of an
 absent attribute gives, and nothing downstream could tell them apart. A `$member` that is not a string
 literal has no name to check and folds to an empty result.
+
+**Declined:**
+- **Retrieval through `Core\Reflect`'s general walk.** Every attribute list is known while compiling,
+  so a walk by name at run time throws that knowledge away and opens a second, broader introspection
+  surface for a question the compiler answers narrowly.
+- **A reference token for a property or a parameter, and `Foo::class` as the class target.** Every
+  class already has a nameable `constructor` reference, so every target is one callable reference, and
+  a member name string is what PHP's own reflection accepts for members that are not callable.

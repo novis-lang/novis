@@ -26,8 +26,8 @@ string $s2 = "x{$m}y";
 string $s3 = "";
 $s3 .= Helper::nothing();
 
-// The explicit conversion is the answer in each case, and stays legal: ADR
-// 0009 § 3 grants `bytes as string` and `rule:enums/no-class-machinery` grants `$case as int`.
+// The explicit conversion is the answer in each case, and stays legal:
+// `rule:types/conversion` grants `bytes as string` and `rule:enums/no-class-machinery` grants `$case as int`.
 echo $by as string, $m as int, "\n";
 --EXPECTF-ERROR--
 error[E0707]: `bytes` has no string form

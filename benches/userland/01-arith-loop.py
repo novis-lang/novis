@@ -3,8 +3,9 @@
 
 def trunc_mod(a: int, b: int) -> int:
     """PHP and Novis truncate `%` toward zero; Python floors it, and this case's total goes negative
-    on the first iteration. ADR 0100 § 5 names this as the one exception to writing each case in
-    its own language's idiom -- the byte-identical gate requires the arithmetic to agree."""
+    on the first iteration. rule:tooling/bench-engine-list-is-data names this as the exception to
+    writing each case in its own language's idiom: the byte-identical gate requires the arithmetic
+    to agree."""
     r = a % b
     return r - b if r and (a < 0) != (b < 0) else r
 

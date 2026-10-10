@@ -202,8 +202,8 @@ pub(crate) enum Encoder {
 ///
 /// **MariaDB renders as MySQL does, and that is not a shortcut**: the encoder
 /// follows the *protocol*, which the two share whole, where
-/// [`nvs_db::Driver`] separates them for the auth plugins and error tables ADR
-/// 0067 keeps them apart for. `nvs_db::Dialect` has already made the same call
+/// [`nvs_db::Driver`] separates them for the auth plugins and error tables
+/// `rule:core-classes/db-drivers-are-an-enum` keeps them apart for. `nvs_db::Dialect` has already made the same call
 /// for the text.
 ///
 /// **Total, which is [`crate::db`] § *Every driver reaches every member, and

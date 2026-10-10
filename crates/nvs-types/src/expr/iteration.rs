@@ -1,5 +1,6 @@
-//! ADR 0053: what a `foreach` subject may be, what its bindings type as, and
-//! which `yield` forms exist.
+//! What a `foreach` subject may be, what its bindings type as, and which
+//! `yield` forms exist (`rule:iteration/foreach-subjects`,
+//! `rule:iteration/one-way-only`).
 //!
 //! [`ForeachSource`] is the classification the rest of the crate asks for —
 //! `crate::locals` drives a `foreach`'s bindings from it, and `nvs-ir` lowers

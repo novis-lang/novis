@@ -14,8 +14,8 @@
 //
 // `nvs.toml` grants this file three things and the header of its block says
 // why each is separate. `net.listen` is the bind, `net.connect` is the dial,
-// and `net.internal` is what lets the dial reach `127.0.0.1` at all — ADR 0058
-// § 3 denies loopback by default, and § 8 of ADR 0162 is why holding the first
+// and `net.internal` is what lets the dial reach `127.0.0.1` at all — the outbound
+// address policy denies loopback by default, and § 8 of ADR 0162 is why holding the first
 // of those three does not buy the second.
 
 // 1. The bind. Port `0` asks the operating system to pick, which is the only

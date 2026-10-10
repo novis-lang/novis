@@ -21,3 +21,9 @@ nothing can write to a slot the code after the `catch` has already read.
 It is bought at a stated price — `rule:concurrency/a-deadline-bounds-the-cancel-not-the-return` — and
 it is why cancellation is the runtime's own teardown rather than anything a program participates in
 (`rule:concurrency/cancellation-runs-no-user-code`).
+
+**Declined:**
+- **Propagating the first throw without waiting for the siblings.** It returns sooner and is what a
+  naive group does, and it leaves running work that nobody holds a handle to: the orphan
+  `rule:security/isolate-shares-nothing`'s tree accounting exists to rule out, and a row lock still
+  held after the `catch` has run.

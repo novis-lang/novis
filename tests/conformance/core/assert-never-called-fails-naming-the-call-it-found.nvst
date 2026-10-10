@@ -2,7 +2,7 @@
 `Core\Test::assertNeverCalled` holds for a method the exercise never reached, and its failure names the call it did find — `rule:testing/interaction-after-the-fact`
 --FILE--
 <?nvs
-// ADR 0079 § 11's other half. What this member is for is the assertion an
+// `rule:testing/interaction-after-the-fact`'s other half. What this member is for is the assertion an
 // expectation declared in advance would have reported from the wrong line: the
 // call that should not have happened is named here, where the test says so.
 interface Mailer {

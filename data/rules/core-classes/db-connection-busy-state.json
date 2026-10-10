@@ -2,8 +2,7 @@
   "title": "Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset",
   "status": "shipped",
   "because": [
-    "0132",
-    "0067"
+    "0132"
   ],
   "seeAlso": [
     "core-classes/db-streaming",

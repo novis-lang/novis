@@ -10,3 +10,8 @@ second table to drift.
 What survives is the roster that names no type: `isEmail`, `isIp`, `isMac`, `isDomain`, `isAscii` and
 `isPrintable`. None has an `as` equivalent, because none names a type
 (`rule:expressions/nullable-conversion`).
+
+**Declined:**
+- **Keeping `isInteger`, `isFloat` and `isBoolean`.** A validation class with `isEmail` and no
+  `isInteger` reads as a hole, but the hole is only apparent: the removed three name types and the
+  survivors name formats, and only a type has an `as`.

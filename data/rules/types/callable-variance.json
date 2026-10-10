@@ -2,8 +2,7 @@
   "title": "A callable's parameters are contravariant and its return type covariant",
   "status": "shipped",
   "because": [
-    "0136",
-    "0007"
+    "0136"
   ],
   "seeAlso": [
     "types/callable-signature",

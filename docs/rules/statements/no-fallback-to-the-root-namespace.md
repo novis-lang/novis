@@ -19,4 +19,13 @@ second resolution rule to hold alongside the first. Code at the root namespace i
 enclosing namespace *is* the root.
 
 A root-namespace fallback only serves a function or constant call looking for a built-in from inside a
-namespace. With no free functions and no free constants, nothing is left for one to do.
+namespace. With no free functions and no free constants, nothing is left for one to do. The price is one
+line: a namespaced file that catches `Throwable` writes `use Throwable;`, which PHP does not need.
+
+**Declined:**
+- **A fallback to the root for a short name that resolves nowhere else.** Two places could then match one
+  short name, which is the ambiguity `rule:statements/a-qualified-name-is-absolute` removes.
+- **The reserved exception tree imported automatically.** A closed roster is still a second resolution
+  rule, and `Core` gets no automatic import for the same reason (`rule:core-api/reserved-namespace`).
+- **The exception tree moved under `Core`, so that no root-level name exists.** It changes every `catch`
+  clause to remove a case one import line already covers.

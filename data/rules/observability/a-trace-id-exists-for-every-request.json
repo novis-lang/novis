@@ -2,7 +2,6 @@
   "title": "A trace id exists for every request whatever the sampling decision, and it is the only request identifier",
   "status": "shipped",
   "because": [
-    "0076",
     "0097"
   ],
   "seeAlso": [

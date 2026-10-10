@@ -1979,8 +1979,8 @@ fn is_closed_value_target(to: TypeId, env: &Env<'_>) -> bool {
 /// admits more than one runtime shape.
 ///
 /// This is what leaves `nvs_ir::lower::expr`'s `Lowering::convert` catch-all
-/// only the two gaps its own message names (`array<T> as array<U>`, and ADR
-/// 0024 § 5's `Core\Html\Markup`). Before it, `true as int`, `$xs as string`,
+/// only the two gaps its own message names (`array<T> as array<U>`, and
+/// `rule:core-classes/html-auto-escape`'s `Core\Html\Markup`). Before it, `true as int`, `$xs as string`,
 /// `$i as bytes`, `$case as float` and `null as string` each panicked there,
 /// and `$foo as Bar` between two unrelated classes was worse than a panic: the
 /// representations are equal, so it took the free `from == to` row and read

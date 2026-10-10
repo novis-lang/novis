@@ -14,3 +14,9 @@ What is written is a single-quoted literal, so a multi-line rendering stays mult
 a diff. A run that rewrote a snapshot still reports the test as failed; the re-run is what says the
 new text is the one the author meant. The rendering is canonical, ordered, and redacts a `secret`,
 so a snapshot cannot become the place secrets get committed.
+
+**Declined:**
+- **Separate snapshot files.** They are better for very large payloads, and worse at the thing that
+  actually goes wrong: a reviewer approving a snapshot diff unread.
+- **Snapshots in a library.** The updater needs the written literal's span, which only the compiler
+  records, so a library version would be permanently worse rather than merely external.

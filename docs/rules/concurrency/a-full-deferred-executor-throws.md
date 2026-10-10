@@ -11,3 +11,7 @@ overload and then loses the work anyway, and a bounded one is a durable queue wi
 durability. A deployment reaching this cap has outgrown
 `rule:concurrency/after-response-outlives-the-connection` and wants the durable queue it declines to
 be. Failing loudly is what makes that legible, instead of receipts quietly ceasing to be sent.
+
+**Declined:**
+- **Queueing past the cap.** It is smoother under a burst, and it is the hidden overload and lost
+  work described above.

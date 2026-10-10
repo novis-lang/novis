@@ -4,7 +4,7 @@ covers: []
 description: The compiler tracks every value from outside the program, so it cannot reach SQL, HTML or a shell without a check.
 ---
 
-import { decisionRecord } from '@config/site.mjs'
+import { githubFile } from '@config/site.mjs'
 
 Many attacks on web servers work the same way. Text from a request reaches a place that runs it as
 code. SQL injection, cross-site scripting and shell injection are all this one mistake.
@@ -41,4 +41,4 @@ value with `echo` or puts it in an error message does not compile.
 - [Guides: tainted input](/guides/how-to-use/tainted-input/) shows each safe way in a program.
 - [Syntax: tainted and secret](/syntax/values/tainted-and-secret/) lists the rules.
 
-<a href={decisionRecord('0024')}>Read the full reasoning.</a>
+<a href={githubFile('docs/rules/security/tainted-qualifier.md')}>Read the full reasoning.</a>

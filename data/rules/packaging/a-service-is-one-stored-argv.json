@@ -1,9 +1,7 @@
 {
   "title": "`nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs",
   "status": "shipped",
-  "because": [
-    "0093"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/the-installer-is-a-sink",
     "packaging/the-argv-lives-in-imagepath",

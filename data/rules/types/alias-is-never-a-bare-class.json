@@ -1,9 +1,7 @@
 {
   "title": "A `type` alias may not name a single bare class",
   "status": "shipped",
-  "because": [
-    "0015"
-  ],
+  "because": [],
   "seeAlso": [
     "types/type-alias"
   ],

@@ -2,8 +2,7 @@
   "title": "A `push` on the queue's connection commits with the write that caused it, or neither happens",
   "status": "shipped",
   "because": [
-    "0084",
-    "0067"
+    "0084"
   ],
   "seeAlso": [
     "core-classes/queue-storage-is-a-table",

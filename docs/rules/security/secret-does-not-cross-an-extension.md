@@ -14,3 +14,9 @@ two reasons the protocol roster stays in `Core` (`rule:security/protocol-roster`
 **On disk.** A `secret` argument is refused at every extension parameter
 (`tests/conformance/reject/a-secret-argument-to-an-extension-does-not-compile.nvst`), and a manifest
 declaring a `secret` return does not load (`crates/nvs-ext/tests/load.rs`).
+
+**Declined:**
+- **A declared, capability-gated `secret` parameter**, so that protocol extensions could hold keys. It
+  is the argument serialization's refusal already answers, and the reveal already gives the escape
+  hatch with the property that matters: it is at the call site, in the application's own source, and
+  greppable.

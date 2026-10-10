@@ -868,7 +868,7 @@ enum Command {
     /// One call answers what this binary is and what is compiled into it,
     /// including the complete third-party attribution Novis's MIT license and
     /// its dependencies' licenses both require to be distributed with it.
-    // `docs/decisions/0065.md` is why this is one call rather than several.
+    // `rule:packaging/nvs-info-is-the-one-call` is why this is one call rather than several.
     Info {
         /// Also print every third-party license text in full.
         #[arg(long)]
@@ -1365,7 +1365,7 @@ enum ServiceCommand {
         /// The account that the service runs as. The default is the local
         /// system account, `LocalSystem`. `SYSTEM` is another name for the
         /// same account.
-        // `docs/decisions/0093.md` § 4.
+        // `rule:packaging/a-service-runs-as-a-virtual-account`.
         #[arg(long, value_name = "ACCOUNT")]
         account: Option<String>,
         /// Not allowed. It gives error `E0633`. Other users on the computer
@@ -1379,7 +1379,7 @@ enum ServiceCommand {
         /// installer. Everything after it is stored exactly as you wrote it.
         /// So the service command can use an option that the installer also
         /// has, for example `--start`.
-        // `docs/decisions/0093.md` § 1.
+        // `rule:packaging/a-service-is-one-stored-argv`.
         #[arg(
             last = true,
             required = true,
@@ -1455,7 +1455,7 @@ struct ServiceInstall {
     name: String,
     /// The account that the service runs as. The default is the local system
     /// account, `LocalSystem`. `SYSTEM` is another name for the same account.
-    // `docs/decisions/0093.md` § 4.
+    // `rule:packaging/a-service-runs-as-a-virtual-account`.
     #[arg(long, value_name = "ACCOUNT")]
     account: Option<String>,
     /// Not allowed. It gives error `E0633`. Other users on the computer can
@@ -1465,7 +1465,7 @@ struct ServiceInstall {
     password: Option<String>,
     /// When the service starts after the computer starts. The default is
     /// together with the other automatic services.
-    // `docs/decisions/0093.md` § 4.
+    // `rule:packaging/a-service-answers-its-manager`.
     #[arg(long, value_enum, value_name = "MODE")]
     start: Option<service::registration::StartMode>,
     /// What the service manager does when the service fails. The default
@@ -1489,7 +1489,7 @@ struct ServiceInstall {
     /// installer. Everything after it is stored exactly as you wrote it. So
     /// the service command can use an option that the installer also has, for
     /// example `--start`.
-    // `docs/decisions/0093.md` § 1.
+    // `rule:packaging/a-service-is-one-stored-argv`.
     #[arg(
         last = true,
         required = true,

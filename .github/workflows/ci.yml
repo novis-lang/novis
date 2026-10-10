@@ -244,7 +244,7 @@ jobs:
       # aarch64 is a different Cranelift backend entirely. The cost guards only run
       # in release, because the baselines they compare against are release figures
       # — a full compile of the workspace beside the debug one `test` does, and why a
-      # diff that cannot move a baseline does not pay for it (ADR 0143 § 2, amending 0026 § 1).
+      # diff that cannot move a baseline does not pay for it (ADR 0143 § 2, `rule:testing/perf-two-mechanisms`).
       - name: Architecture invariants and cost guards
         run: cargo test --release -p nvs-abi-probe
 
@@ -811,7 +811,8 @@ jobs:
   # and only at distribution, unlike an unallowed licence, which fails loudly
   # the moment it enters the tree. Also fails on a licence the generator has no
   # policy for, so a new one is a decision someone makes rather than a line
-  # that appears in a generated file. See ADR 0065. The same graph also holds
+  # that appears in a generated file (`rule:testing/attribution-is-diffed-in-ci`).
+  # The same graph also holds
   # the default binary's C dependencies against their ledger, so one added
   # without answering `rule:packaging/a-c-dependency-answers-two-questions`
   # fails here.
@@ -1157,7 +1158,7 @@ jobs:
             -p nvs-stdlib
       # The backend runs in the same sanitizer with one option off, and it is not a preference.
       # `detect_stack_use_after_return` moves an address-taken local into a heap fake frame, and
-      # `nvs-codegen`'s `stack_limit` tests arm ADR 0020 § 1's window from the address of one — so
+      # `nvs-codegen`'s `stack_limit` tests arm `rule:errors/stack-depth`'s window from the address of one — so
       # with it on, the window lands megabytes away from the stack the JIT'd frames actually walk
       # down, and a runaway recursion either trips on its first frame or overflows for real. A JIT
       # frame is not instrumented, so there is no spelling of that measurement the fake stack does

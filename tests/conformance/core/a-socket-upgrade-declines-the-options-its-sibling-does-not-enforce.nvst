@@ -2,7 +2,7 @@
 `Core\Socket::upgrade` declares no `grants:`, so a narrowing it could not enforce is refused rather than accepted and dropped — `rule:concurrency/an-upgrade-is-spawn-shaped`, `rule:security/isolate-shares-nothing`
 --FILE--
 <?nvs
-// `rule:concurrency/an-upgrade-is-spawn-shaped` lists four options and calls them 0006's. Three of the four --
+// `rule:concurrency/an-upgrade-is-spawn-shaped` lists four options and calls them `spawn script`'s. Three of the four --
 // `limits:`, `grants:` and `on:` -- narrow the child, and this member forwards
 // none of them to the connection isolate it opens. Declaring them on this row
 // would accept a narrowing and drop it, which is the reading of `grants:` that

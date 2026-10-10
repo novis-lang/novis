@@ -2,7 +2,6 @@
   "title": "The table is built by the program enumeration, and a program with no `#[Route]` builds none and pays nothing",
   "status": "shipped",
   "because": [
-    "0077",
     "0102"
   ],
   "seeAlso": [

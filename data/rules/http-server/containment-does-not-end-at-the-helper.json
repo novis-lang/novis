@@ -2,9 +2,7 @@
   "title": "A worker task's root is wrapped in `catch_unwind`: a panic beneath a request fails that request, and one outside any request retires the worker",
   "status": "shipped",
   "because": [
-    "0106",
-    "0002",
-    "0020"
+    "0106"
   ],
   "seeAlso": [
     "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",

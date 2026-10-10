@@ -2,7 +2,6 @@
   "title": "A runtime helper never unwinds, and a panic dies inside one request",
   "status": "shipped",
   "because": [
-    "0002",
     "0106"
   ],
   "seeAlso": [
@@ -10,6 +9,7 @@
     "errors/panics-bypass-user-code"
   ],
   "guardedBy": [
-    "benches/abi-probe/tests/unwind_unavailable.rs"
+    "benches/abi-probe/tests/unwind_unavailable.rs",
+    "benches/abi-probe/tests/invariants.rs"
   ]
 }

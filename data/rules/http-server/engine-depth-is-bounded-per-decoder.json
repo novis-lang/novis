@@ -2,9 +2,7 @@
   "title": "Every engine-side recursive descent over request data carries a depth counter and refuses past it, with a limit per decoder and `512` for JSON",
   "status": "shipped",
   "because": [
-    "0106",
-    "0020",
-    "0064"
+    "0106"
   ],
   "seeAlso": [
     "http-server/no-path-reaches-abort",

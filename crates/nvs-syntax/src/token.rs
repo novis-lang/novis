@@ -123,7 +123,7 @@ pub enum TokenKind {
     /// An integer literal: decimal, `0x`/`0X` hex, `0o`/`0O` octal, `0b`/`0B`
     /// binary, with PHP's `_` digit separators. The lexer does not evaluate it
     /// or decide `int` versus `uint` — that is a checker question
-    /// ([ADR 0007 § 4](/docs/decisions/0007.md)).
+    /// (`rule:types/numeric-literal-placement`).
     IntLiteral,
     /// A floating-point literal, including an exponent (`1e10`, `1.5e-3`).
     FloatLiteral,

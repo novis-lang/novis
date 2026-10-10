@@ -1,31 +1,8 @@
 <?nvs
-// The two stores, as a program: the tier that may forget, the tier that may
-// not, and the limit built on the second one.
-//
-// [ADR 0059](/docs/decisions/0059.md) § 1 makes
-// these **two methods rather than one API with a flag**, so which
-// guarantee a program relies on is visible in review rather than hidden in
-// an argument. `local()` is per-core and in-process, and its contract says
-// any entry may be absent at any time, for any reason — the first two lines
-// below are the only order in which that tier can be asserted at all, and a
-// program that would be wrong if a `get` returned nothing is using the
-// wrong one. `shared()` is a real store over the network, coherent across
-// cores and machines, and gated by `cache.shared` — the grant names the store
-// an operator configured, not the address it happens to be at.
-//
-// Values cross by the recursive graph copy the isolate boundary already
-// uses (ADR 0023), not by a third mechanism: `put` copies out of the
-// request heap, `get` copies back into it, because the request heap is
-// dropped wholesale at the end of the request.
-//
-// [ADR 0075](/docs/decisions/0075.md) is the last two lines.
-// `Core\RateLimit` takes **no configuration at all** — the limit is an
-// argument because only the application knows whether this is a quota or a
-// lock — and an unreachable store **throws** rather than deciding
-// *allowed*. The `retryAfter` on a refusal is what makes a `429` honest.
-//
-// The five lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`; the source is not.
+// This program uses the two caches, `Core\Cache::local()` and `Core\Cache::shared()`, and a rate limit.
+// The local cache may lose any entry at any time. The shared cache does not.
+// `put` copies the value into the cache, and `get` returns a copy.
+// `Core\RateLimit::consume` takes the limit as arguments and needs no configuration.
 
 var $local = Core\Cache::local();
 
@@ -37,8 +14,7 @@ if ($before == null) {
     echo 'local hit before any write', "\n";
 }
 
-// Warm, immediately after our own write — which is the strongest thing the
-// local tier promises and the only one worth asserting.
+// Right after a `put`, the local cache returns the value. This prints `local hit`.
 $local->put('greeting', 'hello');
 var $after = $local->get('greeting');
 if ($after == null) {
@@ -57,12 +33,8 @@ if ($seen == null) {
     echo 'shared hit', "\n";
 }
 
-// An account nothing has charged yet — and the reason it is drawn rather than
-// written down is the tier itself. The shared store is coherent and it does not
-// forget when this process exits, so a constant key would inherit the previous
-// run's arrival and refuse the line below; the acceptance sweep runs this
-// program three times in a few seconds. That is the whole difference from the
-// tier above, stated as a line that would fail without it.
+// The shared cache keeps its data after the program exits. A random key makes
+// sure an earlier run has not used up this limit.
 var $account = 'account:' . Core\Random::token(6);
 
 // One request per two seconds, for this key. The first is inside the limit.
@@ -79,10 +51,8 @@ var $second = Core\RateLimit::consume($account, 1, 2s);
 if ($second->allowed()) {
     echo 'allowed=true unexpectedly', "\n";
 } else {
-    // Rounded **up**, because a `Retry-After` rounded down tells the client to
-    // come back before the store will admit it — and the wait here is a whisker
-    // under the two seconds the limit is, since the second call arrives a
-    // moment after the first.
+    // The wait is rounded up to whole seconds. A client that waits less
+    // than the full time is refused again.
     var $wait = $second->retryAfter();
     var $seconds = 0;
     if ($wait != null) {

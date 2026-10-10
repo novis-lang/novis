@@ -1,9 +1,7 @@
 {
   "title": "When two slices compete, the one that gets a working application sooner wins",
   "status": "shipped",
-  "because": [
-    "0080"
-  ],
+  "because": [],
   "seeAlso": [
     "programs/audience",
     "programs/first-party-framework",

@@ -2,8 +2,7 @@
   "title": "The only input language is HTML plus a CSS subset, and every backend answers that one interface",
   "status": "designed",
   "because": [
-    "0122",
-    "0044"
+    "0122"
   ],
   "seeAlso": [
     "core-classes/pdf-render-has-no-io",

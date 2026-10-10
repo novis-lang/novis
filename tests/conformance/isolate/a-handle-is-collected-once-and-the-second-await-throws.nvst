@@ -1,5 +1,5 @@
 --TEST--
-`await` consumes the started isolate a handle names, so a handle awaited twice throws rather than waiting again — ADR 0006 § *Decision*
+`await` consumes the started isolate a handle names, so a handle awaited twice throws rather than waiting again — `rule:security/isolate-shares-nothing`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no

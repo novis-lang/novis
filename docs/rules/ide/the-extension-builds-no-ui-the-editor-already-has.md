@@ -12,3 +12,10 @@ is DAP's existing UI over `nvs dap` (`rule:ide/the-debug-adapter-does-not-wait-f
 That is four pieces of UI infrastructure Novis neither builds nor maintains, which is the simplicity
 priority applied directly. The extension's own code is the descriptor factory, the schema contribution,
 the test provider and the command that hands a file to a viewer.
+
+**Declined:**
+- **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the
+  speedscope format already exist and are maintained elsewhere; building equivalents is scope the
+  simplicity priority does not pay for.
+- **A hand-rolled status-bar item for server health.** `LanguageStatusItem` is the API VS Code provides
+  for exactly that.

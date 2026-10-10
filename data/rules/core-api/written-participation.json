@@ -1,12 +1,7 @@
 {
   "title": "A class participates in a wire format only where it writes so, never structurally",
   "status": "shipped",
-  "because": [
-    "0063",
-    "0071",
-    "0028",
-    "0033"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/required-optional-and-nullable",
     "classes/no-magic-methods",

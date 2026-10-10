@@ -1,12 +1,7 @@
 {
   "title": "Both tiers run GCRA over one stored timestamp per key, and the `Decision` computes `retryAfter`",
   "status": "shipped",
-  "because": [
-    "0075",
-    "0063",
-    "0024",
-    "0033"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/ratelimit-two-members",
     "core-classes/ratelimit-unreachable-store-throws",

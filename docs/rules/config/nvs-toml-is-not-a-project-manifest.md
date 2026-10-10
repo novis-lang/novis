@@ -1,7 +1,10 @@
 `nvs.toml` is a root-owned deployment file. It is **never searched for by walking up from a source
 file**, it holds no source-tree state, and an `[autoload]` table is refused as an unknown key for the
 reason `rule:programs/no-runtime-autoload` gives: the rejection of "a manifest found by walking up from
-the entry file" stands, and it is about discovery and lifetime rather than syntax. Sharing an extension
+the entry file" stands, and it is about discovery and lifetime rather than syntax. The autoload map is
+a property of the source tree, while `nvs.toml` is deployment state: it is absent from
+`nvs build --compile` and from an editor's `nvs check`, and a map in it would make one source tree
+behave differently under two hosts, which the artifact cache would then have to key on. Sharing an extension
 with `Cargo.toml` is not a collision; the name, the location and the owner all differ.
 
 Where the file *is* found is `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`:

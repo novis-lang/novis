@@ -11,14 +11,14 @@
 //!
 //! **It lives in this crate rather than in `nvs-syntax` because this crate is
 //! the leaf.** `rule:errors/diagnostic-record` puts the record model below both the runtime and the compiler front end,
-//! and § 5 routes the bidi transformation through this predicate — so with
+//! and `rule:errors/record-transformations` routes bidi through this predicate — so with
 //! `nvs-runtime` a dependent, `nvs-render` → `nvs-syntax` → `nvs-diagnostics`
 //! would close a cycle. Living here keeps
 //! `rule:security/bidi-predicate`'s one rule one implementation, which `nvs-syntax`
 //! reads from below. The crate docs' § *Where this sits* is the home of
 //! that reasoning.
 //!
-//! **What a span is, is the caller's decision**, per that ADR § 2's table: the
+//! **What a span is, is the caller's decision** (`rule:security/bidi-boundaries`): the
 //! lexer passes one *line* of a token, so a heredoc cannot open a scope on one
 //! line and close it on the next; a sink passes one whole write. Per-line is
 //! strictly the stronger reading — a text whose every line balances balances as
@@ -34,7 +34,8 @@
 //!
 //! `LRM`/`RLM` (U+200E/U+200F) are marks rather than scopes and are not covered:
 //! they open nothing, so they cannot be unterminated. Neither are zero-width and
-//! invisible characters, nor homoglyphs, each for the reason that ADR § 4 gives.
+//! invisible characters, nor homoglyphs, each for the reason
+//! `rule:security/bidi-scope-is-the-whole-target` gives.
 
 /// Embedding and override openers, closed by `PDF` (U+202C).
 const LRE: char = '\u{202A}';

@@ -2,8 +2,6 @@
   "title": "An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting",
   "status": "shipped",
   "because": [
-    "0007",
-    "0054",
     "0261"
   ],
   "seeAlso": [

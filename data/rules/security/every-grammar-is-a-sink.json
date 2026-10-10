@@ -2,10 +2,7 @@
   "title": "Every grammar the library parses is a sink, and none of the four gets a launderer",
   "status": "shipped",
   "because": [
-    "0088",
-    "0063",
-    "0057",
-    "0056"
+    "0088"
   ],
   "seeAlso": [
     "security/sink-predicate",

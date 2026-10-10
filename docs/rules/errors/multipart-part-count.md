@@ -7,3 +7,6 @@ multipart parsers, and 1000 is the number that shape's best-known fix chose.
 
 This also widens the attribution rule in the only direction it was missing: **temp files, file
 descriptors and disk bytes are charged to a request the same way memory is.**
+
+The cost is that a form with more than 1000 parts needs one configuration line. A ported PHP
+application meets the limit exactly where it already met one, because PHP uses the same default.

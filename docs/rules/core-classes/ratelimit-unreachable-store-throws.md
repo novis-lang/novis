@@ -9,3 +9,9 @@ can question.
 
 `shed` cannot fail this way, its state being in the core's own memory, which is one more reason the
 two are different members rather than one with a flag.
+
+**Declined:**
+- **Failing open**, returning `allowed: true` with a logged warning. A security control that has
+  stopped working would look like one that is working.
+- **Failing closed**, returning `allowed: false`. A store outage would take the whole application
+  down, and a quota check is not worth that.

@@ -2,8 +2,7 @@
   "title": "A run mode is one of exactly two closed values, and with nothing configured it is `production`",
   "status": "shipped",
   "because": [
-    "0091",
-    "0005"
+    "0091"
   ],
   "seeAlso": [
     "config/a-mode-is-five-defaults",

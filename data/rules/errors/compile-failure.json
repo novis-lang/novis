@@ -2,7 +2,6 @@
   "title": "A compile failure is catchable mid-execution and reaches the ladder at entry",
   "status": "shipped",
   "because": [
-    "0020",
     "0091"
   ],
   "seeAlso": [

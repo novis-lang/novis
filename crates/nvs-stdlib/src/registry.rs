@@ -296,7 +296,7 @@ pub enum CoreTy {
     /// runtime does; it is there so an editor can offer class names at it.
     ClassName(Qual),
     /// An **isolate entry** —
-    /// [ADR 0006](/docs/decisions/0006.md) § *Decision*'s
+    /// `rule:security/isolate-shares-nothing`'s
     /// operand, written as a parameter.
     ///
     /// The spec's column is `string` and a path is what the member reads. What
@@ -709,8 +709,8 @@ pub enum CoreTy {
     /// `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming the reason.
     /// A *second enum* would not say that: `Core\StrongDigest::Sha256` would
     /// be a different type from `Core\Digest::Sha256`, and no value could be
-    /// passed to both `of` and `hmac`. A union of case types is the shape ADR
-    /// 0047 already gives that idea, and the checker already places an
+    /// passed to both `of` and `hmac`. A union of case types is the shape
+    /// `rule:types/enum-case-type` already gives that idea, and the checker already places an
     /// enum-case expression against it — `nvs_types::expr::literals`'
     /// `placed_literal` looks inside a union, so `Digest::Sha256` narrows to
     /// its case type and `Digest::Md5` stays the whole enum and fails to
@@ -1758,7 +1758,7 @@ pub const CLASSES: &[CoreClass] = &[
     // own roster table points at that ADR for the non-operator members of the
     // `decimal` scalar.
     crate::decimal::CLASS,
-    // And the other half of ADR 0054: the exact scalar above is the
+    // And the other half of `rule:types/decimal`: the exact scalar above is the
     // human-magnitude answer, and this is the arbitrary one. Spec § 13's row
     // names the pair together, and `crate::bigint`'s module doc owns why
     // neither subsumes the other.
@@ -1791,8 +1791,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::io::FILE,
     // What `Core\IO::stat` answers with — § 14's whole metadata bullet as one
     // value, so a program asking more than one question about a path pays for
-    // one syscall. Its own docs argue why it is an instance rather than an ADR
-    // 0036 shape, and why the questions it answers are also members of
+    // one syscall. Its own docs argue why it is an instance rather than a
+    // shape (`rule:types/shape-type`), and why the questions it answers are also members of
     // `Core\IO` without that being `rule:core-api/shape-rules` R17's two spellings.
     crate::io::METADATA,
     // `rule:core-classes/process-is-argv-only`'s one way to run another program, and the result it answers
@@ -2349,7 +2349,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::reflect::CLASS_INFO,
     // One row of that description's method roster. A class of its own rather
     // than a `{name, public}` shape, because a shape has no member to hang the
-    // next question off and the roster ADR 0019 § 1 names is a family of
+    // next question off and `rule:core-classes/reflect`'s roster is a family of
     // descriptions, not of records.
     crate::reflect::METHOD_INFO,
     // The same row one member over, for the description's other roster. Its
@@ -6325,8 +6325,9 @@ mod tests {
     /// compared, the comparison is the exposed operation.
     ///
     /// This is what stands in for a test of constant-time behaviour, which is
-    /// not reliably measurable in CI — `docs/decisions/0060.md` § *Verification*
-    /// asks for exactly this in its place.
+    /// not reliably measurable in CI, so this test holds
+    /// `rule:security/verification-throws-and-compares-in-constant-time` in its
+    /// place.
     #[test]
     fn no_protocol_class_exposes_a_raw_value_accessor() {
         /// The classes a key reaches a member *inside*, since not every key is

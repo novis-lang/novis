@@ -10,4 +10,14 @@ every parameter name since it was written, so the surface was already public, an
 method has that a `Core` member lacks is one more rule to learn. The name lives once, on the registry row
 beside the type, and the reference card looks it up rather than repeating it
 (`rule:core-api/reference-card`). Nothing on the request path changes — a `name:` resolves while checking
-and the helper ABI is untouched.
+and the helper ABI is untouched. No member's shape, order, parameter list or bag moved for this: a name
+labels a slot that already exists, never adds one.
+
+- **Memory:** per process, one static string slice per registry row, in read-only data. Nothing per
+  request or per task.
+
+**Declined:**
+- **Positional-only `Core` members, with the options bag as their only by-name surface.** It kept
+  parameter names out of the compatibility surface, but the spec publishes every name anyway, and the
+  grammar and checker rules for named arguments already exist for user-declared methods
+  (`rule:types/arrays`), so all it bought was an asymmetry between the two.

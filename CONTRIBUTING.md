@@ -225,18 +225,18 @@ the premise the calling convention exists for.
 |---|---|
 | Pipeline | source → AST → HIR → types → IR → Cranelift → native |
 | Execution | baseline JIT now, optimising tier later, no interpreter |
-| Errors | checked return status, never unwinding ([ADR 0002](docs/decisions/0002.md)) |
+| Errors | checked return status, never unwinding (`rule:errors/propagation`) |
 | Concurrency | thread-per-core executors, stackful coroutines, isolated cross-core workers |
-| Priorities | security → semantics → latency → simplicity → memory footprint ([ADR 0004](docs/decisions/0004.md)) |
-| Types | static and mandatory; explicit checked conversions; unions plus `mixed`; `int` and `uint`; string-keyed ordered arrays with declarable nested element types ([ADR 0007](docs/decisions/0007.md)) |
-| Scoping | `static` is a class-member modifier only — static members and late static binding kept, function-scope `static` and `static fn` rejected, no `global` ([ADR 0008](docs/decisions/0008.md)) |
-| OOP-only | Every function is a method, every constant a class constant — no free function, no global constant, no exception for built-ins. Built-ins live under the reserved `Core` namespace, one domain class per grouping (`Core\Str`, `Core\Arr`, `Core\Math`, …) ([ADR 0011](docs/decisions/0011.md)) |
+| Priorities | security → latency → simplicity → memory footprint ([`rule:programs/memory-priority`](docs/rules/programs.md#programs-memory-priority)) |
+| Types | static and mandatory; explicit checked conversions; unions plus `mixed`; `int` and `uint`; string-keyed ordered arrays with declarable nested element types ([the type rules](docs/rules/types.md)) |
+| Scoping | `static` is a class-member modifier only — static members and late static binding kept, function-scope `static` and `static fn` rejected, no `global` (`rule:statements/static-is-a-member-modifier`) |
+| OOP-only | Every function is a method, every constant a class constant — no free function, no global constant, no exception for built-ins. Built-ins live under the reserved `Core` namespace, one domain class per grouping (`Core\Str`, `Core\Arr`, `Core\Math`, …) (`rule:classes/no-free-functions-or-constants`, `rule:core-api/reserved-namespace`) |
 | Values | 16-byte tagged, refcounted, copy-on-write arrays and strings |
 | Requests | shared-nothing; only compiled code is shared |
-| Isolates | `spawn script` runs another `.nvs` file in-process with a fresh heap, on the caller's budget ([ADR 0006](docs/decisions/0006.md)) |
-| Config | a tree of root-owned `nvs.toml` files states the defaults; a script may retune its own limits within operator-set ceilings, and `nvs config check` audits the result offline ([ADR 0005](docs/decisions/0005.md), [ADR 0103](docs/decisions/0103.md)) |
+| Isolates | `spawn script` runs another `.nvs` file in-process with a fresh heap, on the caller's budget ([`security/isolate-shares-nothing`](docs/rules/security.md#security-isolate-shares-nothing)) |
+| Config | a tree of root-owned `nvs.toml` files states the defaults; a script may retune its own limits within operator-set ceilings, and `nvs config check` audits the result offline (`rule:config/three-changeability-classes`, [ADR 0103](docs/decisions/0103.md)) |
 | Serving | built-in HTTP/1.1 with exactly two deployments — a development server, and a proxied production origin that replaces FastCGI. No TLS listener, no h2c, no compression: a proxy does each earlier and better. A filesystem path is never derived from a URL at request time ([ADR 0097](docs/decisions/0097.md)) |
-| Extensions | built-in, sandboxed wasm (`.nvsx`), or statically linked native — never `dlopen` ([ADR 0003](docs/decisions/0003.md)) |
+| Extensions | built-in, sandboxed wasm (`.nvsx`), or statically linked native — never `dlopen` ([`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)) |
 
 This is the short form. The fuller decision table, with the sequencing each choice implies, is in
 [docs/implementation-plan.md](docs/implementation-plan.md); the reasoning behind each choice and the

@@ -599,7 +599,7 @@ pub enum InstKind {
     /// loop's back edge, the sites the project-start "safepoints emitted
     /// from the first backend commit" decision names
     /// ([`docs/adr/README.md`](/docs/adr/README.md)'s "Decisions
-    /// taken at project start" section) and that ADR 0018 § *Negative*
+    /// taken at project start" section) and that `rule:testing/debug-probes`
     /// contrasts its own, denser probe grid against. `nvs-codegen` lowers it
     /// to one load of the context's safepoint word and a predicted-not-taken
     /// branch, and the **function-entry** one — the first in the entry
@@ -1754,8 +1754,8 @@ pub enum InstKind {
         absent: AbsentKey,
     },
     /// Writes `value` at `key` into `array` — `$arr[$i] = expr;`, inserting a
-    /// fresh entry when `key` isn't already present and overwriting (per ADR
-    /// 0007 § 5's copy-on-write value semantics, releasing whatever it
+    /// fresh entry when `key` isn't already present and overwriting (per
+    /// `rule:types/arrays`' copy-on-write value semantics, releasing whatever it
     /// already held) otherwise. Unlike [`InstKind::FieldSet`], which reads
     /// the field's *previous* value back with a [`InstKind::FieldGet`] before
     /// releasing it — safe there because a declared field always exists on a
@@ -1865,8 +1865,9 @@ pub enum InstKind {
         /// The array whose entries are copied out, already lowered.
         subject: ValueId,
     },
-    /// Removes `key` from `array` if it is present — `unset($a[$k]);`, ADR
-    /// 0028 § 3's one surviving `unset` target (the declared-*property* form
+    /// Removes `key` from `array` if it is present — `unset($a[$k]);`, the one
+    /// surviving `unset` target of `rule:classes/unset-is-refused-on-a-property`
+    /// (the declared-*property* form
     /// is a diagnostic `nvs_types::expr::check_unset_target` already reports,
     /// so it never reaches lowering).
     ///

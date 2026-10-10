@@ -2,9 +2,6 @@
   "title": "A value outlives the request that made it only by being put into a named store",
   "status": "shipped",
   "because": [
-    "0059",
-    "0052",
-    "0004",
     "0181"
   ],
   "seeAlso": [

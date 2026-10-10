@@ -9,4 +9,8 @@ months from now holds the database. That is the opposite of the posture everywhe
 never the default reading of a bare prefix — the narrow thing is what a reader gets, and the broad
 thing costs two extra characters and is visible in review as its own token.
 
+**Declined:**
+- **A bare prefix meaning the subtree.** It saves one form and makes the dangerous reading the
+  default, so a grant would silently extend to modules that did not exist when it was written.
+
 **Not on disk.** No grant table is keyed this way in the tree.

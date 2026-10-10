@@ -2,8 +2,7 @@
   "title": "A callable satisfies a callable type when its arity is at most the type's, matched from the left",
   "status": "shipped",
   "because": [
-    "0136",
-    "0063"
+    "0136"
   ],
   "seeAlso": [
     "types/callable-signature",

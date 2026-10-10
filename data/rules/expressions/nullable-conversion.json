@@ -1,11 +1,7 @@
 {
   "title": "`expr as ?T` yields the converted value or `null`, and never throws",
   "status": "shipped",
-  "because": [
-    "0066",
-    "0007",
-    "0047"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/nullable-conversion-availability",
     "expressions/conversion-keeps-qualifiers",

@@ -2,9 +2,6 @@
   "title": "A name reaches its file while compiling; there is no runtime loader of any kind",
   "status": "shipped",
   "because": [
-    "0061",
-    "0028",
-    "0052",
     "0250"
   ],
   "seeAlso": [

@@ -7,9 +7,10 @@
 //!
 //! A reflective walk is handed a value whose class the checker never saw — that
 //! is the whole point of asking at run time — so the only thing it has is the
-//! `nvs_runtime::ClassDesc` the object points back at. Everything § 1 describes
-//! is therefore a question that descriptor has to be able to answer, and the one
-//! this member needs is *visibility*: § 2 makes a reflective read face the check
+//! `nvs_runtime::ClassDesc` the object points back at. Everything
+//! `rule:core-classes/reflect` describes is therefore a question that descriptor
+//! has to be able to answer, and the one this member needs is *visibility*:
+//! `rule:security/reflection-enforces-visibility` makes a reflective read face the check
 //! ordinary code at that site would face, and a `private int $n` is
 //! byte-identical to a `public int $n` in every representation below the
 //! checker. So the bit is carried down from `nvs_types::layout`, exactly as ADR
@@ -29,7 +30,7 @@
 //! descriptor pointer is neither that nor something a hot-reload swap
 //! (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) leaves
 //! valid. Holding the answers instead makes the description exactly as inert as
-//! § 1 says it is: nothing it carries can be dereferenced back into the program.
+//! `rule:core-classes/reflect` says it is: nothing it carries can be dereferenced back into the program.
 //!
 //! **What it spends:** per `forClass` or `forObject` call, one array and one
 //! [`PROPERTY_INFO`] of three slots per declared property, one array and one
@@ -56,7 +57,7 @@
 //! saying whether this call site may act on it. `readableProperties` is the other question — the
 //! list a `get` is about to be made against — and it has a spelling of its own
 //! because it has an answer of its own, which depends on where the call is
-//! written. § 2 is what divides them: *reading metadata* is always available,
+//! written. `rule:security/reflection-enforces-visibility` is what divides them: *reading metadata* is always available,
 //! *acting on a member* faces the ordinary check, and a member named for one of
 //! those must not quietly answer the other. That division is `docs/spec/01-core-library.md`
 //! § 13's own: `property_exists` and `get_class_methods` are complete in PHP
@@ -73,7 +74,8 @@
 //! the declaration, so it is the one thing on a row that would be state, and it
 //! is [`nvs_core_reflect_class_info_constant`]'s to hand back. Acting is still
 //! that member's and [`nvs_core_reflect_class_info_get`]'s and
-//! [`nvs_core_reflect_class_info_call`]'s, which is where § 2's check is made.
+//! [`nvs_core_reflect_class_info_call`]'s, which is where the visibility check
+//! is made.
 //!
 //! # Decision: a description reads its own class's instances, and says so
 //!
@@ -1033,8 +1035,8 @@ const CONSTRUCT_DOC: MethodDoc = MethodDoc {
 /// [`CLASS_INFO`]'s own reason: what it carries is answers, not a way back into
 /// the class it came from. Nothing here acts — the doors onto an invocation are
 /// [`nvs_core_reflect_class_info_call`] and
-/// [`nvs_core_reflect_class_info_construct`], and each is where § 2's check is
-/// made.
+/// [`nvs_core_reflect_class_info_construct`], and each is where the visibility
+/// check is made.
 pub(crate) const METHOD_INFO: CoreClass = CoreClass {
     name: METHOD_INFO_NAME,
     doc: Some(&METHOD_INFO_CARD),
@@ -1135,7 +1137,7 @@ const METHOD_PARAMETERS_DOC: MethodDoc = MethodDoc {
 /// a parameter is declared under, and the type it is declared at.
 ///
 /// A class rather than the bare `array<string>` of names, on [`METHOD_INFO`]'s
-/// own terms: the roster ADR 0019 § 1 names is a family of descriptions, and a
+/// own terms: `rule:core-classes/reflect`'s roster is a family of descriptions, and a
 /// description is what the next question hangs off. The type is that next
 /// question, and it travelled the road this class was shaped around — down
 /// `nvs_types::layout::ClassLayout::methods` to
@@ -1347,7 +1349,7 @@ const ENUM_IS_UNSIGNED_DOC: MethodDoc = MethodDoc {
 /// member is a reader over a slot the description was built with, nothing here
 /// acts, and the row exists for a `private` property as much as for a `public`
 /// one. Reading the property is [`nvs_core_reflect_class_info_get`]'s, which is
-/// where § 2's check is made.
+/// where the visibility check is made.
 pub(crate) const PROPERTY_INFO: CoreClass = CoreClass {
     name: PROPERTY_INFO_NAME,
     doc: Some(&PROPERTY_INFO_CARD),
@@ -1443,8 +1445,8 @@ const CONSTANT_INFO_CARD: ClassDoc = ClassDoc {
 /// right-hand side is one of the four literals `nvs_types::consts` resolves,
 /// and an `array` or object constant keeps its row with nothing to hand back.
 ///
-/// **No slot holds the value**, and that is `rule:core-classes/reflect` § 2's
-/// division applied to a constant: naming one is metadata and is always
+/// **No slot holds the value**, and that is
+/// `rule:security/reflection-enforces-visibility`'s division applied to a constant: naming one is metadata and is always
 /// available, reading one is acting and faces the check ordinary code at the
 /// call site faces. A row built by [`describe`] has no site to be judged
 /// against, so the value is [`nvs_core_reflect_class_info_constant`]'s to hand
@@ -2071,8 +2073,8 @@ fn row_at(roster: &NvsArray, index: usize) -> Option<*mut nvs_runtime::ObjHeader
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Reflect::forClass(string $name): ?Core\Reflect\ClassInfo` — ADR
-    /// 0019 § 1's description, reached by name.
+    /// `Core\Reflect::forClass(string $name): ?Core\Reflect\ClassInfo` —
+    /// `rule:core-classes/reflect`'s description, reached by name.
     ///
     /// The name is resolved against the *running program's* class table
     /// (`nvs_runtime::Ctx::class_desc`), which is the only table a native
@@ -2098,11 +2100,11 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Reflect::forObject(mixed $object): Core\Reflect\ClassInfo` — ADR
-    /// 0019 § 1's description, reached from a value.
+    /// `Core\Reflect::forObject(mixed $object): Core\Reflect\ClassInfo` —
+    /// `rule:core-classes/reflect`'s description, reached from a value.
     ///
     /// The walk is the module doc's first decision, and [`describe`] is where
-    /// it is written: the object's descriptor names every slot, and § 2's
+    /// it is written: the object's descriptor names every slot, and its
     /// visibility bit says which of them a description is allowed to name.
     fn nvs_core_reflect_for_object(_ctx, args: [1]) {
         let ptr = args[0].obj_ptr().ok_or_else(|| {
@@ -2164,7 +2166,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\ClassInfo::properties(): array<Core\Reflect\PropertyInfo>`
-    /// — ADR 0019 § 1's property roster, replacing
+    /// — `rule:core-classes/reflect`'s property roster, replacing
     /// `ReflectionClass::getProperties`.
     ///
     /// Every declared property, [`METHOD_INFO`]'s roster one member over, and §
@@ -2270,9 +2272,9 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\ClassInfo::methods(): array<Core\Reflect\MethodInfo>` —
-    /// ADR 0019 § 1's roster, replacing `get_class_methods`.
+    /// `rule:core-classes/reflect`'s roster, replacing `get_class_methods`.
     ///
-    /// The whole roster, and § 2 is why: naming a method reads the program's
+    /// The whole roster, and `rule:security/reflection-enforces-visibility` is why: naming a method reads the program's
     /// *shape*, which is always available, while calling one is acting and goes
     /// through [`nvs_core_reflect_class_info_call`]'s check. Answered off the
     /// slot [`describe`] filled, so two calls on one description walk nothing
@@ -2284,7 +2286,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\ClassInfo::constants(): array<Core\Reflect\ConstantInfo>`
-    /// — ADR 0019 § 1's third roster, replacing
+    /// — `rule:core-classes/reflect`'s third roster, replacing
     /// `ReflectionClass::getReflectionConstants`.
     ///
     /// The whole roster, on the two above it terms exactly: naming a constant
@@ -2297,8 +2299,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Reflect\ClassInfo::constant(string $name): mixed` — ADR 0019 § 2's
-    /// rule that *acting* on a member faces the ordinary check, for the member
+    /// `Core\Reflect\ClassInfo::constant(string $name): mixed` —
+    /// `rule:security/reflection-enforces-visibility`: *acting* on a member
+    /// faces the ordinary check, for the member
     /// whose declaration is its value.
     ///
     /// Four refusals in one order, and the order is
@@ -2375,7 +2378,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\ClassInfo::attributes(): array<Core\Reflect\AttributeInfo>`
-    /// — ADR 0019 § 1's fourth roster, and the one no PHP `Reflection*` member
+    /// — `rule:core-classes/reflect`'s fourth roster, and the one no PHP `Reflection*` member
     /// it replaces had an equivalent for.
     ///
     /// Answered off the slot [`describe`] filled, on `constants`' terms: naming
@@ -2557,7 +2560,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\MethodInfo::parameters(): array<Core\Reflect\ParameterInfo>`
-    /// — ADR 0019 § 1's parameter roster, off the names
+    /// — `rule:core-classes/reflect`'s parameter roster, off the names
     /// [`nvs_runtime::MethodRow::param_names`] carried down from the
     /// declaration.
     ///
@@ -2716,8 +2719,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Reflect\ClassInfo::get(mixed $object, string $name): mixed` — ADR
-    /// 0019 § 2's rule that *acting* on a member faces the ordinary check.
+    /// `Core\Reflect\ClassInfo::get(mixed $object, string $name): mixed` —
+    /// `rule:security/reflection-enforces-visibility`: *acting* on a member
+    /// faces the ordinary check.
     ///
     /// Four refusals in one order, and the order is the point: the value has to
     /// be an object, it has to be an instance of the class this description is
@@ -2796,8 +2800,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// That is `nvs_core_reflect_class_info_call`'s decision applied to the
     /// other direction, and it is what makes the hook question answerable at
-    /// all: § 2 says a reflective write runs "the `PropertyObserver` hook that
-    /// ordinary code at that call site would face", and the strongest reading
+    /// all: `rule:security/reflection-enforces-visibility` says a reflective
+    /// write runs any declared property observer ordinary code at that call
+    /// site would face, and the strongest reading
     /// of *would face* is the same code facing it. A copy here would be a
     /// second pipeline to keep in step with `rule:classes/property-observer-pipeline`, and the copy is the
     /// one nothing else dispatches through.
@@ -2851,7 +2856,8 @@ nvs_runtime::nvs_helper! {
     /// — `rule:security/reflection-enforces-visibility`'s rule that *acting* on a member faces the ordinary
     /// check, for the member that acts hardest.
     ///
-    /// **No visibility rule is written here.** § 2 says a reflective call
+    /// **No visibility rule is written here.**
+    /// `rule:security/reflection-enforces-visibility` says a reflective call
     /// "fails the same way an ordinary out-of-class call would", and the
     /// strongest reading of *the same way* is the same code: past the two
     /// questions a description owes about its own subject, this hands the call
@@ -2912,7 +2918,8 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\ClassInfo::construct(array<mixed> $arguments): mixed` —
-    /// ADR 0019 § 2's third acting member, invoking a reflected constructor.
+    /// `rule:security/reflection-enforces-visibility`'s third acting member,
+    /// invoking a reflected constructor.
     ///
     /// **No visibility rule is written here either**, for
     /// [`nvs_core_reflect_class_info_call`]'s reason and by the same route: past
@@ -3352,11 +3359,11 @@ mod tests {
     }
 
     /// A `Ledger` with one `public uint $n`, an instance of it, and a context
-    /// anchored into the table — [`vault`]'s shape, plus the two things ADR
-    /// 0014 § 4 answers from a declaration: whether the class conforms to
+    /// anchored into the table — [`vault`]'s shape, plus the two things
+    /// `rule:classes/property-observer-costs-nothing-when-unused` answers from a declaration: whether the class conforms to
     /// `PropertyObserver` at all, and the body it answers `onPropertySet` with.
     ///
-    /// `observes` is a parameter rather than two fixtures because § 4's "not
+    /// `observes` is a parameter rather than two fixtures because that rule's "not
     /// one line from a class that implements nothing" is asserted over the same
     /// writes as the observed half, and a second fixture would let the two
     /// drift into being different writes.
@@ -4858,36 +4865,33 @@ mod tests {
         }
     }
 
-    /// The `*Info` classes of ADR 0019 § 1's roster that this module has not
-    /// built, and the whole of what the module doc's gap 1 owns in prose.
+    /// The `*Info` classes of `rule:core-classes/reflect`'s roster that this
+    /// module has not built, and the whole of what the module doc's gap 1 owns
+    /// in prose.
     ///
     /// **This list may only shrink**, and the test below is two-sided so that
     /// it cannot go stale in either direction: a name here that *is* registered
     /// fails as loudly as one that is registered nowhere and not here, so
     /// landing a class deletes its line in the same slice. Nothing is added
-    /// without deleting this sentence — a roster the record names and this file
+    /// without deleting this sentence — a roster the rule names and this file
     /// silently omits is exactly the drift the gate exists for.
     const NOT_YET_BUILT: &[&str] = &[];
 
-    /// Every `*Info` class ADR 0019 § 1 names is a registered class, or is one
-    /// of [`NOT_YET_BUILT`].
+    /// Every `*Info` class `rule:core-classes/reflect` names is a registered
+    /// class, or is one of [`NOT_YET_BUILT`].
     ///
-    /// The roster is **read out of the record** rather than copied here,
-    /// because § 1 is its one home and a copy is a second one that no run
-    /// updates: a class added to the record and to nothing else fails this the
-    /// day it is written. What the section spells is a family of names ending
-    /// `Info`, qualified or not — `Core\Reflect\ClassInfo` and `MethodInfo`
-    /// alike — so the last path segment is what is asked about.
+    /// The roster is **read out of the rule's fragment** rather than copied
+    /// here, because the fragment is its one home and a copy is a second one
+    /// that no run updates: a class added to the rule and to nothing else
+    /// fails this the day it is written. What the fragment spells is a family
+    /// of names ending `Info`, qualified or not — `Core\Reflect\ClassInfo` and
+    /// `MethodInfo` alike — so the last path segment is what is asked about.
     #[test]
-    fn every_reflect_info_class_the_record_names_is_registered() {
-        let record = nvs_repo::path("docs/decisions/0019.md");
-        let text = std::fs::read_to_string(&record)
-            .unwrap_or_else(|err| panic!("{}: {err}", record.display()));
-        let section = text
-            .split("### 1. ")
-            .nth(1)
-            .and_then(|rest| rest.split("\n### ").next())
-            .expect("`docs/decisions/0019.md` § 1, which is the roster's home");
+    fn every_reflect_info_class_the_rule_names_is_registered() {
+        let fragment = nvs_repo::path("docs/rules/core-classes/reflect.md");
+        let section = std::fs::read_to_string(&fragment)
+            .unwrap_or_else(|err| panic!("{}: {err}", fragment.display()));
+        let section = section.as_str();
 
         let mut named: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
         for (at, _) in section.match_indices("Info") {
@@ -4901,8 +4905,8 @@ mod tests {
         }
         assert!(
             named.len() > 4,
-            "§ 1 read as {named:?}, which is not a roster — the section moved or was rewritten, \
-             and this test is reading the wrong text rather than finding a gap"
+            "the fragment read as {named:?}, which is not a roster — the roster moved or was \
+             rewritten, and this test is reading the wrong text rather than finding a gap"
         );
 
         let mut missing = Vec::new();
@@ -4919,7 +4923,7 @@ mod tests {
         }
         assert!(
             missing.is_empty(),
-            "ADR 0019 § 1 names {} class(es) that `registry::CLASSES` does not hold and \
+            "`rule:core-classes/reflect` names {} class(es) that `registry::CLASSES` does not hold and \
              `NOT_YET_BUILT` does not own: {}. Register the class, or add it there with the \
              descriptor data it waits on written into this module's gap 1.",
             missing.len(),

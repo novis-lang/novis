@@ -2,8 +2,6 @@
   "title": "An `all` field answers its own callable's declared return type, and a callable declaring none answers `mixed`",
   "status": "shipped",
   "because": [
-    "0072",
-    "0114",
     "0136"
   ],
   "seeAlso": [

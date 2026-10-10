@@ -1,9 +1,7 @@
 {
   "title": "On Linux `nvs service unit` prints the systemd unit and touches nothing; writing it is an explicit `--install`",
   "status": "shipped",
-  "because": [
-    "0093"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/the-generated-unit-is-hardened",
     "packaging/the-argv-lives-in-imagepath",

@@ -16,3 +16,7 @@ throwing event rather than an unasserted assumption.
 
 There is no dedicated literal token: `"…" as bytes` covers the valid-UTF-8 case for free, and
 `Core\Encoding::fromHex()`/`::fromBase64()` cover arbitrary binary constants.
+
+**Declined:**
+- **A lossy `bytes as string`** that replaces, drops or transliterates an invalid sequence. That is
+  the silent substitution the checked conversion exists to prevent (`rule:types/conversion`).

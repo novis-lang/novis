@@ -1,7 +1,7 @@
 [package]
 name = "nvs-runtime"
 build = "../../tools/build/tests_without_pdb.rs"
-description = "Novis runtime: the ADR 0002 helper ABI, the tagged value representation, refcounted strings, and the per-request context"
+description = "Novis runtime: the checked-return helper ABI, the tagged value representation, refcounted strings, and the per-request context"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -28,35 +28,35 @@ bitflags.workspace = true
 # `capability`'s filesystem doors record what a program read when
 # `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint.workspace = true
-# ADR 0078 § 1: a request holds the configuration snapshot it cloned at start,
+# `rule:config/the-config-is-an-immutable-snapshot`: a request holds the configuration snapshot it cloned at start,
 # and `Ctx` is where per-request state lives — so the type crosses this edge
 # rather than the field being erased behind a trait object nothing else needs.
 # `nvs-config` depends on `nvs-diagnostics`, `serde` and `toml` and on nothing
 # in this crate, so the edge is one-way.
 nvs-config.workspace = true
-# ADR 0020 § 6's tier-4 floor writes the *same* record through the *same*
+# `rule:errors/log-write`'s tier-4 floor writes the *same* record through the *same*
 # renderer `Core\Log::write` reaches, so that a log pipeline never has to
 # reconcile two shapes depending on which tier produced a line — and a floor
 # with its own JSON writer would be exactly the two-writers-that-agree-today
 # failure ADR 0092 exists to prevent. `src/floor.rs` is the caller. The edge is
 # one-way and this crate stays the bottom of the tree: `nvs-render` depends on
-# no `nvs-*` crate at all, which is what ADR 0087's bidi predicate moving down
-# into it bought.
+# no `nvs-*` crate at all, which is what the `rule:security/bidi-predicate`
+# check moving down into it bought.
 nvs-render.workspace = true
-# ADR 0076 § 2's trace id is drawn once per request, in `Ctx::new` — so the draw
-# has to happen in the crate that owns per-request state, not in `nvs-stdlib`
-# where `Core\Random` already uses this same generator for the same reason its
-# module doc argues at length. No new crate reaches the tree: `nvs-stdlib`
-# depends on both this crate and `rand` already.
+# The trace id (`rule:observability/a-trace-id-exists-for-every-request`) is
+# drawn once per request, in `Ctx::new`, so the draw happens in the crate that
+# owns per-request state, not in `nvs-stdlib`, where `Core\Random` already uses
+# this same generator for the reason its module doc gives. No new crate reaches
+# the tree: `nvs-stdlib` depends on both this crate and `rand` already.
 rand.workspace = true
-# ADR 0020 § 6's record carries `ts` as RFC 3339, and `Ctx::stamp_envelope`
+# `rule:errors/log-write`'s record carries `ts` as RFC 3339, and `Ctx::stamp_envelope`
 # writes it for both of that section's writers. One renderer of that format in
 # the tree, not two: `Core\Time\Instant::toIso` is `jiff::Timestamp`'s own
 # `Display` and this is the same call, so a floor record's timestamp and a
 # program's cannot come to disagree about a leap second or a fractional digit.
 # No new crate reaches the tree -- `nvs-stdlib` and `nvs-config` both name it.
 jiff.workspace = true
-# ADR 0033 § 5's `secret == secret` is a constant-time comparison, and this
+# `rule:security/secret-comparison-is-constant-time`'s `secret == secret` is a constant-time comparison, and this
 # crate cannot call `nvs-stdlib`, where `Core\Hash::equals` already uses the
 # same crate for the same reason — the workspace manifest's own comment beside
 # `subtle` states it: an optimiser is free to turn the obvious loop back into
@@ -71,7 +71,7 @@ chacha20poly1305.workspace = true
 # The alphabet a token travels in: unpadded URL-safe base64, which a hidden
 # field, a header and a query string all carry unescaped.
 base64.workspace = true
-# ADR 0009 § 2's grapheme cluster is `string`'s length unit, and this crate
+# `rule:types/string-is-utf8`'s grapheme cluster is `string`'s length unit, and this crate
 # holds the header the count is cached in and the concatenation that corrects
 # it at the seam — so the UAX #29 primitives have to be reachable from here.
 # `graphemes.rs` owns why the kernel lives in the runtime rather than beside

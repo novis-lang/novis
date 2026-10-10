@@ -1,10 +1,7 @@
 {
   "title": "Reading a property that has never been written throws a catchable error and never yields a value",
   "status": "shipped",
-  "because": [
-    "0022",
-    "0019"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/definite-property-initialization",
     "classes/lateinit",

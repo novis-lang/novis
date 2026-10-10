@@ -1,9 +1,9 @@
 <?nvs
-// ADR 0077's compile-time route table, as a program.
+// A route table built while compiling, as a program.
 //
 // Nothing below names `App\Users`, and no `require` reaches its file. The
 // route table is built by the same scan `Core\Program::implementing<T>()`
-// uses (§ 5), so the `autoload` root on the next line is what finds the class
+// uses, so the `autoload` root on the next line is what finds the class
 // — and a program declaring no route and calling no `Core\Router` member
 // performs no scan at all.
 autoload 'App' from './routes';

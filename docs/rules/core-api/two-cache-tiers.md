@@ -17,3 +17,16 @@ has a door: nothing leaves the process, no name is resolved and no file is opene
 footprint, and a configured size cap is the instrument for that — `[cache.local] max_size` per core and
 `[cache.process] max_size` per process; a boolean grant is not one, and adding it would price a tier as an
 authority question every deployment then has to answer.
+
+The local tier is fast because it is local: no wire format, no socket and no syscall, only a graph copy
+inside one core's heap. That is what the parsed-configuration and compiled-template cases, most of what a
+cache is used for, need, and none of them needs coherence.
+
+**Declined:**
+- **One member with a `coherent: true` flag.** The default would be chosen once and copied from then on,
+  and choosing wrong fails silently; two names cost a few characters and make the guarantee visible.
+- **A shared segment across cores, with locking.** It is the cross-request channel shared-nothing removes,
+  and the lock lets one request's failure stall or corrupt another's view
+  (`rule:security/no-cross-request-state`).
+- **No local tier, with everything in the shared store.** It puts a network round trip in front of the
+  cases that need no coherence at all.

@@ -1,9 +1,7 @@
 {
   "title": "The subject is parameter 1 of every `Core` member, with no exceptions",
   "status": "shipped",
-  "because": [
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/shape-rules",
     "core-api/one-name-one-signature"

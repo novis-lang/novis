@@ -2,7 +2,7 @@
 A double whose shape of callables leaves a method its interface requires unanswered is refused — `rule:testing/doubles`, `rule:types/shape-type`
 --FILE--
 <?nvs
-// ADR 0079 § 10's first refusal. `zone` is declared and the shape does not
+// `rule:testing/doubles`'s first refusal. `zone` is declared and the shape does not
 // answer it, and there is no answer it could have defaulted to: a double of
 // `zone(): string` has nothing legal to return, which is why every double is
 // strict rather than because a loose mode was weighed and rejected.

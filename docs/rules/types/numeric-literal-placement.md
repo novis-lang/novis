@@ -24,4 +24,13 @@ literal would be unwritable in any position lacking an annotation.
 
 **There is no literal suffix, and in particular no `m`** (`rule:types/integer-literals`). A suffix
 would buy only a second spelling of what `as decimal` already says, in the two positions that lack a
-target: a `var` declaration (`rule:types/var-inference`) and a `mixed` or generic argument.
+target: a `var` declaration (`rule:types/var-inference`) and a `mixed` or generic argument. C# needs
+its `m` only because it refuses `decimal d = 19.99;`, a fractional literal there being born a `double`;
+placement removes that constraint.
+
+**Declined:**
+- **An `m` suffix, `19.99m`.** It costs a decimal-specific lexer production and its own diagnostics (a
+  suffix in a `float` position, a suffix on a hex literal) to spell in two positions what `as decimal`
+  spells everywhere, and two ways to write one value is the duplication `rule:core-api/shape-rules`
+  refuses. A trailing `m` lexes as a float literal followed by a stray identifier, which does not parse.
+- **A `d` suffix.** In C# and Java it already means *double*, so `19.99d` would read as the wrong thing.

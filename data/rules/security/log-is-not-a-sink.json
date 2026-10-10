@@ -2,10 +2,7 @@
   "title": "A log field is data, so it takes a tainted value and wants one",
   "status": "shipped",
   "because": [
-    "0088",
-    "0024",
-    "0020",
-    "0087"
+    "0088"
   ],
   "seeAlso": [
     "security/sink-predicate",

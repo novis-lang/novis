@@ -4,7 +4,7 @@
       "id": "Arr",
       "name": "Core\\Arr",
       "section": "2. `Core\\Arr`",
-      "summary": "`array<T>` is an insertion-ordered hash with copy-on-write value semantics\n([ADR 0007 § 5](../decisions/0007.md)). Every member is pure (R3); an implementation\nmutates in place whenever the argument's refcount is 1, so purity costs nothing. `T` is a type variable —\nthe stdlib is parametric where user code is not.\n\nEvery key is a `string`, so every key-valued **return** below is typed `string`; a key **parameter** is\n`int|string`, matching the subscript normalisation of that same section. How arrays combine, and why no\nmember is named `merge`, is `rule:types/array-combination`.",
+      "summary": "`array<T>` is an insertion-ordered hash with copy-on-write value semantics\n(`rule:types/arrays`). Every member is pure (R3); an implementation\nmutates in place whenever the argument's refcount is 1, so purity costs nothing. `T` is a type variable —\nthe stdlib is parametric where user code is not.\n\nEvery key is a `string`, so every key-valued **return** below is typed `string`; a key **parameter** is\n`int|string`, matching the subscript normalisation of that same rule. How arrays combine, and why no\nmember is named `merge`, is `rule:types/array-combination`.",
       "surface": "",
       "adrs": [],
       "enums": [
@@ -2895,7 +2895,7 @@
       "implemented": true,
       "slug": "arr",
       "url": "/reference/core/arr/",
-      "summaryHtml": "<p><code>array&lt;T&gt;</code> is an insertion-ordered hash with copy-on-write value semantics (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md\">ADR 0007 § 5</a>). Every member is pure (R3); an implementation mutates in place whenever the argument's refcount is 1, so purity costs nothing. <code>T</code> is a type variable — the stdlib is parametric where user code is not.</p>\n<p>Every key is a <code>string</code>, so every key-valued <strong>return</strong> below is typed <code>string</code>; a key <strong>parameter</strong> is <code>int|string</code>, matching the subscript normalisation of that same section. How arrays combine, and why no member is named <code>merge</code>, is <code>rule:types/array-combination</code>.</p>",
+      "summaryHtml": "<p><code>array&lt;T&gt;</code> is an insertion-ordered hash with copy-on-write value semantics (<code>rule:types/arrays</code>). Every member is pure (R3); an implementation mutates in place whenever the argument's refcount is 1, so purity costs nothing. <code>T</code> is a type variable — the stdlib is parametric where user code is not.</p>\n<p>Every key is a <code>string</code>, so every key-valued <strong>return</strong> below is typed <code>string</code>; a key <strong>parameter</strong> is <code>int|string</code>, matching the subscript normalisation of that same rule. How arrays combine, and why no member is named <code>merge</code>, is <code>rule:types/array-combination</code>.</p>",
       "surfaceHtml": ""
     },
     {
@@ -3124,9 +3124,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "`get<T>`, `all<T>` — structural, not a `Reflect` walk",
-      "adrs": [
-        "0046"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -3244,9 +3242,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp`",
-      "adrs": [
-        "0054"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -4960,7 +4956,6 @@
       "summary": "",
       "surface": "`local(): Cache\\Store`, `process(): Cache\\Store`, `shared(): Cache\\Store` — a member per tier, none of them taking an argument. `process()` is one store per serving process, coherent across its cores, in memory only and bounded by `[cache.process] max_size`. On the store: `put(string $key, mixed $value, {ttl?: Duration}): void` / `get(string $key): mixed` — copy-in/copy-out, and a miss answers `null` rather than throwing — plus `forget(string $key): void`, all three tiers gaining a lifetime and a `forget` together. A secret meets a cache only through `putSecret(string $key, secret string $value, Duration $ttl, array<secret bytes> $keys): void` and `getSecret(string $key, array<secret bytes> $keys, {fill?: callable(): Cache\\SecretEntry, wait?: Duration}): ?secret string`, which store XChaCha20-Poly1305 **ciphertext** bound to the app, the entry's name and its expiry — so no `secret` crosses the boundary, `put` still refuses one and `get` answers `null` for a sealed entry. A sealed entry that does not open, under any key of the ring or past its sealed expiry, is a **miss**; on a miss `fill` runs in exactly one caller per process while every other waits for at most its `wait` (`[cache.process] fill_wait`) and then throws `TimeoutError`, a throwing `fill` releases the waiters with nothing, and an entry inside the last fifth of its lifetime is answered to everyone while one caller replaces it. `Cache\\SecretEntry::of(secret string $value, Duration $ttl)` is what a `fill` answers. Sealing hides a secret from code that knows an entry's name but not the ring and keeps it out of the shared store in the clear; it does not protect it from a compromised process. Replaces `apcu_*`, `memcached` for the local case",
       "adrs": [
-        "0059",
         "0181"
       ],
       "enums": [],
@@ -7403,8 +7398,7 @@
       "summary": "",
       "surface": "`set(string, string): bool`, `get(string): ?string`, `restore(string): void`, `all(): array<string, string>` — the request-local overlay over `nvs.toml`. Replaces `ini_set`, `ini_get`, `ini_restore`, `ini_get_all`, `set_time_limit`. String-in/string-out because the directive name is dynamic; the registry parses with the same parser the boot path uses",
       "adrs": [
-        "0005",
-        "0064"
+        "0005"
       ],
       "enums": [],
       "constants": [],
@@ -8405,9 +8399,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "the closed roster; a JWT's algorithm comes from the key, never the token. `Jwt::sign` widens to `secret bytes|Crypto\\KeyPair` (HS256, RS256, PS256, ES256 or EdDSA by the key's kind), `Jwt::signObject` signs a shape or deriving class under a pair alone, and `Jwt::verifyIssued<T>` verifies a token another party issued against a `Jwt\\KeySet` key found by `kid`, answering its claims as a `tainted` shape ([0179](../decisions/0179.md)). `Core\\Jwe` is compact JWE with `A256GCM` alone, its key-management algorithm picked by which `Jwe\\Key` static built the key — `shared` (`dir`), `password` (`PBES2-HS256+A128KW`), `recipient`/`own` (`ECDH-ES`) — and its payload answered **`tainted`** ([0179](../decisions/0179.md)). `Core\\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` and `::verify(string $token, array<secret bytes> $keys): array<tainted string>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../decisions/0146.md)). A payload value is text at both halves for the reason a JWT claim is: `tainted` is defined over `string` and `bytes`, so an `array<mixed>` could not have carried the qualifier a program reaches",
-      "adrs": [
-        "0060"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -8798,9 +8790,7 @@
       "section": "16. Network, data and crypto",
       "summary": "Semantics are `rule:core-classes/db-one-api` — connection naming and memoization, the capability split,\nwhy there is no `prepare`, the transaction shape, the coercion rule and the full SQL type map. This section\nowns the signatures only. Every member needs `db.connect` or `db.open`, and a connection's credentials live\nin a root-owned `[db.<name>]` block (`rule:config/the-file-is-nvs-toml-and-it-is-toml`).",
       "surface": "the full surface is § 18 below — the one subsystem in Part II too large for a row. Replaces `PDO` **and** the procedural `mysqli`/`pgsql`/`sqlite3` APIs",
-      "adrs": [
-        "0067"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -11742,9 +11732,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "the non-operator members of the `decimal` scalar and arbitrary-precision integers. Replaces `bcmath`, `gmp`",
-      "adrs": [
-        "0054"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -12865,9 +12853,8 @@
       "name": "Core\\Fatal",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../decisions/0033.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point",
+      "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the `secret` axis (`rule:security/secret-sinks-refuse`); on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point",
       "adrs": [
-        "0020",
         "0092"
       ],
       "enums": [],
@@ -12955,7 +12942,7 @@
       "slug": "fatal",
       "url": "/reference/core/fatal/",
       "summaryHtml": "",
-      "surfaceHtml": "structured logging. <code>write(Log\\Level, string $message, array&lt;string, mixed&gt; $fields = [])</code>, where <code>Log\\Level</code> is <code>Debug</code>, <code>Info</code>, <code>Warn</code>, <code>Error</code>, <code>Critical</code>. Both refuse a <code>secret</code> argument at the call site — a sink on the <a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md\">0033</a> axis; on the <code>tainted</code> axis neither is a sink, because a field is <em>data</em> (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md\">0088</a> § 7) and logging tainted input is the point"
+      "surfaceHtml": "structured logging. <code>write(Log\\Level, string $message, array&lt;string, mixed&gt; $fields = [])</code>, where <code>Log\\Level</code> is <code>Debug</code>, <code>Info</code>, <code>Warn</code>, <code>Error</code>, <code>Critical</code>. Both refuse a <code>secret</code> argument at the call site — a sink on the <code>secret</code> axis (<code>rule:security/secret-sinks-refuse</code>); on the <code>tainted</code> axis neither is a sink, because a field is <em>data</em> (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md\">0088</a> § 7) and logging tainted input is the point"
     },
     {
       "id": "Hash",
@@ -13846,8 +13833,6 @@
       "summary": "",
       "surface": "`get`, `post`, `put`, `patch`, `delete`, `head`, plus `request(Core\\Http\\Method, …)` for a verb chosen at run time and `stream(Core\\Http\\Method, …)` for a body read as it arrives — each over `string | Core\\Http\\Target`, and there is no `Core\\Http\\Request` class. `Core\\Http::allowUrl` is the SSRF launderer, and the `Target` it answers carries every approved address. `Core\\Http::methodName(Core\\Http\\Method): string` answers a case's wire token (`GET`), for an `Allow` header or a log line. Replaces all ~30 `curl_*` functions and their handle. One trailing `Core\\Http\\Options` shape — the bounds `{deadline?, connectTimeout?, idle?, maxDuration?}`, the retry keys `{retryAttempts?, retryBackoff?, retryIdempotencyKey?}`, `{headers?, followRedirects?}`, at most one body of `{json?, form?, body? + contentType?, multipart?}`, and the connection keys `{identity?, connectTo?, redirectToHttp?, tlsCa?, tlsPin?, tlsVerifyHost?, tlsVerify?, tlsMinVersion?}` — with **no spelling for an unbounded wait**: `deadline` covers every attempt and every hop, `idle` and `maxDuration` bound a streamed body, retry is jittered, and two body keys, a body on `get`, or `post`/`patch` with `retryAttempts` and no `retryIdempotencyKey`, are compile errors. A reply answers `status`, `text`, `bytes`, `header`, `headers`, `jsonAs<T>` and `tls`, all of it `tainted`; a `Core\\Http\\Stream` answers the head and then `events`, `lines`, `chunks` or `saveTo` — one of them, once. `Http\\Part::file`/`::bytes` are a body sent without being held, `Http\\Identity::read` is a client certificate, and `Core\\Test::answerHttp`/`::sentHttp` answer outbound calls from a table so a test needs no network",
       "adrs": [
-        "0058",
-        "0074",
         "0180"
       ],
       "enums": [],
@@ -19110,9 +19095,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "the closed roster; a JWT's algorithm comes from the key, never the token. `Jwt::sign` widens to `secret bytes|Crypto\\KeyPair` (HS256, RS256, PS256, ES256 or EdDSA by the key's kind), `Jwt::signObject` signs a shape or deriving class under a pair alone, and `Jwt::verifyIssued<T>` verifies a token another party issued against a `Jwt\\KeySet` key found by `kid`, answering its claims as a `tainted` shape ([0179](../decisions/0179.md)). `Core\\Jwe` is compact JWE with `A256GCM` alone, its key-management algorithm picked by which `Jwe\\Key` static built the key — `shared` (`dir`), `password` (`PBES2-HS256+A128KW`), `recipient`/`own` (`ECDH-ES`) — and its payload answered **`tainted`** ([0179](../decisions/0179.md)). `Core\\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` and `::verify(string $token, array<secret bytes> $keys): array<tainted string>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../decisions/0146.md)). A payload value is text at both halves for the reason a JWT claim is: `tainted` is defined over `string` and `bytes`, so an `array<mixed>` could not have carried the qualifier a program reaches",
-      "adrs": [
-        "0060"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -19438,9 +19421,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "the closed roster; a JWT's algorithm comes from the key, never the token. `Jwt::sign` widens to `secret bytes|Crypto\\KeyPair` (HS256, RS256, PS256, ES256 or EdDSA by the key's kind), `Jwt::signObject` signs a shape or deriving class under a pair alone, and `Jwt::verifyIssued<T>` verifies a token another party issued against a `Jwt\\KeySet` key found by `kid`, answering its claims as a `tainted` shape ([0179](../decisions/0179.md)). `Core\\Jwe` is compact JWE with `A256GCM` alone, its key-management algorithm picked by which `Jwe\\Key` static built the key — `shared` (`dir`), `password` (`PBES2-HS256+A128KW`), `recipient`/`own` (`ECDH-ES`) — and its payload answered **`tainted`** ([0179](../decisions/0179.md)). `Core\\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` and `::verify(string $token, array<secret bytes> $keys): array<tainted string>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../decisions/0146.md)). A payload value is text at both halves for the reason a JWT claim is: `tainted` is defined over `string` and `bytes`, so an `array<mixed>` could not have carried the qualifier a program reaches",
-      "adrs": [
-        "0060"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -20048,9 +20029,8 @@
       "name": "Core\\Log",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../decisions/0033.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point",
+      "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the `secret` axis (`rule:security/secret-sinks-refuse`); on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point",
       "adrs": [
-        "0020",
         "0092"
       ],
       "enums": [],
@@ -20124,7 +20104,7 @@
       "slug": "log",
       "url": "/reference/core/log/",
       "summaryHtml": "",
-      "surfaceHtml": "structured logging. <code>write(Log\\Level, string $message, array&lt;string, mixed&gt; $fields = [])</code>, where <code>Log\\Level</code> is <code>Debug</code>, <code>Info</code>, <code>Warn</code>, <code>Error</code>, <code>Critical</code>. Both refuse a <code>secret</code> argument at the call site — a sink on the <a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md\">0033</a> axis; on the <code>tainted</code> axis neither is a sink, because a field is <em>data</em> (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md\">0088</a> § 7) and logging tainted input is the point"
+      "surfaceHtml": "structured logging. <code>write(Log\\Level, string $message, array&lt;string, mixed&gt; $fields = [])</code>, where <code>Log\\Level</code> is <code>Debug</code>, <code>Info</code>, <code>Warn</code>, <code>Error</code>, <code>Critical</code>. Both refuse a <code>secret</code> argument at the call site — a sink on the <code>secret</code> axis (<code>rule:security/secret-sinks-refuse</code>); on the <code>tainted</code> axis neither is a sink, because a field is <em>data</em> (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md\">0088</a> § 7) and logging tainted input is the point"
     },
     {
       "id": "Mail",
@@ -22159,9 +22139,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "`increment(string $name, {by?, labels?})`, `observe(string $name, float $value, {labels?})`, `gauge(…)`. A `labels` **value** is a `tainted` sink with no launderer — label by an enum, an `as`-converted scalar or a route name",
-      "adrs": [
-        "0076"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -27510,7 +27488,6 @@
       "summary": "",
       "surface": "`hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a PHP-stored bcrypt hash (`verify` verifies it, `needsRehash` answers `true`); `hash` writes only Argon2id. Replaces `password_hash`, `password_verify`, `crypt`",
       "adrs": [
-        "0063",
         "0129"
       ],
       "enums": [],
@@ -28220,9 +28197,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "`run`, `spawn` — argv only, never a shell string",
-      "adrs": [
-        "0044"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -28700,7 +28675,6 @@
       "summary": "",
       "surface": "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and `constructors<T, C>()`, the same classes in the same order, each row holding the class name and a `make` callable typed `C` that builds it",
       "adrs": [
-        "0061",
         "0212",
         "0253"
       ],
@@ -34131,7 +34105,6 @@
       "summary": "",
       "surface": "`match(Http\\Method $method, tainted string $path): ?Router\\Match`, `methodsFor(tainted string $path): array<Http\\Method>` (empty ⇒ 404, else 405 + `Allow:`), `url(string $name, array<string, mixed> $params): string` (**launder**, URL path), `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`) and `urlSigned(..., {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` (`url` with a `_sig` parameter over the route's *name* and `$params`, so a link survives a remount — [0146](../decisions/0146.md)), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors",
       "adrs": [
-        "0077",
         "0102"
       ],
       "enums": [],
@@ -35698,9 +35671,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "the closed roster; a JWT's algorithm comes from the key, never the token. `Jwt::sign` widens to `secret bytes|Crypto\\KeyPair` (HS256, RS256, PS256, ES256 or EdDSA by the key's kind), `Jwt::signObject` signs a shape or deriving class under a pair alone, and `Jwt::verifyIssued<T>` verifies a token another party issued against a `Jwt\\KeySet` key found by `kid`, answering its claims as a `tainted` shape ([0179](../decisions/0179.md)). `Core\\Jwe` is compact JWE with `A256GCM` alone, its key-management algorithm picked by which `Jwe\\Key` static built the key — `shared` (`dir`), `password` (`PBES2-HS256+A128KW`), `recipient`/`own` (`ECDH-ES`) — and its payload answered **`tainted`** ([0179](../decisions/0179.md)). `Core\\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` and `::verify(string $token, array<secret bytes> $keys): array<tainted string>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../decisions/0146.md)). A payload value is text at both halves for the reason a JWT claim is: `tainted` is defined over `string` and `bytes`, so an `array<mixed>` could not have carried the qualifier a program reaches",
-      "adrs": [
-        "0060"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -35846,9 +35817,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "the closed roster; a JWT's algorithm comes from the key, never the token. `Jwt::sign` widens to `secret bytes|Crypto\\KeyPair` (HS256, RS256, PS256, ES256 or EdDSA by the key's kind), `Jwt::signObject` signs a shape or deriving class under a pair alone, and `Jwt::verifyIssued<T>` verifies a token another party issued against a `Jwt\\KeySet` key found by `kid`, answering its claims as a `tainted` shape ([0179](../decisions/0179.md)). `Core\\Jwe` is compact JWE with `A256GCM` alone, its key-management algorithm picked by which `Jwe\\Key` static built the key — `shared` (`dir`), `password` (`PBES2-HS256+A128KW`), `recipient`/`own` (`ECDH-ES`) — and its payload answered **`tainted`** ([0179](../decisions/0179.md)). `Core\\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` and `::verify(string $token, array<secret bytes> $keys): array<tainted string>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../decisions/0146.md)). A payload value is text at both halves for the reason a JWT claim is: `tainted` is defined over `string` and `bytes`, so an `array<mixed>` could not have carried the qualifier a program reaches",
-      "adrs": [
-        "0060"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -39121,9 +39090,7 @@
       "section": "16. Network, data and crypto",
       "summary": "Semantics are `rule:concurrency/one-scheduler` — what cancellation does and does\nnot run, why control never leaves a call with work still running, and the `[deferred]` bound. This section\nowns the signatures only. Nothing here needs a capability; it needs the M5 scheduler, which is why it sits\nin Part II and lands at **M5** rather than M8.",
       "surface": "§ 19 below — `all`, `map`, `afterResponse`",
-      "adrs": [
-        "0072"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -39415,9 +39382,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "the assertions, each ending in a `{message?: string}` bag: `assertSame<T>(T $actual, T $expected)`, `assertEquals<T>(T $actual, T $expected)`, `assertEqualsDeep<T>(T $actual, T $expected)`, `assertTrue(bool $actual)`, `assertNull(mixed $actual)`, `assertCount<T>(array<T> $actual, uint $expected)`, `assertContains<T>(array<T> $actual, T $expected)`, `assertMatchesInline(mixed $actual, string $expected)`, `assertThrows(callable(): mixed $body, string $expected)`, `assertDoesNotThrow(callable(): mixed $body)` and `assertCompletes(callable(): mixed $body, {within: Time\\Duration} $settings)`; `expectFailure(callable(): mixed $body): void`, which passes when `$body` fails an assertion. Doubles: `double<T>(object $answers): T`, `partial<T>(T $real, object $answers): T`, `assertCalled(object $double, method $method, {times?: uint, with?: array<mixed>, message?: string})` and `assertNeverCalled(object $double, method $method, {message?: string})`. The clock and the `Core\\Cli` prompts: `advance(Time\\Duration $by): void` and `scriptAnswers(array<string> $answers): void`. The program's own routes: `request(Http\\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string>}): Core\\Test\\Response` — one in-process request against the `#[Route]` table — and `serverUrl(): ?string`. Outbound calls: `answerHttp(string $url, uint $status, {json?: mixed, body?: string|bytes, headers?: array<string|array<string>>, tls?: Http\\TlsInfo}): void`, `tlsSession({version?, cipher?, verified?, subject?, issuer?, expiry?}): Http\\TlsInfo`, `sentHttp(): array<Core\\Test\\SentRequest>`, `answerSocket(string $url, array<string|bytes> $frames, {protocol?: string}): void` and `sentSocket(): array<Socket\\Message>`. Every assertion is subject-first and generic where it compares",
-      "adrs": [
-        "0079"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -40911,9 +40876,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "what `Core\\Test::request` returns: `status(): uint`, `body(): string`, `header(string $name): ?string`, `headers(): array<array<string>>`, `cookies(): array<string>`, `json({maxDepth?: uint}): mixed` and `jsonAs<T>({maxDepth?: uint}): T`, the last two reading the body as `Core\\Request::json` and `::jsonAs` do",
-      "adrs": [
-        "0079"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -41159,9 +41122,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "one outbound call `Core\\Test::sentHttp` recorded: `method(): Http\\Method`, `url(): string`, `header(string $name): ?string` and `body(): bytes`",
-      "adrs": [
-        "0079"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -44549,9 +44510,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "the closed roster; a JWT's algorithm comes from the key, never the token. `Jwt::sign` widens to `secret bytes|Crypto\\KeyPair` (HS256, RS256, PS256, ES256 or EdDSA by the key's kind), `Jwt::signObject` signs a shape or deriving class under a pair alone, and `Jwt::verifyIssued<T>` verifies a token another party issued against a `Jwt\\KeySet` key found by `kid`, answering its claims as a `tainted` shape ([0179](../decisions/0179.md)). `Core\\Jwe` is compact JWE with `A256GCM` alone, its key-management algorithm picked by which `Jwe\\Key` static built the key — `shared` (`dir`), `password` (`PBES2-HS256+A128KW`), `recipient`/`own` (`ECDH-ES`) — and its payload answered **`tainted`** ([0179](../decisions/0179.md)). `Core\\Signature::sign(array<string> $payload, {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` and `::verify(string $token, array<secret bytes> $keys): array<tainted string>` are the detached pair — a canonical payload map, never assembled text; `until` is a required key whose `null` is the forever spelling; `verify` answers a **`tainted`** payload or throws ([0146](../decisions/0146.md)). A payload value is text at both halves for the reason a JWT claim is: `tainted` is defined over `string` and `bytes`, so an `array<mixed>` could not have carried the qualifier a program reaches",
-      "adrs": [
-        "0060"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [

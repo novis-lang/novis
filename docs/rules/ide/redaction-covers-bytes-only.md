@@ -11,4 +11,17 @@ The concealment is a decoration over the range with the character cells kept, so
 selection and every edit still address the real text. It is a rendering, not an edit: the buffer is
 the file on disk, byte for byte.
 
+The range is this narrow because the qualifiers propagate: in a request handler nearly every string
+expression carries one, so concealing or marking every qualified expression would bury the file and be
+turned off, taking the redaction with it.
+
+**Declined:**
+
+- **Folding the value away.** Folding is line-granular, so it cannot express a literal inside a one-line
+  declaration such as `secret string $k = "…";`, which is the shape this exists for; and it would hide
+  the declaration itself, which stays legible.
+- **Removing the span from layout** (`display: none`) instead of blurring it. Removing the box breaks
+  cursor and selection arithmetic across the range, and the editor has to keep behaving like a text
+  editor.
+
 **Not on disk.** There is no language server in the tree.

@@ -2,7 +2,6 @@
   "title": "A link carries the mount prefix the request arrived under, so one table serves at any mount",
   "status": "shipped",
   "because": [
-    "0077",
     "0097",
     "0102"
   ],

@@ -1,0 +1,14 @@
+{
+  "title": "There are no user-declared generic functions or classes",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "types/arrays",
+    "types/shape-type",
+    "attributes/call-site-type-argument",
+    "iteration/concrete-generic-implements"
+  ],
+  "guardedBy": [
+    "crates/nvs-types/tests/generics.rs"
+  ]
+}

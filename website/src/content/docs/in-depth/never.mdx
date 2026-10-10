@@ -4,7 +4,7 @@ covers: []
 description: The things Novis does not do and will not add, and the reason for each.
 ---
 
-import { decisionRecord } from '@config/site.mjs'
+import { decisionRecord, githubFile } from '@config/site.mjs'
 
 Some features make a language easier for one program and less safe for every other program. Novis
 leaves these features out. This page lists them, so you know before you start.
@@ -15,7 +15,7 @@ Your program cannot load a C library into the running process. One bad write in 
 damage the memory of every request on the server. One crash in native code stops all of them.
 
 Extensions will run as sandboxed WebAssembly. An extension has its own memory, and it
-reaches only what you allow. <a href={decisionRecord('0003')}>Read the full reasoning.</a>
+reaches only what you allow. <a href={githubFile('docs/rules/packaging/an-extension-is-a-sandboxed-wasm-component.md')}>Read the full reasoning.</a>
 
 ## Global state
 

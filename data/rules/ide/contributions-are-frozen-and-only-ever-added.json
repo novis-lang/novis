@@ -3,9 +3,6 @@
   "status": "designed",
   "because": [
     "0099",
-    "0101",
-    "0108",
-    "0111",
     "0274"
   ],
   "seeAlso": [
@@ -15,5 +12,7 @@
     "ide/dependencies-are-allowlisted",
     "ide/check-json-is-the-diagnostic-record-as-a-document"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "editors/vscode/test/contributions/contributions.test.ts"
+  ]
 }

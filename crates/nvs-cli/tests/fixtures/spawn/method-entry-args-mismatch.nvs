@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0006 § *Decision*: a name `args:` holds that the entry does not declare,
+// `rule:security/isolate-shares-nothing`: a name `args:` holds that the entry does not declare,
 // or a parameter it omits, is the ordinary named-argument error — reported at
 // the spawn when the map is not a literal the compiler compared. Nothing is
 // started, so this program dies where the spawn is written.

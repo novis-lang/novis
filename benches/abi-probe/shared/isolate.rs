@@ -1,4 +1,4 @@
-//! The in-process isolate that [ADR 0006](/docs/decisions/0006.md)
+//! The in-process isolate that `rule:security/isolate-shares-nothing`
 //! replaces a child process with, as one measurable operation.
 //!
 //! [`nvs_abi_probe::process`] is the other half of the same comparison and is

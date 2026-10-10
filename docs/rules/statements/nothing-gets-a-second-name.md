@@ -11,3 +11,7 @@ with the fully-qualified path: strictly more to type and strictly less to keep t
 survives, making a bare `Str` resolve to an unrelated class is structurally unreachable rather than merely
 refused, and the symbol table keeps exactly one entry per declared name, with no code path anywhere asking
 whether a name was resolved directly or through an alias.
+
+**Declined:**
+- **Import `as` kept for two libraries whose short names collide.** The fully-qualified name is more
+  explicit for a little more typing, and a carve-out for collisions only does not stay narrow.

@@ -16,9 +16,9 @@
 //!
 //! So this class has **no raw header parameter at all**. Every header a program can set is a named
 //! parameter of [`send`](CLASS) with a type, and [`compose`] is the only thing that ever writes a
-//! `\r\n` — an address is parsed and refused if it is not one ([ADR
-//! 0095](/docs/decisions/0095.md): ambiguous input is
-//! refused, never repaired), and a subject is RFC 2047 encoded the moment it holds anything a header
+//! `\r\n` — an address is parsed and refused if it is not one
+//! (`rule:errors/ambiguous-input-refused`: ambiguous input is refused, never repaired), and a
+//! subject is RFC 2047 encoded the moment it holds anything a header
 //! line cannot carry, so a control byte becomes *content* rather than structure. That is what the
 //! spec row's "structured headers" buys, and it is why `$subject` and `$text` accept a `tainted`
 //! argument freely: they are data in exactly [ADR

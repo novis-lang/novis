@@ -3,7 +3,7 @@ A sibling's throw cancels the rest of the group, and a cancelled task's `catch` 
 --FILE--
 <?nvs
 // covers: lang:concurrency/a-child-s-throw
-// § 4's "one child throws" row, and § 5's rule about what a cancelled child may
+// `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s "one child throws" row, and `rule:concurrency/cancellation-runs-no-user-code`'s rule about what a cancelled child may
 // run on its way out — which is nothing. The deadline path is pinned by
 // tests/conformance/core/a-cancelled-task-dies-where-it-sleeps.nvst; this is
 // the other trigger, and the one where the propagating value is a `Throwable`
@@ -21,7 +21,7 @@ try {
             try {
                 Core\Time::sleep(2s);
             } catch (Throwable $e) {
-                // Cancellation is not a `Throwable` (§ 5, and `rule:errors/throwable-hierarchy` for
+                // Cancellation is not a `Throwable` (`rule:concurrency/cancellation-runs-no-user-code`, and `rule:errors/throwable-hierarchy` for
                 // the same reason a limit report is not one), so this arm is
                 // unreachable — a runtime that cancelled by throwing would
                 // count here.
@@ -45,7 +45,7 @@ try {
 }
 
 // Read immediately after the `catch`, which is only a meaningful reading
-// because § 4 already waited for the cancellations: at this line there is no
+// because `rule:concurrency/nothing-is-still-running-when-a-call-returns` already waited for the cancellations: at this line there is no
 // sibling left that could still move either counter.
 echo Trace::$caught, " caught, ", Trace::$ranOn, " ran on", "\n";
 --EXPECT--

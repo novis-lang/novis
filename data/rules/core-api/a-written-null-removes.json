@@ -2,8 +2,7 @@
   "title": "Wherever a `Core` member admits a written `null` it means remove, and `\"\"` is never a removal spelling",
   "status": "shipped",
   "because": [
-    "0147",
-    "0063"
+    "0147"
   ],
   "seeAlso": [
     "core-api/omission-is-not-a-written-null",

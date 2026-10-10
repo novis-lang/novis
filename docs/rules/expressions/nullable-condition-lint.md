@@ -9,3 +9,7 @@ operator**: any `?int` in an `if` has always had it. Refusing it would narrow
 than this one.
 
 No warning code is allocated yet, and `nvs check` does not emit this today.
+
+**Declined:**
+- **Refusing a `?T` condition outright.** It is the strongest guard against the trap, but it changes
+  `rule:expressions/truthy-positions` for every nullable value rather than for conversions.

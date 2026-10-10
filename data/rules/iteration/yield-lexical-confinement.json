@@ -1,9 +1,7 @@
 {
   "title": "`yield` appears only in the generator's own body",
   "status": "shipped",
-  "because": [
-    "0053"
-  ],
+  "because": [],
   "seeAlso": [
     "iteration/generators",
     "iteration/one-way-only"

@@ -2,8 +2,6 @@
   "title": "A reflective call faces exactly the visibility check ordinary code at that site would, and there is no `setAccessible`",
   "status": "shipped",
   "because": [
-    "0019",
-    "0014",
     "0274"
   ],
   "seeAlso": [
@@ -11,6 +9,10 @@
     "enums/reflection"
   ],
   "guardedBy": [
-    "crates/nvs-types/tests/visibility.rs"
+    "crates/nvs-types/tests/visibility.rs",
+    "tests/conformance/core/reflect-call-runs-a-public-method-and-refuses-a-private-one.nvst",
+    "tests/conformance/core/reflect-set-writes-a-public-property-and-refuses-a-private-one.nvst",
+    "tests/conformance/core/reflect-set-runs-the-property-observer-an-ordinary-write-runs.nvst",
+    "tests/conformance/core/reflect-construct-agrees-with-new-and-a-class-with-no-constructor-gets-its-defaults.nvst"
   ]
 }

@@ -19,4 +19,10 @@ Refused: a non-nullable type against `null`; `string` against `bytes`; an enum a
 integer, where `$e as int` is the written spelling; two unrelated classes; and anything else disjoint.
 
 This turns the entire class of comparisons that could only ever answer one constant into a diagnostic
-at the site that wrote it.
+at the site that wrote it. `$row['id'] == 1` against a string column and `$s == 0` against a
+non-numeric string are the common cases.
+
+**Declined:**
+- **A statically disjoint comparison answers `false`**, the way a run-time mismatch does
+  (`rule:expressions/mixed-equality`). The compiler can prove the answer, and code whose answer is
+  known before it runs is a mistake worth naming, the same argument definite assignment makes.

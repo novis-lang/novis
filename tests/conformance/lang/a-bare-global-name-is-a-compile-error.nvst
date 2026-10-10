@@ -1,5 +1,5 @@
 --TEST--
-A bare name in value position is `E0319` and a bare call is `E0320`, never a panic — ADR 0011 §§ 1 and 3 removed the global-function and global-constant storage rows outright, so neither name resolves against anything
+A bare name in value position is `E0319` and a bare call is `E0320`, never a panic — `rule:classes/no-free-functions-or-constants` removes the global-function and global-constant storage rows outright, so neither name resolves against anything
 --FILE--
 <?nvs
 // `rule:statements/storage-that-outlives-a-call`: a constant always belongs to a class, so a bare name in

@@ -91,8 +91,10 @@ cranelift = "0.135"
 cranelift-jit = "0.135"
 cranelift-module = "0.135"
 cranelift-native = "0.135"
-# The second `Module` behind the one lowering walk — ADR 0042 § 2's relocatable
-# object payload. Same version as its four siblings above, and it must stay so:
+# The second `Module` behind the one lowering walk — the relocatable
+# object payload of
+# `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`.
+# Same version as its four siblings above, and it must stay so:
 # they share `cranelift-codegen`'s types.
 cranelift-object = "0.135"
 # The reader for what that one writes, and a test dependency only: an object's
@@ -162,7 +164,7 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # `src/upgrade.rs`, on the h1 server path — and tokio's own default feature set
 # is empty, so what is compiled is its synchronisation primitives and *nothing*
 # else: no `rt`, no `net`, no `time`, no executor, no reactor, no `spawn`. That
-# is the distinction ADR 0072 actually draws, and it survives: this binary still
+# is the distinction `rule:concurrency/one-scheduler` draws, and it survives: this binary still
 # has exactly one scheduler, `nvs-host`'s, and the connection future is driven
 # by `nvs_host::block_on` on the coroutine that owns the connection (ADR 0138)
 # over `crates/nvs-server/src/io.rs`'s adapters. h1 needs no `Executor` and
@@ -192,8 +194,8 @@ hyper = { version = "1", default-features = false, features = [
 # `tungstenite::WebSocket::from_raw_socket` wants a `Read + Write` and the
 # parking stream is one, so a read that would block hands the core back and the
 # codec never learns that it suspended. That is why this crate and not
-# `tokio-tungstenite`, which wants the executor ADR 0072 says this binary does
-# not have.
+# `tokio-tungstenite`, which wants the executor `rule:concurrency/one-scheduler`
+# says this binary does not have.
 #
 # Default features, which is TLS-free: `handshake` is what
 # `derive_accept_key` lives behind, and everything the set pulls — `http`,
@@ -249,12 +251,15 @@ windows-sys = { version = "0.61", features = [
     # `crates/nvs-runtime/src/beneath.rs` is the one caller.
     "Win32_System_IO",
     # `CreateServiceW`, `ChangeServiceConfig2W`, `ControlService` and `QueryServiceStatusEx`:
-    # ADR 0093 § 3's registration is the SCM's own state and has no file to write, so installing a
-    # service *is* these calls. § 4's `PRESHUTDOWN`, delayed auto-start, description and failure
-    # actions are configuration levels on the handle `CreateServiceW` returns.
+    # a Windows service's registration is the SCM's own state and has no file to write
+    # (`rule:packaging/the-argv-lives-in-imagepath`), so installing a service *is* these calls. The
+    # `PRESHUTDOWN`, delayed auto-start, description and failure actions of
+    # `rule:packaging/a-service-answers-its-manager` are configuration levels on the handle
+    # `CreateServiceW` returns.
     # `crates/nvs-cli/src/service.rs` is the one caller.
     "Win32_System_Services",
-    # `RegCreateKeyExW` and `RegDeleteTreeW`: ADR 0093 § 4's event-log source is a subkey under
+    # `RegCreateKeyExW` and `RegDeleteTreeW`: the event-log source of
+    # `rule:packaging/a-service-answers-its-manager` is a subkey under
     # `SYSTEM\CurrentControlSet\Services\EventLog\Application` and nothing else, so registering one
     # at install and removing it at uninstall are a key write and a key delete.
     # `crates/nvs-cli/src/service.rs` is the one caller.
@@ -323,7 +328,7 @@ rcgen = { version = "0.14", default-features = false, features = [
 
 # --- extension sandbox (M9). Built on the same cranelift version above, so the
 # --- two move together: wasmtime N pins cranelift 0.(N+87) exactly.
-# --- See docs/decisions/0003.md.
+# --- See rule:packaging/an-extension-is-a-sandboxed-wasm-component.
 wasmtime = "48"
 # The parser of the `nvs:ext@1.0.0` world's WIT text under `wit/`, at the
 # version wasmtime 48 itself parses component types with, so it adds no crate
@@ -360,7 +365,7 @@ wasmtime-wasi-io = "48"
 # `Connection::stdio()` spawns the two io threads and hands back a pair of
 # `crossbeam-channel` endpoints, so the server is a `for msg in receiver` loop
 # on the thread that called it. No executor, no task type, no `Future` — the
-# distinction ADR 0072 draws is not even reachable here. It is rust-analyzer's
+# distinction `rule:concurrency/one-scheduler` draws is not even reachable here. It is rust-analyzer's
 # own framing layer, extracted by its authors for this use, and the alternative
 # is owning `Content-Length` framing plus the
 # `initialize`/`initialized`/`shutdown`/`exit` state machine, which is a wire
@@ -393,7 +398,7 @@ bitflags = "2"
 smallvec = { version = "1", features = ["union", "const_generics"] }
 indexmap = "2"
 rustc-hash = "2"
-# Two consumers, one crate: ADR 0042's on-disk artifact cache keys on it, and
+# Two consumers, one crate: the on-disk artifact cache keys on it, and
 # spec § 11's `Core\Digest::Blake3` computes it — the second is what finally put
 # it in `Cargo.lock`. `pure` and no default features on purpose: blake3 ships
 # hand-written assembly built through `cc` by default, and ground-rules.md
@@ -420,7 +425,7 @@ blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 brainsort = "0.5"
 
 # --- Arbitrary-magnitude integers (`Core\BigInt`) ---
-# ADR 0054 § 5 names this crate by name as what replaces `gmp` and the integer
+# `rule:types/decimal` names this crate's class as what replaces `gmp` and the integer
 # half of `bcmath`; `crates/nvs-stdlib/src/bigint.rs` owns the class built over
 # it. Pure Rust with no build script and no C, so
 # `rule:packaging/a-c-dependency-answers-two-questions` is answered at its first
@@ -430,15 +435,16 @@ brainsort = "0.5"
 num-bigint = "0.5"
 num-integer = "0.1"
 
-# --- Memory-mapped files (ADR 0042 § 3's read path) ---
+# --- Memory-mapped files (the artifact cache's read path) ---
 # The cache verifies an artifact by hashing it where the page cache already put
-# it, rather than by reading it into a buffer first — that ADR's *Investigation*
-# weighs the two and picks this one. Pure Rust over the platform's own calls
+# it, rather than by reading it into a buffer first
+# (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`).
+# Pure Rust over the platform's own calls
 # (`libc`, `windows-sys`), no C and no build script, so ground-rules.md
 # § *Pure-Rust dependencies by default* has nothing to spend here.
 memmap2 = "0.9"
 
-# --- Instruction-cache maintenance for freshly written code (ADR 0042 § 3) ---
+# --- Instruction-cache maintenance for freshly written code ---
 # The aarch64 half of `nvs_codegen::make_executable`: invalidating the cache
 # lines under bytes that were data a moment ago, and serializing the fetch
 # pipeline on every core that might run them. `cranelift-jit` already runs this
@@ -450,7 +456,7 @@ memmap2 = "0.9"
 # what answers that, and `nvs_codegen::make_executable` is the one call site.
 wasmtime-internal-jit-icache-coherence = "48"
 
-# --- Unicode text segmentation (ADR 0009 § 2's grapheme granularity) ---
+# --- Unicode text segmentation (`rule:types/string-is-utf8`'s grapheme granularity) ---
 # UAX #29 extended grapheme cluster boundaries, which `string`'s default
 # length/indexing unit is defined by. Pure Rust, no build script, no C.
 # `crates/nvs-runtime/src/graphemes.rs` owns why this crate and not another.
@@ -486,7 +492,7 @@ unicode-normalization = "0.1"
 # default-ignorables — and the emoji ZWJ sequences that are one column pair
 # however many code points they are. Every one of those is data on a Unicode
 # version, not something a member can derive, and the third of the three
-# measures ADR 0009 § 2 leaves open: bytes and grapheme clusters are ours,
+# measures `rule:types/string-is-utf8` leaves open: bytes and grapheme clusters are ours,
 # terminal columns are the renderer's. From the same `unicode-rs` org as the
 # three crates above, pure Rust, no build script, no C, and already in this
 # tree's lock file as `wasm-encoder`'s dependency — naming it here is the
@@ -497,9 +503,9 @@ unicode-normalization = "0.1"
 # (`rule:core-api/no-ambient-state`, which refuses `setlocale` for saying so).
 unicode-width = { version = "0.2", default-features = false }
 
-# --- regular expressions (ADR 0056's two tiers, both named by the user) ---
+# --- regular expressions (`rule:core-classes/regex-two-tiers`, both named by the user) ---
 # `regex` is the linear-time default: a finite-automata engine that cannot be
-# made to backtrack exponentially, which is the whole point of that ADR.
+# made to backtrack exponentially, which is the whole point of that rule.
 # `fancy-regex` is the budgeted opt-in tier, reached only by a pattern the
 # linear engine cannot express (lookaround, backreferences); it wraps `regex`
 # itself, so the two share one syntax and one Unicode table set rather than
@@ -531,10 +537,11 @@ jiff = "0.2"
 # — `Core\Json::decode` builds an `NvsArray` straight from a visitor, so no
 # document is ever materialized twice. `serde` itself is the visitor trait it
 # is driven through. `derive` is on for exactly one consumer, `nvs-config`'s
-# block tree: ADR 0064 § 3's unknown-key refusal *is* `deny_unknown_fields`, an
+# block tree: `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s
+# unknown-key refusal *is* `deny_unknown_fields`, an
 # attribute on a struct rather than machinery we write, so the macro replaces
 # code here rather than adding any.
-# `raw_value` is what lets an ADR 0054 `decimal` be written as an exact JSON
+# `raw_value` is what lets a `decimal` (`rule:types/decimal`) be written as an exact JSON
 # number rather than a lossy `f64`, and `unbounded_depth` is what lets section
 # 6 of docs/spec/01-core-library.md have its own `maxDepth` be the bound
 # rather than the crate's fixed 128.
@@ -543,8 +550,10 @@ jiff = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
 
-# --- configuration (ADR 0064 § 1: `nvs.toml` is TOML, read through `serde`) ---
-# Pure Rust, and both of ADR 0064 § 3's refusals are its default behaviour: it
+# --- configuration (`rule:config/the-file-is-nvs-toml-and-it-is-toml`) ---
+# Pure Rust, and both refusals of
+# `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` are its
+# default behaviour: it
 # rejects a duplicate key itself and `deny_unknown_fields` rejects an unknown
 # one, so neither is machinery `nvs-config` writes or can get wrong.
 toml = "0.9"
@@ -959,7 +968,7 @@ postgres-types = "0.2"
 # would put a C library in the default binary's graph. `tools/nv/cmd/gen-attribution.ts`
 # would then fail on an unrecorded C dependency, and recording it would be
 # recording one nothing asked for -- the protocol's optional compression is a
-# feature ADR 0067 does not offer. With the default off, `flate2` is
+# feature `Core\Db` does not offer. With the default off, `flate2` is
 # `miniz-oxide` and the whole graph stays pure Rust; `derive` goes with it, and
 # nothing here derives a row from a struct.
 #
@@ -1003,7 +1012,7 @@ fallible-iterator = "0.2"
 # amalgamation ourselves makes the shipped engine a fact of this repository's
 # lockfile, and it is also what lets the crate build on a machine with no
 # SQLite installed at all.
-# `column_decltype` is the second required feature and is ADR 0067 § 9's: that
+# `column_decltype` is the second required feature and is `rule:core-classes/db-column-types`'s: that
 # section maps a SQLite column off what the *schema* declared it as, because a
 # storage class cannot say whether `20260903` was meant as a number or a date.
 # Without this feature `sqlite3_column_decltype` is not exposed at all and the
@@ -1098,7 +1107,7 @@ debug = "line-tables-only" # keep backtraces useful in production builds
 # scalar `Value` arithmetic 1.19 -> 1.11 -- every delta inside the +/-1.8% seen between two *baseline*
 # runs, so there is no cost to weigh against it. What it buys is the class behind php-src's CVSS-9.8 bugs
 # (`ldap_escape` CVE-2024-8932, the `pdo_firebird` quoter CVE-2024-11236): a size computation that wraps
-# silently becomes a panic, which `catch_unwind` contains to one request per ADR 0002, instead of a wrong
+# silently becomes a panic, which `catch_unwind` contains to one request (`rule:errors/helper-abi`), not a wrong
 # length nothing reports. Intentional wraparound is spelled `wrapping_*`. The cast half of the same
 # discipline is already enforced -- `[workspace.lints.clippy]` below carries `cast_possible_truncation`,
 # `cast_possible_wrap` and `cast_sign_loss`, and `nv verify` runs clippy with `-D warnings`.

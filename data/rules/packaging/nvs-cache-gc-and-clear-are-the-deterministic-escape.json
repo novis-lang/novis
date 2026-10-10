@@ -1,9 +1,7 @@
 {
   "title": "`nvs cache gc` and `nvs cache clear` are the operator's deterministic alternative to the roll",
   "status": "designed",
-  "because": [
-    "0042"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/eviction-rides-the-cold-miss-at-a-probability"
   ],

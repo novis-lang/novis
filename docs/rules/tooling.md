@@ -37,7 +37,26 @@ Windows with no edit; Windows gains no kernel shebang support, and its distribut
 single-file executable. This is one lexer branch at offset 0: no parser rule, HIR shape or runtime
 behaviour changes.
 
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0100](../decisions/0100.md), [0049](../decisions/0049.md), [0099](../decisions/0099.md), [0095](../decisions/0095.md).</sub>
+**It is a second way a file may begin, and not a second spelling of one.** `<?nvs` separates code
+from the template text around it, and a shebang file has no template text: the marker the operating
+system already requires selects a file kind, a program rather than a template. Every scripting
+engine strips a leading `#!` line, and PHP does too, yet PHP still needs `<?php` on line 2. Python,
+Ruby, Perl, Node and `sh` are in code mode from byte 0. The cost is one sentence of language surface,
+and there is no runtime, latency or memory consequence.
+
+**Declined:**
+- **`<?nvs` still required after a shebang, as PHP requires `<?php`.** One file opening, one rule,
+  but it charges every CLI script a disambiguation that cannot arise. PHP pays it for files older
+  than its command-line mode, and Novis has none.
+- **A second extension, `.nvss`, in code mode from byte 0.** The shebang has to be in the file
+  anyway, so an extension is a second thing to get right, and it splits tooling, editor
+  associations and `require` resolution for no gain.
+- **Every file in code mode by default, with an opt-in for template mode.** The cleanest design
+  from the command line, declined on scope: it overturns inline HTML and `<?=` to save one line in
+  a CLI script. It is the alternative to reopen if the template half of the language is ever
+  reconsidered on its own terms.
+
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="tooling-no-repl"></a>
 
@@ -68,7 +87,7 @@ wherever Novis is compared to Python. It reopens only on evidence that "what is 
 build, and what would be built then is a debugger-shaped inspector over a paused isolate, not a
 general evaluator.
 
-<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0100](../decisions/0100.md), [0011](../decisions/0011.md), [0042](../decisions/0042.md), [0022](../decisions/0022.md), [0015](../decisions/0015.md), [0079](../decisions/0079.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="tooling-reflection-and-source-parsing-are-core-features"></a>
 
@@ -94,7 +113,14 @@ observer ordinary code at that site would face, and there is no `setAccessible(t
 into execution, because `eval` does not exist. Neither touches the filesystem, the network or another
 process, so neither needs a capability grant ([`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability)).
 
-<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0019](../decisions/0019.md).</sub>
+**Declined:**
+- **Ship reflection and leave source parsing to a library.** That is the split that lets a
+  third-party grammar drift from the engine's, and avoiding it costs nothing because the compiler's
+  parser already exists.
+- **`setAccessible(true)` or any equivalent.** It would make every access modifier advisory and skip
+  a declared property observer without a trace ([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
+
+<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="tooling-python-claims"></a>
 
@@ -106,6 +132,16 @@ The claim Novis makes against Python is the one Python is worst at: **the tool t
 somebody else.** It is [`programs/audience`](programs.md#programs-audience)'s existing purchase pointed at the command line — a
 second audience below the first and never above it — and it adds no priority, reorders nothing, and
 schedules no milestone of its own.
+
+Python holds the quick script through three things Novis takes none of: the REPL and the notebook,
+being allowed to be wrong and still run, and a numeric stack that is C and Fortran under a Python
+surface. So Novis does not compete there. Handing a Python program to a colleague means a virtualenv,
+an interpreter version or a bundler; a Novis tool is one file. At the command line the missing
+ecosystem also costs far less than on the web: what a quick tool imports — an HTTP client, JSON, CSV,
+regex, a URI parser, hashing, a path type, an argument parser — is already in `Core`. And the
+standing top findings of a Python tooling review, a shell command built from a string, a secret in a
+log line and an interpolated query, are each a compile error here and cannot be retrofitted into
+Python.
 
 **Permitted:** that a Novis CLI program ships as one file with no interpreter, virtualenv or package
 install; that argument parsing, help, completions, colour, prompts and progress are in the binary;
@@ -128,7 +164,16 @@ and no numeric or machine-learning stack and no route to one ([`security/no-ffi`
 No check enforces a forbidden phrasing and none should; the rule exists so a reviewer has something
 to point at.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler). Decided in [0100](../decisions/0100.md), [0080](../decisions/0080.md), [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0048](../decisions/0048.md), [0052](../decisions/0052.md).</sub>
+**Declined:**
+- **Saying nothing about Python.** The command-line surface is built either way, and the two
+  readings of it lead to different builds: a REPL and dynamic escapes under one, neither under the
+  other. A question that changes what gets built is a decision.
+- **Aiming at the prototype: a REPL, relaxed type rules for a script, an unchecked mode.** That niche
+  is decided by the package index and the notebook, and Novis has neither. Loosening the rules to
+  compete there spends the one durable difference, that being wrong does not compile, on a market it
+  cannot win ([`tooling/no-repl`](tooling.md#tooling-no-repl)).
+
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler).</sub>
 
 <a id="tooling-echo-always-has-a-sink"></a>
 
@@ -168,7 +213,7 @@ HTML, so no call site names a format. It also gives `Core\Out::capture` its answ
 than an `echo` the HTML sink would escape into corruption
 ([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0092](../decisions/0092.md), [0177](../decisions/0177.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0092](../decisions/0092.md), [0177](../decisions/0177.md).</sub>
 
 <a id="tooling-terminal-output-is-a-sink"></a>
 
@@ -196,7 +241,7 @@ is the sink's named launderer, performing exactly this table, for the program th
 neutralized form as a value. A `secret` value is refused outright with no carrier bypass
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), because substitution does nothing for confidentiality.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-text-is-the-one-raw-path"></a>
 
@@ -264,7 +309,7 @@ colours are class constants — `Color::RED` *is* `Color::index(1)`, written sho
 use site as any scalar constant is — and `Color::rgb(uint, uint, uint)` and `Color::index(uint)`
 construct the rest.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-the-terminal-profile-resolves-once"></a>
 
@@ -339,7 +384,7 @@ the sink closes. Spinners and table rendering, which are pure text composition o
 than Tier 0 ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). And a TUI widget layer — panes, focus, event loops —
 which is an application framework, not a language surface.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-the-tty-belongs-to-the-main-task"></a>
 
@@ -358,7 +403,7 @@ throws is claiming the *terminal*; writing text never does. An isolate's `echo` 
 parent owns, never a tty ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)), which is why the two rules are
 consistent rather than in tension.
 
-<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md).</sub>
 
 <a id="tooling-in-place-output-is-a-scoped-live-region"></a>
 
@@ -391,7 +436,7 @@ at that end on every path including a throw. Cursor primitives — `moveUp`, `cl
 survive a resize, they interleave incoherently when two tasks write, and a program that dies holding
 them leaves the operator's shell unusable.
 
-<sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions). Decided in [0086](../decisions/0086.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-a-prompt-is-a-core-member"></a>
 
@@ -416,7 +461,7 @@ controlling terminal, not standard input** — `/dev/tty`, `CONIN$` — so `cat 
 still ask a question; without that, piping and prompting are mutually exclusive, which is the defect
 in every hand-rolled version.
 
-<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/no-ffi`](security.md#security-no-ffi), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0086](../decisions/0086.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0052](../decisions/0052.md).</sub>
+<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/no-ffi`](security.md#security-no-ffi), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-a-prompt-never-blocks"></a>
 
@@ -445,7 +490,7 @@ five prompts already meet, so a sixth inherits it. A scripted line wins over a t
 and a queue with nothing left is the unattended run above, so scripting too few answers is assertable
 rather than a hang.
 
-<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../decisions/0086.md), [0074](../decisions/0074.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-the-terminal-is-restored-on-every-exit-path"></a>
 
@@ -469,7 +514,7 @@ guard was skipped, so the stack can never keep a region nobody can reach. What i
 the last frame; what is restored is the cursor, and the row below the region is where the next `echo`
 lands.
 
-<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0086](../decisions/0086.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-commands-are-compiled"></a>
 
@@ -500,7 +545,7 @@ command line is [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](to
 `clap`-shaped builder registered at run time — loses all three compile errors and the generated
 completions, and is the design every other ecosystem already has.
 
-<sub>See also [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`tooling/command-run-dispatches-and-help-is-generated`](tooling.md#tooling-command-run-dispatches-and-help-is-generated), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0086](../decisions/0086.md), [0077](../decisions/0077.md), [0061](../decisions/0061.md), [0071](../decisions/0071.md).</sub>
+<sub>See also [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`tooling/command-run-dispatches-and-help-is-generated`](tooling.md#tooling-command-run-dispatches-and-help-is-generated), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-a-parameter-is-an-argument-unless-it-is-an-option"></a>
 
@@ -525,7 +570,7 @@ set of allowed values by its word ([`routing/a-capture-narrows-to-a-closed-set`]
 — no new laundering rule exists for the command line. An `#[Option]` written outside a `#[Command]`
 method supplies nothing, because there is no table for it to be a row of.
 
-<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-command-run-dispatches-and-help-is-generated"></a>
 
@@ -924,7 +969,7 @@ formatter that inserted `public` would make a file's *meaning* depend on whether
 over it, and would restore an implicit default for anyone who formats on save. A file that does not
 compile still does not compile after `nvs fmt`, and its author writes the level they mean.
 
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md), [0089](../decisions/0089.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md).</sub>
 
 <a id="tooling-fmt-never-reorders-members"></a>
 
@@ -1533,9 +1578,23 @@ need it and carries a comment saying why.
 
 **Neither Python nor Bun is a toolchain dependency.** A missing twin skips that engine with a warning
 and an uninstalled engine is narrowed away with `--engines`, so neither can turn a build, a test or a
-loop session red — nothing outside this suite reads any of it.
+loop session red — nothing outside this suite reads any of it. The cost is that a default run is
+slower, because CPython is far behind the other engines on these loops and pays that on every rep;
+`--engines nvs,php` and the case patterns are the escape. Every twin is one more file to keep in
+step, and the byte-identical gate is what stops one rotting silently.
 
-<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0100](../decisions/0100.md), [0026](../decisions/0026.md), [0065](../decisions/0065.md).</sub>
+**Declined:**
+- **A Python column transliterated from the PHP cases.** A transliteration measures how badly one
+  language writes another's idiom, and the arithmetic exception is stated as one so it is not read
+  as licence for more.
+- **PyPy as well as CPython, or instead of it.** CPython is what a tool is actually run under, and a
+  second Python engine doubles the twins to sharpen a comparison the command-line audience never
+  meets. `--engines` makes adding one later a flag.
+- **Leaving Bun out because the command-line audience is not switching from it.** Bun is the
+  closest engine to what Novis is trying to be, a fast JIT behind a scripting surface with the
+  batteries in the binary, so its numbers are the ones that test this project's own claims.
+
+<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims).</sub>
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 

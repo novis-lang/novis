@@ -12,7 +12,19 @@ One thing does run when a refcount reaches zero, and it is not a destructor: a g
 inside a `try ... finally` is resumed in a return-like mode so the `finally` runs
 (`rule:iteration/generators`). Nothing is declared, no name is recognized, and the release resumes a
 frame the program had already entered. A throw escaping such a `finally` is discarded, since a release
-is exactly the site with nowhere to report one.
+is exactly the site with nowhere to report one. PHP reports that throw as uncaught.
+
+A host resource a value wraps is still reclaimed by the runtime when nothing references it. That is
+memory management: no user code runs at that moment.
 
 What it costs is real: no RAII, so a caller who forgets an explicit `close()` gets nothing. A
-destructor is an unreliable safety net, but it is a net.
+destructor is an unreliable safety net, but it is a net. A destructor would also have to pick between
+two bad semantics: run every live object's destructor at teardown, which walks the heap on every
+request, or skip whatever is still reachable at teardown, which is PHP's own inconsistency for cycles.
+
+**Declined:**
+- **A `Disposable` interface called at scope exit.** No scope-exit call exists anywhere else in the
+  language, and it would be a lifecycle hook under another name.
+- **Keeping `__destruct`, forbidding a throw from it and skipping it at teardown.** It still walks
+  every object whose count reaches zero mid-request, which is the per-object cost the wholesale drop
+  avoids.

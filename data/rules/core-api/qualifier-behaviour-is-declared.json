@@ -2,9 +2,6 @@
   "title": "Every `Core` member declares whether it is a sink, a launderer, contagious or neutral",
   "status": "shipped",
   "because": [
-    "0063",
-    "0024",
-    "0055",
     "0135"
   ],
   "seeAlso": [

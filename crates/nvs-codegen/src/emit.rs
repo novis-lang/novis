@@ -1591,8 +1591,8 @@ impl Emitter<'_, '_> {
         if matches!(op, BinOp::Pow) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_int_pow(inst, l, r, signed);
         }
-        // And the float `/`, the last row that owns a continuation block. ADR
-        // 0007 § 4 refuses the zero divisor *before* the operand types are
+        // And the float `/`, the last row that owns a continuation block.
+        // `rule:types/arithmetic` refuses the zero divisor *before* the operand types are
         // consulted, so there is one rule and not two: `1.0 / 0` throws
         // exactly where `1 / 0` does rather than handing back IEEE's infinity,
         // and `Core\Math::fdiv` is the spelling for the IEEE answer.

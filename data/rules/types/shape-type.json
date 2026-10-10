@@ -2,10 +2,6 @@
   "title": "`{name: T}` in type position is a structural shape checked by width subtyping, and `{name?: T}` marks a key that may be absent",
   "status": "shipped",
   "because": [
-    "0036",
-    "0015",
-    "0007",
-    "0013",
     "0157",
     "0236",
     "0238"

@@ -1,9 +1,9 @@
 <?nvs
 // ADR 0086 § 6's compile-time command table, as a program.
 //
-// Structurally identical to ADR 0077's route table with the routes swapped for
-// commands, and built by the same ADR 0061 § 3 scan — so, as there, the
-// `autoload` root is what finds the classes nothing names.
+// Structurally identical to the route table in `routes.nvs` with the routes swapped for
+// commands. `Core\Program::implementing<T>()` builds it, so the `autoload`
+// root is what finds the classes nothing names.
 autoload 'App' from './commands';
 
 // § 6's own readers of the table are `Core\Command::run`, `::help` and
@@ -20,8 +20,8 @@ autoload 'App' from './commands';
 // type has no conversion from `string` — are reachable from here.
 var $commands = Core\Program::implementing<App\Command>();
 
-// Sorted by fully-qualified name (ADR 0061 § 3), so `App\Greet` precedes
-// `App\Migrate` and the order never depends on filesystem enumeration.
+// The list is sorted by fully-qualified name. `App\Greet` comes before
+// `App\Migrate`, and the order of files on disk does not change it.
 foreach ($commands as App\Command $command) {
     echo $command->usage(), "\n";
 }

@@ -19,4 +19,12 @@ program comparing its own session token, API key or signature with `==` sits out
 oracle, and receives no diagnostic anywhere.
 
 The cost, stated: roughly eight extra nanoseconds per comparison of two 32-byte values, invisible at
-any scale a request reaches, and the comparison cannot early-exit, which is the entire point.
+any scale a request reaches, and the comparison cannot early-exit, which is the entire point. Making
+the operator right by construction is the only version that does not depend on every future call site
+remembering.
+
+**Declined:**
+- **Refusing `==` on a `secret` and naming `Core\Hash::equals` in the diagnostic.** It is more explicit
+  at the call site, but `==` is the one equality operator for every type
+  (`rule:expressions/one-equality-operator`), and comparing a credential is something programs
+  legitimately do.

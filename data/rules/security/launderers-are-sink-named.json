@@ -2,9 +2,7 @@
   "title": "The only way out of `tainted` is a `Core` member whose contract names the one sink it is safe for",
   "status": "shipped",
   "because": [
-    "0024",
     "0133",
-    "0055",
     "0248"
   ],
   "seeAlso": [

@@ -10,4 +10,10 @@ row added to the pass that folds an enum case's value (`rule:enums/closed-intege
 Two things follow with no rule of their own. The payload resolves once, at compile time, so there is no
 "evaluate this attribute's arguments" step at declaration time. And no `tainted` value can reach a
 payload, because a tainted value has no compile-time-constant source at all; a `secret` class constant
-can, and is refused there as a sink (`E0727`).
+can, and is refused there as a sink (`E0727`). A value held in a constant pool for the life of the
+process is the durable exposure the `secret` sinks exist to close.
+
+**Declined:**
+- **Any expression as a payload value, `new` included**, as PHP admits. Declaring a class would become
+  an operation with an execution order and side effects, and a `tainted` or `secret` value could flow
+  into data retained for the life of the process.

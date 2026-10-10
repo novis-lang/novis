@@ -2,8 +2,6 @@
   "title": "Ten series exist the moment an exporter is configured, with no application code written",
   "status": "shipped",
   "because": [
-    "0076",
-    "0041",
     "0148"
   ],
   "seeAlso": [

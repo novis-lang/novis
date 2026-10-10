@@ -11,3 +11,8 @@ one, `return` is not; for an early return write the block form.*
 
 The refusal is deliberate and not a gap to fill later. A `return null` on an `IOError` hides a
 failure, and the block form's five lines are the right price for choosing that.
+
+**Declined:**
+- **Admitting `return` in an arm**, as in `catch return err`. The arm would then hold either a value
+  or a departure, with nothing in the syntax to say which, and a reader misreads it. The expression
+  rule keeps the one departure that is already an expression and refuses the rest by name.

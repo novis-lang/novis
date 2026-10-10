@@ -2,7 +2,6 @@
   "title": "`nvs info` is the one call for build, host and licensing facts, and the one spelling of it",
   "status": "shipped",
   "because": [
-    "0065",
     "0151"
   ],
   "seeAlso": [

@@ -5,12 +5,12 @@
 //! # The installer is a sink
 //!
 //! `rule:security/sink-predicate` defines a sink as a parameter whose content becomes an
-//! instruction rather than data, and § 2 of 0093 calls the trailing argv here
+//! instruction rather than data, and `rule:packaging/the-installer-is-a-sink` calls the trailing argv here
 //! the sharpest case in the project: the command runs elevated, and what it
 //! stores is executed by a privileged account at every boot until somebody
 //! removes it. So [`plan`] is the whole surface's front door and its default is
 //! refusal — every path out of it is either a [`Plan`], which is constructed
-//! nowhere else, or one of § 2's refusal classes as an `E063x`
+//! nowhere else, or one of `rule:packaging/the-installer-is-a-sink`'s refusal classes as an `E063x`
 //! diagnostic. Nothing downstream re-checks, because nothing downstream can
 //! obtain a `Plan` without having gone through it.
 //!
@@ -19,7 +19,7 @@
 //! `E0634` (a bundle installing itself), `E0653` (a data folder the
 //! service cannot use) and `E0654` (a Linux `--account` this machine does not
 //! have, which is looked up after [`plan`], through the manager, because the
-//! lookup is the machine's). § 2's table carries more rows than there are codes
+//! lookup is the machine's). `rule:packaging/the-installer-is-a-sink`'s table carries more rows than there are codes
 //! here, because rows that share a reason share a code: the subcommand
 //! allowlist, `--fault-inject` and an argv the command line's own parser
 //! refuses are all "the stored argv names something a service manager must
@@ -38,7 +38,7 @@
 //! elsewhere, an unusable folder is only the warning every command prints,
 //! because the service still boots.
 //!
-//! **A service never gets write on its own configuration.** § 4's grants on
+//! **A service never gets write on its own configuration.** `rule:packaging/a-service-runs-as-a-virtual-account`'s grants on
 //! the data folder are read on the folder and its `nvs.toml`, and read/write
 //! on `cache/`, `tmp/`, `lsp/` and `logs/` alone, each inherited only inside
 //! its own subfolder.
@@ -56,7 +56,7 @@
 //!
 //! **What counts as a path is a closed list, not a guess.** Every `--config`
 //! and `--data` value in the argv, the entry file `serve`/`run` names, and the
-//! three paths of the configuration the service reads that § 4 grants on and
+//! three paths of the configuration the service reads that `rule:packaging/a-service-runs-as-a-virtual-account` grants on and
 //! the server opens as written — the file of a `[log] target`,
 //! `[opcache] file_cache_dir` and `[io] temp_root` — and nothing else, because
 //! a rule that refused any word that *looked* like a path would refuse a
@@ -80,9 +80,9 @@
 //!
 //! # What is on disk, and what is not
 //!
-//! [`unit()`] renders § 5's systemd unit and [`image_path`] § 3's Windows
+//! [`unit()`] renders `rule:packaging/the-generated-unit-is-hardened`'s systemd unit and [`image_path`] `rule:packaging/the-argv-lives-in-imagepath`'s Windows
 //! `ImagePath`, both from a `Plan` and both pure. `nvs service unit` prints
-//! one of them and touches nothing, which is § 5's whole design on Linux and
+//! one of them and touches nothing, which is `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s whole design on Linux and
 //! its `--print` on Windows.
 //!
 //! **On Linux the grants are the unit's sandbox.** The unit runs under
@@ -99,18 +99,21 @@
 //!
 //! **Every verb is a plan of actions, and [`registration`] builds them.**
 //! `install`, `uninstall`, `start`, `stop` and `status` are each a pure
-//! function from a [`Plan`] to a list of [`registration::Action`]s — § 3's
-//! registration, § 4's `PRESHUTDOWN`, failure actions, grants and event-log
-//! source, or § 5's unit write and `daemon-reload` — applied in order through
-//! one [`registration::Manager`]. A case drives the recording manager and
-//! asserts the list, so every decision those sections take is held to with no
-//! administrator rights and on either platform.
+//! function from a [`Plan`] to a list of [`registration::Action`]s — the
+//! registration of `rule:packaging/the-argv-lives-in-imagepath`, the
+//! `PRESHUTDOWN`, failure actions and event-log source of
+//! `rule:packaging/a-service-answers-its-manager`, the grants of
+//! `rule:packaging/a-service-runs-as-a-virtual-account`, or the unit write and
+//! `daemon-reload` of `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`
+//! — applied in order through one [`registration::Manager`]. A case drives the
+//! recording manager and asserts the list, so every decision those rules take
+//! is held to with no administrator rights and on either platform.
 //!
 //! **`registration::scm::Scm` applies the Windows half** — the SCM for a
 //! registration and a control, the registry for the event-log source, the file
 //! ACLs for a grant — and no case reaches it, because a real registration needs
-//! administrator rights on a machine somebody chose. That is why 0093's own
-//! *Verification* lists one among the end-to-end checks rather than here.
+//! administrator rights on a machine somebody chose. That is why a real
+//! registration is an end-to-end check rather than a case here.
 //! [`registration::Systemd`] applies the Linux half and is compiled everywhere,
 //! for the reason [`registration::Platform`] is a parameter.
 //!
@@ -120,10 +123,13 @@
 //! SCM or its real `systemctl`, and only one of those exists to be named here.
 //!
 //! **An uninstall reads what it is undoing back from the platform**
-//! ([`registration::Manager::stored`]): the argv out of § 3's `ImagePath` or
-//! the unit's `ExecStart`, and the account beside it. § 4's closing property is
-//! about the install that happened, and a second command line describes the one
-//! the operator believes happened. The directories § 4 grants on are the
+//! ([`registration::Manager::stored`]): the argv out of the `ImagePath`
+//! (`rule:packaging/the-argv-lives-in-imagepath`) or the unit's `ExecStart`,
+//! and the account beside it. That an uninstall leaves nothing behind
+//! (`rule:packaging/a-service-answers-its-manager`) is a property of the
+//! install that happened, and a second command line describes the one the
+//! operator believes happened. The directories
+//! `rule:packaging/a-service-runs-as-a-virtual-account` grants on are the
 //! residue — neither manager holds them, so they are derived again the way the
 //! install derived them: the data folder from the stored argv's `--data` or
 //! the default folder of the binary the platform holds, and the rest from the
@@ -177,17 +183,17 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap, code};
 
 use crate::render_diagnostics;
 
-/// The closed allowlist of § 2's first row: the two subcommands that stay
+/// The closed allowlist of `rule:packaging/the-installer-is-a-sink`'s first row: the two subcommands that stay
 /// running and mean something with no terminal attached.
 const ALLOWED: [&str; 2] = ["serve", "run"];
 
-/// Where a systemd unit goes when § 5's explicit request is made. Named here
+/// Where a systemd unit goes when `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s explicit request is made. Named here
 /// rather than inside [`destination`] so a test can point that function at a
 /// directory it owns.
 const UNIT_DIRECTORY: &str = "/etc/systemd/system";
 
 /// The options in a stored argv whose value is a path, so [`plan`] knows which
-/// words § 2's third row applies to. `--listen` is deliberately absent: an
+/// words `rule:packaging/the-installer-is-a-sink`'s relative-path row applies to. `--listen` is deliberately absent: an
 /// address is not a path.
 const PATH_OPTIONS: [&str; 2] = ["--config", "--data"];
 
@@ -195,16 +201,16 @@ const PATH_OPTIONS: [&str; 2] = ["--config", "--data"];
 /// looking for the entry file does not read one of them as the entry.
 const VALUED: [&str; 4] = ["--config", "--data", "--listen", "--port"];
 
-/// What an operator asked to have stored, before § 2 has looked at any of it.
+/// What an operator asked to have stored, before `rule:packaging/the-installer-is-a-sink` has looked at any of it.
 pub(crate) struct Request<'a> {
     /// The service's name, which the platform's service manager knows it by
-    /// (§ 1).
+    /// (`rule:packaging/a-service-is-one-stored-argv`).
     pub(crate) name: &'a str,
     /// Everything to the right of `--`, stored untouched and never
-    /// interpreted, which is what makes § 1's "every parameter is passable"
+    /// interpreted, which is what makes `rule:packaging/a-service-is-one-stored-argv`'s "every parameter is passable"
     /// true.
     pub(crate) argv: &'a [String],
-    /// § 4's `--account`, for a deployment that needs a domain identity rather
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s `--account`, for a deployment that needs a domain identity rather
     /// than the default virtual account.
     pub(crate) account: Option<&'a str>,
     /// A password written on the command line. It exists in order to be
@@ -212,37 +218,37 @@ pub(crate) struct Request<'a> {
     pub(crate) password: Option<&'a str>,
     /// Why this binary's own parser refuses `argv`, where it does. The parser
     /// belongs to the command line and not to this module, so the caller asks
-    /// it and § 2 refuses on what it said.
+    /// it and `rule:packaging/the-installer-is-a-sink` refuses on what it said.
     pub(crate) unaccepted: Option<&'a str>,
 }
 
 /// What the process running the installer can answer about itself and about
 /// the configuration the argv names.
 ///
-/// A parameter rather than something [`plan`] reads for itself, so every § 2
+/// A parameter rather than something [`plan`] reads for itself, so every `rule:packaging/the-installer-is-a-sink`
 /// refusal is reachable in a test with no service manager, no elevation and no
 /// files — which is the whole of that section's *Verification* that does not
 /// need a privileged machine.
 pub(crate) struct Host {
-    /// This binary, absolute. § 3 quotes it unconditionally.
+    /// This binary, absolute. `rule:packaging/the-argv-lives-in-imagepath` quotes it unconditionally.
     pub(crate) exe: PathBuf,
     /// Whether this binary is an `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host` bundle (`rule:programs/bundle-trust-domain`).
     ///
     pub(crate) from_a_bundle: bool,
-    /// `[limits] memory`, which § 5 derives `MemoryMax` from rather than
+    /// `[limits] memory`, which `rule:packaging/the-generated-unit-is-hardened` derives `MemoryMax` from rather than
     /// inventing one.
     pub(crate) memory_max: Option<String>,
     /// Whether `[server] listen` includes a privileged port, which is the only
-    /// condition under which § 5 emits `AmbientCapabilities` at all.
+    /// condition under which `rule:packaging/the-generated-unit-is-hardened` emits `AmbientCapabilities` at all.
     pub(crate) privileged_port: bool,
     /// The file a `[log] target` of `file:<path>` names, whose **directory** is
-    /// one of § 4's grants.
+    /// one of `rule:packaging/a-service-runs-as-a-virtual-account`'s grants.
     pub(crate) log_file: Option<PathBuf>,
-    /// `[opcache] file_cache_dir`, the artifact cache § 4 grants read/write on.
+    /// `[opcache] file_cache_dir`, the artifact cache `rule:packaging/a-service-runs-as-a-virtual-account` grants read/write on.
     /// Derived rather than asked for, so an uninstall names the same directory
     /// the install granted.
     pub(crate) cache_directory: Option<PathBuf>,
-    /// `[io] temp_root`, the temporary-folder root § 4 grants read/write on,
+    /// `[io] temp_root`, the temporary-folder root `rule:packaging/a-service-runs-as-a-virtual-account` grants read/write on,
     /// where the configuration writes one.
     pub(crate) temp_root: Option<PathBuf>,
     /// The service's data folder: the argv's `--data` where it is absolute,
@@ -255,7 +261,7 @@ pub(crate) struct Host {
     pub(crate) config_mounts_an_entry: bool,
 }
 
-/// A checked request: every § 2 refusal has already been made against it.
+/// A checked request: every `rule:packaging/the-installer-is-a-sink` refusal has already been made against it.
 ///
 /// Constructed on exactly one code path — the far side of [`plan`] — so a
 /// caller holding one is holding the installer's guarantee rather than an
@@ -269,20 +275,20 @@ pub(crate) struct Plan {
     account: Option<String>,
     memory_max: Option<String>,
     privileged_port: bool,
-    /// The service's data folder, which an install creates and § 4 grants
+    /// The service's data folder, which an install creates and `rule:packaging/a-service-runs-as-a-virtual-account` grants
     /// on. `None` once an install found it unusable, so nothing is granted.
     data: Option<nvs_config::data::Folder>,
     /// Whether the stored `--config` is the data folder's own `nvs.toml`, so
     /// an install writes the shipped template there if it is missing.
     reads_data_config: bool,
-    /// [`Host::log_file`], whose directory § 4 grants read/write on.
+    /// [`Host::log_file`], whose directory `rule:packaging/a-service-runs-as-a-virtual-account` grants read/write on.
     log_file: Option<PathBuf>,
     /// [`Host::cache_directory`], granted read/write.
     cache_directory: Option<PathBuf>,
     /// [`Host::temp_root`], granted read/write.
     temp_root: Option<PathBuf>,
     /// The Linux account `account` names, once
-    /// [`registration::resolve_account`] has looked it up: what § 4's grants
+    /// [`registration::resolve_account`] has looked it up: what `rule:packaging/a-service-runs-as-a-virtual-account`'s grants
     /// are spelled in on that platform. `None` for root, on Windows, and
     /// before the lookup.
     owner: Option<registration::Account>,
@@ -291,7 +297,7 @@ pub(crate) struct Plan {
 /// Whether a rendered unit is printed for review or written where the service
 /// manager reads it.
 ///
-/// § 5's asymmetry, as a value: on Linux the representation of a service *is*
+/// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s asymmetry, as a value: on Linux the representation of a service *is*
 /// a text file the operator's configuration management already owns the
 /// directory for, so printing is the default and writing is the explicit
 /// request.
@@ -306,7 +312,7 @@ pub(crate) enum Delivery {
     Install,
 }
 
-/// § 2, in order, and the only way to obtain a [`Plan`].
+/// `rule:packaging/the-installer-is-a-sink`, in order, and the only way to obtain a [`Plan`].
 ///
 /// The order is the order the refusals are worth reading in: what the argv
 /// *names* first, then what it could not find, then what it could not write,
@@ -315,7 +321,7 @@ pub(crate) enum Delivery {
 ///
 /// # Errors
 ///
-/// One of § 2's refusal classes, as an `E063x` diagnostic naming what was
+/// One of `rule:packaging/the-installer-is-a-sink`'s refusal classes, as an `E063x` diagnostic naming what was
 /// refused and why — never a bare non-zero exit, which is that section's
 /// closing sentence.
 pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnostic> {
@@ -536,7 +542,7 @@ fn not_allowed(message: &str, note: &str) -> Diagnostic {
 /// The paths of the configuration the service reads follow the request's own.
 /// The server opens `[log] target`, `[opcache] file_cache_dir` and
 /// `[io] temp_root` as written, so under a service a relative one is resolved
-/// against the service manager's starting directory, and § 4's grant on it
+/// against the service manager's starting directory, and `rule:packaging/a-service-runs-as-a-virtual-account`'s grant on it
 /// would be made against this shell's.
 fn relative_paths<'a>(request: &'a Request<'_>, host: &Host) -> Vec<(&'a str, String)> {
     let mut out = Vec::new();
@@ -602,7 +608,7 @@ fn entry_file(argv: &[String]) -> Option<&str> {
     None
 }
 
-/// § 3's Windows `ImagePath`: the binary and the stored argv encoded into the
+/// `rule:packaging/the-argv-lives-in-imagepath`'s Windows `ImagePath`: the binary and the stored argv encoded into the
 /// one string the SCM keeps, under `CommandLineToArgvW`'s rules.
 ///
 /// The binary path is quoted **unconditionally**, whether or not it currently
@@ -724,7 +730,7 @@ pub(crate) fn decode(line: &str) -> Vec<String> {
     out
 }
 
-/// § 5's systemd unit, rendered from a checked plan.
+/// `rule:packaging/the-generated-unit-is-hardened`'s systemd unit, rendered from a checked plan.
 ///
 /// Some of its lines are conditions rather than constants, and each is stated
 /// in that section: `AmbientCapabilities` is emitted **only** when the
@@ -1163,7 +1169,7 @@ pub(crate) mod hosted {
 
     /// `SERVICE_CONTROL_STOP`.
     const STOP: u32 = 0x0000_0001;
-    /// `SERVICE_CONTROL_PRESHUTDOWN`, which § 4 asks for at install because
+    /// `SERVICE_CONTROL_PRESHUTDOWN`, which `rule:packaging/a-service-answers-its-manager` asks for at install because
     /// plain `SHUTDOWN` allows roughly five seconds and a drain needs more.
     const PRESHUTDOWN: u32 = 0x0000_000F;
 
@@ -1247,7 +1253,7 @@ pub(crate) mod hosted {
     /// Reaching [`Pace::bound`] still ends in [`Progress::Stopped`]. By then
     /// `drain_timeout` has closed what it was going to close, and a process
     /// reporting anything else would be one the machine waits out the rest of
-    /// § 4's `PRESHUTDOWN` for before killing it anyway.
+    /// `rule:packaging/a-service-answers-its-manager`'s `PRESHUTDOWN` for before killing it anyway.
     pub(crate) fn stop(
         process: &dyn Running,
         draining: &Draining,
@@ -1548,7 +1554,7 @@ mod systemd {
 /// Where a rendered unit goes, which for [`Delivery::Print`] is nowhere.
 ///
 /// `root` is the system unit directory rather than a constant, so the printing
-/// half of § 5 can be asserted against a directory a test owns and can then
+/// half of `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` can be asserted against a directory a test owns and can then
 /// find still empty.
 pub(crate) fn destination(delivery: Delivery, name: &str, root: &Path) -> Option<PathBuf> {
     match delivery {
@@ -1573,23 +1579,25 @@ pub(crate) fn deliver(text: &str, destination: Option<&Path>) -> std::io::Result
     }
 }
 
-/// § 3's registration and § 5's write, as a list of actions and the manager
+/// `rule:packaging/the-argv-lives-in-imagepath`'s registration and `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s write, as a list of actions and the manager
 /// they go through.
 ///
 /// **Every verb is a pure function from a [`Plan`] to a list of [`registration::Action`]s**,
 /// and the manager that performs them is a parameter. That is what makes this
 /// half of the surface assertable with no administrator rights and on either
 /// platform: a case drives `Recording` and asserts the list, and the list is
-/// where every decision § 3 and § 4 take actually lives — the encoded
-/// `ImagePath`, the virtual account, `PRESHUTDOWN`, the failure actions, the
-/// grants § 4 closes and the event-log source. `--dry-run` describes that same
+/// where every decision of `rule:packaging/the-argv-lives-in-imagepath`,
+/// `rule:packaging/a-service-runs-as-a-virtual-account` and
+/// `rule:packaging/a-service-answers-its-manager` actually lives — the encoded
+/// `ImagePath`, the account, `PRESHUTDOWN`, the failure actions, the grants and
+/// the event-log source. `--dry-run` describes that same
 /// list rather than a second rendering of it, so the change-management artifact
-/// § 5 argues for and the thing that is performed cannot drift apart.
+/// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` argues for and the thing that is performed cannot drift apart.
 ///
 /// The appliers `Scm` and `Systemd` arrive at [`registration::Manager`], which is one method
 /// rather than one per verb: a [`registration::Action`] already names what to do in its
 /// platform's own terms, and a trait with a method per row would grow one every
-/// time § 3 or § 5 gains a line.
+/// time `rule:packaging/the-argv-lives-in-imagepath` or `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` gains a line.
 #[cfg_attr(
     not(test),
     expect(
@@ -1600,7 +1608,7 @@ pub(crate) fn deliver(text: &str, destination: Option<&Path>) -> std::io::Result
 pub(crate) mod registration {
     use super::*;
 
-    /// How long § 4's `PRESHUTDOWN` asks the machine to wait for this process.
+    /// How long `rule:packaging/a-service-answers-its-manager`'s `PRESHUTDOWN` asks the machine to wait for this process.
     ///
     /// Plain `SHUTDOWN` allows roughly five seconds, and a drain finishes the
     /// requests already in flight rather than dropping them, so this is a
@@ -1608,17 +1616,17 @@ pub(crate) mod registration {
     /// guess at how long one takes.
     const PRESHUTDOWN: Duration = Duration::from_secs(180);
 
-    /// § 4's reset period: how long the service stays up before the manager
+    /// `rule:packaging/a-service-answers-its-manager`'s reset period: how long the service stays up before the manager
     /// stops counting earlier failures against it.
     const FAILURE_RESET: Duration = Duration::from_secs(600);
 
     /// The `HKEY_LOCAL_MACHINE` key whose subkeys are event-log sources, which
-    /// is what § 4's *Output* registers at install and removes at uninstall.
+    /// is what `rule:packaging/a-service-answers-its-manager`'s *Output* registers at install and removes at uninstall.
     const EVENT_SOURCES: &str = r"SYSTEM\CurrentControlSet\Services\EventLog\Application";
 
     /// Which service manager holds the service.
     ///
-    /// A parameter rather than a `cfg!`, because § 3's registration and § 5's
+    /// A parameter rather than a `cfg!`, because `rule:packaging/the-argv-lives-in-imagepath`'s registration and `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s
     /// unit are each one list of actions, and a case that could only be written
     /// on the platform it describes is a case nobody runs.
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -1631,7 +1639,7 @@ pub(crate) mod registration {
 
     impl Platform {
         /// The platform the installer is running on, which is the one the
-        /// service will run on — the same reading § 2's third row takes paths
+        /// service will run on — the same reading `rule:packaging/the-installer-is-a-sink`'s relative-path row takes paths
         /// against.
         pub(crate) fn host() -> Self {
             if cfg!(windows) {
@@ -1642,7 +1650,7 @@ pub(crate) mod registration {
         }
     }
 
-    /// § 4's failure actions, as the one decision they carry.
+    /// `rule:packaging/a-service-answers-its-manager`'s failure actions, as the one decision they carry.
     #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, clap::ValueEnum)]
     pub(crate) enum Restart {
         // `nvs service install --help` prints these two `///` lines.
@@ -1664,11 +1672,11 @@ pub(crate) mod registration {
         }
     }
 
-    /// When the manager starts the service after a boot (§ 4).
+    /// When the manager starts the service after a boot (`rule:packaging/a-service-answers-its-manager`).
     #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, clap::ValueEnum)]
     pub(crate) enum StartMode {
         // `nvs service install --help` prints these three `///` lines. `Delayed`
-        // is § 4's delayed auto-start.
+        // is `rule:packaging/a-service-answers-its-manager`'s delayed auto-start.
         /// The service starts with the computer, together with the other
         /// automatic services. This is the default.
         #[default]
@@ -1699,14 +1707,14 @@ pub(crate) mod registration {
         }
     }
 
-    /// The installer's own options that § 2 has nothing to refuse about.
+    /// The installer's own options that `rule:packaging/the-installer-is-a-sink` has nothing to refuse about.
     #[derive(Debug, Default)]
     pub(crate) struct Registration {
-        /// § 4's `--start`.
+        /// `rule:packaging/a-service-answers-its-manager`'s `--start`.
         pub(crate) start: StartMode,
-        /// § 4's `--restart`.
+        /// `rule:packaging/a-service-answers-its-manager`'s `--restart`.
         pub(crate) restart: Restart,
-        /// § 4's `--depends-on`, for a database that must come up first.
+        /// `rule:packaging/a-service-answers-its-manager`'s `--depends-on`, for a database that must come up first.
         pub(crate) depends_on: Vec<String>,
         /// What an administrator reads beside the name. The service's own name,
         /// where the operator wrote nothing.
@@ -1715,10 +1723,10 @@ pub(crate) mod registration {
 
     /// What the platform still holds about an installed service.
     ///
-    /// On Windows that is the `ImagePath` and nothing else (§ 3), read back
+    /// On Windows that is the `ImagePath` and nothing else (`rule:packaging/the-argv-lives-in-imagepath`), read back
     /// through [`decode`]; on Linux it is the unit's `ExecStart`. A value
     /// rather than something [`uninstall_actions`] reads for itself, so the
-    /// property § 4 closes on — an uninstall leaves no key, no source, no unit
+    /// property `rule:packaging/a-service-answers-its-manager` closes on — an uninstall leaves no key, no source, no unit
     /// and no granted ACL — is one a case can assert against the very install
     /// that granted them.
     #[derive(Debug)]
@@ -1745,7 +1753,7 @@ pub(crate) mod registration {
     }
 
     /// A Linux account as the password database holds it: what `User=` names
-    /// in the unit, and the ids § 4's grants are spelled in there.
+    /// in the unit, and the ids `rule:packaging/a-service-runs-as-a-virtual-account`'s grants are spelled in there.
     #[derive(Clone, PartialEq, Eq, Debug)]
     pub(crate) struct Account {
         /// The name `--account` gave.
@@ -1766,7 +1774,7 @@ pub(crate) mod registration {
     /// was told which platform it was building for.
     #[derive(Clone, PartialEq, Eq, Debug)]
     pub(crate) enum Action {
-        /// Register the service with the SCM, carrying § 3's encoded
+        /// Register the service with the SCM, carrying `rule:packaging/the-argv-lives-in-imagepath`'s encoded
         /// `ImagePath`.
         Register {
             name: String,
@@ -1781,28 +1789,28 @@ pub(crate) mod registration {
         /// Ask for `SERVICE_CONTROL_PRESHUTDOWN`, and for the time a drain
         /// needs.
         Preshutdown { name: String, timeout: Duration },
-        /// Set § 4's failure actions and the period after which the manager
+        /// Set `rule:packaging/a-service-answers-its-manager`'s failure actions and the period after which the manager
         /// forgets earlier failures.
         Failure {
             name: String,
             restart: Restart,
             reset: Duration,
         },
-        /// Grant the service's identity access to one path, and § 4's list
+        /// Grant the service's identity access to one path, and `rule:packaging/a-service-runs-as-a-virtual-account`'s list
         /// closes what may be granted at all.
         Grant {
             account: String,
             path: PathBuf,
             write: bool,
         },
-        /// Register the event-log source § 4's *Output* writes lifecycle
+        /// Register the event-log source `rule:packaging/a-service-answers-its-manager`'s *Output* writes lifecycle
         /// records to, which is a subkey under [`EVENT_SOURCES`].
         EventSource { name: String, exe: PathBuf },
         /// Take the registration away.
         Deregister { name: String },
         /// Take one granted entry away again.
         Revoke { account: String, path: PathBuf },
-        /// One path of § 4's grant list as Linux spells a grant: an owner, a
+        /// One path of `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list as Linux spells a grant: an owner, a
         /// group and a mode. A directory the service writes in is created
         /// first when it is not there (`create`), for the reason
         /// [`Action::Grant`] creates one.
@@ -1819,7 +1827,7 @@ pub(crate) mod registration {
         Disown { path: PathBuf, mode: u32 },
         /// Remove the event-log source's subkey.
         RemoveEventSource { name: String },
-        /// Write § 5's rendered unit where systemd reads it.
+        /// Write `rule:packaging/the-generated-unit-is-hardened`'s rendered unit where systemd reads it.
         WriteUnit { path: PathBuf, text: String },
         /// Remove it.
         RemoveUnit { path: PathBuf },
@@ -1874,10 +1882,10 @@ pub(crate) mod registration {
         /// What the platform still holds under `name`: the argv it was
         /// registered with, and the account its grants were made to.
         ///
-        /// Read back rather than asked for a second time, because § 4's
+        /// Read back rather than asked for a second time, because `rule:packaging/a-service-answers-its-manager`'s
         /// closing property is about the install that happened and a second
         /// command line describes the one an operator believes happened. The
-        /// directories § 4 grants read/write on are left empty: neither
+        /// directories `rule:packaging/a-service-runs-as-a-virtual-account` grants read/write on are left empty: neither
         /// manager holds them, and the caller derives them from the stored
         /// argv and the configuration it names.
         ///
@@ -1894,7 +1902,7 @@ pub(crate) mod registration {
             ))
         }
 
-        /// The Linux account `name` names, which § 4's grants are spelled in
+        /// The Linux account `name` names, which `rule:packaging/a-service-runs-as-a-virtual-account`'s grants are spelled in
         /// on that platform.
         ///
         /// # Errors
@@ -1914,7 +1922,7 @@ pub(crate) mod registration {
     /// Where a verb is being performed.
     ///
     /// `unit_root` is a parameter for the reason [`destination`] takes one: the
-    /// directory § 5 writes into is the machine's, and a case asserting what an
+    /// directory `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` writes into is the machine's, and a case asserting what an
     /// install writes has to own the directory it looks in.
     pub(crate) struct Site<'a> {
         /// Which manager holds the service.
@@ -1928,7 +1936,7 @@ pub(crate) mod registration {
     /// Why a verb did not finish.
     #[derive(Debug)]
     pub(crate) enum Refused {
-        /// § 2, reached before the manager was touched at all — which is
+        /// `rule:packaging/the-installer-is-a-sink`, reached before the manager was touched at all — which is
         /// `rule:packaging/the-installer-is-a-sink`'s whole claim.
         Installer(Diagnostic),
         /// The platform's own failure at the step it names.
@@ -1960,7 +1968,7 @@ pub(crate) mod registration {
             || account.eq_ignore_ascii_case(r".\LocalSystem")
     }
 
-    /// The directories § 4 grants on, beside the configuration files the
+    /// The directories `rule:packaging/a-service-runs-as-a-virtual-account` grants on, beside the configuration files the
     /// stored argv names.
     #[derive(Clone, Copy)]
     struct Writable<'a> {
@@ -1975,7 +1983,7 @@ pub(crate) mod registration {
         temp_root: Option<&'a Path>,
     }
 
-    /// § 4's grant list for a checked plan, as `(path, write)` pairs: what an
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list for a checked plan, as `(path, write)` pairs: what an
     /// install on Windows grants a named account, and what [`super::unit`] opens with
     /// `ReadWritePaths=`. One list, so the two platforms cannot drift apart.
     pub(crate) fn grants(plan: &Plan) -> Vec<(PathBuf, bool)> {
@@ -1990,7 +1998,7 @@ pub(crate) mod registration {
         )
     }
 
-    /// § 4's grant list, closed: read on the service's data folder and on
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list, closed: read on the service's data folder and on
     /// every configuration file the argv names, read/write on the data
     /// folder's `cache/`, `tmp/`, `lsp/` and `logs/`, read/write on the log
     /// directory, the artifact cache and the temporary-folder root, and
@@ -2038,7 +2046,7 @@ pub(crate) mod registration {
         out
     }
 
-    /// How one path of § 4's grant list is spelled on Linux, where a grant is
+    /// How one path of `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list is spelled on Linux, where a grant is
     /// an owner, a group and a mode rather than an entry in an ACL.
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     enum Owned {
@@ -2139,7 +2147,7 @@ pub(crate) mod registration {
     }
 
     /// The account `plan` names, looked up through `site`'s manager on Linux,
-    /// where § 4's grants are spelled in its ids. Stored on the plan, so
+    /// where `rule:packaging/a-service-runs-as-a-virtual-account`'s grants are spelled in its ids. Stored on the plan, so
     /// [`install_actions`] stays a pure function of it.
     ///
     /// Nothing is stored for root, which owns every path already, or on
@@ -2454,7 +2462,7 @@ pub(crate) mod registration {
     /// touch nothing.
     ///
     /// The description goes to `out` rather than straight to standard output,
-    /// because § 5's argument for the printed unit is that it is the artifact a
+    /// because `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s argument for the printed unit is that it is the artifact a
     /// change-management review wants, and an artifact nothing can read back is
     /// one nothing holds to the list that is actually performed.
     ///
@@ -2599,7 +2607,7 @@ pub(crate) mod registration {
         std::io::Error::new(error.kind(), format!("{error}\n  = note: {outcome}"))
     }
 
-    /// `nvs service install` — § 2 first, then the platform's own steps.
+    /// `nvs service install` — `rule:packaging/the-installer-is-a-sink` first, then the platform's own steps.
     ///
     /// Nothing reaches [`Manager`] until [`plan`] has returned a [`Plan`],
     /// which is `rule:packaging/the-installer-is-a-sink`'s whole claim: a
@@ -2611,7 +2619,7 @@ pub(crate) mod registration {
     ///
     /// # Errors
     ///
-    /// § 2's refusal, or the manager's own failure at the step it names, with
+    /// `rule:packaging/the-installer-is-a-sink`'s refusal, or the manager's own failure at the step it names, with
     /// what became of the steps in front of it.
     pub(crate) fn install(
         request: &Request<'_>,
@@ -2667,7 +2675,7 @@ pub(crate) mod registration {
     ///
     /// # Errors
     ///
-    /// The manager's own failure at the step it names. There is no § 2 refusal
+    /// The manager's own failure at the step it names. There is no `rule:packaging/the-installer-is-a-sink` refusal
     /// here: nothing new is being stored.
     pub(crate) fn uninstall(
         stored: &Stored,
@@ -2694,7 +2702,7 @@ pub(crate) mod registration {
         perform(&actions, site, false, &mut std::io::sink())
     }
 
-    /// The Linux applier: § 5's unit written where systemd reads it, and
+    /// The Linux applier: `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s unit written where systemd reads it, and
     /// `systemctl` run by argv with no shell
     /// (`rule:core-classes/process-is-argv-only`).
     ///
@@ -2792,7 +2800,7 @@ pub(crate) mod registration {
         }
     }
 
-    /// § 4's grants as Linux spells them: `chown` and `chmod` on the paths
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grants as Linux spells them: `chown` and `chmod` on the paths
     /// [`owned`] lists, and the password database that turns `--account` into
     /// the ids they take.
     ///
@@ -2975,7 +2983,7 @@ pub(crate) mod registration {
     /// Nothing here decides anything. The builder that produced the [`Action`]
     /// already chose the start type, the timeout, the account and the rights,
     /// and every function below spells one of those the platform's way, so the
-    /// cases that assert § 3's and § 4's lists keep asserting the decisions
+    /// cases that assert `rule:packaging/the-argv-lives-in-imagepath`'s and `rule:packaging/a-service-answers-its-manager`'s lists keep asserting the decisions
     /// even though no case can reach this module: a real registration needs
     /// administrator rights on a machine somebody chose.
     ///
@@ -3057,7 +3065,7 @@ pub(crate) mod registration {
         const RESTART_DELAYS: [u32; 3] = [1_000, 10_000, 60_000];
 
         /// The record types the event-log source declares, which is what the
-        /// viewer renders § 4's *Output* lifecycle records from.
+        /// viewer renders `rule:packaging/a-service-answers-its-manager`'s *Output* lifecycle records from.
         const REPORTED: u32 =
             (EVENTLOG_ERROR_TYPE | EVENTLOG_WARNING_TYPE | EVENTLOG_INFORMATION_TYPE) as u32;
 
@@ -3119,7 +3127,7 @@ pub(crate) mod registration {
 
             fn stored(&self, name: &str, _unit_root: &Path) -> std::io::Result<super::Stored> {
                 let (image_path, account) = configured(name)?;
-                // § 3 encodes the binary ahead of the stored argv.
+                // `rule:packaging/the-argv-lives-in-imagepath` encodes the binary ahead of the stored argv.
                 let mut words = crate::service::decode(&image_path).into_iter();
                 let exe = words.next().map(std::path::PathBuf::from);
                 Ok(super::Stored {
@@ -3135,7 +3143,7 @@ pub(crate) mod registration {
             }
         }
 
-        /// § 3's `ImagePath` and the account the SCM holds under `name`, which
+        /// `rule:packaging/the-argv-lives-in-imagepath`'s `ImagePath` and the account the SCM holds under `name`, which
         /// together are everything a Windows uninstall undoes.
         ///
         /// `QueryServiceConfigW` is asked its size first and then answered
@@ -3293,7 +3301,7 @@ pub(crate) mod registration {
             Ok((database, Handle(handle)))
         }
 
-        /// § 3's registration, and the two parameters `CreateServiceW` has no
+        /// `rule:packaging/the-argv-lives-in-imagepath`'s registration, and the two parameters `CreateServiceW` has no
         /// field for: the description, and whether an automatic start is the
         /// delayed one.
         ///
@@ -3401,7 +3409,7 @@ pub(crate) mod registration {
             Ok(())
         }
 
-        /// § 4's `PRESHUTDOWN`: the machine agreeing to wait while a drain
+        /// `rule:packaging/a-service-answers-its-manager`'s `PRESHUTDOWN`: the machine agreeing to wait while a drain
         /// finishes, rather than the few seconds plain `SHUTDOWN` allows.
         fn preshutdown(name: &str, timeout: Duration) -> std::io::Result<()> {
             let (_database, handle) = service(name, SERVICE_CHANGE_CONFIG)?;
@@ -3419,7 +3427,7 @@ pub(crate) mod registration {
             })
         }
 
-        /// § 4's failure actions and the period after which the SCM forgets
+        /// `rule:packaging/a-service-answers-its-manager`'s failure actions and the period after which the SCM forgets
         /// earlier failures.
         ///
         /// The handle carries `SERVICE_START` beside `SERVICE_CHANGE_CONFIG`
@@ -3461,7 +3469,7 @@ pub(crate) mod registration {
             })?;
             // A server that cannot bind its listener exits non-zero rather
             // than crashing, and the SCM counts only a crash as a failure
-            // unless this flag is set — so without it the restart § 4 asks for
+            // unless this flag is set — so without it the restart `rule:packaging/a-service-answers-its-manager` asks for
             // would not happen in the case it exists for.
             let flag = SERVICE_FAILURE_ACTIONS_FLAG {
                 fFailureActionsOnNonCrashFailures: BOOL::from(matches!(
@@ -3479,7 +3487,7 @@ pub(crate) mod registration {
             })
         }
 
-        /// § 4's grant, and the whole of what it gives: read on a file the
+        /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grant, and the whole of what it gives: read on a file the
         /// argv named, read/write on a directory the service writes in.
         ///
         /// Inheritance follows the object rather than the flag, because a
@@ -3603,7 +3611,7 @@ pub(crate) mod registration {
             ok_status(written)
         }
 
-        /// § 4's *Output*: the event-log source is a subkey under
+        /// `rule:packaging/a-service-answers-its-manager`'s *Output*: the event-log source is a subkey under
         /// [`EVENT_SOURCES`], and `EventMessageFile` is the binary the viewer
         /// reads a record's text out of.
         fn event_source(name: &str, exe: &Path) -> std::io::Result<()> {
@@ -3768,7 +3776,7 @@ pub(crate) mod registration {
     /// A manager that performs nothing and remembers every action it was
     /// handed.
     ///
-    /// What every case drives: § 3's registration and § 5's write both need
+    /// What every case drives: `rule:packaging/the-argv-lives-in-imagepath`'s registration and `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s write both need
     /// administrator rights on a machine somebody chose, while the property a
     /// case is about is the list of actions rather than the platform's answer
     /// to one of them.
@@ -3833,8 +3841,8 @@ pub(crate) mod registration {
 /// `nvs service unit <name> [options] -- <argv…>` — print what would be
 /// installed, and install nothing.
 ///
-/// § 5 on Linux, and its `--print` on Windows: the same generation, the same
-/// § 2 refusals in front of it, and the artifact a change-management review
+/// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` on Linux, and its `--print` on Windows: the same generation, the same
+/// `rule:packaging/the-installer-is-a-sink` refusals in front of it, and the artifact a change-management review
 /// actually wants rather than one a binary wrote behind the operator's
 /// configuration management.
 pub(crate) fn print_unit(
@@ -3889,7 +3897,7 @@ pub(crate) fn print_unit(
 }
 
 /// The site this installer acts in: the platform it is running on, that
-/// platform's real manager, and the directory § 5 writes a unit into.
+/// platform's real manager, and the directory `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in` writes a unit into.
 ///
 /// The one `cfg` in the surface, and it is here rather than in a verb because
 /// every verb is the same list of actions on either machine — what differs is
@@ -3906,7 +3914,7 @@ fn at_host<T>(body: impl FnOnce(&registration::Site<'_>) -> T) -> T {
     })
 }
 
-/// A refusal, rendered as whichever of the two it is: § 2's diagnostic, or the
+/// A refusal, rendered as whichever of the two it is: `rule:packaging/the-installer-is-a-sink`'s diagnostic, or the
 /// platform's own failure at the step the verb stopped on.
 fn report(refused: registration::Refused, sources: &mut SourceMap) -> ExitCode {
     match refused {
@@ -3938,17 +3946,17 @@ fn held(
 /// The installer's own options — everything `nvs service install` was given to
 /// the left of `--`, where the argv to its right is the request itself.
 pub(crate) struct InstallOptions<'a> {
-    /// § 4's `--account`, replacing the per-service virtual account.
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s `--account`, replacing the per-service virtual account.
     pub(crate) account: Option<&'a str>,
-    /// § 2 refuses it and exists to name it (`E0633`).
+    /// `rule:packaging/the-installer-is-a-sink` refuses it and exists to name it (`E0633`).
     pub(crate) password: Option<&'a str>,
     /// Why this binary's own parser refuses the argv, where it does.
     pub(crate) unaccepted: Option<&'a str>,
-    /// § 4's `--start`.
+    /// `rule:packaging/a-service-answers-its-manager`'s `--start`.
     pub(crate) start: registration::StartMode,
-    /// § 4's `--restart`.
+    /// `rule:packaging/a-service-answers-its-manager`'s `--restart`.
     pub(crate) restart: registration::Restart,
-    /// § 4's `--depends-on`.
+    /// `rule:packaging/a-service-answers-its-manager`'s `--depends-on`.
     pub(crate) depends_on: &'a [String],
     /// What an administrator reads beside the name.
     pub(crate) description: Option<&'a str>,
@@ -3956,7 +3964,7 @@ pub(crate) struct InstallOptions<'a> {
     pub(crate) dry_run: bool,
 }
 
-/// `nvs service install <name> [options] -- <argv…>` — § 2's refusals, then
+/// `nvs service install <name> [options] -- <argv…>` — `rule:packaging/the-installer-is-a-sink`'s refusals, then
 /// this platform's own steps.
 ///
 /// The grants are derived here rather than passed in: the data folder is the
@@ -3964,7 +3972,7 @@ pub(crate) struct InstallOptions<'a> {
 /// target the configuration the service reads carries, and the artifact cache
 /// and the temporary root are that configuration's `[opcache] file_cache_dir`
 /// and `[io] temp_root`. An uninstall re-derives them the same way, which is
-/// what makes § 4's closing property hold against the install that granted
+/// what makes `rule:packaging/a-service-runs-as-a-virtual-account`'s closing property hold against the install that granted
 /// them.
 pub(crate) fn install(
     config: &[PathBuf],
@@ -4068,7 +4076,7 @@ pub(crate) fn status(name: &str) -> ExitCode {
 /// `nvs service run <name>` — the argv the platform holds under `name`, so
 /// this process can run the line a service manager would have started.
 ///
-/// A manager never invokes this verb: § 3's `ImagePath` and § 5's `ExecStart`
+/// A manager never invokes this verb: `rule:packaging/the-argv-lives-in-imagepath`'s `ImagePath` and `rule:packaging/the-generated-unit-is-hardened`'s `ExecStart`
 /// both carry the stored argv directly, so what the manager starts is
 /// `nvs serve …` itself. What this is for is running that same line in the
 /// foreground, where its output is on a terminal — which is how an operator
@@ -4245,7 +4253,7 @@ fn data_folder(argv: &[String], exe: &Path) -> Option<nvs_config::data::Folder> 
 }
 
 /// Whether a `[server] listen` value — one address or a list of them — names a
-/// port below 1024, which is § 5's one condition for granting a capability.
+/// port below 1024, which is `rule:packaging/the-generated-unit-is-hardened`'s one condition for granting a capability.
 fn privileged(listen: &toml::Value) -> bool {
     match listen {
         toml::Value::String(address) => address
@@ -4269,7 +4277,7 @@ fn refuse(diagnostic: Diagnostic, sources: &mut SourceMap) -> ExitCode {
 mod tests {
     use super::*;
 
-    /// The code a refusal carries. § 2's closing sentence is that each refusal
+    /// The code a refusal carries. `rule:packaging/the-installer-is-a-sink`'s closing sentence is that each refusal
     /// is a diagnostic naming what was refused and why, never a bare non-zero
     /// exit, so an uncoded one is a failure of that rule rather than of the
     /// case reading it.
@@ -4279,7 +4287,7 @@ mod tests {
 
     /// A path that is absolute on the host these tests run on.
     ///
-    /// `Path::is_absolute` answers for the platform, and § 2's third row is a
+    /// `Path::is_absolute` answers for the platform, and `rule:packaging/the-installer-is-a-sink`'s relative-path row is a
     /// claim about the machine the service will start on, so a fixture that
     /// hardcoded a Unix root would assert nothing on Windows and vice versa.
     fn absolute(tail: &str) -> String {
@@ -4298,7 +4306,7 @@ mod tests {
             from_a_bundle: false,
             memory_max: Some("512M".to_owned()),
             privileged_port: false,
-            // Both named, so § 4's grant list is exercised whole rather than
+            // Both named, so `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list is exercised whole rather than
             // in its empty case.
             log_file: Some(PathBuf::from(absolute("log/web.log"))),
             cache_directory: Some(PathBuf::from(absolute("cache"))),
@@ -4321,7 +4329,7 @@ mod tests {
         }
     }
 
-    /// An argv that survives § 2 whole.
+    /// An argv that survives `rule:packaging/the-installer-is-a-sink` whole.
     fn argv() -> Vec<String> {
         vec![
             "serve".to_owned(),
@@ -4412,7 +4420,7 @@ mod tests {
         assert!(refusal.message.contains("app/index.nvs"));
 
         // And in the three paths the configuration carries, which the server
-        // opens as written and § 4 grants on. With no `--config` that is the
+        // opens as written and `rule:packaging/a-service-runs-as-a-virtual-account` grants on. With no `--config` that is the
         // data folder's file, and the same three are asked of it.
         let bare = vec!["serve".to_owned(), absolute("app/index.nvs")];
         for good in [argv(), bare] {
@@ -4653,7 +4661,7 @@ mod tests {
         // second place.
         assert!(!refusal.message.contains("hunter2"));
 
-        // The account alone is not a refusal: § 4 has it take a domain
+        // The account alone is not a refusal: `rule:packaging/a-service-runs-as-a-virtual-account` has it take a domain
         // identity for a deployment that needs one.
         let mut named = request(&argv);
         named.account = Some("EXAMPLE\\nvs-web");
@@ -4768,7 +4776,7 @@ mod tests {
         assert_eq!(coded(&refusal), code::E_SERVICE_FROM_A_BUNDLE);
 
         // It is refused first, before anything about the argv is looked at:
-        // § 6's answer does not depend on what the payload would have run.
+        // `rule:packaging/a-bundle-may-not-install-itself`'s answer does not depend on what the payload would have run.
         let mut wrong = argv;
         wrong[0] = "ast".to_owned();
         assert_eq!(
@@ -4883,7 +4891,7 @@ mod tests {
         // nothing is opened.
         assert!(!text.contains("ReadWritePaths="), "{text}");
 
-        // § 5's capability condition: nothing is granted unless a privileged
+        // `rule:packaging/the-generated-unit-is-hardened`'s capability condition: nothing is granted unless a privileged
         // port is configured, asserted on both sides so a generator that
         // always emitted it would fail here rather than read plausibly.
         assert!(!text.contains("AmbientCapabilities"));
@@ -5008,7 +5016,7 @@ mod tests {
 
     /// `rule:packaging/the-generated-unit-is-hardened`: `ProtectSystem=strict`
     /// leaves the service nothing writable, so `ReadWritePaths=` names exactly
-    /// the paths § 4's grant list marks read/write. The data folder itself and
+    /// the paths `rule:packaging/a-service-runs-as-a-virtual-account`'s grant list marks read/write. The data folder itself and
     /// its `nvs.toml` stay read-only.
     #[test]
     fn the_unit_opens_exactly_the_paths_the_grants_mark_writable() {
@@ -5219,7 +5227,7 @@ mod tests {
         }
     }
 
-    /// `rule:packaging/the-argv-lives-in-imagepath` and § 4's identity and
+    /// `rule:packaging/the-argv-lives-in-imagepath` and `rule:packaging/a-service-runs-as-a-virtual-account`'s identity and
     /// controls: what an install *is* on Windows is one registration carrying
     /// the encoded `ImagePath`, a virtual account nobody holds a password for,
     /// and a shutdown control that leaves room for a drain.
@@ -5249,7 +5257,7 @@ mod tests {
                 _ => None,
             })
             .expect("a registration");
-        // The encoder's output and not a second rendering of it: § 3 has that
+        // The encoder's output and not a second rendering of it: `rule:packaging/the-argv-lives-in-imagepath` has that
         // one string be the only record of what the service runs.
         assert_eq!(registered.0, &image_path(&checked));
         assert_eq!(registered.1, registration::LOCAL_SYSTEM);
@@ -5305,7 +5313,7 @@ mod tests {
         );
 
         // PRESHUTDOWN, with room for a drain: plain SHUTDOWN allows roughly
-        // five seconds, which is the whole reason § 4 asks for this control.
+        // five seconds, which is the whole reason `rule:packaging/a-service-answers-its-manager` asks for this control.
         let timeout = actions
             .iter()
             .find_map(|action| match action {
@@ -5315,7 +5323,7 @@ mod tests {
             .expect("a preshutdown request");
         assert!(timeout > Duration::from_secs(5), "{timeout:?}");
 
-        // § 4's failure actions and its *Output*: both are part of installing,
+        // `rule:packaging/a-service-answers-its-manager`'s failure actions and its *Output*: both are part of installing,
         // not a second command an operator has to remember.
         assert!(actions.iter().any(|action| matches!(
             action,
@@ -5435,7 +5443,7 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("a removed scratch directory");
     }
 
-    /// § 5's change-management artifact, as the thing that is actually
+    /// `rule:packaging/the-unit-is-printed-and-install-is-the-opt-in`'s change-management artifact, as the thing that is actually
     /// performed rather than a second rendering of it: a dry run describes
     /// every action and reaches the manager with none of them.
     // covers: tools:server/nvs-service
@@ -5648,7 +5656,7 @@ mod tests {
         assert_eq!(found, Some(PathBuf::from(absolute("srv/data"))));
     }
 
-    /// § 4's grants for a named account: read on the data folder and its
+    /// `rule:packaging/a-service-runs-as-a-virtual-account`'s grants for a named account: read on the data folder and its
     /// `nvs.toml`, read/write on `cache/`, `tmp/`, `lsp/` and `logs/` only, and
     /// a grant of its own for a path the configuration names outside those four.
     #[test]
@@ -6055,7 +6063,7 @@ mod tests {
         let root = unit_root("control");
 
         // The manager is the host's, read rather than chosen: a service is
-        // installed on the machine it will run on, which is the reading § 2's
+        // installed on the machine it will run on, which is the reading `rule:packaging/the-installer-is-a-sink`'s
         // third row already takes paths against.
         assert_eq!(
             registration::Platform::host(),
@@ -6099,7 +6107,7 @@ mod tests {
     }
 
     /// `rule:packaging/the-installer-is-a-sink`: `plan` is the front door, so
-    /// every § 2 refusal happens with the manager untouched. The cases above
+    /// every `rule:packaging/the-installer-is-a-sink` refusal happens with the manager untouched. The cases above
     /// assert each refusal's code; this one asserts that reaching one costs the
     /// machine nothing.
     #[test]
@@ -6107,7 +6115,7 @@ mod tests {
         let root = unit_root("refusals");
         let good = argv();
 
-        // One fixture per refusal class § 2 lists, built as the cases above
+        // One fixture per refusal class `rule:packaging/the-installer-is-a-sink` lists, built as the cases above
         // build them.
         let mut wrong_subcommand = good.clone();
         wrong_subcommand[0] = "ast".to_owned();
@@ -6426,7 +6434,7 @@ mod tests {
     /// watches advance.
     ///
     /// The controls arrive as their ABI numbers, because the mapping is half of
-    /// what this case is about — `PRESHUTDOWN` is the control § 4 pays for at
+    /// what this case is about — `PRESHUTDOWN` is the control `rule:packaging/a-service-answers-its-manager` pays for at
     /// install, and one read as "no operation" would drain nothing at the only
     /// moment that row exists for. `PARAMCHANGE` is held to the other side: a
     /// saved configuration file is what starts a reload, so no control does.

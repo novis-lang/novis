@@ -1,13 +1,12 @@
 # The userland benchmark suite
 
 Twenty-odd pieces of ordinary web-and-CLI code, each written once per engine: `NN-slug.nvs`,
-`NN-slug.php`, `NN-slug.py` and `NN-slug.ts`. They are not micro-benchmarks of the runtime — [ADR 0026](../../docs/decisions/0026.md)
+`NN-slug.php`, `NN-slug.py` and `NN-slug.ts`. They are not micro-benchmarks of the runtime — `rule:testing/perf-two-mechanisms`
 owns *that* measurement, counted in instructions so it compares across machines. These are the loops a
 person actually writes: build a string, tally an array, sort a table, match a regex, encode a payload.
 
 **Python is here because Novis's CLI claim is made against Python**, and this project does not publish an
-unmeasured claim — [ADR 0100](../../docs/decisions/0100.md)
-§ 5 is the decision. **Bun is here because it is the hardest engine to beat**, and a suite that only
+unmeasured claim — `rule:tooling/bench-engine-list-is-data` is the rule. **Bun is here because it is the hardest engine to beat**, and a suite that only
 measured engines Novis wins against would stop being evidence. `--engines` is how you narrow the roster,
 and an engine you have not installed is narrowed away rather than left to fail every case.
 
@@ -42,7 +41,7 @@ silently reading as agreement:
   is a fair fight between each language's normal spelling, not a transliteration of one into the others.
 - **The only exceptions are arithmetic that has to agree**, because the byte-identical gate below is a
   correctness requirement and not a style choice. There are two kinds, each carrying a comment saying why
-  ([ADR 0100](../../docs/decisions/0100.md) § 5):
+  (`rule:tooling/bench-engine-list-is-data`):
   - **Python floors `%` where the other three truncate it toward zero.** `01-arith-loop` and
     `19-object-property` run a negative total, so their Python twins spell the truncated remainder out in
     a named helper. Their TypeScript twins need nothing — JavaScript truncates.
@@ -79,13 +78,13 @@ the symptom.
   `total` answers "what does this script cost me at the prompt"; `work` answers "how fast is the
   language". **For a CLI claim the headline is `total` and for a language claim it is `work`**, and
   quoting either without saying which is the misuse
-  [ADR 0100](../../docs/decisions/0100.md) § 2 forbids.
+  `rule:tooling/python-claims` forbids.
 - `php/nvs`, `py/nvs` and `bun/nvs` are ratios of the `work` figures: **above 1.00 means Novis is faster.**
 
 Two things the table cannot say for itself:
 
 - **A ratio is one machine, one moment.** Wall clock is not comparable across machines, which is the whole
-  reason ADR 0026 counts instructions instead. Quote a ratio with the host it came from, or don't quote it.
+  reason the cross-machine history counts instructions instead (`rule:testing/perf-two-mechanisms`). Quote a ratio with the host it came from, or don't quote it.
 - **A ratio can depend on the size.** `03-string-concat` was the standing example — Novis's `.=` was
   quadratic where PHP's was flat, so that case's ratio was a statement about 20,000 rows and nothing
   else. It no longer is: the string gained capacity and n-ary concatenation, and
@@ -106,7 +105,7 @@ binary that runs, and the harness warns when it is older than the newest file un
 
 **Python is the interpreter running each `.py` twin** unless `--python` names another, and it is passed
 no flags: there is no second CPython mode the way there is a second PHP one, and CPython is what a Python
-program is actually run under — a PyPy column was considered and rejected in ADR 0100's *Alternatives rejected*.
+program is actually run under — a PyPy column is declined in `rule:tooling/bench-engine-list-is-data`.
 Expect Python to win the cases where its loop is really a call into C (`sorted`, `sum`, a comprehension,
 `in` over a list) and to lose the ones that are a real interpreted loop. That split is the honest shape of
 the comparison and neither half should be quoted without the other.

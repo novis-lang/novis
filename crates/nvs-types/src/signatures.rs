@@ -150,9 +150,9 @@ pub struct MethodSig {
     pub type_bounds: Vec<(String, TypeId)>,
     /// The declared return type (`mixed` if omitted).
     pub return_ty: TypeId,
-    /// Whether the declaration writes `static` as its **return type** — ADR
-    /// 0008 § 1's late static binding, seen as a type rather than as a
-    /// dispatch.
+    /// Whether the declaration writes `static` as its **return type** — late
+    /// static binding (`rule:statements/static-is-a-member-modifier`), seen as
+    /// a type rather than as a dispatch.
     ///
     /// `static` means the class the *call* named, which
     /// [`crate::lower::lower_type`] cannot intern: inside the body it has no
@@ -215,8 +215,8 @@ pub struct MethodSig {
     /// exactly what [`is_visible_from`] asks for.
     pub visibility: Visibility,
     /// Whether the declaration carries a *body* — false for an `abstract`
-    /// method and for an interface method declared without a default (ADR
-    /// 0043 § 2).
+    /// method and for an interface method declared without a default
+    /// (`rule:classes/interface-default-methods`).
     ///
     /// Recorded for the same reason [`Self::is_static`] is: the call site
     /// cannot see it. A call resolving to a bodiless declaration has no
@@ -1752,8 +1752,9 @@ fn resolve_method_rec(
         .find_map(|parent| resolve_method_rec(parent, name, table, graph, seen))
 }
 
-/// What a `foreach` over an instance of `qname` yields, and which of ADR
-/// 0053 § 1's two interfaces says so — `None` when `qname` reaches neither.
+/// What a `foreach` over an instance of `qname` yields, and which of
+/// `rule:iteration/two-interfaces`'s two interfaces says so — `None` when
+/// `qname` reaches neither.
 ///
 /// Walks `extends`/`implements` exactly as [`resolve_method`] does, looking
 /// at each declaration's own [`ClassSignature::implements`] for an entry

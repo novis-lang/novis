@@ -4,8 +4,9 @@ the whole implementation of three rules.
 **A missed fire is never caught up.** A host that was down, a process that restarted, a machine that
 was suspended, a clock that jumped forward — in each case the missed interval is skipped and logged,
 and the next scheduled instant fires normally. Catch-up needs a durable record of what has and has not
-run, which is a queue, which this is deliberately not
-(`rule:concurrency/after-response-outlives-the-connection` draws the same boundary for deferred work).
+run, which is a queue with a scheduler bolted to it, and the applications that need one already run
+one (`rule:concurrency/after-response-outlives-the-connection` draws the same boundary for deferred
+work). A missed nightly report stays missed until the next night or until someone runs it by hand.
 A wall-clock step forwards costs the intervals it stepped over rather than firing them in a burst.
 
 **`timezone` defaults to `"UTC"`.** There is no ambient timezone anywhere in Novis, so an absent key

@@ -33,12 +33,12 @@ nvs-config.workspace = true
 # `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint.workspace = true
 # A connection is a task, and a task carries a `Ctx` — `src/serve.rs` spawns one
-# child per connection through `nvs_host::spawn_child`, which is where ADR 0072
-# § 1's tree comes from. Not a second runtime dependency: `nvs-host` already
+# child per connection through `nvs_host::spawn_child`, which is where
+# `rule:concurrency/a-child-belongs-to-the-calling-task`'s tree comes from. Not a second runtime dependency: `nvs-host` already
 # rests on this one, and what is used here is the three names that spell a task.
 nvs-runtime.workspace = true
 # The workspace's clock, and `src/schedule.rs` reaches it for the same reason
-# `nvs_config::schedule` does: ADR 0073 § 6's next fire is a `Zoned` in the
+# `nvs_config::schedule` does: an entry's next fire is a `Zoned` in the
 # entry's own zone, and the ticker asks `Cron::next_after` for one rather than
 # counting minutes itself. Not a new crate in the graph — `nvs-config` already
 # rests on it, and what is named here is the two types that spell an instant.

@@ -2,10 +2,8 @@
   "title": "`net.connect` carries an address policy that denies the private ranges, and an exception is one written IP address",
   "status": "shipped",
   "because": [
-    "0058",
     "0118",
     "0142",
-    "0067",
     "0162",
     "0182"
   ],

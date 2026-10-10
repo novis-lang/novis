@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0079 § 12, from the language surface: a seed is per test. Two tests
+// `rule:testing/determinism-declared-on-the-test`, from the language surface: a seed is per test. Two tests
 // declare the *same* seed and must draw the same sequence, a third declares a
 // different one and must not, and a fourth declares none at all and draws from
 // the CSPRNG -- which is what makes the seed a property of the isolate rather

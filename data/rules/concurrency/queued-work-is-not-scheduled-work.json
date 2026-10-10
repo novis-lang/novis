@@ -2,8 +2,7 @@
   "title": "Queued work is durable, retried and declared by the application; scheduled work is a clock tick and none of those",
   "status": "shipped",
   "because": [
-    "0084",
-    "0073"
+    "0084"
   ],
   "seeAlso": [
     "concurrency/delivery-is-at-least-once",

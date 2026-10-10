@@ -2,9 +2,7 @@
   "title": "`trusted_proxies` defaults to empty, empty means the forwarded headers are never read, and a trusted walk takes the rightmost untrusted `X-Forwarded-For` entry",
   "status": "shipped",
   "because": [
-    "0097",
-    "0080",
-    "0095"
+    "0097"
   ],
   "seeAlso": [
     "http-server/x-forwarded-for-is-the-only-address-header",

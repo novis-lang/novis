@@ -2,7 +2,7 @@
 `Core\Task::map` answers an `array<U>` whose `U` is the callback's own declared return type, so nothing at the use site is `mixed` — `rule:concurrency/map-preserves-keys-and-order`
 --FILE--
 <?nvs
-// § 2's signature is `map(array<T>, callable, {limit?, deadline?}): array<U>`,
+// `rule:concurrency/map-preserves-keys-and-order`'s signature is `map(array<T>, callable, {limit?, deadline?}): array<U>`,
 // and `U` binds from the one callback the whole call shares — which is the
 // contrast that makes `all` and `map` two members rather than one. `all` needs
 // a per-field binding site because an anonymous object carries a different callable
@@ -13,7 +13,7 @@
 // the body is until it is), so what a case can ask is what the *checker*
 // believes. Both mis-declarations below quote `string` back — one at an
 // element, one at the whole array — and an `array<mixed>` answer, which is the
-// thing § 2 exists to avoid, could say it at neither position.
+// thing `rule:concurrency/map-preserves-keys-and-order` exists to avoid, could say it at neither position.
 class Probe {
     public static function typed(): void {
         var $out = Core\Task::map([1, 2, 3], fn(int $n): string => "x");

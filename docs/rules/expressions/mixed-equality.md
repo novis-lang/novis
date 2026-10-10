@@ -10,4 +10,12 @@ compiler can prove the answer before the program runs, which makes it dead code 
 question (`rule:expressions/disjoint-comparison-refused`).
 
 The asymmetry is worth stating plainly: **`mixed` is where you pay for not declaring a type.** A
-comparison against `mixed` silently answers `false` where a typed one would have refused to compile.
+comparison against `mixed` silently answers `false` where a typed one would have refused to compile,
+so widening a parameter to `mixed` makes the diagnostic go away without fixing anything.
+
+Nothing here is measured separately: the typed path is one instruction, and the `mixed` path is the
+tag dispatch every operation on `mixed` already pays.
+
+**Declined:**
+- **A cross-row pair throws**, the way the natural ordering does for a sort or a minimum. Ordering has
+  no correct answer for a mismatched pair; equality has one, and it is `false`.

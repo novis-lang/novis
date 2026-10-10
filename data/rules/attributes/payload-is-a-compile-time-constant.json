@@ -1,11 +1,7 @@
 {
   "title": "Every field value in an attribute payload is a compile-time constant",
   "status": "shipped",
-  "because": [
-    "0046",
-    "0033",
-    "0012"
-  ],
+  "because": [],
   "seeAlso": [
     "attributes/inert-metadata",
     "attributes/retrieval-folds-while-checking",

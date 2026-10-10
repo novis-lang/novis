@@ -14,8 +14,7 @@
 //!
 //! 1. **The upgrade.** [`request_tls`] writes § 3's `SSLRequest` — eight bytes,
 //!    and the only plaintext this connection will ever carry — and reads the
-//!    one-byte answer. `S` continues; **`N` is refused**, because [ADR 0067
-//!    § 3](/docs/decisions/0067.md) makes `VerifyFull` the default
+//!    one-byte answer. `S` continues; **`N` is refused**, because `rule:core-classes/db-safe-connection-defaults` makes `VerifyFull` the default
 //!    with no spelling for turning it off, and PHP's `sslmode=prefer`
 //!    silently connecting in the clear when the server says so is the exact
 //!    behaviour that rule exists to remove.
@@ -68,8 +67,7 @@
 //! # A statement is one round trip, and the wire's state is the whole of it
 //!
 //! [`PgConn::query`] writes `Parse`, `Bind`, `Describe`, `Execute` and `Sync`
-//! into one buffer and flushes them once. That is [ADR 0067
-//! § 1](/docs/decisions/0067.md)'s "PostgreSQL's extended protocol
+//! into one buffer and flushes them once. That is `rule:core-classes/db-one-api`'s "PostgreSQL's extended protocol
 //! pays nothing extra" made literal: there is no prepare round trip to save,
 //! because the prepare travels with the execution.
 //!
@@ -97,7 +95,7 @@
 //! # Parameters and results are in text format
 //!
 //! Both format lists in `Bind` are empty, which is the protocol's spelling for
-//! "everything in text". [ADR 0067 § 9](/docs/decisions/0067.md)'s
+//! "everything in text". `rule:core-classes/db-column-types`'s
 //! type map is what forces it: `interval`, `hstore`, ranges, `inet`/`cidr` and
 //! geometry all map to `tainted string` **as the server renders them**, and
 //! there is no way to produce that rendering from a binary body short of
@@ -160,8 +158,8 @@ const READ_CHUNK: usize = 16 * 1024;
 /// than the driver's.
 ///
 /// The address and the name are two fields on purpose, and it is the same
-/// split `nvs_host::tls` makes: `addr` is [ADR
-/// 0058](/docs/decisions/0058.md)'s pinned address,
+/// split `nvs_host::tls` makes: `addr` is the address
+/// `rule:http-server/allow-url-pins-the-address` pins,
 /// already resolved by whoever checked the capability, and `host` is the name
 /// the certificate must be valid for. A driver that re-resolved the name would
 /// be connecting somewhere nobody approved.
@@ -178,7 +176,7 @@ pub struct PgTarget<'a> {
     /// The PEM bundle whose anchors this server's certificate is verified
     /// against, or the compiled-in Mozilla set where the block names none.
     ///
-    /// [ADR 0067 § 3](/docs/decisions/0067.md) has no spelling for
+    /// `rule:core-classes/db-safe-connection-defaults` has no spelling for
     /// turning verification off and this is not one: what it changes is *whose*
     /// certificates are believed, never whether they are checked. The path
     /// arrives absolute and already inside `rule:config/ownership-is-the-trust-boundary`'s trust boundary —
@@ -188,7 +186,7 @@ pub struct PgTarget<'a> {
     /// The zone a zone-less `TIMESTAMP` column is read in, as a whole number
     /// of seconds east of UTC.
     ///
-    /// [ADR 0067 § 9](/docs/decisions/0067.md)'s declared zone:
+    /// `rule:core-classes/db-column-types`'s declared zone:
     /// `time_zone` in the connection's config block, `timeZone` in `Settings`,
     /// and `0` — UTC — with neither set. It is sent to the server as well as
     /// read here, so `CURRENT_TIMESTAMP` and a decoded column agree about
@@ -199,7 +197,7 @@ pub struct PgTarget<'a> {
     /// already seconds, so this path never sees a zone name.
     pub time_zone: i32,
     /// How many prepared statements this connection may keep alive on the
-    /// server, [ADR 0067 § 1](/docs/decisions/0067.md)'s
+    /// server, `rule:core-classes/db-one-api`'s
     /// `statement_cache`.
     ///
     /// Resolved the same way the zone is, and by the same rule about who
@@ -242,7 +240,7 @@ impl<'a> PgTarget<'a> {
     /// call that opens with it, and the thing that already does is the
     /// configuration snapshot the block lives in. Owning the strings instead
     /// would mean a second copy of the password — a `secret` at the language
-    /// level ([ADR 0067 § 3](/docs/decisions/0067.md)) — in a struct
+    /// level (`rule:core-classes/db-capabilities`) — in a struct
     /// nothing zeroes, for no gain: `nvs_config`'s snapshot is held for the
     /// whole of a boot generation and a connection is opened inside one.
     ///
@@ -832,7 +830,7 @@ impl PgConn {
         self.reading = None;
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `executeMany`: one
+    /// `rule:core-classes/db-statement-members`'s `executeMany`: one
     /// prepare, one execution per member of `sets`, and their affected counts
     /// summed.
     ///
@@ -854,7 +852,7 @@ impl PgConn {
         execute_many(&mut self.wire, &self.state, &mut self.cache, sql, sets)
     }
 
-    /// [ADR 0067 § 7](/docs/decisions/0067.md)'s `BEGIN`, or the
+    /// `rule:core-classes/db-transactions`'s `BEGIN`, or the
     /// `SAVEPOINT` a nested `transaction()` is.
     ///
     /// This is the driver half of § 7 and nothing more: the callable, the
@@ -1032,7 +1030,7 @@ fn request_tls<S: Read + Write>(stream: &mut S) -> io::Result<()> {
 
 /// A fixed UTC offset, spelled as PostgreSQL's own numeric `TimeZone` value.
 ///
-/// [ADR 0067 § 9](/docs/decisions/0067.md) requires a numeric offset
+/// `rule:core-classes/db-column-types` requires a numeric offset
 /// and never a zone name, and PostgreSQL's numeric spelling is a POSIX one:
 /// `<+02>-02` is two hours *east* of UTC, because a POSIX `TZ` string counts
 /// its offset westwards while the abbreviation inside the brackets is free
@@ -1078,8 +1076,8 @@ fn authenticate<S: Read + Write>(wire: &mut Wire<S>, target: &PgTarget<'_>) -> i
             ("user", target.user),
             ("database", target.database),
             // `rule:core-classes/db-capabilities`'s third default: text columns arrive as valid UTF-8
-            // by construction rather than by inspection, which is what ADR
-            // 0009's guarantee needs.
+            // by construction rather than by inspection, which is what
+            // `rule:types/string-is-utf8`'s guarantee needs.
             ("client_encoding", "UTF8"),
             // § 9's structured rows are read positionally out of the text
             // format, so the two parameters that decide what that text looks
@@ -1250,8 +1248,7 @@ struct Startup {
     server_version: String,
 }
 
-/// An `ErrorResponse` in the words the server used, carrying [ADR 0067
-/// § 8](/docs/decisions/0067.md)'s normalised kind.
+/// An `ErrorResponse` in the words the server used, carrying `rule:core-classes/db-error`'s normalised kind.
 ///
 /// Severity, `SQLSTATE`, message and the constraint the condition names, which
 /// are the fields an operator or a `catch` acts on; the rest (position, hint,
@@ -1359,8 +1356,7 @@ const UNNAMED: &str = "";
 ///
 /// The fields are the server's own — an OID and a type modifier, never a Novis
 /// type — because a row description is what the server said rather than what
-/// this driver made of it. [`PgColumn::decode`] is where [ADR 0067
-/// § 9](/docs/decisions/0067.md)'s type map turns the pair into a
+/// this driver made of it. [`PgColumn::decode`] is where `rule:core-classes/db-column-types`'s type map turns the pair into a
 /// value, and it is the only place in this driver that knows a `pg_type` OID
 /// means anything at all.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1420,7 +1416,7 @@ impl PgRow {
     }
 }
 
-/// The `pg_type` OIDs [ADR 0067 § 9](/docs/decisions/0067.md)'s table
+/// The `pg_type` OIDs `rule:core-classes/db-column-types`'s table
 /// and [`ColumnType`](crate::ColumnType) name, spelled as PostgreSQL numbers
 /// them.
 ///
@@ -1912,8 +1908,7 @@ impl PgColumn {
     /// and [`ColumnType`]'s own doc owns why the two differ. What follows here
     /// is that it reads no body at all: a column whose every row is NULL still
     /// has a type, which is most of why `columns()` exists. The one thing it
-    /// reads besides the OID is [ADR 0067
-    /// § 9](/docs/decisions/0067.md)'s `BIT(1)` row, for the reason
+    /// reads besides the OID is `rule:core-classes/db-column-types`'s `BIT(1)` row, for the reason
     /// [`Self::scalar`] reads the modifier there.
     ///
     /// A PostgreSQL `ENUM` is the one member of § 9's text family this answers
@@ -1946,8 +1941,7 @@ impl PgColumn {
         }
     }
 
-    /// This column's `body` as the Novis value [ADR 0067
-    /// § 9](/docs/decisions/0067.md)'s table names, with `None` — SQL
+    /// This column's `body` as the Novis value `rule:core-classes/db-column-types`'s table names, with `None` — SQL
     /// `NULL` — as `null`, which is why every column reads back as `?T`.
     ///
     /// `body` is what [`PgRow::column`] handed back, still in the text format
@@ -2772,7 +2766,7 @@ impl<S: Read + Write> PgRows<'_, S> {
     /// stream has ended, and `None` while rows may still arrive.
     ///
     /// The raw tag, because it says more than a count does: [`Self::affected`]
-    /// is the number [ADR 0067 § 4](/docs/decisions/0067.md)'s
+    /// is the number `rule:core-classes/db-statement-members`'s
     /// `execute` answers with, and this is what an error message quotes when a
     /// statement did something other than what its caller expected.
     #[must_use]
@@ -2780,7 +2774,7 @@ impl<S: Read + Write> PgRows<'_, S> {
         self.reading.tag.as_deref()
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s affected-row count,
+    /// `rule:core-classes/db-statement-members`'s affected-row count,
     /// once the stream has ended.
     ///
     /// `None` twice over, and the caller can tell which from
@@ -2798,7 +2792,7 @@ impl<S: Read + Write> PgRows<'_, S> {
         affected_rows(self.reading.tag.as_deref()?)
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `lastId`: the first
+    /// `rule:core-classes/db-statement-members`'s `lastId`: the first
     /// column of the **last** row this statement returned, where the statement
     /// declared that column as an integer.
     ///
@@ -2820,7 +2814,7 @@ impl<S: Read + Write> PgRows<'_, S> {
         self.reading.last_id
     }
 
-    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for
     /// this statement.
     ///
     /// Borrowed rather than taken, because a caller reading it mid-stream is
@@ -3378,7 +3372,7 @@ fn reset_session<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io
     }
 }
 
-/// [ADR 0067 § 7](/docs/decisions/0067.md)'s `BEGIN`, or the
+/// `rule:core-classes/db-transactions`'s `BEGIN`, or the
 /// `SAVEPOINT` a nested `transaction()` is.
 ///
 /// **The depth decides which**, and the depth is the connection's rather than

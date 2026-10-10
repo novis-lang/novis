@@ -302,8 +302,9 @@ fn notify(channel: *mut ObjHeader) {
 ///
 /// # Errors
 ///
-/// [`Ctx::cancel`]'s status when the task was cancelled while it waited — ADR
-/// 0072 § 5 reached through the return status rather than through an unwind,
+/// [`Ctx::cancel`]'s status when the task was cancelled while it waited —
+/// `rule:concurrency/cancellation-runs-no-user-code` reached through the return
+/// status rather than through an unwind,
 /// because the task is standing on this `extern "C"` frame — and a
 /// [`Fault::fatal`] naming `member` when there is no task to park at all,
 /// which is a program asking for backpressure on a thread that cannot deliver
@@ -314,9 +315,9 @@ fn wait(ctx: &mut Ctx, receiver: *mut ObjHeader, member: &str) -> Result<(), Fau
             "{NAME}::{member} would wait and there is no scheduler on this thread to wait on"
         )));
     };
-    // No deadline: a receiver waits for a sender and for nothing else, and ADR
-    // 0074 § 5's "no spelling for an unbounded wait" is about a *network* wait,
-    // not about one end of a channel this program owns both halves of.
+    // No deadline: a receiver waits for a sender and for nothing else, and
+    // `rule:http-server/no-spelling-for-an-unbounded-wait` is about a *network*
+    // wait, not about one end of a channel this program owns both halves of.
     let woken = nvs_runtime::host::with_current(|host| host.park(None));
     deregister(ticket);
     match woken {

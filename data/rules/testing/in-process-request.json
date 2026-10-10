@@ -2,12 +2,7 @@
   "title": "A test request is dispatched in-process through the compiled route table, and its input arrives `tainted`",
   "status": "shipped",
   "because": [
-    "0079",
-    "0077",
-    "0102",
-    "0024",
-    "0074",
-    "0058"
+    "0102"
   ],
   "seeAlso": [
     "testing/isolate-per-test",

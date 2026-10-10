@@ -12,5 +12,11 @@ set, `rule:security/assert-trusted`.
 `secret` is refused there too and needs no new rule: a metric export is output, and every output sink
 already refuses it (`rule:security/secret-sinks-refuse`).
 
-The `Core\Metrics` surface this governs is not on disk: nothing in the tree exports a series or takes
-a label, so the refusal has no implementation to verify against.
+The cost is a compile error at exactly the line that would have taken the collector down, and it is
+there because the qualifier system already exists for injection. Labelling by a user id, a tenant
+name or an error message is what people reach for first, so this refusal is met often.
+
+**Declined:**
+- **Allowing `tainted` labels behind a runtime cardinality guard.** The guard fires after the
+  collector already has the series, and a compile error at the responsible line is strictly better
+  than a warning hours later on another machine.

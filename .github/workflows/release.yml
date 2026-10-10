@@ -60,7 +60,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: 'Which slot moves (ADR 0068 § 3 — below 1.0, "major" means 0.MINOR)'
+        description: 'Which slot moves (below 1.0, "major" means 0.MINOR)'
         type: choice
         required: true
         default: patch
@@ -71,7 +71,7 @@ on:
         required: false
         default: ''
       allow_contract:
-        description: 'I understand reaching 0.1.0 declares the version contract (ADR 0068 § 1)'
+        description: 'I understand reaching 0.1.0 declares the version contract'
         type: boolean
         required: false
         default: false
@@ -408,8 +408,9 @@ jobs:
             "chore(release): the workspace is at $VERSION, and the changelog carries its section" \
             "" \
             "Cut by .github/workflows/release.yml after the full suite and every release binary" \
-            "were green. The version scheme is ADR 0068 section 3; the notes are rendered from the" \
-            "commit log by bun nv release." > "$RUNNER_TEMP/msg"
+            "were green. The version scheme is" \
+            "rule:packaging/below-1-0-the-breaking-slot-moves-left, and the notes are rendered" \
+            "from the commit log by bun nv release." > "$RUNNER_TEMP/msg"
           git commit -F "$RUNNER_TEMP/msg"
           git tag -a "$TAG" -m "Novis $VERSION"
           # --atomic: the commit and the tag land together or neither does. Without it a push
@@ -528,7 +529,8 @@ jobs:
             test -f "$archive" || { echo "::error::$archive is missing" >&2; exit 1; }
             mkdir -p "docker/bin/$theirs"
             tar -xzf "$archive" -C "docker/bin/$theirs" --strip-components=1
-            # The notices ADR 0065 makes every distribution carry. Both archives hold identical
+            # The notices every distribution carries
+            # (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`). Both archives hold identical
             # copies, so they are moved aside into one directory and the last writer wins.
             for notice in LICENSE THIRD-PARTY-LICENSES.txt README.md CHANGELOG.md; do
               mv "docker/bin/$theirs/$notice" docker/bin/notices/
@@ -577,7 +579,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Labels only — its `tags` output is deliberately unused. This action's `type=semver`
-      # implements SemVer, and under ADR 0068 § 3 that would emit a bare `0` tag that follows
+      # implements SemVer, and under `rule:packaging/below-1-0-the-breaking-slot-moves-left` that would emit a bare `0` tag that follows
       # 0.0 → 0.1 across a breaking change. Labels have no such problem, and deriving them from
       # the repository is what keeps the source URL correct across the move to `novis-lang/novis`.
       - id: meta

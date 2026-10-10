@@ -13,3 +13,12 @@ eliminates work, so one program's statement count falls between them. "Did my al
 this rule's question; "did Novis get faster" is `rule:testing/perf-two-mechanisms`'s, and the two do
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
+
+**Declined:**
+- **Wall-clock benchmarks with statistical treatment.** It is what other languages ship, and it
+  produces a number CI cannot gate on. The counters cost less and produce one it can.
+- **Instruction counts under callgrind.** They are Linux-only, many times slower than a plain run
+  and blind to symbols inside JIT frames, so a user benchmarking on Windows has none
+  (`rule:testing/perf-two-mechanisms` keeps them for measuring Novis itself).
+- **A declared per-member cost table.** It would be more faithful for code that spends its time in
+  native members, at the price of hundreds of hand-written numbers, none of them guarded.

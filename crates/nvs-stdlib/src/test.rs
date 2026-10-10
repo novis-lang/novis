@@ -5,7 +5,7 @@
 //! the method and `Test::assertEquals` is what its body calls, so a single
 //! `use Core\Test;` places both. `nvs_types::derive::ATTRIBUTES` owns the
 //! attribute half; this module is the class one, and until it existed the
-//! assertion in § 1's own worked example resolved against nothing at all.
+//! assertion in `rule:testing/test-attribute`'s own worked example resolved against nothing at all.
 //!
 //! # Subject first, and generic
 //!
@@ -18,7 +18,7 @@
 //! reversed call still reads correctly.
 //!
 //! Both of an equality member's parameters are one [`CoreTy::Var`], which is
-//! what makes § 4's
+//! what makes `rule:testing/assertions-are-typed`'s
 //! "a type mismatch is a compile error" true with no rule of its own:
 //! `nvs_types::generics` binds `T` from the first argument and substitutes it
 //! through the signature, so the second is checked against the first's type by
@@ -26,7 +26,7 @@
 //!
 //! # The three rows, and where they differ
 //!
-//! § 4's table is one comparison with two substitutions at the object row:
+//! `rule:testing/assertions-are-typed`'s table is one comparison with two substitutions at the object row:
 //!
 //! * `assertSame` is [`nvs_runtime::identity`] — `rule:expressions/equality-semantics`'s table exactly,
 //!   so two objects are the same object and nothing else is.
@@ -53,7 +53,7 @@
 //!
 //! # The three predicate rows, and the two types they had to decide
 //!
-//! § 4's example writes `assertTrue`, `assertNull` and `assertCount` beside the
+//! `rule:testing/assertions-are-typed`'s example writes `assertTrue`, `assertNull` and `assertCount` beside the
 //! table without giving them a signature, so each declares its subject here and
 //! the choice is this module's:
 //!
@@ -70,20 +70,20 @@
 //!
 //! # The two rows whose subject is a `callable`
 //!
-//! `assertThrows` (§ 4) and `assertDoesNotThrow` (§ 20) are the one shape on
+//! `assertThrows` (`rule:testing/assertions-are-typed`) and `assertDoesNotThrow` (`rule:testing/runner-is-strict`) are the one shape on
 //! that roster that is not an assertion *about* its first argument: each runs
 //! a `callable` and judges what came back. Both are written over the same
 //! three edges — the body returned, the body threw, or the body ended the
 //! request — and each consumes the throw it judged, so the assertion's own
 //! `Core\Test\Failure` is what propagates rather than the exception it is
-//! reporting. `assertDoesNotThrow` is also § 20's way out of the empty-ledger
+//! reporting. `assertDoesNotThrow` is also `rule:testing/runner-is-strict`'s way out of the empty-ledger
 //! rule, which is why `nvs_cli::runner` names it there.
 //!
 //! Each member's own doc comment carries the argument in full.
 //!
 //! # The one row whose expectation is a string literal in the test
 //!
-//! § 14's `assertMatchesInline` compares `Core\Debug::render`'s text against a
+//! `rule:testing/inline-snapshots`'s `assertMatchesInline` compares `Core\Debug::render`'s text against a
 //! literal in the test body rather than against a `.snap` file beside it. Its
 //! own doc comment owns why the renderer is borrowed rather than grown, and
 //! which two other crates `nvs test --update` needs to write into that literal
@@ -91,7 +91,7 @@
 //!
 //! # The ledger, and the one member that discharges from it
 //!
-//! § 5 gives an assertion two effects, not one: it throws `Core\Test\Failure`
+//! `rule:testing/failure-ledger` gives an assertion two effects, not one: it throws `Core\Test\Failure`
 //! *and* it records its outcome into a per-test ledger the test's own code
 //! cannot reach — which is what abolishes the silently-passing test, since the
 //! runner reads the ledger rather than the exception state. The ledger is
@@ -126,7 +126,7 @@
 //!   call uses is `Core\Test\Failure::class`, which folds to a constant, so a
 //!   qualified argument does not arise in practice either.
 //!
-//! # § 18's in-process request
+//! # `rule:testing/in-process-request`'s in-process request
 //!
 //! `request` runs a synthetic request through the program under test with no
 //! socket and no port, and [`RESPONSE`]'s two accessors are what it answers
@@ -135,7 +135,7 @@
 //! `rule:testing/in-process-request`'s signature.
 //!
 //! **`#[Test(server: true)]` is a separate mechanism, and this class holds one
-//! word of it.** § 18 justifies the two as answering measurably different
+//! word of it.** `rule:testing/in-process-request` justifies the two as answering measurably different
 //! questions; the listener itself is the runner's — `nvs_cli::runner`'s
 //! `TestServer` binds it, serves the program under test on it and retires it
 //! with the test — and what is here is [`serverUrl`](CLASS), the address a test
@@ -151,7 +151,7 @@
 //! range — because `Core\Http\Client` is the way a program speaks HTTP and
 //! nothing about a listener being the test's own widens that policy. That is a
 //! real cost of the mechanism rather than an oversight; `Core\Test` handing
-//! back an already-pinned `Core\Http\Target` would remove it, and § 18 does
+//! back an already-pinned `Core\Http\Target` would remove it, and `rule:testing/in-process-request` does
 //! not decide between the two.
 //!
 //! # Decision: a double's descriptor is built here, at the call that asks for one
@@ -306,7 +306,7 @@ pub(crate) const NAME: &str = r"Core\Test";
 /// module's docs for what it buys.
 const T: CoreTy = CoreTy::Var("T");
 
-/// `{message?: string}` — `rule:core-api/shape-rules` R2's trailing bag, and § 4's own
+/// `{message?: string}` — `rule:core-api/shape-rules` R2's trailing bag, and `rule:testing/assertions-are-typed`'s own
 /// `{message: "a fresh user is active"}`.
 ///
 /// [`Const::Null`] rather than an empty `string` because "not given" and
@@ -356,8 +356,8 @@ const CALLED: &[CoreOption] = &[
 ///
 /// A bag's option is optional by construction and there is no duration this
 /// member could pick on a call site's behalf, so the one thing it takes has to
-/// be a field with no default — which is a shape, and which keeps ADR 0079
-/// § 16's own spelling, `{within: Duration::millis(50)}`, rather than trading
+/// be a field with no default — which is a shape, and which keeps
+/// `rule:testing/task-tree-and-virtual-clock`'s own spelling, `{within: Duration::millis(50)}`, rather than trading
 /// it for a bare positional `Duration`.
 const WITHIN: &[&[CoreField]] = &[&[CoreField {
     name: "within",
@@ -576,8 +576,8 @@ const CARD: ClassDoc = ClassDoc {
             test and reports each check that fails.",
 };
 
-/// `Core\Test`'s registry rows — § 4's three equality members, the three
-/// predicate ones its example writes beside them, and § 5's `expectFailure`.
+/// `Core\Test`'s registry rows — `rule:testing/assertions-are-typed`'s three equality members, the three
+/// predicate ones its example writes beside them, and `rule:testing/failure-ledger`'s `expectFailure`.
 /// See
 /// [`crate::registry::CLASSES`].
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -899,7 +899,7 @@ pub(crate) const RESPONSE_NAME: &str = r"Core\Test\Response";
 /// What one in-process request answered with — `rule:testing/in-process-request`.
 ///
 /// A `Core`-owned instance rather than an `rule:types/object-top` shape, which is the one
-/// place this surface departs from § 18's worked example's `$rs->status`. A
+/// place this surface departs from `rule:testing/in-process-request`'s worked example's `$rs->status`. A
 /// shape would be the smaller surface, and `Core\Script\Result` is the
 /// precedent for spelling a result as one; what decides it the other way is
 /// that there is no registry spelling for a *returned* shape at all —
@@ -2108,7 +2108,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The clock itself lives on [`nvs_runtime::Ctx`] and the isolate is what
     /// scopes it, so advancing it here cannot be observed by any other test —
-    /// § 2 gives each one its own context, and this writes only to that.
+    /// `rule:testing/isolate-per-test` gives each one its own context, and this writes only to that.
     ///
     /// **Both refusals open on the same prefix**, which is the shape
     /// `Core\Time::parse` already uses and which matters twice here. A reader
@@ -2140,7 +2140,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertCompletes(callable $body, {within: Duration}, {message?: string}): void`
-    /// — ADR 0079 § 16's budget, spent against the virtual clock.
+    /// — `rule:testing/task-tree-and-virtual-clock`'s budget, spent against the virtual clock.
     ///
     /// **The clock moves before `$body` runs**, which is the ordering that
     /// makes the member worth having: a retry, a backoff or a timeout inside
@@ -3326,7 +3326,7 @@ fn response_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fa
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertSame(T $actual, T $expected, {message?: string}): void`
-    /// — § 4's identity row, which is [`identity::value_identical`] and nothing
+    /// — `rule:testing/assertions-are-typed`'s identity row, which is [`identity::value_identical`] and nothing
     /// added to it.
     fn nvs_core_test_assert_same(ctx, args: [3]) {
         if identity::value_identical(args[0], args[1]) {
@@ -3347,7 +3347,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertEquals(T $actual, T $expected, {message?: string}): void`
-    /// — § 4's value row: [`identity::value_identical`] everywhere except two
+    /// — `rule:testing/assertions-are-typed`'s value row: [`identity::value_identical`] everywhere except two
     /// objects, which are compared through `rule:classes/comparable`'s `Comparable::compareTo`.
     fn nvs_core_test_assert_equals(ctx, args: [3]) {
         if equals(ctx, args[0], args[1])? {
@@ -3368,7 +3368,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertEqualsDeep(T $actual, T $expected, {message?: string}): void`
-    /// — § 4's structural walk, which reports **where** the two differ rather
+    /// — `rule:testing/assertions-are-typed`'s structural walk, which reports **where** the two differ rather
     /// than only that they do.
     fn nvs_core_test_assert_equals_deep(ctx, args: [3]) {
         let Some(diff) = difference(args[0], args[1], 0, "", &mut Proven::new())? else {
@@ -3392,7 +3392,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertTrue(bool $actual, {message?: string}): void` — § 4's
+    /// `Core\Test::assertTrue(bool $actual, {message?: string}): void` — `rule:testing/assertions-are-typed`'s
     /// predicate row, and the one member whose subject is a *declared* `bool`
     /// rather than a [`CoreTy::Var`].
     ///
@@ -3423,7 +3423,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::assertNull(mixed $actual, {message?: string}): void` — § 4's
+    /// `Core\Test::assertNull(mixed $actual, {message?: string}): void` — `rule:testing/assertions-are-typed`'s
     /// second predicate row.
     ///
     /// The subject is `mixed` rather than a `?T`: `rule:types/conversion` makes `mixed`
@@ -3448,7 +3448,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertCount(array<T> $actual, uint $expected, {message?: string}): void`
-    /// — § 4's third predicate row, and the one whose subject row had to be
+    /// — `rule:testing/assertions-are-typed`'s third predicate row, and the one whose subject row had to be
     /// decided rather than read off the ADR.
     ///
     /// The subject is an `array<T>` and nothing else, and the count is a
@@ -3500,7 +3500,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Test::assertContains(array<T> $actual, T $expected, {message?: string}): void`
-    /// — § 4's membership row, whose subject and comparison are
+    /// — `rule:testing/assertions-are-typed`'s membership row, whose subject and comparison are
     /// [`crate::arr`]'s `Core\Arr::contains` rather than a second reading of
     /// either.
     ///
@@ -3512,8 +3512,8 @@ nvs_runtime::nvs_helper! {
     /// [`identity::value_identical`] — `rule:expressions/equality-semantics`'s numeric row included, so
     /// `[1.0]` contains `1` — and not `rule:classes/comparable`'s `compareTo`: `assertEquals` is
     /// the member that names an object comparison, and a membership test whose
-    /// comparison changed with the element type is the silent fallback 0013
-    /// refused.
+    /// comparison changed with the element type is the silent fallback
+    /// `rule:testing/assertions-are-typed` refuses.
     ///
     /// A `string` subject is refused for `assertCount`'s reason: a substring is
     /// `Core\Str`'s question, asked as
@@ -3563,13 +3563,13 @@ nvs_runtime::nvs_helper! {
     /// makes a snapshot something a developer can produce by dumping the value
     /// — and it is also what carries `rule:errors/record-transformations`'s redaction into a snapshot,
     /// so a `secret` property renders as its placeholder and a snapshot cannot
-    /// become the place a secret is committed (§ 14's own last sentence).
+    /// become the place a secret is committed (`rule:testing/inline-snapshots`'s own last sentence).
     ///
     /// The subject is `mixed` and not `T`: the whole point is that a value of
     /// any shape has *one* canonical text, and a type variable here would only
     /// name the type of a thing that is about to become a string.
     ///
-    /// **The `--update` half of § 14 is split across three crates, and this is
+    /// **The `--update` half of `rule:testing/inline-snapshots` is split across three crates, and this is
     /// its runtime end.** Splicing the produced value back into the source
     /// needs the *span* of the `$expected` literal, and nothing at runtime
     /// holds one — a helper is called with a value, not with the expression
@@ -3579,7 +3579,7 @@ nvs_runtime::nvs_helper! {
     /// *written* call carrying the literal's file, span and enclosing method,
     /// and `nvs-cli`'s runner joins the two by the expected text within the
     /// test that produced it. Searching the source for the literal instead was
-    /// considered and refused: the workflow § 14 describes starts from an empty
+    /// considered and refused: the workflow `rule:testing/inline-snapshots` describes starts from an empty
     /// `""`, which occurs everywhere.
     ///
     /// The record is written on every mismatch, whatever the run was started
@@ -3700,7 +3700,7 @@ nvs_runtime::nvs_helper! {
     /// — `rule:testing/runner-is-strict`'s member, and the first of the two whose subject is a
     /// **`callable`** rather than a value.
     ///
-    /// It is § 20's own way out of the empty-ledger rule: a test whose whole
+    /// It is `rule:testing/runner-is-strict`'s own way out of the empty-ledger rule: a test whose whole
     /// claim is that some call completes has an assertion to write, so
     /// `nvs_cli::runner` can name this member rather than only the rule.
     ///
@@ -3760,13 +3760,13 @@ nvs_runtime::nvs_helper! {
     ///
     /// * The question asked is *what the ledger says*, not what class was
     ///   thrown. A body that caught its own failure and returned normally still
-    ///   failed, and § 5's silently-passing test is precisely the program that
+    ///   failed, and `rule:testing/failure-ledger`'s silently-passing test is precisely the program that
     ///   would otherwise sneak through here.
     /// * A body in which nothing failed is itself a failure, recorded and
     ///   raised through [`failed`] like any other — so wrapping *this* call in
     ///   a `catch` cannot erase it either.
     /// * Only the failures are discharged. A passing assertion inside `$body`
-    ///   really ran, and § 20 counts it.
+    ///   really ran, and `rule:testing/runner-is-strict` counts it.
     ///
     /// The pending throw is consumed only where a failure was discharged *and*
     /// the throw is a `Core\Test\Failure`, because only then is it the failure
@@ -3817,13 +3817,13 @@ nvs_runtime::nvs_helper! {
 ///
 /// The class is `Core\Test\Failure` — [`ThrownClass::TestFailure`], one row of
 /// `nvs_hir::errors::TREE` like any other — rather than the bare
-/// [`Fault::thrown`]'s `RuntimeError`, because § 5's own worked example catches
+/// [`Fault::thrown`]'s `RuntimeError`, because `rule:testing/failure-ledger`'s own worked example catches
 /// it **by name**: a composite assertion that meant to intercept a failed
 /// assertion would otherwise have to catch every "the world said no" beside it.
 /// This is the one throw site the whole surface funnels through, so naming the
 /// class here is what names it for all three members.
 ///
-/// It is also the one place a **failed** entry reaches § 5's ledger, and the
+/// It is also the one place a **failed** entry reaches `rule:testing/failure-ledger`'s ledger, and the
 /// order matters: the entry is recorded before the [`Fault`] is handed back, so
 /// there is no edge on which the throw exists and the record does not. That is
 /// the whole of what makes the ledger something a `catch` cannot erase.
@@ -3841,7 +3841,7 @@ fn failed(ctx: &mut Ctx, member: &'static str, detail: &str, message: Value) -> 
 /// [`failed`]'s other half: the entry an assertion that **held** leaves, and
 /// the `void` it answers.
 ///
-/// A passing assertion records too, because § 20's "a test that asserts nothing
+/// A passing assertion records too, because `rule:testing/runner-is-strict`'s "a test that asserts nothing
 /// fails" is a question about how many entries a test produced — a ledger of
 /// failures alone cannot answer it. It allocates nothing: `member` is the
 /// literal the member names itself with.
@@ -3854,7 +3854,7 @@ fn held(ctx: &mut Ctx, member: &'static str) -> Value {
 // The object rows — what `assertEquals` and `assertEqualsDeep` substitute
 // ============================================================================
 
-/// § 4's value comparison: `rule:expressions/equality-semantics`'s table, with the object row answered
+/// `rule:testing/assertions-are-typed`'s value comparison: `rule:expressions/equality-semantics`'s table, with the object row answered
 /// by `rule:classes/comparable`'s
 /// `compareTo` instead of by pointer identity.
 ///
@@ -3890,7 +3890,7 @@ fn equals(ctx: &mut Ctx, actual: Value, expected: Value) -> Result<bool, Fault> 
         })
 }
 
-/// Where `actual` and `expected` first differ under § 4's structural walk, or
+/// Where `actual` and `expected` first differ under `rule:testing/assertions-are-typed`'s structural walk, or
 /// `None` when they agree everywhere.
 ///
 /// The scalar, `string` and `bytes` rows are [`identity::value_identical`]'s,
@@ -4021,7 +4021,7 @@ fn entries(value: Value) -> Option<Vec<(String, Value)>> {
     Some(out)
 }
 
-/// § 4's walk of an object: the same class, then every declared property
+/// `rule:testing/assertions-are-typed`'s walk of an object: the same class, then every declared property
 /// compared by this walk.
 ///
 /// The class is compared first and by **name**, because two objects of two
@@ -4475,7 +4475,7 @@ nvs_runtime::nvs_helper! {
                 matched += 1;
             }
         }
-        // A `times` of its own is the exact count, and no `times` is § 11's
+        // A `times` of its own is the exact count, and no `times` is `rule:testing/interaction-after-the-fact`'s
         // plain reading of "it was called": once is enough and twice is not a
         // failure, because a test that cares how many times says so.
         let holds = match args[2].as_uint() {
@@ -5220,7 +5220,7 @@ fn record(receiver: *mut nvs_runtime::ObjHeader, method: &str, args: &[Value]) {
 mod tests {
     use super::*;
 
-    /// § 4's three equality members — the rows that bind both subjects to one
+    /// `rule:testing/assertions-are-typed`'s three equality members — the rows that bind both subjects to one
     /// type variable, which the predicate ones beside them deliberately do
     /// not.
     fn equality_members() -> impl Iterator<Item = &'static CoreMethod> {
@@ -5232,18 +5232,18 @@ mod tests {
         })
     }
 
-    /// Every assertion — every row but the four that are not one: § 5's
-    /// `expectFailure`, which takes a body rather than a subject; § 12's
+    /// Every assertion — every row but the four that are not one: `rule:testing/failure-ledger`'s
+    /// `expectFailure`, which takes a body rather than a subject; `rule:testing/determinism-declared-on-the-test`'s
     /// `advance`, which asserts nothing at all and is the fixed clock's
     /// mutator; `rule:tooling/a-prompt-is-a-core-member`'s `scriptAnswers`, which is the same kind of
     /// thing as `advance` — a test declaring the world its subject runs in,
-    /// here the answers its prompts read; and § 18's two, `request` and
+    /// here the answers its prompts read; and `rule:testing/in-process-request`'s two, `request` and
     /// `serverUrl`, which are the subject rather than a claim about one and are
     /// the only rows that answer with a value.
     ///
     /// Named rather than derived, so that adding a member to this class has to
     /// answer "is this an assertion?" here instead of quietly joining or
-    /// quietly escaping § 4's shape rules.
+    /// quietly escaping `rule:testing/assertions-are-typed`'s shape rules.
     fn asserting_members() -> impl Iterator<Item = &'static CoreMethod> {
         CLASS.methods.iter().filter(|method| {
             !matches!(
@@ -5264,7 +5264,7 @@ mod tests {
         })
     }
 
-    /// § 4's order, which is the opposite of the one every migrated test suite
+    /// `rule:testing/assertions-are-typed`'s order, which is the opposite of the one every migrated test suite
     /// was written in — so it is asserted rather than left to a reading of the
     /// rows above.
     #[test]
@@ -5290,7 +5290,7 @@ mod tests {
         }
     }
 
-    /// § 4's example writes the three predicate members with no signature, so
+    /// `rule:testing/assertions-are-typed`'s example writes the three predicate members with no signature, so
     /// what each subject admits is this module's decision and is asserted here
     /// rather than left to a reading of the rows above — the module docs carry
     /// why each is the type it is.
@@ -5334,7 +5334,7 @@ mod tests {
         }
     }
 
-    /// The option § 4 writes on every assertion, and the reason it defaults to
+    /// The option `rule:testing/assertions-are-typed` writes on every assertion, and the reason it defaults to
     /// `null` rather than to an empty `string`.
     ///
     /// A member may declare options of its own ahead of it — `assertCalled`'s
@@ -5363,7 +5363,7 @@ mod tests {
         }
     }
 
-    /// § 12's own row, which is not an assertion at all — so it is here rather
+    /// `rule:testing/determinism-declared-on-the-test`'s own row, which is not an assertion at all — so it is here rather
     /// than inside [`asserting_members`]'s sweep, and this is what says its
     /// shape is deliberate and not an omission.
     #[test]
@@ -5372,9 +5372,9 @@ mod tests {
             .methods
             .iter()
             .find(|method| method.name == "advance")
-            .expect("§ 12's mutator is registered");
+            .expect("`rule:testing/determinism-declared-on-the-test`'s mutator is registered");
         assert_eq!(advance.names, &["by"]);
-        // No `{message?:}` bag: § 4's option labels the two sides of a
+        // No `{message?:}` bag: `rule:testing/assertions-are-typed`'s option labels the two sides of a
         // comparison, and there is no comparison here to label.
         assert!(
             matches!(advance.params, [CoreTy::Instance(name)] if *name == crate::time::DURATION_NAME)
@@ -5615,7 +5615,7 @@ mod tests {
         );
     }
 
-    /// § 5's own row, which is deliberately not shaped like § 4's: it takes the
+    /// `rule:testing/failure-ledger`'s own row, which is deliberately not shaped like `rule:testing/assertions-are-typed`'s: it takes the
     /// body whose failure is expected and nothing else — no `{message?:}`,
     /// because what it reports on is the ledger rather than a comparison, and
     /// no subject, because there is nothing being compared.
@@ -5625,7 +5625,7 @@ mod tests {
             .methods
             .iter()
             .find(|method| method.name == "expectFailure")
-            .expect("§ 5's member is registered");
+            .expect("`rule:testing/failure-ledger`'s member is registered");
         assert!(matches!(
             member.params,
             [CoreTy::CallableSig(params, ret)]
@@ -5633,8 +5633,8 @@ mod tests {
         ));
         assert!(matches!(member.return_ty, CoreTy::Void));
         // It is one of the rows that assert nothing about a subject — this,
-        // § 12's `advance`, `rule:tooling/a-prompt-is-a-core-member`'s
-        // `scriptAnswers`, § 18's `request` and `serverUrl`,
+        // `rule:testing/determinism-declared-on-the-test`'s `advance`, `rule:tooling/a-prompt-is-a-core-member`'s
+        // `scriptAnswers`, `rule:testing/in-process-request`'s `request` and `serverUrl`,
         // `rule:testing/an-outbound-call-is-answered-from-a-table`'s
         // `answerHttp`, `tlsSession` and `sentHttp`, and
         // `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`'s
@@ -5642,7 +5642,7 @@ mod tests {
         // `double` and `partial`, which build a subject rather than claiming
         // anything about one — and [`asserting_members`] names each of them by
         // hand. This count is what makes adding a member to this class have to
-        // answer "is it an assertion?": a new row joins § 4's shape sweep
+        // answer "is it an assertion?": a new row joins `rule:testing/assertions-are-typed`'s shape sweep
         // unless it is listed there, and listing it moves this number.
         assert_eq!(asserting_members().count(), CLASS.methods.len() - 12);
         assert_eq!(equality_members().count(), 3);

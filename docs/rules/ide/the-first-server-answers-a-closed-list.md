@@ -15,3 +15,12 @@ creeping toward the full catalog (`rule:ide/a-quick-fix-is-a-diagnostics-own-sug
 Not in the first server: format-on-save, because `nvs fmt` does not exist yet; rename; and any code
 action beyond the two. Everything else waits for its dependency
 (`rule:ide/every-feature-is-staged-behind-its-dependency`).
+
+The first server and extension land as soon as a non-trivial CLI program runs correctly, not after the
+concurrency, configuration, HTTP and extension work. An editor exercising the language early surfaces
+rough edges in the type system, the stdlib's shape and the diagnostics' wording while they are still
+cheap to change.
+
+**Declined:**
+- **The editor client lands only with the full tooling milestone.** Real use in an editor would start
+  after the server, the stdlib and the extension system, when what it finds is expensive to change.

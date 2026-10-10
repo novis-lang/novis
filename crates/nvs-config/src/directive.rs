@@ -4,15 +4,16 @@
 //! A [`Directive`] carries its dotted [`key`](Directive::key), the changeability class
 //! `rule:config/three-changeability-classes` defines, and the reloadability field `rule:config/reloadability-is-its-own-field` adds
 //! **orthogonal** to it, and nothing else. The two answer different questions — [`Class`] is *who
-//! may set it*, [`Apply`] is *what applying a change requires* — and the reason 0078 gives
-//! reloadability a field of its own is that `System` would otherwise carry both meanings at once.
+//! may set it*, [`Apply`] is *what applying a change requires* — and reloadability has a field of
+//! its own because `System` would otherwise carry both meanings at once.
 //! A registry that derived either field from the other would re-create that conflation while still
 //! typechecking, so `tests/directives.rs` holds a census of the pairs and fails if it ever does.
 //!
 //! **A row covers the keys beneath it.** [`lookup`] is longest-prefix on dot boundaries, so the one
 //! `limits` row answers for `limits.memory` and every other key in that block, while the more
 //! specific `limits.hard` row answers for `limits.hard.memory`. That is how the ADRs state the
-//! classes in the first place — "every `[[schedule]]` key" is `System` (0005), `[server] listen`
+//! classes in the first place — "every `[[schedule]]` key" is `System`
+//! (`rule:config/every-schedule-key-is-system`), `[server] listen`
 //! is `Boot` (0219 § 6) — so the registry holds one row per *stated* rule rather than a row per key invented
 //! to fill the table out. It is therefore **not** the list of legal keys: refusing an unknown key is
 //! `serde`'s `deny_unknown_fields` over the typed tree, which is `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s.

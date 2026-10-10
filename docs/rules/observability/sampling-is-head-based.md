@@ -6,6 +6,10 @@ The decision governs export only. An id exists for every request whether or not 
 (`rule:observability/a-trace-id-exists-for-every-request`), so an unsampled request still has a log
 line that can be correlated with a proxy's.
 
-Head sampling records one per cent of the errors too, when one per cent is the fraction. Tail
-sampling — decide after the fact, keep the slow and the failed — needs a collector-side component or
-a buffering exporter, and is deliberately not built.
+Head sampling records one per cent of the errors too, when one per cent is the fraction.
+
+**Declined:**
+- **Tail sampling**, deciding after the fact and keeping the slow and the failed, which is what
+  operators want. It needs a collector-side component, which is configuration and not this runtime's
+  code, or an exporter that buffers every span until the request ends, which is a footprint cost
+  under `rule:programs/memory-priority` that has no stated bound yet.

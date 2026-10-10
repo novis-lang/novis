@@ -17,3 +17,19 @@ CPU generation, thermal state or scheduler; a timer is not, and no cross-machine
 from one.
 
 Benchmarking an Novis **program's** own code is neither of these — that is `rule:testing/bench-counters`.
+
+The dashboard's runner is one more piece of infrastructure to keep alive. That cost is accepted,
+because the guards cannot answer its question: a self-relative ratio says whether a commit regressed
+against itself, never whether Novis got faster in an absolute sense.
+
+**Declined:**
+- **Counting VM opcodes or dispatch-loop iterations.** There is no interpreter tier to count.
+- **The hardware's instructions-retired counter** (`perf`, ETW, Instruments). It is locked to one
+  architecture and is a different tool on each OS, so it compares across machines of one
+  architecture and never across operating systems. Callgrind's emulated instruction stream has
+  neither limit.
+- **A fixed reference workload, such as a SHA-256 or matrix loop, timed on every machine.** The
+  guards' same-run ratios already normalize more simply for regressions, and the instruction count
+  is more precise for the trend with no extra reference binary to keep.
+- **Callgrind as the gate on every pull request.** Its emulation is one to two orders of magnitude
+  slower, which every pull request would pay, and it runs on only one of the three CI platforms.

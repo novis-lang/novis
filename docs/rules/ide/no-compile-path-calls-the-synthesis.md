@@ -19,3 +19,9 @@ editor action that narrows an annotation offers the same union as text in the fi
 approved by a person (`rule:ide/narrow-an-annotation-to-its-literal`). A type only `var` held would be
 visible nowhere, which is how a program acquires a type nobody chose. A literal of one type has no such
 choice in it: the type is the one its elements state, so `var` takes it.
+
+**Declined:**
+- **`check_array_literal` returning the synthesized type wherever it has no expectation.** It is one
+  line, and it is a language change: `echo` arguments and bare expression statements would retype, a
+  heterogeneous literal under `var` would take a union nobody wrote, and `rule:types/arrays`' checked
+  literal would stop being checked.

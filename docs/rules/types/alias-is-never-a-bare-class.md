@@ -12,3 +12,7 @@ second name a *runtime* observer would plausibly expect to mean what `SomeClass`
 which is exactly what `rule:statements/nothing-gets-a-second-name` closes. A `type` alias exists to
 give a short name to a **shape** — a union, an intersection, a parameterised array, an object shape —
 never to a single already-named class.
+
+**Declined:**
+- **A bare-class alias as a shorthand for a long fully-qualified name.** A `use` of the class under its
+  own short name already shortens it, and the alias would be the same renaming in other syntax.

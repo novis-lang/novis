@@ -5,7 +5,7 @@
 //! A row is an array the query already built, so every member here reads that
 //! and never the wire. The typed accessors are where the type a value is stored
 //! as meets the one the caller asked for, which is why [`Requested`] has three
-//! answers and not two: [ADR 0067 § 6](/docs/decisions/0067.md)
+//! answers and not two: `rule:core-classes/db-column-types`
 //! names "no such column" and "a value that will not fit" as different
 //! refusals, and a `bool` that is really a `0` has to be told from a `7`.
 //!
@@ -101,12 +101,12 @@ pub(super) fn row_object(
 ///
 /// **Every field is a check and not a parse**, which is the whole difference
 /// from [`crate::json`]'s walk over the same [`nvs_runtime::CodecField`] list:
-/// a column arrives as the Novis value § 9 names for its SQL type, so what is
-/// left is whether that value is the one the field declares — and § 6's
+/// a column arrives as the Novis value `rule:core-classes/db-column-types` names for its SQL type, so what is
+/// left is whether that value is the one the field declares — and `rule:core-classes/db-column-types`'s
 /// "losslessly or throws" is what decides the two integer types against each
 /// other, exactly as [`ROW`]'s own typed readers do.
 ///
-/// **§ 5's `path` is the column name**, which that section says outright for
+/// **`rule:core-classes/derive-reports-every-field`'s `path` is the column name**, which that rule says outright for
 /// the `Db` half, so a list element's position rides in its message rather
 /// than in a dotted path.
 ///
@@ -118,12 +118,12 @@ pub(super) fn row_object(
 /// member's door rather than a refusal: the row is handed over as the
 /// [`ROW`] every other caller would have been given, and whatever the member
 /// built is the instance. The mapping below is the other door, and
-/// [ADR 0067 § 6](/docs/decisions/0067.md) admits them beside each other.
+/// `rule:core-classes/db-column-types` admits them beside each other.
 ///
 /// # Errors
 ///
 /// A `ParseError` carrying every bad column at once — `ParseError` rather than
-/// § 8's `DbError` because this module's known gap 2 is that the latter is not
+/// `rule:core-classes/db-error`'s `DbError` because this module's known gap 2 is that the latter is not
 /// in spec § 10's tree, and because `issues` is a property only the former
 /// declares. A class that took neither door — no `#[Db\Derive]` and no
 /// `fromRow` — is a `LogicError` instead: it is the program's mistake rather
@@ -375,7 +375,7 @@ pub(super) fn converted(
     match ty {
         // `rule:types/declaration`'s `mixed`: whatever the column held, unchecked.
         CodecTy::Mixed => Ok(held),
-        // § 6's three crossings, and a field asks for one in exactly the words
+        // `rule:core-classes/db-column-types`'s three crossings, and a field asks for one in exactly the words
         // a `Db\Row` reader does: the helpers below are the rule's one home, so
         // `queryAs<T>` cannot drift from `->bool()` the way two copies would.
         CodecTy::Bool => match requested_bool(held) {
@@ -401,7 +401,7 @@ pub(super) fn converted(
             Some(Tag::Str) => Ok(held),
             _ => Err(wanted("`string`", held)),
         },
-        // § 9 maps `DECIMAL`/`NUMERIC`/`MONEY` to this and nothing else, so a
+        // `rule:core-classes/db-column-types` maps `DECIMAL`/`NUMERIC`/`MONEY` to this and nothing else, so a
         // value reaching here already carries every digit the column held —
         // [`column_value`] is where a scale the type cannot hold is refused
         // (`rule:types/decimal`), before any field asks. What is left is the
@@ -410,9 +410,9 @@ pub(super) fn converted(
             Some(Tag::Decimal) => Ok(held),
             _ => Err(wanted("`decimal`", held)),
         },
-        // § 9's binary families. A `bytes` and a `string` point at the same
+        // `rule:core-classes/db-column-types`'s binary families. A `bytes` and a `string` point at the same
         // heap shape and are told apart by the tag alone, which is exactly the
-        // distinction § 6 makes when it hands a `BLOB` back tainted.
+        // distinction `rule:core-classes/db-column-types` makes when it hands a `BLOB` back tainted.
         CodecTy::Bytes => match held.tag() {
             Some(Tag::Bytes) => Ok(held),
             _ => Err(wanted("`bytes`", held)),
@@ -454,7 +454,7 @@ pub(super) fn converted(
         }
         // A row is a flat list of columns and `nvs_types::derive`'s own
         // `db_reachable` maps none of them to a nested class, so this arm is
-        // § 9's own value types and nothing else — the `Instant` that carries a
+        // `rule:core-classes/db-column-types`'s own value types and nothing else — the `Instant` that carries a
         // wire type of its own, and the rest, which the erasure leaves as a
         // class label. Both are answered the same way. The instance is built long
         // before hydration reads it — [`column_value`] is where a driver's
@@ -489,8 +489,8 @@ pub(super) fn converted(
                 Ok(held)
             } else {
                 Err(format!(
-                    "the column came back as a `{}` and this field declares `{declared}` — ADR \
-                     0067 § 9's type map is what each column reads back as",
+                    "the column came back as a `{}` and this field declares `{declared}` — `rule:core-classes/db-column-types`'s \
+                     type map is what each column reads back as",
                     found.name()
                 ))
             }
@@ -514,7 +514,7 @@ pub(super) fn converted(
     }
 }
 
-/// § 5's message for a column that came back as something else, said with what
+/// The message for a column that came back as something else, said with what
 /// it actually is — [`wrong_column_type`]'s shape, for the walk that has a
 /// field's declared type in hand rather than a reader's name.
 pub(super) fn wanted(want: &str, held: Value) -> String {
@@ -534,8 +534,8 @@ pub(super) fn wanted(want: &str, held: Value) -> String {
 /// a field and a reader say the same thing about the same value.
 pub(super) fn lossy(want: &str, holds: &str) -> String {
     format!(
-        "the column holds {holds}, so reading it as {want} would not be the same value — `rule:core-classes/db-one-api` \
-         § 6 converts losslessly or throws"
+        "the column holds {holds}, so reading it as {want} would not be the same value — `rule:core-classes/db-column-types` \
+         converts losslessly or throws"
     )
 }
 
@@ -705,7 +705,7 @@ pub(super) fn column_out_of_range(member: &str, name: &[u8], holds: &str) -> Fau
 /// those apart by construction, so there is no value of one that is a value of
 /// the other.
 pub(super) enum Requested<T> {
-    /// § 6's "losslessly".
+    /// `rule:core-classes/db-column-types`'s "losslessly".
     Is(T),
     /// The right family, the wrong value, carrying the fragment that says which
     /// — the number, and why it does not cross. Built here so the reader's
@@ -715,13 +715,13 @@ pub(super) enum Requested<T> {
     Mismatched,
 }
 
-/// § 6's `bool` request: the one crossing in the map that is neither a column's
+/// `rule:core-classes/db-column-types`'s `bool` request: the one crossing in the map that is neither a column's
 /// natural type nor a refusal.
 ///
 /// `BOOLEAN` and `BIT(1)` arrive as `Tag::Bool` already. MySQL and MariaDB have
-/// neither, and § 9 reads their `TINYINT(1)` as `int` because a display width is
+/// neither, and `rule:core-classes/db-column-types` reads their `TINYINT(1)` as `int` because a display width is
 /// not a type and nothing on the wire separates a flag column from a small
-/// integer — so the *request* is what decides, and § 6 says outright that it
+/// integer — so the *request* is what decides, and `rule:core-classes/db-column-types` says outright that it
 /// decides this one. `0` and `1` are the whole of what a flag column holds; a
 /// stored `7` throws rather than reading as PHP's `true`, which is the half of
 /// this rule that keeps the conversion lossless.
@@ -741,7 +741,7 @@ pub(super) fn requested_bool(value: Value) -> Requested<bool> {
     }
 }
 
-/// § 6's `int` request, which crosses from the other half of `rule:types/arithmetic`'s one
+/// `rule:core-classes/db-column-types`'s `int` request, which crosses from the other half of `rule:types/arithmetic`'s one
 /// integer and stops where `int` does.
 pub(super) fn requested_int(value: Value) -> Requested<i64> {
     if let Some(signed) = value.as_int() {
@@ -756,7 +756,7 @@ pub(super) fn requested_int(value: Value) -> Requested<i64> {
     )
 }
 
-/// § 6's `uint` request — [`requested_int`]'s twin, and what `BIGINT UNSIGNED`
+/// `rule:core-classes/db-column-types`'s `uint` request — [`requested_int`]'s twin, and what `BIGINT UNSIGNED`
 /// needs: PHP overflows that column to a `float` and stops comparing equal to
 /// itself.
 pub(super) fn requested_uint(value: Value) -> Requested<u64> {
@@ -923,7 +923,7 @@ nvs_runtime::nvs_helper! {
     /// `$rows->count(): uint` — how many rows there are, replacing
     /// `PDOStatement::rowCount` on a select.
     ///
-    /// Exact, and that is § 4's buffered default paying for itself: every row
+    /// Exact, and that is `rule:core-classes/db-statement-members`'s buffered default paying for itself: every row
     /// was read before `query` answered, so this is a length rather than the
     /// driver-dependent guess `rowCount` is on a select.
     fn nvs_core_db_rows_count(_ctx, args: [1]) {
@@ -1110,7 +1110,7 @@ nvs_runtime::nvs_helper! {
     /// request `TINYINT(1)` as well.
     ///
     /// The one reader whose answer is not the column's natural type: MySQL and
-    /// MariaDB have no boolean column at all, so § 6 makes the *request* what
+    /// MariaDB have no boolean column at all, so `rule:core-classes/db-column-types` makes the *request* what
     /// converts a `0`/`1` integer here. [`requested_bool`] owns the rule and the
     /// stored `7` it refuses.
     fn nvs_core_db_row_bool(_ctx, args: [2]) {
@@ -1402,7 +1402,7 @@ mod tests {
         )
         .expect("the schema is applied");
 
-        // 1. The declaration decides, over every family § 9 names that this
+        // 1. The declaration decides, over every family `rule:core-classes/db-column-types` names that this
         //    backend can carry.
         let described: Vec<nvs_db::SqliteColumn> = conn
             .query(
@@ -1535,15 +1535,15 @@ mod tests {
     /// Both halves of that sentence, because either alone is a member that
     /// looks right. A reader that refused the crossing outright would be
     /// correct about the `7` and unusable against MySQL, which has no boolean
-    /// column for § 9 to map — `nvs_db::mysql`'s own type-map test pins
+    /// column for `rule:core-classes/db-column-types` to map — `nvs_db::mysql`'s own type-map test pins
     /// `MYSQL_TYPE_TINY` as [`nvs_db::ColumnType::Int`] for that reason. A
     /// reader that took PHP's cast instead would be usable and would read a
-    /// `7` as `true`, which is the lossy conversion § 6 exists to refuse.
+    /// `7` as `true`, which is the lossy conversion `rule:core-classes/db-column-types` exists to refuse.
     ///
     /// The bound is asserted on both sides at once: `0` and `1` are the last
     /// accepted values and `2` is the first refused one, with `-1` the other
     /// end — a member stopping one entry early prints plausibly against either
-    /// half alone. `7` is § 6's own number and is in here under its own name.
+    /// half alone. `7` is `rule:core-classes/db-column-types`'s own number and is in here under its own name.
     ///
     /// Asked of [`requested_bool`] rather than of `$row->bool()`, because that
     /// function is where the rule lives *and* is what `queryAs<T>`'s `bool`
@@ -1552,7 +1552,7 @@ mod tests {
     // covers: Core\Db\Row::bool
     #[test]
     fn tinyint_one_reads_int_and_bool_and_throws_for_a_stored_seven() {
-        // § 9 first: a `TINYINT(1)` is an `int` column, so the value a row
+        // `rule:core-classes/db-column-types` first: a `TINYINT(1)` is an `int` column, so the value a row
         // holds for one is an `int` and `->int()` reads it unchanged.
         for stored in [0_i64, 1, 7, -1] {
             let held = Value::int(stored);
@@ -1563,7 +1563,7 @@ mod tests {
             );
         }
 
-        // § 6 second: the request converts, and only where it is lossless.
+        // `rule:core-classes/db-column-types` second: the request converts, and only where it is lossless.
         for (stored, expected) in [
             (0_i64, "false"),
             (1, "true"),
@@ -1577,7 +1577,7 @@ mod tests {
                 "a `TINYINT(1)` storing {stored}, read as `bool`"
             );
             // The same column on a server that declared it `UNSIGNED`, which is
-            // § 9's `uint` row and the same question.
+            // `rule:core-classes/db-column-types`'s `uint` row and the same question.
             if let Ok(unsigned) = u64::try_from(stored) {
                 assert_eq!(
                     answered(&requested_bool(Value::uint(unsigned))),
@@ -1595,7 +1595,7 @@ mod tests {
             );
         }
 
-        // The two surfaces § 6 states the rule for once: a `Db\Row` reader and
+        // The two surfaces `rule:core-classes/db-column-types` states the rule for once: a `Db\Row` reader and
         // a `#[Db\Derive]` field. A field is checked here through `converted`,
         // which is the whole of what `queryAs<T>` asks; that they route through
         // one function is the assertion, since a second copy would agree on the
@@ -2590,13 +2590,13 @@ mod tests {
         released(row);
     }
 
-    /// § 6's second named crossing: **a `BIGINT UNSIGNED` past `i64::MAX` reads
+    /// `rule:core-classes/db-column-types`'s second named crossing: **a `BIGINT UNSIGNED` past `i64::MAX` reads
     /// as `uint` and throws for `int`.**
     ///
     /// The bound on both sides, at the one value where it falls: `i64::MAX`
     /// itself crosses and `i64::MAX + 1` does not. A driver reading the column
     /// through PHP's `int` loses that value to a `float` and stops comparing
-    /// equal to itself, which is the defect § 9's `uint` row exists for — and a
+    /// equal to itself, which is the defect `rule:core-classes/db-column-types`'s `uint` row exists for — and a
     /// range check written one off would pass every test that named only the
     /// obvious `u64::MAX`.
     ///
@@ -2651,7 +2651,7 @@ mod tests {
             );
         }
 
-        // Neither reading is a way into a column of another family: § 6's
+        // Neither reading is a way into a column of another family: `rule:core-classes/db-column-types`'s
         // crossings are between `int` and `uint` and nowhere else.
         for held in [
             Value::float(1.0),
@@ -2666,7 +2666,7 @@ mod tests {
         }
     }
 
-    /// § 6's third named crossing, which is the one that is not a crossing: **a
+    /// `rule:core-classes/db-column-types`'s third named crossing, which is the one that is not a crossing: **a
     /// `DECIMAL` refuses a `float` field**, since
     /// `rule:types/decimal` keeps the two
     /// apart.
@@ -2743,10 +2743,10 @@ mod tests {
     /// Asked here as a **count**: three fields are wrong and three issues come
     /// back, which is the assertion a per-condition case cannot make.
     ///
-    /// Naming the column is the item rather than a nicety. § 6 has field names
+    /// Naming the column is the item rather than a nicety. `rule:core-classes/db-column-types` has field names
     /// match column names exactly and `AS` as the way to rename, so at a table
     /// of forty columns the path is the only thing separating "one of these did
-    /// not match" from a fix — [ADR 0071 § 5](/docs/decisions/0071.md)
+    /// not match" from a fix — `rule:core-classes/derive-reports-every-field`
     /// is where the `issues` list this reads back is specified, and the throw is
     /// a `ParseError` for the reason [`hydrate`]'s own docs give.
     ///
@@ -2954,7 +2954,7 @@ mod tests {
     /// class wrote rather than the refusal it used to be, and that the member
     /// is handed the same `Core\Db\Row` a `query` would have answered with:
     /// the value that comes back is one only a call that received the row could
-    /// have built. [ADR 0067 § 6](/docs/decisions/0067.md) admits the
+    /// have built. `rule:core-classes/db-column-types` admits the
     /// hand-written body beside the derived one, and `check_row_sites` lets the
     /// call site through for exactly this class.
     #[test]

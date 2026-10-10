@@ -34,4 +34,12 @@ is the operating system's and the address is loopback, so two suites on one mach
 and no suite serves the program under test to a network. The listener is a **sibling** of the test's
 isolate rather than a child — leftover work is read off the test's own task — and it is retired when
 the test that asked for it has joined. It serves under the **default** policy rather than the tree's:
-reading a deployment's configuration would make the test's subject the deployment.
+reading a deployment's configuration would make the test's subject the deployment. The two
+mechanisms are both kept because they answer measurably different questions: the in-process path
+never builds a response head, so the wire is not something it can be asked about.
+
+`Core\Test::serverUrl(): ?string` reads the listener's address back, and is `null` where none was
+bound, so it can be called from anywhere. A test reaching its own listener needs the outbound pair
+granted — `net.connect` for the host and `net.internal` for loopback
+(`rule:http-server/allow-url-pins-the-address`) — because nothing about the listener being the
+test's own widens that policy.

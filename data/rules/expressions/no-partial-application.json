@@ -2,9 +2,7 @@
   "title": "Partial function application is not adopted; an anonymous function already spells it",
   "status": "shipped",
   "because": [
-    "0124",
-    "0027",
-    "0031"
+    "0124"
   ],
   "seeAlso": [
     "types/anonymous-function",

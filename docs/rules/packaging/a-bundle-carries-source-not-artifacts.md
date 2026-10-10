@@ -16,3 +16,11 @@ The costs are accepted and named. A fresh machine's first run pays exactly the c
 first `nvs run` of an uncached file pays, and a second run is a plain cache hit. The app's source is
 recoverable from the executable by anyone who looks, the same posture as every comparable ecosystem's
 CLI bundling; hiding it is not a requirement, and neither encryption nor obfuscation is applied.
+
+**Declined:**
+- **Precompiled native artifacts as the payload.** The executable grows by one artifact per target,
+  CPU-feature set and compiler build, and goes stale against every compiler fix, as above.
+- **Encrypting or obfuscating the payload.** The running binary must hold or fetch the key, so it
+  protects nothing from a reader of the binary itself, and hiding source is not a requirement.
+- **Compressing the payload.** Source text is small enough that compression is not worth a new
+  dependency.

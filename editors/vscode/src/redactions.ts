@@ -56,13 +56,15 @@ const METHOD = "nvs/redactions";
 // `extension.ts`'s `RESPAWNING_SETTINGS`.
 const SETTING = "nvs.secrets.redact";
 
-// The setting that asks for the marker, default `off`. Its three values are ADR 0101 § 4's, and
-// `sink` draws what `declaration` draws until the server answers a sink's argument positions —
-// `crates/nvs-lsp/src/redactions.rs` § *What it does not reach* is where that gap is stated.
+// The setting that asks for the marker, default `off`. Its three values are
+// `rule:ide/tainted-has-no-default-decoration`'s, and `sink` draws what `declaration` draws until
+// the server answers a sink's argument positions — `crates/nvs-lsp/src/redactions.rs`
+// § *What it does not reach* is where that gap is stated.
 const MARK = "nvs.taint.mark";
 
-// The command the decoration's own hover offers, which ADR 0101 § 3 makes the discoverable path to
-// a reveal — the palette and a keybinding are the other two, and all three are the same command.
+// The command the decoration's own hover offers, which
+// `rule:ide/reveal-is-explicit-and-window-local` makes the discoverable path to a reveal — the
+// palette and a keybinding are the other two, and all three are the same command.
 const REVEAL = "nvs.revealSecret";
 
 // The radius the concealed bytes are blurred by.

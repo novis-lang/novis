@@ -686,8 +686,10 @@ pub fn lower_program(
                     out,
                     synthesized,
                 ),
-                // An `interface`'s default and private method bodies (ADR
-                // 0043 § 2/§ 3) are ordinary compiled methods — the interface
+                // An `interface`'s default and private method bodies
+                // (`rule:classes/interface-default-methods`,
+                // `rule:classes/interface-private-methods`) are ordinary
+                // compiled methods — the interface
                 // is where they are *declared*, which is all that differs.
                 // Every bodiless member is skipped by the same `m.body`
                 // check an `abstract` class method already went through.
@@ -1493,8 +1495,8 @@ pub fn lower_property_hook(
 ///   never `return`s, kept for the construct PHP has.
 /// - [`ScriptRole::Entry`] — `null`, "the value every Novis function without
 ///   a `return` produces"
-///   ([ADR 0006](/docs/decisions/0006.md)
-///   § *Decision*, which names it *deliberately not* `require`'s `1`). The
+///   (`rule:security/isolate-failure-is-a-value`, which names it *deliberately
+///   not* `require`'s `1`). The
 ///   entry frame is the one a `spawn script` child is, so this is the child's
 ///   answer; under `nvs run` nothing reads it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1968,8 +1970,8 @@ pub(crate) struct ArgSig {
     /// [`Lowering::lower_call_args`] reads it uniformly rather than branching
     /// on whether the call wrote a name at all.
     arg_slots: Vec<ArgSlot>,
-    /// Whether the callee is a Tier 0 `Core` member reached through the ADR
-    /// 0002 helper convention, rather than a compiled Novis function.
+    /// Whether the callee is a Tier 0 `Core` member reached through the
+    /// `rule:errors/helper-abi` helper convention, rather than a compiled Novis function.
     ///
     /// One thing turns on it, and it is a real difference rather than a
     /// convenience: a helper's parameter slot is a whole `nvs_runtime::Value`
@@ -4044,8 +4046,8 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // that section promises.
         CheckedTy::SingleValueString(_) => Ty::Str,
         CheckedTy::SingleValueInt(_) => Ty::Int,
-        // `true` and `false` are the same rule on `bool`'s two values (ADR
-        // 0007 § 3's atoms, read by `nvs_types::ty::Ty::True`), so they erase
+        // `true` and `false` are the same rule on `bool`'s two values
+        // (`rule:types/grammar`'s atoms, read by `nvs_types::ty::Ty::True`), so they erase
         // to `bool`. The union arm below then folds `true|false` back to one
         // `Ty::Bool` for free.
         CheckedTy::True | CheckedTy::False => Ty::Bool,
@@ -4312,7 +4314,7 @@ pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
 ///
 /// # Why the object carries it
 ///
-/// [ADR 0006](/docs/decisions/0006.md) § *Decision* binds
+/// `rule:security/isolate-shares-nothing` binds
 /// an isolate's `args:` to its entry's parameters **by name**, and
 /// `rule:concurrency/an-upgrade-is-spawn-shaped` makes
 /// `Core\Socket::upgrade(Chat::run(...), args: {…})` one of those entries. The
@@ -4379,8 +4381,8 @@ pub const FN_PARAM_TAG_ANY: u8 = 15;
 ///
 /// [`Ty::Object`]'s nibble is the one row where the representation is not the
 /// whole answer. Every class name erases onto it, so this word admits a
-/// callable declaring the wrong class — and a named-class binding, unlike ADR
-/// 0036 § 4's erased receiver, is read and written at a *fixed offset* against
+/// callable declaring the wrong class — and a named-class binding, unlike an
+/// erased receiver (`rule:types/erased-member-access`), is read and written at a *fixed offset* against
 /// its label, so admitting one is a type confusion rather than a wrong answer.
 /// The label four bits have no room for is checked at the callable's **entry**
 /// instead, one class test per class-declared parameter

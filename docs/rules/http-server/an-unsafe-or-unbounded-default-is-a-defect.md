@@ -17,3 +17,13 @@ What a proxy does earlier and better — request-size caps, per-IP connection li
 limiting — stays the proxy's. Two things do not: how a message is parsed, which is
 `rule:errors/ambiguous-input-refused`'s, and how long a connection may idle, which this rule
 covers as it covers a client call.
+
+The cost is that a secure default breaks something on somebody's first deployment: a site that
+framed itself, a cookie a script needed to read, an origin that was allowed only because there was
+no policy. Each becomes one deliberate line of configuration, and that is the trade.
+
+**Declined:**
+- **Shipping no defaults and documenting the headers.** Documentation-shaped security produces the
+  adoption it produces: a minority of production sites send `nosniff`, fewer send a framing policy,
+  and cookies without `HttpOnly` or `SameSite` are routine, because adding them never reaches the
+  top of a backlog. A class of bug is removed here rather than described.

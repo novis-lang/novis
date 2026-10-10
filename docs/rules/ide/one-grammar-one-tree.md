@@ -17,3 +17,14 @@ a node.
 The trade is named: without `rowan`'s red/green design there is no free incremental reparse, so each
 analysis reparses the document, and `rule:ide/a-full-reanalysis-stays-under-a-bound` is what keeps that a
 measured claim. If it fails, the first move is item-level caching over the index, not a second tree.
+
+What it spends is simplicity, and little: one lexer flag, two node kinds and an index. None of it is
+linked into what `nvs run` compiles, so it costs nothing on security or on the request path.
+
+**Declined:**
+- **A `rowan`-shaped red/green CST beside the AST.** `rowan` exists because a typed AST is lossy by
+  construction; this one is not once trivia is kept beside it, and a second tree is a second shape every
+  grammar change has to keep in step.
+- **A second, error-recovering parse entry point beside the strict one.** The strict parser is already
+  infallible, so a second entry point would add a thing to keep in step and recover nothing the first
+  does not.

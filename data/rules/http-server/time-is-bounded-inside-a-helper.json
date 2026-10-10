@@ -2,10 +2,7 @@
   "title": "A helper whose runtime scales with its input polls the request's deadline flag through a bounded-loop combinator, or bounds its input instead",
   "status": "shipped",
   "because": [
-    "0106",
-    "0020",
-    "0056",
-    "0002"
+    "0106"
   ],
   "seeAlso": [
     "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",

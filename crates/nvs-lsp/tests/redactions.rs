@@ -78,8 +78,8 @@ fn a_marked_declaration_and_a_concealed_literal_share_one_list() {
     );
 }
 
-/// ADR 0101 § 1's named fail direction: the initializer cannot be typed — it
-/// calls a free function `rule:classes/no-free-functions-or-constants` refuses
+/// `rule:ide/redaction-ranges-come-from-the-server`'s named fail direction: the
+/// initializer cannot be typed — it calls a free function `rule:classes/no-free-functions-or-constants` refuses
 /// — and the literal is concealed anyway, because the declaration is what says
 /// `secret` and it is stable while the value beside it is being written.
 #[test]

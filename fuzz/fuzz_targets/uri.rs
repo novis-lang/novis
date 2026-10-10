@@ -44,7 +44,7 @@ fuzz_target!(|data: &[u8]| {
             .expect("`toString` answers a `string`")
             .to_vec(),
     )
-    .expect("ADR 0009 guarantees a `string` is UTF-8");
+    .expect("`rule:types/string-is-utf8` guarantees a `string` is UTF-8");
     assert_eq!(rendered_text, text, "`toString` answers the text parsed");
 
     let twice = parse(&mut ctx, &rendered_text).expect("text that parsed once parses again");

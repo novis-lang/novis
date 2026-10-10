@@ -2,8 +2,7 @@
   "title": "The whole temporary-file surface is one member handing out an owned directory",
   "status": "shipped",
   "because": [
-    "0131",
-    "0063"
+    "0131"
   ],
   "seeAlso": [
     "core-api/one-name-one-signature",

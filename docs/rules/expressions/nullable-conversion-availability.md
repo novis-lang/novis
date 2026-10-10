@@ -14,8 +14,16 @@ Keep the last three rows straight: **a conversion that exists and failed is `nul
 does not exist is a diagnostic.** From `mixed` every conversion exists, so `$mixed as ?int` is `null`
 for a value holding an array, while a statically-known `array<int>` never compiles. A `?T` that can
 never be `null` is a lie in the type and forces a pointless check downstream, which is why the
-cannot-fail row is refused rather than allowed as a harmless spelling.
+cannot-fail row is refused rather than allowed as a harmless spelling. A conversion that does not
+exist stays a diagnostic because otherwise `as ?T` would be a universal escape hatch that erases
+genuine type errors.
 
 **The class row is absolute and admits no roster of blessed names.** `as ?T` spells a downcast in
 every language a reader arrives from, and it never spells a parse: text becomes a value through that
 class's own reader (`rule:expressions/try-parse`).
+
+**Declined:**
+- **A roster of class targets that parse, such as `$s as ?Core\Uri`.** It inverts what `as?` means in
+  Swift and Kotlin, for a few memorized class names while every other class stays a diagnostic. It
+  also removes no spelling: `Core\Uri::parse($s)` exists either way, so the operator only moves the
+  parse onto the harder of the two to read.

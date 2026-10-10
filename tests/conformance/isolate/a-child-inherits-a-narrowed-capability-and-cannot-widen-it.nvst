@@ -1,5 +1,5 @@
 --TEST--
-A `spawn script` child runs under the capability grant in force where it was spawned: it inherits the narrowing its parent's `[[app]]` block made, and neither an `[[app]]` block naming the child nor a `Core\Config::set` widens it back — ADR 0006 § *Decision*, `rule:config/every-matching-app-block-applies-least-specific-first`, `rule:security/capability-question-is-grant-and-scope` and `rule:security/denial-is-a-runtime-error`
+A `spawn script` child runs under the capability grant in force where it was spawned: it inherits the narrowing its parent's `[[app]]` block made, and neither an `[[app]]` block naming the child nor a `Core\Config::set` widens it back — `rule:security/isolate-shares-nothing`, `rule:config/every-matching-app-block-applies-least-specific-first`, `rule:security/capability-question-is-grant-and-scope` and `rule:security/denial-is-a-runtime-error`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no configuration

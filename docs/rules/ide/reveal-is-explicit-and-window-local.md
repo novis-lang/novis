@@ -19,7 +19,14 @@ right now expires on the next arrow key, so the worst it can do is show the valu
 already looking at. That is a smaller surface than the two held reveals it sits beside, not a larger
 one — the reason to write it down is that it *reads* like the opposite.
 
-There is still **no automatic re-conceal on a signal**, because there is no signal: nothing reports
-that a window is being shared, recorded or projected. Anything that looked like one would be a guess
-with a security failure attached, so redaction is unconditional by default and the user is the only
-thing that turns it off.
+There is still **no automatic reveal and no automatic re-conceal on a signal**, because there is no
+signal: nothing reports that a window is being shared, recorded or projected. Anything that looked like
+one would be a guess with a security failure attached, so redaction is unconditional by default and the
+user is the only thing that turns it off, with `nvs.secrets.redact` (default `true`).
+
+**Declined:**
+
+- **Redacting only while the screen is shared.** No editor API reports it, so this would be a guess
+  whose failure is a leaked credential.
+- **A reveal that persists** in workspace state or across a reload. It outlives the moment it was
+  needed, which is the exposure this rule exists to close.

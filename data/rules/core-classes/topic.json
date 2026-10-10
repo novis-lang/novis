@@ -2,11 +2,7 @@
   "title": "`Core\\Topic` is the only way two connections meet, and a slow subscriber is closed rather than tolerated",
   "status": "shipped",
   "because": [
-    "0083",
-    "0023",
-    "0033",
-    "0059",
-    "0076"
+    "0083"
   ],
   "seeAlso": [
     "core-classes/ratelimit-two-members",

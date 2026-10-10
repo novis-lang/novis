@@ -17,5 +17,13 @@ at the call site (`rule:statements/inout-is-written-at-the-call`), so a forward 
 Writing the member by hand is the way out. Every member the delegation does not supply is owed exactly
 as it would be without the clause.
 
-It spends one pointer-sized property per delegated interface per instance, plus the delegate object,
-and that state is an ordinary property a reader can inspect.
+**Memory:** each instance holds one pointer-sized property per delegated interface, plus the
+delegate object it points to. That replaces the state a trait copied into every consuming class, so it
+is not a new kind of cost, and it is an ordinary property a reader can inspect.
+
+**Declined:**
+- **Default methods alone, with every forward written by hand.** It reproduces the boilerplate Kotlin's
+  `by` and Go's struct embedding exist to remove, for a shape (state shared across unrelated classes)
+  common enough in ported code to deserve its own syntax.
+- **A nullable delegate field, with a delegated call a no-op or a checked throw on `null`.** No case
+  needs it, and the field stays non-nullable.

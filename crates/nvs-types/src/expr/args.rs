@@ -1648,8 +1648,8 @@ fn defers_to_bindings(value: &Expr, declared: Option<TypeId>, interner: &TypeInt
         && crate::generics::mentions_type_var(declared, interner)
 }
 
-/// The index of `sig`'s trailing options-bag parameter, if it has one — ADR
-/// 0063 R2 puts at most one, and always last, which `nvs_stdlib::registry`'s
+/// The index of `sig`'s trailing options-bag parameter, if it has one —
+/// `rule:core-api/options-bag` puts at most one, and always last, which `nvs_stdlib::registry`'s
 /// own `an_options_bag_is_last_and_never_empty` holds mechanically.
 pub(crate) fn options_param(sig: &MethodSig, interner: &TypeInterner) -> Option<usize> {
     let last = sig.params.len().checked_sub(1)?;

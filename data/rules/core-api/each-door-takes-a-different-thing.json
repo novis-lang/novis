@@ -2,9 +2,7 @@
   "title": "Two members are not a second spelling when each takes a different thing and answers a different thing",
   "status": "shipped",
   "because": [
-    "0146",
-    "0063",
-    "0060"
+    "0146"
   ],
   "seeAlso": [
     "core-api/one-paradigm-per-operation",

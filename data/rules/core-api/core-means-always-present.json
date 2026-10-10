@@ -1,10 +1,7 @@
 {
   "title": "`Core` means always present, so nothing outside Tier 0 may register a name under it",
   "status": "shipped",
-  "because": [
-    "0011",
-    "0003"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/reserved-namespace",
     "core-api/tier-placement",

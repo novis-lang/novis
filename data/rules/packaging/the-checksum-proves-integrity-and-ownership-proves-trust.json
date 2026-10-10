@@ -2,7 +2,6 @@
   "title": "The checksum answers corruption; a cache directory another account can write is never used",
   "status": "shipped",
   "because": [
-    "0042",
     "0281"
   ],
   "seeAlso": [

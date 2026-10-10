@@ -149,7 +149,7 @@ export function tool(name: string): string {
   return `bun nv ${name}`;
 }
 
-/** `[0002](../decisions/0002.md)` -> `0002`. */
+/** `[the text](../rules/errors.md)` -> `the text`. */
 export function stripLinks(text: string): string {
   return text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
 }

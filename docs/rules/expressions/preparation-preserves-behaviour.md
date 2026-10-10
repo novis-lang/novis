@@ -30,3 +30,8 @@ implementation of it.
 One observable difference is named rather than denied: a fully folded call is no longer a call, so the
 per-call probe does not fire for it. A *prepared* call — the common case — is still a call and probes
 normally, and the enclosing statement's probe is unaffected either way.
+
+**Declined:**
+- **Folding eagerly, evaluating whole calls wherever possible.** The calls worth touching mostly
+  depend on runtime state, so an eager rule would either be wrong or need this same carve-out, stated
+  less clearly.

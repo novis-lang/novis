@@ -1,13 +1,14 @@
 {
   "title": "`|>` binds tighter than every binary operator and looser than unary",
   "status": "designed",
-  "because": [
-    "0098"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/pipeline-substitution",
     "expressions/pipeline-hole-once",
     "expressions/catch-expression-precedence"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/lang/a-pipeline-substitutes-its-hole-and-binds-tighter-than-every-binary-operator.nvst",
+    "tests/conformance/lang/every-precedence-row-binds-tighter-than-the-row-under-it.nvst"
+  ]
 }

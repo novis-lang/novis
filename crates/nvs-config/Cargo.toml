@@ -14,13 +14,15 @@ repository.workspace = true
 # not run rustdoc over it. A crate that gains one deletes this table.
 doctest = false
 
-# `toml` + `serde` are ADR 0064 § 1's format decision, and both refusals § 3
-# makes are their default behaviour rather than machinery of ours. Both are pure
+# `toml` + `serde` are `rule:config/the-file-is-nvs-toml-and-it-is-toml`'s format
+# decision, and both refusals of
+# `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` are their default behaviour rather than machinery of ours. Both are pure
 # Rust, so `rule:packaging/a-c-dependency-answers-two-questions`'s two questions do not arise.
 #
-# `blake3` is ADR 0078 § 4's own spelling of both cache keys in `src/cache.rs`,
-# and `src/data.rs` hashes the data folder's `nvs.toml` with it to tell a
-# template nobody changed from an operator's file.
+# `blake3` is the hash both cache keys in `src/cache.rs` are written in
+# (`rule:config/the-extension-set-is-in-every-unit-key`), and `src/data.rs`
+# hashes the data folder's `nvs.toml` with it to tell a template nobody changed
+# from an operator's file.
 #
 # `nvs-render` is here for one type: `[log] level` names one of ADR 0092 § 2's
 # five levels, and that roster's home is the enum the record carries. A copy of
@@ -28,9 +30,10 @@ doctest = false
 # failure the module doc there already names for the target's grammar. The edge
 # runs downward — `nvs-render` depends on no `nvs-*` crate at all.
 #
-# `jiff` is the workspace's clock, and `src/schedule.rs` reaches it for ADR 0073 § 6: a
-# `[[schedule]]` entry's next fire is a civil minute in a named IANA zone, and the two
-# DST rules that section pins are that crate's own disambiguation. It is here rather
+# `jiff` is the workspace's clock, and `src/schedule.rs` reaches it for
+# `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`: a `[[schedule]]`
+# entry's next fire is a civil minute in a named IANA zone, and the two DST rules that
+# rule pins are that crate's own disambiguation. It is here rather
 # than in the scheduler because the expression is already read here, at boot — one
 # reader, which is that module's doc comment's argument.
 [dependencies]

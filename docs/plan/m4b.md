@@ -15,9 +15,8 @@ never about the `Future` trait; `rule:ide/one-grammar-one-tree`'s own bullet now
 
 Pulled ahead of M10 by `rule:ide/every-feature-is-staged-behind-its-dependency` so real-world
 testing in an editor starts the moment M4 makes Novis a usable CLI language, rather than after M5–M9.
-`rule:ide/one-grammar-one-tree` settles the four things that ADR left
-open or specified against a parser that turned out to be shaped differently; where the two disagree, 0099
-is the current rule and 0040's body has been folded to match.
+`rule:ide/one-grammar-one-tree` settles the four things the first editor catalog left
+open or specified against a parser that turned out to be shaped differently.
 
 **The tree.** `nvs-syntax` gains a **lossless parse result** — the same one grammar and the same AST, plus
 a `trivia` vector (every comment and whitespace run, by span) and a `SyntaxIndex` answering byte offset →
@@ -44,11 +43,11 @@ search, that needs M10's indexing), `semanticTokens/full`, `documentSymbol`, and
 projections of data the tree already holds rather than features built on it: `selectionRange` (the
 `SyntaxIndex`'s ancestor list *is* the response), `foldingRange` and `documentLink`. Plus exactly **two
 code actions**, admitted because their replacement text already sits in `Diagnostic::suggestions`: the
-casing fix ([0029](../decisions/0029.md)/[0030](../decisions/0030.md))
+casing fix (`rule:core-api/identifier-casing`)
 and `(int)$x` → `$x as int` (`rule:types/no-legacy-cast`). Beside the nine standard
 requests sits exactly **one of Novis's own**, `nvs/redactions`, answering the ranges the editor conceals —
 a literal or interpolation slot whose static type carries `secret`
-([0101](../decisions/0101.md) §§ 1–2). It is
+(`rule:ide/redaction-ranges-come-from-the-server`, `rule:ide/redaction-covers-bytes-only`). It is
 not a token modifier: that channel degrades to "whatever the theme thinks", and a security default may not
 have becoming-visible as its failure mode. Its fail direction is named — a range whose expression cannot be
 typed but whose binding declares `secret` is answered anyway, so a value does not flash on every keystroke
@@ -75,9 +74,9 @@ and `decimal`, Novis's own keywords (`spawn`, `spawn script`, `autoload`, `type`
 rejects may be coloured as valid** (`===`, legacy casts, `|>`, the alternative colon syntax). Then
 **semantic tokens** colour what a regex structurally cannot know: `defaultLibrary` on a `Core` class,
 enum members, type aliases, and two modifiers of Novis's own — **`tainted` and `secret`** — so a qualified
-value is visibly qualified at every use site, which is the cheapest teaching surface ADRs
-[0024](../decisions/0024.md) and
-[0033](../decisions/0033.md) have. **Novis ships no colours** — colour is
+value is visibly qualified at every use site, which is the cheapest teaching surface
+`rule:security/tainted-qualifier` and
+`rule:security/secret-qualifier` have. **Novis ships no colours** — colour is
 the user's theme's — so both layers ship *names*, every one of them from the standard TextMate vocabulary
 or LSP's standard legend, because a theme styles only names it recognises and an invented scope renders as
 unstyled body text. The two custom modifiers reach a theme through `semanticTokenScopes`, and the
@@ -108,7 +107,7 @@ enforced by a dependency-allowlist test rather than by review. The setting and c
 `settings.json` silently. **A `secret` literal is concealed by default** — blurred in place, the character
 cells kept, so every edit still addresses the real text — and a reveal is per range and dies when the
 editor closes, because the threat is an unattended screen and no API reports one
-([0101](../decisions/0101.md)). `tainted`
+(`rule:ide/reveal-is-explicit-and-window-local`). `tainted`
 is decorated only if the user asks (`nvs.taint.mark`, default `off`): a glyph is *added content*, and how
 a construct looks stays the theme's call. The AST panel inherits the same placeholder in
 `nvs ast --json` itself, or it prints in a webview the credential the buffer behind it is hiding. Extension id `nvs-lang.nvs`; `package-lock.json` is committed because

@@ -2,8 +2,7 @@
   "title": "An `accept` that fails on descriptor exhaustion is retried under a bounded backoff and logged once per window",
   "status": "shipped",
   "because": [
-    "0106",
-    "0095"
+    "0106"
   ],
   "seeAlso": [
     "http-server/the-floor-cannot-fill-the-disk",

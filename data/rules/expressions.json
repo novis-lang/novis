@@ -25,6 +25,7 @@
     "expressions/pipeline-substitution",
     "expressions/pipeline-precedence",
     "expressions/pipeline-hole-once",
+    "expressions/no-null-skipping-pipeline",
     "expressions/catch-expression",
     "expressions/catch-expression-precedence",
     "expressions/catch-arm-is-an-expression",

@@ -2,8 +2,7 @@
   "title": "A node the parser invented says so — `MemberName::Missing` and a spanned `ExprKind::Error` — and an empty span is never the signal",
   "status": "designed",
   "because": [
-    "0099",
-    "0040"
+    "0099"
   ],
   "seeAlso": [
     "ide/one-grammar-one-tree",

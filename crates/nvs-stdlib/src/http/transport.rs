@@ -1192,7 +1192,8 @@ type Repin<'a> = dyn FnMut(&str, bool) -> Result<Vec<IpAddr>, Fault> + 'a;
 
 /// Runs `call` to an answer, re-pinning through `repin` at every redirect hop.
 ///
-/// The loop is the ADR's: attempts inside, hops outside, one deadline over both.
+/// The loop is `rule:http-server/one-deadline-covers-the-whole-call`'s: attempts
+/// inside, hops outside, one deadline over both.
 /// A hop past [`Call::redirects`] is not an error — the redirect *is* the
 /// answer, and a program that asked to follow none gets the `301` back rather
 /// than a throw about a reply the origin was entitled to send.
@@ -1395,7 +1396,8 @@ fn attempts(
             Attempt::Failed(why) => {
                 // A failure that arrives with the budget already gone is the
                 // budget's, not the socket's: the wait this call was allowed
-                // is what ended it, and `TimeoutError` is the class § 5 names.
+                // is what ended it, and `TimeoutError` is the class
+                // `rule:http-server/no-spelling-for-an-unbounded-wait` names.
                 if Instant::now() >= call.deadline {
                     return Err(expired(call.member));
                 }
@@ -1409,7 +1411,8 @@ fn attempts(
             }
         };
 
-        // § 6: the deadline is not extended. A backoff that would end past it
+        // The deadline is not extended (`rule:http-server/one-deadline-covers-the-whole-call`).
+        // A backoff that would end past it
         // throws now rather than sleeping through the budget and then failing.
         if Instant::now() + wait >= call.deadline {
             return Err(expired(call.member));
@@ -1576,7 +1579,8 @@ fn dialled(
     }
     // The handshake's own bound, clamped by what is left of the total: a
     // `connectTimeout` longer than the remaining deadline would be the one
-    // spelling § 5 says does not exist, arrived at by arithmetic.
+    // spelling `rule:http-server/no-spelling-for-an-unbounded-wait` says does
+    // not exist, arrived at by arithmetic.
     let budget = call
         .connect_timeout
         .min(call.deadline.saturating_duration_since(Instant::now()));
@@ -2611,7 +2615,8 @@ fn redirect_of(reply: &Streamed) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// § 6's roster, and nothing else: a `400` is an answer and retrying it is a
+/// `rule:http-server/retry-is-opt-in-jittered-and-closed`'s roster, and nothing
+/// else: a `400` is an answer and retrying it is a
 /// load generator.
 fn retryable(status: i64) -> bool {
     matches!(status, 429 | 502 | 503 | 504)
@@ -2713,9 +2718,10 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     era * 146_097 + day_of_era - 719_468
 }
 
-/// § 6's full jitter: uniform in `[0, base × 2^attempt]`.
+/// Full jitter: uniform in `[0, base × 2^attempt]`.
 ///
-/// Not optional and not configurable, for the reason the ADR gives — unjittered
+/// Not optional and not configurable, for the reason
+/// `rule:http-server/retry-is-opt-in-jittered-and-closed` gives — unjittered
 /// retries from many hosts synchronise into a burst against a service that is
 /// already failing, which is the failure retrying was supposed to relieve.
 fn backoff(base: Duration, attempt: u32) -> Duration {
@@ -2724,7 +2730,8 @@ fn backoff(base: Duration, attempt: u32) -> Duration {
     Duration::from_nanos(rand::rng().random_range(0..=nanos))
 }
 
-/// § 5's expiry, as the class that section names.
+/// The deadline's expiry, as the class
+/// `rule:http-server/no-spelling-for-an-unbounded-wait` names.
 fn expired(member: &str) -> Fault {
     Fault::thrown_as(
         ThrownClass::Timeout,
@@ -4018,7 +4025,8 @@ pub(crate) mod tests {
         assert!(drawn.len() > 1, "an unjittered backoff draws one value");
     }
 
-    /// § 6: the deadline is not extended. A backoff that would end past it
+    /// The deadline is not extended
+    /// (`rule:http-server/one-deadline-covers-the-whole-call`). A backoff that would end past it
     /// throws immediately rather than sleeping through the budget first.
     #[test]
     fn a_backoff_past_the_deadline_throws_rather_than_sleeping() {

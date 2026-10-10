@@ -1,9 +1,7 @@
 {
   "title": "A mode is an enum, never a string or an integer constant, and only four grammars are exempt",
   "status": "shipped",
-  "because": [
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/units-are-types",
     "enums/closed-integer-type",

@@ -3,7 +3,7 @@ member:
 `Core\Str::length(...)`, `$user->getName(...)`, `self::helper(...)` (early-bound) and
 `static::helper(...)` (late-bound). There is no second reference-taking spelling — no `::ref` form,
 and no reuse of `::class`, which stays a class-name-to-string operator unrelated to producing a
-callable value.
+callable value, so that one token never means two unrelated things.
 
 Every spelling above resolves a member at the reference itself rather than at call time, and the
 checker records that resolved target under a variant that cannot be mistaken for an ordinary call.

@@ -12,7 +12,8 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   a handled throw inside it does not stop the session.
 - **Path mappings**, because the container case is the normal case: the file the adapter reports and the
   file in the editor differ whenever the program runs anywhere but the workspace root.
-- **The value a function just returned**, in the variables pane after stepping out.
+- **The value a function just returned**, in the variables pane after stepping out. It is one frame's
+  worth of state the adapter already has, and the UI renders it with no work of its own.
 - **A `spawn`ed isolate is a DAP thread** — the standard presentation, needing no protocol extension. The
   *tree* of isolates would need one and is not built.
 

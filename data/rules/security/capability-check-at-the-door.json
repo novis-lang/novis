@@ -2,9 +2,7 @@
   "title": "The capability check lives inside the function that performs the effect, and that door is the only way out of the process",
   "status": "shipped",
   "because": [
-    "0118",
-    "0005",
-    "0112"
+    "0118"
   ],
   "seeAlso": [
     "security/capability-question-is-grant-and-scope",

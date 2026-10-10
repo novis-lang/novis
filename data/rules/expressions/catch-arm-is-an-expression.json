@@ -1,9 +1,7 @@
 {
   "title": "An arm body is an expression, which admits `throw` and refuses `return` by name",
   "status": "shipped",
-  "because": [
-    "0119"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/catch-expression",
     "expressions/catch-result-type",

@@ -1721,8 +1721,9 @@ fn code_actions(
 /// `nvs/redactions` — which bytes of one open document the client conceals.
 ///
 /// The one request of Novis's own, so nothing in `lsp_types` spells its params
-/// or its answer: a [`TextDocumentIdentifier`] goes in, exactly as ADR 0101 § 1
-/// names it, and a JSON array of `{range, kind}` comes back.
+/// or its answer: a [`TextDocumentIdentifier`] goes in, exactly as
+/// `rule:ide/redaction-ranges-come-from-the-server` names it, and a JSON array
+/// of `{range, kind}` comes back.
 ///
 /// An empty array rather than `null` for a document this server has nothing
 /// open for, and the distinction carries more here than anywhere else on

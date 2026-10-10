@@ -22,3 +22,16 @@ open-ended ambiguity.
 
 Nothing hooks a synthesized class: no `Comparable`, no property observer, no method body to write one
 in. A program that wants behaviour on a shared bag of values declares an ordinary class.
+
+An anonymous object is the shared bag of named values a program passes across a function boundary
+without declaring a class, and the carrier two anonymous functions use to share mutable state
+(`rule:types/implicit-capture`).
+
+- **Memory:** an anonymous object is one ordinary object allocation with one slot per field, the
+  same as an instance of a declared class. No other representation exists for it, and its class is
+  compiled once per distinct set of field names, not per request.
+
+**Declined:**
+- **PHP's `stdClass`, or fields assigned after construction.** Both create undeclared properties at
+  run time, which `rule:classes/no-dynamic-properties` closes. Every field is fixed where the
+  anonymous object is written.

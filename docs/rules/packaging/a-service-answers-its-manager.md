@@ -24,3 +24,13 @@ string, and `nvs.exe` carries the message table that renders it
 (`rule:packaging/the-windows-binary-says-what-it-is`). The event-log source is registered at install
 and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no unit
 file, no granted ACL.
+
+An arbitrary executable is not a Windows service: the SCM needs the process itself to call
+`StartServiceCtrlDispatcher` soon after it starts and to answer controls for the rest of its life. A
+shim answers on the hosted process's behalf and can only say that the process exited. The drain is
+the service's own, so only the service can report it.
+
+**Declined:**
+- **Documenting NSSM or WinSW and shipping nothing.** A shim observes the process from outside, so a
+  stop is a kill rather than a drain, and a Windows deployment would begin by downloading an unrelated
+  binary.

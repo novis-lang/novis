@@ -42,11 +42,11 @@ export interface Range {
 /**
  * One range the server answered, and why it answered it.
  *
- * `kind` is an open string (ADR 0101 § 1), and the two spellings on it are two different
- * instructions: `secretLiteral` is bytes to conceal and `taintedDeclaration` is a name to mark
- * where the user asked for a marker (`rule:ide/tainted-has-no-default-decoration`). Concealing
- * the second would black out an identifier, which `rule:ide/redaction-covers-bytes-only`
- * refuses outright.
+ * `kind` is an open string (`rule:ide/redaction-ranges-come-from-the-server`), and the two
+ * spellings on it are two different instructions: `secretLiteral` is bytes to conceal and
+ * `taintedDeclaration` is a name to mark where the user asked for a marker
+ * (`rule:ide/tainted-has-no-default-decoration`). Concealing the second would black out an
+ * identifier, which `rule:ide/redaction-covers-bytes-only` refuses outright.
  */
 export interface Redaction {
   range: Range;

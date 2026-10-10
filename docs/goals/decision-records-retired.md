@@ -22,7 +22,7 @@ stages:
         shapes: []
   - id: 4
     title: "the merge, records 0002 to 0039"
-    status: open
+    status: done
     extra:
       context:
         adrs: []
@@ -30,7 +30,7 @@ stages:
         shapes: []
   - id: 5
     title: "the merge, records 0040 to 0079"
-    status: open
+    status: done
     extra:
       context:
         adrs: []
@@ -569,27 +569,39 @@ One file set: `AGENTS.md`, `docs/agent/*.md`, `docs/agent/goals/README.md`, `dat
 
 ### State
 
-**Stages 2 and 3 are done.** Records 0051, 0120, 0121, 0123, 0128, 0166, 0190, 0247 are merged and deleted, one commit each, and the three queued goals plan rule fragments instead of a record; both Stage 3 checks are green. The `docs/adr/README.md` nested-type paragraph is now `rule:classes/a-type-is-declared-at-file-scope`, a first Stage 11 merge. Each merge went to one general-purpose subagent briefed with conventions.md § *A decision record*; one record of about 45 rules fits one subagent.
+**Stages 2, 3, 4 and 5 are done.** Every record from 0002 to 0079 is merged and deleted, one commit each, and `git ls-files docs/decisions/00[4-7]*` is empty. Records 0120, 0121, 0123, 0128, 0166, 0190, 0247 and 0199 went earlier. Stage 6 has 40 records left (`bun nv records --left 0080-0119`). The rulebook counts 1035 rules. `bun nv verify` was green at the end of Stage 5.
+
+Each merge goes to one general-purpose subagent, run one after another. Its brief is conventions.md § *A decision record* plus these traps. Keep each `because` array well-formed: a `]` joined onto the line before, or the blank line `bun nv splice` leaves when it removes a whole line, makes the render drop rules silently, so `bun nv rules --list` must still count 1035 plus any added. A bun script under `.agent-tmp/` that removes the number only when re-serialising the original JSON reproduces it byte for byte is how every merge did it safely. `bun nv rules --render` can rewrite `data/schema/rule.schema.json` (its `because` loses `minLength` and `x-references`); it is restored uncommitted, so whether the committed schema is stale is still open. `website/src/data/core.json` lines that cite a record are hand-edited; never its full-render drift. Two middle records, or one record past 30 citing files, fit one subagent at 90k to 190k; three middle records reached 184k.
+
+The brief must also say: a comment edit in a `.nvst` case keeps the case's line count, because its `--EXPECT--` names `case.nvs:LINE` (the 0072 merge broke `tests/conformance/core/a-task-map-and-a-task-all-refuse-each-others-subject.nvst` that way). A record's sections are cited as a bare `§ N` in the modules whose head names it, and `records --check` does not see those: the 0067, 0071, 0072 and 0079 merges mapped most to `rule:` ids. A runtime message or test expectation that names a record is changed together with the case that expects it, in one slice by the session itself.
+
+`bun nv records --check` no longer reads `tools/nv/test/prose.test.ts`, whose fixtures name record numbers (`tools/nv/cmd/records.ts`, `PROSE_TEST`), and it is clean. A test in `crates/nvs-stdlib/src/reflect.rs` read record 0019 for its class roster and now reads `docs/rules/core-classes/reflect.md`: check `git grep -n "docs/decisions/"` in `crates/` and `tools/` before deleting a record a test may read. The `nvs-stdlib` LDAP tests raced on one OU name and missed a 5 s deadline under a full verify run; both are fixed in `crates/nvs-stdlib/tests/ldap.rs`.
 
 The merge shape is in `docs/agent/conventions.md` § *A rule fragment* (reasons, a `**Memory:**` bullet, a `**Declined:**` list) and § *A decision record* (no new record; the five merge steps). `because` may be empty and must name a record on disk (`tools/nv/cmd/rules.ts:184-186`). `data/decisions/` went with the summaries, so the `decision` schema went too: `because` is a list of plain strings now, which pulls part of Stage 12 forward (`tools/nv/schema/decision.ts` is already gone). Record 0199 is merged into `rule:routing/a-match-is-not-invocable` and `rule:security/access-is-checked-for-presence-not-meaning`; `routing/matching-is-not-dispatching` already said everything 0199 added.
 
 `bun nv records` is now only the merge tracker: `--left [<from>-<to> | adr]` and `--check` (the `links` check inside the records, and the tree-wide `citations` check). The old record audit is gone. A record left on disk that links to a merged one must be unlinked to plain text, which the `links` check reports; `docs/decisions/0255.md` was the one for 0199. Citations inside `docs/decisions/` and this goal's own file are not checked. A "cited by N file(s)" count in `--left` includes the generated chapter under `docs/rules/`, which drops out with the record's `because` entry.
 
-`bun nv rules --check` is red before this goal touched it: 16 findings, all queued goals (`class-scoped-enums`, `pdf`, `spreadsheet`, `nvs-code`, `env-context`) citing rules they will create. Stage 13's guard check needs it green. `bun nv records --check` has one finding, `tools/nv/test/prose.test.ts:56`, a test string naming 0199: the `citations` check reads test fixtures as citations.
+`bun nv rules --check` is red before this goal touched it: 16 findings, all queued goals (`class-scoped-enums`, `pdf`, `spreadsheet`, `nvs-code`, `env-context`) citing rules they will create. Stage 13's guard check needs it green.
 
 ### Next
 
-**Stage 4: records 0002 to 0039**, 37 left (`bun nv records --left 0002-0039`). One subagent per one to three records, run one after another, each committing one record at a time. Start with the records that reach one topic, whose file sets do not overlap:
+**Stage 6: records 0080 to 0119**, 40 left. One subagent per one to three records, run one after another, each committing one record at a time, as conventions.md § *A decision record* says (`docs/agent/conventions.md:495`). The brief also tells each subagent to leave plain-text record lists alone (`docs/agent/doc-cleanup.md:46`, `docs/reference/findings.md:18`, this file), to report and not change a user-facing diagnostic naming a record, to rename no test and change no `.nvst` title line, and to run no cargo:
 
-- [ ] **The narrow ones** — 0010 (enums), 0016 (ide), 0025 (packaging), 0035 (expressions), 0038 (classes), 0039 (tooling), merged as conventions.md § *A decision record* says. `docs/agent/conventions.md:495` `docs/decisions/0010.md:1` `docs/decisions/0016.md:1`
-- [ ] **The middle ones** — 0017, 0021, 0027, 0034, 0037 (under 10 citing files each). `docs/decisions/0017.md:1` `docs/decisions/0034.md:1`
-- [ ] **The wide ones last, one subagent each** — 0006 (65 citing files), 0007 (44), 0020, 0033, 0024, 0002. `docs/decisions/0006.md:1` `docs/decisions/0007.md:1`
+- [ ] **The narrow ones, three to a subagent** — 0089, 0098, 0109, 0111, 0113, 0107, 0119, 0108, 0114, 0080, 0112, 0105, 0090, 0081, 0093 (1 to 6 citing files). `docs/decisions/0089.md:1` `docs/decisions/0098.md:1` `docs/decisions/0109.md:1`
+- [ ] **The middle ones, two to a subagent** — 0100, 0087, 0116, 0082, 0101, 0095, 0106, 0085, 0088, 0118, 0086, 0097, 0099 (7 to 18 citing files). `docs/decisions/0100.md:1` `docs/decisions/0087.md:1`
+- [ ] **The wide one alone** — 0102 (20 citing files, 33 rules). `docs/decisions/0102.md:1`
+- [ ] **The rest of the range** — `bun nv records --left 0080-0119` lists the records the groups above do not name; close the stage when `git ls-files docs/decisions/00[89]* docs/decisions/01[01]*` is empty. `docs/goals/decision-records-retired.md:41`
 
 ### Backlog
 
-- Stages 5 to 10: merge every record by number range, rewrite each one's citations in the same slice, and delete it.
-- `rule:core-classes/pdf-one-engine` still describes the builder and the headless-browser backend the `pdf` goal drops; that goal's Stage 2 rewrites it.
-- `website/src/data/core.json` still lists merged record numbers in its `adrs` fields until `bun nv render --website` runs; its unrelated drift was reverted each time.
+- Stages 6 to 10: merge every record by number range, rewrite each one's citations in the same slice, and delete it.
+- Left by the Stage 4 merges, unchecked: `rule:classes/an-unwritten-property-read-throws` says only `lateinit` reaches the never-written state, but `crates/nvs-types/src/ctor_init.rs` says an unassigned hooked property does too; `docs/adr/README.md:90` says a task stack is 64 KiB where `crates/nvs-host/src/stack.rs:88` reserves 1 MiB; the shipped `crates/nvs-config/src/default.toml` sets no `[limits.hard]` ceiling, so per-request memory has no cap by default; the playbook bullet `docs/agent/playbook/tooling/a-loop-goal-toml-exact-check-over-an-example-now-pins-the.md` names a check that no longer exists; `examples/cli.nvs`, `examples/crypto.nvs:9` and parts of `examples/isolate.nvs` still fail `bun nv proofs --comments`.
+- `bun nv verify` failed once at conformance with every case green: `tools/nv/select/record.ts:453` found no recording for 11 cases that the same `recorded` map held at `:477`. It failed the same way for 31 cases in a later session. Each time a rerun was green, and the cause is not found.
+- Rules the Stage 5 merges found disagreeing with the code, left unchanged: `rule:types/enum-case-type` and `rule:types/narrowing` say `$m == Mode::Read` does not narrow, but `tests/conformance/lang/an-enum-case-comparison-narrows-its-subject.nvst` shows it does; `rule:config/scope-has-no-default` says a `fleet` entry with no shared store stops the boot, where `rule:config/a-fleet-entry-fires-at-most-once-under-a-lease` says it is left unarmed with a note. A test name still carries a record number: `crates/nvs-types/tests/visibility.rs:233`. `crates/nvs-types/src/testing.rs:699` is a diagnostic help string naming "§ 9" of a merged record; it means `rule:testing/data-rows`. `Cargo.toml:540` says `raw_value` writes a `decimal` as an exact JSON number, but `crates/nvs-stdlib/src/json.rs:143` writes a string. `rule:config/the-extension-set-is-in-every-unit-key` gives `content_hash` as the source alone, where `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` says name, text and folder.
+- Bare `§ N` marks of merged records are left in `crates/nvs-cli/src/cache.rs` (0042, about 100), the `crates/nvs-db/src/` drivers and `crates/nvs-stdlib/src/db/` (0067, mixed with other records), `crates/nvs-config/src/tree.rs` and `crates/nvs-stdlib/src/http/transport.rs:18`. Nothing checks them; Stage 13's guard decides whether it should.
+- `worker::tests::a_served_process_with_workers_exits_within_its_deadline_once_the_drain_begins` (`crates/nvs-cli/src/worker.rs:3056`) failed once under a full `bun nv verify` at 2.5 s and passed alone and on the rerun.
+- `website/src/data/core.json` still lists merged record numbers in its `adrs` fields until `bun nv render --website` runs; its unrelated drift was reverted each time. `rule:core-classes/pdf-one-engine` is rewritten by the `pdf` goal's Stage 2.
+- Gaps the merges found and left unfiled (`data/gaps/`): `else if` is not normalized to `elseif` (filed, `data/gaps/nvs-fmt/else-if-is-kept-as-two-words.json`); `docs/rules/ide/redaction-ranges-come-from-the-server.md:22` says there is no language server; no test calls `$obj(...)` for the no-`__invoke` diagnostic (`crates/nvs-types/src/expr/calls.rs:1372`); `rule:testing/perf-two-mechanisms` names a callgrind runner CI does not have; no dead-letter depth series exists though `examples/queue.nvs` once claimed one; no per-request cap on `{shared: false}` database connections (`crates/nvs-stdlib/src/db/`); a second throw in a task group goes to stderr, not `Core\Log` (`crates/nvs-host/src/group.rs:76`); `#[TestSource]` and `assertStartsWith` do not exist; no test resolves a Windows absolute `script.spawn` root.
 - Stage 11: merge and delete the rest of `docs/adr/`.
 - Stage 12: the rest of the tools forget records (`tools/nv/cmd/pack.ts:47` `SHAPE_IMPLIES`, `pack.ts:221`).
 - Stage 13: the process docs (`docs/agent/doc-cleanup.md:129`, `docs/agent/loop-authoring.md:125`, the playbook bullet `tooling/a-decision-records-changes-block-needs-modifies-spelled-out`) and the guard; `nv rules --check` must be green first.

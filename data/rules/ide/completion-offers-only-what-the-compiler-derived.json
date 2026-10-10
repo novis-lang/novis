@@ -2,8 +2,6 @@
   "title": "The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network",
   "status": "designed",
   "because": [
-    "0108",
-    "0111",
     "0240",
     "0242",
     "0243"
@@ -16,5 +14,8 @@
     "routing/api-document-is-generated-from-the-route-table",
     "programs/first-party-framework"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-lsp/tests/completion.rs",
+    "crates/nvs-lsp/tests/directives.rs"
+  ]
 }

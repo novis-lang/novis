@@ -13,11 +13,12 @@ fixed segments or captures:
 
 A capture is a whole segment: `/u{id}` and `/{id}.json` are refused, not partially matched. Every
 capture names a parameter of the method it is attached to, and that parameter's type is what the
-segment converts to (`rule:security/route-capture-is-laundered-by-its-type`). The inline `{id:uint}`
-form is deliberately not taken: the type is already written on the parameter, and a constraint stated
-in two places is one that can disagree.
+segment converts to (`rule:security/route-capture-is-laundered-by-its-type`).
 
-`{name}` rather than `:name`, for two reasons: `:` is a legal character inside a path segment
-(`/a:b` is a valid path), so `:name` would need an escape rule the braced form does not; and the
-braced form is what OpenAPI, Laravel, Symfony, axum and ASP.NET all use, so it is the spelling a
-reader arrives with.
+**Declined:**
+- **`:name` placeholders.** `:` is a legal character inside a path segment (`/a:b` is a valid path),
+  so `:name` would need an escape rule the braced form does not; and the braced form is what
+  OpenAPI, Laravel, Symfony, axum and ASP.NET all use, so it is the spelling a reader arrives with.
+- **An inline constraint** (`{id:uint}`). The type is already written on the parameter, and a
+  constraint stated in two places is one that can disagree; a closed set is a literal-union type on
+  the parameter (`rule:routing/a-capture-narrows-to-a-closed-set`).

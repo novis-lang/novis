@@ -1,9 +1,7 @@
 {
   "title": "`#[After]` is for state that outlives the isolate, and nothing else needs teardown",
   "status": "designed",
-  "because": [
-    "0079"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/constructor-is-setup",
     "testing/isolate-per-test"

@@ -2,8 +2,6 @@
   "title": "A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses",
   "status": "shipped",
   "because": [
-    "0059",
-    "0033",
     "0181"
   ],
   "seeAlso": [

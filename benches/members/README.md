@@ -153,7 +153,7 @@ else:
   by it, and *that* ratio is the `units` column.
 
 `ns/op` is the fastest of the reps and honest on the machine that took it and meaningless on
-another one, which is [ADR 0026](../../docs/decisions/0026.md)'s whole finding — so every record
+another one, which is why `rule:testing/perf-two-mechanisms` counts instructions — so every record
 carries a machine fingerprint and the report refuses to print a clock delta across two of them. The
 `median` rides beside it so a delta can be read against the spread it was taken in: a delta inside
 that spread is the machine, not the code. `units` divides out the clock speed and travels, to about

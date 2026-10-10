@@ -2,9 +2,7 @@
   "title": "`nvs ast --json` has a frozen node schema, is resilient by default, and its only type-dependent field is a `secret` string literal's placeholder",
   "status": "designed",
   "because": [
-    "0099",
-    "0101",
-    "0040"
+    "0099"
   ],
   "seeAlso": [
     "security/redaction-reaches-the-tools-own-renderings",

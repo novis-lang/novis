@@ -3,7 +3,9 @@ produces an error node — the AST keeps no variant for it. `E0237`: *`&` is not
 Novis — write `inout` before the type.*
 
 `&` keeps its other three jobs unchanged: `$a & $b` is bitwise AND, `$a && $b` is logical AND, and `A&B` is
-an intersection type. The one-token lookahead that told `int &$x` apart from an intersection continuation
+an intersection type. Its other two PHP meanings, a by-reference binding and a by-reference return
+(`function &bump`), are both `E0237`. With them gone, an `&` in a type position always means an
+intersection. The one-token lookahead that told `int &$x` apart from an intersection continuation
 survives the removal of the meaning it was written for, because meaning it and parsing it are two different
 questions: the type parser reaches that `&` first, and consuming it as an intersection member would leave
 the site above it nothing to report but a malformed intersection.

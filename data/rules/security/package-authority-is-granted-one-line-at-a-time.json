@@ -1,12 +1,7 @@
 {
   "title": "A dependency's authority is granted by the application one line at a time, and a declaration grants nothing",
   "status": "designed",
-  "because": [
-    "0081",
-    "0112",
-    "0005",
-    "0055"
-  ],
+  "because": [],
   "seeAlso": [
     "security/authority-is-the-enclosing-namespace",
     "security/grants-are-keyed-on-a-namespace",

@@ -456,7 +456,7 @@ fn a_checked_return_frame_stays_cheap() {
     judge(
         "checked-return frame",
         PER_FRAME,
-        "ADR 0002 justifies the checked-return convention on a frame costing about a \
+        "rule:errors/throw-is-not-slower justifies the checked-return convention on a frame costing about a \
          nanosecond; at this cost that argument needs revisiting.",
         |yard| {
             let t_shallow = ns_per_op(200_000, 5, || {
@@ -482,7 +482,7 @@ fn a_checked_return_frame_stays_cheap() {
 fn throwing_costs_about_the_same_as_returning() {
     let _quiet = serialised();
 
-    // ADR 0002 claims a throw costs roughly what a return does, which is what
+    // `rule:errors/throw-is-not-slower` says a throw costs roughly what a return does, which is what
     // lets PHP code that uses exceptions for control flow keep working. A large
     // ratio here means the error path has acquired real work — an allocation
     // for the message is on its own enough to put a throw at several times a
@@ -533,13 +533,13 @@ fn throwing_costs_about_the_same_as_returning() {
         (0, 0),
         "{COUNTED} throws through 8 frames made {thrown} allocations and {COUNTED} returns made \
          {returned}. A throw that costs about what a return does allocates nothing, which is \
-         ADR 0002's claim and the reason `Ctx::pending` borrows its message."
+         rule:errors/throw-is-not-slower and the reason `Ctx::pending` borrows its message."
     );
 
     judge(
         "throw/return ratio at depth 8",
         THROW_PER_RETURN,
-        "The error path has acquired real work, which ADR 0002's claim that a throw costs \
+        "The error path has acquired real work, which rule:errors/throw-is-not-slower's claim that a throw costs \
          about what a return does rules out.",
         |yard| {
             let ok = ns_per_op(200_000, 5, || {
@@ -687,8 +687,9 @@ fn a_raise_renders_one_frame_label_and_nothing_larger() {
 fn a_coroutine_round_trip_stays_cheap() {
     let _quiet = serialised();
 
-    // A suspend and resume through JIT frames, which ADR 0003's preamble and
-    // docs/adr/README.md price as the cost of "no async colouring".
+    // A suspend and resume through JIT frames, which
+    // `rule:packaging/a-guest-call-yields-on-its-core` and docs/adr/README.md
+    // price as the cost of "no async colouring".
     //
     // The proof is counted, so it holds on any machine however loaded. A
     // suspend and the resume after it switch between two stacks that both
@@ -721,7 +722,7 @@ fn a_coroutine_round_trip_stays_cheap() {
         counted.value, 0,
         "{COUNTED} suspend and resume round trips made {} allocations. A round trip switches \
          between two stacks that already exist and allocates nothing; one that allocates is no \
-         longer the cheap switch ADR 0003's \"no async colouring\" rests on.",
+         longer the cheap switch an extension's \"no async colouring\" rests on.",
         counted.value
     );
 
@@ -742,7 +743,7 @@ fn a_coroutine_round_trip_stays_cheap() {
     judge(
         "coroutine suspend/resume through 2 JIT frames",
         PER_TRIP,
-        "A round trip in this class is no longer the cheap switch ADR 0003's \"no async \
+        "A round trip in this class is no longer the cheap switch an extension's \"no async \
          colouring\" rests on.",
         |_yard| {
             batch(10_000); // warm up
@@ -764,14 +765,14 @@ fn a_coroutine_round_trip_stays_cheap() {
 fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
     let _quiet = serialised();
 
-    // ADR 0018 § 1's whole argument for a runtime-checked flag over a second
-    // compiled tier rests on this: the check is emitted at every statement
-    // boundary of every compiled unit, whether or not any request ever sets a
-    // bit, so its all-bits-off cost has to be the same cost class already
-    // accepted for the safepoint poll — one cached load and one
-    // predicted-not-taken branch. If it is not, that ADR's *Revisiting*
-    // section says the fix is coarsening the probe site to one per basic
-    // block, not loosening this number.
+    // `rule:testing/debug-probes`'s whole argument for a runtime-checked flag
+    // over a second compiled tier rests on this: the check is emitted at every
+    // statement boundary of every compiled unit, whether or not any request
+    // ever sets a bit, so its all-bits-off cost has to be the same cost class
+    // already accepted for the safepoint poll — one cached load and one
+    // predicted-not-taken branch. If it is not, that rule says the fix is
+    // coarsening the probe site to one per basic block, not loosening this
+    // number.
     //
     // The soft bound sits well under `a_checked_return_frame_stays_cheap`'s own:
     // a probe site does strictly less than a frame (no call, no 16-byte result
@@ -795,7 +796,7 @@ fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
         "all-bits-off debug probe",
         PER_SITE,
         "That check is emitted at every statement boundary of every compiled unit; if this is \
-         real, ADR 0018 § Revisiting says to coarsen the probe site, not to raise this bound.",
+         real, rule:testing/debug-probes says to coarsen the probe site, not to raise this bound.",
         |yard| {
             let t_plain = ns_per_op(200_000, 5, || {
                 black_box(call(plain, &mut ctx, arg));
@@ -1005,9 +1006,9 @@ mod wasm_guards {
     #[test]
     #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
     fn a_host_to_guest_call_stays_cheap() {
-        // ADR 0003's whole tier argument rests on this call costing tens of
-        // nanoseconds rather than a microsecond, which is where the hard bound
-        // sits.
+        // The whole tier argument (`rule:packaging/the-boundary-is-the-cost`)
+        // rests on this call costing tens of nanoseconds rather than a
+        // microsecond, which is where the hard bound sits.
         const PER_CALL: Bound = Bound::time_under(200.0, 2_000.0);
 
         let probe = WasmProbe::new().expect("wasm probe");
@@ -1019,7 +1020,7 @@ mod wasm_guards {
         judge(
             "wasm host->guest call",
             PER_CALL,
-            "ADR 0003's tier argument assumes a call in the tens of nanoseconds.",
+            "The extension tier argument assumes a call in the tens of nanoseconds.",
             |_yard| Reading {
                 value: ns_per_op(200_000, 5, || {
                     black_box(add.call(&mut store, (1, 2)).expect("call"));
@@ -1033,7 +1034,8 @@ mod wasm_guards {
     #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
     fn per_request_instantiation_stays_affordable() {
         // What makes a fresh instance per request — and therefore per-request
-        // isolation for extensions — affordable (ADR 0003). A figure past the
+        // isolation for extensions — affordable
+        // (`rule:packaging/a-fresh-instance-per-request`). A figure past the
         // hard bound most likely means the pooling allocator is no longer in
         // use.
         const PER_INSTANCE: Bound = Bound::time_under(100_000.0, 1_000_000.0);
@@ -1083,7 +1085,7 @@ mod wasm_guards {
 fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
     let _quiet = serialised();
 
-    // ADR 0006 gives Novis an in-process script isolate because PHP's only way to
+    // `rule:security/isolate-shares-nothing` gives Novis an in-process script isolate because PHP's only way to
     // run a script under its own heap, globals and limits is another process.
     // The whole argument is this ratio, so it is measured rather than asserted.
     //
@@ -1101,8 +1103,8 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
     judge(
         "isolation boundary, an os process against a task",
         PROCESS_PER_TASK,
-        "ADR 0006 justifies in-process script isolates on that gap; if the gap has really \
-         closed, the ADR needs revisiting.",
+        "`rule:security/isolate-shares-nothing` justifies in-process script isolates on that \
+         gap; if the gap has really closed, the rule needs revisiting.",
         |yard| {
             let task_ns = ns_per_op(50_000, 5, || {
                 let run = nvs_abi_probe::in_coroutine(Ctx::new(), |_ctx| black_box(7i64));
@@ -1155,7 +1157,7 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
     let _quiet = serialised();
 
     // The figure M5's acceptance asks for, and the one the test above only
-    // approximates: that one prices a bare coroutine, this one prices ADR 0006's
+    // approximates: that one prices a bare coroutine, this one prices the isolate
     // boundary itself — the argument's graph copy in, the child's own ownership
     // root and context, the child task, the answer's copy out, the release.
     //
@@ -1200,7 +1202,7 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
     judge(
         "isolate spawn to result",
         PER_ROUND_TRIP,
-        "ADR 0006 replaces a child process with this boundary and M5's acceptance puts it in \
+        "an isolate replaces a child process with this boundary and M5's acceptance puts it in \
          the single-digit microseconds; at this figure the child is doing something a child \
          should not, or the boundary has acquired a syscall.",
         |_yard| {
@@ -1615,14 +1617,15 @@ fn a_route_table_walk_costs_a_fraction_of_the_request_it_rides_in() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR 0007's claim, tested rather than asserted
+// `rule:types/declaration`'s claim, tested rather than asserted
 // ---------------------------------------------------------------------------
 //
 // "Mandatory types pay for themselves on the request path" is a claim about
 // what the *compiler emits*, so both guards below compile the frozen
 // `examples/arith.nvs` fixture through the real pipeline rather than
 // approximating it with hand-built IR. The first is structural and the honest
-// form of the claim; the second is a timing, and self-relative per ADR 0026.
+// form of the claim; the second is a timing, and self-relative per
+// `rule:testing/perf-two-mechanisms`.
 
 /// Compiles `examples/arith.nvs` and returns its lowered program alongside the
 /// compiled unit.
@@ -1687,7 +1690,7 @@ fn a_typed_arithmetic_loop_contains_no_call() {
 
     // Half one: the loop's arithmetic reached no helper and no Novis function.
     // `$total + $i * 2 - 1` and `$i < $n` are native instructions because
-    // ADR 0007 settled both operands' types before lowering; an untyped
+    // declared types settled both operands before lowering; an untyped
     // language has to call something here.
     let insts = || sum.blocks.iter().flat_map(|b| b.insts.iter());
     let calls: Vec<&InstKind> = insts()
@@ -1696,14 +1699,14 @@ fn a_typed_arithmetic_loop_contains_no_call() {
         .collect();
     assert!(
         calls.is_empty(),
-        "Bench::sum now contains {} call instruction(s): {calls:?}. ADR 0007 justifies \
+        "Bench::sum now contains {} call instruction(s): {calls:?}. rule:types/declaration justifies \
          mandatory types on typed arithmetic lowering to native instructions; if a call \
          genuinely belongs here now, that argument needs revisiting.",
         calls.len()
     );
 
     // Half two: every `call` the *machine code* contains is accounted for by a
-    // safepoint poll, an ADR 0018 probe or an overflow raise — all out-of-line,
+    // safepoint poll, a debug probe or an overflow raise — all out-of-line,
     // the first two emitted unconditionally and guarded for cost separately
     // above. Tying the machine-code count to the IR site count is what makes
     // half one a claim about the emitted code rather than only about the IR.
@@ -1716,9 +1719,9 @@ fn a_typed_arithmetic_loop_contains_no_call() {
             .iter()
             .filter(|b| matches!(b.term, nvs_ir::ir::Terminator::Branch { .. }))
             .count();
-    // The remaining accounted categories, both owed to ADR 0007 § 4's overflow
+    // The remaining accounted categories, both owed to `rule:types/arithmetic`'s overflow
     // throw. Each checked integer arithmetic instruction owns a cold block
-    // calling `nvs_runtime::nvs_raise_new`, and the ADR 0002 error edge it
+    // calling `nvs_runtime::nvs_raise_new`, and the `rule:errors/propagation` error edge it
     // takes ends in a landing block whose `Propagate` calls `nvs_trace_push`.
     // Both are out-of-line and neither is reached while the arithmetic fits —
     // the hot path is still one machine instruction plus a predicted not-taken
@@ -1779,14 +1782,14 @@ fn a_typed_arithmetic_loop_contains_no_call() {
 fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     let _quiet = serialised();
 
-    // Self-relative, per ADR 0026: the bound is a multiple of the
+    // Self-relative, per `rule:testing/perf-two-mechanisms`: the bound is a multiple of the
     // checked-return frame cost this file already measures on *this* machine,
     // never an absolute figure quoted from another one.
     //
     // An iteration does a compare, three arithmetic operations, a safepoint
-    // poll and the ADR 0018 probe checks at its statements and its loop
+    // poll and the debug probe checks at its statements and its loop
     // branch — and still costs less than one
-    // cross-frame call, which is the whole of ADR 0007's claim. The soft bound
+    // cross-frame call, which is the whole of `rule:types/declaration`'s claim. The soft bound
     // is set well above that. Arithmetic going through a runtime helper instead
     // of a native instruction puts four calls in each iteration, and
     // `a_typed_arithmetic_loop_contains_no_call` above is what fails on it,
@@ -1821,7 +1824,7 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
     judge(
         "typed arithmetic loop iteration, against a checked-return frame",
         ITERATION_PER_FRAME,
-        "ADR 0007 justifies mandatory types on typed arithmetic staying in the native cost \
+        "rule:types/declaration justifies mandatory types on typed arithmetic staying in the native cost \
          class; if this is a real regression that argument needs revisiting.",
         |yard| {
             let t_shallow = ns_per_op(200_000, 5, || {
@@ -1848,7 +1851,7 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR 0054's claim, measured rather than asserted
+// `rule:types/decimal`'s claim, measured rather than asserted
 // ---------------------------------------------------------------------------
 //
 // `decimal` is the arithmetic type whose operators are out-of-line helper calls
@@ -1875,7 +1878,7 @@ fn compile_decimal_arith() -> nvs_codegen::Unit {
 fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
     let _quiet = serialised();
 
-    // Self-relative, per ADR 0026: the bound is a multiple of the
+    // Self-relative, per `rule:testing/perf-two-mechanisms`: the bound is a multiple of the
     // checked-return frame cost this file already measures on *this* machine,
     // never an absolute figure quoted from another one.
     //
@@ -1916,7 +1919,7 @@ fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
     judge(
         "typed decimal arithmetic loop iteration, against a checked-return frame",
         ITERATION_PER_FRAME,
-        "ADR 0054 § *Consequences* claims a helper call per operator and no allocation; at \
+        "`rule:types/decimal` claims a helper call per operator and no allocation; at \
          this ratio one of those two has stopped being true.",
         |yard| {
             let t_shallow = ns_per_op(200_000, 5, || {
@@ -1947,10 +1950,10 @@ fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
 fn a_refcount_one_array_member_mutates_in_place() {
     let _quiet = serialised();
 
-    // Self-relative, per ADR 0026: the bound compares two writes measured on
+    // Self-relative, per `rule:testing/perf-two-mechanisms`: the bound compares two writes measured on
     // *this* machine, never an absolute figure quoted from another one.
     //
-    // ADR 0063 R3 says no `Core` member mutates its subject — every one
+    // `rule:core-api/nothing-mutates` says no `Core` member mutates its subject — every one
     // returns a fresh value. That is only affordable because a write into an
     // array nothing else holds is done in place, with no copy at all: the
     // `refcount == 1` fast path in `nvs_runtime::array`. This guard is what
@@ -2004,7 +2007,7 @@ fn a_refcount_one_array_member_mutates_in_place() {
         "{COUNTED} writes to a key of a solely-owned array made {in_place} allocations. A write \
          in place replaces one value and allocates nothing; an allocation there is the \
          `refcount == 1` fast path in `nvs_runtime::array` copying or growing the entries, and \
-         ADR 0063 R3's immutable `Core` API rests on it doing neither."
+         `rule:core-api/nothing-mutates` rests on it doing neither."
     );
     assert!(
         separating > 0,
@@ -2015,7 +2018,7 @@ fn a_refcount_one_array_member_mutates_in_place() {
     judge(
         "array write in place, against a separating one",
         IN_PLACE_PER_SEPARATING,
-        "ADR 0063 R3's immutable `Core` API rests on that write being in place; if this is a \
+        "`rule:core-api/nothing-mutates` rests on that write being in place; if this is a \
          real regression that argument needs revisiting.",
         |yard| {
             let in_place = ns_per_op(200_000, 5, || {
@@ -2083,10 +2086,9 @@ fn corpora() -> [(&'static str, String, Bound); 2] {
 fn a_grapheme_index_costs_more_than_a_code_point_index() {
     let _quiet = serialised();
 
-    // ADR 0009 § 2's granularity, decided by this measurement, which its
-    // *Revisiting* section asked for by name.
+    // `rule:types/string-is-utf8`'s granularity, which rests on this measurement.
     //
-    // The reference cost that ADR names is UTF-8 validation: `bytes as string`
+    // The reference cost is UTF-8 validation: `bytes as string`
     // already pays one O(n) pass over the buffer at every such conversion, and
     // that cost is already accepted. So the question is how many of those
     // passes a grapheme count is worth, and the answer splits by corpus —
@@ -2137,7 +2139,7 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
         judge(
             &format!("{name}: a grapheme count, in UTF-8 validations of the same buffer"),
             per_validation,
-            "ADR 0009 § 2 makes grapheme clusters `string`'s default unit on the strength of a \
+            "`rule:types/string-is-utf8` makes grapheme clusters `string`'s default unit on the strength of a \
              measured figure well under that; if this is a real regression, that decision needs \
              revisiting rather than this bound.",
             |yard| {
@@ -2173,7 +2175,7 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR 0056's claim, measured rather than asserted
+// The two regex tiers, measured rather than asserted
 // ---------------------------------------------------------------------------
 //
 // `rule:core-classes/regex-two-tiers` routes a pattern to the linear engine
@@ -2247,7 +2249,7 @@ class Bench {
 fn the_linear_regex_tier_keeps_pace_with_the_backtracking_tier_on_one_corpus() {
     let _quiet = serialised();
 
-    // Self-relative, per ADR 0026: the two tiers are measured against each
+    // Self-relative, per `rule:testing/perf-two-mechanisms`: the two tiers are measured against each
     // other in the same run, never against a figure quoted from another
     // machine. Neither pattern matches anywhere in the corpus, so each leg is
     // a full scan of the same bytes rather than a race to an early hit.
@@ -2312,11 +2314,11 @@ fn the_linear_regex_tier_keeps_pace_with_the_backtracking_tier_on_one_corpus() {
 }
 
 // ---------------------------------------------------------------------------
-// ADR 0014 § 4's claim, tested rather than asserted
+// `rule:classes/property-observer-costs-nothing-when-unused`, tested rather than asserted
 // ---------------------------------------------------------------------------
 
-/// The fixture the ADR 0014 guard compiles, holding both sides of that ADR's
-/// § 4 claim in one class so they share a layout, a header and an allocation.
+/// The fixture the property-observer guard compiles, holding both sides of
+/// that rule's claim in one class so they share a layout, a header and an allocation.
 ///
 /// `$n` is an ordinary property on a class that declares neither a hook for it
 /// nor `PropertyObserver`; `$m` is the same `int` behind the cheapest possible
@@ -2412,12 +2414,12 @@ class Cell {
 /// `$c->n = $c->n + 1` brings an overflow raise, a `Release` of the receiver
 /// and a `Propagate` with it — three machine calls that no run reaches unless
 /// the addition has already overflowed. Counting those reads an access as a
-/// dispatch it never performs, which is exactly what ADR 0014 § 4 claims it is
-/// not. So the
+/// dispatch it never performs, which is exactly what
+/// `rule:classes/property-observer-costs-nothing-when-unused` claims it is not. So the
 /// blocks are walked from the entry, and the **taken** edge of a
 /// `test`-then-`jnz` pair is not followed: that pair is how codegen renders
 /// every check of a status word — a call's error return, an overflow's `seto`,
-/// the safepoint's pending-exception field, the ADR 0018 probe's null table
+/// the safepoint's pending-exception field, the debug probe's null table
 /// pointer — so its target is by construction a block a run that throws
 /// nothing never enters. Every other edge is followed, the `cmpq`-driven
 /// branches a real condition compiles to included, so the loop's own two arms
@@ -2513,24 +2515,22 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
 
     let _quiet = serialised();
 
-    // ADR 0014 § 4: a property with no hook, on a class that does not
+    // `rule:classes/property-observer-costs-nothing-when-unused`: a property with no hook, on a class that does not
     // implement `PropertyObserver`, compiles to a direct field load or store —
     // "no branch, no virtual call, nothing paid by a class that never asked
-    // for either mechanism". That sentence is what buys the whole ADR: an
-    // observer is a language-wide mechanism, so it is only affordable if the
-    // classes that ignore it pay for it exactly nothing.
+    // for either mechanism". That sentence is what the observer rests on: it
+    // is a language-wide mechanism, so it is only affordable if the classes
+    // that ignore it pay for it exactly nothing.
     //
-    // `PropertyObserver` itself has no implementation yet — it is deliberately
-    // absent from `nvs_hir::interfaces::RESERVED`, which says so — so the
-    // reference this measures against is the ADR's *other* opt-in, a
-    // per-property hook. That is the stronger of the two references anyway: a
+    // The reference this measures against is the *other* opt-in, a
+    // per-property hook. That is the stronger of the two references: a
     // hook is the cheapest thing an access can become once it stops being a
     // slot touch, one ordinary call each way, and an observer would add a
     // second on top of it. So if an unhooked access ever acquired a dispatch,
     // its cost would climb into the hooked one's class and this ratio would
     // approach 1.
     //
-    // Self-relative, per ADR 0026: both legs are measured on this machine, in
+    // Self-relative, per `rule:testing/perf-two-mechanisms`: both legs are measured on this machine, in
     // the same run, over the same class.
     //
     // The unhooked pair costs a small fraction of the hooked one, and the soft
@@ -2562,9 +2562,10 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     assert!(
         calls.is_empty(),
         "an unhooked property access on an observer-free class now lowers to \
-         {} call instruction(s): {calls:?}. ADR 0014 § 4 makes that access a \
+         {} call instruction(s): {calls:?}. \
+         `rule:classes/property-observer-costs-nothing-when-unused` makes that access a \
          direct field load or store; if a call genuinely belongs here now, \
-         that ADR's zero-cost claim needs revisiting.",
+         that rule's zero-cost claim needs revisiting.",
         calls.len()
     );
 
@@ -2589,17 +2590,17 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     // which is what turns the check above from a claim about IR into a claim
     // about machine code. Taken as a slope between two bodies rather than as
     // an absolute count, for the same reason the timing below is: a frame
-    // pays for things that are not this ADR's — the allocation, the loop, the
+    // pays for things that are not this rule's — the allocation, the loop, the
     // one refcount call an object-typed local costs at its scope's end — and
     // all of those are per-frame, so they cancel. What is left is exactly what
     // three more access pairs added.
     //
     // No probe/safepoint correction is needed: `path_calls` walks the path a
-    // run that throws nothing takes, and an ADR 0018 probe and a safepoint
+    // run that throws nothing takes, and a debug probe and a safepoint
     // poll each sit behind a status test, so neither is on it. A count over
     // the whole function would need them subtracted and would still hold the
     // landing blocks every added access brings, which is enough to read calls
-    // here where this ADR claims none.
+    // here where this rule claims none.
     let slope = |one: &str, four: &str| -> isize {
         path_calls(&program, four).len() as isize - path_calls(&program, one).len() as isize
     };
@@ -2645,7 +2646,8 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     assert_eq!(
         plain_extra, 0,
         "three more unhooked property accesses now emit {plain_extra} call(s) \
-         on the path a run that throws nothing takes. ADR 0014 § 4 makes an \
+         on the path a run that throws nothing takes. \
+         `rule:classes/property-observer-costs-nothing-when-unused` makes an \
          access on an observer-free class a direct field load or store; \
          anything else there is a dispatch it did not ask for. \
          Three more access pairs grew the IR by: {plain_slope:?}"
@@ -2684,7 +2686,7 @@ fn a_class_without_a_property_observer_costs_nothing_extra() {
     judge(
         "property read+write unhooked, against a pass-through hook pair",
         PLAIN_PER_HOOKED,
-        "ADR 0014 § 4 rests on the unhooked access paying nothing for a mechanism it never \
+        "`rule:classes/property-observer-costs-nothing-when-unused` rests on the unhooked access paying nothing for a mechanism it never \
          asked for; if this is real, that claim needs revisiting rather than this bound.",
         |yard| {
             let plain = per_pair("Cell::plainOne", "Cell::plainFour");

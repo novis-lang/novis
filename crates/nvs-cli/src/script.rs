@@ -202,8 +202,9 @@ pub(crate) struct Compiled {
     id: Arc<str>,
 }
 
-/// What one written path resolved to last, and when that was checked — [ADR
-/// 0017]'s `PathEntry`, the pointer an edit swaps.
+/// What one written path resolved to last, and when that was checked: the
+/// pointer an edit swaps in
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart`.
 ///
 /// Copied out of the map rather than read under a guard held across the `stat`
 /// and the compile below it, which is why every field is [`Copy`]: a guard

@@ -1,11 +1,7 @@
 {
   "title": "Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier",
   "status": "shipped",
-  "because": [
-    "0018",
-    "0079",
-    "0041"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/debug-surface",
     "testing/debug-mode-directive",
@@ -13,6 +9,7 @@
   ],
   "guardedBy": [
     "crates/nvs-codegen/tests/probes.rs",
-    "crates/nvs-runtime/src/ctx/trace.rs"
+    "crates/nvs-runtime/src/ctx/trace.rs",
+    "benches/abi-probe/tests/perf_guards.rs"
   ]
 }

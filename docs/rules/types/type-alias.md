@@ -28,3 +28,13 @@ it creates no name a runtime observer can see.
 Aliases are resolved eagerly and a cycle is a diagnostic — `type A = B; type B = A;` is rejected at
 check time rather than left to loop or bottom out at `mixed`. They are non-parametric:
 `type Rows<T> = …` is out of scope while user-defined generics are.
+
+An alias exists because a mandatory annotation can be long: `array<array<int|string>>` written at
+every parameter and property is noise that a short name removes. A file-scope alias does not reopen
+`rule:classes/no-free-functions-or-constants`, which closes names that exist at run time with no class
+to own them; an alias, like a `use` import, is resolved and discarded before code is generated.
+
+**Declined:**
+- **A nominal alias, a newtype that needs an explicit conversion.** A distinct type over an existing
+  representation is a different feature with its own costs, and an alias is a transparent synonym
+  only.

@@ -1652,7 +1652,7 @@ unary_float! {
     /// them — over the 3,600 tenths of a degree in a turn it is closer to the
     /// true value 851 times against 118 — but this form is what makes the
     /// round trip agree, and the ulp is observable: `==` over `float` is exact
-    /// ([ADR 0090](/docs/decisions/0090.md)), so
+    /// (`rule:expressions/equality-semantics`), so
     /// `toDegrees(toRadians(30.0)) == 30.0` answers `true` with this pair and
     /// `false` with the std one. The round trip is the property kept, and
     /// nothing here promises an accuracy beyond it.

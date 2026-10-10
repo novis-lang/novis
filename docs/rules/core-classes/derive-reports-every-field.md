@@ -8,9 +8,19 @@ located. For a row decode it is the column name. `ParseError` carries the list; 
 class was added for it, because `ParseError` is already exactly the right node: *input did not match
 a format this code declared*.
 
-The accumulator is allocated only when the first issue is recorded, so the successful path — every
-request that is not an error — allocates nothing for it.
+A whole list is the point: a submitted form has to tell its user about every bad field at once, not
+one per round trip.
 
-One thing the record describes has not landed: `Core\Db\DbError` has no `issues` slot of its own, so
-the row half's per-field refusals are reported on a `ParseError` instead. Gap 4 in
-`crates/nvs-stdlib/src/db/mod.rs` is where that is recorded.
+`Core\Db\DbError` has no `issues` slot of its own yet, so the row half's per-field refusals are
+reported on a `ParseError` instead. Gap 4 in `crates/nvs-stdlib/src/db/mod.rs` is where that is
+recorded.
+
+- **Memory:** the accumulator is allocated only when the first issue is recorded, so the successful
+  path — every request that is not an error — allocates nothing for it.
+
+**Declined:**
+- **Reporting the first failed field only.** It suits a configuration file and fails a form, whose
+  user would be told about one mistake at a time.
+- **A new exception class per format.** The closed `Throwable` set exists so that `catch` is
+  learnable (`rule:errors/throwable-hierarchy`), and what was missing was a field on an existing
+  class, not a new class.

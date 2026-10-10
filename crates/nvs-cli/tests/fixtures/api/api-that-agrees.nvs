@@ -1,5 +1,5 @@
 <?nvs
-// The other side of ADR 0085 § 2's bound: one `#[Api]` carrying all four
+// The other side of the `#[Api]` bound: one `#[Api]` carrying all four
 // fields, every one of them agreeing with the code beside it. Without this the
 // four refusing fixtures would still pass if `#[Api]` refused *everything*.
 //
@@ -28,7 +28,7 @@ class Items
         return new Item();
     }
 
-    // The other side of the same bound: a route with no `#[Api]` at all. § 2's
+    // The other side of the same bound: a route with no `#[Api]` at all. `#[Api]`'s
     // four are additions, so this operation carries none of the four members
     // rather than empty ones — and the two rows sit in one document so a reader
     // of the emitter's output sees both answers at once.

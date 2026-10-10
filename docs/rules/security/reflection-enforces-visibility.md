@@ -5,7 +5,9 @@ exactly the visibility check, and any declared property observer, that ordinary 
 would face. A reflective call from outside a class to one of its `private` methods fails the way an
 ordinary out-of-class call would. A `protected` member is where that promise is worth stating twice:
 a reflective read, write or call written inside a subclass's body reaches it, because an ordinary
-access there reaches it, while the same site is refused the class's `private` members.
+access there reaches it, while the same site is refused the class's `private` members. Constructing
+through reflection calls the constructor under the same check, so a `private` constructor is reached
+from its own class's bodies and from nowhere else.
 
 **There is no `setAccessible(true)` and no equivalent.** It is rejected outright rather than left
 undocumented, because an escape hatch for reaching a private member from anywhere is a structural

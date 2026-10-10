@@ -2,9 +2,7 @@
   "title": "A hook observes the ending and never steers it: the report is fixed first, a throw is logged and abandoned, `exit` inside a hook throws, and the drain continues",
   "status": "shipped",
   "because": [
-    "0127",
-    "0020",
-    "0072"
+    "0127"
   ],
   "seeAlso": [
     "observability/script-on-exit",

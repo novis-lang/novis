@@ -1,9 +1,8 @@
 <?nvs
 namespace App;
 
-// The interface `Core\Program::implementing<T>()` is asked for. ADR 0061 § 3:
-// `T` must be an interface type, because the enumeration's whole point is that
-// what comes back can be called.
+// The interface that `Core\Program::implementing<T>()` lists. `T` is an
+// interface or a class, so you can call methods on each result.
 interface Module
 {
     public function name(): string;

@@ -1,10 +1,7 @@
 {
   "title": "A span is rejected when it ends with a directional scope still open, decided by two counters",
   "status": "shipped",
-  "because": [
-    "0087",
-    "0029"
-  ],
+  "because": [],
   "seeAlso": [
     "security/bidi-boundaries",
     "security/bidi-scope-is-the-whole-target",
@@ -13,6 +10,8 @@
   "guardedBy": [
     "tests/conformance/reject/an-unterminated-bidi-control-is-refused-in-a-string-literal.nvst",
     "tests/conformance/reject/an-unterminated-bidi-control-is-refused-in-a-comment.nvst",
-    "tests/conformance/lang/a-balanced-bidi-string-compiles-and-round-trips.nvst"
+    "tests/conformance/lang/a-balanced-bidi-string-compiles-and-round-trips.nvst",
+    "tests/conformance/reject/an-unterminated-bidi-control-is-refused-in-an-interpolated-string.nvst",
+    "crates/nvs-render/src/bidi.rs"
   ]
 }

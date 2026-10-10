@@ -15,3 +15,7 @@ safety net is exactly the case where the choice should belong to someone else.
 `LimitReport` is an array rather than a class. The report is built where the breach happens, in
 `nvs-runtime`, which holds no `Core` class descriptor to instantiate one from — and a keyed array
 takes a later field without changing the signature of a handler already written.
+
+**Memory:** the memory reserve is a ceiling, not an allocation. Ordinary execution runs under
+`[limits] memory` less the reserve, which is 1 MiB by default and never more than a quarter of the
+ceiling. A request with no memory ceiling reserves nothing.

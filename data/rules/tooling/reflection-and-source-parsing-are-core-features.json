@@ -1,9 +1,7 @@
 {
   "title": "Reflection and source parsing are built into `Core`, and `Core\\Ast` is the compiler's own parser",
   "status": "shipped",
-  "because": [
-    "0019"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/reflect",
     "core-classes/ast-is-inert",

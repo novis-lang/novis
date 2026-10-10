@@ -89,8 +89,8 @@ foreach (G::partly() as int $v) {
 }
 echo "\n";
 
-// Held and dropped through a binding whose declared type is `object`. ADR
-// 0007 § 3's erasure keeps the pointer and drops the class *label*, and the
+// Held and dropped through a binding whose declared type is `object`.
+// `rule:types/object-top`'s erasure keeps the pointer and drops the class *label*, and the
 // release path never wanted one: `ClassDesc::unwind` is read off the concrete
 // instance's own descriptor, exactly as `ClassDesc::renderer` is for a
 // rendering. So the last reference going away through an erased binding runs

@@ -1,6 +1,7 @@
-//! [ADR 0064 § 5]'s one parser: what a [`Setting`] means as a quantity, and how two of them compare.
+//! `rule:config/one-parser-for-the-boot-path-and-config-set`'s one parser: what a [`Setting`] means
+//! as a quantity, and how two of them compare.
 //!
-//! § 5 gives `Core\Config::set` a `string` value in both directions and then says the registry
+//! `rule:config/ini-set-is-core-config-set` gives `Core\Config::set` a `string` value in both directions and then says the registry
 //! parses it "with the same parser the boot path uses" — the shape
 //! `rule:expressions/intrinsic-constant-arguments` already establishes, where a
 //! prepared and a runtime path cannot diverge because there is one implementation. So a `512M` a
@@ -17,7 +18,7 @@
 //! block spelling `memory` for something that is not a heap does not inherit a unit by accident.
 //!
 //! **`false` is [`Quantity::Unbounded`] in both spellings** — a TOML boolean from a file, the text
-//! `"false"` through `set` — because `rule:config/three-changeability-classes` gives "no ceiling" that spelling and § 5 crosses
+//! `"false"` through `set` — because `rule:config/three-changeability-classes` gives "no ceiling" that spelling and `Core\Config` crosses
 //! every value as a string. It is above every magnitude, which is exactly what removing a ceiling
 //! means, and it is a value as well as a ceiling: a `[limits] memory = false` under a `512M`
 //! `[limits.hard]` is a default that exceeds its own ceiling and is refused as one.
@@ -33,8 +34,6 @@
 //!
 //! Cost: no allocation on a value that parses, one `String` per refusal. It runs at boot, on each
 //! reload, and once per `Core\Config::set` — never on a read of a limit already in the snapshot.
-//!
-//! [ADR 0064 § 5]: ../../../docs/decisions/0064.md
 
 use std::cmp::Ordering;
 

@@ -1,9 +1,7 @@
 {
   "title": "A failure escalates through four tiers, and no tier is retried",
   "status": "shipped",
-  "because": [
-    "0020"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/on-limit",
     "errors/on-uncaught-throw",

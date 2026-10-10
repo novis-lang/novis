@@ -14,3 +14,15 @@ is looked at, so an ungranted program cannot even learn whether a binary exists.
 What this costs is the one case where a shell genuinely was the feature — a pipeline, a glob, a
 redirect. Those are written in Novis, or by spawning the shell explicitly and owning the quoting at
 that call site.
+
+The two members differ only in whether the caller waits, which is an axis worth keeping. Shell string
+against argv is the axis this class removes: there is no escaping function to forget, because there is
+no string position to escape into.
+
+**Declined:**
+- **One member with a `$useShell` flag.** A flag that looks like an ordinary parameter switches a call
+  site between an argv and a shell string whose escaping is the caller's problem, and it invites
+  passing `true` to get something working.
+- **A separate, clearly named shell member** such as `runViaShell(string $command)`. It is still a
+  convenience handed out for the one operation this class makes inconvenient on purpose. Spawning
+  `sh -c` or `cmd.exe /c` through the argv API is one line longer and visibly the caller's own risk.

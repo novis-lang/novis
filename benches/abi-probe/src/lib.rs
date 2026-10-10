@@ -9,15 +9,15 @@
 //!
 //! | probe | guards |
 //! |---|---|
-//! | `tests/invariants.rs` | the checked-return ABI and coroutine behaviour of [ADR 0002](/docs/decisions/0002.md) |
-//! | `tests/unwind_unavailable.rs` | the *premise* of ADR 0002 — that native unwinding is unavailable |
-//! | `tests/wasm_sandbox.rs` | the sandbox guarantees of [ADR 0003](/docs/decisions/0003.md) |
+//! | `tests/invariants.rs` | the checked-return ABI and coroutine behaviour of `rule:errors/propagation` |
+//! | `tests/unwind_unavailable.rs` | the *premise* of `rule:errors/propagation` — that native unwinding is unavailable |
+//! | `tests/wasm_sandbox.rs` | the sandbox guarantees of `rule:packaging/an-extension-is-a-sandboxed-wasm-component` |
 //! | `tests/wasm_async.rs` | the async bridge of [ADR 0246](/docs/decisions/0246.md) § 5: a guest call parks, yields and traps inside a coroutine |
 //! | `tests/perf_guards.rs` | order-of-magnitude regressions in the quoted costs |
-//! | [`process`] | the cost of the child process that [ADR 0006](/docs/decisions/0006.md) replaces with an in-process isolate |
+//! | [`process`] | the cost of the child process that `rule:security/isolate-shares-nothing` replaces with an in-process isolate |
 //! | `shared/isolate.rs` | the cost of the in-process isolate it is replaced *with* — the other half of that comparison, outside this library because it needs the compiler crates and those are dev-only |
 //! | `benches/*` | the quoted costs themselves, tracked over time |
-//! | `examples/callgrind_spike.rs` | the callgrind-instruction-count premise of [ADR 0026](/docs/decisions/0026.md)'s historical performance dashboard — Linux/WSL only, see that ADR |
+//! | `examples/callgrind_spike.rs` | the callgrind-instruction-count premise of `rule:testing/perf-two-mechanisms`'s historical performance dashboard — Linux/WSL only, see `rule:testing/valgrind-on-wsl` |
 //!
 //! # The ABI under test
 //!
@@ -122,8 +122,7 @@ pub struct Ctx {
     /// How many times a helper suspended the coroutine.
     pub suspends: u64,
     /// Stands in for the real runtime's debug-flags word
-    /// ([ADR 0018](/docs/decisions/0018.md)
-    /// § 1) and, by the same shape, its safepoint word: compiled code loads
+    /// (`rule:testing/debug-probes`) and, by the same shape, its safepoint word: compiled code loads
     /// it and branches on non-zero at every probe site. Left zero throughout,
     /// because the number being guarded is the all-bits-*off* cost.
     pub debug_flags: u64,
@@ -211,7 +210,7 @@ macro_rules! probe_helper {
         #[allow(
             unsafe_code,
             reason = "a runtime helper's signature is fixed by the ABI in \
-                      ADR 0002; the pointer contract cannot be expressed in \
+                      rule:errors/propagation; the pointer contract cannot be expressed in \
                       the type, so the function is honestly marked unsafe"
         )]
         pub unsafe extern "C" fn $name(
@@ -323,8 +322,8 @@ probe_helper! {
     }
 }
 
-/// The slow path behind an [ADR 0018](/docs/decisions/0018.md)
-/// § 1 probe site — the shape `nvs_runtime::nvs_probe_stmt` has, reduced to
+/// The slow path behind a `rule:testing/debug-probes`
+/// probe site — the shape `nvs_runtime::nvs_probe_stmt` has, reduced to
 /// the one thing this probe needs to observe.
 ///
 /// It returns nothing: a coverage probe cannot fail, so unlike a helper there
@@ -470,8 +469,7 @@ impl Probe {
 
     /// [`Self::compile_chain`], with `stmts` statement-shaped stores in each
     /// frame ahead of its call, each optionally preceded by
-    /// [ADR 0018](/docs/decisions/0018.md)
-    /// § 1's debug-flags check: load one word out of the context, branch on
+    /// `rule:testing/debug-probes`'s debug-flags check: load one word out of the context, branch on
     /// non-zero, fall through to the next statement.
     ///
     /// # Why a store, and not just the check
@@ -547,7 +545,7 @@ impl Probe {
                 // call — see this method's own doc comment.
                 for stmt in 0..stmts {
                     if probe {
-                        // ADR 0018 § 1's site, exactly as `nvs-codegen` emits
+                        // `rule:testing/debug-probes`'s site, exactly as `nvs-codegen` emits
                         // it: one load of the context's flags word, one
                         // branch predicted not taken, and an out-of-line call
                         // that never runs while every bit is off. `MemFlagsData`
@@ -596,8 +594,8 @@ impl Probe {
                 b.ins().return_(&[zero]);
 
                 // Where a real frame drops its locals' refcounts before
-                // propagating. Explicit IR, which is half the reason ADR 0002
-                // prefers this to unwinding.
+                // propagating. Explicit IR, which is half the reason
+                // `rule:errors/propagation` prefers this to unwinding.
                 b.switch_to_block(err_block);
                 b.seal_block(err_block);
                 b.ins().return_(&[status]);

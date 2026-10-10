@@ -12,3 +12,12 @@ declaration order regardless of what finished when (`rule:testing/runner-is-stri
 Each test isolate spends its parent's budget, so a suite has the same enforceable ceiling on memory
 and CPU that a request has, and a runaway test is terminated rather than left to consume the
 machine.
+
+- **Memory:** each test in flight holds one isolate, one copy of each fixture it declares and one
+  ledger entry per assertion it executes, all released when it joins. That is O(tests running), not
+  O(tests in the suite): a suite of any size costs at one instant what its running tests cost.
+
+**Declined:**
+- **One isolate per test class.** It is cheaper and familiar, and it restores exactly the ordering
+  dependence between cases that makes real suites flaky. Fixtures recover the setup cost it would
+  save without the coupling (`rule:testing/fixtures`).

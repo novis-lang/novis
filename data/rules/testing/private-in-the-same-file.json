@@ -1,9 +1,7 @@
 {
   "title": "A test reaches `private` members of classes declared in its own file, and nowhere else",
   "status": "designed",
-  "because": [
-    "0079"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/test-attribute",
     "testing/tests-never-reach-a-build"

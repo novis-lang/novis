@@ -22,7 +22,7 @@ try {
     echo "map hit the deadline", "\n";
 }
 
-// Same children, same deadline, serialized by `limit`. § 3: a child past the
+// Same children, same deadline, serialized by `limit`. `rule:concurrency/limit-and-deadline-are-the-only-bounds`: a child past the
 // limit is scheduled rather than refused, so this is five waits end to end and
 // not four refusals.
 try {

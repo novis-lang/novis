@@ -2,7 +2,6 @@
   "title": "The cache boundary is a copy in and a copy out, so nothing a program can reach is read-modify-write",
   "status": "shipped",
   "because": [
-    "0059",
     "0181"
   ],
   "seeAlso": [

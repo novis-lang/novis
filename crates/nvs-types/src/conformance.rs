@@ -675,7 +675,7 @@ pub(crate) fn check_double_answers(
     let named = answered_methods(answers_at, arg_types, slots, env);
 
     // Every field first, so a shape that both misnames one method and omits
-    // another reads as the two mistakes it is, in the order ADR 0079 § 10's
+    // another reads as the two mistakes it is, in the order `rule:testing/doubles`'s
     // own example prints them.
     let unknown: Vec<String> = named
         .iter()

@@ -2,8 +2,6 @@
   "title": "`autoload` maps a prefix to roots, resolved relative to the file that declares it",
   "status": "shipped",
   "because": [
-    "0061",
-    "0029",
     "0215"
   ],
   "seeAlso": [

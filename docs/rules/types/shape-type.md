@@ -50,3 +50,12 @@ an absent array key already gives, with `??` and `isset` as the spellings that a
 The read is deliberately **not** widened to `?T`: optionality and nullability are separate questions
 (`rule:core-api/required-optional-and-nullable`), and one language does not answer "the key may be
 absent" two different ways in two containers.
+
+**Declined:**
+- **The `interface` keyword for a shape.** An `interface` is a nominal, `implements`-declared,
+  method-bearing contract, and a structural, property-only meaning would give one keyword two
+  meanings (`rule:statements/nothing-gets-a-second-name`).
+- **Exact-match shapes, with no width subtyping.** They are stricter for no safety gained, and force
+  re-wrapping a value that already has every field a caller reads.
+- **A shape that requires a method.** A shape is data only. Behaviour belongs to a declared class or
+  interface.

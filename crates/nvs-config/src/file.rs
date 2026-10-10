@@ -78,7 +78,8 @@ fn code_for(message: &str) -> Code {
 /// The header of the block `offset` is written inside — `[limits.hard]`, `[[app]]` — or `None` when
 /// it is in the root table.
 ///
-/// A refusal names the *line*, which [ADR 0064 § 3] requires and `serde` supplies for free. It does
+/// A refusal names the *line*, which `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`
+/// requires and `serde` supplies for free. It does
 /// not name the **block**, and that is the half an operator needs: an unknown key is nearly always a
 /// key written under the wrong header, and `unknown field \`memory\`` reads as nonsense until you
 /// know it was found under `[metrics]`. `serde` cannot supply it, because by the time a field is
@@ -87,8 +88,6 @@ fn code_for(message: &str) -> Code {
 ///
 /// It is a scan of the file so far, run only on the failure path, so a boot that succeeds pays
 /// nothing for it.
-///
-/// [ADR 0064 § 3]: ../../../docs/decisions/0064.md
 fn block_at(text: &str, offset: usize) -> Option<&str> {
     text.get(..offset)?
         .lines()

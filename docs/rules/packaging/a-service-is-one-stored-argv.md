@@ -20,3 +20,11 @@ answer and nothing beside it. The drain progress a stop reports is the service's
 manager (`rule:packaging/a-service-answers-its-manager`).
 
 What that argv may name is `rule:packaging/the-installer-is-a-sink`'s closed list.
+
+`start`/`stop`/`status` are a second way to write what `sc` and `systemctl` already do, and that cost
+is accepted: without them, an administrator on Windows decodes `sc query`'s output by hand.
+
+**Declined:**
+- **`nvs install-service <args…>` with no separator**, the way `mysqld --install` is written. No rule
+  a user would predict separates the installer's options from the hosted program's. The hidden alias
+  keeps the habit, and `--` removes the ambiguity.

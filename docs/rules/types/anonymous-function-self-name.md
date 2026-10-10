@@ -20,6 +20,9 @@ recursive call is finally held to. An anonymous function that declares no return
 find out, and a self-call there answers `mixed`; its parameter list has no such half-measure, being
 complete before the body is entered.
 
+The self-name exists because recursion is the one job a by-reference capture of the function's own
+variable did that nothing else can (`rule:types/implicit-capture`).
+
 It does not reopen "every callable is a declared class member": that rule bars a free, globally
 callable function existing outside a class, and this name is unreachable from anywhere but its own
 body — the same status as a parameter name. A recursive helper that *is* reusable elsewhere still

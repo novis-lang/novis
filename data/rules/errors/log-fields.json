@@ -2,8 +2,7 @@
   "title": "A record's fields are named and typed, not a stringly bag",
   "status": "shipped",
   "because": [
-    "0092",
-    "0076"
+    "0092"
   ],
   "seeAlso": [
     "errors/log-write",

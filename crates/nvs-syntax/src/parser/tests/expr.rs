@@ -531,9 +531,10 @@ fn legacy_cast_is_diagnosed() {
     }
 }
 
-/// ADR 0045: `&&`/`||` are the only logical connectives — PHP's
-/// low-precedence `and`/`or`/`xor` keyword operators are diagnosed,
-/// `and`/`or` naming `&&`/`||` as the replacement and `xor` naming none.
+/// `rule:expressions/no-keyword-logical-operators`: `&&`/`||` are the
+/// only logical connectives, so PHP's low-precedence `and`/`or`/`xor`
+/// keyword operators are diagnosed, `and`/`or` naming `&&`/`||` as the
+/// replacement and `xor` naming none.
 #[test]
 fn and_or_xor_keywords_are_diagnosed() {
     for src in ["$a and $b", "$a or $b", "$a xor $b"] {

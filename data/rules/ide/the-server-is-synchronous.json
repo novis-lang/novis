@@ -2,8 +2,7 @@
   "title": "`nvs-lsp` is synchronous on `lsp-server` and `lsp-types` — a reader thread, a writer thread, one analysis thread, and no async runtime",
   "status": "designed",
   "because": [
-    "0099",
-    "0040"
+    "0099"
   ],
   "seeAlso": [
     "concurrency/one-scheduler",

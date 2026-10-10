@@ -2,7 +2,9 @@ A reader `mmap`s the file read-only, never starting from an executable mapping. 
 `format_version` and `env_hash` against what this process expects, checks `payload_len` against the
 mapping's own length, and computes BLAKE3 over the mapped payload bytes against the header's checksum.
 Every mismatch is a cache miss (`rule:packaging/a-bad-cache-entry-is-a-miss-never-an-error`), and not
-one byte of the payload is touched before the checksum matches.
+one byte of the payload is touched before the checksum matches. Mapping lets the page cache do the I/O
+once and the hash run over it with no copy into a buffer; replacing the mapping with a read is
+`rule:packaging/the-artifact-cache-is-read-not-mapped`.
 
 Then **place, relocate, protect, bind.** The reader maps a second region of its own — private,
 anonymous, writable — and copies each allocatable section into it at the alignment that section runs

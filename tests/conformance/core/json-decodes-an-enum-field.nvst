@@ -28,7 +28,7 @@ class Account {
         // `rule:core-api/required-optional-and-nullable`'s second column: `?T` is nullable, which is a fact
         // about the type and says nothing about the case set.
         public ?Weight $weight,
-        // § 2's list field over an enum element — the roster rides on the
+        // `rule:core-classes/derive-field-list`'s list field over an enum element — the roster rides on the
         // field exactly as a class element's label does.
         public array<Role> $seen,
     ) {}
@@ -68,7 +68,7 @@ try {
 // `rule:core-classes/derive-reports-every-field` accumulates rather than stopping at the first bad field, and an
 // enum is no exception. A case's *name* is not on the wire either — only its
 // value is — so `"Admin"` is refused exactly as `2` is, and a bad element two
-// positions in reports under § 5's dotted position path.
+// positions in reports under `rule:core-classes/derive-reports-every-field`'s dotted position path.
 try {
     Core\Json::decodeAs<Account>(
         "{\"name\":\"n\",\"role\":\"Admin\",\"weight\":2,\"seen\":[0,7,8]}"

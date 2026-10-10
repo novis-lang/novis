@@ -10,11 +10,10 @@ enum Mode: int {
 
 class Gate {
     // `rule:types/conversion`: "exactly the shape `as uint` already has for untrusted
-    // input". The operand is converted to the enum's backing scalar by ADR
-    // 0007 § 2's own rows *before* the membership chain runs, which is why the
-    // string "1" reaches `Mode::Read` — the ADR's own example converts a
-    // request parameter, a string at run time, into a case whose value is an
-    // integer.
+    // input". The operand is converted to the enum's backing scalar by the
+    // conversion table's own rows *before* the membership chain runs, which is
+    // why the string "1" reaches `Mode::Read`: a request parameter, a string at
+    // run time, converts into a case whose value is an integer.
     public static function toMode(mixed $m): string {
         try {
             Mode $mode = $m as Mode;

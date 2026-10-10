@@ -2,8 +2,6 @@
   "title": "`static` marks a class member and names a class-relative type, and nothing else",
   "status": "shipped",
   "because": [
-    "0008",
-    "0007",
     "0144",
     "0211",
     "0231"

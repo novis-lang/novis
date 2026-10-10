@@ -108,8 +108,8 @@ const ATOMS: &[&str] = &[
 /// under `docs/goals/`, and the test fails just as loudly on an entry
 /// that has *stopped* panicking — the ratchet only turns one way.
 ///
-/// **It is empty, and that is this table's finished state**: every atom ADR
-/// 0007 § 3 spells reaches a diagnostic or an IR in both positions. The list
+/// **It is empty, and that is this table's finished state**: every atom
+/// `rule:types/grammar` spells reaches a diagnostic or an IR in both positions. The list
 /// stays because the ratchet needs somewhere to name a row and because
 /// emptying it is what closed the last one, not what retires the test.
 ///

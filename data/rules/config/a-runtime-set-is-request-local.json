@@ -1,11 +1,7 @@
 {
   "title": "Every runtime change lives in the request's own overlay and dies with the request",
   "status": "shipped",
-  "because": [
-    "0005",
-    "0078",
-    "0064"
-  ],
+  "because": [],
   "seeAlso": [
     "config/three-changeability-classes",
     "config/the-config-is-an-immutable-snapshot",

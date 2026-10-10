@@ -1,12 +1,7 @@
 {
   "title": "The field list is the declared property list, and every field is a constructor parameter of the same name",
   "status": "shipped",
-  "because": [
-    "0071",
-    "0022",
-    "0030",
-    "0067"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/derive-attribute",
     "core-classes/derive-reports-every-field",

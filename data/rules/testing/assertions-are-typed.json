@@ -1,13 +1,7 @@
 {
   "title": "An assertion names its subject first and compares two values of one type",
   "status": "shipped",
-  "because": [
-    "0079",
-    "0063",
-    "0013",
-    "0090",
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/failure-ledger",
     "testing/runner-is-strict",

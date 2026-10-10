@@ -6,8 +6,8 @@
 // has to *take effect*, not merely be echoed back by `get`. What proves it is
 // the allocation below — 64 MiB held live against a file that grants 16M. In a
 // tree where the request's cached ceiling did not move with the overlay, this
-// case does not print a wrong line, it dies at `Core\Str::repeat` with ADR
-// 0020 § 1's `FATAL`, which is exactly what the sibling case
+// case does not print a wrong line, it dies at `Core\Str::repeat` with
+// `rule:errors/on-limit`'s `FATAL`, which is exactly what the sibling case
 // `config-set-memory-above-the-hard-ceiling-is-refused-and-the-ceiling-in-force-stands.nvst`
 // pins deliberately.
 echo "default=", Core\Config::get("memory") ?? "unset", "\n";
@@ -38,8 +38,8 @@ $ballast = [];
 Core\Config::restore("memory");
 echo "restored=", Core\Config::get("memory") ?? "unset", "\n";
 --FILE nvs.toml--
-# The grant this case raises itself above, and the ceiling it stays under. ADR
-# 0064 § 5 is the unit; `[limits] memory` is `Runtime`, so a request may move it
+# The grant this case raises itself above, and the ceiling it stays under.
+# `rule:config/a-size-or-duration-is-a-quoted-string-with-its-suffix` is the unit; `[limits] memory` is `Runtime`, so a request may move it
 # freely below `[limits.hard]`.
 [limits]
 memory = "16M"

@@ -6,6 +6,11 @@ Novis claims exactly three things about itself, and each is a property no incumb
 3. **Suspension has no colour** — any function may yield, so there is no `async` split through the
    library.
 
+The first claim is the strongest. In every incumbent language taint checking is an external scanner
+sold as its own product, because a type qualifier cannot be added to that language without breaking
+the programs it already runs; `secret` has the same shape. A competitor closes a gap in a type system
+with a minor release, and it cannot close this one.
+
 **"Faster than PHP" is retired as a headline claim.** It remains true, it remains measured, and it is
 the right thing to put in a benchmark table; as a *reason to adopt* it compares against a deployment
 nobody defends, and the margin over a modern one does not pay for a rewrite. Latency and throughput

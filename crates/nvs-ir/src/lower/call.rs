@@ -114,8 +114,8 @@ impl<'a> Lowering<'a> {
              nvs_types is trusted to have mapped every one of them"
         );
         // One entry per fixed parameter, at its own ABI position — `None` until
-        // some argument fills it, and a `Vec` rather than a value because ADR
-        // 0063 R2's options bag flattens into one value per declared option.
+        // some argument fills it, and a `Vec` rather than a value because
+        // `rule:core-api/options-bag`'s bag flattens into one value per declared option.
         let mut filled: Vec<Option<LoweredArgs>> = (0..fixed).map(|_| None).collect();
         let mut tail = Vec::new();
         for (arg, slot) in list.iter().zip(&sig.arg_slots) {
@@ -612,8 +612,8 @@ impl<'a> Lowering<'a> {
     /// `ConstArg::Built` is the one entry that emits a **call** rather than a
     /// constant — an instance has no constant form, so what an `rule:classes/no-free-functions-or-constants` class
     /// constant of instance type inlines is the `Core` member that produces
-    /// one. It is therefore the one entry that can fail, and it carries ADR
-    /// 0002's error edge like any other call.
+    /// one. It is therefore the one entry that can fail, and it carries
+    /// `rule:errors/propagation`'s error edge like any other call.
     ///
     /// `position` is the IR type of the slot the constant is being emitted
     /// into, where the caller has one, and it decides exactly one thing: an

@@ -1,5 +1,5 @@
 --TEST--
-An unterminated string literal in a query given as a string literal is refused where it is written — `rule:core-classes/db-compile-time-query-checking`, ADR 0067 § 10
+An unterminated string literal in a query given as a string literal is refused where it is written — `rule:core-classes/db-compile-time-query-checking`
 --FILE--
 <?nvs
 // The `'x` opens a string literal the text never closes, so the scan that

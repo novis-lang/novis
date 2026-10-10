@@ -2,9 +2,7 @@
   "title": "An unannotated `fn` parameter takes its type from the position the anonymous function is written in",
   "status": "shipped",
   "because": [
-    "0136",
-    "0036",
-    "0031"
+    "0136"
   ],
   "seeAlso": [
     "types/callable-signature",

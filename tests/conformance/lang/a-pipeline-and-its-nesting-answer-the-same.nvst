@@ -1,5 +1,5 @@
 --TEST--
-A `|>` and the nesting it substitutes to answer the same over the four shapes a right side takes, and a chain reads left to right — `rule:expressions/pipeline-substitution`, ADR 0098's M1 verification line
+A `|>` and the nesting it substitutes to answer the same over the four shapes a right side takes, and a chain reads left to right — `rule:expressions/pipeline-substitution`
 --FILE--
 <?nvs
 // The *agreement* shape over the four right-side shapes

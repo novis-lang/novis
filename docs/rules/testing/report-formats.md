@@ -1,6 +1,7 @@
 Human output is the default and is written as the run goes, which is what keeps a long suite
 legible. A JUnit XML document and a versioned JSON one are each written whole at the end, because
-neither has a prefix worth streaming. All three render the same case list and a verdict is decided
+neither has a prefix worth streaming. JUnit XML rather than a Novis-native document, because it is
+what every CI system already ingests. All three render the same case list and a verdict is decided
 **once**, so the plaintext mark, the JSON string and the XML element cannot disagree about how a
 test came out.
 

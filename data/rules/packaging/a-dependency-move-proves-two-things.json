@@ -2,8 +2,6 @@
   "title": "A dependency move never fixes a guard test by editing its threshold, and it regenerates the attribution file in the same commit",
   "status": "shipped",
   "because": [
-    "0068",
-    "0065",
     "0143"
   ],
   "seeAlso": [

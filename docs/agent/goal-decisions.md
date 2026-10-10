@@ -26,7 +26,7 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
   status item says which of the three it was, the release page stays one command away, and the
   extension keeps working as a grammar-only client. Applies at the install commands `rule:ide/the-extension-guides-an-install-and-never-bundles-one`
   designs, over `editors/vscode/src/install.ts`. From `editor-install`.
-- **`Core\BigDecimal` is not scheduled.** ADR 0054 § 6 named it, and no spec row and no ratchet key
+- **`Core\BigDecimal` is not scheduled.** A retired decision record named it, and no spec row and no ratchet key
   asks for it, so it is a feature the user has not requested and not a gap. `Core\BigInt` is the
   arbitrary-precision type, and `decimal` with `Core\Decimal` is the bounded one. Applies at
   `rule:types/decimal`'s "what lies beyond" and the `E0456` card in `crates/nvs-diagnostics/src/lib.rs`.

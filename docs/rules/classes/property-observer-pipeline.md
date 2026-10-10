@@ -14,3 +14,14 @@ is the backing slot and carries no observer, or one write would be reported twic
 property has no receiving instance and reaches nothing. An observer that touches a property of its own
 class recurses, exactly as any method calling itself does — there is no re-entry guard, because a
 guard would be a second rule about which write is the real one.
+
+An observer that is told the committed value has no declared way to see the caller's raw argument
+when a `set` hook transformed it. Logic that computes or transforms a value belongs in that
+property's own hook (`rule:classes/property-hooks`); the observer only watches the result.
+
+**Declined:**
+- **The observer runs only for a property with no hook of its own.** Logging or dirty-tracking every
+  write would then be copied into every hook instead of declared once.
+- **The observer may override what a read returns or a write stores.** A second authority over a
+  value a hook already decided raises an ordering question with no answer that is not arbitrary, and
+  a `void` observer removes the question.

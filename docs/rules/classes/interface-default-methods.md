@@ -12,3 +12,11 @@ would make its correctness depend on who used it.
 To call one specific interface's default from an overriding method, `InterfaceName::method()` is bound
 to `$this`. That is one small addition to what a reader has to know `Identifier::method()` can mean,
 alongside `parent::`, `self::` and `static::`.
+
+**Declined:**
+- **Delegation alone, with every trait a generated interface and holder pair.** It is heavier than a
+  default for the common stateless case, and a class would hold a separate object only to answer one
+  method.
+- **A dedicated keyword for calling an interface's default, like Java's `I.super.m()`.** The
+  qualified-call shape `InterfaceName::method()` already does it, and a second way to write it is what
+  `rule:statements/nothing-gets-a-second-name` refuses.

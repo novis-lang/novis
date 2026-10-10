@@ -1,9 +1,7 @@
 {
   "title": "A generator is a lazy sequence and nothing more",
   "status": "shipped",
-  "because": [
-    "0053"
-  ],
+  "because": [],
   "seeAlso": [
     "iteration/generators",
     "iteration/yield-lexical-confinement"

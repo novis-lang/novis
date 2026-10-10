@@ -2,11 +2,7 @@
   "title": "A persistent connection is a root isolate, and the request that upgraded it ends",
   "status": "shipped",
   "because": [
-    "0083",
-    "0006",
-    "0017",
-    "0005",
-    "0072"
+    "0083"
   ],
   "seeAlso": [
     "security/isolate-shares-nothing",

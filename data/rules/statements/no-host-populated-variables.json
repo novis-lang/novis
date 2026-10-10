@@ -1,13 +1,7 @@
 {
   "title": "No variable is ever populated by the host; every superglobal is a `Core` class member",
   "status": "shipped",
-  "because": [
-    "0012",
-    "0011",
-    "0007",
-    "0009",
-    "0006"
-  ],
+  "because": [],
   "seeAlso": [
     "statements/globals-and-request-are-dropped-outright",
     "statements/storage-that-outlives-a-call",

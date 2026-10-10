@@ -11,8 +11,8 @@
 //! # What is here, and what is not
 //!
 //! The row, its signature, and **the body that fills § 1's slot**: a path
-//! entry resolved into a `nvs_runtime::script::Program`, `args:` crossed by ADR
-//! 0023 § 2's graph copy, and the pair left on the request's carrier for the
+//! entry resolved into a `nvs_runtime::script::Program`, `args:` crossed by the
+//! graph copy (`rule:classes/graph-copy`), and the pair left on the request's carrier for the
 //! connection to start. Behind it the framing has landed — `nvs_server::serve`
 //! answers RFC 6455's `101` and `nvs_server::socket` hands the framed socket to
 //! the isolate as a [`nvs_runtime::PeerSocket`] — so an upgrade prepared here
@@ -95,7 +95,7 @@
 //!
 //! A method arrives as a **method reference** — the entry interns as
 //! `mixed`, so `Chat::run(...)` reaches this body as the callable `nvs_ir`'s
-//! `lower_method_ref` built. ADR 0006 § *Decision* binds `args:` to the
+//! `lower_method_ref` built. `rule:security/isolate-shares-nothing` binds `args:` to the
 //! entry's parameters **by name**, and the sibling construct has those names as
 //! a constant its lowering wrote into the call (`nvs_ir::lower`'s
 //! `spawn_method_entry`, read by `crate::script`'s `entry_names_agree` and
@@ -173,8 +173,8 @@
 //!
 //! # Why `limits:`, `grants:` and `on:` are not parameters
 //!
-//! § 2 lists four options and calls them "0006's, spelled as ordinary named
-//! arguments". Three of the four narrow the child — the budget it may spend,
+//! § 2 lists four options and calls them `spawn script`'s, spelled as ordinary
+//! named arguments. Three of the four narrow the child — the budget it may spend,
 //! the authorities it inherits, the core it starts on — and this member
 //! forwards none of them: an upgrade opens the connection isolate itself, and
 //! nothing in the body carries a sub-cap or a grant to it. A row declaring
@@ -237,8 +237,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "upgrade",
             names: &["entry", "args"],
-            // [`CoreTy::Entry`] is § 2's "0006's operand", as the one mark that
-            // carries that ADR's whole rule to a call site: a path or a static
+            // [`CoreTy::Entry`] is § 2's `spawn script` operand, as the one mark that
+            // carries `rule:security/isolate-shares-nothing`'s whole operand rule to a call site: a path or a static
             // method written `Chat::run(...)`, and never a `callable` in a
             // variable. It classifies as a sink for the reason a path always does
             // — its content becomes the instruction "execute this file", `rule:security/sink-predicate`
@@ -1887,7 +1887,7 @@ mod tests {
     /// nothing else.
     ///
     /// The method form's answer is `room` read back out of its **first
-    /// positional slot**, which is ADR 0006 § *Decision*'s by-name binding
+    /// positional slot**, which is `rule:security/isolate-shares-nothing`'s by-name binding
     /// arriving as a positional call. A member that bound by position would
     /// give the same answer here for a one-parameter entry, which is why
     /// `a_method_entry_whose_args_do_not_name_its_parameters_is_refused`
@@ -1992,7 +1992,7 @@ mod tests {
         );
     }
 
-    /// ADR 0006 § *Decision* binds `args:` **by name**, so a map that names
+    /// `rule:security/isolate-shares-nothing` binds `args:` **by name**, so a map that names
     /// something the entry does not declare — or omits something it does — is
     /// the ordinary named-argument error, reported at the call while there is
     /// still a `catch` above it.

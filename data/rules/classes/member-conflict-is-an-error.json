@@ -1,9 +1,7 @@
 {
   "title": "A member reachable from two default or delegated sources with no override is a compile error",
   "status": "designed",
-  "because": [
-    "0043"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/no-traits",
     "classes/interface-default-methods",

@@ -37,8 +37,8 @@ echo Core\Arr::count($grid), " ", Core\Arr::count($grid["r"]), " ", $grid["r"]["
 unset($a["gone"]);
 echo Core\Arr::count($a), "\n";
 
-// ...but an absent *level* of a chain is an ordinary element read, and ADR
-// 0007 § 7 row 11 makes that throw rather than warn. A removal is never
+// ...but an absent *level* of a chain is an ordinary element read, and
+// `rule:types/absent-storage-is-never-a-zero-value` makes that throw rather than warn. A removal is never
 // allowed to vivify the row it is removing from, so the count is unmoved.
 try {
     unset($grid["nope"]["0"]);

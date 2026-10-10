@@ -12,3 +12,8 @@ HTTP reader, the compiled-unit cache index — runs outside `nvs_helper!`, so a 
 root carries a `catch_unwind` as well. And a panic raised while a panic is unwinding aborts the
 process whatever the profile says, so nothing on a teardown path may panic and teardown does not
 recurse.
+
+A contained panic's message goes to the request log with its request id, not to the process's
+stderr. `nvs_runtime::floor::install_panic_hook`, which `nvs` installs at startup, writes a panic
+raised under a served request as a critical record and hands any other panic to the hook before it,
+so a CLI script still prints its panic to stderr.

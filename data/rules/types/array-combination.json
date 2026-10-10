@@ -1,11 +1,7 @@
 {
   "title": "Three combining members treat every key alike, and `array + array` does not compile",
   "status": "shipped",
-  "because": [
-    "0069",
-    "0007",
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "types/arrays",
     "types/preserve-keys"

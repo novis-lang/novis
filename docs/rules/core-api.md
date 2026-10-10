@@ -25,7 +25,7 @@ an optional subsystem was not built or installed. That would make the reserved n
 Attempting either — a loaded extension declaring a class under `Core\` or `Novis\` — is a load-time
 diagnostic naming the class, not a silently missing symbol.
 
-<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements). Decided in [0011](../decisions/0011.md), [0003](../decisions/0003.md).</sub>
+<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements).</sub>
 
 <a id="core-api-tier-placement"></a>
 
@@ -73,7 +73,7 @@ runtime's: the database drivers, the HTTP client and the crypto primitives are a
   third-party ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), and leaving HTTP, JSON, crypto and dates to
   an ecosystem produces several incompatible implementations of each.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0003](../decisions/0003.md), [0082](../decisions/0082.md), [0145](../decisions/0145.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0145](../decisions/0145.md).</sub>
 
 <a id="core-api-five-placements"></a>
 
@@ -97,7 +97,7 @@ that look alike are Native and Ext, and the line between them is test 1 — a co
 across requests cannot be sandboxed, because handing it a host-owned handle is writing it natively with
 extra steps.
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0003](../decisions/0003.md), [0081](../decisions/0081.md).</sub>
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present).</sub>
 
 <a id="core-api-tier-roster"></a>
 
@@ -172,7 +172,7 @@ registered.
   ([`testing/debug-probes`](testing.md#testing-debug-probes)), `swoole`, `parallel`, `event`, `pthreads`, `apcu`
   ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)) and `mysqlnd`.
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0067](../decisions/0067.md), [0076](../decisions/0076.md), [0086](../decisions/0086.md), [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0086](../decisions/0086.md), [0122](../decisions/0122.md).</sub>
 
 <a id="core-api-reserved-namespace"></a>
 
@@ -195,7 +195,20 @@ assignability checks a user-declared static call takes, with no second code path
 The array domain class is spelled `Core\Arr` rather than `Core\Array`, because `array` is a type atom
 ([`types/grammar`](types.md#types-grammar)) and a class of that name would collide with it exactly where a type is expected.
 
-<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/no-class-alias`](classes.md#classes-no-class-alias), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0011](../decisions/0011.md), [0015](../decisions/0015.md).</sub>
+Reserving the namespace turns a collision with a built-in into a compile-time error at the declaration
+that collides. In one shared global namespace the same collision is a fatal error found by whichever
+request first loads both definitions. Every built-in call also names its `Core` class at the call site,
+so a reader sees which domain a line depends on, and never a bare name that could be a built-in, an
+extension's or the program's own.
+
+**Declined:**
+- **One flat `Core` class holding every built-in.** Hundreds of unrelated static methods on one class
+  is a global namespace with extra syntax, so built-ins are grouped into domain classes
+  ([`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun)).
+- **`Core` imported automatically**, so `Str::length()` resolves with no `use`. That puts back a name
+  reachable from anywhere with no declared import ([`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace)).
+
+<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/no-class-alias`](classes.md#classes-no-class-alias), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name).</sub>
 
 <a id="core-api-a-domain-class-is-a-singular-noun"></a>
 
@@ -213,7 +226,7 @@ and nesting puts the domain's own types where a reader looking at the class alre
 with the reserved namespace ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), since a nested name is reserved by the
 same rule as its parent.
 
-<sub>See also [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants).</sub>
 
 <a id="core-api-shape-rules"></a>
 
@@ -256,7 +269,12 @@ knows; and there is no ambient state for a member to read ([`core-api/no-ambient
 What this costs is familiarity. A developer who knows `sort($a)`, `strtotime` and `ob_start` finds none of
 them under that name, and ports each call by finding the `Core` member that does the job.
 
-<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md), [0135](../decisions/0135.md), [0147](../decisions/0147.md).</sub>
+**Declined:**
+- **Mirroring PHP's built-ins one for one and relying on a converter.** It imports both kinds of
+  duplication whole, a function family and a subsystem shipped twice, and makes a surface of about 1,900
+  names permanent, which is the expensive cost [`core-api/tier-placement`](core-api.md#core-api-tier-placement) ranks first.
+
+<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0135](../decisions/0135.md), [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-subject-first"></a>
 
@@ -273,7 +291,7 @@ A rule with no exceptions is learnable in one sentence. The alternative is a lib
 takes the callback first and its neighbour takes the array first, so every call site is a lookup. The cost
 is that a ported program's argument order changes at nearly every built-in call.
 
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature).</sub>
 
 <a id="core-api-verb-lexicon"></a>
 
@@ -297,7 +315,7 @@ ban reads the suffix as a claim about failure; a suffix that is an ordinary adje
 untouched, which is how `Core\Db\Schema::applySafe` is admitted — it is named for the grade of the steps it
 will run and is the more refusing of the two, not the quiet one.
 
-<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/symmetric-names`](core-api.md#core-api-symmetric-names), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0063](../decisions/0063.md), [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/symmetric-names`](core-api.md#core-api-symmetric-names), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0145](../decisions/0145.md).</sub>
 
 <a id="core-api-symmetric-names"></a>
 
@@ -314,7 +332,7 @@ JSON, serialization, base64 — and `parse`/`format` when a human writes or read
 URIs. That removes a per-member judgement call that would otherwise go differently every time, and it means a reader who
 has found one half knows the other's name without looking.
 
-<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words).</sub>
 
 <a id="core-api-one-name-one-signature"></a>
 
@@ -333,7 +351,7 @@ predicts its own return type, or an enum-typed option on the member that already
 ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)). Where two members genuinely take different things and answer different
 things, that is not a second spelling ([`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing)).
 
-<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name).</sub>
 
 <a id="core-api-members-are-full-words"></a>
 
@@ -350,7 +368,7 @@ produces `len` beside `wordCount` in the same class. A closed list at the class 
 at the member level removes the judgement call entirely, at the cost of a few extra characters at every
 call site.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun).</sub>
 
 <a id="core-api-identifier-casing"></a>
 
@@ -382,9 +400,20 @@ anything is resolved and its diagnostic carries a mechanically derived rename. I
 standard library is unwritten because renaming a member later is a breaking change with no deprecation path
 ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)). The cost is that `snake_case` source does not compile, so a
 ported program renames every such identifier, and two names that collide after renaming are the author's
-to separate.
+to separate. What it buys is that no codebase can drift into two competing house styles, and that a
+reader or an editor knows a name's category from its spelling before anything resolves it.
 
-<sub>See also [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0029](../decisions/0029.md), [0030](../decisions/0030.md), [0011](../decisions/0011.md).</sub>
+**Declined:**
+- **Acronyms written as one word** (`HttpClient` required). Deciding what is an acronym needs a
+  dictionary ([`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character)).
+- **A warning instead of an error, or an attribute to suppress one**
+  ([`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression)).
+- **An `I` prefix for interfaces** (`IComparable`). It is a role marker no other kind of name carries,
+  and every interface already written would be renamed.
+- **Lower-case namespace segments** (`core\str`). Every `Core\...` reference already written would be
+  renamed.
+
+<sub>See also [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words), [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/names-resolve-case-sensitively`](classes.md#classes-names-resolve-case-sensitively), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name).</sub>
 
 <a id="core-api-casing-checks-the-leading-character"></a>
 
@@ -404,7 +433,7 @@ a judgement, which is what makes the diagnostic's suggested rename always correc
 The cost is that a codebase can still be internally inconsistent about acronyms. That is accepted: the rule
 exists to make a name's *category* legible from its spelling, and the leading character carries all of it.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression). Decided in [0029](../decisions/0029.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression).</sub>
 
 <a id="core-api-casing-has-no-suppression"></a>
 
@@ -425,7 +454,7 @@ The stance is the piece most likely to be revisited, and only under pressure fro
 does not exist yet. The question would then be whether *that one* boundary needs an escape, not whether the
 check should have been a warning.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/written-visibility`](core-api.md#core-api-written-visibility). Decided in [0029](../decisions/0029.md), [0030](../decisions/0030.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/written-visibility`](core-api.md#core-api-written-visibility).</sub>
 
 <a id="core-api-written-visibility"></a>
 
@@ -451,7 +480,7 @@ question, enforced separately; until that lands everywhere, a written `private` 
 which is strictly better than an unwritten one. The formatter never inserts the keyword, because a formatter
 that changes meaning is not a formatter.
 
-<sub>See also [`core-api/a-parameter-is-not-a-member`](core-api.md#core-api-a-parameter-is-not-a-member), [`core-api/asymmetric-visibility-is-a-pair`](core-api.md#core-api-asymmetric-visibility-is-a-pair), [`core-api/legacy-property-shapes-name-the-visibility`](core-api.md#core-api-legacy-property-shapes-name-the-visibility), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/declaration`](types.md#types-declaration). Decided in [0094](../decisions/0094.md), [0043](../decisions/0043.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`core-api/a-parameter-is-not-a-member`](core-api.md#core-api-a-parameter-is-not-a-member), [`core-api/asymmetric-visibility-is-a-pair`](core-api.md#core-api-asymmetric-visibility-is-a-pair), [`core-api/legacy-property-shapes-name-the-visibility`](core-api.md#core-api-legacy-property-shapes-name-the-visibility), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/declaration`](types.md#types-declaration). Decided in [0094](../decisions/0094.md).</sub>
 
 <a id="core-api-asymmetric-visibility-is-a-pair"></a>
 
@@ -531,7 +560,7 @@ either — it encodes as an object keyed by its field names.
 The decode half is part of the same contract, so a type that encodes also decodes, and no program
 hand-writes the step that turns decoded data back into an object.
 
-<sub>See also [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`types/object-top`](types.md#types-object-top).</sub>
 
 <a id="core-api-qualifier-behaviour-is-declared"></a>
 
@@ -553,7 +582,7 @@ What this buys is that a reviewer reads authority off the call site: whether an 
 attacker-controlled data is a property of the member being called, visible in its entry, and a member with
 no answer fails the build rather than being assumed neutral.
 
-<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0063](../decisions/0063.md), [0024](../decisions/0024.md), [0055](../decisions/0055.md), [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-nothing-mutates"></a>
 
@@ -574,7 +603,12 @@ The cost is real and is paid at every mutation site: `$a = Arr::sort($a);` is th
 argument passing has `inout` ([`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling)), which no `Core` member
 uses.
 
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **A by-reference mutator for the hot paths, such as `Arr::sortInPlace`.** Copy-on-write already mutates
+  in place when the refcount is 1, so the second spelling buys only aliasing rules and breaks
+  [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature) for no measurable gain.
+
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling).</sub>
 
 <a id="core-api-no-mutable-immutable-twins"></a>
 
@@ -593,7 +627,7 @@ would otherwise have to answer twice — a value type with no mutator has no in-
 The cost is that every derivation allocates a new value, which copy-on-write makes cheap for the array-
 and string-shaped ones and genuinely a copy for the small structs, where it is a few words.
 
-<sub>See also [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths).</sub>
 
 <a id="core-api-no-ambient-state"></a>
 
@@ -614,7 +648,7 @@ The cost is stated rather than hidden: every date formatting call names a zone, 
 typing than an ambient default zone for the common case. What it buys is that a member's answer is a function of its arguments,
 which is also what makes a call reviewable and a compile-time fold possible.
 
-<sub>See also [`core-api/removals`](core-api.md#core-api-removals), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/removals`](core-api.md#core-api-removals), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global).</sub>
 
 <a id="core-api-failure-throws"></a>
 
@@ -636,7 +670,7 @@ The cost is that a converted program's error handling has to be rewritten rather
 `if ($r === false)` has no mechanical equivalent, because the information it tested for now arrives as a
 throw the caller must decide where to catch.
 
-<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability).</sub>
 
 <a id="core-api-one-paradigm-per-operation"></a>
 
@@ -660,7 +694,7 @@ nothing to reach. The one genuinely reachable two-spellings case is a compile er
 member written as a static call is refused, because such a member's receiver travels in argument slot 0 and
 would otherwise pass the same arity check the instance call passes.
 
-<sub>See also [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0063](../decisions/0063.md), [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0122](../decisions/0122.md).</sub>
 
 <a id="core-api-no-methods-on-scalars-or-arrays"></a>
 
@@ -677,7 +711,17 @@ where the subject-first rule ([`core-api/subject-first`](core-api.md#core-api-su
 rather than two. Member access on a value that has no members is refused where it is written
 ([`types/erased-member-access`](types.md#types-erased-member-access)).
 
-<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0063](../decisions/0063.md).</sub>
+`array<T>` is list, stack, queue and dictionary at once, so the collection classes that restate it are
+absent. Only three structures exist beside it, each expressing what an ordered `int|string`-keyed hash
+cannot: `Core\ObjectMap<K, V>` and `Core\ObjectSet<T>`, keyed by object identity, and `Core\Heap<T>`,
+ordered by priority through a comparator or `Comparable` ([`classes/comparable`](classes.md#classes-comparable)).
+
+**Declined:**
+- **A fuller typed collections library, `List<T>`, `Map<K, V>` and `Set<T>`, beside `array<T>`.** It
+  gives two ways to hold a sequence, a conversion at every library boundary, and a standing question of
+  which one a signature should declare.
+
+<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/erased-member-access`](types.md#types-erased-member-access).</sub>
 
 <a id="core-api-no-mode-strings"></a>
 
@@ -698,7 +742,15 @@ The gain is that every mode is typo-proof, completable in an editor and exhausti
 one enum declaration per mode family, which is also what makes them documentable one case at a time
 ([`core-api/reference-card`](core-api.md#core-api-reference-card)).
 
-<sub>See also [`core-api/units-are-types`](core-api.md#core-api-units-are-types), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`types/single-value-types`](types.md#types-single-value-types), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **A relative-date grammar, `strtotime` or a `shift("+2 weeks")` intrinsic.** `shift("start of month")`
+  is a second spelling of `startOf(Unit::Month)` ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)) and a mode
+  string, and it hides the calendar-versus-exact distinction the `DateTime`/`Instant` split makes
+  visible. A `DateTime` moves by typed calls such as `plus(int $count, Unit $unit)`, an `Instant` by a
+  `Duration`, and the one runtime string a program needs is a duration, which `Duration::parse` reads
+  in the literal grammar ([`types/duration`](types.md#types-duration)).
+
+<sub>See also [`core-api/units-are-types`](core-api.md#core-api-units-are-types), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`types/single-value-types`](types.md#types-single-value-types), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments).</sub>
 
 <a id="core-api-units-are-types"></a>
 
@@ -715,7 +767,7 @@ out of the call site: it is constructed from the unit it is written in (`Duratio
 from a written grammar ([`types/duration`](types.md#types-duration)), and every member taking a timeout takes exactly
 that type. The cost is one construction at each call site that would otherwise have passed a bare integer.
 
-<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/duration`](types.md#types-duration). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/duration`](types.md#types-duration).</sub>
 
 <a id="core-api-no-encoding-argument"></a>
 
@@ -735,7 +787,7 @@ The cost lands on programs that genuinely handle non-UTF-8 text: they hold `byte
 ([`types/bytes`](types.md#types-bytes)) until they have decided what the encoding is, and the decision is written where it is
 made instead of defaulted per call.
 
-<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes).</sub>
 
 <a id="core-api-one-range-convention"></a>
 
@@ -752,7 +804,7 @@ reader move between the string and the array class without re-checking whether a
 length or an end position — the question `substr` and `array_slice` answer the same way and `str_split`
 does not.
 
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`types/preserve-keys`](types.md#types-preserve-keys).</sub>
 
 <a id="core-api-callback-receives-value-and-key"></a>
 
@@ -768,7 +820,7 @@ No member takes a flag saying whether its callback wants the value, the key or b
 a `map`/`mapWithKey` pair that would otherwise violate [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature). The order is value-first because that is the
 argument almost every callback uses, so the common callback is `fn($v)` with nothing to skip.
 
-<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-values`](types.md#types-callable-values). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-values`](types.md#types-callable-values).</sub>
 
 <a id="core-api-parameters-are-callable-by-name"></a>
 
@@ -788,9 +840,19 @@ every parameter name since it was written, so the surface was already public, an
 method has that a `Core` member lacks is one more rule to learn. The name lives once, on the registry row
 beside the type, and the reference card looks it up rather than repeating it
 ([`core-api/reference-card`](core-api.md#core-api-reference-card)). Nothing on the request path changes — a `name:` resolves while checking
-and the helper ABI is untouched.
+and the helper ABI is untouched. No member's shape, order, parameter list or bag moved for this: a name
+labels a slot that already exists, never adds one.
 
-<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`types/arrays`](types.md#types-arrays). Decided in [0063](../decisions/0063.md), [0117](../decisions/0117.md).</sub>
+- **Memory:** per process, one static string slice per registry row, in read-only data. Nothing per
+  request or per task.
+
+**Declined:**
+- **Positional-only `Core` members, with the options bag as their only by-name surface.** It kept
+  parameter names out of the compatibility surface, but the spec publishes every name anyway, and the
+  grammar and checker rules for named arguments already exist for user-declared methods
+  ([`types/arrays`](types.md#types-arrays)), so all it bought was an asymmetry between the two.
+
+<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`types/arrays`](types.md#types-arrays). Decided in [0117](../decisions/0117.md).</sub>
 
 <a id="core-api-options-bag"></a>
 
@@ -812,7 +874,7 @@ The cost is that a bag's keys are declared and fixed: a member that must take a 
 at run time needs a second member taking a `string`, which is why `Core\Uri` carries both `with` and a
 query-parameter pair rather than one member doing both.
 
-<sub>See also [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md), [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`types/object-top`](types.md#types-object-top). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-required-optional-and-nullable"></a>
 
@@ -832,9 +894,7 @@ they are separate questions, and both already have a spelling.
 
 Nullability is a property of the **type** and optionality is a property of the constructor parameter's
 **default**; neither borrows the other's meaning. Encoding is the plain inverse: every field is always
-emitted, including a `null` one. There is no omit-when-null option, because an asymmetric encoder is a
-round-trip bug that only shows up in the value that happens to be absent — and adding one later, conditioned
-on the field having a default, is purely additive.
+emitted, including a `null` one.
 
 **One row is designed, not shipped.** `?T $x = null` needs a written `= null` parameter default, which
 the checker still refuses — `crates/nvs-types/src/defaults.rs`'s own gap, not this table's. The other
@@ -847,7 +907,12 @@ field to carry a constant and is filled by nothing, so the call that asks for an
 document is refused while compiling rather than answered with a guess: `E0820` at a document door and
 `E0806` at a row's.
 
-<sub>See also [`core-api/written-participation`](core-api.md#core-api-written-participation), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0071](../decisions/0071.md), [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **An omit-when-null option.** An asymmetric encoder is a round-trip bug that shows only in the
+  value that happens to be absent. One conditioned on the field having a default can be added later
+  without changing anything here, once a real interoperability case needs it.
+
+<sub>See also [`core-api/written-participation`](core-api.md#core-api-written-participation), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`types/unions-and-mixed`](types.md#types-unions-and-mixed).</sub>
 
 <a id="core-api-omission-is-not-a-written-null"></a>
 
@@ -872,7 +937,7 @@ this removes rather than relocates.
 `a_nullable_shape_field_omits_as_the_never_written_marker`, hold the pairing over every registered row.
 `Core\Uri::with` is the first member to spend it.
 
-<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0147](../decisions/0147.md), [0063](../decisions/0063.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-a-nullable-field-omits-as-the-never-written-marker"></a>
 
@@ -902,7 +967,7 @@ The two guards in `crates/nvs-stdlib/src/registry.rs` —
 `a_nullable_shape_field_omits_as_the_never_written_marker` — assert exactly this pairing, one per
 spelling, over every registered row.
 
-<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-a-written-null-removes"></a>
 
@@ -931,7 +996,7 @@ is not an absent one — so overloading it would reinstate the in-band sentinel 
 `Core\Uri::with` the first member to spend them: `{port: null}`, `{query: null}` and
 `{fragment: null}` each clear their component, where omitting the key carries it over.
 
-<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings). Decided in [0147](../decisions/0147.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings). Decided in [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-the-marker-never-reaches-a-program"></a>
 
@@ -955,7 +1020,7 @@ that is a language-surface decision this one does not open. A native helper can 
 states by a test; a user's function body cannot be, and giving it a state it has no way to name would be
 exactly the observable marker this rule refuses.
 
-<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable). Decided in [0147](../decisions/0147.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable). Decided in [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-the-bag-abi-is-unchanged"></a>
 
@@ -982,7 +1047,7 @@ every member registered today lowers to the same instructions and nothing needs 
 one instruction that materializes it, and `nvs_codegen`'s arm for that writes the tag byte over a
 zero payload. Every member registered before this lowers byte for byte as it did.
 
-<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-field-wise-precedence"></a>
 
@@ -1028,7 +1093,7 @@ carries a default entry only if it is itself optional. The options bag ([`core-a
 its own spelling rather than being folded into this one, because the two differ in call-site rules — last,
 unnamed, omittable in full — which are worth enforcing by a type rather than restating in a test.
 
-<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md), [0063](../decisions/0063.md), [0047](../decisions/0047.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-shape-arms-are-disjoint"></a>
 
@@ -1052,7 +1117,7 @@ instead of by a value.
 What a caller sees is that a key belonging to the arm the other values did not select is refused where it
 is written, naming the arm's own key set rather than the merged one.
 
-<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/shape-reuses-the-option-diagnostics`](core-api.md#core-api-shape-reuses-the-option-diagnostics), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0135](../decisions/0135.md), [0047](../decisions/0047.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/shape-reuses-the-option-diagnostics`](core-api.md#core-api-shape-reuses-the-option-diagnostics), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-one-checked-shape-type"></a>
 
@@ -1073,7 +1138,7 @@ which arm it belongs to ([`core-api/reference-card`](core-api.md#core-api-refere
 The cost was a rename touching the interner, the checker, the lowering and the metadata command, and that
 was the whole of the churn.
 
-<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0135](../decisions/0135.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-shape-flattens-at-the-abi"></a>
 
@@ -1100,7 +1165,7 @@ for this to matter is a member that wanted an enum.
 A qualifier classification lands on the **field**, not the parameter
 ([`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared)), so a shape's fields are walked rather than exempted.
 
-<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0135](../decisions/0135.md), [0063](../decisions/0063.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-shape-reuses-the-option-diagnostics"></a>
 
@@ -1121,7 +1186,7 @@ This matters more than it looks. Both type diagnostic bands are full, so a new t
 forced a third band open as a side effect of adding a parameter kind — the wrong reason to take that
 decision.
 
-<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md), [0036](../decisions/0036.md).</sub>
+<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-a-lifetime-is-an-object"></a>
 
@@ -1147,7 +1212,7 @@ a place for the capability check and a place for the methods. The `resource` ato
 grammar ([`types/grammar`](types.md#types-grammar)) only for opaque handles an extension supplies, and `Core` never produces
 one.
 
-<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/no-destructors`](classes.md#classes-no-destructors), [`types/grammar`](types.md#types-grammar). Decided in [0063](../decisions/0063.md), [0003](../decisions/0003.md).</sub>
+<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/no-destructors`](classes.md#classes-no-destructors), [`types/grammar`](types.md#types-grammar).</sub>
 
 <a id="core-api-a-lifetime-is-written"></a>
 
@@ -1170,7 +1235,7 @@ unbounded lifetime on a field that must be written either way.
 
 **Designed, not shipped.**
 
-<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null). Decided in [0146](../decisions/0146.md), [0096](../decisions/0096.md), [0060](../decisions/0060.md).</sub>
+<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null). Decided in [0146](../decisions/0146.md), [0096](../decisions/0096.md).</sub>
 
 <a id="core-api-signing-is-over-a-payload"></a>
 
@@ -1200,7 +1265,7 @@ The fragment is never signed, since it is not sent to the server.
 query parameter for the token. `Core\Router`'s pair — the one that signs a route's name and parameters,
 so a signature survives a remount — is not registered yet.
 
-<sub>See also [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md), [0058](../decisions/0058.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing). Decided in [0146](../decisions/0146.md), [0097](../decisions/0097.md).</sub>
 
 <a id="core-api-one-refusal-except-expiry"></a>
 
@@ -1223,7 +1288,7 @@ caller can drop on the floor ([`core-api/failure-throws`](core-api.md#core-api-f
 
 **Designed, not shipped.**
 
-<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md).</sub>
+<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0146](../decisions/0146.md).</sub>
 
 <a id="core-api-each-door-takes-a-different-thing"></a>
 
@@ -1245,7 +1310,7 @@ A program that assembles a URL by hand, signs the text and hand-rolls the parame
 URL member badly rather than reached it twice, which is the difference between a second door and a second
 API.
 
-<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0146](../decisions/0146.md), [0063](../decisions/0063.md), [0060](../decisions/0060.md).</sub>
+<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0146](../decisions/0146.md).</sub>
 
 <a id="core-api-two-cache-tiers"></a>
 
@@ -1273,7 +1338,20 @@ footprint, and a configured size cap is the instrument for that — `[cache.loca
 `[cache.process] max_size` per process; a boolean grant is not one, and adding it would price a tier as an
 authority question every deployment then has to answer.
 
-<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0059](../decisions/0059.md), [0024](../decisions/0024.md), [0142](../decisions/0142.md), [0118](../decisions/0118.md), [0181](../decisions/0181.md).</sub>
+The local tier is fast because it is local: no wire format, no socket and no syscall, only a graph copy
+inside one core's heap. That is what the parsed-configuration and compiled-template cases, most of what a
+cache is used for, need, and none of them needs coherence.
+
+**Declined:**
+- **One member with a `coherent: true` flag.** The default would be chosen once and copied from then on,
+  and choosing wrong fails silently; two names cost a few characters and make the guarantee visible.
+- **A shared segment across cores, with locking.** It is the cross-request channel shared-nothing removes,
+  and the lock lets one request's failure stall or corrupt another's view
+  ([`security/no-cross-request-state`](security.md#security-no-cross-request-state)).
+- **No local tier, with everything in the shared store.** It puts a network round trip in front of the
+  cases that need no coherence at all.
+
+<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0142](../decisions/0142.md), [0118](../decisions/0118.md), [0181](../decisions/0181.md).</sub>
 
 <a id="core-api-one-temporary-directory-member"></a>
 
@@ -1292,7 +1370,7 @@ authority beyond the one the member already granted.
 
 The cost is one extra join at each call site that genuinely wanted a single file.
 
-<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0131](../decisions/0131.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0131](../decisions/0131.md).</sub>
 
 <a id="core-api-session-roster"></a>
 
@@ -1315,7 +1393,7 @@ rather than each growing a refusal of its own — the sealed pair answers it bef
 takes no argument: a flag to keep the old entry would choose between a fixation window and a lost session,
 and only one of those is correct.
 
-<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0139](../decisions/0139.md), [0012](../decisions/0012.md), [0124](../decisions/0124.md).</sub>
+<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0139](../decisions/0139.md), [0124](../decisions/0124.md).</sub>
 
 <a id="core-api-reference-card"></a>
 
@@ -1356,7 +1434,7 @@ strings in the binary — per process, not per request, on the order of a few hu
 member — which is the cheap side of the trade and strippable behind a build feature if a deployment ever
 cares.
 
-<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0011](../decisions/0011.md), [0063](../decisions/0063.md), [0203](../decisions/0203.md), [0214](../decisions/0214.md).</sub>
+<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0203](../decisions/0203.md), [0214](../decisions/0214.md).</sub>
 
 <a id="core-api-removals"></a>
 
@@ -1382,4 +1460,4 @@ A PHP built-in that has no successor here is absent for one of four standing rea
 No list maps a PHP name to its outcome ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)): the four reasons are
 how a request for a missing built-in is judged, and the `Core` library states what Novis has.
 
-<sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/array-combination`](types.md#types-array-combination). Decided in [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/array-combination`](types.md#types-array-combination).</sub>

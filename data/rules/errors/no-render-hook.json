@@ -2,8 +2,7 @@
   "title": "A class cannot change how it is dumped",
   "status": "shipped",
   "because": [
-    "0092",
-    "0028"
+    "0092"
   ],
   "seeAlso": [
     "errors/diagnostic-record",

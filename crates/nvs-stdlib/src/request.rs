@@ -1880,8 +1880,8 @@ fn multipart_form(ctx: &mut Ctx, declared: &[u8], member: &'static str) -> Resul
 /// and a body that is not one parses to no fields rather than to a refusal.
 fn urlencoded_form(ctx: &mut Ctx, member: &'static str) -> Result<NvsArray, Fault> {
     let held = held_octets(ctx, member)?;
-    // Refused rather than repaired, under ADR 0095: a urlencoded body is
-    // percent-escaped ASCII by construction, so a raw octet outside UTF-8 in
+    // Refused rather than repaired, under `rule:errors/ambiguous-input-refused`: a
+    // urlencoded body is percent-escaped ASCII by construction, so a raw octet outside UTF-8 in
     // one is a body that is not what it claims to be — and lossily replacing it
     // would answer a field the peer never sent.
     //
@@ -2479,8 +2479,9 @@ nvs_runtime::nvs_helper! {
     /// string, down to the bracket convention, which is
     /// [`crate::uri::place`]'s once rather than twice.
     ///
-    /// **It reads the body to its end**, and that is the whole of its rule. ADR
-    /// 0105 § 2 promises *every* field of a mixed form, and a form is free to
+    /// **It reads the body to its end**, and that is the whole of its rule.
+    /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` promises
+    /// *every* field of a mixed form, and a form is free to
     /// write a text input after a file input — so a member answering the fields
     /// that had arrived so far would report one the peer sent as absent, which
     /// is the silent wrong answer [`nvs_runtime::Inbound`] is written against.

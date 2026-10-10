@@ -2,9 +2,7 @@
   "title": "A `string` or `bytes` parameter is a sink when its content becomes an instruction a parser executes",
   "status": "shipped",
   "because": [
-    "0088",
-    "0024",
-    "0063"
+    "0088"
   ],
   "seeAlso": [
     "security/unclassified-parameter-refuses-tainted",

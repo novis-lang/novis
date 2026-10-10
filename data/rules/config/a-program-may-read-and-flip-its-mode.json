@@ -2,8 +2,7 @@
   "title": "A program may read the mode and may flip it for its own request, bounded by a `System` ceiling",
   "status": "shipped",
   "because": [
-    "0091",
-    "0005"
+    "0091"
   ],
   "seeAlso": [
     "config/a-mode-is-five-defaults",

@@ -2,7 +2,6 @@
   "title": "The notice and Novis's own license are compiled into the binary from the same tree",
   "status": "shipped",
   "because": [
-    "0065",
     "0274"
   ],
   "seeAlso": [

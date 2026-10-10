@@ -13,3 +13,8 @@ The same boundary holds from the other side: **a bundled executable may not inst
 service.** A privileged account executing that payload at every boot is exactly the second principal
 the single-trust-domain argument depends on there not being, so the installer refuses a host that is
 itself a bundle.
+
+**Declined:**
+- **Extending the bundle to `nvs serve`.** It would have to decide who counts as the configuration's
+  owner when the configuration ships inside an app-built artifact, which engages the root and app
+  capability separation directly rather than sitting beside it.

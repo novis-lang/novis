@@ -47,8 +47,8 @@ candidates that read as obviously mergeable — 0029+0030, and the four rejected
 and nothing has been since. A record's body is rationale as of its date and is not edited to say
 something new — what is currently true is the rule's fragment under `docs/rules/`.
 
-**2. A section number is a public identifier too — never renumber one.** `0007 § 3`, `0066 § 3a` and
-`0009 § 1` are cited from doc comments in `crates/`, from `docs/spec/01-core-library.md` — which is
+**2. A section number is a public identifier too — never renumber one.** `NNNN § 3a` and its kind
+are cited from doc comments in `crates/`, from `docs/spec/01-core-library.md` — which is
 live, read at test time by `crates/nvs-stdlib/tests/spec_registry_coverage.rs` — and from the `context` manifest in the live goal's record that the running loop
 reads. Deleting `### 3.` and promoting `### 4.` silently repoints every one of them.
 Insert as `§ 3a`; delete a section's *content* and keep its number. `bun nv records`' **section refs** check

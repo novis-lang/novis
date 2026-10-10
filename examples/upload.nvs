@@ -1,7 +1,7 @@
 <?nvs
 // The receiving end of an upload, as a program.
 //
-// [ADR 0105](/docs/decisions/0105.md)
+// `rule:http-server/there-is-no-temp-file`
 // states one rule, and this fixture is the shape of it: **there is no temp
 // file, because the destination is the application's own call.** The host never
 // picks a path, never writes one behind the program's back, and never leaves
@@ -12,7 +12,7 @@
 // nothing is inbound here, so the walk refuses rather than yielding parts. The
 // end-to-end half -- a real multipart body, its two parts, and a large one
 // received at bounded resident memory against a high-water mark -- is
-// `crates/nvs-server`'s own suite, which m7.md names as ADR 0105's fixture
+// `crates/nvs-server`'s own suite, which m7.md names as the uploads' fixture
 // list. This leg is the surface a handler writes, run to the point where the
 // absence of a request stops it.
 //
@@ -24,15 +24,15 @@
 string $dir = Core\IO::temporaryDir();
 
 // The whole receiving end, written exactly as a request handler writes it: the
-// walk, the launderer, and one of § 3's two consumers. A part is received once
+// walk, the launderer, and one of a part's consumers. A part is received once
 // and in one of two ways -- into a bounded buffer with `readAll({max})`, or
-// straight to its destination with `saveTo`, which is § 4's delegation to
+// straight to its destination with `saveTo`, which delegates to
 // `Core\IO::writeStream` and never holds more than a chunk.
 //
 // It refuses here, and the refusal is this leg's assertion. `Core\Request` has
-// nothing to read because nothing arrived (ADR 0012 § 7), and a program that
-// found an upload anyway would have found it in exactly the place ADR 0105
-// removed: ambient state the host left lying about.
+// nothing to read because nothing arrived, and a program that
+// found an upload anyway would have found it in exactly the place that does
+// not exist: ambient state the host left lying about.
 try {
     foreach (Core\Request::files() as Core\Request\Part $part) {
         string $dest = Core\IO::within($dir, 'upload.bin');
@@ -59,8 +59,8 @@ Core\IO::writeStream($blob, $chunks, { overwrite: true });
 echo 'streamed ', Core\IO::size($blob), " bytes\n";
 
 // The destination is a name this program built with `Core\Path::join` from a
-// directory it owns -- never one derived from what arrived. ADR 0105 leaves the
-// filename a part *claims* as `tainted` text, so `Core\IO::within` is the
+// directory it owns -- never one derived from what arrived. A part leaves the
+// filename it *claims* as `tainted` text, so `Core\IO::within` is the
 // launderer standing between it and a path, exactly as `examples/files.nvs`
 // shows it and exactly as the walk above spells it.
 try {

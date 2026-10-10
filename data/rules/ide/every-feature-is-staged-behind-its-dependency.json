@@ -2,9 +2,7 @@
   "title": "The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub",
   "status": "designed",
   "because": [
-    "0040",
-    "0099",
-    "0108"
+    "0099"
   ],
   "seeAlso": [
     "ide/the-first-server-answers-a-closed-list",

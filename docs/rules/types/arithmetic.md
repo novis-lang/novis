@@ -42,3 +42,9 @@ through `??`. `mixed` is not a union and is still answered from its tag.
 Overflow throwing is the divergence this table is least willing to trade. A silent promotion to
 `float` changes a binding's type behind its declaration, and a silent wrap is the classic
 size-computation bug. Code that wants unbounded magnitude declares `float`, or converts.
+
+A `decimal` throws on both of its overflows, the mantissa past 96 bits and the scale past 28. `*` adds
+its operands' scales, so two scale-20 values want scale 40, and .NET's `System.Decimal`, whose layout
+`decimal` otherwise shares, silently reduces the scale there; that would make `*` a second inexact
+operation beside division. Where a narrowed product is what the application means,
+`Core\Decimal::round($value, $mode, $scale)` says so at the site.

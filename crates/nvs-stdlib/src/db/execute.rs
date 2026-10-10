@@ -3,7 +3,7 @@
 //! `query`, `queryAs`, `execute` and `executeMany` are one shape over five
 //! drivers, so everything that varies is pushed to the bottom of this module:
 //! the `*_rows` and `*_write` pairs are where a driver's own result becomes the
-//! rows and the write [ADR 0067](/docs/decisions/0067.md) § 18
+//! rows and the write [spec § 18](/docs/spec/01-core-library.md)
 //! declares.
 //!
 //! **SQLite is the one that cannot be written like the others.** Its cells
@@ -1097,7 +1097,7 @@ pub(super) fn sqlite_described_columns(columns: &[nvs_db::SqliteColumn]) -> NvsA
     described
 }
 
-/// One stepped cell as [ADR 0067 § 9](/docs/decisions/0067.md)'s
+/// One stepped cell as `rule:core-classes/db-column-types`'s
 /// value for the type its column was **declared** — the storage class it
 /// arrived in wherever that declaration names something SQLite can hold, and a
 /// `Core\Time`, a `Core\Uuid`, a `decimal` or a `bool` where it does not.
@@ -1530,7 +1530,7 @@ mod tests {
         }
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `{timeout?: Duration}`, over
+    /// `rule:core-classes/db-statement-members`'s `{timeout?: Duration}`, over
     /// the three links that make it a bound rather than an option that parses:
     /// the duration becomes an instant, the instant reaches the socket, and a
     /// socket that gave up on it becomes a throw.
@@ -1623,7 +1623,7 @@ mod tests {
         drop(peer);
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s buffered read, which is the
+    /// `rule:core-classes/db-statement-members`'s buffered read, which is the
     /// whole difference between `query` and `stream`: every row is in memory
     /// before the call returns, and the connection is free from that moment.
     ///
@@ -2035,7 +2035,7 @@ mod tests {
         statement.sql
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s batch agreement, asserted at
+    /// `rule:core-classes/db-statement-members`'s batch agreement, asserted at
     /// the seam [`batch_of`] decides it on: every set of one `executeMany`
     /// rewrites to the same statement text, or the sets are two statements and
     /// the batch is refused.
@@ -2092,7 +2092,7 @@ mod tests {
         }
     }
 
-    /// [ADR 0067 § 9](/docs/decisions/0067.md)'s SQLite rule, asserted
+    /// `rule:core-classes/db-column-types`'s SQLite rule, asserted
     /// as the **agreement** it is: one cell, five declarations, five different
     /// answers.
     ///

@@ -1,10 +1,7 @@
 {
   "title": "A class observes every read and write of its own properties by implementing `PropertyObserver`, never by declaring `__get`/`__set`",
   "status": "shipped",
-  "because": [
-    "0014",
-    "0011"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/property-observer-pipeline",
     "classes/no-dynamic-properties",

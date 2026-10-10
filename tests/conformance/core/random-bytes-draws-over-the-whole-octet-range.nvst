@@ -14,9 +14,9 @@ Core\Random::bytes draws over the whole octet range rather than over any text su
 // the invariant, and it is counted over a sweep rather than read off a draw.
 //
 // Every draw here is *one* octet, so its `Core\Encoding::toHex` rendering is
-// exactly that octet's own two digits and nothing straddles a boundary; ADR
-// 0009 § 3 is why the comparison happens in hex at all rather than by reading
-// the buffer as a `string`.
+// exactly that octet's own two digits and nothing straddles a boundary;
+// `rule:types/conversion`'s checked `bytes as string` is why the comparison
+// happens in hex at all rather than by reading the buffer as a `string`.
 int $sized = 0;
 int $distinct = 0;
 int $highBit = 0;

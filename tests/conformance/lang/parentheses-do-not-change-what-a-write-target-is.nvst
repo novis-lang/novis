@@ -5,8 +5,8 @@ Parentheses group and never change what an expression is, so a parenthesized loc
 // `nvs_syntax::ast::Expr::unparenthesized` is the one home for "parentheses
 // group, and never change what an expression *is*". Two rules ask that
 // question rather than what an expression evaluates to: whether a subscript
-// chain's root is a place a separated array can be written back into (ADR
-// 0007 § 5), and whether a read aliases storage something else already owns.
+// chain's root is a place a separated array can be written back into
+// (`rule:types/an-element-write-needs-storage-to-write-back-into`), and whether a read aliases storage something else already owns.
 // Both are asked here at every level a parenthesis can sit at, and what is
 // pinned is that they *agree* with the unparenthesized spelling — PHP writes
 // through parentheses too (checked line by line against `php -r`), so

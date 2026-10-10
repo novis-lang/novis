@@ -2,10 +2,7 @@
   "title": "A schema is a value with three spellings, and its array form is the canonical one",
   "status": "shipped",
   "because": [
-    "0145",
-    "0090",
-    "0071",
-    "0067"
+    "0145"
   ],
   "seeAlso": [
     "core-classes/schema-vocabulary-is-closed",

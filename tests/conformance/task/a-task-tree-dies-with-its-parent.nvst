@@ -44,7 +44,7 @@ try {
     echo "the deadline was hit", "\n";
 }
 
-// Four tasks parked, none resumed: § 5's "no user code runs on the way out"
+// Four tasks parked, none resumed: `rule:concurrency/cancellation-runs-no-user-code`'s "no user code runs on the way out"
 // holds at every depth, so the line after each sleep is unreachable for the
 // grandchildren exactly as it is for the leaf.
 echo Tree::$parked, " parked, ", Tree::$resumed, " resumed", "\n";

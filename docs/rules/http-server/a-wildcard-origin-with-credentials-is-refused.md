@@ -11,3 +11,7 @@ same reason — browsers reject the pair, so it is a policy with no meaning rath
 The two mechanisms are held to one implementation of each condition: the guard asserts that boot
 and `Core\Config::set` *agree* over a table of moves into and out of each pair, rather than
 asserting what either answered on its own.
+
+**Declined:**
+- **A warning instead of the refusal.** The configuration has no correct meaning to warn about, and
+  a boot warning is read once.

@@ -41,7 +41,8 @@ fn build(file: &str) -> (String, String, bool) {
     )
 }
 
-/// § 1 and the *Fidelity* bullet: every route in the table appears exactly once
+/// `rule:routing/api-document-is-generated-from-the-route-table`: every route in
+/// the table appears exactly once
 /// in the document, at its own path, under its own verb, carrying the
 /// `operationId` its `name` gave it.
 // covers: tools:cli/nvs-build-openapi
@@ -68,7 +69,7 @@ fn an_openapi_document_names_every_route_of_the_fixture_once() {
         );
     }
 
-    // § 1's "path parameters by declared type": `show(uint $id)`, so the
+    // Path parameters by declared type: `show(uint $id)`, so the
     // capture is a non-negative integer and the document says both halves.
     assert!(
         doc.contains("\"name\": \"id\"")
@@ -79,8 +80,9 @@ fn an_openapi_document_names_every_route_of_the_fixture_once() {
     );
 }
 
-/// § 3: two builds of the same source produce byte-identical documents, which
-/// is what makes § 4's diff mean anything. The cheapest way for it not to be is
+/// `rule:routing/api-document-is-a-deterministic-build-artifact`: two builds of
+/// the same source produce byte-identical documents, which is what makes
+/// `nvs api diff` mean anything. The cheapest way for it not to be is
 /// a hash map in the emitter, and this is what would catch one.
 // covers: tools:cli/nvs-build-openapi
 #[test]
@@ -91,7 +93,7 @@ fn an_openapi_document_is_byte_identical_across_two_emissions() {
     assert_eq!(first, second, "the emitter is not deterministic");
 }
 
-/// § 1's "a program with no `#[Route]` generates nothing and runs no pass": no
+/// "A program with no `#[Route]` generates nothing and runs no pass": no
 /// document, a sentence saying why, and a success exit — having nothing to emit
 /// is not a failure.
 // covers: tools:cli/nvs-build-openapi
@@ -106,7 +108,7 @@ fn a_program_declaring_no_route_emits_no_document() {
     assert!(err.contains("nothing to emit"), "and it says so: {err}");
 }
 
-/// A program the front end refuses emits no document — the ADR's whole premise
+/// A program the front end refuses emits no document — the rule's whole premise
 /// is that the document cannot say what the compiler did not agree to, so a
 /// partial one is worse than none.
 #[test]
@@ -159,7 +161,7 @@ fn a_doc_comment_full_of_json_syntax_reaches_the_document_as_text() {
     );
 }
 
-/// § 1's last row: the summary is the doc comment's first sentence, the
+/// The doc-comment row: the summary is the doc comment's first sentence, the
 /// description is the rest, and a method that wrote no doc comment carries
 /// neither member.
 ///
@@ -222,7 +224,7 @@ fn an_operations_summary_and_description_come_from_the_handlers_doc_comment() {
     );
 }
 
-/// § 1's response body row: the `200` response's schema is the handler's
+/// The response body row: the `200` response's schema is the handler's
 /// declared return type, through the same `schema` mapping a parameter's is.
 ///
 /// The answers the emitter has to tell apart, in one fixture: a type it
@@ -262,14 +264,14 @@ fn an_operations_response_schema_is_the_handlers_declared_return_type() {
     );
 }
 
-/// § 1's *Enumerations* row, and
+/// The document's *Enumerations* row, and
 /// `rule:routing/a-capture-narrows-to-a-closed-set`
 /// 's own promise about it — "the generated document emits
 /// `enum: [en, de, fr]` with no further work".
 ///
 /// Asserted as whole schema objects rather than as `doc.contains("enum")`,
 /// because what would go wrong here is invisible to a substring: a set emitted
-/// in some order other than the union's, which § 3's determinism forbids, and a
+/// in some order other than the union's, which determinism forbids, and a
 /// set emitted *beside* a `type` the row never carried. The `int` union is where
 /// a stray `type` would show — its members are the segment text they are
 /// written with, so they are strings here and `1` in the URL either way, which
@@ -308,7 +310,7 @@ fn a_closed_set_parameter_carries_the_unions_members_as_an_enum() {
     );
 }
 
-/// § 1's *Enumerations* row for the other kind of closed set, and
+/// The document's *Enumerations* row for the other kind of closed set, and
 /// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
 /// 's promise that one spelling serves the route, its links and this document
 /// alike.
@@ -347,7 +349,8 @@ fn an_enum_captures_cases_are_the_enum_row_under_their_own_spelling() {
     );
 }
 
-/// § 1 by way of `rule:routing/a-capture-narrows-to-a-closed-set`'s other named capture type: `Core\Uuid` is the one
+/// The document by way of `rule:routing/a-capture-narrows-to-a-closed-set`'s other named
+/// capture type: `Core\Uuid` is the one
 /// class a segment converts to, and `format: uuid` is what the JSON Schema
 /// dialect 3.1 uses already registers for it. An empty schema in its place would
 /// say *any string, or any number, or any object*.
@@ -365,7 +368,7 @@ fn a_uuid_capture_is_a_string_with_the_registered_format() {
 }
 
 // -------------------------------------------------------------------------
-// § 4 — `nvs api diff`, the gate.
+// `nvs api diff`, the gate (`rule:routing/api-diff-fails-a-breaking-change`).
 //
 // Every case below builds both sides with the emitter rather than pasting
 // JSON, which is what makes them a test of the *gate* rather than of a fixture
@@ -418,8 +421,8 @@ fn api_diff(old: &std::path::Path, new: &std::path::Path) -> (String, String, bo
     )
 }
 
-/// § 4's first breaking change, and the *Verification* section's "removing an
-/// operation … exits non-zero from `nvs api diff`".
+/// The gate's first breaking change: removing an operation exits non-zero from
+/// `nvs api diff`.
 // covers: tools:cli/nvs-api-diff
 #[test]
 fn an_api_diff_classifies_a_removed_route_as_breaking() {
@@ -469,7 +472,7 @@ fn an_api_diff_classifies_an_added_route_as_compatible() {
 
 /// A document against itself is the gate's resting state, and it has to be
 /// silent: a gate that reports a change on every build is one a team turns off.
-/// This rests on § 3's determinism, which
+/// This rests on the document's determinism, which
 /// `an_openapi_document_is_byte_identical_across_two_emissions` pins directly.
 #[test]
 fn an_api_diff_of_a_document_against_itself_reports_no_change() {
@@ -530,18 +533,18 @@ fn an_api_diff_of_a_document_nested_past_the_reader_limit_is_a_failure() {
 }
 
 // -------------------------------------------------------------------------
-// § 2 -- `#[Api]` may add and may not contradict.
+// `rule:attributes/api-adds-and-cannot-contradict` -- `#[Api]` may add and may not contradict.
 //
 // One fixture per contradiction plus one that agrees, and the bound is
 // asserted on both sides on purpose: the refusing fixtures alone would pass
 // just as well against an `#[Api]` that refused everything it was handed, and
 // the accepting one alone would pass against an `#[Api]` nothing checked at
-// all. `crates/nvs-types/src/routes.rs`'s `check_api` owns which half of § 2's
+// all. `crates/nvs-types/src/routes.rs`'s `check_api` owns which half of the
 // `security` rule is askable today and why the other half is not.
 // -------------------------------------------------------------------------
 
-/// § 2's contradictions, each named by the message that tells it from the
-/// others -- they share `E0771`, because § 2 states one rule that several
+/// `#[Api]`'s contradictions, each named by the message that tells it from the
+/// others -- they share `E0771`, because it is one rule that several
 /// different writings can break.
 #[test]
 fn an_api_attribute_contradicting_its_own_signature_is_a_diagnostic() {
@@ -576,11 +579,11 @@ fn an_api_attribute_contradicting_its_own_signature_is_a_diagnostic() {
     );
 }
 
-/// § 2's values in the document, read back off the operation they annotate
+/// `#[Api]`'s values in the document, read back off the operation they annotate
 /// — and absent from the operation beside it that declares no `#[Api]`.
 ///
 /// One test over one fixture holding both rows, rather than a test per
-/// value: § 2's promise is that the annotation reaches the document *as
+/// value: the promise is that the annotation reaches the document *as
 /// written*, and a per-value test passes just as well against an emitter that
 /// writes each value into a member of its own choosing. The `#[Api]`-less row
 /// is the half that catches the opposite mistake — a `tags: []` or a `security:
@@ -628,7 +631,7 @@ fn an_apis_four_values_reach_the_operation_and_nothing_else() {
     assert_eq!(
         responses.keys().collect::<Vec<_>>(),
         ["200"],
-        "and answers § 1's declared return type alone:\n{bare}"
+        "and answers the declared return type alone:\n{bare}"
     );
     assert!(
         bare["responses"]["200"]["content"]["application/json"]["example"].is_null(),

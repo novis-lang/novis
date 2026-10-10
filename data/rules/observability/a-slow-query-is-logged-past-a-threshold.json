@@ -1,9 +1,7 @@
 {
   "title": "A `[db.<name>] slow_query` threshold writes a statement's span facts to `Core\\Log`, and is off until a block writes one",
   "status": "shipped",
-  "because": [
-    "0067"
-  ],
+  "because": [],
   "seeAlso": [
     "observability/a-query-is-a-trace-event",
     "core-classes/db-connection-is-named",

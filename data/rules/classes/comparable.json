@@ -1,10 +1,7 @@
 {
   "title": "Two objects order only when their class implements `Comparable`, and there is no property-walk fallback",
   "status": "shipped",
-  "because": [
-    "0013",
-    "0011"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/ordering-lowers-to-compare-to",
     "classes/comparable-is-same-class-only",
@@ -15,6 +12,8 @@
   "guardedBy": [
     "tests/conformance/class/comparable-orders-two-objects.nvst",
     "tests/conformance/class/ordering-two-objects-without-comparable-is-refused.nvst",
+    "tests/conformance/class/comparable-is-named-where-the-comparison-is-written-and-a-mixed-operand-names-none.nvst",
+    "tests/conformance/class/comparable-is-one-answer-every-relational-operator-reads-the-sign-of-and-equality-is-untouched.nvst",
     "crates/nvs-types/tests/comparable_and_stringable.rs"
   ]
 }

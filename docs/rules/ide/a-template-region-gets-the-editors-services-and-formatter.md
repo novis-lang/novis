@@ -19,7 +19,8 @@ terms — the holes are Novis and the segments are HTML, which is the boundary t
 grammar, for the reason `rule:ide/redaction-ranges-come-from-the-server` gives for redaction
 ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
 the extension did not write is not language logic in the client. The request carries an optional `text`,
-and then answers for that text rather than the open buffer.
+and then answers for that text rather than the open buffer. Its cost is protocol surface: it is a second
+request of Novis's own, and one more a client other than VS Code implements to reach the same depth.
 
 **Formatting is `nvs fmt` first, then the editor's own HTML formatter over the markup, starting where the
 Novis code is.** A format request runs `nvs fmt` over the whole file, asks `nvs/regions` for the regions

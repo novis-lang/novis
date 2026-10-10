@@ -17,7 +17,9 @@ For all three:
   present to read a callee from (`rule:types/callable-values`).
 
 Both throws are ordinary `Throwable`s propagated by checked return (`rule:errors/propagation`), never
-routed through the fatal escalation ladder (`rule:errors/escalation-ladder`). Per-property hooks and a
+routed through the fatal escalation ladder (`rule:errors/escalation-ladder`). The run-time name
+lookup, and the type check on a write, is a latency cost a statically known receiver never pays; only
+code that erased its receiver's type pays it. Per-property hooks and a
 declared property observer behave here exactly as they do anywhere, because this is one implementation
 and not a family of them — `rule:types/property-key-access` and `rule:types/mixed-subscript` are the
 same access one step along.

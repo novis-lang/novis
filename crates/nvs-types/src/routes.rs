@@ -75,7 +75,7 @@
 //! And it reads
 //! `rule:attributes/api-adds-and-cannot-contradict`'s `#[Api]`, which is here for the same reason again and is the one
 //! attribute on this list that changes nothing a program does: it supplies
-//! what the route table and the signature cannot say, and § 2's whole rule is
+//! what the route table and the signature cannot say, and `#[Api]`'s whole rule is
 //! that it **may add and may not contradict**. Its payload's two roster
 //! questions are [`API_OPTIONS`], and its four contradictions are
 //! [`check_api`] — three of them, each a comparison against the declaration —
@@ -84,7 +84,7 @@
 //! describes the operation however many `#[Route]`s the method carries, so it
 //! is asked once per method beside `#[Access]` rather than once per row.
 //!
-//! The same walk reads one thing that is not an attribute at all: § 1's last
+//! The same walk reads one thing that is not an attribute at all: the API document's last
 //! row gives the summary and description to **the declaration's own doc
 //! comment**, so [`doc_comment`] reads the `///` run the parser attached to the
 //! member (`rule:tooling/doc-comment-is-three-slashes`) and [`Route`] carries
@@ -393,7 +393,7 @@ pub struct Route {
     /// The remainder of the same doc comment, whitespace-trimmed and with its
     /// paragraphs intact, or `None` where the comment was one sentence.
     pub description: Option<String>,
-    /// § 1's response body: the handler's **declared** return type as
+    /// The document's response body: the handler's **declared** return type as
     /// [`crate::TypeInterner::describe`] renders it, the same spelling and for
     /// the same reason [`RouteParam::ty`] is one — the interner is dropped with
     /// the checking pass, and the emitter's whole use of a type is to choose a
@@ -401,14 +401,14 @@ pub struct Route {
     ///
     /// `None` only where the signature table holds no row for the handler,
     /// which a program that compiles does not reach. Nothing is inferred from a
-    /// `return` statement: § 1's promise is that the document says what the
+    /// `return` statement: the document's promise is that the document says what the
     /// *code declares*, and a body's inferred type is not something an author
     /// wrote.
     pub returns: Option<String>,
     /// `rule:attributes/api-adds-and-cannot-contradict`'s `tags`, in the order the attribute wrote them.
     ///
     /// Empty where the method carries no `#[Api]`, and empty where it carries
-    /// one that named no tags — the same value, because § 2's four are
+    /// one that named no tags — the same value, because `#[Api]`'s four are
     /// *additions* and adding nothing is what both of those do. The emitter
     /// omits an empty member for that reason rather than writing `[]`.
     ///
@@ -416,14 +416,14 @@ pub struct Route {
     /// serves ([`check_class_routes`] asks for it once, beside `#[Access]`), so
     /// every row a method produces carries the same four values.
     pub tags: Vec<String>,
-    /// § 2's `security`: the scheme names, in written order and uninterpreted.
+    /// `#[Api]`'s `security`: the scheme names, in written order and uninterpreted.
     /// [`check_api`]'s docs own why a name is carried rather than compared
     /// against a roster of configured schemes.
     pub security: Vec<String>,
-    /// § 2's `errors`, in written order: the responses the declared return type
+    /// `#[Api]`'s `errors`, in written order: the responses the declared return type
     /// cannot state.
     pub errors: Vec<ApiError>,
-    /// § 2's `example`, folded to the constant it is — a [`ConstArg::Shape`]
+    /// `#[Api]`'s `example`, folded to the constant it is — a [`ConstArg::Shape`]
     /// whose entries are the fields written, in written order.
     ///
     /// Folded here for [`Self::summary`]'s reason: what rides across is a value
@@ -436,10 +436,10 @@ pub struct Route {
 }
 
 /// One entry of `rule:attributes/api-adds-and-cannot-contradict`'s `errors`: a response the declared return type cannot state, as the two
-/// halves § 2 writes it with.
+/// halves `#[Api]` writes it with.
 #[derive(Clone, Debug)]
 pub struct ApiError {
-    /// The response's own status code, which § 2 admits in `100..=599`.
+    /// The response's own status code, which `#[Api]` admits in `100..=599`.
     pub status: u16,
     /// The class the handler answers that status with, resolved — the spelling
     /// [`Route::access`] carries a decision by, and for its reason: a written
@@ -448,7 +448,7 @@ pub struct ApiError {
     pub class: String,
 }
 
-/// § 2's four values, read off one `#[Api]`.
+/// `#[Api]`'s four values, read off one `#[Api]`.
 ///
 /// Apart from [`Route`] because the attribute is a fact about the *method* and
 /// a row is per verb: [`check_api`] produces one of these, and each row the
@@ -689,7 +689,7 @@ pub(crate) fn check_class_routes(
         {
             api = Some(check_api(attr, m, class, ctx, env));
         }
-        // § 1's summary and description, read once for the method: one doc
+        // The document's summary and description, read once for the method: one doc
         // comment describes the operation however many verbs it serves, which
         // is `#[Api]`'s arrangement two lines up and for its reason.
         let doc = doc_comment(member.doc.as_ref(), env.src);
@@ -845,7 +845,7 @@ fn check_csrf_opt_out(access: &Attribute, m: &MethodMember, ctx: &Ctx<'_>, env: 
 /// shape, and adding two rows for one attribute would put the *structure* of
 /// `#[Api]`'s payload in a table shared by four other attributes that have no
 /// use for it — while leaving every question worth asking here unanswered
-/// anyway, because § 2's rule is not "this field is an array of strings" but
+/// anyway, because the `#[Api]` rule is not "this field is an array of strings" but
 /// "this field does not contradict the code". So the roster keeps the two
 /// questions a roster is for — a name no row declares, and a name given twice
 /// — and [`check_api`] reads the values, having the declaration in hand.
@@ -864,7 +864,7 @@ pub(crate) const API_OPTIONS: &[(&str, OptionTy)] = &[
 /// would refuse it selects methods by their `#[Route]`, so a method with no
 /// `#[Route]` is exactly the one it never visits.
 ///
-/// It is § 2's cheapest contradiction and its most literal: an annotation
+/// It is the `#[Api]` rule's cheapest contradiction and its most literal: an annotation
 /// describing an operation, on something that is not one. Nothing reads it,
 /// no document carries it, and the author's mistake is either a missing
 /// `#[Route]` or an attribute on the wrong method — so the help names both
@@ -943,7 +943,7 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 
 /// `rule:attributes/api-adds-and-cannot-contradict`'s first three contradictions, asked of one method's `#[Api]`.
 ///
-/// § 2's whole rule is that the annotation **may add and may not contradict**,
+/// `#[Api]`'s whole rule is that the annotation **may add and may not contradict**,
 /// and that is checkable only where both halves are in hand — the payload and
 /// the declaration it describes. That is this walk and not
 /// [`crate::attributes`]', for [`check_class_routes`]' own reason.
@@ -951,13 +951,13 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 /// The three asked here:
 ///
 /// - an **`errors`** entry whose `type` is not a class a handler could
-///   produce. § 2's own wording, read as the widest question that is both
+///   produce. The rule's own wording, read as the widest question that is both
 ///   sound and *not already asked*: the type is instantiable —
 ///   [`nvs_hir::ClassLinks::concrete`], so not an interface, not `abstract`,
 ///   and not an enum. A name resolving to nothing is deliberately **not** this
 ///   error: it is `E_UNDEFINED_CLASS` from the expression walk that already
 ///   read the `::class`, and a second diagnostic would name the author's one
-///   mistake twice. The narrower question § 2's phrase could also mean — does
+///   mistake twice. The narrower question the rule's phrase could also mean — does
 ///   *this* handler reach *that* class — is asked by nothing, and cannot be:
 ///   Novis has no `throws` clause, and
 ///   `rule:routing/matching-is-not-dispatching` keeps
@@ -965,7 +965,7 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 ///   [`crate::signatures::SignatureTable`], which [`crate::error_lib::seed`]
 ///   has already filled with spec § 10's tree, so `Core\NotFound` answers
 ///   exactly as an application's own class does.
-/// - an **`example`** naming a field the return type does not declare. § 2
+/// - an **`example`** naming a field the return type does not declare. The rule
 ///   asks for the example to decode "with the same decoder `rule:core-classes/derive-attribute` already
 ///   built", and the decoder's first question is this one: a key naming no
 ///   property is a bad field, and a bad field is the whole of what a derived
@@ -976,7 +976,7 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 /// - a **`tags`** or **`security`** entry that is not a string, which is the
 ///   structural half the roster cannot state.
 ///
-/// **§ 2's `security` scheme check is written down to the point the tree can
+/// **`#[Api]`'s `security` scheme check is written down to the point the tree can
 /// reach and no further, deliberately.** "A scheme name that no configured
 /// scheme defines" needs a configured scheme, and nothing in this compiler
 /// declares one yet — there is no configuration surface for a security scheme
@@ -989,7 +989,7 @@ pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<
 /// Each of the four walks hands back what it read, which is the whole of the
 /// recording half: a value only reaches [`Route`] once the walk that checks it
 /// has accepted it, so a row of a program that compiles never carries a value
-/// § 2 refused, and neither does the document built from one.
+/// the `#[Api]` rule refused, and neither does the document built from one.
 fn check_api(
     api: &Attribute,
     m: &MethodMember,
@@ -1045,7 +1045,7 @@ fn check_string_list(api: &Attribute, option: &str, env: &mut Env<'_>) -> Vec<St
     names
 }
 
-/// § 2's `errors`: each entry a `{status, type}` whose `type` names a class
+/// `#[Api]`'s `errors`: each entry a `{status, type}` whose `type` names a class
 /// this program declares.
 fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<ApiError> {
     let Some(field) = written(api, ERRORS, env) else {
@@ -1099,7 +1099,7 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
         let status = match &status {
             Some(field) => {
                 let written = field.value.clone();
-                // Narrowed to `u16` here rather than at the row: § 2's range is
+                // Narrowed to `u16` here rather than at the row: `#[Api]`'s range is
                 // what makes a status one, so the value the row carries is the
                 // one this walk accepted and nothing wider.
                 let code = match crate::defaults::literal_default(&written, int_ty, env) {
@@ -1156,11 +1156,11 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
     recorded
 }
 
-/// One `errors` entry's `type`, held to § 2's "a class the handler could
+/// One `errors` entry's `type`, held to the rule's "a class the handler could
 /// produce" as far as [`check_api`]'s docs say that is askable: it names a
 /// class this program has.
 ///
-/// The resolved name is handed back where the entry is one § 2 accepts, and
+/// The resolved name is handed back where the entry is one `#[Api]` accepts, and
 /// `None` everywhere a refusal was reported or already had been — so what a row
 /// carries is exactly the set of responses this walk agreed the handler could
 /// produce.
@@ -1192,7 +1192,7 @@ fn check_error_type(
     // an interface declaring no member reaches no
     // [`crate::signatures::SignatureTable`] row. A name in neither is
     // `E_UNDEFINED_CLASS`, already reported by the walk that checked this
-    // expression — § 2's question is the one that survives *after* the name
+    // expression — the `#[Api]` question is the one that survives *after* the name
     // resolves, and asking it again here would name the author's one mistake
     // twice.
     if env.graph.get(&qname).is_none() && env.signatures.get(&qname).is_none() {
@@ -1212,8 +1212,8 @@ fn check_error_type(
     None
 }
 
-/// § 2's `example`, against the field roster `rule:core-classes/derive-attribute`'s decoder reads: every
-/// key names a property of the return type.
+/// `#[Api]`'s `example`, against the field roster `rule:core-classes/derive-attribute`'s
+/// decoder reads: every key names a property of the return type.
 ///
 /// The fold that records it runs **before** that roster walk and independently
 /// of it: the three ways below to have no roster at all — a handler the
@@ -1282,7 +1282,7 @@ fn check_api_example(
     recorded
 }
 
-/// § 2's `example` as the constant it is: one entry per written field, in
+/// `#[Api]`'s `example` as the constant it is: one entry per written field, in
 /// written order, over the declaring file's own imports.
 ///
 /// `rule:attributes/retrieval-folds-while-checking`'s fold, which is the same one a retrieval's payload goes through — so an
@@ -1292,7 +1292,7 @@ fn check_api_example(
 ///
 /// A field with no constant form takes the whole example with it, and silently:
 /// `crate::attributes`' own walk over this payload has already refused a value
-/// that is not constant, and § 2 has four ways to be false without this one
+/// that is not constant, and `#[Api]` has four ways to be false without this one
 /// inventing a fifth.
 fn fold_example(
     fields: &[nvs_syntax::ast::AnonObjectField],
@@ -1314,7 +1314,7 @@ fn fold_example(
 /// One `rule:attributes/api-adds-and-cannot-contradict` contradiction, reported.
 ///
 /// Every one of them is [`code::E_API_CONTRADICTS_THE_CODE`] with its own
-/// message, which is that code's own reasoning: § 2 states four ways for one
+/// message, which is that code's own reasoning: the `#[Api]` rule states four ways for one
 /// sentence to be false, and what tells them apart is what the message says
 /// rather than a number.
 fn report_api(
@@ -1420,7 +1420,7 @@ fn collect_route(
         summary: doc.map(|doc| doc.summary.clone()),
         description: doc.and_then(|doc| doc.description.clone()),
         returns: returns.map(str::to_owned),
-        // § 2's four, copied per row: one `#[Api]` describes the operation
+        // `#[Api]`'s four, copied per row: one `#[Api]` describes the operation
         // however many verbs the method serves, and a row is per verb.
         tags: api.map(|api| api.tags.clone()).unwrap_or_default(),
         security: api.map(|api| api.security.clone()).unwrap_or_default(),
@@ -1450,9 +1450,9 @@ struct Handler<'a> {
     /// `rule:routing/api-document-is-generated-from-the-route-table`'s summary and description, or `None` where the method
     /// carries no doc comment.
     doc: Option<&'a Doc>,
-    /// § 1's response body: the declared return type, rendered.
+    /// The document's response body: the declared return type, rendered.
     returns: Option<&'a str>,
-    /// § 2's four values as [`check_api`] read them, or `None` where the method
+    /// `#[Api]`'s four values as [`check_api`] read them, or `None` where the method
     /// carries no `#[Api]` — borrowed rather than owned for this struct's own
     /// reason: they are a fact about the method, and each row copies out the
     /// four it needs.
@@ -1502,11 +1502,11 @@ fn prose(line: &str) -> &str {
     body.strip_prefix(' ').unwrap_or(body).trim_end()
 }
 
-/// § 1's response body row: the handler's declared return type, rendered.
+/// The document's response body row: the handler's declared return type, rendered.
 ///
 /// Read out of [`crate::signatures`] rather than off [`MethodMember`]'s own
 /// `return_type` because that is the syntax and this wants the *resolved* type —
-/// the same lookup [`check_api_example`] makes for § 2's `example`, and by the
+/// the same lookup [`check_api_example`] makes for `#[Api]`'s `example`, and by the
 /// same three steps, so a method's return type is asked for once in this module
 /// however many questions are asked of it.
 fn declared_return(m: &MethodMember, class: &QName, env: &Env<'_>) -> Option<String> {
@@ -1519,7 +1519,7 @@ fn declared_return(m: &MethodMember, class: &QName, env: &Env<'_>) -> Option<Str
     Some(env.interner.describe(ty))
 }
 
-/// § 1's split, over the run's prose.
+/// The doc-comment split, over the run's prose.
 ///
 /// The summary ends at the first `.` that a space or the end of the text
 /// follows, or at the first blank line, whichever comes first — the blank line

@@ -7,25 +7,8 @@ namespace App;
 // carry an attribute.
 class Users
 {
-    // ADR 0077 § 1: `#[Core\Route]` is matched *nominally*, so a userland
-    // `type Route = {...}` is not it however it is spelled. § 3: the `{id}`
-    // capture must correspond to a parameter of the same name, and that
-    // parameter's declared type is what the segment converts to — `uint`, so
-    // `/users/abc` simply does not match, and a checked conversion launders
-    // (ADR 0024 § 2), which is why `$id` arrives unqualified rather than
-    // `tainted`.
-    //
-    // § 1: `name` is optional and never derived. Naming each route after the
-    // method that serves it is this fixture's own choice, and it is what lets
-    // the entry point's `Core\Router::url` calls name a route without a
-    // convention the compiler would have to invent.
-    //
-    // ADR 0096 § 1: the access decision is a required *sibling* of the route
-    // rather than a field of it, so § 4's "no behaviour on the attribute" stays
-    // true of `#[Route]` while the decision is still written at every route.
-    // § 3 gives an omission no default, which is why all three methods below
-    // say `Core\Audience::Public` — this fixture is genuinely open, and saying
-    // so is the difference between that and forgetting.
+    // The `{id}` part of the path is converted to `uint`, so `/users/abc` does not match.
+    // The conversion is checked, so `$id` is not `tainted`. Every route must say who may call it.
     #[Core\Route(path:"/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): string

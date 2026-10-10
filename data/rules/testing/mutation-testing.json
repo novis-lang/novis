@@ -1,11 +1,7 @@
 {
   "title": "A mutation run asks whether any test would have noticed the code being wrong",
   "status": "designed",
-  "because": [
-    "0079",
-    "0018",
-    "0042"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/debug-probes",
     "testing/isolate-per-test",

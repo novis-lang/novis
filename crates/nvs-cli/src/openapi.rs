@@ -10,14 +10,16 @@
 //!
 //! A [`Value`] rather than a `String`, and `serde_json` rather than a
 //! hand-written writer, for the reason the workspace manifest already gives
-//! that crate: JSON is an external specification, so it is a dependency. § 4's
-//! `nvs api diff` compares two of these, and comparing them as documents rather
+//! that crate: JSON is an external specification, so it is a dependency.
+//! `nvs api diff` (`rule:routing/api-diff-fails-a-breaking-change`) compares two of
+//! these, and comparing them as documents rather
 //! than as text is what keeps the diff from having a second opinion about JSON.
 //!
-//! ## Determinism (§ 3)
+//! ## Determinism
 //!
-//! Two builds of the same source produce byte-identical output, because § 4's
-//! diff is worthless otherwise. Every ordering the emitter has is a
+//! Two builds of the same source produce byte-identical output
+//! (`rule:routing/api-document-is-a-deterministic-build-artifact`), because
+//! `nvs api diff` is worthless otherwise. Every ordering the emitter has is a
 //! [`BTreeMap`] built here rather than left to the JSON map's own: paths
 //! sorted by their written text, and the operations within a path sorted by
 //! lowercased verb. Everything else is a fixed member list or the row order the
@@ -33,8 +35,9 @@ use std::collections::BTreeMap;
 use nvs_types::{ConstArg, ParamIn, Route, RouteParam, RouteTable};
 use serde_json::{Map, Value, json};
 
-/// The OpenAPI version every document claims. The ADR's consequence list makes
-/// this the only one: there is no 3.0 downgrade and no Swagger 2.
+/// The OpenAPI version every document claims, and the only one:
+/// `rule:routing/api-document-is-a-deterministic-build-artifact` has no 3.0
+/// downgrade and no Swagger 2.
 const VERSION: &str = "3.1.0";
 
 /// The whole document for `routes`.
@@ -44,12 +47,12 @@ const VERSION: &str = "3.1.0";
 pub(crate) fn document(routes: &RouteTable, title: &str) -> Value {
     let ids = operation_ids(routes);
 
-    // The orderings § 3 requires, in the type that holds them, before anything
+    // The orderings determinism requires, in the type that holds them, before anything
     // is handed to the JSON map — so the sort is this module's own fact rather
     // than a property of whichever map `serde_json` was compiled with.
     //
     // A path and a verb identify at most one row of a program that compiles:
-    // § 3's duplicate-route error is exactly that pair. `or_insert_with` is
+    // the duplicate-route error is exactly that pair. `or_insert_with` is
     // written rather than asserted because this is a renderer and the
     // diagnostic is the front end's.
     let mut paths: BTreeMap<&str, BTreeMap<String, Value>> = BTreeMap::new();
@@ -81,7 +84,7 @@ pub(crate) fn document(routes: &RouteTable, title: &str) -> Value {
 
 /// Every row's `operationId`, by the row's position in the table.
 ///
-/// § 1: the id is `#[Route]`'s `name`. A route that declared none falls back to
+/// The id is `#[Route]`'s `name`. A route that declared none falls back to
 /// its handler label, which is unique by construction — a method declares one
 /// route per verb, and `Class::method` names it — and a *shared* name takes
 /// `rule:routing/a-shared-name-is-one-endpoint-everywhere`
@@ -124,13 +127,13 @@ fn base_id(row: &Route) -> &str {
 fn operation(row: &Route, id: &str) -> Value {
     let mut operation = Map::new();
     operation.insert("operationId".to_owned(), json!(id));
-    // § 2's `tags`, in the order they were written: the row carries them
+    // `#[Api]`'s `tags`, in the order they were written: the row carries them
     // already grouped, and an empty list is written as no member for
     // `parameters`' reason above.
     if !row.tags.is_empty() {
         operation.insert("tags".to_owned(), json!(row.tags));
     }
-    // § 1's last row, already split into its two halves by
+    // The summary and description from the doc comment, already split into its two halves by
     // `nvs_types::routes`'s `doc_comment`: a method with no doc comment carries
     // neither member, for `parameters`' reason above.
     if let Some(summary) = &row.summary {
@@ -143,7 +146,7 @@ fn operation(row: &Route, id: &str) -> Value {
         let params: Vec<Value> = row.params.iter().map(parameter).collect();
         operation.insert("parameters".to_owned(), Value::Array(params));
     }
-    // § 2's `security`, as 3.1's Security Requirement Object: one object per
+    // `#[Api]`'s `security`, as 3.1's Security Requirement Object: one object per
     // scheme name, each holding the empty scope list. The scopes are empty
     // because a scheme name is all the row carries and all the compiler ever
     // saw — `nvs_types::routes`' `check_api` owns why a name is uninterpreted —
@@ -165,10 +168,10 @@ fn operation(row: &Route, id: &str) -> Value {
     Value::Object(operation)
 }
 
-/// § 1's response body: the handler's declared return type, plus § 2's
+/// The response body: the handler's declared return type, plus `#[Api]`'s
 /// `errors` — the responses the declared type cannot state.
 ///
-/// **`200` is § 1's and outranks an `errors` entry that names it.** § 2 may add
+/// **`200` is the return type's and outranks an `errors` entry that names it.** `#[Api]` may add
 /// and may not contradict, so where both speak for one status the declared
 /// return type is the one the code stated; the entry is dropped rather than
 /// reported, because this module is a renderer and every diagnostic `rule:routing/api-document-is-generated-from-the-route-table`
@@ -186,7 +189,7 @@ fn operation(row: &Route, id: &str) -> Value {
 ///
 /// A `void` handler answers with no body, so the response carries no `content`
 /// rather than an empty schema — the two mean different things to a generated
-/// client. Everything else is JSON, which is § 1's "through the same codec":
+/// client. Everything else is JSON, through the same codec:
 /// the codec a return type reaches this document through is
 /// `rule:core-classes/derive-attribute`'s, and that codec is
 /// JSON.
@@ -200,7 +203,7 @@ fn responses(row: &Route) -> Value {
         // `parse` is given, so a class here is the class-body gap this module
         // records and never a string.
         media.insert("schema".to_owned(), schema(returns, None, false));
-        // § 2's `example` sits beside the schema it is an example of, which is
+        // `#[Api]`'s `example` sits beside the schema it is an example of, which is
         // 3.1's own place for one. A handler answering with nothing has no
         // media type to hang it on, so an example written there reaches no
         // document — as it should: `nvs_types::routes`' `check_api_example`
@@ -223,7 +226,7 @@ fn responses(row: &Route) -> Value {
     Value::Object(responses)
 }
 
-/// § 2's `example` as JSON, or `None` where some part of it has no JSON form at
+/// `#[Api]`'s `example` as JSON, or `None` where some part of it has no JSON form at
 /// all.
 ///
 /// **All of it or none of it.** A folded value with no JSON form is a `Core`
@@ -301,7 +304,7 @@ fn parameter(param: &RouteParam) -> Value {
     })
 }
 
-/// § 1's "by declared type": the JSON Schema one Novis type renders as, and its
+/// A parameter "by declared type": the JSON Schema one Novis type renders as, and its
 /// *Enumerations* row where the declared type is a closed set.
 ///
 /// The empty schema is *any*, and is what a type with no mapping gets. The list
@@ -360,7 +363,8 @@ fn schema(ty: Option<&str>, allowed: Option<&[&str]>, parses: bool) -> Value {
         // which is `Core\Json`'s own reading of `rule:types/decimal`'s type.
         Some("decimal") => json!({"type": "string", "format": "decimal"}),
         Some("string" | "tainted string") => json!({"type": "string"}),
-        // The one class a capture may be declared at (§ 5), and the format
+        // The one class a capture may be declared at
+        // (`rule:routing/a-capture-narrows-to-a-closed-set`), and the format
         // registered for it in the JSON Schema dialect 3.1 uses. The spelling is
         // `nvs_stdlib::uuid::NAME` as `describe` renders it — matched as text
         // like every arm above, because this crate depends on `nvs-types` alone.

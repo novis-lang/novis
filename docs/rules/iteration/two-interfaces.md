@@ -19,3 +19,8 @@ sequence ended" from "the next element is `null`", and Novis has nullable types.
 Both members are declared without a body, and a class is held to every one of them. A cursor carries
 **no key half** — nothing in `Iterator<T>` produces one — which is why a `foreach` over a cursor may
 bind a value and not a key (`rule:iteration/foreach-subjects`).
+
+**Declined:**
+- **A single `next(): ?T`.** It makes `Iterator<?T>` impossible to express, and a sequence that
+  quietly ends at its first `null` element is the kind of wrong answer the type system exists to
+  prevent.

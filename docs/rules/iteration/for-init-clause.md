@@ -14,3 +14,18 @@ The declaration form lowers to the same slot store the declare-above form lowers
 point in the same block, so a counter in the header costs nothing in time or space. Both spellings
 work and neither is rewritten into the other; a counter read after its loop, or shared by two loops,
 is the case that still wants the declaration above.
+
+Every other binding position has a type slot — a local at its declaration, a `foreach` key and value,
+a destructuring pattern — and the init clause is where a counter is declared in the shape a reader
+writes first. Without the slot, `for (int $i = 0; …)` does not parse, and the reader gets a run of
+errors about a `;` and a counter typed `mixed` that name nothing about `for`. A reader who knows
+`foreach ($rows as int $row)` can guess this syntax and be right. The cost is one more production in
+the statement grammar, spent on simplicity of the language surface.
+
+**Declined:**
+- **Keeping the expression-only clause and improving the diagnostic.** It makes the gap legible
+  without making it defensible, since `foreach` has the slot. The diagnostic half is kept as
+  `rule:iteration/for-init-refusals`, for the shapes that still do not parse.
+- **A comma-separated list of declarations**, `for (int $i = 0, int $j = 0; …)`. One declaration
+  declares one binding everywhere else, so this would be the one statement that declares two
+  (`E0125`, `rule:iteration/for-init-refusals`).

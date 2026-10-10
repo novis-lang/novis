@@ -2,11 +2,7 @@
   "title": "A connection is named in configuration or built from settings, and both memoize for the request",
   "status": "shipped",
   "because": [
-    "0067",
-    "0064",
-    "0103",
-    "0033",
-    "0047"
+    "0103"
   ],
   "seeAlso": [
     "core-classes/db-capabilities",

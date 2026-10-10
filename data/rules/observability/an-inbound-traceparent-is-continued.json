@@ -1,9 +1,7 @@
 {
   "title": "An inbound `traceparent` is continued, and one the process cannot read starts a new trace rather than failing the request",
   "status": "shipped",
-  "because": [
-    "0076"
-  ],
+  "because": [],
   "seeAlso": [
     "observability/a-trace-id-exists-for-every-request",
     "observability/an-outbound-call-propagates-traceparent",

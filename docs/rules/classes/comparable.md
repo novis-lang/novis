@@ -20,3 +20,18 @@ it is a contract an ordinary class implements rather than a domain class holding
 is a separate question and is unaffected: a `Comparable` class still compares by identity under `==`
 (`rule:expressions/object-identity-equality`), and asking the content question explicitly is
 `$a->compareTo($b) == 0`.
+
+The common `compareTo` is one line that delegates to a field's own `<=>`, which every numeric type
+already defines (`rule:types/ordering`). A sort written with its own comparator, such as
+`fn ($a, $b) => $a->x <=> $b->x`, never reads the objects' `compareTo` and is untouched by this rule.
+
+- **Memory:** none. An ordering is one ordinary method call, with no storage and no runtime
+  representation of its own.
+
+**Declined:**
+- **One magic method per operator**, such as `__lessThan` and `__greaterThan`. A class could
+  implement them inconsistently, so that `$a < $b` and `$b > $a` disagree
+  (`rule:classes/ordering-lowers-to-compare-to`).
+- **Folding equality into `Comparable`**, so that `compareTo` returning `0` also means `==`. Every
+  class wanting a custom order would then have to redefine equality too, and the two are often
+  independent.

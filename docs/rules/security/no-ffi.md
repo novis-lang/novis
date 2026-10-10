@@ -10,3 +10,7 @@ someone who chose to write an extension.
 The wasm component tier exists so this is unnecessary. Wrapping an existing C or Rust library is its
 stated purpose, and it delivers the same capability with a memory boundary, a capability grant, a CPU
 deadline and a memory cap — which is the whole of what an FFI gives up.
+
+**Declined:**
+- **An FFI behind a capability grant.** Every other grant restricts what code may do, and the grants
+  are enforced by memory safety, so a capability that removes memory safety cannot be enforced by it.

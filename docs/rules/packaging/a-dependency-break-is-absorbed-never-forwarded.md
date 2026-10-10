@@ -23,6 +23,14 @@ the break, and the ladder is not skippable because a lower step looks tidier.
    is possible (`rule:packaging/a-forced-break-is-announced-before-it-lands`), a migration note
    naming the old spelling and the new one, and a major release to ride on.
 
+The ladder exists because the two costs of a break are in different units: adapting Novis takes an
+afternoon, while a program author whose release breaks must audit every file they own. Upgrading a
+language must not be a project for the people who write in it.
+
 Steps 2 and 3 mean carrying adapters with no feature to their name — simplicity of the
 implementation spent for compatibility of the program, deliberately. A dependency that repeatedly
 forces the ladder is a design problem, not an update problem; the hold dates are the evidence.
+
+**Declined:**
+- **Never breaking the surface at all.** A security fix can force a break, so the promise would be
+  dishonest. Shipping the break is the last of seven steps, taken with the user.

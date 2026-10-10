@@ -71,7 +71,7 @@ export const LANES: Record<string, string[]> = {
   // workspace can change what either of them answers. Gates `extension` and `extension-host`.
   editor: ["editors/", "crates/", "Cargo.toml", "Cargo.lock", ".github/workflows/"],
   // What `cargo deny` and the attribution diff read. Their answer cannot differ in a run that changed
-  // none of these (ADR 0068 § Verification).
+  // none of these (`rule:packaging/a-dependency-move-proves-two-things`).
   deps: [
     "Cargo.toml", "Cargo.lock", "deny.toml", "THIRD-PARTY-LICENSES.txt",
     "tools/nv/cmd/gen-attribution.ts", ".github/workflows/",

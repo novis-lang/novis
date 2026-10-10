@@ -1,6 +1,6 @@
 //! What a `Core\Db` call's SQL has to satisfy at *compile* time.
 //!
-//! [ADR 0067 § 4](/docs/decisions/0067.md)'s one-statement rule, the
+//! `rule:core-classes/db-statement-members`'s one-statement rule, the
 //! closing delimiter every region of a statement owes, and § 10's placeholder
 //! count are properties of a string literal alone, so a call that breaks any of
 //! them is refused where it is written and never reaches a connection. What is
@@ -51,8 +51,7 @@ pub fn check_closed_regions(sql: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Whether a query written as a string literal holds the one statement [ADR 0067
-/// § 1](/docs/decisions/0067.md) prepares — § 10's "a refused second
+/// Whether a query written as a string literal holds the one statement `rule:core-classes/db-one-api` prepares — `rule:core-classes/db-compile-time-query-checking`'s "a refused second
 /// statement", over [`nvs_db::sql::holds_a_second_statement`].
 ///
 /// All four dialects, for [`check_written_query`]'s reason and with the same
@@ -81,8 +80,7 @@ pub fn check_single_statement(sql: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// A params array written as an array literal, as far as the *compiler* can read one — [ADR 0067
-/// § 10](/docs/decisions/0067.md)'s "a literal params array", which is
+/// A params array written as an array literal, as far as the *compiler* can read one — `rule:core-classes/db-compile-time-query-checking`'s "a literal params array", which is
 /// the only shape it promises anything about.
 ///
 /// § 5's two spellings are exclusive, so this is two cases and not a pair: a
@@ -99,7 +97,7 @@ pub enum WrittenQueryParams<'a> {
 }
 
 /// Whether a query written as a string literal agrees with the params array literal written beside
-/// it — [ADR 0067 § 10](/docs/decisions/0067.md)'s "placeholder count
+/// it — `rule:core-classes/db-compile-time-query-checking`'s "placeholder count
 /// against a literal params array, positional-vs-named consistency".
 ///
 /// It is [`nvs_db::sql::rewrite`] itself and deliberately not a second reader of
