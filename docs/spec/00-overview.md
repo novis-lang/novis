@@ -270,8 +270,8 @@ is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, an
 
 - For the common case — a byte sequence that happens to be valid UTF-8, which is most binary-ish constants a
   program writes by hand (magic strings, protocol markers made of ASCII) — a plain string literal converts
-  for free: `"NVS1" as bytes`. [ADR 0009 § 3](../decisions/0009.md) already makes `string as
-  bytes` total and free, so this is not a new conversion rule, only its first literal-adjacent use.
+  for free: `"NVS1" as bytes`. `rule:types/conversion` already makes `string as bytes` total and
+  free, so this is not a new conversion rule, only its first literal-adjacent use.
 - For a byte sequence that is **not** valid UTF-8 — a raw binary constant, a fixed hash or key material
   written inline — the spelling is a `Core\Encoding` decoder, following
   `rule:classes/no-free-functions-or-constants`'s "every callable is a class member"
@@ -281,9 +281,8 @@ is no `bytes` literal token.** The lexer needs no `b"…"`-shaped production, an
   these is one. Both join the domain-class roster `rule:classes/no-free-functions-or-constants`'s summary names as examples, not as a closed list; building
   them is ordinary M4S stdlib work, not part of this spec.
 
-This resolves one item in [ADR 0009 *Revisiting*](../decisions/0009.md), and only that one: it is
-a decision about literal syntax, not about `string`'s default length/indexing granularity, which § 2 of that
-ADR owns.
+This is a decision about literal syntax only, not about `string`'s default length/indexing granularity,
+which `rule:types/string-is-utf8` owns.
 
 ## Revisiting
 

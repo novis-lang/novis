@@ -4,8 +4,7 @@
   "because": [
     "0090",
     "0054",
-    "0007",
-    "0009"
+    "0007"
   ],
   "seeAlso": [
     "expressions/one-equality-operator",

@@ -22,7 +22,7 @@
 //!
 //! # The Unicode version is part of the answer
 //!
-//! `rule:types/bytes`'s *Consequences* says this out loud: what counts as one character
+//! `rule:types/string-is-utf8` says this out loud: what counts as one character
 //! is pinned to whichever Unicode version this crate embeds, and can move
 //! across a dependency bump. That is [`unicode_segmentation::UNICODE_VERSION`],
 //! and `the_embedded_unicode_version_is_recorded` prints it, so a bump that
@@ -32,7 +32,7 @@
 //!
 //! A `string` carries its own grapheme count once anything has asked for one —
 //! `nvs_runtime::StrHeader`'s fourth word, filled lazily and corrected at a
-//! concatenation's seam, which is `rule:types/bytes`'s *Consequences* paid. Reaching it
+//! concatenation's seam, which is `rule:types/string-is-utf8`'s cached count. Reaching it
 //! needs the *value*, not the payload, so [`Unit::length_of`] is what a member
 //! calls and [`Unit::length`] is what answers when there is no allocation to
 //! ask (a `&str` this crate built, a `bytes` read as text). The UAX #29

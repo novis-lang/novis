@@ -469,7 +469,7 @@ parameter — the same answer [`statements/storage-that-outlives-a-call`](statem
 - **One class for every request and server fact.** One class for unrelated concerns is a global
   namespace with extra syntax ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
 
-<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
 
 <a id="statements-globals-and-request-are-dropped-outright"></a>
 

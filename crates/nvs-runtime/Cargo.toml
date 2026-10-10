@@ -71,7 +71,7 @@ chacha20poly1305.workspace = true
 # The alphabet a token travels in: unpadded URL-safe base64, which a hidden
 # field, a header and a query string all carry unescaped.
 base64.workspace = true
-# ADR 0009 § 2's grapheme cluster is `string`'s length unit, and this crate
+# `rule:types/string-is-utf8`'s grapheme cluster is `string`'s length unit, and this crate
 # holds the header the count is cached in and the concatenation that corrects
 # it at the seam — so the UAX #29 primitives have to be reachable from here.
 # `graphemes.rs` owns why the kernel lives in the runtime rather than beside

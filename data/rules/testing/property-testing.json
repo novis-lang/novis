@@ -3,8 +3,7 @@
   "status": "designed",
   "because": [
     "0079",
-    "0071",
-    "0009"
+    "0071"
   ],
   "seeAlso": [
     "testing/data-rows",

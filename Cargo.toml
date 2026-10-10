@@ -450,7 +450,7 @@ memmap2 = "0.9"
 # what answers that, and `nvs_codegen::make_executable` is the one call site.
 wasmtime-internal-jit-icache-coherence = "48"
 
-# --- Unicode text segmentation (ADR 0009 § 2's grapheme granularity) ---
+# --- Unicode text segmentation (`rule:types/string-is-utf8`'s grapheme granularity) ---
 # UAX #29 extended grapheme cluster boundaries, which `string`'s default
 # length/indexing unit is defined by. Pure Rust, no build script, no C.
 # `crates/nvs-runtime/src/graphemes.rs` owns why this crate and not another.
@@ -486,7 +486,7 @@ unicode-normalization = "0.1"
 # default-ignorables — and the emoji ZWJ sequences that are one column pair
 # however many code points they are. Every one of those is data on a Unicode
 # version, not something a member can derive, and the third of the three
-# measures ADR 0009 § 2 leaves open: bytes and grapheme clusters are ours,
+# measures `rule:types/string-is-utf8` leaves open: bytes and grapheme clusters are ours,
 # terminal columns are the renderer's. From the same `unicode-rs` org as the
 # three crates above, pure Rust, no build script, no C, and already in this
 # tree's lock file as `wasm-encoder`'s dependency — naming it here is the

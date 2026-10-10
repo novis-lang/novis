@@ -893,7 +893,7 @@ every request-handling function would have to launder on its first line.
 `tainted` is written after `secret` when both appear, and `tainted secret string` is a diagnostic
 naming the required order rather than a second spelling ([`security/secret-qualifier`](security.md#security-secret-qualifier)).
 
-<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0033](../decisions/0033.md), [0157](../decisions/0157.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0033](../decisions/0033.md), [0157](../decisions/0157.md), [0279](../decisions/0279.md).</sub>
 
 <a id="security-tainted-sources"></a>
 

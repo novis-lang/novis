@@ -1078,8 +1078,8 @@ fn authenticate<S: Read + Write>(wire: &mut Wire<S>, target: &PgTarget<'_>) -> i
             ("user", target.user),
             ("database", target.database),
             // `rule:core-classes/db-capabilities`'s third default: text columns arrive as valid UTF-8
-            // by construction rather than by inspection, which is what ADR
-            // 0009's guarantee needs.
+            // by construction rather than by inspection, which is what
+            // `rule:types/string-is-utf8`'s guarantee needs.
             ("client_encoding", "UTF8"),
             // § 9's structured rows are read positionally out of the text
             // format, so the two parameters that decide what that text looks

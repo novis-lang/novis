@@ -78,7 +78,7 @@ and an array of falsy elements is truthy. Code review, not the compiler, catches
 meant something else. A ported program that treats `"0.0"` as falsy has a bug of its own, since
 PHP never did either.
 
-<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`enums/truthiness`](enums.md#enums-truthiness), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`enums/truthiness`](enums.md#enums-truthiness), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="expressions-no-keyword-logical-operators"></a>
 
@@ -204,7 +204,7 @@ too.
 The natural ordering used for sorting is a separate question and answers differently for `float`; the
 two are not the same table.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation). Decided in [0090](../decisions/0090.md), [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation). Decided in [0090](../decisions/0090.md), [0054](../decisions/0054.md), [0007](../decisions/0007.md).</sub>
 
 <a id="expressions-mixed-equality"></a>
 
@@ -283,7 +283,7 @@ integer, where `$e as int` is the written spelling; two unrelated classes; and a
 This turns the entire class of comparisons that could only ever answer one constant into a diagnostic
 at the site that wrote it.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md).</sub>
 
 <a id="expressions-switch-match-equality"></a>
 

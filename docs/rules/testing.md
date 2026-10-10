@@ -454,7 +454,7 @@ A failure shrinks to a minimal counterexample and reports the seed that reproduc
 `string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
 `string` is — a property that only holds for ASCII is a property that is not true.
 
-<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0071](../decisions/0071.md), [0009](../decisions/0009.md).</sub>
+<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0071](../decisions/0071.md).</sub>
 
 <a id="testing-inline-snapshots"></a>
 

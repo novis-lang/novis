@@ -2086,10 +2086,9 @@ fn corpora() -> [(&'static str, String, Bound); 2] {
 fn a_grapheme_index_costs_more_than_a_code_point_index() {
     let _quiet = serialised();
 
-    // ADR 0009 § 2's granularity, decided by this measurement, which its
-    // *Revisiting* section asked for by name.
+    // `rule:types/string-is-utf8`'s granularity, which rests on this measurement.
     //
-    // The reference cost that ADR names is UTF-8 validation: `bytes as string`
+    // The reference cost is UTF-8 validation: `bytes as string`
     // already pays one O(n) pass over the buffer at every such conversion, and
     // that cost is already accepted. So the question is how many of those
     // passes a grapheme count is worth, and the answer splits by corpus —
@@ -2140,7 +2139,7 @@ fn a_grapheme_index_costs_more_than_a_code_point_index() {
         judge(
             &format!("{name}: a grapheme count, in UTF-8 validations of the same buffer"),
             per_validation,
-            "ADR 0009 § 2 makes grapheme clusters `string`'s default unit on the strength of a \
+            "`rule:types/string-is-utf8` makes grapheme clusters `string`'s default unit on the strength of a \
              measured figure well under that; if this is a real regression, that decision needs \
              revisiting rather than this bound.",
             |yard| {

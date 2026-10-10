@@ -105,7 +105,7 @@ allowed to produce, which is a refusal in [`security/denial-is-a-runtime-error`]
 who ran a chattier child than it meant to can catch it and run a different one. `Core\IO::read` holds
 a file to the same directive out of the same pair of methods, so the two answer a program alike.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0044](../decisions/0044.md), [0009](../decisions/0009.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0044](../decisions/0044.md), [0005](../decisions/0005.md).</sub>
 
 <a id="core-classes-process-options"></a>
 
@@ -374,7 +374,7 @@ to avoid.
 
 There is no `/e` modifier: a pattern never evaluates its replacement as code.
 
-<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0056](../decisions/0056.md), [0009](../decisions/0009.md).</sub>
+<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0056](../decisions/0056.md).</sub>
 
 <a id="core-classes-html-auto-escape"></a>
 
@@ -1003,7 +1003,7 @@ object naming a weaker mode does not compile. **The connection charset is forced
 The cost is one connection option a deployment cannot turn down, which is the point: an unsafe
 default that can be restored is an unsafe default a misconfigured deployment still has.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`types/bytes`](types.md#types-bytes). Decided in [0067](../decisions/0067.md), [0009](../decisions/0009.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`types/bytes`](types.md#types-bytes). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-db-drivers-are-an-enum"></a>
 
@@ -1214,7 +1214,7 @@ language's own `as`, so `Core\Db` never grows a second stringification table. Ev
 yields is `tainted` where its type can carry it, which closes stored injection by the same mechanism
 as reflected. The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed).
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0054](../decisions/0054.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0054](../decisions/0054.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-streaming"></a>
 
