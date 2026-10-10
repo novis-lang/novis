@@ -1,8 +1,7 @@
 {
   "title": "Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it",
-  "status": "designed",
+  "status": "shipped",
   "because": [
-    "0137",
     "0234"
   ],
   "seeAlso": [

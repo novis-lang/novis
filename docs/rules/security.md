@@ -2807,7 +2807,7 @@ grants.
 - **Handling it only at the sinks, not in source.** That inverts the severity: the source case is the
   one with a working exploit against code review, and the runtime cases are display deception.
 
-<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0137](../decisions/0137.md).</sub>
+<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`errors/record-transformations`](errors.md#errors-record-transformations).</sub>
 
 <a id="security-bidi-scope-is-the-whole-target"></a>
 

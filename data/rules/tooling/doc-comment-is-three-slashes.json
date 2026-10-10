@@ -1,8 +1,7 @@
 {
   "title": "A doc comment is exactly `///`; `////` and longer runs are ordinary comments, and `#` never is one",
-  "status": "designed",
+  "status": "shipped",
   "because": [
-    "0137",
     "0213"
   ],
   "seeAlso": [
@@ -14,5 +13,8 @@
     "ide/one-grammar-one-tree",
     "ide/an-lsp-answer-is-frozen-as-an-lspt-case"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-syntax/tests/trivia.rs",
+    "crates/nvs-syntax/tests/doc_comments.rs"
+  ]
 }

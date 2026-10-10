@@ -1,12 +1,13 @@
 {
   "title": "A `///` run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic",
-  "status": "designed",
-  "because": [
-    "0137"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "tooling/doc-comment-is-three-slashes",
     "tooling/strict-docs"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-syntax/tests/doc_comments.rs",
+    "tests/conformance/syntax/doc-comment/a-doc-comment-run-attaches-to-the-declaration-below-it.nvst"
+  ]
 }

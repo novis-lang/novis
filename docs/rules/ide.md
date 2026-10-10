@@ -3,11 +3,11 @@
 
 # The editor
 
-*51 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
+*49 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
-## The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree  *(designed — not yet in the compiler)*
+## The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree
 
 `rule:ide/one-grammar-one-tree`
 
@@ -45,11 +45,11 @@ linked into what `nvs run` compiles, so it costs nothing on security or on the r
   drift apart the way a second implementation does, and the server would read a different shape
   depending on where the cursor is.
 
-<sub>See also [`ide/tokens-plus-trivia-reproduce-the-file`](ide.md#ide-tokens-plus-trivia-reproduce-the-file), [`ide/recovery-is-explicit`](ide.md#ide-recovery-is-explicit), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error). Decided in [0137](../decisions/0137.md).</sub>
+<sub>See also [`ide/tokens-plus-trivia-reproduce-the-file`](ide.md#ide-tokens-plus-trivia-reproduce-the-file), [`ide/recovery-is-explicit`](ide.md#ide-recovery-is-explicit), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error).</sub>
 
 <a id="ide-tokens-plus-trivia-reproduce-the-file"></a>
 
-## Every token and every trivium, concatenated in offset order, reproduce the file byte for byte  *(designed — not yet in the compiler)*
+## Every token and every trivium, concatenated in offset order, reproduce the file byte for byte
 
 `rule:ide/tokens-plus-trivia-reproduce-the-file`
 
@@ -66,7 +66,7 @@ formatter reads. Nothing else in the lexer changes, because nothing else discard
 This is the prerequisite `nvs fmt` rests on: a formatter that promises comments survive it cannot keep
 that promise over a stream that drops them.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes). Decided in [0137](../decisions/0137.md).</sub>
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes).</sub>
 
 <a id="ide-recovery-is-explicit"></a>
 
@@ -457,7 +457,7 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 

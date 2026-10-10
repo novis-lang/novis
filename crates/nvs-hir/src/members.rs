@@ -753,9 +753,9 @@ fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 }
 
 /// The directories a Novis project's test corpus walks, and so the only ones
-/// an `@example` may name a file inside. ADR 0137 § 2 names `examples/`; a
-/// project's own cases live under `tests/`, which `nvs test` walks for the
-/// same reason. The list is here rather than in configuration because the
+/// an `@example` may name a file inside
+/// (`rule:tooling/doc-comment-tags-are-see-and-example`): `examples/`, and
+/// `tests/`, where a project's own cases live and which `nvs test` walks. The list is here rather than in configuration because the
 /// guarantee the tag buys is that *something* compiles the file, and a
 /// directory a project could name in a config file it also controls buys
 /// nothing.

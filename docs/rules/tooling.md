@@ -3,7 +3,7 @@
 
 # Tooling
 
-*15 of 63 rules below are **designed** rather than shipped, and are marked where they appear.*
+*10 of 63 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -1105,7 +1105,7 @@ one thing only, since formatting and repair are never one command
 
 <a id="tooling-doc-comment-is-three-slashes"></a>
 
-## A doc comment is exactly `///`; `////` and longer runs are ordinary comments, and `#` never is one  *(designed — not yet in the compiler)*
+## A doc comment is exactly `///`; `////` and longer runs are ordinary comments, and `#` never is one
 
 `rule:tooling/doc-comment-is-three-slashes`
 
@@ -1142,11 +1142,17 @@ request path. A doc comment rendered
 to HTML crosses the bidi boundary the lexer already checks for every comment span
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)), and reuses that check rather than growing a second one.
 
-<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0213](../decisions/0213.md).</sub>
+**Declined:**
+- **`/** */` as the doc comment.** It is the form every PHPDoc tutorial teaches and every editor
+  autocompletes tags into, and a habit is harder to refuse than a grammar.
+- **An attribute, `#[Doc("…")]`.** Its payload is a compile-time constant expression, which makes
+  several paragraphs of Markdown hard to write and harder to read in place.
+
+<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0213](../decisions/0213.md).</sub>
 
 <a id="tooling-doc-comment-attaches-to-the-next-declaration"></a>
 
-## A `///` run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic  *(designed — not yet in the compiler)*
+## A `///` run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic
 
 `rule:tooling/doc-comment-attaches-to-the-next-declaration`
 
@@ -1161,11 +1167,11 @@ written; but then a note and a document are the same token, and only the author 
 Requiring the marker
 ([`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes)) and refusing an orphan keeps the two apart.
 
-<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/strict-docs`](tooling.md#tooling-strict-docs). Decided in [0137](../decisions/0137.md).</sub>
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/strict-docs`](tooling.md#tooling-strict-docs).</sub>
 
 <a id="tooling-doc-comment-tags-are-see-and-example"></a>
 
-## A doc comment is Markdown plus `@see` and `@example`, each of which must resolve, and any other `@tag` is a diagnostic  *(designed — not yet in the compiler)*
+## A doc comment is Markdown plus `@see` and `@example`, each of which must resolve, and any other `@tag` is a diagnostic
 
 `rule:tooling/doc-comment-tags-are-see-and-example`
 
@@ -1205,11 +1211,17 @@ type is in the signature*, and likewise for `@throws` and `@returns`.
 The two tags survive because each buys a *check* — a cross-reference that must resolve, an example that
 must still compile — and a third has to meet the same standard, never merely improve a rendering.
 
-<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0275](../decisions/0275.md).</sub>
+**Declined:**
+- **Prose only, with no tags.** A Markdown link and a fenced block buy neither check.
+- **Per-parameter documentation as a tag.** If a published package needs it the way a `Core` member
+  has it, it is a registry-shaped field in the JSON [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program) emits,
+  never an `@param` line.
+
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0275](../decisions/0275.md).</sub>
 
 <a id="tooling-strict-docs"></a>
 
-## Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it  *(designed — not yet in the compiler)*
+## Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it
 
 `rule:tooling/strict-docs`
 
@@ -1238,7 +1250,7 @@ Until a package manager exists, `--strict-docs` is opt-in only and nothing fires
 publishing turns out to want more than "a public member has a comment" — a minimum length, a required first
 sentence — that is a lint's design and belongs with the publisher.
 
-<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0137](../decisions/0137.md), [0234](../decisions/0234.md).</sub>
+<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0234](../decisions/0234.md).</sub>
 
 <a id="tooling-a-todo-is-a-comment-the-tools-list"></a>
 
@@ -1300,11 +1312,11 @@ It renders text the lexer has already accepted, so it needs no bidi check of its
 website already cover every in-tree consumer — and it exists for a user's own project and for the package
 ecosystem that does not exist yet, which is why it is kept cheap to replace.
 
-<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program). Decided in [0137](../decisions/0137.md), [0234](../decisions/0234.md).</sub>
+<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program). Decided in [0234](../decisions/0234.md).</sub>
 
 <a id="tooling-one-json-several-renderers"></a>
 
-## `nvs meta --json` is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content  *(designed — not yet in the compiler)*
+## `nvs meta --json` is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content
 
 `rule:tooling/one-json-several-renderers`
 
@@ -1332,7 +1344,7 @@ The fourth arm answers a coding agent rather than a reader ([`tooling/an-agent-a
 and it is on this diagram for the reason the others are: it renders at the call and holds nothing, so
 the binary that compiles a program is the binary that documents it.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0167](../decisions/0167.md).</sub>
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0167](../decisions/0167.md).</sub>
 
 <a id="tooling-meta-json"></a>
 
@@ -1392,7 +1404,7 @@ itself writes is listed; an interface reached through the parent is on the paren
 The no-argument form must emit byte-identical output before and after the argument exists: the seam is
 one input added to one document, never a fork.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0233](../decisions/0233.md).</sub>
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0233](../decisions/0233.md).</sub>
 
 <a id="tooling-an-agent-asks-the-binary"></a>
 
