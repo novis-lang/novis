@@ -26,7 +26,7 @@ limited to what ships; this page also carries what is only planned, which that c
 | PHPBench | benchmarking | `#[Bench]` reports the deterministic counter stream, so CI can gate on it | `rule:testing/bench-counters` | M10 |
 | PHPStan / Psalm / Phan | static analysis | `nvs check` — the compiler is the analyzer; see below | `rule:types/declaration` and the section below | on disk |
 | Psalm `--taint-analysis` | taint analysis | `tainted` and `secret` are type qualifiers, enforced as hard errors | `rule:security/tainted-qualifier`, `rule:security/secret-qualifier` | on disk |
-| PHP CS Fixer / PHP_CodeSniffer | layout and style | `nvs fmt`, canonical and unconfigurable — and the bug-adjacent rules are compile errors already | `rule:tooling/fmt-is-one-canonical-style`; `rule:core-api/identifier-casing`, [0094](../decisions/0094.md) | errors on disk; `nvs fmt` M10 |
+| PHP CS Fixer / PHP_CodeSniffer | layout and style | `nvs fmt`, canonical and unconfigurable — and the bug-adjacent rules are compile errors already | `rule:tooling/fmt-is-one-canonical-style`; `rule:core-api/identifier-casing`, `rule:core-api/written-visibility` | errors on disk; `nvs fmt` M10 |
 | Rector | automated codebase rewrites | none: there is no PHP→Novis converter, and Novis→Novis is declined, with a recorded reopen trigger | `rule:programs/no-compatibility-promise`; `rule:tooling/fmt-is-never-a-diagnostic` | — |
 | Xdebug — step debugging | breakpoints, stepping | `nvs dap`, on the safepoints codegen already emits | `rule:ide/the-debug-adapter-does-not-wait-for-an-editor` | M10 |
 | Xdebug — coverage, trace, profile | observing a run | `Core\Debug` over always-compiled probe sites; Clover/lcov/Callgrind out | `rule:testing/debug-probes`, `rule:testing/debug-surface` | probes on disk (M3); surface M10 |
@@ -65,7 +65,7 @@ code. CI reads `nvs check --json`
 
 One axis, two ends, both decided: what can hide a bug is a hard compile error with no suppression —
 casing (`rule:core-api/identifier-casing`), written visibility
-([0094](../decisions/0094.md)), one spelling per construct
+(`rule:core-api/written-visibility`), one spelling per construct
 throughout `docs/divergences.md` — and what is purely layout is `nvs fmt`
 (`rule:tooling/fmt-is-one-canonical-style`): canonical, zero-configuration, never wired into the
 compiler. The entire configure-a-ruleset category (`.php-cs-fixer.php`, sniff selection) is designed

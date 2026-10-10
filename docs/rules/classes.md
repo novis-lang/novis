@@ -196,7 +196,7 @@ inherited, initialized by the binding itself
 ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), namable by an `implements ... by $field` clause, and
 carrying whatever qualifiers its type does.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0094](../decisions/0094.md).</sub>
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field).</sub>
 
 <a id="classes-constructor-compatibility"></a>
 
@@ -673,7 +673,7 @@ alongside `parent::`, `self::` and `static::`.
   qualified-call shape `InterfaceName::method()` already does it, and a second way to write it is what
   [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) refuses.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0094](../decisions/0094.md).</sub>
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces).</sub>
 
 <a id="classes-interface-private-methods"></a>
 
@@ -694,7 +694,7 @@ inherits.
 The precedent is Java 9's private interface methods, and the addition is small: it changes who may
 call a member, not what an interface may hold. Interfaces still declare no state.
 
-<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/no-traits`](classes.md#classes-no-traits). Decided in [0094](../decisions/0094.md).</sub>
+<sub>See also [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/no-traits`](classes.md#classes-no-traits).</sub>
 
 <a id="classes-interfaces-declare-no-state"></a>
 

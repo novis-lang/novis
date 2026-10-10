@@ -472,15 +472,42 @@ accepting it on ported code preserves behaviour.
 no answer, and that is the point: nothing in the compiler, the reflection surface or a reader's head has to
 hold one. The default an omission would need is a *security* default rather than a style one — an inferred
 `public` is the mechanism by which an internal helper becomes public API because someone forgot a word, and
-the author who forgot it is exactly the author who did not decide.
+the author who forgot it is exactly the author who did not decide. There is no configuration, no
+per-project override and no suppression annotation. A type is already mandatory in the same slots
+([`types/declaration`](types.md#types-declaration)), and a member that must spell its type but may leave its visibility to a rule
+would be an inconsistency rather than a smaller rule. Reflection exposes a member's declared visibility
+([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)) and a debug dump annotates every property with it
+([`classes/no-magic-methods`](classes.md#classes-no-magic-methods)); with a default, both would report a level nobody typed.
+
+The cost is keystrokes: every member gains up to nine characters, and a ported PHP class needs one edit
+per member that omitted the keyword. The language loses a rule in exchange: there is no default to
+document and no table of which omissions are legal. The check is one pass over parsed declarations, and
+nothing of it reaches the IR, so it costs nothing at run time.
 
 An enum body has no member slot at all ([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)), so nothing here reaches one, and
 a property hook has no visibility slot either. What each level *means* at an access site is a separate
 question, enforced separately; until that lands everywhere, a written `private` is an accurate declaration,
 which is strictly better than an unwritten one. The formatter never inserts the keyword, because a formatter
-that changes meaning is not a formatter.
+that changes meaning is not a formatter ([`tooling/fmt-never-inserts-visibility`](tooling.md#tooling-fmt-never-inserts-visibility)).
 
-<sub>See also [`core-api/a-parameter-is-not-a-member`](core-api.md#core-api-a-parameter-is-not-a-member), [`core-api/asymmetric-visibility-is-a-pair`](core-api.md#core-api-asymmetric-visibility-is-a-pair), [`core-api/legacy-property-shapes-name-the-visibility`](core-api.md#core-api-legacy-property-shapes-name-the-visibility), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/declaration`](types.md#types-declaration). Decided in [0094](../decisions/0094.md).</sub>
+**Declined:**
+- **PHP's implicit `public`.** It makes the option that is safest to forget the widest one, and it is the
+  only rule in this area a reader cannot see in the source.
+- **An implicit `private`**, as in Rust and in C++ classes. It is safer, but a ported file would compile
+  and quietly change meaning, which is worse than either PHP's rule or an error. Novis diverges from PHP
+  loudly or not at all.
+- **A warning, or a lint with a suppression annotation.** There is no warning tier and no suppression
+  mechanism ([`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression)), and a rule whose whole value is that the author decided
+  is worth nothing if the author can skip it.
+- **The keyword on properties only, with methods left PHP-shaped.** Half the rule costs a reader the
+  whole rule, because they must still remember which half applies where.
+- **Interface methods exempt**, on the argument that only `public` is legal there. That is not true
+  here: `public` and `private` are two different constructs in an interface body
+  ([`classes/interface-private-methods`](classes.md#classes-interface-private-methods)).
+- **A fourth keyword for package- or module-visible.** Novis has no module boundary below the class, and
+  inventing one would be a language feature added as a syntax rule.
+
+<sub>See also [`core-api/a-parameter-is-not-a-member`](core-api.md#core-api-a-parameter-is-not-a-member), [`core-api/asymmetric-visibility-is-a-pair`](core-api.md#core-api-asymmetric-visibility-is-a-pair), [`core-api/legacy-property-shapes-name-the-visibility`](core-api.md#core-api-legacy-property-shapes-name-the-visibility), [`classes/interface-private-methods`](classes.md#classes-interface-private-methods), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/declaration`](types.md#types-declaration).</sub>
 
 <a id="core-api-asymmetric-visibility-is-a-pair"></a>
 
@@ -499,7 +526,7 @@ visibility is a rule you have to know instead of a word you can see.
 The plain keyword written alongside a `(set)` half is always the read half, so a reader and the checker
 take it from the same place.
 
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility). Decided in [0094](../decisions/0094.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility).</sub>
 
 <a id="core-api-legacy-property-shapes-name-the-visibility"></a>
 
@@ -517,7 +544,7 @@ requires at least one modifier on a property, so `class A { int $x; }` is a pars
 here. Both shapes are what a porting author actually types, so both get the diagnostic that tells them the
 one thing they need to change.
 
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/var-inference`](types.md#types-var-inference). Decided in [0094](../decisions/0094.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`types/var-inference`](types.md#types-var-inference).</sub>
 
 <a id="core-api-a-parameter-is-not-a-member"></a>
 
@@ -537,7 +564,7 @@ therefore already written.
 This is the negative case the rule could most plausibly break, which is why it is stated rather than left
 to follow from the word "member".
 
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/promotion-is-constructor-only`](classes.md#classes-promotion-is-constructor-only). Decided in [0094](../decisions/0094.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/promotion-is-constructor-only`](classes.md#classes-promotion-is-constructor-only).</sub>
 
 <a id="core-api-written-participation"></a>
 

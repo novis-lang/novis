@@ -297,7 +297,7 @@ attached behaviour: this attaches a *declaration* to the method, not a filter, a
 opinion. The guarantee is that the decision was **written**, not that it was **honoured** — the
 compiler never asks what the name means.
 
-<sub>See also [`attributes/access-payload`](attributes.md#attributes-access-payload), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict). Decided in [0096](../decisions/0096.md), [0094](../decisions/0094.md).</sub>
+<sub>See also [`attributes/access-payload`](attributes.md#attributes-access-payload), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict). Decided in [0096](../decisions/0096.md).</sub>
 
 <a id="attributes-access-payload"></a>
 

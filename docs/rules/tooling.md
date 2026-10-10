@@ -1006,7 +1006,7 @@ formatter that inserted `public` would make a file's *meaning* depend on whether
 over it, and would restore an implicit default for anyone who formats on save. A file that does not
 compile still does not compile after `nvs fmt`, and its author writes the level they mean.
 
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per).</sub>
 
 <a id="tooling-fmt-never-reorders-members"></a>
 

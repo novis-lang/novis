@@ -2,8 +2,7 @@
   "title": "A method carrying `#[Route]` carries `#[Access]`, and an omission does not compile",
   "status": "shipped",
   "because": [
-    "0096",
-    "0094"
+    "0096"
   ],
   "seeAlso": [
     "attributes/access-payload",
