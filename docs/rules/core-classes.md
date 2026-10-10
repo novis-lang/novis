@@ -1002,7 +1002,7 @@ A connection is released by the runtime at request teardown — the job a destru
 done by the arena instead. `close()` releases one early, and the name is then free for the next
 `connect`.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0067](../decisions/0067.md), [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0067](../decisions/0067.md), [0064](../decisions/0064.md), [0103](../decisions/0103.md).</sub>
 
 <a id="core-classes-db-capabilities"></a>
 

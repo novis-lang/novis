@@ -298,7 +298,7 @@ integer, where `$e as int` is the written spelling; two unrelated classes; and a
 This turns the entire class of comparisons that could only ever answer one constant into a diagnostic
 at the site that wrote it.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0054](../decisions/0054.md).</sub>
 
 <a id="expressions-switch-match-equality"></a>
 
@@ -462,7 +462,7 @@ the throwing form — a value that gates access is converted with plain `as T`.
 There is one definition and no family that escapes it: every `as ?T` is the `as T` of the conversion
 table, with `null` where it throws ([`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability)).
 
-<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0066](../decisions/0066.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0066](../decisions/0066.md).</sub>
 
 <a id="expressions-nullable-conversion-availability"></a>
 
@@ -492,7 +492,7 @@ cannot-fail row is refused rather than allowed as a harmless spelling.
 every language a reader arrives from, and it never spells a parse: text becomes a value through that
 class's own reader ([`expressions/try-parse`](expressions.md#expressions-try-parse)).
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0066](../decisions/0066.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0066](../decisions/0066.md).</sub>
 
 <a id="expressions-conversion-keeps-qualifiers"></a>
 

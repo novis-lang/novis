@@ -171,7 +171,7 @@ name already says. The refusal recovers as `mixed`, which is what keeps one miss
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
 
 <a id="types-integer-literals"></a>
 
@@ -406,7 +406,7 @@ named, and an enum case orders as the integer it is even though the written spel
 
 `==` and `!=` are a different question and are unaffected by any of this.
 
-<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0047](../decisions/0047.md).</sub>
+<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed).</sub>
 
 <a id="types-string-is-utf8"></a>
 
@@ -601,11 +601,31 @@ itself — the target a closed set, the operand naming one value — and otherwi
 conversion answered at run time. A `tainted` or `secret` value needs the same laundering it would need
 to leave `mixed` for any other typed binding; neither qualifier gets a rule of its own here.
 
-Two limits are deliberate: **no `float` single-value type**, because float equality is imprecise enough
-that a type allowing only `0.1` is a footgun; and **no wildcard matching** over constant or case names,
-since the whole point is that the accepted set is spelled out.
+There is **no `float` single-value type**, because float equality is imprecise enough that a type
+allowing only `0.1` is a footgun.
 
-<sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0066](../decisions/0066.md).</sub>
+A parameter that accepts exactly a few values is a value constraint, and untrusted input meets it
+through the same reviewable, throwing `as` every other conversion uses. Reusing the union and
+conversion machinery, the way `true|false` already sat inside it as `bool`, adds no new kind of thing
+to the language.
+
+**Declined:**
+- **Wildcard matching over constant or case names** (`Foo::TYPE_*`). The accepted set is not visible
+  at the call site without reading `Foo`, and it grows silently the day a new `TYPE_*` constant is
+  added. Naming the exact constants ([`types/constant-in-type-position`](types.md#types-constant-in-type-position)) reuses the group without
+  either problem.
+- **An attribute listing the expected values.** Attributes are inert metadata
+  ([`attributes/inert-metadata`](attributes.md#attributes-inert-metadata)), so enforcing one would be a second checking pass beside the
+  type checker. It would also lose what a real type has: narrowing, the checked `as`, and static
+  knowledge for code generation.
+- **A `oneof(…)` or `literal(…)` type constructor.** The union syntax and its canonicalisation
+  already exist and single-value atoms compose with them, so a keyword would be a second way to write
+  a set of allowed values ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
+- **A run-time validator call** such as `Core\Arr::contains(["a", "b", "c"], $x)` in place of a type.
+  It is not visible in the parameter's declared type, and it is a second, weaker mechanism beside the
+  type system.
+
+<sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0066](../decisions/0066.md).</sub>
 
 <a id="types-constant-in-type-position"></a>
 
@@ -634,7 +654,7 @@ using one this way is a diagnostic naming the eligible types. An enum case is no
 for the opposite reason: it carries its enum's nominal type and stays a narrowed view of it
 ([`types/enum-case-type`](types.md#types-enum-case-type)).
 
-<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0047](../decisions/0047.md), [0046](../decisions/0046.md).</sub>
+<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0046](../decisions/0046.md).</sub>
 
 <a id="types-enum-case-type"></a>
 
@@ -668,7 +688,7 @@ not narrow `$m` in the branch it guards ([`types/narrowing`](types.md#types-narr
 nothing at runtime — it shares the enum's existing zero-byte representation
 ([`enums/representation`](enums.md#enums-representation)).
 
-<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md).</sub>
+<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing).</sub>
 
 <a id="types-arrays"></a>
 
@@ -1043,7 +1063,7 @@ every step out of it is an `as` a reviewer can see.
 - **`mixed` checked at its boundaries.** It would leave no way to say "this is untyped input"
   honestly, which is the one thing `mixed` is for.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0066](../decisions/0066.md), [0047](../decisions/0047.md), [0150](../decisions/0150.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0066](../decisions/0066.md), [0150](../decisions/0150.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-type-test"></a>
 
@@ -1200,7 +1220,7 @@ Narrowing never changes a binding's declared type ([`types/declaration`](types.m
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0047](../decisions/0047.md), [0066](../decisions/0066.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0270](../decisions/0270.md).</sub>
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0066](../decisions/0066.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0270](../decisions/0270.md).</sub>
 
 <a id="types-conversion"></a>
 
@@ -1262,7 +1282,7 @@ reads the wrong value later.
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
   ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 

@@ -1052,7 +1052,7 @@ carries a default entry only if it is itself optional. The options bag ([`core-a
 its own spelling rather than being folded into this one, because the two differ in call-site rules — last,
 unnamed, omittable in full — which are worth enforcing by a type rather than restating in a test.
 
-<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md), [0063](../decisions/0063.md), [0047](../decisions/0047.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md), [0063](../decisions/0063.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-api-shape-arms-are-disjoint"></a>
 
@@ -1076,7 +1076,7 @@ instead of by a value.
 What a caller sees is that a key belonging to the arm the other values did not select is refused where it
 is written, naming the arm's own key set rather than the merged one.
 
-<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/shape-reuses-the-option-diagnostics`](core-api.md#core-api-shape-reuses-the-option-diagnostics), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0135](../decisions/0135.md), [0047](../decisions/0047.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/shape-reuses-the-option-diagnostics`](core-api.md#core-api-shape-reuses-the-option-diagnostics), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0135](../decisions/0135.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-api-one-checked-shape-type"></a>
 

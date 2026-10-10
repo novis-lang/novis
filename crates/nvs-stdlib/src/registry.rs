@@ -709,8 +709,8 @@ pub enum CoreTy {
     /// `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming the reason.
     /// A *second enum* would not say that: `Core\StrongDigest::Sha256` would
     /// be a different type from `Core\Digest::Sha256`, and no value could be
-    /// passed to both `of` and `hmac`. A union of case types is the shape ADR
-    /// 0047 already gives that idea, and the checker already places an
+    /// passed to both `of` and `hmac`. A union of case types is the shape
+    /// `rule:types/enum-case-type` already gives that idea, and the checker already places an
     /// enum-case expression against it — `nvs_types::expr::literals`'
     /// `placed_literal` looks inside a union, so `Digest::Sha256` narrows to
     /// its case type and `Digest::Md5` stays the whole enum and fails to

@@ -4,8 +4,7 @@
   "because": [
     "0067",
     "0064",
-    "0103",
-    "0047"
+    "0103"
   ],
   "seeAlso": [
     "core-classes/db-capabilities",

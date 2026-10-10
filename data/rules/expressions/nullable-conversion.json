@@ -2,8 +2,7 @@
   "title": "`expr as ?T` yields the converted value or `null`, and never throws",
   "status": "shipped",
   "because": [
-    "0066",
-    "0047"
+    "0066"
   ],
   "seeAlso": [
     "expressions/nullable-conversion-availability",

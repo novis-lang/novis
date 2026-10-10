@@ -879,7 +879,7 @@ The unit tests are the list: a homogeneous nest at three levels, a heterogeneous
 canonical union, an integer literal widening to `int`, an enum case widening to its enum, `[]` yielding no
 offer, and a literal past depth 32 yielding no offer.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/arrays`](types.md#types-arrays). Decided in [0114](../decisions/0114.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/arrays`](types.md#types-arrays). Decided in [0114](../decisions/0114.md).</sub>
 
 <a id="ide-the-action-answers-from-the-literal-or-not-at-all"></a>
 

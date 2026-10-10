@@ -2,7 +2,6 @@
   "title": "A `string` or `int` value in type position is a single-value type, and a union of them is a set of allowed values",
   "status": "shipped",
   "because": [
-    "0047",
     "0066"
   ],
   "seeAlso": [
