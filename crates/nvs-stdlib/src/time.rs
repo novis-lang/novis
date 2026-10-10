@@ -165,8 +165,8 @@ use crate::registry::{
 /// [`crate::registry::CLASSES`], so the two cannot drift apart.
 ///
 /// `nvs_types::expr` reads this same constant for the type of an
-/// [`nvs_syntax::ast::ExprKind::Duration`] expression, which is what makes ADR
-/// 0070 § 2's "the suffix *is* the type" one fact rather than two spellings.
+/// [`nvs_syntax::ast::ExprKind::Duration`] expression, which is what makes
+/// `rule:types/duration`'s "the suffix *is* the type" one fact rather than two spellings.
 pub const DURATION_NAME: &str = r"Core\Time\Duration";
 
 /// The symbol behind `Core\Time\Duration::nanoseconds`, which is also how a

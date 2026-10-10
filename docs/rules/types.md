@@ -516,9 +516,9 @@ unit     := ns | us | ms | s | m | h | d | w
 
 The type is `Core\Time\Duration`, always — the suffix *is* the type, with nothing
 untyped-until-placed about it ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)). A duration written this way is
-a compile-time constant folded to a single nanosecond count and emitted into the constant pool, so
-`{timeout: 30s}` allocates nothing at run time and a duration beyond `Duration`'s range is a compile
-error, not a wrap.
+folded at compile time to a single nanosecond count, so the grammar is never read at run time, and a
+duration beyond `Duration`'s range is a compile error, not a wrap. At run time it is one
+`Duration::nanoseconds` call on that count.
 
 `1h + 30m` does not compile — there is no operator overloading; write `1h30m` or `$a->plus($b)`. So
 does `1h30m as int`; write `->toSeconds()`. `$n s` is not a duration; a computed count is
@@ -528,9 +528,43 @@ does `1h30m as int`; write `->toSeconds()`. `$n s` is not a duration; a computed
 `nvs.toml` at boot. `Duration`'s string form emits this grammar too, so a value round-trips through
 `parse` over exactly the durations the grammar can spell — the non-negative ones. A negative duration
 renders `-1h30m` for a reader, and `parse` refuses that leading `-` **by name** rather than reading a
-positive value out of it.
+positive value out of it. Sharing one parser means a grammar change cannot land in one place and miss
+the others, the property [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments) requires of every intrinsic.
 
-<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0070](../decisions/0070.md), [0046](../decisions/0046.md), [0057](../decisions/0057.md), [0062](../decisions/0062.md).</sub>
+The literal exists because [`core-api/units-are-types`](core-api.md#core-api-units-are-types) sends its cost to the call site:
+`Duration::seconds(30)` at every timeout, TTL, sleep and retry is the pressure under which untyped
+`int $seconds` parameters grow back. [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays) rules out `30.seconds`,
+so a literal is the only short form left. The grammar is Go's `ParseDuration` with `d` and `w` added,
+which is already what Kubernetes, Docker, Prometheus and Caddy configuration accept. `d` and `w` are
+kept because retention and cutoff windows are the common case, and the calendar ambiguity Go avoids by
+stopping at `h` is closed by the calendar day being a `DateTime` unit. The missing sign means the parser
+never has to decide whether the `-` in `$a -7d` is binary or part of a duration.
+
+`nvs fmt` ([`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style)) never rewrites a duration: `90m` and `1h30m` are
+the same value, and choosing between them is the author's, as `0x10` against `16` is.
+
+**Memory:** each evaluation of a written duration builds one `Duration` object from the folded count,
+the same as a computed `Duration::nanoseconds($n)`.
+
+**Declined:**
+- **`Duration::seconds(30)` alone, with no literal.** The verbosity is paid in every program, and it is
+  the pressure that brings untyped integer parameters back.
+- **ISO-8601 durations, `PT30S` and `P7D`.** `PT1H30M` reads far worse inline than `1h30m`. An ISO
+  reader for wire formats is a different job from a literal.
+- **`3.days`, as Kotlin and Scala write it.** A method on a scalar is what
+  [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays) refuses, and an exception for one type is how that
+  rule's twin problem grows back.
+- **A general units-of-measure system, such as F#'s `9.81<m/s^2>`.** It is a type-system feature of its
+  own, with unit algebra in signatures and inference through arithmetic, for a domain where time is the
+  only unit that recurs ([`programs/memory-priority`](programs.md#programs-memory-priority), simplicity).
+- **`1h + 30m` through operator overloading on `Duration`.** Novis has no operator overloading and does
+  not add it for one type; `1h30m` already covers the case.
+- **A sign in the grammar.** It would put a form into `nvs.toml` and the lexer that source refuses as
+  `-7d`, and the three places would stop being one grammar.
+- **A relative-time string such as `"+2 weeks"` on `DateTime`.** It duplicates `startOf`, `plus` and
+  `next`, it is a mode string, and it hides whether a calendar or an exact offset was meant.
+
+<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0046](../decisions/0046.md), [0057](../decisions/0057.md), [0062](../decisions/0062.md).</sub>
 
 <a id="types-single-value-types"></a>
 
