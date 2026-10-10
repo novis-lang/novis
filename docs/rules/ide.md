@@ -186,7 +186,7 @@ parse: a literal node whose static type carries `secret` emits the fixed placeho
 ([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)). Putting that in the JSON rather than in the
 panel is what stops `--json` and the webview from disagreeing about it.
 
-<sub>See also [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+<sub>See also [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-one-crate-and-one-extension-grow-in-place"></a>
 
@@ -439,7 +439,7 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -1097,7 +1097,7 @@ The legend the client registers must equal the legend the server declares. A mis
 everything one token type off, which no unit test on either side alone can see, so the extension-host run
 proves it.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0214](../decisions/0214.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0214](../decisions/0214.md).</sub>
 
 <a id="ide-novis-ships-names-not-colours"></a>
 
@@ -1123,7 +1123,7 @@ call to make in someone else's editor, which is also what
 [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration) applies. A bundled theme is a legitimate future option a
 user may select; it is not a default.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-five-features-are-one-reference-index"></a>
 
@@ -1695,7 +1695,7 @@ build and an installed package tree that no footprint records, since only `nvs`,
 `bun nv` log what they read (`tools/nv/select/keys.ts`), so a remembered green here would report an
 editor run on a machine where no editor started.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0185](../decisions/0185.md), [0226](../decisions/0226.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0099](../decisions/0099.md), [0185](../decisions/0185.md), [0226](../decisions/0226.md).</sub>
 
 <a id="ide-one-server-two-thin-clients"></a>
 
@@ -1896,7 +1896,7 @@ M10 adds, under the same rule and not as an exception to it: the settings `nvs.c
 request of Novis's own, `nvs/regions`. A contributions test asserts `package.json` declares exactly
 what the roster names.
 
-<sub>See also [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document). Decided in [0099](../decisions/0099.md), [0274](../decisions/0274.md).</sub>
 
 <a id="ide-tasks-carry-a-problem-matcher"></a>
 
@@ -2314,7 +2314,7 @@ The same allowlist is what keeps the client free of language logic when a featur
 of [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server) is a range list from the server and a decoration;
 there is nothing in it a parser would help with, and the test is unchanged by it.
 
-<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
 
 <a id="ide-redaction-ranges-come-from-the-server"></a>
 
@@ -2325,6 +2325,16 @@ there is nothing in it a parser would help with, and the test is unchanged by it
 A `secret` value is concealed in the editor by default. The language server answers a list of ranges
 and their kinds; the client draws them and knows nothing about what a secret is, because the
 alternative is the client guessing.
+
+**The server can be exact where a client cannot.** A tool that hides secrets in an editor otherwise
+guesses, by filename, by pattern or by entropy. `secret` is a type-checker fact, and it propagates
+through concatenation and interpolation ([`security/secret-propagation`](security.md#security-secret-propagation)), so a value derived from a
+credential is concealed for the same reason the credential is, with no heuristic involved. A guess would
+miss every value that became `secret` by propagation, which is most of them.
+
+The threat this closes is an **incidental viewer**: a stream, a screen share, a screenshot, somebody
+looking over a shoulder. It is not a defence against the machine's own user and it is not secret
+management.
 
 **This is a rendering, and it is not what makes a `secret` safe.** The language's guarantee is that
 every sink refuses one ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), checked by the compiler, with no editor
@@ -2343,9 +2353,30 @@ expression cannot be typed, but whose **binding's declared type carries `secret`
 anyway; the client **holds its last answer** and never clears decorations on an error, a cancellation
 or a restart. An empty answer means nothing to redact; a *missing* answer means nothing at all.
 
+Redacting on the declared type when the expression's own type is unknown is an over-approximation, and
+it is kept because the other failure, the value flashing visible on every keystroke inside a string being
+typed, is the one that loses the credential. Where the server cannot attribute a range at all, it answers
+nothing for it and the value is visible. That gap is the honest one: over-redacting a document that does
+not parse would conceal arbitrary spans of a file somebody is trying to fix.
+
+The cost is a second decoration mechanism beside the semantic-token one, with two contracts to keep
+apart and two ways for one token to be described.
+
+**Declined:**
+
+- **Detecting the range in the client** with a pattern or a filename rule. It puts language logic in a
+  client ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)), and it misses every value that is `secret` by
+  propagation.
+- **A third semantic-token modifier.** That channel degrades to the underlying token type when a theme
+  has no opinion, and a security default may not have un-redacting as its degradation.
+- **Serving a redacted document** through a content provider or a custom editor. The file stops being an
+  editable text document, with no language-server edits, no diff, no version-control integration and no
+  format-on-save, which is a far larger loss than the exposure it closes; and it substitutes the buffer,
+  which [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only) rules out.
+
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
 
 <a id="ide-redaction-covers-bytes-only"></a>
 
@@ -2366,9 +2397,22 @@ The concealment is a decoration over the range with the character cells kept, so
 selection and every edit still address the real text. It is a rendering, not an edit: the buffer is
 the file on disk, byte for byte.
 
+The range is this narrow because the qualifiers propagate: in a request handler nearly every string
+expression carries one, so concealing or marking every qualified expression would bury the file and be
+turned off, taking the redaction with it.
+
+**Declined:**
+
+- **Folding the value away.** Folding is line-granular, so it cannot express a literal inside a one-line
+  declaration such as `secret string $k = "…";`, which is the shape this exists for; and it would hide
+  the declaration itself, which stays legible.
+- **Removing the span from layout** (`display: none`) instead of blurring it. Removing the box breaks
+  cursor and selection arithmetic across the range, and the editor has to keep behaving like a text
+  editor.
+
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0158](../decisions/0158.md).</sub>
 
 <a id="ide-reveal-is-explicit-and-window-local"></a>
 
@@ -2397,12 +2441,19 @@ right now expires on the next arrow key, so the worst it can do is show the valu
 already looking at. That is a smaller surface than the two held reveals it sits beside, not a larger
 one — the reason to write it down is that it *reads* like the opposite.
 
-There is still **no automatic re-conceal on a signal**, because there is no signal: nothing reports
-that a window is being shared, recorded or projected. Anything that looked like one would be a guess
-with a security failure attached, so redaction is unconditional by default and the user is the only
-thing that turns it off.
+There is still **no automatic reveal and no automatic re-conceal on a signal**, because there is no
+signal: nothing reports that a window is being shared, recorded or projected. Anything that looked like
+one would be a guess with a security failure attached, so redaction is unconditional by default and the
+user is the only thing that turns it off, with `nvs.secrets.redact` (default `true`).
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
+**Declined:**
+
+- **Redacting only while the screen is shared.** No editor API reports it, so this would be a guess
+  whose failure is a leaked credential.
+- **A reveal that persists** in workspace state or across a reload. It outlives the moment it was
+  needed, which is the exposure this rule exists to close.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0158](../decisions/0158.md).</sub>
 
 <a id="ide-redaction-does-not-reach"></a>
 
@@ -2421,11 +2472,23 @@ directly. A copy of a concealed range copies the plaintext, and nothing may inte
 And the file itself is on disk, in the working tree, and in the history the moment it is committed —
 concealing a hardcoded credential does not make it less hardcoded.
 
-This list is part of the decision, not commentary on it.
+This list is part of the decision, not commentary on it, and it is the real cost of the feature: a user
+who believes the editor protects them everywhere is worse off than one who knows it does not.
+
+**Declined:**
+
+- **Intercepting copy** by rebinding the editor's copy action. It overrides a global keybinding for the
+  whole editor to protect a value that is on disk anyway, and a redaction that fights the user's own
+  clipboard is past the threat of an incidental viewer.
+- **Refusing or warning on a `secret`-typed source literal in `nvs check`**, the cause the concealment
+  only treats. Does not exist: the checker holds both facts it would need, but a test fixture, an example
+  and a conformance case all legitimately write one.
+- **Redacting the "before" side of a diff.** Does not exist: it needs a type answer for a revision of the
+  document the server never analysed.
 
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local). Decided in [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local). Decided in [0158](../decisions/0158.md).</sub>
 
 <a id="ide-phpstorm-draws-no-redaction-at-m4b"></a>
 
@@ -2442,7 +2505,7 @@ The plugin is not built at M4B, so PhpStorm conceals nothing at this milestone. 
 than something discovered when someone opens a `.nvs` file in PhpStorm on a call, and the PhpStorm side is
 due when its plugin is.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
 
 <a id="ide-tainted-has-no-default-decoration"></a>
 
@@ -2452,9 +2515,23 @@ due when its plugin is.
 
 `tainted` gets a semantic-token modifier and **no default decoration**. A marker glyph is added
 content rather than a colour, and shipping one on by default writes into someone else's editor exactly
-what the token-modifier rule refuses. The marker is a setting with three values and `off` is the
-default; where it is on, the glyph is a themed icon rather than an emoji, and its colour is a theme
-reference rather than a literal.
+what the token-modifier rule refuses. The marker is `nvs.taint.mark`, and `off` is the default:
+
+| Value | What is marked |
+|---|---|
+| `off` | nothing; the token modifier alone, styled by the theme |
+| `declaration` | a glyph after each declaration whose type carries `tainted` |
+| `sink` | `declaration`, plus each argument position where a `tainted` value reaches a sink under [`security/sink-predicate`](security.md#security-sink-predicate) |
+
+Only a declaration is marked, never a use: a `tainted` value is tainted at every use, so a glyph per
+use would mark most of a request handler and teach nothing. Where the marker is on, the glyph is one
+plain text character in the editor's own font rather than an emoji, which renders at the mercy of the
+installed fonts and can show as a replacement box; its colour is a theme reference rather than a
+literal. It is not an icon image, because an inline image takes no theme colour and would ship a colour
+of Novis's own ([`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours)). Until the sink classification exists on the
+`Core` member rows, `sink` marks what `declaration` does.
+
+The cost is a setting that ships inert by default, and that still costs documentation and a test.
 
 **The asymmetry with `secret` is the whole content of this rule.** A credential on a shared screen is
 a security incident, which is what buys `secret` its default
@@ -2463,6 +2540,13 @@ at all: `tainted` is a compile-time guarantee already enforced by refusing the s
 ([`security/sink-predicate`](security.md#security-sink-predicate)), so marking it is teaching, and teaching does not get to override the
 user's theme.
 
+**Declined:**
+
+- **The marker on by default.** It overrides the user's theme for something that is not a security
+  event, and since every `Core\Request` accessor returns `tainted`, most string expressions in a request
+  handler would carry it. The default would bury the file, and the setting that turns it off would take
+  the `secret` redaction with it in the user's mind.
+
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0088](../decisions/0088.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier). Decided in [0099](../decisions/0099.md), [0088](../decisions/0088.md), [0158](../decisions/0158.md).</sub>

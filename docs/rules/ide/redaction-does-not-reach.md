@@ -9,6 +9,18 @@ directly. A copy of a concealed range copies the plaintext, and nothing may inte
 And the file itself is on disk, in the working tree, and in the history the moment it is committed —
 concealing a hardcoded credential does not make it less hardcoded.
 
-This list is part of the decision, not commentary on it.
+This list is part of the decision, not commentary on it, and it is the real cost of the feature: a user
+who believes the editor protects them everywhere is worse off than one who knows it does not.
+
+**Declined:**
+
+- **Intercepting copy** by rebinding the editor's copy action. It overrides a global keybinding for the
+  whole editor to protect a value that is on disk anyway, and a redaction that fights the user's own
+  clipboard is past the threat of an incidental viewer.
+- **Refusing or warning on a `secret`-typed source literal in `nvs check`**, the cause the concealment
+  only treats. Does not exist: the checker holds both facts it would need, but a test fixture, an example
+  and a conformance case all legitimately write one.
+- **Redacting the "before" side of a diff.** Does not exist: it needs a type answer for a revision of the
+  document the server never analysed.
 
 **Not on disk.** There is no language server in the tree.

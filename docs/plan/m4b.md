@@ -47,7 +47,7 @@ casing fix (`rule:core-api/identifier-casing`)
 and `(int)$x` → `$x as int` (`rule:types/no-legacy-cast`). Beside the nine standard
 requests sits exactly **one of Novis's own**, `nvs/redactions`, answering the ranges the editor conceals —
 a literal or interpolation slot whose static type carries `secret`
-([0101](../decisions/0101.md) §§ 1–2). It is
+(`rule:ide/redaction-ranges-come-from-the-server`, `rule:ide/redaction-covers-bytes-only`). It is
 not a token modifier: that channel degrades to "whatever the theme thinks", and a security default may not
 have becoming-visible as its failure mode. Its fail direction is named — a range whose expression cannot be
 typed but whose binding declares `secret` is answered anyway, so a value does not flash on every keystroke
@@ -107,7 +107,7 @@ enforced by a dependency-allowlist test rather than by review. The setting and c
 `settings.json` silently. **A `secret` literal is concealed by default** — blurred in place, the character
 cells kept, so every edit still addresses the real text — and a reveal is per range and dies when the
 editor closes, because the threat is an unattended screen and no API reports one
-([0101](../decisions/0101.md)). `tainted`
+(`rule:ide/reveal-is-explicit-and-window-local`). `tainted`
 is decorated only if the user asks (`nvs.taint.mark`, default `off`): a glyph is *added content*, and how
 a construct looks stays the theme's call. The AST panel inherits the same placeholder in
 `nvs ast --json` itself, or it prints in a webview the credential the buffer behind it is hiding. Extension id `nvs-lang.nvs`; `package-lock.json` is committed because

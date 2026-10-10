@@ -2,7 +2,6 @@
   "title": "`tainted` ships no default editor decoration, and the marker is opt-in",
   "status": "designed",
   "because": [
-    "0101",
     "0099",
     "0088",
     "0158"
@@ -12,5 +11,7 @@
     "security/sink-predicate",
     "security/tainted-qualifier"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "editors/vscode/test/host/surfaces.test.ts"
+  ]
 }
