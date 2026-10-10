@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0067",
-    "0043",
-    "0002"
+    "0043"
   ],
   "seeAlso": [
     "core-classes/db-error",

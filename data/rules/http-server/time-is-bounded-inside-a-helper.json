@@ -4,8 +4,7 @@
   "because": [
     "0106",
     "0020",
-    "0056",
-    "0002"
+    "0056"
   ],
   "seeAlso": [
     "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",

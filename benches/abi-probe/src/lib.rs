@@ -9,8 +9,8 @@
 //!
 //! | probe | guards |
 //! |---|---|
-//! | `tests/invariants.rs` | the checked-return ABI and coroutine behaviour of [ADR 0002](/docs/decisions/0002.md) |
-//! | `tests/unwind_unavailable.rs` | the *premise* of ADR 0002 — that native unwinding is unavailable |
+//! | `tests/invariants.rs` | the checked-return ABI and coroutine behaviour of `rule:errors/propagation` |
+//! | `tests/unwind_unavailable.rs` | the *premise* of `rule:errors/propagation` — that native unwinding is unavailable |
 //! | `tests/wasm_sandbox.rs` | the sandbox guarantees of `rule:packaging/an-extension-is-a-sandboxed-wasm-component` |
 //! | `tests/wasm_async.rs` | the async bridge of [ADR 0246](/docs/decisions/0246.md) § 5: a guest call parks, yields and traps inside a coroutine |
 //! | `tests/perf_guards.rs` | order-of-magnitude regressions in the quoted costs |
@@ -210,7 +210,7 @@ macro_rules! probe_helper {
         #[allow(
             unsafe_code,
             reason = "a runtime helper's signature is fixed by the ABI in \
-                      ADR 0002; the pointer contract cannot be expressed in \
+                      rule:errors/propagation; the pointer contract cannot be expressed in \
                       the type, so the function is honestly marked unsafe"
         )]
         pub unsafe extern "C" fn $name(
@@ -594,8 +594,8 @@ impl Probe {
                 b.ins().return_(&[zero]);
 
                 // Where a real frame drops its locals' refcounts before
-                // propagating. Explicit IR, which is half the reason ADR 0002
-                // prefers this to unwinding.
+                // propagating. Explicit IR, which is half the reason
+                // `rule:errors/propagation` prefers this to unwinding.
                 b.switch_to_block(err_block);
                 b.seal_block(err_block);
                 b.ins().return_(&[status]);

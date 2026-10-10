@@ -660,7 +660,7 @@ first shadows the arms after it, as in the block form.
 The block form is unchanged in every particular and remains the only spelling with `finally`. Resource
 cleanup stays there; this form has no one-line twin for it.
 
-<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence), [`expressions/catch-lowers-to-block-form`](expressions.md#expressions-catch-lowers-to-block-form), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0119](../decisions/0119.md), [0002](../decisions/0002.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence), [`expressions/catch-lowers-to-block-form`](expressions.md#expressions-catch-lowers-to-block-form), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0119](../decisions/0119.md), [0020](../decisions/0020.md).</sub>
 
 <a id="expressions-catch-expression-precedence"></a>
 
@@ -765,7 +765,7 @@ Nothing in the runtime or in codegen changes, and the landing pad is the one alr
 ([`errors/propagation`](errors.md#errors-propagation)). The cost of a guarded expression that does not throw is the block form's:
 zero on the happy path ([`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower)).
 
-<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`errors/propagation`](errors.md#errors-propagation), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower). Decided in [0119](../decisions/0119.md), [0002](../decisions/0002.md).</sub>
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`errors/propagation`](errors.md#errors-propagation), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower). Decided in [0119](../decisions/0119.md).</sub>
 
 <a id="expressions-method-reference"></a>
 

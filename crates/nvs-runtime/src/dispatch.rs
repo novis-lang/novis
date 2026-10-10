@@ -521,8 +521,8 @@ pub unsafe fn construct_erased_from(
 ///
 /// Ownership is the opposite of [`call_method`]'s, and that is the whole
 /// reason the address sits in its own descriptor field rather than in the
-/// method table ([`ClassDesc::renderer`]): a native `Core` member is an ADR
-/// 0002 helper, so it *borrows* argument 0, and this neither retains on the
+/// method table ([`ClassDesc::renderer`]): a native `Core` member is a
+/// `rule:errors/helper-abi` helper, so it *borrows* argument 0, and this neither retains on the
 /// way in nor releases on the way out. The `string` it answers with carries
 /// the one reference every helper's result does.
 ///

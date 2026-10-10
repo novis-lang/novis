@@ -2,7 +2,7 @@
 //!
 //! If any of these fail after a dependency bump, the plan for M3 (backend) or
 //! M5 (concurrency) is broken and needs revisiting before more code is written
-//! on top of it. See `docs/decisions/0002.md`.
+//! on top of it. See `rule:errors/propagation` and `rule:errors/helper-abi`.
 
 use nvs_abi_probe::{Ctx, FATAL, Helper, NvsFn, OK, Probe, THROWN, Value, call, in_coroutine};
 use nvs_runtime::{TaskRoot, run_task};
@@ -387,7 +387,7 @@ fn engine_recursion_is_bounded_before_the_stack_is() {
 ///
 /// The message is not read back: `Ctx::take_pending` renders a throw through
 /// its exception object, and no exception class is installed in a context this
-/// bare — what is being asked here is which of ADR 0002's three statuses the
+/// bare — what is being asked here is which of the three call statuses the
 /// decoder chose, which is the half that distinguishes a refusal from a fault.
 fn decode_on_this_stack(document: &str) -> Result<(), i32> {
     let mut ctx = nvs_runtime::Ctx::buffered();

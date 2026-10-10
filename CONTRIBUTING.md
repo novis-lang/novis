@@ -225,7 +225,7 @@ the premise the calling convention exists for.
 |---|---|
 | Pipeline | source → AST → HIR → types → IR → Cranelift → native |
 | Execution | baseline JIT now, optimising tier later, no interpreter |
-| Errors | checked return status, never unwinding ([ADR 0002](docs/decisions/0002.md)) |
+| Errors | checked return status, never unwinding (`rule:errors/propagation`) |
 | Concurrency | thread-per-core executors, stackful coroutines, isolated cross-core workers |
 | Priorities | security → latency → simplicity → memory footprint ([`rule:programs/memory-priority`](docs/rules/programs.md#programs-memory-priority)) |
 | Types | static and mandatory; explicit checked conversions; unions plus `mixed`; `int` and `uint`; string-keyed ordered arrays with declarable nested element types ([ADR 0007](docs/decisions/0007.md)) |

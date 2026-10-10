@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0106",
-    "0093",
-    "0002"
+    "0093"
   ],
   "seeAlso": [
     "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",

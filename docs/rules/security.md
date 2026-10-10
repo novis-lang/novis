@@ -97,7 +97,7 @@ would encourage reading a spawn as a function call. Code that wants the terse fo
 the diagnostic then names the isolate rather than a parent frame it never had. Nothing unwinds across
 the boundary, for the reason nothing unwinds across a JIT frame ([`errors/propagation`](errors.md#errors-propagation)).
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy). Decided in [0006](../decisions/0006.md), [0002](../decisions/0002.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy). Decided in [0006](../decisions/0006.md), [0020](../decisions/0020.md).</sub>
 
 <a id="security-isolate-output-is-captured"></a>
 

@@ -173,8 +173,8 @@ nvs-ext.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy, for exactly
-# nvs-runtime's reason and no wider one: every `Core` member is an ADR 0002
-# helper entry point, so it is an `extern "C"` function decoding raw pointers,
+# nvs-runtime's reason and no wider one: every `Core` member is a
+# `rule:errors/helper-abi` helper entry point, so it is an `extern "C"` function decoding raw pointers,
 # which the workspace's `forbid` would make unwritable. `deny` instead, so each
 # genuinely necessary block is allowed individually with a stated reason — the
 # policy in docs/implementation-plan.md's "Unsafe policy" section, which names

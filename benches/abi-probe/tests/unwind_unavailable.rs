@@ -1,4 +1,4 @@
-//! Guards the *premise* of `docs/decisions/0002.md`.
+//! Guards the *premise* of `rule:errors/propagation`.
 //!
 //! Novis propagates errors by checked return rather than by unwinding, because
 //! `cranelift-jit` does not register JIT frames with the platform unwinder — so
@@ -6,7 +6,7 @@
 //! terminates the process.
 //!
 //! That is a property of a dependency, not of our code, and it could change. If
-//! it does, ADR 0002 says to reconsider, and this test is how we find out. It
+//! it does, that rule says to reconsider, and this test is how we find out. It
 //! fails loudly with an explanation rather than silently continuing to pay for a
 //! workaround that is no longer needed.
 //!
@@ -83,19 +83,19 @@ fn native_unwinding_through_jit_frames_is_still_unavailable() {
              ============================================================\n\
              A panic unwound through a Cranelift JIT frame and was caught.\n\
              \n\
-             This did not work when ADR 0002 was written, and the fact that\n\
-             it does now means cranelift-jit has started registering JIT\n\
-             frames with the platform unwinder.\n\
+             This did not work when the calling convention was chosen, and\n\
+             the fact that it does now means cranelift-jit has started\n\
+             registering JIT frames with the platform unwinder.\n\
              \n\
-             ADR 0002 names this as the condition for reconsidering the\n\
-             checked-return calling convention. Read docs/adr/0002-error-\n\
-             propagation.md before acting: the other two reasons given there\n\
+             rule:errors/propagation names this as the condition for\n\
+             reconsidering the checked-return calling convention. Read\n\
+             docs/rules/errors.md before acting: the other two reasons given there\n\
              (composing with coroutine stack switches, and keeping error-path\n\
              refcount drops visible to the optimiser) still favour checked\n\
              returns, so this is an invitation to re-evaluate rather than a\n\
              verdict.\n\
              \n\
-             Update the ADR either way, so the next reader knows this was\n\
+             Update the rule either way, so the next reader knows this was\n\
              considered and not merely missed.\n\
              ============================================================"
         );
@@ -111,7 +111,7 @@ fn native_unwinding_through_jit_frames_is_still_unavailable() {
     let code = output.status.code();
     println!(
         "premise holds: the child was terminated (exit {code:?}) rather than \
-         catching the unwind, so ADR 0002's calling convention remains necessary"
+         catching the unwind, so the checked-return calling convention remains necessary"
     );
 }
 

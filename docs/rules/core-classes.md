@@ -1300,7 +1300,7 @@ Nesting on one connection issues `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`, which 
 the callable on deadlock and serialization failure only, outermost transactions only, and defaults to
 `0` because re-running a callable that sends mail is worse than surfacing the conflict.
 
-<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../decisions/0067.md), [0043](../decisions/0043.md), [0002](../decisions/0002.md).</sub>
+<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../decisions/0067.md), [0043](../decisions/0043.md).</sub>
 
 <a id="core-classes-db-error"></a>
 
@@ -1324,7 +1324,7 @@ is a `secret` sink. The SQL text may, being developer-authored. The four raw val
 one boxed slice, which is eight bytes narrower than the single slot it replaced and costs one
 allocation on a path that is already allocating the object, the message and the backtrace.
 
-<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../decisions/0067.md), [0033](../decisions/0033.md), [0063](../decisions/0063.md), [0002](../decisions/0002.md).</sub>
+<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../decisions/0067.md), [0033](../decisions/0033.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-db-crate-boundary"></a>
 
@@ -1676,7 +1676,7 @@ One thing the record describes has not landed: `Core\Db\DbError` has no `issues`
 the row half's per-field refusals are reported on a `ParseError` instead. Gap 4 in
 `crates/nvs-stdlib/src/db/mod.rs` is where that is recorded.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0071](../decisions/0071.md), [0002](../decisions/0002.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0071](../decisions/0071.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-derive-generates-what-is-missing"></a>
 
@@ -1932,7 +1932,7 @@ can question.
 `shed` cannot fail this way, its state being in the core's own memory, which is one more reason the
 two are different members rather than one with a flag.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0002](../decisions/0002.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-crypto-interop-tier"></a>
 

@@ -644,7 +644,7 @@ pub trait Host: std::fmt::Debug {
     /// the whole reason this answers anything at all. A task parked here is
     /// standing on an `extern "C"` helper frame, so its host may not unwind it
     /// ([`crate::HelperFrame`]); it resumes the task instead, and the member
-    /// turns that into [``rule:errors/propagation``](/docs/decisions/0002.md)'s
+    /// turns that into `rule:errors/propagation`'s
     /// return status at the next safepoint. A host with no task beneath the
     /// call still owes the wait, blocking is the right answer there, and it
     /// answers [`Woken::Elapsed`] because nothing could have cancelled it.

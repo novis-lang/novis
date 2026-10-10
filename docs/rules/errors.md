@@ -50,13 +50,27 @@ platform, so an unwinder would walk off a coroutine stack into unrelated memory.
 therefore ordinary IR the optimiser can see through, and a throw across a coroutine boundary is
 not a special case.
 
+A missing status check would swallow an exception without a trace, which is a worse failure than a
+crash. So every call site `nvs-codegen` emits goes through one path, `emit_invoke_at`: a direct and
+an indirect call differ only in where the callee comes from, and the argument slots, the status
+check and the landing block are the same code for both.
+
 Checked returns stay even if `cranelift-jit` learns to unwind through JIT frames, because coroutine
 stack switches and error-path refcount drops the optimiser can see still favour them. The canary
-`benches/abi-probe/tests/unwind_unavailable.rs` fails when that happens. The answer is then one
-decision record that rewrites the sentence about unwind tables above and turns the canary around, so
-it records that unwinding works and fails if that changes back.
+`benches/abi-probe/tests/unwind_unavailable.rs` fails when that happens. The sentence about unwind
+tables above is then rewritten and the canary turned around, so it records that unwinding works and
+fails if that changes back.
 
-<sub>See also [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0002](../decisions/0002.md).</sub>
+**Declined:**
+- **Native unwinding through JIT frames.** It needs unwind tables, frame descriptions and
+  personality routines maintained for every platform, and an unwinder crossing a coroutine stack
+  switch can walk into unrelated memory. The refcount drops on a throw path would also sit in
+  landing pads the optimiser treats as opaque.
+- **Calling foreign code that unwinds directly.** Nothing may unwind through a JIT frame, so a
+  library that raises its own exceptions is reached only through a Rust wrapper that stops them
+  ([`errors/helper-abi`](errors.md#errors-helper-abi)).
+
+<sub>See also [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder).</sub>
 
 <a id="errors-throw-is-not-slower"></a>
 
@@ -94,7 +108,7 @@ so an exception arriving from a callee passes through untouched. The bound: a fa
 and names no `location`, a pushed label being a rendering rather than the datum a `location` is read
 back from.
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation). Decided in [0002](../decisions/0002.md).</sub>
+<sub>See also [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="errors-helper-abi"></a>
 
@@ -117,7 +131,12 @@ root carries a `catch_unwind` as well. And a panic raised while a panic is unwin
 process whatever the profile says, so nothing on a teardown path may panic and teardown does not
 recurse.
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0002](../decisions/0002.md), [0106](../decisions/0106.md).</sub>
+A contained panic's message goes to the request log with its request id, not to the process's
+stderr. `nvs_runtime::floor::install_panic_hook`, which `nvs` installs at startup, writes a panic
+raised under a served request as a critical record and hands any other panic to the hook before it,
+so a CLI script still prints its panic to stderr.
+
+<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0106](../decisions/0106.md).</sub>
 
 <a id="errors-stack-depth"></a>
 

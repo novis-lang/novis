@@ -933,7 +933,7 @@ request, or skip whatever is still reachable at teardown, which is PHP's own inc
   every object whose count reaches zero mid-request, which is the per-object cost the wholesale drop
   avoids.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0002](../decisions/0002.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="classes-no-debug-hook"></a>
 

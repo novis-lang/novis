@@ -612,8 +612,8 @@ impl<'a> Lowering<'a> {
     /// `ConstArg::Built` is the one entry that emits a **call** rather than a
     /// constant — an instance has no constant form, so what an `rule:classes/no-free-functions-or-constants` class
     /// constant of instance type inlines is the `Core` member that produces
-    /// one. It is therefore the one entry that can fail, and it carries ADR
-    /// 0002's error edge like any other call.
+    /// one. It is therefore the one entry that can fail, and it carries
+    /// `rule:errors/propagation`'s error edge like any other call.
     ///
     /// `position` is the IR type of the slot the constant is being emitted
     /// into, where the caller has one, and it decides exactly one thing: an

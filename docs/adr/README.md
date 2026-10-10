@@ -130,7 +130,7 @@ ours; `serde_json` parses, and the derive that emits Novis IR from Novis types
 ([0071](../decisions/0071.md)) could not be a crate if we wanted it to be. When a feature is half of each,
 say which half is which before writing either.
 
-**Checked-return call sites go through one code path.** See [0002](../decisions/0002.md): a missing
+**Checked-return call sites go through one code path.** See `rule:errors/propagation`: a missing
 status check would silently swallow an exception, so no caller constructs a raw `call` instruction.
 
 **`unsafe` is confined to named crates, each declaring its own policy.** The workspace sets
@@ -204,7 +204,7 @@ dispatch, while a program that already dispatched could not be taken back.
 **A call through a `mixed` receiver is marshalled by the receiver's own descriptor, not by a per-method
 thunk.** `rule:types/erased-member-access` grants the deferral and says nothing about the
 convention, so this paragraph is its home. Almost nothing has to be marshalled at all, which is the fact the
-design turns on: [0002](../decisions/0002.md) makes **one** calling convention normative for every
+design turns on: `rule:errors/propagation` makes **one** calling convention normative for every
 call, so `nvs_runtime::abi::NvsFn` is already a context, an array of 16-byte tagged `Value`s and one tagged
 `out` slot, and `nvs-codegen`'s `store_value`/`load_value` already write each argument and each return
 *with* its tag while a typed callee reads only the payload half. A site holding tagged values therefore has
@@ -230,7 +230,7 @@ function per method in every unit whether any `mixed` receiver exists or not, ag
 descriptor (rank 5). The statically typed path pays nothing either way and keeps its fixed label; the erased
 path pays a tag test on the receiver, one binary search of the flattened method table by name, and a shift,
 a mask and a compare per argument. Every failure a program can reach is a catchable throw on
-[0002](../decisions/0002.md)'s error edge and never a fault, worded as the diagnostic that names the
+`rule:errors/propagation`'s error edge and never a fault, worded as the diagnostic that names the
 same mistake where a static type shows it — a receiver whose tag is not an object (`E0477`'s reading), a
 class whose table has no such name (`E0405`'s), and a count or a tag the callee does not admit (`E0402`'s
 and `E0401`'s) — so one mistake reads one way whichever end sees it. Three shapes are answered by that
@@ -306,7 +306,7 @@ it; the tree still spells it `&` until that ADR's M4 items land.
 **Architecture assumptions are tested, not remembered.** Several decisions here rest on how Cranelift,
 `corosensei` and Wasmtime behave rather than on our own code, and a dependency bump can invalidate them
 silently. `benches/abi-probe/` checks them on every CI run, including the *premise* of
-[0002](../decisions/0002.md) — that native unwinding through JIT frames is unavailable — so if that
+`rule:errors/propagation` — that native unwinding through JIT frames is unavailable — so if that
 ever changes we are told rather than left paying for a workaround that is no longer needed. It also guards a
 premise about the *platform we are replacing*: that an OS process costs orders of magnitude more than a
 task, which is the whole cost argument for [0006](../decisions/0006.md).

@@ -1968,8 +1968,8 @@ pub(crate) struct ArgSig {
     /// [`Lowering::lower_call_args`] reads it uniformly rather than branching
     /// on whether the call wrote a name at all.
     arg_slots: Vec<ArgSlot>,
-    /// Whether the callee is a Tier 0 `Core` member reached through the ADR
-    /// 0002 helper convention, rather than a compiled Novis function.
+    /// Whether the callee is a Tier 0 `Core` member reached through the
+    /// `rule:errors/helper-abi` helper convention, rather than a compiled Novis function.
     ///
     /// One thing turns on it, and it is a real difference rather than a
     /// convenience: a helper's parameter slot is a whole `nvs_runtime::Value`

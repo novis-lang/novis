@@ -3413,7 +3413,7 @@ bool $b = 0 as bool;
 /// can throw. The error edge is what this asserts: a checked conversion
 /// that skipped it would drop the throw on the floor.
 #[test]
-fn a_checked_conversion_row_carries_adr_0002_s_error_edge() {
+fn a_checked_conversion_row_carries_the_call_error_edge() {
     let (f, map, file) = lower_script_src(
         "<?nvs
 uint $u = 1;

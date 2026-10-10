@@ -456,7 +456,7 @@ fn a_checked_return_frame_stays_cheap() {
     judge(
         "checked-return frame",
         PER_FRAME,
-        "ADR 0002 justifies the checked-return convention on a frame costing about a \
+        "rule:errors/throw-is-not-slower justifies the checked-return convention on a frame costing about a \
          nanosecond; at this cost that argument needs revisiting.",
         |yard| {
             let t_shallow = ns_per_op(200_000, 5, || {
@@ -482,7 +482,7 @@ fn a_checked_return_frame_stays_cheap() {
 fn throwing_costs_about_the_same_as_returning() {
     let _quiet = serialised();
 
-    // ADR 0002 claims a throw costs roughly what a return does, which is what
+    // `rule:errors/throw-is-not-slower` says a throw costs roughly what a return does, which is what
     // lets PHP code that uses exceptions for control flow keep working. A large
     // ratio here means the error path has acquired real work — an allocation
     // for the message is on its own enough to put a throw at several times a
@@ -533,13 +533,13 @@ fn throwing_costs_about_the_same_as_returning() {
         (0, 0),
         "{COUNTED} throws through 8 frames made {thrown} allocations and {COUNTED} returns made \
          {returned}. A throw that costs about what a return does allocates nothing, which is \
-         ADR 0002's claim and the reason `Ctx::pending` borrows its message."
+         rule:errors/throw-is-not-slower and the reason `Ctx::pending` borrows its message."
     );
 
     judge(
         "throw/return ratio at depth 8",
         THROW_PER_RETURN,
-        "The error path has acquired real work, which ADR 0002's claim that a throw costs \
+        "The error path has acquired real work, which rule:errors/throw-is-not-slower's claim that a throw costs \
          about what a return does rules out.",
         |yard| {
             let ok = ns_per_op(200_000, 5, || {
@@ -1721,7 +1721,7 @@ fn a_typed_arithmetic_loop_contains_no_call() {
             .count();
     // The remaining accounted categories, both owed to ADR 0007 § 4's overflow
     // throw. Each checked integer arithmetic instruction owns a cold block
-    // calling `nvs_runtime::nvs_raise_new`, and the ADR 0002 error edge it
+    // calling `nvs_runtime::nvs_raise_new`, and the `rule:errors/propagation` error edge it
     // takes ends in a landing block whose `Propagate` calls `nvs_trace_push`.
     // Both are out-of-line and neither is reached while the arithmetic fits —
     // the hot path is still one machine instruction plus a predicted not-taken
