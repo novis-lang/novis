@@ -91,14 +91,15 @@ fn ctx_over(snapshot: &Arc<nvs_config::Snapshot>) -> nvs_runtime::Ctx {
     ctx
 }
 
-/// A block bound as the administrator at `url`.
+/// A block bound as the administrator at `url`. Its deadline leaves room for a full DirSync against
+/// the shared Samba server while every other test binary runs, and no test here waits for it to pass.
 fn block_at(url: &str, ca: Option<&PathBuf>) -> LdapDirectory {
     LdapDirectory {
         url: Some(Setting::Text(url.to_owned())),
         user: Some(ADMIN.to_owned()),
         password: Some(PASSWORD.to_owned()),
         tls_ca_file: ca.map(|path| path.to_string_lossy().into_owned()),
-        timeout: Some(Setting::Text("5s".to_owned())),
+        timeout: Some(Setting::Text("30s".to_owned())),
         ..LdapDirectory::default()
     }
 }
@@ -2266,7 +2267,7 @@ fn dirsync_returns_only_what_changed_since_its_cookie() {
     let Some(ca) = samba() else { return };
     let mut ctx = ctx_over(&corp(&ca));
     let key = ldap::connect(&mut ctx, "corp").expect("the block opens");
-    let dn = format!("OU=Harbor,{BASE}");
+    let dn = format!("OU=Lantern,{BASE}");
     let unchanged = format!("OU=Domain Controllers,{BASE}");
     ldap::delete(&mut ctx, key, &dn).ok();
 
