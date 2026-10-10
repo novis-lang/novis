@@ -415,7 +415,7 @@ operand that carries its own answer is [`types/property-key`](types.md#types-pro
 construction one of `T`'s public declared names — the check moved to the conversion, once, instead of
 being repeated at every access.
 
-<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key`](types.md#types-property-key), [`types/property-key-access`](types.md#types-property-key-access), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md), [0036](../decisions/0036.md).</sub>
+<sub>See also [`classes/property-observer`](classes.md#classes-property-observer), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key`](types.md#types-property-key), [`types/property-key-access`](types.md#types-property-key-access), [`types/declaration`](types.md#types-declaration). Decided in [0014](../decisions/0014.md), [0011](../decisions/0011.md).</sub>
 
 <a id="classes-unset-is-refused-on-a-property"></a>
 

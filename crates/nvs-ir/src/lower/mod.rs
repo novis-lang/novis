@@ -4379,8 +4379,8 @@ pub const FN_PARAM_TAG_ANY: u8 = 15;
 ///
 /// [`Ty::Object`]'s nibble is the one row where the representation is not the
 /// whole answer. Every class name erases onto it, so this word admits a
-/// callable declaring the wrong class — and a named-class binding, unlike ADR
-/// 0036 § 4's erased receiver, is read and written at a *fixed offset* against
+/// callable declaring the wrong class — and a named-class binding, unlike an
+/// erased receiver (`rule:types/erased-member-access`), is read and written at a *fixed offset* against
 /// its label, so admitting one is a type confusion rather than a wrong answer.
 /// The label four bits have no room for is checked at the callable's **entry**
 /// instead, one class test per class-declared parameter

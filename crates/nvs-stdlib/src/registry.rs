@@ -1791,8 +1791,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::io::FILE,
     // What `Core\IO::stat` answers with — § 14's whole metadata bullet as one
     // value, so a program asking more than one question about a path pays for
-    // one syscall. Its own docs argue why it is an instance rather than an ADR
-    // 0036 shape, and why the questions it answers are also members of
+    // one syscall. Its own docs argue why it is an instance rather than a
+    // shape (`rule:types/shape-type`), and why the questions it answers are also members of
     // `Core\IO` without that being `rule:core-api/shape-rules` R17's two spellings.
     crate::io::METADATA,
     // `rule:core-classes/process-is-argv-only`'s one way to run another program, and the result it answers

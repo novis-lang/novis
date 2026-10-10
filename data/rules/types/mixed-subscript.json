@@ -2,8 +2,7 @@
   "title": "A subscript through a `mixed` is the tag's question; every other base answers it where it is written",
   "status": "shipped",
   "because": [
-    "0007",
-    "0036"
+    "0007"
   ],
   "seeAlso": [
     "types/arrays",

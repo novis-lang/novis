@@ -24,7 +24,7 @@ object or per instance.
 Retrieval is `Core\Attributes` and nothing else ([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)). There is no
 attribute table in the compiled unit for `Core\Reflect` or anything else to walk.
 
-<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md).</sub>
+<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0046](../decisions/0046.md).</sub>
 
 <a id="attributes-attach-sites-and-forms"></a>
 
@@ -76,7 +76,7 @@ and the rule that owns it names them: `#[Core\Path]` is written before a `string
 sites but a property hook and that hook's parameter
 ([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)).
 
-<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0071](../decisions/0071.md), [0232](../decisions/0232.md), [0275](../decisions/0275.md).</sub>
+<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0046](../decisions/0046.md), [0071](../decisions/0071.md), [0232](../decisions/0232.md), [0275](../decisions/0275.md).</sub>
 
 <a id="attributes-payload-is-a-compile-time-constant"></a>
 
@@ -175,7 +175,7 @@ A written `$member` is checked against the target's real declarations and one na
 absent attribute gives, and nothing downstream could tell them apart. A `$member` that is not a string
 literal has no name to check and folds to an empty result.
 
-<sub>See also [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0022](../decisions/0022.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md), [0022](../decisions/0022.md), [0033](../decisions/0033.md).</sub>
 
 <a id="attributes-retrieval-folds-while-checking"></a>
 
@@ -197,7 +197,7 @@ Because the call becomes the payload, every value in a *matched* payload needs a
 through the scope the payload was written in — a class constant whose own declaration folds to no value
 is `E0731`. A `T` that is not a shape is `E0729`, and a `$target` that names no declaration is `E0730`.
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md).</sub>
+<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md).</sub>
 
 <a id="attributes-api-adds-and-cannot-contradict"></a>
 

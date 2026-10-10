@@ -182,7 +182,7 @@ pointer a named class does — `nvs_ir::lower`'s `erase_checked_ty` maps `Checke
 `CheckedTy::Shape` onto the same `Ty::Object` a `CheckedTy::Class` gets, so nothing below the checker ever
 wanted the label for *representation*, and `object` is a declared type in every position a class name is.
 What does want it is *resolution*: `$o->m(...)` has no signature to check its arguments against and no
-return type for the position it sits in. [0036](../decisions/0036.md) § 4 already answered the
+return type for the position it sits in. `rule:types/erased-member-access` already answered the
 **property** half of an erased receiver — a name-keyed runtime fetch, and a write checked against the
 field's real declared type — and stopped at properties on purpose. The call half is therefore `E0477` where
 it is written (`nvs_types::expr::calls::report_method_on_erased_receiver`), naming the two narrowings that
@@ -202,7 +202,7 @@ answered. Refusing is the reversible half of that pair: a later decision can tur
 dispatch, while a program that already dispatched could not be taken back.
 
 **A call through a `mixed` receiver is marshalled by the receiver's own descriptor, not by a per-method
-thunk.** [0036](../decisions/0036.md) § 4 grants the deferral and says nothing about the
+thunk.** `rule:types/erased-member-access` grants the deferral and says nothing about the
 convention, so this paragraph is its home. Almost nothing has to be marshalled at all, which is the fact the
 design turns on: [0002](../decisions/0002.md) makes **one** calling convention normative for every
 call, so `nvs_runtime::abi::NvsFn` is already a context, an array of 16-byte tagged `Value`s and one tagged
@@ -249,7 +249,7 @@ nibble 7, a nibble naming a representation and four bits having no room for a la
 `nvs_runtime::closure::check_param_tags` refuses a `string $c` handed a `Core\Cli\Text` and would accept
 an unrelated `Marker $c` handed the same value. That acceptance was the **only** way a named-class binding
 came to hold an instance of another class: every other position is checked where it is written, and
-[0036](../decisions/0036.md) § 4's erased receiver carries no label at all and therefore defers
+an erased receiver (`rule:types/erased-member-access`) carries no label at all and therefore defers
 to a name-keyed fetch. A binding that *does* carry a label is read and written at a fixed offset, so the
 lie is a type confusion rather than a wrong answer — two `final` classes and one wrong `Core\Arr::filter`
 callback wrote an `int` over a `string` field and the next read dereferenced it — which is

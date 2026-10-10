@@ -152,7 +152,7 @@ name already says. The refusal recovers as `mixed`, which is what keeps one miss
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0036](../decisions/0036.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
 
 <a id="types-integer-literals"></a>
 
@@ -735,7 +735,7 @@ holder to write the separated one back through, which a value that is only a tag
 `$m[$k] = v` keeps the refusal. This is [`types/erased-member-access`](types.md#types-erased-member-access)'s rule one storage kind
 along.
 
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0036](../decisions/0036.md).</sub>
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="types-property-key"></a>
 
@@ -827,7 +827,7 @@ fine, and a class whose fields are all assignable is unaffected. It is deliberat
 where a request-controlled name selects a field to write, refusing at build time is the direction
 security points in.
 
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0036](../decisions/0036.md), [0014](../decisions/0014.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0014](../decisions/0014.md), [0274](../decisions/0274.md).</sub>
 
 <a id="types-unions-and-mixed"></a>
 
@@ -1162,7 +1162,7 @@ to own them; an alias, like a `use` import, is resolved and discarded before cod
   representation is a different feature with its own costs, and an alias is a transparent synonym
   only.
 
-<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0036](../decisions/0036.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0011](../decisions/0011.md).</sub>
 
 <a id="types-alias-is-never-a-bare-class"></a>
 
@@ -1457,7 +1457,7 @@ dynamic one while writing *less*: `$u->name` stops being an erased-receiver fetc
 A block-bodied `fn` still declares its own return type; inferring one under an expected type is
 whole-body return-type inference and is not part of this ([`types/anonymous-function`](types.md#types-anonymous-function)).
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0136](../decisions/0136.md), [0036](../decisions/0036.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0136](../decisions/0136.md).</sub>
 
 <a id="types-callable-is-the-only-function-type"></a>
 
@@ -1603,12 +1603,13 @@ an anonymous object synthesizes ([`types/anonymous-object`](types.md#types-anony
 is to the whole type system, one level narrower: membership in it is structural by construction, but
 only because it promises nothing about shape at all, so there is nothing to check. Every shape type is
 a subtype of plain `object` ([`types/shape-type`](types.md#types-shape-type)), and no class declares anything to satisfy it.
+It is what lets an object cross a function boundary with no shape declared on either side.
 
 Because `object` names no class, it is not a conversion target — `as object` where a specific class is
 meant is refused, and a member reached through an `object`-typed receiver is answered at run time
 ([`types/erased-member-access`](types.md#types-erased-member-access)).
 
-<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="types-anonymous-object"></a>
 
@@ -1641,7 +1642,20 @@ open-ended ambiguity.
 Nothing hooks a synthesized class: no `Comparable`, no property observer, no method body to write one
 in. A program that wants behaviour on a shared bag of values declares an ordinary class.
 
-<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/object-top`](types.md#types-object-top), [`types/implicit-capture`](types.md#types-implicit-capture). Decided in [0036](../decisions/0036.md), [0022](../decisions/0022.md), [0023](../decisions/0023.md).</sub>
+An anonymous object is the shared bag of named values a program passes across a function boundary
+without declaring a class, and the carrier two anonymous functions use to share mutable state
+([`types/implicit-capture`](types.md#types-implicit-capture)).
+
+- **Memory:** an anonymous object is one ordinary object allocation with one slot per field, the
+  same as an instance of a declared class. No other representation exists for it, and its class is
+  compiled once per distinct set of field names, not per request.
+
+**Declined:**
+- **PHP's `stdClass`, or fields assigned after construction.** Both create undeclared properties at
+  run time, which [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties) closes. Every field is fixed where the
+  anonymous object is written.
+
+<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/object-top`](types.md#types-object-top), [`types/implicit-capture`](types.md#types-implicit-capture). Decided in [0022](../decisions/0022.md), [0023](../decisions/0023.md).</sub>
 
 <a id="types-shape-type"></a>
 
@@ -1702,7 +1716,16 @@ The read is deliberately **not** widened to `?T`: optionality and nullability ar
 ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable)), and one language does not answer "the key may be
 absent" two different ways in two containers.
 
-<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0007](../decisions/0007.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
+**Declined:**
+- **The `interface` keyword for a shape.** An `interface` is a nominal, `implements`-declared,
+  method-bearing contract, and a structural, property-only meaning would give one keyword two
+  meanings ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
+- **Exact-match shapes, with no width subtyping.** They are stricter for no safety gained, and force
+  re-wrapping a value that already has every field a caller reads.
+- **A shape that requires a method.** A shape is data only. Behaviour belongs to a declared class or
+  interface.
+
+<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0007](../decisions/0007.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
 
 <a id="types-erased-member-access"></a>
 
@@ -1729,12 +1752,14 @@ For all three:
   present to read a callee from ([`types/callable-values`](types.md#types-callable-values)).
 
 Both throws are ordinary `Throwable`s propagated by checked return ([`errors/propagation`](errors.md#errors-propagation)), never
-routed through the fatal escalation ladder ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)). Per-property hooks and a
+routed through the fatal escalation ladder ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)). The run-time name
+lookup, and the type check on a write, is a latency cost a statically known receiver never pays; only
+code that erased its receiver's type pays it. Per-property hooks and a
 declared property observer behave here exactly as they do anywhere, because this is one implementation
 and not a family of them — [`types/property-key-access`](types.md#types-property-key-access) and [`types/mixed-subscript`](types.md#types-mixed-subscript) are the
 same access one step along.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0036](../decisions/0036.md), [0014](../decisions/0014.md), [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0126](../decisions/0126.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0014](../decisions/0014.md), [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0126](../decisions/0126.md).</sub>
 
 <a id="types-class-reference"></a>
 

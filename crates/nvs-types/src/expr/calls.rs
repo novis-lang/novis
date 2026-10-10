@@ -12,8 +12,8 @@
 //! neither of which lists a method at all — and it gets
 //! [`report_method_on_erased_receiver`] instead; `mixed` is the one that
 //! neither resolves nor is wrong, and records
-//! [`crate::expr_table::ExprInfo::ErasedCall`] for the run-time dispatch ADR
-//! 0036 § 4 defers it to. [`resolved_call`] is the record `nvs-ir` reads back
+//! [`crate::expr_table::ExprInfo::ErasedCall`] for the run-time dispatch
+//! `rule:types/erased-member-access` defers it to. [`resolved_call`] is the record `nvs-ir` reads back
 //! (see [`crate::expr_table`]), and it always carries the *declaring* class
 //! rather than the receiver's.
 //!

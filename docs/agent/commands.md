@@ -115,7 +115,7 @@ you have questions and answers them in one call:
 bun nv peek crates/nvs-ir/src/lower/expr.rs:3065-3120 \
             crates/nvs-types/src/expr/members.rs:@public_property_names \
             rule:types/conversion \
-            docs/decisions/0036.md:"### 4" \
+            docs/agent/conventions.md:"## A rule fragment" \
             "crates/nvs-runtime/src/*.rs:re:slot_get"
 bun nv peek --locate nvs_object_slot_get SlotSet ClassDesc   # file:line, no bodies
 ```

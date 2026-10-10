@@ -2,8 +2,7 @@
   "title": "A shape key reuses the options bag's two diagnostics, and a missing required key is an ordinary type mismatch",
   "status": "shipped",
   "because": [
-    "0135",
-    "0036"
+    "0135"
   ],
   "seeAlso": [
     "core-api/shape-arms-are-disjoint",

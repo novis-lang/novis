@@ -1132,7 +1132,7 @@ This matters more than it looks. Both type diagnostic bands are full, so a new t
 forced a third band open as a side effect of adding a parameter kind — the wrong reason to take that
 decision.
 
-<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md), [0036](../decisions/0036.md).</sub>
+<sub>See also [`core-api/shape-arms-are-disjoint`](core-api.md#core-api-shape-arms-are-disjoint), [`core-api/one-checked-shape-type`](core-api.md#core-api-one-checked-shape-type), [`types/shape-type`](types.md#types-shape-type). Decided in [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-a-lifetime-is-an-object"></a>
 

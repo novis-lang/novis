@@ -1214,7 +1214,7 @@ language's own `as`, so `Core\Db` never grows a second stringification table. Ev
 yields is `tainted` where its type can carry it, which closes stored injection by the same mechanism
 as reflected. The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed).
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0054](../decisions/0054.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0036](../decisions/0036.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0054](../decisions/0054.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-streaming"></a>
 

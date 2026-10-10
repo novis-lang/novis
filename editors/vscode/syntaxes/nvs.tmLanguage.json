@@ -239,7 +239,7 @@
       ]
     },
     "shape-type": {
-      "comment": "ADR 0036 § 3's inline `{name: T}` (rule:types/object-top). A field name carries the scope a member carries everywhere else, because that is what it is, and the type after it recurses — so a shape nested in a shape needs nothing of its own.",
+      "comment": "The inline `{name: T}` shape (rule:types/shape-type). A field name carries the scope a member carries everywhere else, because that is what it is, and the type after it recurses — so a shape nested in a shape needs nothing of its own.",
       "begin": "\\{",
       "end": "\\}",
       "patterns": [
