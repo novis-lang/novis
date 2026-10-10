@@ -21,3 +21,9 @@ metadata unless a `metadata` step keeps the EXIF block, which an AVIF never carr
 (`extensions/image/src/decode.rs`, `extensions/image/src/encode.rs`,
 `crates/nvs-ext/tests/image_pipeline.rs`). AVIF and JPEG XL inputs are neither oriented nor
 converted. The `Novis\Image` builder's `open` turns both on unless its options say `false`.
+
+**Declined:**
+- **Keep metadata by default, strip on request.** It is the least surprising default to someone who
+  expects a resize to change nothing else. The surprising outcome it allows is a public thumbnail
+  carrying a home address, and a default is the only place that outcome is prevented for every
+  program rather than for the careful ones.

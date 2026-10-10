@@ -1,5 +1,5 @@
 //! The `text` step and the `text` source: Latin text set in a font given as bytes
-//! (`rule:core-classes/image-one-entry-point-per-job`, ADR 0120 § 9).
+//! (`rule:core-classes/image-one-entry-point-per-job`).
 //!
 //! The font is a TrueType or OpenType file, parsed by `ab_glyph` when the plan is checked, so
 //! bytes it cannot read return `parse` before anything is decoded. There is no system font. Each

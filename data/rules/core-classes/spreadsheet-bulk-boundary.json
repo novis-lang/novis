@@ -1,9 +1,7 @@
 {
   "title": "A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists",
   "status": "designed",
-  "because": [
-    "0120"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/image-pixel-cap",

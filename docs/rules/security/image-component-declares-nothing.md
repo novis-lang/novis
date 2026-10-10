@@ -9,4 +9,5 @@ program's side of the boundary, where the grant already is
 (`rule:security/capability-check-at-the-door`) — and it is recorded because "declares nothing" is a
 claim worth being able to check rather than an absence nobody looked at.
 
-**Not on disk.** There is no image component in the tree.
+**On disk.** `extensions/image/manifest.json` declares no qualifier and no capability; no test
+holds the absence yet.

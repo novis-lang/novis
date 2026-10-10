@@ -2152,6 +2152,10 @@ whole input and returning its whole output. There is no per-pixel, per-row or pe
 none is added later: `raw()` exports the whole buffer once for the caller that genuinely needs
 pixels. The rule for any future entry point is a refusal — a member that would be called in a loop
 over the image's own contents is not admitted, because its cost is the boundary rather than the work.
+A call is a fixed cost and a bulk copy is memcpy-bound, and a pixel buffer is the largest thing a
+request holds — a 24-megapixel frame is 96 MB at RGBA8 — so a request pays one instance and one
+crossing per terminal, and the pixel buffer never leaves the guest. The builder grows a member
+without touching the ABI, because a new operation is a new plan step rather than a new export.
 
 A pipeline starts from one of four sources — encoded bytes (`open`), a blank canvas (`create`), RGBA8
 pixels (`fromRaw`) or text set in a font (`measureText`) — and `run` returns one of three outputs: the
@@ -2180,11 +2184,23 @@ every level, so a few rows that each draw the one before twice cannot double the
 rows and then the overlay to the table, renumbering the overlay's steps by the rows already there. `variants` decodes once and costs one host-to-guest call, counted by
 `nvs_ext::call::Request::crossings` (`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
-`Image` with every member of 0120 § 2's table, and `Color` with `rgba` and `hex` and no named constants yet
-(`tests/conformance/novis/`). A canvas or pixel source is held to the default pixel cap, not the
-`[image]` one.
+`Image` with every member `IMAGE_MEMBERS` in `crates/nvs-stdlib/tests/ext_world.rs` places, and
+`Color` with `rgba` and `hex` and no named constants yet (`tests/conformance/novis/`). A canvas or
+pixel source is held to the default pixel cap, not the `[image]` one.
 
-<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md), [0063](../decisions/0063.md), [0003](../decisions/0003.md), [0276](../decisions/0276.md).</sub>
+**Declined:**
+- **A gd-shaped handle with a call per operation.** It materialises every intermediate, prevents
+  fusion, and either mutates in place, which no other Novis value does, or copies a frame per
+  operation.
+- **The resampling kernel at Tier 2, only the codecs in the sandbox.** It moves the pixel buffer
+  across the boundary twice per pipeline, which costs more than the wasm penalty saves, and splits
+  one job across two tiers. If a committed benchmark puts in-guest resampling far below native for a
+  real workload, the exit is Tier 2 for that kernel alone, never `dlopen`.
+- **ImageMagick or libvips compiled to wasm wholesale.** A surface that large is the long tail the
+  component declines to own, and a C codebase that size is still one to build and audit inside the
+  sandbox.
+
+<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0063](../decisions/0063.md), [0003](../decisions/0003.md), [0276](../decisions/0276.md).</sub>
 
 <a id="core-classes-image-pixel-model"></a>
 
@@ -2202,16 +2218,31 @@ a rectangle is a blank canvas composited, text is a real font, and charts and di
 client; a shape layer is not planned, and a third-party extension may carry one. The affine matrix
 members go, replaced by the four cases a web application reaches for, named: resize, rotate, flip,
 crop. Screen and window capture go, a screen not being a request's business. Format detection by
-positional array and integer constants goes, replaced by a typed header shape and a format enum that
-carries its own MIME type and extension.
+positional array and integer constants goes, replaced by a typed header shape (`info`) and a format
+enum whose MIME type and extension `Image::mime` and `Image::extension` give
+([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)). A resource to destroy goes, because an image is a value.
 
 What this costs is that a program doing genuine raster drawing has no home here. That is deliberate:
 the component exists to transform images a web application receives and produces, and every concept
 above was priced against that.
 
-**Not shipped.** No image component exists in the tree.
+What a gd program becomes, one row per concept:
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster). Decided in [0120](../decisions/0120.md).</sub>
+| gd / exif | Novis |
+|---|---|
+| `imagecreatefrom*`, `imagecreatefromstring` | `Image::open`, the format detected from the bytes |
+| `imagejpeg`, `imagepng`, `imagegif`, `imagewebp`, `imageavif` | `format(...)` then `encode()`; a path is written by the program from the result |
+| `imagecopyresampled`, `imagecopyresized`, `imagescale`, `imagecrop`, `imagecropauto`, `imagerotate`, `imageflip`, `imagecopy`, `imagecopymerge` | `resize`, `crop`, `trim`, `rotate`, `flip`, `composite` |
+| `imagefilter`, `imageconvolution`, `imagegammacorrect` | `sharpen`, `blur`, `grayscale`, `brightness`, `contrast`, `gamma`, `tint` |
+| `imagettftext`, `imagefttext`, `imagettfbbox`, `imageftbbox` | `text`, `measureText` |
+| `getimagesize*`, `imagesx`, `imagesy`, `exif_read_data`, `exif_imagetype`, `exif_thumbnail` | `Image::info`; a thumbnail is `resize` |
+| `imagesetpixel`, `imagecolorat` | `raw()` and `fromRaw()`, once, the whole buffer |
+| palettes, mode flags, drawing primitives, affine matrices, screen capture, gd's own formats | dropped, with the replacement above where one exists |
+
+**Not shipped.** The component works on RGBA8 frames throughout, and a pixel source and the `raw`
+output are RGBA8 rows (`extensions/image/src/lib.rs`).
+
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster).</sub>
 
 <a id="core-classes-image-format-roster"></a>
 
@@ -2225,12 +2256,16 @@ Rust encoder exists and the C library is not admitted. SVG and PDF decode only, 
 a second wave. TIFF, BMP, TGA, ICO, PNM, HEIC and gd's own formats do neither.
 
 Each absence is a decision rather than an omission. HEIC is out because the codec is
-patent-encumbered and has no Rust decoder, and iOS browsers upload JPEG by default. gd's own formats
-are out because nothing outside gd reads them.
+patent-encumbered and has no Rust decoder, and iOS browsers upload JPEG by default. TIFF is a large
+reader with a long CVE history, for a format web browsers do not display. gd's own formats are out
+because nothing outside gd reads them. A third-party extension may carry any of them.
 
 Every crate is pure Rust and on the licence allowlist, with exactly one C library — the lossy WebP
-encoder — admitted because it runs only inside the sandbox. AVIF encoding costs seconds of CPU per
-image and is documented as queue work rather than a request-path call.
+encoder — admitted because it runs only inside the sandbox. It is a build cost carried for one
+feature, and it is dropped once a pure-Rust lossy WebP encoder exists. Resampling is
+`fast_image_resize`, for its SIMD paths, and the guest is built with `simd128`
+(`extensions/image/.cargo/config.toml`). AVIF encoding costs seconds of CPU per image and is
+documented as queue work rather than a request-path call.
 
 **Not shipped.** The image component's `run` decodes JPEG, PNG, WebP, GIF, AVIF and JPEG XL inside
 the guest and refuses to encode JPEG XL (`crates/nvs-ext/tests/image_decode.rs`). AVIF decodes
@@ -2239,7 +2274,7 @@ encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.r
 through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
 APNG is neither decoded as an animation nor encoded.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap). Decided in [0120](../decisions/0120.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap). Decided in [0051](../decisions/0051.md).</sub>
 
 <a id="core-classes-image-pixel-cap"></a>
 
@@ -2278,7 +2313,7 @@ smaller of the call's and the key's value in the request's snapshot before the c
 (`tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`). The
 `Novis\Image` builder that would pass a program's own `{maxPixels}` is not written.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0120](../decisions/0120.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
 
 <a id="core-classes-image-correct-by-default"></a>
 
@@ -2310,7 +2345,13 @@ metadata unless a `metadata` step keeps the EXIF block, which an AVIF never carr
 `crates/nvs-ext/tests/image_pipeline.rs`). AVIF and JPEG XL inputs are neither oriented nor
 converted. The `Novis\Image` builder's `open` turns both on unless its options say `false`.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0120](../decisions/0120.md).</sub>
+**Declined:**
+- **Keep metadata by default, strip on request.** It is the least surprising default to someone who
+  expects a resize to change nothing else. The surprising outcome it allows is a public thumbnail
+  carrying a home address, and a default is the only place that outcome is prevented for every
+  program rather than for the careful ones.
+
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job).</sub>
 
 <a id="core-classes-image-one-entry-point-per-job"></a>
 
@@ -2328,7 +2369,8 @@ method, so a test asserts on the comparison's own numbers and the failure ledger
 detection. **Placeholders** and **palette extraction** serve the front end.
 
 **Text** renders over a font supplied as bytes, with no system font lookup, since the guest has no
-filesystem. **QR codes** are one entry point, because a QR code is an image a web application
+filesystem. The first wave sets Latin script only: complex shaping, ligatures and right-to-left
+text are not applied, and the reference card says so until they are. **QR codes** are one entry point, because a QR code is an image a web application
 produces daily. **SVG** is an input format whose declared canvas counts against the pixel cap, whose
 scripts and foreign objects are ignored, and where **no external reference is ever resolved** —
 there is nothing in the guest to resolve it with. Rasterising is how an uploaded SVG is displayed
@@ -2352,9 +2394,10 @@ says how `size`, `margin` and the level make the image and what each default is,
 disk: the `text` step and the `text` source over `ab_glyph`, whose module doc
 `extensions/image/src/text.rs` says how a size, a line, kerning, `maxWidth` and `align` set the
 text and what the box is, and `Image::text`, `Image::measureText` and `Font::fromBytes`, which
-checks only the file's first four bytes and calls no export. SVG is not.
+checks only the file's first four bytes and calls no export. SVG is not, and its fixtures owe an SVG
+that references an external file and rasterises with the reference unresolved.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0120](../decisions/0120.md), [0079](../decisions/0079.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-intl-roster"></a>
 
@@ -2501,7 +2544,7 @@ the guest.
   disjoint CSS subsets, and the popular ones fetch whatever the HTML names, which is the category's
   vulnerability class. One first-party no-I/O way to do the job prevents both.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0051](../decisions/0051.md), [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-pdf-one-engine"></a>
 
@@ -2553,7 +2596,7 @@ paged-media engine may replace the assembled one wholesale, and it must still me
 - **A first-party imperative PDF API.** The first-party answer to drawing at a coordinate is HTML, CSS
   and SVG; a third-party package may carry one.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0051](../decisions/0051.md), [0120](../decisions/0120.md), [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0051](../decisions/0051.md), [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-pdf-css-subset"></a>
 
@@ -2655,7 +2698,7 @@ refuses to encode it (`extensions/image/src/encode.rs`).
 - **pdfium or MuPDF compiled to wasm.** pdfium is a large C++ build no other component needs a
   toolchain for, and MuPDF is AGPL and outside `deny.toml`, while a pure-Rust interpreter exists.
 
-<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals). Decided in [0120](../decisions/0120.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals). Decided in [0051](../decisions/0051.md).</sub>
 
 <a id="core-classes-pdf-decode-refusals"></a>
 
@@ -2741,7 +2784,7 @@ surfaced as data and nothing resolved.
 - **Exposing the crates' surfaces directly.** That is three disjoint APIs for one job inside a single
   component.
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0055](../decisions/0055.md).</sub>
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0051](../decisions/0051.md), [0055](../decisions/0055.md).</sub>
 
 <a id="core-classes-spreadsheet-formula-is-a-value"></a>
 
@@ -2797,7 +2840,7 @@ bytes passing when the cap is raised.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0120](../decisions/0120.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io).</sub>
 
 <a id="core-classes-spreadsheet-evaluation-and-roster"></a>
 

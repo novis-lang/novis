@@ -8,7 +8,8 @@ method, so a test asserts on the comparison's own numbers and the failure ledger
 detection. **Placeholders** and **palette extraction** serve the front end.
 
 **Text** renders over a font supplied as bytes, with no system font lookup, since the guest has no
-filesystem. **QR codes** are one entry point, because a QR code is an image a web application
+filesystem. The first wave sets Latin script only: complex shaping, ligatures and right-to-left
+text are not applied, and the reference card says so until they are. **QR codes** are one entry point, because a QR code is an image a web application
 produces daily. **SVG** is an input format whose declared canvas counts against the pixel cap, whose
 scripts and foreign objects are ignored, and where **no external reference is ever resolved** —
 there is nothing in the guest to resolve it with. Rasterising is how an uploaded SVG is displayed
@@ -32,4 +33,5 @@ says how `size`, `margin` and the level make the image and what each default is,
 disk: the `text` step and the `text` source over `ab_glyph`, whose module doc
 `extensions/image/src/text.rs` says how a size, a line, kerning, `maxWidth` and `align` set the
 text and what the box is, and `Image::text`, `Image::measureText` and `Font::fromBytes`, which
-checks only the file's first four bytes and calls no export. SVG is not.
+checks only the file's first four bytes and calls no export. SVG is not, and its fixtures owe an SVG
+that references an external file and rasterises with the reference unresolved.

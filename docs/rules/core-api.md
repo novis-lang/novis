@@ -105,7 +105,7 @@ the roster places at Tier 0 and nothing provides is the four first-party sandbox
 tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
 registered.
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0051](../decisions/0051.md), [0067](../decisions/0067.md), [0076](../decisions/0076.md), [0086](../decisions/0086.md), [0120](../decisions/0120.md), [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0051](../decisions/0051.md), [0067](../decisions/0067.md), [0076](../decisions/0076.md), [0086](../decisions/0086.md), [0122](../decisions/0122.md).</sub>
 
 <a id="core-api-reserved-namespace"></a>
 

@@ -1840,9 +1840,10 @@ program's side of the boundary, where the grant already is
 ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)) — and it is recorded because "declares nothing" is a
 claim worth being able to check rather than an absence nobody looked at.
 
-**Not on disk.** There is no image component in the tree.
+**On disk.** `extensions/image/manifest.json` declares no qualifier and no capability; no test
+holds the absence yet.
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0120](../decisions/0120.md), [0055](../decisions/0055.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0055](../decisions/0055.md), [0118](../decisions/0118.md).</sub>
 
 <a id="security-one-tls-client"></a>
 

@@ -25,7 +25,7 @@ stages:
     status: open
     extra:
       context:
-        adrs: ["0120 §9"]
+        adrs: []
         rules: [core-classes/image-one-entry-point-per-job]
         shapes: ["A `.nvst` test case"]
   - id: 5
@@ -487,7 +487,8 @@ One file set: `extensions/image/src/text.rs`, `extensions/image/src/qr.rs`,
 `crates/nvs-ext/tests/image_barcode.rs` (new).
 
 - **Shaping** replaces the first wave's Latin-only kerning (`text.rs:1`) with `harfrust`, with
-  `unicode-bidi` for direction, so Arabic, Hebrew and Devanagari draw correctly. ADR 0120 § 9 and M17
+  `unicode-bidi` for direction, so Arabic, Hebrew and Devanagari draw correctly.
+  `rule:core-classes/image-one-entry-point-per-job` and M17
   Part 1 placed it here.
 - **Barcodes** (`core-classes/image-barcode-roster`): Code 128 and GS1-128, EAN-13, EAN-8,
   UPC-A, Code 39 and ITF-14 through `barcoders`, DataMatrix through `datamatrix`. Each renders as an
