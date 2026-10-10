@@ -250,8 +250,8 @@ fn an_is_test_narrows_its_subject_on_the_true_edge() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// **Both arms agree** about the edge that proves nothing, which is what ADR
-/// 0150 § 9 decided and what makes false-edge narrowing a change to every
+/// **Both arms agree** about the edge that proves nothing, which is what
+/// `rule:types/narrowing` states and what makes false-edge narrowing a change to every
 /// spelling at once rather than to one. Asserted as one case for that reason: a
 /// written class name that grew a false edge of its own would still look right
 /// beside the value arm.

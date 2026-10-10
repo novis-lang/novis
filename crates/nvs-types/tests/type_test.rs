@@ -6,7 +6,7 @@
 //! whose answer the declaration already settles has to compile — the failure
 //! this suite exists to catch is a session refusing a subject because its
 //! declaration already answered, which no arm of this operator does
-//! (ADR 0150 § 6).
+//! (`rule:types/type-test`).
 
 mod common;
 

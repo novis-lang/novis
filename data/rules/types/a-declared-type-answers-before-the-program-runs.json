@@ -2,7 +2,6 @@
   "title": "`->` on a receiver that can hold no object is refused where it is written",
   "status": "shipped",
   "because": [
-    "0150",
     "0192"
   ],
   "seeAlso": [

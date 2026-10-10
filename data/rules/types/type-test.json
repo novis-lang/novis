@@ -2,7 +2,6 @@
   "title": "`$x is T` tests whether a value holds a `T`, answers `bool`, and never refuses because the answer is knowable",
   "status": "shipped",
   "because": [
-    "0150",
     "0192",
     "0261",
     "0279",
@@ -24,6 +23,8 @@
     "tests/conformance/lang/an-is-test-against-iterable-or-callable-answers-by-what-the-value-holds.nvst",
     "tests/conformance/lang/an-is-test-against-an-enum-agrees-with-its-own-case-rows.nvst",
     "tests/conformance/lang/an-is-test-against-a-union-or-an-intersection-asks-each-member.nvst",
-    "tests/conformance/lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst"
+    "tests/conformance/lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst",
+    "tests/conformance/reject/an-is-test-against-a-qualifier-has-no-run-time-bit-to-read.nvst",
+    "tests/conformance/reject/an-is-test-against-an-uninhabited-type-has-no-answer.nvst"
   ]
 }

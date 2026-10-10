@@ -4,8 +4,8 @@
 //! The operator is **total**. Every value has a representation, so every
 //! subject has an answer, and this module refuses nothing about the left-hand
 //! side — not even a subject whose declared type settles the question, and not
-//! even one that can hold no object at all under the value arm. ADR 0150 § 6 is
-//! the argument, and it also names the second reason — once `is` narrows, a
+//! even one that can hold no object at all under the value arm.
+//! `rule:types/type-test` is the argument, and it also names the second reason — once `is` narrows, a
 //! guard written inside an already-narrowed branch is statically true by
 //! construction, and refusing that would let a flow analysis turn working code
 //! into a compile error.
@@ -208,7 +208,7 @@ pub(crate) fn accept_shape_conversion(
 ///
 /// A subject that can hold no object **folds to `false`**, the way every other
 /// settled test folds, and costs no diagnostic: `is` refuses no left-hand side
-/// (ADR 0150 § 6), and the run-time walk would answer `false` at every
+/// (`rule:types/type-test`), and the run-time walk would answer `false` at every
 /// execution anyway. That is the one place this arm reads differently from the
 /// PHP spelling it replaces (`rule:types/one-type-test`), which
 /// refused the same subject outright.

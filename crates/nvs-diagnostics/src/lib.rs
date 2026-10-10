@@ -4887,7 +4887,7 @@ pub mod code {
     /// what a function returns instead of a value and `never` is what one
     /// returns by not returning, so neither names a shape a subject could be
     /// carrying. `is` is total over every type a value can inhabit
-    /// (ADR 0150 § 6), and these two are the boundary of that set rather than
+    /// (`rule:types/type-test`), and these two are the boundary of that set rather than
     /// an exception inside it.
     pub const E_TYPE_TEST_AGAINST_AN_UNINHABITED_TYPE: Code = Code::new("E0811").card(
         "No value can have the type `void` or `never`, so `$x is void` has no answer. Test \

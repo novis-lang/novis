@@ -271,7 +271,7 @@ throws rather than wrapping ([`types/conversion`](types.md#types-conversion)).
 - **Mixed-signedness arithmetic under a promotion rule.** There is no type both operands fit, so any
   promotion either loses values or changes the result's type behind the declaration.
 
-<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/integer-literals`](types.md#types-integer-literals), [`types/conversion`](types.md#types-conversion), [`types/type-test`](types.md#types-type-test). Decided in [0150](../decisions/0150.md).</sub>
+<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/integer-literals`](types.md#types-integer-literals), [`types/conversion`](types.md#types-conversion), [`types/type-test`](types.md#types-type-test).</sub>
 
 <a id="types-arithmetic"></a>
 
@@ -1112,7 +1112,7 @@ every step out of it is an `as` a reviewer can see.
 - **`mixed` checked at its boundaries.** It would leave no way to say "this is untyped input"
   honestly, which is the one thing `mixed` is for.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0150](../decisions/0150.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0279](../decisions/0279.md).</sub>
 
 <a id="types-type-test"></a>
 
@@ -1218,7 +1218,28 @@ separate the same way ([`types/string-is-utf8`](types.md#types-string-is-utf8), 
 `is bytes` and not `is string`. Both are consequences of a finer type system rather than of this
 operator.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0261](../decisions/0261.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+A guarded branch is cheaper with `is` than without it: the `as` a program wrote after a
+`Core\Reflect::typeOf` comparison, and its throw path, are gone, because the test narrows.
+
+**Memory:** none. `is` adds no representation, and every row reads a tag a value already carries.
+
+**Declined:**
+- **No operator, with the question asked through `Core\Reflect::typeOf`.** An equality against an
+  enum case does not narrow ([`types/narrowing`](types.md#types-narrowing)), so every use pays a redundant `as` with a live
+  throw path.
+- **A diagnostic for a test whose answer is statically known.** It would fire on code narrowing itself
+  produces. Dead branches, if they are worth reporting, are a lint over every condition, not a
+  property of this operator.
+- **`array<T>` accepted only in its bare form, to keep every test O(1).** `as array<T>` already
+  performs the same walk and is accepted, so refusing the spelling that does not throw optimises
+  nothing and misstates the cost.
+- **`is callable` refused, by analogy with `Core\Reflect\TypeKind` having no `Callable` case.**
+  `TypeKind`'s cases partition the tag space, and a closure is already an `Object`. `is` has no
+  partition to keep, and overlapping questions are what an operator over the type grammar is for.
+- **An `integer`-style spelling matching both integer tags.** It adds surface to hide the `int` and
+  `uint` split rather than stating it, and `int|uint` already says it in the grammar a reader knows.
+
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0192](../decisions/0192.md), [0261](../decisions/0261.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-narrowing"></a>
 
@@ -1269,7 +1290,7 @@ Narrowing never changes a binding's declared type ([`types/declaration`](types.m
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0270](../decisions/0270.md).</sub>
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0192](../decisions/0192.md), [0270](../decisions/0270.md).</sub>
 
 <a id="types-conversion"></a>
 
@@ -2219,7 +2240,7 @@ subject, and an answer its declaration settles folds to a constant rather than r
 defers to [`types/erased-member-access`](types.md#types-erased-member-access)'s name-keyed fetch, which throws for a receiver that turns
 out not to be an object and for a name its class does not carry.
 
-<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-test`](types.md#types-type-test), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
+<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-test`](types.md#types-type-test), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0192](../decisions/0192.md).</sub>
 
 <a id="types-one-type-test"></a>
 

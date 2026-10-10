@@ -95,3 +95,24 @@ answers `is uint` and **not** `is int`; `is int|uint` tests for any integer. `st
 separate the same way (`rule:types/string-is-utf8`, `rule:types/bytes`), so binary data answers
 `is bytes` and not `is string`. Both are consequences of a finer type system rather than of this
 operator.
+
+A guarded branch is cheaper with `is` than without it: the `as` a program wrote after a
+`Core\Reflect::typeOf` comparison, and its throw path, are gone, because the test narrows.
+
+**Memory:** none. `is` adds no representation, and every row reads a tag a value already carries.
+
+**Declined:**
+- **No operator, with the question asked through `Core\Reflect::typeOf`.** An equality against an
+  enum case does not narrow (`rule:types/narrowing`), so every use pays a redundant `as` with a live
+  throw path.
+- **A diagnostic for a test whose answer is statically known.** It would fire on code narrowing itself
+  produces. Dead branches, if they are worth reporting, are a lint over every condition, not a
+  property of this operator.
+- **`array<T>` accepted only in its bare form, to keep every test O(1).** `as array<T>` already
+  performs the same walk and is accepted, so refusing the spelling that does not throw optimises
+  nothing and misstates the cost.
+- **`is callable` refused, by analogy with `Core\Reflect\TypeKind` having no `Callable` case.**
+  `TypeKind`'s cases partition the tag space, and a closure is already an `Object`. `is` has no
+  partition to keep, and overlapping questions are what an operator over the type grammar is for.
+- **An `integer`-style spelling matching both integer tags.** It adds surface to hide the `int` and
+  `uint` split rather than stating it, and `int|uint` already says it in the grammar a reader knows.

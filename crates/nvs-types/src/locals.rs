@@ -634,7 +634,7 @@ pub(crate) fn narrowed_property(
 /// the `== null` spelling already did.
 ///
 /// **Nothing about the subject is checked here.** `is` refuses no left-hand
-/// side at all (ADR 0150 § 6), so a declared `int` narrowing to a literal `1`
+/// side at all (`rule:types/type-test`), so a declared `int` narrowing to a literal `1`
 /// is an ordinary case, and a subject that can hold no object has already
 /// folded rather than recorded anything for the value arm.
 ///
