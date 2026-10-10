@@ -21,3 +21,8 @@ And **explicitly does not version**:
 
 The contract is not in force until `rule:packaging/the-version-contract-starts-at-0-1-0` throws its
 switch.
+
+**Declined:**
+- **SemVer on the Rust crate APIs too.** It would freeze internal boundaries that exist to be
+  rewritten, for consumers who do not exist. An external tool built on `nvs-syntax` would earn a
+  narrow exception, not a blanket promise.

@@ -1434,7 +1434,7 @@ develops or pushes from, so no platform's coverage is ever traded away by a path
 contributor who never sees a Windows failure until the nightly is precisely the one who cannot
 reproduce it.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0143](../decisions/0143.md), [0068](../decisions/0068.md).</sub>
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0143](../decisions/0143.md).</sub>
 
 <a id="testing-unknown-base-runs-everything"></a>
 

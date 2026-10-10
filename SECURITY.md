@@ -94,7 +94,8 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
 
 `cargo deny` gates advisories with **no blanket ignores** ([deny.toml](deny.toml)), Dependabot watches the
 tree, and a RUSTSEC advisory or a yanked crate is the one thing allowed to interrupt planned work
-([0068](docs/decisions/0068.md)). If you find one we've missed and
+([`rule:packaging/the-sweep-is-fired-by-a-human`](docs/rules/packaging.md#packaging-the-sweep-is-fired-by-a-human)).
+If you find one we've missed and
 it is reachable, report it privately as above; if it isn't reachable, an issue is fine.
 
 ## How the claims are checked

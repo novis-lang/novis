@@ -1116,7 +1116,7 @@ dependencies — is what makes a rename rare enough to live with.
 The rule is watched rather than enforced: if library authors route around it by shipping breaks
 under the same name, either an API-diff check at publish or a ceiling mechanism becomes necessary.
 
-<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted). Decided in [0081](../decisions/0081.md), [0068](../decisions/0068.md).</sub>
+<sub>See also [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-known-bad-version-is-retracted-not-deleted`](packaging.md#packaging-a-known-bad-version-is-retracted-not-deleted). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-the-version-contract-starts-at-0-1-0"></a>
 
@@ -1143,7 +1143,7 @@ The scheme ([`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#pa
 plan a version at or past 0.1.0 without an explicit flag acknowledging that the contract begins
 there, and the workspace version is below it.
 
-<sub>See also [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), [`packaging/the-versioned-surface-is-enumerated`](packaging.md#packaging-the-versioned-surface-is-enumerated), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise). Decided in [0068](../decisions/0068.md).</sub>
+<sub>See also [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), [`packaging/the-versioned-surface-is-enumerated`](packaging.md#packaging-the-versioned-surface-is-enumerated), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise).</sub>
 
 <a id="packaging-the-versioned-surface-is-enumerated"></a>
 
@@ -1175,7 +1175,12 @@ And **explicitly does not version**:
 The contract is not in force until [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0) throws its
 switch.
 
-<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0068](../decisions/0068.md), [0042](../decisions/0042.md).</sub>
+**Declined:**
+- **SemVer on the Rust crate APIs too.** It would freeze internal boundaries that exist to be
+  rewritten, for consumers who do not exist. An external tool built on `nvs-syntax` would earn a
+  narrow exception, not a blanket promise.
+
+<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-below-1-0-the-breaking-slot-moves-left"></a>
 
@@ -1197,7 +1202,7 @@ where `MAJOR` is the breaking slot.
 The scheme applies in both of [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0)'s regimes; what
 a slot *promises* is the contract's, through [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot).
 
-<sub>See also [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot). Decided in [0068](../decisions/0068.md).</sub>
+<sub>See also [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot).</sub>
 
 <a id="packaging-who-can-see-it-decides-the-release-slot"></a>
 
@@ -1226,7 +1231,11 @@ ladder its last rows send a change down is [`packaging/a-dependency-break-is-abs
 Nothing checks the classification; it is addressed to whoever runs the sweep, and the commit message
 is where it becomes visible ([`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit)).
 
-<sub>See also [`packaging/the-versioned-surface-is-enumerated`](packaging.md#packaging-the-versioned-surface-is-enumerated), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit). Decided in [0068](../decisions/0068.md).</sub>
+**Declined:**
+- **Every observable change is a major.** Bug fixes would become unshippable, and a major would mean
+  nothing.
+
+<sub>See also [`packaging/the-versioned-surface-is-enumerated`](packaging.md#packaging-the-versioned-surface-is-enumerated), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/below-1-0-the-breaking-slot-moves-left`](packaging.md#packaging-below-1-0-the-breaking-slot-moves-left), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit).</sub>
 
 <a id="packaging-a-dependency-break-is-absorbed-never-forwarded"></a>
 
@@ -1259,11 +1268,19 @@ the break, and the ladder is not skippable because a lower step looks tidier.
    is possible ([`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands)), a migration note
    naming the old spelling and the new one, and a major release to ride on.
 
+The ladder exists because the two costs of a break are in different units: adapting Novis takes an
+afternoon, while a program author whose release breaks must audit every file they own. Upgrading a
+language must not be a project for the people who write in it.
+
 Steps 2 and 3 mean carrying adapters with no feature to their name — simplicity of the
 implementation spent for compatibility of the program, deliberately. A dependency that repeatedly
 forces the ladder is a design problem, not an update problem; the hold dates are the evidence.
 
-<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0068](../decisions/0068.md), [0065](../decisions/0065.md).</sub>
+**Declined:**
+- **Never breaking the surface at all.** A security fix can force a break, so the promise would be
+  dishonest. Shipping the break is the last of seven steps, taken with the user.
+
+<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0065](../decisions/0065.md).</sub>
 
 <a id="packaging-a-forced-break-is-announced-before-it-lands"></a>
 
@@ -1284,7 +1301,7 @@ option in either case.
 This is the seventh step of [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), and it
 is reached only after the six above it are exhausted.
 
-<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot). Decided in [0068](../decisions/0068.md).</sub>
+<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot).</sub>
 
 <a id="packaging-a-dependency-move-proves-two-things"></a>
 
@@ -1308,7 +1325,7 @@ commit.** CI fails otherwise, and correctly: the notice is a licence obligation,
 ([`testing/ci-lanes`](testing.md#testing-ci-lanes)); they are what make a hold, a vendored fork and this rule enforceable
 rather than aspirational.
 
-<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0068](../decisions/0068.md), [0065](../decisions/0065.md), [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0065](../decisions/0065.md), [0143](../decisions/0143.md).</sub>
 
 <a id="packaging-one-bump-one-commit"></a>
 
@@ -1326,7 +1343,7 @@ wall of them, and that is reason enough. Nothing checks the rule; it is addresse
 sweep ([`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human)), and the sweep's report is where a violation
 becomes visible.
 
-<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human). Decided in [0068](../decisions/0068.md).</sub>
+<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human).</sub>
 
 <a id="packaging-the-sweep-is-fired-by-a-human"></a>
 
@@ -1354,7 +1371,18 @@ is a defect**: it gets a hold with a date and a reason, or it gets updated. Bein
 neutral state, because the alternative is one enormous forced migration under a security deadline.
 The cadence applies in both of [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0)'s regimes.
 
-<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0068](../decisions/0068.md), [0143](../decisions/0143.md).</sub>
+Staleness compounds in one direction only. A tree one minor behind updates in an afternoon; a tree
+two years behind updates under an advisory deadline, across an engine API rewrite, with the JIT broken
+in between. Deferring a bump never makes the next one cheaper.
+
+**Declined:**
+- **Pinning everything and updating at release time.** It turns continuous small work into a forced
+  migration under a deadline, and a guard premise that broke six months ago is found six months late
+  ([`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things)).
+- **A dependency policy per subsystem.** The premises the guards encode are shared, and a sweep that
+  is not one procedure is run inconsistently.
+
+<sub>See also [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`packaging/a-dependency-move-proves-two-things`](packaging.md#packaging-a-dependency-move-proves-two-things), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0143](../decisions/0143.md).</sub>
 
 <a id="packaging-an-extension-is-a-sandboxed-wasm-component"></a>
 

@@ -2,8 +2,7 @@
   "title": "A package that breaks its API publishes under a new name carrying `supersedes`",
   "status": "designed",
   "because": [
-    "0081",
-    "0068"
+    "0081"
   ],
   "seeAlso": [
     "packaging/resolution-takes-the-highest-minimum",

@@ -2,7 +2,6 @@
   "title": "A version number describes the enumerated surface, and the Rust crate APIs, the artifact cache, diagnostic prose and MSRV carry no promise",
   "status": "designed",
   "because": [
-    "0068",
     "0042"
   ],
   "seeAlso": [
