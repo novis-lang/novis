@@ -1,8 +1,24 @@
 {
   "hooks": {
     "PreToolUse": [
-      { "matcher": "Read|Bash|PowerShell", "hooks": [ { "type": "command", "command": "bun nv guard" } ] },
-      { "matcher": "Read|Bash|PowerShell", "hooks": [ { "type": "command", "command": "looper guard" } ] }
+      {
+        "hooks": [
+          {
+            "command": "bun nv guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "Read|Bash|PowerShell"
+      },
+      {
+        "hooks": [
+          {
+            "command": "looper guard",
+            "type": "command"
+          }
+        ],
+        "matcher": "Read|Bash|PowerShell"
+      }
     ]
   },
   "permissions": {
@@ -198,11 +214,54 @@
       "PowerShell(bun nv allow:*)",
       "Bash(bun nv sweep:*)",
       "PowerShell(bun nv sweep:*)",
-      "Bash(bunx tsc:*)",
       "Bash(bun nv pack:*)",
       "PowerShell(bun nv pack:*)",
       "Bash(looper:*)",
-      "PowerShell(looper:*)"
+      "PowerShell(looper:*)",
+      "Bash(looper orient:*)",
+      "Bash(looper status:*)",
+      "Bash(looper lint:*)",
+      "Bash(looper render:*)",
+      "Bash(looper goal:*)",
+      "Bash(looper check:*)",
+      "Bash(looper harvested:*)",
+      "Bash(looper verify:*)",
+      "Bash(looper affected:*)",
+      "Bash(looper wrap:*)",
+      "Bash(looper doctor:*)",
+      "Bash(looper log:*)",
+      "Bash(looper links:*)",
+      "Bash(looper layout:*)",
+      "Bash(looper prose:*)",
+      "Bash(looper sync:*)",
+      "Bash(cargo run:*)",
+      "Bash(cargo tree:*)",
+      "Bash(cargo metadata:*)",
+      "Bash(bun install:*)",
+      "Bash(bun run:*)",
+      "Bash(bun x tsc:*)",
+      "PowerShell(looper orient:*)",
+      "PowerShell(looper status:*)",
+      "PowerShell(looper lint:*)",
+      "PowerShell(looper render:*)",
+      "PowerShell(looper goal:*)",
+      "PowerShell(looper check:*)",
+      "PowerShell(looper harvested:*)",
+      "PowerShell(looper verify:*)",
+      "PowerShell(looper affected:*)",
+      "PowerShell(looper wrap:*)",
+      "PowerShell(looper doctor:*)",
+      "PowerShell(looper log:*)",
+      "PowerShell(looper links:*)",
+      "PowerShell(looper layout:*)",
+      "PowerShell(looper prose:*)",
+      "PowerShell(looper sync:*)",
+      "PowerShell(cargo run:*)",
+      "PowerShell(cargo tree:*)",
+      "PowerShell(cargo metadata:*)",
+      "PowerShell(bun install:*)",
+      "PowerShell(bun run:*)",
+      "PowerShell(bun x tsc:*)"
     ]
   }
 }
