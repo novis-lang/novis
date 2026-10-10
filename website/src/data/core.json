@@ -22143,9 +22143,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "`increment(string $name, {by?, labels?})`, `observe(string $name, float $value, {labels?})`, `gauge(…)`. A `labels` **value** is a `tainted` sink with no launderer — label by an enum, an `as`-converted scalar or a route name",
-      "adrs": [
-        "0076"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [

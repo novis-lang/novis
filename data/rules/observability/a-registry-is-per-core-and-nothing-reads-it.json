@@ -1,9 +1,7 @@
 {
   "title": "A metrics registry is per core, merged at scrape, and no program reads a metric",
   "status": "shipped",
-  "because": [
-    "0076"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/cross-request-state-is-explicit",
     "concurrency/cache-memory-is-charged-to-the-core",

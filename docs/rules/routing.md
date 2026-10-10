@@ -361,7 +361,7 @@ The route table's shape does not change: one row per `(path, method)`, with `nam
 row rather than a key into them, and the reverse index `url()` reads is built from that column.
 Runtime cost is zero and memory cost is one `?string` column's worth of repeats.
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0110](../decisions/0110.md), [0085](../decisions/0085.md), [0102](../decisions/0102.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0110](../decisions/0110.md), [0085](../decisions/0085.md), [0102](../decisions/0102.md).</sub>
 
 <a id="routing-matching-is-not-dispatching"></a>
 

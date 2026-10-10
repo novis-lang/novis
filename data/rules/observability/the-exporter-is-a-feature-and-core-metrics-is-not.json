@@ -1,9 +1,7 @@
 {
   "title": "The exporter is a feature-gated Native subsystem, and `Core\\Metrics` is Tier 0 in every build",
   "status": "shipped",
-  "because": [
-    "0076"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/five-placements",
     "core-api/core-means-always-present",

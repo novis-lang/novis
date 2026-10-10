@@ -4,8 +4,7 @@
   "because": [
     "0097",
     "0091",
-    "0092",
-    "0076"
+    "0092"
   ],
   "seeAlso": [
     "http-server/the-trace-id-is-the-request-identifier",

@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*18 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*17 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1252,7 +1252,7 @@ stays two lines, the second of which is the launderer that records the decision.
 
 <a id="security-metric-label-refuses-tainted"></a>
 
-## A metric label value refuses `tainted`, and there is deliberately no launderer for one  *(designed — not yet in the compiler)*
+## A metric label value refuses `tainted`, and there is deliberately no launderer for one
 
 `rule:security/metric-label-refuses-tainted`
 
@@ -1270,10 +1270,16 @@ set, [`security/assert-trusted`](security.md#security-assert-trusted).
 `secret` is refused there too and needs no new rule: a metric export is output, and every output sink
 already refuses it ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)).
 
-The `Core\Metrics` surface this governs is not on disk: nothing in the tree exports a series or takes
-a label, so the refusal has no implementation to verify against.
+The cost is a compile error at exactly the line that would have taken the collector down, and it is
+there because the qualifier system already exists for injection. Labelling by a user id, a tenant
+name or an error message is what people reach for first, so this refusal is met often.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0076](../decisions/0076.md), [0077](../decisions/0077.md).</sub>
+**Declined:**
+- **Allowing `tainted` labels behind a runtime cardinality guard.** The guard fires after the
+  collector already has the series, and a compile error at the responsible line is strictly better
+  than a warning hours later on another machine.
+
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0077](../decisions/0077.md).</sub>
 
 <a id="security-log-is-not-a-sink"></a>
 
@@ -1453,7 +1459,7 @@ regex pattern, where no transform makes an attacker-authored pattern safe
 It removes `tainted` and nothing else: a `secret` operand is refused there, because confidentiality is
 a separate axis and this member makes no claim about it.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0088](../decisions/0088.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0088](../decisions/0088.md).</sub>
 
 <a id="security-response-body-is-one-typed-member"></a>
 

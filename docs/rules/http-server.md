@@ -514,7 +514,7 @@ The trace id is the request identifier, and there is no second one. A trace id e
 
 **An inbound `X-Request-ID` is ignored** and appears nowhere. Honouring it would need a validation rule against log injection for a fact Novis already has, and two identifiers for one fact is how people grep the wrong one.
 
-<sub>See also [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default), [`errors/log-fields`](errors.md#errors-log-fields), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request). Decided in [0097](../decisions/0097.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default), [`errors/log-fields`](errors.md#errors-log-fields), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-the-access-log-is-a-mode-default"></a>
 
@@ -528,7 +528,7 @@ It renders through the one diagnostic record — text in development, JSON in pr
 
 **An error is logged unconditionally**, whatever `access` says: a `5xx` is a diagnostic rather than access telemetry, and losing one because access logging was off would be the wrong failure.
 
-<sub>See also [`http-server/the-trace-id-is-the-request-identifier`](http-server.md#http-server-the-trace-id-is-the-request-identifier), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/renderings`](errors.md#errors-renderings), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures). Decided in [0097](../decisions/0097.md), [0091](../decisions/0091.md), [0092](../decisions/0092.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`http-server/the-trace-id-is-the-request-identifier`](http-server.md#http-server-the-trace-id-is-the-request-identifier), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/renderings`](errors.md#errors-renderings), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures). Decided in [0097](../decisions/0097.md), [0091](../decisions/0091.md), [0092](../decisions/0092.md).</sub>
 
 <a id="http-server-secure-headers-with-nothing-written"></a>
 

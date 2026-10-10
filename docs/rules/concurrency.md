@@ -1235,7 +1235,7 @@ queue silently loses work and a depth nobody reads is the same as no record at a
 An attempt ceiling of zero is refused at the call rather than accepted: it asks for a job dead-lettered
 by the enqueue that created it, and attempts are finite, not optional.
 
-<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md), [0074](../decisions/0074.md), [0076](../decisions/0076.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md), [0074](../decisions/0074.md), [0187](../decisions/0187.md).</sub>
 
 <a id="concurrency-a-budget-overrun-is-a-failed-attempt"></a>
 

@@ -43,11 +43,11 @@ nvs-config.workspace = true
 # no `nvs-*` crate at all, which is what ADR 0087's bidi predicate moving down
 # into it bought.
 nvs-render.workspace = true
-# ADR 0076 § 2's trace id is drawn once per request, in `Ctx::new` — so the draw
-# has to happen in the crate that owns per-request state, not in `nvs-stdlib`
-# where `Core\Random` already uses this same generator for the same reason its
-# module doc argues at length. No new crate reaches the tree: `nvs-stdlib`
-# depends on both this crate and `rand` already.
+# The trace id (`rule:observability/a-trace-id-exists-for-every-request`) is
+# drawn once per request, in `Ctx::new`, so the draw happens in the crate that
+# owns per-request state, not in `nvs-stdlib`, where `Core\Random` already uses
+# this same generator for the reason its module doc gives. No new crate reaches
+# the tree: `nvs-stdlib` depends on both this crate and `rand` already.
 rand.workspace = true
 # `rule:errors/log-write`'s record carries `ts` as RFC 3339, and `Ctx::stamp_envelope`
 # writes it for both of that section's writers. One renderer of that format in

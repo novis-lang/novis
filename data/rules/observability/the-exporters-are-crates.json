@@ -2,7 +2,6 @@
   "title": "The OTLP and Prometheus paths are somebody else's specification, implemented here; the wiring and the registry are ours",
   "status": "shipped",
   "because": [
-    "0076",
     "0186"
   ],
   "seeAlso": [

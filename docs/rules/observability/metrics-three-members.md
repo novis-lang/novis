@@ -4,9 +4,9 @@ Core\Metrics::observe(string $name, float $value, {labels?: array<string, string
 Core\Metrics::gauge(string $name, float $value, {labels?: array<string, string>}): void;
 ```
 
-`increment` for a counter, `observe` for a histogram, `gauge` for a point-in-time value — three
-verbs for three kinds, rather than one `record` with a kind enum, because the kind is a property of
-the series and not of the call (`rule:observability/a-name-is-fixed-to-one-kind`). A `$name` given
+`increment` for a counter, `observe` for a histogram, `gauge` for a point-in-time value: three
+verbs for three kinds. Each takes its subject first, the required value in dataflow order and one
+trailing options shape (`rule:core-api/shape-rules`). A `$name` given
 as a string literal is validated at compile time against `[a-z][a-z0-9_]*`, by the same inspection
 of string literals at the call site that `rule:security/secret-sinks-refuse` performs.
 
@@ -17,3 +17,8 @@ user id, a tenant name or an error message runs into, and `secret` is refused th
 question (`rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`); a binary built
 without one still accumulates into the per-core registry, so behaviour is identical across builds
 except for the export path. A program that never calls it and serves no requests holds zero series.
+
+**Declined:**
+- **One `record` member taking a kind enum.** The kind is a property of the series and not of the
+  call, and one name recorded as two kinds is a bug the call site cannot see
+  (`rule:observability/a-name-is-fixed-to-one-kind`).

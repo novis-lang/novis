@@ -109,8 +109,8 @@ var $doomed = Queue::push('queue/flaky.nvs', {
 Poll::until(fn (): bool => { return Queue::stats($flaky)->attempts() > 1; });
 echo 'retried', "\n";
 
-// And the floor under it. The row moves to the dead-letter table with its
-// payload, what its last attempt threw and the timing of it, and stays there —
-// `stats` reports the depth, and ADR 0076 exports it as a default series.
+// When every attempt fails, the job moves to the dead-letter table.
+// The row keeps its payload, its errors and their timing, and it stays there.
+// `stats` reports how many jobs are in that table.
 Poll::until(fn (): bool => { return Queue::stats($flaky)->deadLettered() > 0; });
 echo 'dead-lettered', "\n";

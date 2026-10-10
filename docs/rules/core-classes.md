@@ -961,7 +961,7 @@ It is **not** built on the shared cache, which is deliberately lossy — right f
 for a message a subscriber is waiting on. Cross-machine fan-out is not the runtime's: a fleet bridges
 topics to a broker in application code.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md).</sub>
 
 <a id="core-classes-db-one-api"></a>
 

@@ -686,7 +686,7 @@ without changing it.
 A record is charged to the request's budget, and a record shed under burst pressure **increments a
 counter that is exported**, because a silently dropped log line is worse than a counted one.
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="errors-a-repeat-is-bounded-at-the-sink-that-suffers"></a>
 
