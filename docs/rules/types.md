@@ -1056,7 +1056,7 @@ where it runs.
 condition, which tests any type for truthiness without asking for one. The `(int)` cast syntax
 is not a second spelling — it does not parse at all ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0034](../decisions/0034.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0033](../decisions/0033.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
@@ -1079,7 +1079,22 @@ keep their ordinary meaning everywhere else, and the rejected form still consume
 `(int) !$x` leaves nothing dangling. `$x as int` is the only conversion spelling
 ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/conversion`](types.md#types-conversion). Decided in [0034](../decisions/0034.md), [0007](../decisions/0007.md), [0049](../decisions/0049.md).</sub>
+The cast would have been a second spelling of one operation, which
+[`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) refuses everywhere: it adds a second thing to teach and a
+second question for every review, and buys nothing once both spellings check and throw alike. `as`
+is the one kept because every other conversion is written that way, `int → uint` included, which
+has no cast. The cost is that a PHP file with a cast anywhere does not parse until each one is
+rewritten to `as`, a mechanical change since the operand and the target are both known from the
+syntax.
+
+**Declined:**
+- **`(int)$x` as a permanent alias for `$x as int`.** It is the second spelling above.
+- **A warning first and the error later.** Every refused PHP construct is a hard error with no warning
+  tier ([`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression)), and a staged removal would be the one exception.
+- **The cast kept for `array` and `object` only.** Every target has the same `as` spelling, and
+  keeping two of seven has no principled line.
+
+<sub>See also [`types/conversion`](types.md#types-conversion). Decided in [0007](../decisions/0007.md), [0049](../decisions/0049.md).</sub>
 
 <a id="types-type-alias"></a>
 

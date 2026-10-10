@@ -555,7 +555,7 @@ the site above it nothing to report but a malformed intersection.
 The already-refused spellings keep their own codes and gain the new word in their help text: `$a = &$b` is
 `E0701`, an anonymous function parameter `E0493`, a generator's `E0492`.
 
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0107](../decisions/0107.md), [0031](../decisions/0031.md), [0045](../decisions/0045.md), [0034](../decisions/0034.md).</sub>
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0107](../decisions/0107.md), [0031](../decisions/0031.md), [0045](../decisions/0045.md).</sub>
 
 <a id="statements-exit-is-the-only-termination-keyword"></a>
 
