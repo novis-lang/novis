@@ -18,7 +18,7 @@ stages:
     status: done
   - id: 6
     title: "owed fails, and the second measurement"
-    status: open
+    status: done
 checks:
   - id: questions-unit
     stage: 2
@@ -193,33 +193,37 @@ File set: `tools/nv/cmd/site.ts`, `tools/nv/test/site-questions.test.ts`.
 
 ### State
 
-**Side goal `search-questions`: stages 3, 4 and 5 are done, stage 6 is next.** `website/src/data/questions.json` has stamped entries for every built page: Core, configuration, CLI and the 146 handwritten pages. `tools/nv/cmd/site.ts` module doc § *The questions* is the home of how they work.
+**Side goal `search-questions`: every stage is done, and the goal is ready to land on `main` by hand.** `website/src/data/questions.json` has stamped entries for every built page. `tools/nv/cmd/site.ts` module doc § *The questions* is the home of how they work, and `rule:testing/website-pages-are-stamped` says a page's questions are stamped as the page is.
 
-`--questions --status`: every area 0 owed, 0 stale. The acceptance checks `core-questions`, `config-cli-questions` and `page-questions` are green, and so is `bun nv site --check questions`. Under Git Bash, pass URLs with `MSYS_NO_PATHCONV=1` (playbook § *Running things*).
+`bun nv site --check questions` now fails on an owed page too, and on an entry outside the bounds: four to six questions, at most 15 words, no word from `QUESTION_WORDS` (the user-text table without `name` and `mark`), and no question two entries share. Eight questions used `holds`, `drops` or `answers` and were rewritten; editing a question does not move its hash. CI's website step (`.github/workflows/ci.yml:352`) runs the `questions` part. `questions-unit` and `owed-fails` are green, and so are `looper verify`, `bun nv verify --doc` and `bun nv owners --closes search-questions`.
 
-The handwritten pages' questions were read across all six batches for near repeats, with each other and with the reference pages, and about 45 were dropped or rewritten. Close pairs were split by angle: a tour page asks as a beginner, a `why-novis/` page asks why, a syntax page asks how, and an `in-depth/concepts/` page asks what happens. `/datenschutz/` has `pagefind: false`, so its four questions are written and stamped but never indexed.
+**The second measurement, for the user.** A subagent that never read `questions.json` wrote 40 queries, ten per area, each with its right page. Both builds' `dist/pagefind` were searched with `pagefind.js` in headless Edge. Without questions, then with them:
 
-`bun nv site --build` passes, and a built page carries its questions: `website/dist/syntax/values/as/index.html` has the `data-questions` attribute. `website/node_modules` is now installed in this worktree. `bun install` writes a `website/bun.lock` the tree does not track (the website commits `package-lock.json`), so delete it after an install.
+| Area | Right page first | In the top 3 | In the top 20 |
+|---|---|---|---|
+| Core | 2 → 6 | 3 → 7 | 3 → 8 |
+| Configuration | 4 → 5 | 4 → 6 | 5 → 7 |
+| CLI | 1 → 7 | 2 → 7 | 2 → 7 |
+| Handwritten pages | 2 → 4 | 3 → 5 | 3 → 5 |
+| All 40 | 9 → 22 | 12 → 25 | 13 → 27 |
 
-There is no wrap gate for stale questions. `main` removed `nv session --wrap` and the page wrap gate with it, so `bun nv site --check questions` is the only check. CI's `nv site --check` step (`.github/workflows/ci.yml:352`) does not name the `questions` part yet.
+No query ranked worse. `dist/pagefind` grew from 5.1 MB to 5.2 MB. Thirteen queries missed the top 20 in both builds; why was not checked. Among them: "split a list into groups of 10", "block clients that send too many requests", "outgoing requests through a proxy", "fake a dependency in a test", "what is this language bad at".
 
-The rustdoc gate was green: `bun nv verify --doc` passed after the `child_watch.rs`, `dispatch.rs` and `service.rs` link fixes, which `main` made the same way.
+When the goal lands, delete this file and `git worktree remove` this worktree (AGENTS.md rule 10).
 
 The driver's three LDAP "selection misses" (`Ldap-Ad-AccountFlags/passwordExpired/01`, `passwordNeverExpires/01`, `Ldap-Connection/add/01`) are in the acceptance log's `diverged` list: the same tree gave a different exit code on two runs. They are flaky, they are not caused by this branch (it touches only `website/`, `tools/nv/` and doc comments), and no session chased them. `crates/nvs-stdlib/tests/ldap.rs` has also failed alone under `looper verify` in earlier sessions, with timed-out cases. This session `looper verify` was green, because nothing it builds or tests had changed. The LDAP cases need an owner on `main`.
 
 ### Next
 
-**Stage 6: owed fails, and the second measurement**, one file set: `tools/nv/cmd/site.ts`, `tools/nv/test/site-questions.test.ts`, `.github/workflows/ci.yml`.
+**Landing**, by hand: merge `side/search-questions` into `main`, delete this file, remove the worktree and its branch. The LDAP cases above need an owner on `main`.
 
-- [ ] **An owed page fails `--check questions`** (`rule:testing/website-pages-are-stamped`): `questionProblems` (`tools/nv/cmd/site.ts:425`) adds an `owed:` line per page in `questionStatus(...).owed` (`tools/nv/cmd/site.ts:420`), with the command that prints its material. Rewrite the module doc paragraph at `tools/nv/cmd/site.ts:70` ("nothing fails on yet") and the doc comment at `:424` as a whole. Add a case beside `tools/nv/test/site-questions.test.ts:71`. Extend the rule's fragment to say a page's questions are stamped as the page is.
-- [ ] **The batch checks move into `--check questions`**: four to six questions, at most 15 words, none from the user-text table, no exact repeat across the file, also in `questionProblems` (`tools/nv/cmd/site.ts:425`). Every entry passes today, so the check starts green. The scratch script this session used is the shape: count, `split(/\s+/)`, a whole-word regex per banned word, and a map of lower-cased questions with punctuation removed.
-- [ ] **CI runs the `questions` part:** add it to the `nv site --check` step at `.github/workflows/ci.yml:352`.
-- [ ] **The second measurement** (§ *Standing decisions*, stage 6 above): a general-purpose subagent that has not seen `questions.json` writes about 40 queries across the four areas with the right page for each. Build once with an empty `website/src/data/questions.json:1` (`website/src/components/Banner.astro:15` imports it) and once with the real one, run each query through `pagefind.js` in a browser, and compare the rank of the right page. The numbers go into the handoff for the user.
+### Done in stage 6
 
-### Done in stage 5
-
-- [x] **Questions for the 146 handwritten pages** (`rule:testing/website-pages-are-stamped`): written by six subagents, read across batches for near repeats, and stamped. `page-questions` is green.
+- [x] **An owed page fails `--check questions`** (`rule:testing/website-pages-are-stamped`): `questionProblems` (`tools/nv/cmd/site.ts:425`) adds an `owed:` line per page in `questionStatus(...).owed` (`tools/nv/cmd/site.ts:420`), with the command that prints its material. Rewrite the module doc paragraph at `tools/nv/cmd/site.ts:70` ("nothing fails on yet") and the doc comment at `:424` as a whole. Add a case beside `tools/nv/test/site-questions.test.ts:71`. Extend the rule's fragment to say a page's questions are stamped as the page is.
+- [x] **The batch checks move into `--check questions`** (`questionShape`, `tools/nv/cmd/site.ts`).
+- [x] **CI runs the `questions` part** (`.github/workflows/ci.yml:352`).
+- [x] **The second measurement**: the table in § *State*.
 
 ### Backlog
 
-- After stage 6, the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes search-questions` (AGENTS.md § *In the loop*).
+- Thirteen queries miss in both builds ("groups of 10", "proxy", "fake a dependency"); not checked why. A later pass could add their words to those pages' questions (`tools/nv/cmd/site.ts` § *The questions*).
