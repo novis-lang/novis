@@ -9,7 +9,7 @@ stages:
     status: open
     extra:
       context:
-        adrs: ["0121 §3", "0121 §5", "0128 §5", "0051 §3"]
+        adrs: ["0121 §3", "0121 §5", "0051 §3"]
         rules: [core-classes/pdf-css-subset, core-classes/pdf-output-is-inert, core-classes/pdf-page-is-an-image-source, core-classes/pdf-decode-refusals, packaging/pdf-decoding-ships-in-the-image-package, packaging/a-value-crosses-as-its-wit-type, core-api/options-bag, core-api/one-paradigm-per-operation, core-classes/html-template]
         shapes: [A decision record, A rule fragment]
   - id: 3
@@ -17,7 +17,7 @@ stages:
     status: open
     extra:
       context:
-        adrs: ["0128 §2", "0128 §4"]
+        adrs: []
         rules: [core-classes/image-format-roster, core-classes/image-pixel-cap, core-classes/pdf-page-is-an-image-source, core-classes/pdf-decode-refusals]
         shapes: ["A `.nvst` test case"]
   - id: 4
@@ -106,8 +106,8 @@ stages:
     status: open
     extra:
       context:
-        adrs: ["0128 §4"]
-        rules: [packaging/a-nvsx-dependency-embeds-in-the-same-payload]
+        adrs: []
+        rules: [packaging/a-nvsx-dependency-embeds-in-the-same-payload, core-classes/pdf-page-is-an-image-source]
         shapes: []
   - id: 15
     title: completion and hover in the editor
@@ -463,7 +463,7 @@ One file set: `extensions/image/src/decode.rs:60` (`sniff`), `extensions/image/s
 `dpi`), `extensions/image/nvs/Image.nvs:61` (`open`), `extensions/fonts/` (new: Liberation, shared with
 Stage 5), `crates/nvs-ext/tests/image_decode.rs`.
 
-- **The two prerequisites first** (ADR 0128 § 4): `hayro` builds for `wasm32-wasip2` and its graph
+- **The two prerequisites first** (`rule:core-classes/pdf-page-is-an-image-source`): `hayro` builds for `wasm32-wasip2` and its graph
   passes the Stage 2 deny check. If either fails, the session records it and stops the PDF half with
   `BLOCKED`. There is no pdfium fallback (§ *Standing decisions*).
 - **SVG** decodes with a `usvg` image resolver that only reads the asset bytes it is given; the
@@ -472,7 +472,7 @@ Stage 5), `crates/nvs-ext/tests/image_decode.rs`.
   `rule:core-classes/pdf-decode-refusals`: one page per `open`, priced by the pixel cap before a
   buffer exists, `info` counts pages without a pixel, a page past the end throws naming the count,
   an encrypted file throws `ParseError`, and the Liberation fonts stand in for the 14 standard fonts.
-- **The bomb corpus** of ADR 0128's *Verification*: recursive XObjects, an xref loop, a stream-length
+- **The bomb corpus** of `rule:core-classes/pdf-decode-refusals`: recursive XObjects, an xref loop, a stream-length
   lie and a deflate bomb each end in a throw or a contained trap.
 - **Pinned by** the Stage 3 checks.
 
@@ -697,8 +697,8 @@ One file set: `extensions/pdf/src/lib.rs` (its module doc), `crates/nvs-ext/test
   `the_recorded_growth_matches_the_embedded_components`. The goal writer's estimate was 6 to 9 MB, not
   checked.
 - **Two render benchmarks**: one invoice and one 200-page report with a long table, guest time
-  recorded beside the image component's figures. ADR 0128's text-page and image-page rasterising
-  benchmark goes beside them.
+  recorded beside the image component's figures. The text-page and image-page rasterising
+  benchmark `rule:core-classes/pdf-page-is-an-image-source` owes goes beside them.
 - **If the growth looks too large**, the session records the figure and puts the question in the
   handoff's `## Backlog`. Nothing becomes optional: that is the user's call.
 - **Pinned by** the Stage 14 checks.

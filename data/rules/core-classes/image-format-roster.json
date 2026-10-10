@@ -3,8 +3,7 @@
   "status": "designed",
   "because": [
     "0120",
-    "0051",
-    "0128"
+    "0051"
   ],
   "seeAlso": [
     "core-classes/image-pipeline",

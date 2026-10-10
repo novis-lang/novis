@@ -2,7 +2,6 @@
   "title": "An encrypted document and a detectable omission both throw, and everything past rasterising is somebody else's job",
   "status": "designed",
   "because": [
-    "0128",
     "0095",
     "0121",
     "0044"
