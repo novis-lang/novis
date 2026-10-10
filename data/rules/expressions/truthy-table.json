@@ -2,7 +2,6 @@
   "title": "The truthy table is PHP's, and `bytes` is falsy only when it is empty",
   "status": "shipped",
   "because": [
-    "0035",
     "0009",
     "0007"
   ],

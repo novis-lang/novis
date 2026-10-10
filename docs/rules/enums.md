@@ -142,12 +142,14 @@ by `0` is truthy; so is a case backed by a negative value.
 An enum follows the object row of the truthy table rather than the integer row its backing type
 might suggest ([`enums/representation`](enums.md#enums-representation)). A case is a value of its own type, not a number, and
 judging it by its backing integer would make the branch `if ($status)` takes depend on which integer
-a declaration happened to give the case.
+a declaration happened to give the case. It also keeps every ported condition meaning what it
+meant: a PHP enum case is an object, a PHP object is never falsy, so `if ($status)` over a case has
+only ever been true.
 
 Lowering reads this statically: a condition whose static type is an enum needs no truthiness helper
 and no comparison at all.
 
-<sub>See also [`enums/representation`](enums.md#enums-representation), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0035](../decisions/0035.md).</sub>
+<sub>See also [`enums/representation`](enums.md#enums-representation), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>
 
 <a id="enums-no-class-machinery"></a>
 

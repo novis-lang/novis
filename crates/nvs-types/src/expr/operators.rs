@@ -1917,9 +1917,9 @@ fn nullable_conversion_is_total(from: TypeId, to: TypeId, inner: TypeId, env: &E
         // A target admitting more than one runtime shape is the widening row,
         // which has nothing to check and so nothing to fail.
         (_, Wide) => true,
-        // ADR 0035: `as bool` is the condition's own test written out, and it
-        // has an answer for every type — an object and an enum case included,
-        // § 4 making both always truthy.
+        // `as bool` is the condition's own test written out, and it has an
+        // answer for every type (`rule:expressions/truthy-table`): an object
+        // and an enum case included, both always truthy.
         (_, Bool) => true,
         // `rule:types/conversion` row 1: an enum to its own backing type, total and free.
         // Any *other* number is `rule:types/conversion`'s row and throws.

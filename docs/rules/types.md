@@ -269,7 +269,7 @@ Overflow throwing is the divergence this table is least willing to trade. A sile
 `float` changes a binding's type behind its declaration, and a silent wrap is the classic
 size-computation bug. Code that wants unbounded magnitude declares `float`, or converts.
 
-<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0035](../decisions/0035.md), [0261](../decisions/0261.md).</sub>
+<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0007](../decisions/0007.md), [0054](../decisions/0054.md), [0261](../decisions/0261.md).</sub>
 
 <a id="types-implicit-widening"></a>
 

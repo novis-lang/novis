@@ -26,7 +26,22 @@ A truthiness test converts nothing. It produces no value of a different type tha
 assigned or passed on — it answers "branch or don't", freshly, every time — so a declared type never
 changes here.
 
-<sub>See also [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause). Decided in [0035](../decisions/0035.md), [0007](../decisions/0007.md).</sub>
+That is why the exception costs no safety. What a checked conversion protects against is a declared
+type changing silently, and a condition changes none. Without it, every "is this set" test — `if
+($rows)`, `while ($line)`, `$user && $user->active`, `!$items` — would need `!= ''`, a count or an
+`as bool` at every branch. The cost is one question to hold while reading a condition: whether this
+position is one of the six. The list is short, fixed and syntactically obvious.
+
+**Declined:**
+- **No truthiness anywhere, so every condition must already be `bool`.** It puts the ceremony back at
+  every branch, and safety does not need it.
+- **Truthiness for `null` and `bool` only, with other scalars needing `as bool`.** It draws a line
+  inside the table with no principled edge: `if ($rows)` is as common as `if ($maybeNull)`.
+- **Truthiness in `if`, `while` and the ternary, but `bool` operands for `&&`, `||` and `!`.** The
+  same value would be bare in one place and refused two tokens later, and `$user && $user->active`
+  is as common as a bare `if`.
+
+<sub>See also [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="expressions-truthy-table"></a>
 
@@ -58,7 +73,12 @@ Where the static type is a scalar, array, class, `callable` or enum, the compile
 lowers to the matching native test with no dispatch. Only a `mixed` or union condition pays for a
 runtime helper.
 
-<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`enums/truthiness`](enums.md#enums-truthiness), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0035](../decisions/0035.md), [0009](../decisions/0009.md), [0007](../decisions/0007.md).</sub>
+The table's own surprises are kept with it: `"0"` is falsy while `"0.0"` and `"false"` are truthy,
+and an array of falsy elements is truthy. Code review, not the compiler, catches a condition that
+meant something else. A ported program that treats `"0.0"` as falsy has a bug of its own, since
+PHP never did either.
+
+<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`enums/truthiness`](enums.md#enums-truthiness), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md).</sub>
 
 <a id="expressions-no-keyword-logical-operators"></a>
 
@@ -80,7 +100,7 @@ diagnostic for `and` and `or` names the one-token replacement.
 All three keywords stay reserved words. They are not freed for use as identifiers, which is what lets
 the diagnostic fire at all.
 
-<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0045](../decisions/0045.md), [0035](../decisions/0035.md), [0021](../decisions/0021.md).</sub>
+<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0045](../decisions/0045.md), [0021](../decisions/0021.md).</sub>
 
 <a id="expressions-nullable-condition-lint"></a>
 
@@ -100,7 +120,7 @@ than this one.
 
 No warning code is allocated yet, and `nvs check` does not emit this today.
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns). Decided in [0066](../decisions/0066.md), [0035](../decisions/0035.md).</sub>
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns). Decided in [0066](../decisions/0066.md).</sub>
 
 <a id="expressions-misread-grouping-warns"></a>
 
@@ -284,7 +304,7 @@ A label or arm whose static type is disjoint from the subject's is
 Truthiness has no part in this. A `switch` subject and a `match` subject are compared, never tested
 for truth, and [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions)'s six positions do not include either.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0090](../decisions/0090.md), [0035](../decisions/0035.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0090](../decisions/0090.md).</sub>
 
 <a id="expressions-intrinsic-constant-arguments"></a>
 

@@ -2,7 +2,6 @@
   "title": "Six syntax positions test truthiness; every other `bool` position stays checked",
   "status": "shipped",
   "because": [
-    "0035",
     "0007"
   ],
   "seeAlso": [
@@ -13,6 +12,7 @@
   ],
   "guardedBy": [
     "tests/conformance/lang/a-condition-uses-phps-truthy-table.nvst",
-    "tests/conformance/lang/logical-connectives-short-circuit.nvst"
+    "tests/conformance/lang/logical-connectives-short-circuit.nvst",
+    "crates/nvs-types/tests/numeric.rs"
   ]
 }
