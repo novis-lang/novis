@@ -2,7 +2,7 @@
 //
 // The verification is not a step the caller can forget: `downloadVerified` either returns bytes the
 // release's own `SHA256SUMS` vouches for or it throws, and there is no state in between
-// (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`, ADR 0155 § 5). These cases are
+// (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`). These cases are
 // the ones that would notice if that stopped being true — a tampered archive, a release that lists
 // no sum for it, and a fetch that never arrives.
 

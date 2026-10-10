@@ -2007,7 +2007,7 @@ The `.vsix` carries no binary either, on any platform:
 [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one) is how a machine without `nvs` gets one,
 and why a copy the extension installed is tried after the user's own toolchain rather than before it.
 
-<sub>See also [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0155](../decisions/0155.md).</sub>
+<sub>See also [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one).</sub>
 
 <a id="ide-the-extension-guides-an-install-and-never-bundles-one"></a>
 
@@ -2040,7 +2040,26 @@ settings would defeat it later by other means: the day that user installs `nvs` 
 absolute path silently keeps winning, so the copy is remembered in the extension's own storage and
 the status item names whichever candidate answered.
 
-<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0155](../decisions/0155.md).</sub>
+The extension's archive table names the targets `.github/workflows/release.yml` builds, with an
+x86_64 musl machine on the musl archive, and the two lists must agree: a target on one side only is a download that
+fails with a 404.
+
+- **Memory:** one unpacked archive under the extension's own storage, once per machine. Nothing on
+  the request path.
+
+**Declined:**
+- **A binary bundled in per-platform `.vsix` packages.** A bundled copy either outranks the user's own
+  toolchain, which breaks the invariant above, or it does not, and then it is a managed install paid
+  for with seven publish legs, macOS codesigning and an executable bit carried through a zip.
+- **A download on activation.** It is the same bytes as the command with the person taken out of the
+  decision, and it makes the extension fetch and run code on activation.
+- **`PATH` only.** A user who installs the extension before the compiler gets a spawn failure and a
+  message about the problem, with no way out of it.
+- **Verifying the Sigstore attestation in the extension.** It needs `gh` and a Sigstore client, a
+  dependency and a second trust store inside an editor process. The release page is where that check
+  belongs.
+
+<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-the-extension-builds-no-ui-the-editor-already-has"></a>
 

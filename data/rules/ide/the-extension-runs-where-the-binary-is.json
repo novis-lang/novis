@@ -1,9 +1,7 @@
 {
   "title": "The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` and published nowhere",
   "status": "shipped",
-  "because": [
-    "0155"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/the-extension-claims-nvs-only",
     "ide/the-extension-refuses-a-binary-it-does-not-understand",

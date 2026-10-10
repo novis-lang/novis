@@ -22,3 +22,22 @@ run. That is the invariant `extensionKind: ["workspace"]` already protects. Writ
 settings would defeat it later by other means: the day that user installs `nvs` properly, a stale
 absolute path silently keeps winning, so the copy is remembered in the extension's own storage and
 the status item names whichever candidate answered.
+
+The extension's archive table names the targets `.github/workflows/release.yml` builds, with an
+x86_64 musl machine on the musl archive, and the two lists must agree: a target on one side only is a download that
+fails with a 404.
+
+- **Memory:** one unpacked archive under the extension's own storage, once per machine. Nothing on
+  the request path.
+
+**Declined:**
+- **A binary bundled in per-platform `.vsix` packages.** A bundled copy either outranks the user's own
+  toolchain, which breaks the invariant above, or it does not, and then it is a managed install paid
+  for with seven publish legs, macOS codesigning and an executable bit carried through a zip.
+- **A download on activation.** It is the same bytes as the command with the person taken out of the
+  decision, and it makes the extension fetch and run code on activation.
+- **`PATH` only.** A user who installs the extension before the compiler gets a spawn failure and a
+  message about the problem, with no way out of it.
+- **Verifying the Sigstore attestation in the extension.** It needs `gh` and a Sigstore client, a
+  dependency and a second trust store inside an editor process. The release page is where that check
+  belongs.
