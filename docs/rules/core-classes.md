@@ -2659,10 +2659,18 @@ The decoder's fixtures hold this inside the guest, and owe:
 
 `rule:core-classes/spreadsheet-has-no-io`
 
-Spreadsheet reading and generation are one first-party Tier 1 extension package, sandboxed, with one
-registered class and everything else Novis source that calls it. It is not `Core`: a
-PhpSpreadsheet-sized API is a permanent simplicity cost, and its parsers unsandboxed in every
-in-flight request is exactly the outcome the tier system exists to prevent.
+Spreadsheet reading and generation are one first-party Tier 1 extension package, `nvs/spreadsheet`,
+sandboxed, with `Novis\Spreadsheet\Engine` as its one registered class and everything else under
+`Novis\Spreadsheet` Novis source that calls it. It is not `Core`: a PhpSpreadsheet-sized API is a
+permanent simplicity cost, and its parsers unsandboxed in every in-flight request is exactly the
+outcome the tier system exists to prevent. It is not Native either, because nothing in it holds
+connection state or privilege, and the sandbox is the feature. CSV stays `Core\Csv`'s, so each job
+has one way to write it.
+
+The placement holds because an uploaded workbook is the tier's exact hostile-bytes material: xlsx is a
+zip of XML, where external entities and decompression bombs are the genre's vulnerability history, and
+legacy xls is an OLE compound binary. Parsing or serializing a document costs milliseconds, so the
+boundary crossing is noise.
 
 A workbook crosses the boundary as bytes and the result returns as bytes; **the component fetches
 nothing**. An external-workbook reference, a linked image or a remote data connection in a read file
@@ -2675,9 +2683,25 @@ cached value is a claim by the author rather than a computation by us. VBA and e
 are inert payload the reader may enumerate but can never execute. Cells read from `tainted` bytes are
 `tainted`.
 
+The component's fixtures owe, asserted inside the guest: a read and a write with no capability grants
+that succeed with no network or filesystem access observable; and an xlsx whose sheet XML declares an
+external entity, and one carrying an external-workbook reference, each read with the reference
+surfaced as data and nothing resolved.
+
 **Not shipped.** There is no spreadsheet package in the tree; M17 builds it.
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0123](../decisions/0123.md), [0120](../decisions/0120.md), [0121](../decisions/0121.md), [0051](../decisions/0051.md), [0055](../decisions/0055.md).</sub>
+**Declined:**
+- **Written in Novis.** It would reimplement OOXML and BIFF parsing that production crates already
+  carry, unfuzzed and ours to maintain, and buy nothing the wasm build does not give. Novis code
+  belongs in the builder.
+- **Leaving the category to the third-party channel.** The read surface belongs where the sandbox and
+  the cap are always present, the typed formula only protects when it is the one way everybody writes
+  a cell ([`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value)), and the existing engines make
+  first-party assembly cheap.
+- **Exposing the crates' surfaces directly.** That is three disjoint APIs for one job inside a single
+  component.
+
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0120](../decisions/0120.md), [0121](../decisions/0121.md), [0051](../decisions/0051.md), [0055](../decisions/0055.md).</sub>
 
 <a id="core-classes-spreadsheet-formula-is-a-value"></a>
 
@@ -2695,11 +2719,16 @@ separated by type, not by inspection — applied at a boundary that is otherwise
 security advisory.
 
 What it costs is one wrapper at the call sites that genuinely mean a formula, which is the smaller
-half of any real export.
+half of any real export. Because the writer cannot be tricked into emitting code, it needs no
+launderer, which is part of why it can live outside `Core`.
+
+The component's fixtures owe a `tainted` string beginning `=` that lands as a text cell, and the same
+expression as a `Formula` value that lands as a formula cell, both asserted on the written bytes
+rather than the builder's state.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0123](../decisions/0123.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-spreadsheet-bulk-boundary"></a>
 
@@ -2716,16 +2745,19 @@ image component makes.
 Before any sheet buffer is allocated, the component reads the declared dimensions and the container's
 declared uncompressed sizes, and refuses a workbook over a cell cap with a throw naming the cap and
 the declared size. The cap is policy and the sandbox's memory cap is the backstop, which is the shape
-the image component's pixel cap already has.
+the image component's pixel cap already has. The cap's knob, default and config block are the
+building milestone's to set. The component's fixtures owe a workbook whose declared dimensions or
+declared uncompressed size exceed the cap and throw before a sheet buffer is allocated, and the same
+bytes passing when the cap is raised.
 
-What it spends, per request that calls it: the document model and its serialized form, inside the
-extension's memory cap, none of it outliving the request. A million-row export belongs in the queue,
-and the write path must offer a bounded-memory streaming mode, so a large export costs rows in
-flight rather than rows total.
+- **Memory:** a request that calls the component holds the document model and its serialized form,
+  inside the extension's memory cap, and none of it outlives the request. A million-row export belongs
+  in the queue, and the write path must offer a bounded-memory streaming mode, so a large export costs
+  rows in flight rather than rows total.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0123](../decisions/0123.md), [0120](../decisions/0120.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0120](../decisions/0120.md).</sub>
 
 <a id="core-classes-spreadsheet-evaluation-and-roster"></a>
 
@@ -2733,24 +2765,34 @@ flight rather than rows total.
 
 `rule:core-classes/spreadsheet-evaluation-and-roster`
 
-The roster is **read-wide and write-narrow**. The modern XML format reads and writes, and is the
-parity target: styles, merged cells, charts, conditional formats, tables, autofilters, images and
-defined names. The macro-enabled variant reads data only, with its macros enumerable and inert, and
-**is never written** — a filled template emits the macro-free format. The binary and legacy formats
-read and do not write, because a writer for a 1997 binary format is legacy nothing should produce.
-The open format reads, and writes in a second wave. Template fill is named explicitly, because it is
-the workflow behind most real exports: open a styled workbook, set values, save — styling preserved,
-macros dropped.
+The roster is **read-wide and write-narrow**. xlsx reads and writes, and is the parity target: styles,
+merged cells, charts, conditional formats, tables, autofilters, images and defined names. xlsm reads
+data only, with its macros enumerable and inert, and **is never written** — a filled template emits
+xlsx with no VBA stream. xlsb and xls (BIFF8) read and do not write, because a writer for a 1997
+binary format is legacy nothing should produce. ods reads, and writes in a second wave. Template fill
+is named explicitly, because it is the workflow behind most real exports: open a styled workbook, set
+values, save — styling preserved, macros dropped.
+
+Reading is `calamine`, generation `rust_xlsxwriter`, template fill `umya-spreadsheet` and the
+second-wave ods writer `spreadsheet-ods`: every crate pure Rust, wasm-clean and on `deny.toml`'s
+allowlist, with no C in the build.
 
 **Nothing evaluates implicitly** — not on read, and not on write, where a formula cell is written for
-the opening application to compute. An explicit evaluate call is second-wave work, and its result
-carries the list of functions and references it could not compute, so a test asserts that list is
-empty. That is the same visibility rule the PDF component applies to dropped CSS: silent wrongness
-becomes a named, testable diagnostic.
+the opening application to compute. An explicit evaluate call is second-wave work over IronCalc, the
+one credible Rust engine, and the wave waits on its 1.0 release: a version test rather than a
+judgment. Its function set is documented, and its result carries the list of functions and references
+it could not compute, so a test asserts that list is empty. That is the same visibility rule the PDF
+component applies to dropped CSS: silent wrongness becomes a named, testable diagnostic. Until that
+wave, a workbook's cached formula results are returned where PhpSpreadsheet would recalculate, and the
+API tells the two apart, so the gap is visible.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset). Decided in [0123](../decisions/0123.md), [0051](../decisions/0051.md), [0121](../decisions/0121.md).</sub>
+**Declined:**
+- **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
+  running the attacker's program ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
+
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset). Decided in [0051](../decisions/0051.md), [0121](../decisions/0121.md).</sub>
 
 <a id="core-classes-spreadsheet-output-is-inert"></a>
 
@@ -2767,9 +2809,12 @@ document test is a byte comparison. This is the same rule the PDF writer holds
 ([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)), and it exists for the same reason: a test that cannot
 compare bytes ends up comparing nothing.
 
+The component's fixtures owe a filled `.xlsm` template whose output a scanner finds no `vbaProject`
+stream in, and the same input serialized twice and compared byte for byte.
+
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0123](../decisions/0123.md), [0121](../decisions/0121.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0121](../decisions/0121.md), [0079](../decisions/0079.md).</sub>
 
 <a id="core-classes-net-one-api-three-transports"></a>
 

@@ -2,7 +2,6 @@
   "title": "The roster is read-wide and write-narrow, a macro is never written, and evaluation is an explicit call",
   "status": "designed",
   "because": [
-    "0123",
     "0051",
     "0121"
   ],

@@ -2,7 +2,6 @@
   "title": "The spreadsheet component is a first-party extension that fetches nothing and executes nothing it reads",
   "status": "designed",
   "because": [
-    "0123",
     "0120",
     "0121",
     "0051",

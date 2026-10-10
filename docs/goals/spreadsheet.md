@@ -9,8 +9,8 @@ stages:
     status: open
     extra:
       context:
-        adrs: ["0123 §1", "0123 §4", "0123 §5", "0123 §6"]
-        rules: [core-classes/spreadsheet-evaluation-and-roster, core-classes/spreadsheet-formula-is-a-value, core-classes/spreadsheet-output-is-inert, core-classes/decompression-bound, packaging/a-value-crosses-as-its-wit-type, packaging/a-guest-has-no-ambient-authority, core-api/options-bag, core-api/one-paradigm-per-operation]
+        adrs: []
+        rules: [core-classes/spreadsheet-has-no-io, core-classes/spreadsheet-bulk-boundary, core-classes/spreadsheet-evaluation-and-roster, core-classes/spreadsheet-formula-is-a-value, core-classes/spreadsheet-output-is-inert, core-classes/decompression-bound, packaging/a-value-crosses-as-its-wit-type, packaging/a-guest-has-no-ambient-authority, core-api/options-bag, core-api/one-paradigm-per-operation]
         shapes: [A decision record, A rule fragment]
   - id: 3
     title: "the component is built in, and the streaming writer"
@@ -34,7 +34,7 @@ stages:
     status: open
     extra:
       context:
-        adrs: ["0123 §3"]
+        adrs: []
         rules: [core-classes/spreadsheet-formula-is-a-value]
         shapes: ["A `.nvst` test case"]
   - id: 6
@@ -50,7 +50,7 @@ stages:
     status: open
     extra:
       context:
-        adrs: ["0123 §5"]
+        adrs: []
         rules: [core-classes/spreadsheet-evaluation-and-roster, core-classes/xml-refuses-by-construction, security/taint-propagation, security/tainted-sources]
         shapes: ["A `.nvst` test case"]
   - id: 8
@@ -82,8 +82,8 @@ stages:
     status: open
     extra:
       context:
-        adrs: ["0123 §4"]
-        rules: [core-classes/decompression-bound, core-classes/xml-refuses-by-construction, packaging/a-guest-runs-under-the-requests-budget, testing/hostile-case-contract]
+        adrs: []
+        rules: [core-classes/spreadsheet-bulk-boundary, core-classes/decompression-bound, core-classes/xml-refuses-by-construction, packaging/a-guest-runs-under-the-requests-budget, testing/hostile-case-contract]
         shapes: []
   - id: 12
     title: "100 MB, the growth and the benches"
@@ -240,7 +240,7 @@ extra:
     wsl:
       targetDir: /var/tmp/nvs-target-wsl
   context:
-    adrs: ["0123 §2"]
+    adrs: []
     milestones: [M17]
     plan: [Open now, Blocking]
     playbook: ["Tooling > the end", "Tooling > one call reads", "Tooling > a commit message", "Tooling > a [context]*", "Tooling > another agent", "Tooling > a crate added to a built-in component", "Running things > a new dependency owes three things", "Running things > target/release/nvs.exe is"]
@@ -373,7 +373,7 @@ bound applies only to a consumer that streams a part and never holds it.
   `header`, as `Core\Csv::rows` names it, and `true` is not the default, as in `Core\Csv`. The
   row-overflow default throws, and `{overflow: 'newSheet'}` continues. `{locale}` for the renderer
   defaults to `'en'`. A duplicate header gets ` (2)`, an empty one its column letter. The 1,000-row
-  auto-width window and the cap of 60. The PhpSpreadsheet concept-mapping table ADR 0123 owed is
+  auto-width window and the cap of 60. The PhpSpreadsheet concept-mapping table M17 owed is
   dropped. Class names in the sketch and the checks (`Workbook`, `Sheet`, `Reader`, `Template`,
   `Style`, `Cell`, `Formula`, `CellError`, `Chart`, `Engine` for the manifest class) are the record's
   to change; a rename rewrites the checks in the same slice.
@@ -422,7 +422,7 @@ One file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packagi
   `Novis\Spreadsheet`; the write type table and the read type table of § *Standing decisions*; the
   style fields and their layering; the defaults; the template syntax; the formula helpers; the reader
   options and defaults; the limits; the error kinds; the tradeoffs; and the user's calls as decided. It
-  amends ADR 0123 (built in, not a package; CSV through the component; the cell cap dropped; the
+  amends the five `spreadsheet-*` rules (built in, not a package; CSV through the component; the cell cap dropped; the
   PhpSpreadsheet concept-mapping table it owed is dropped, because goal `php-oracle-retired` removed
   every PHP-to-Novis table) and `rule:core-classes/decompression-bound` (the streamed-part bound), and the built-in count of
   `rule:packaging/the-first-party-components-are-built-in`.
@@ -723,15 +723,15 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 **Goal `spreadsheet` — `Novis\Spreadsheet` built into every binary: xlsx written and read in constant memory, styled exports, template fill, and CSV through the same API — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries.
 
-ADR 0123 and M17 Part 3 planned this work as an unscheduled first-party package; this goal schedules it and reverses several of their decisions: it is built in, CSV goes through the component, the cell cap is dropped, and streaming is the only way to write. The user settled the scope question by question when the goal was written, under the rule goal `pdf` used: every common case is in, an easy edge case is in, a hard edge case almost nobody needs is out. The goal file's § *Standing decisions* holds those calls with the writer's own calls beside them. No session re-decides one.
+The five `spreadsheet-*` rules and M17 Part 3 planned this work as an unscheduled first-party package; this goal schedules it and reverses several of their decisions: it is built in, CSV goes through the component, the cell cap is dropped, and streaming is the only way to write. The user settled the scope question by question when the goal was written, under the rule goal `pdf` used: every common case is in, an easy edge case is in, a hard edge case almost nobody needs is out. The goal file's § *Standing decisions* holds those calls with the writer's own calls beside them. No session re-decides one.
 
-Facts about the tree as the goal was written. `Novis\` is reserved for built-in components (`rule:packaging/the-first-party-components-are-built-in`), so `Novis\Spreadsheet` is the fourth built-in and the record amends that rule's count, as well as ADR 0123 and `rule:core-classes/decompression-bound`. The five `spreadsheet-*` fragments under `docs/rules/core-classes/` and `decompression-bound` state decisions this goal reverses (the cell cap, whole-sheet reads, `nvs/spreadsheet` as a package). A guest resource lives for one request (`crates/nvs-ext/src/call.rs:50-57`). The build and load tables the component joins are `crates/nvs-ext/build.rs:115` (`COMPONENTS`), `crates/nvs-ext/src/builtin.rs:18` and `crates/nvs-ext/src/load.rs:667`. `Core\Csv::rows` is `crates/nvs-stdlib/src/csv.rs:119-185` and gives a short record fewer keys (`csv.rs:77`); `Core\IO\File::seek` is `crates/nvs-stdlib/src/io.rs:1404`. `rust_xlsxwriter`'s constant-memory mode writes through a `std::fs::File`, so the writer is our own and that crate is a source of chart XML and fixtures only.
+Facts about the tree as the goal was written. `Novis\` is reserved for built-in components (`rule:packaging/the-first-party-components-are-built-in`), so `Novis\Spreadsheet` is the fourth built-in and the record amends that rule's count, as well as the `spreadsheet-*` rules and `rule:core-classes/decompression-bound`. The five `spreadsheet-*` fragments under `docs/rules/core-classes/` and `decompression-bound` state decisions this goal reverses (the cell cap, whole-sheet reads, `nvs/spreadsheet` as a package). A guest resource lives for one request (`crates/nvs-ext/src/call.rs:50-57`). The build and load tables the component joins are `crates/nvs-ext/build.rs:115` (`COMPONENTS`), `crates/nvs-ext/src/builtin.rs:18` and `crates/nvs-ext/src/load.rs:667`. `Core\Csv::rows` is `crates/nvs-stdlib/src/csv.rs:119-185` and gives a short record fewer keys (`csv.rs:77`); `Core\IO\File::seek` is `crates/nvs-stdlib/src/io.rs:1404`. `rust_xlsxwriter`'s constant-memory mode writes through a `std::fs::File`, so the writer is our own and that crate is a source of chart XML and fixtures only.
 
 ### Next
 
 **Stage 2: the record, its fragments and `wit/spreadsheet.wit`**, one file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packaging/`, `wit/spreadsheet.wit`.
 
-- [ ] **The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Novis\Spreadsheet` class, member and options shape, the write and read type tables, the style fields and their layering, the defaults, the template syntax, the formula helpers, the reader options, the limits, the error kinds, the tradeoffs, and the user's calls as decided. Its front matter amends ADR 0123 (built in, CSV through the component, the cell cap and the concept-mapping table dropped), `rule:core-classes/decompression-bound` (the streamed-part bound) and `rule:packaging/the-first-party-components-are-built-in`'s built-in count. `docs/decisions/0281.md:1`
+- [ ] **The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Novis\Spreadsheet` class, member and options shape, the write and read type tables, the style fields and their layering, the defaults, the template syntax, the formula helpers, the reader options, the limits, the error kinds, the tradeoffs, and the user's calls as decided. Its front matter amends the `spreadsheet-*` rules (built in, CSV through the component, the cell cap and the concept-mapping table dropped), `rule:core-classes/decompression-bound` (the streamed-part bound) and `rule:packaging/the-first-party-components-are-built-in`'s built-in count. `docs/decisions/0281.md:1`
 - [ ] **The fragments** — the five `spreadsheet-*` fragments and `decompression-bound` rewritten to the new decisions, and the five new ids the Stage 2 check reads, listed in the goal's Stage 2. Then `docs/plan/m17.md` Part 3 through a `## milestone: M17` wrap section. `docs/rules/core-classes/spreadsheet-bulk-boundary.md:1`
 - [ ] **`wit/spreadsheet.wit`** resource-shaped: a `writer`, a `reader` over a byte source and a `template`, with its two tests in `crates/nvs-stdlib/tests/ext_world.rs`. The record decides how the guest reads byte ranges — a host import or a pull loop in the Novis half — and why, against request latency. `wit/spreadsheet.wit:1`
 - [ ] **The proofs checks the record makes possible** — one `bun nv proofs --verify --group '<class>'` check per class the record names, in Stage 14 of `data/goals/spreadsheet.json`, and a `cargo deny` over the component's own `wasm32-wasip2` graph in the form goal `pdf` added. `docs/goals/spreadsheet.md:1`
