@@ -87,7 +87,10 @@ one surface every user meets first.
 There is no mechanical migration from PHP, shipped or planned, and no table that maps a PHP function
 or construct to a Novis one. A program is ported by rethinking it — by hand, or with an AI agent and
 `nvs agent` — because a facade, a trait or an active-record model has no Novis form a rewriter could
-pick for its author.
+pick for its author. A rewriter's failure is also silent: it emits code that looks converted, runs,
+and differs somewhere nobody looked. For a platform that hosts many tenants or answers to a
+regulator, a behaviour change made while porting is the worst outcome, because it arrives looking
+like success.
 
 **Where PHP is named at all is bounded too: origins stay honest, not prominent.** One line on the home
 page and one in `README.md` say Novis grew out of PHP's ideas. Elsewhere PHP is named only on the one
@@ -98,7 +101,14 @@ reference cards — because each of those is help for one error a person meets, 
 translate from. The `php-differences` id and paths, the `E_PHP_*` constants and a conformance case
 whose file name mentions PHP keep their names.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0080](../decisions/0080.md), [0089](../decisions/0089.md), [0152](../decisions/0152.md), [0274](../decisions/0274.md).</sub>
+**Declined:**
+- **A converter that rewrites PHP into Novis.** It carries the PHP shape over and misses what Novis
+  does that PHP cannot ([`programs/three-claims`](programs.md#programs-three-claims)), and its mistakes are silent ones.
+- **A compatibility package that carries PHP's semantics** — an integer-keyed array class, a loose
+  comparison helper, byte-counting string functions. Each one is a difference in a result, not a
+  missing destination, and a package for it lets a ported program stay on PHP's semantics forever.
+
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0080](../decisions/0080.md), [0152](../decisions/0152.md), [0274](../decisions/0274.md).</sub>
 
 <a id="programs-slice-ranking"></a>
 
