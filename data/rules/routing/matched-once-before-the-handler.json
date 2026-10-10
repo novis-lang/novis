@@ -1,9 +1,7 @@
 {
   "title": "A request is matched once, before any application code runs, and `Core\\Request::route()` is that match",
   "status": "shipped",
-  "because": [
-    "0102"
-  ],
+  "because": [],
   "seeAlso": [
     "routing/the-servers-match-dispatches-nothing",
     "security/csrf-is-on-by-default",

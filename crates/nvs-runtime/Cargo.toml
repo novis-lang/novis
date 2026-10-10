@@ -82,7 +82,7 @@ unicode-segmentation.workspace = true
 # `src/terminal.rs`, so a row cut to the width a program measured cannot be
 # cut against a different answer than the one it was given.
 unicode-width.workspace = true
-# ADR 0102 § 5 lets a route capture declare `Core\Uuid`, and `src/routes.rs` is
+# `rule:security/route-capture-is-laundered-by-its-type` lets a route capture declare `Core\Uuid`, and `src/routes.rs` is
 # where a segment is accepted or refused — one crate below `nvs-stdlib`, which
 # owns the class and cannot be depended on from here. So the canonical parse
 # lives in `src/uuid.rs` and `Core\Uuid::parse` reads through it: one grammar

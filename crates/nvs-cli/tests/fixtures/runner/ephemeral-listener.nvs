@@ -7,8 +7,8 @@
 // no request in front of it — and once per request the listener accepts.
 // `Core\Request::route()` is what tells those apart, throwing where there is no
 // request at all (`rule:security/request-state-throws-in-an-isolate`); this program declares no `#[Route]`, so a real
-// request matches nothing and still gets an answer, which is ADR 0102 § 1's
-// "nothing here dispatches".
+// request matches nothing and still gets an answer, which is
+// `rule:routing/the-servers-match-dispatches-nothing`.
 class Wire {
     #[Core\Test(server: true)]
     public function itReachesItsOwnListenerOverTheWire(): void {

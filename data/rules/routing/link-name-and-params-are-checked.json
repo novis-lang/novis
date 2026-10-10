@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Router::url` is a launderer whose `$name` and `$params`, when written in the code, are checked against the compiled table",
   "status": "shipped",
-  "because": [
-    "0102"
-  ],
+  "because": [],
   "seeAlso": [
     "routing/route-attribute",
     "routing/link-carries-the-mount-prefix",

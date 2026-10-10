@@ -425,7 +425,7 @@ granted — `net.connect` for the host and `net.internal` for loopback
 ([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)) — because nothing about the listener being the
 test's own widens that policy.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0102](../decisions/0102.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock).</sub>
 
 <a id="testing-an-outbound-call-is-answered-from-a-table"></a>
 

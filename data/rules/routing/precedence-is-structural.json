@@ -1,9 +1,7 @@
 {
   "title": "Precedence is structural — a fixed segment beats a capture beats an optional beats a catch-all — never declaration order",
   "status": "shipped",
-  "because": [
-    "0102"
-  ],
+  "because": [],
   "seeAlso": [
     "routing/path-grammar",
     "routing/routes-are-compiled-not-registered",

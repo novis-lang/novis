@@ -1,9 +1,7 @@
 {
   "title": "`#[Route]` is `{path, method, name?}` on a method, recognized by name and never by shape",
   "status": "shipped",
-  "because": [
-    "0102"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/derive-attribute",
     "attributes/inert-metadata",

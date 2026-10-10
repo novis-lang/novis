@@ -27,3 +27,5 @@ opinion the route table refuses to hold.
 - **The decision readable only through `Core\Attributes::get` on the handler.** That call names the
   method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
   and nothing reports the omission.
+- **A compile error where an access decision is never read.** The compiler would have to recognise a
+  dispatch site, and it cannot follow a dispatch table a program builds from data.

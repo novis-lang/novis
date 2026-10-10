@@ -1,9 +1,7 @@
 {
   "title": "`{name?}` captures one trailing segment or none, and its parameter's default is what makes the absent case well-typed",
   "status": "shipped",
-  "because": [
-    "0102"
-  ],
+  "because": [],
   "seeAlso": [
     "routing/a-refused-verb-is-not-a-missing-path",
     "errors/ambiguous-input-refused",

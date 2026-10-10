@@ -2,8 +2,7 @@
   "title": "`Core\\Router` signs a route name and its parameters, so a signature survives a remount",
   "status": "designed",
   "because": [
-    "0146",
-    "0102"
+    "0146"
   ],
   "seeAlso": [
     "core-classes/signature"

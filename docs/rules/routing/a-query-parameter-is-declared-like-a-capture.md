@@ -15,3 +15,10 @@ one is required. Both facts are what the generated API document reads
 A query value takes no part in choosing a route, so it can never reintroduce the declaration-order
 dependence structural precedence exists to prevent — which is what makes the binding safe to add at
 all. How a bad value fails is `rule:routing/a-bad-query-value-is-a-400`.
+
+**Declined:**
+- **No query binding, and no query parameters in the generated document.** Every endpoint would
+  validate its own query by hand, and the document would miss most of its parameters, which is most
+  of what a client author reads it for.
+- **A `query:` field on `#[Route]`.** It puts a list of bindings away from the parameters it names. A
+  sibling attribute is how `#[Route]` is extended, as `#[Access]` already is.

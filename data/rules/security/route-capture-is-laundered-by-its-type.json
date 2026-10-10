@@ -2,7 +2,6 @@
   "title": "A route capture is laundered by the parameter's own type, and a `string` capture stays tainted",
   "status": "shipped",
   "because": [
-    "0102",
     "0160"
   ],
   "seeAlso": [

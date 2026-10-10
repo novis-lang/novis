@@ -31,4 +31,5 @@ cheap to add is how an attribute set becomes an undocumented second language sur
   with inheritance and hides a route's real path from the line that declares it; a prefix is a
   framework opinion.
 - **A `host` field.** A hostname in the compiled table would end the relocatability mounts buy
-  (`rule:routing/a-request-reads-its-mount`).
+  (`rule:routing/a-request-reads-its-mount`), and the duplicate-route compile error would grow a host
+  dimension.

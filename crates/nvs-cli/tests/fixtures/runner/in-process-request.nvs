@@ -1,7 +1,7 @@
 <?nvs
 // `rule:testing/in-process-request`'s in-process request, as the runner sees it: a `#[Test]` method
-// asks for a path, and what answers is this same program's entry with ADR 0102
-// § 1's match already on the carrier.
+// asks for a path, and what answers is this same program's entry with the match
+// of `rule:routing/matched-once-before-the-handler` already on the carrier.
 //
 // The top level is the entry, so it runs twice for two different reasons: once
 // when the suite is loaded, with no request in front of it, and once per

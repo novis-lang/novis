@@ -13,3 +13,9 @@ Where an optional trailing capture makes a node terminal
 `methodsFor("/posts")` on a table declaring `/posts/{page?}` returns that route's verbs, so the shorter
 form cannot `404` while the longer one `405`s. A plain `OPTIONS` is answerable by an application from
 this list; the server still answers none on its behalf, because which to answer is a convention.
+
+**Declined:**
+- **A third state on `match`'s return.** Beside the verb list nobody reads on success, every caller
+  would destructure three cases to use one.
+- **A `404` for a refused verb.** It breaks RFC 9110, and it hides nothing: a `GET` to the path
+  already shows that the path exists.

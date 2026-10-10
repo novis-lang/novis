@@ -1,9 +1,7 @@
 {
   "title": "A route is a `#[Route]` compiled into the unit's table, and its three runtime bugs are compile errors",
   "status": "shipped",
-  "because": [
-    "0102"
-  ],
+  "because": [],
   "seeAlso": [
     "routing/table-is-opt-in",
     "routing/matching-is-not-dispatching",

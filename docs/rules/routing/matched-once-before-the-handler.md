@@ -14,3 +14,13 @@ rather than adding one — a match is about a quarter of the header parse the se
 `Core\Router::match(Http\Method, tainted string)` remains for matching some *other* verb and path the
 caller chose. It takes the same walk as the door, so the two cannot disagree about one path, and an
 in-process test request (`rule:testing/in-process-request`) crosses the door's match the same way.
+
+The one program that pays for the door's match and reads nothing from it has a route table, has
+metrics off, serves a safe verb and never reads its own route. Every route carries an access decision
+(`rule:attributes/access-is-a-required-sibling`) that a dispatcher reads off the match, so that
+program is close to an empty set.
+
+**Declined:**
+- **Leaving the match to the application.** Most requests would be matched twice, once for the CSRF
+  check or the `route` label and once by the program, and the two matches could disagree about one
+  request.

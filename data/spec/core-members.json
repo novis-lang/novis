@@ -1754,7 +1754,7 @@
         [
           "`Core\\Router`",
           "`match(Http\\Method $method, tainted string $path): ?Router\\Match`, `methodsFor(tainted string $path): array<Http\\Method>` (empty ⇒ 404, else 405 + `Allow:`), `url(string $name, array<string, mixed> $params): string` (**launder**, URL path), `urlAbsolute(...)` (**launder**, URL — prepends the mount's configured `origin`) and `urlSigned(..., {keys: array<secret bytes>, until: ?Time\\Instant} $settings): string` (`url` with a `_sig` parameter over the route's *name* and `$params`, so a link survives a remount — [0146](../decisions/0146.md)), over a table built while compiling from `#[Route]`. The server matches once per request and `Core\\Request::route()` is that match. A duplicate route, a `{param}` with no matching method parameter, an unknown literal `url()` name and a `url()` key that is neither a capture nor a declared `#[Query]` parameter are compile errors",
-          "`rule:routing/matching-is-not-dispatching`, [0102](../decisions/0102.md)"
+          "`rule:routing/matching-is-not-dispatching`"
         ],
         [
           "`Core\\Command`",

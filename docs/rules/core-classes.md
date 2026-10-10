@@ -1798,7 +1798,7 @@ argued on its own.
   name to be the same string, which is wrong often enough that two attributes would be needed at
   once. A class using both formats with the same rename writes it twice, and that is visible.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval). Decided in [0102](../decisions/0102.md).</sub>
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval).</sub>
 
 <a id="core-classes-derive-field-list"></a>
 
@@ -2287,7 +2287,7 @@ when to ask.
 **Not shipped.** `crates/nvs-stdlib/src/router.rs` carries neither member, and
 [`core-classes/signature`](core-classes.md#core-classes-signature) — the payload half both would sign — is not built either.
 
-<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0146](../decisions/0146.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0146](../decisions/0146.md).</sub>
 
 <a id="core-classes-uri-removable-components"></a>
 

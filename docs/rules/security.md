@@ -1580,7 +1580,7 @@ existing one arriving somewhere useful.
   unauthenticated denial of service; a closed set is spelled as a set of allowed values or a subset
   of an enum's cases instead ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)).
 
-<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`types/single-value-types`](types.md#types-single-value-types). Decided in [0102](../decisions/0102.md), [0160](../decisions/0160.md).</sub>
+<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`types/single-value-types`](types.md#types-single-value-types). Decided in [0160](../decisions/0160.md).</sub>
 
 <a id="security-derived-codec-qualifiers"></a>
 
@@ -2633,7 +2633,7 @@ Enforcing only when a session cookie is present was rejected within this rule. I
 since forgery can only target cookie-authenticated requests, but it makes protection depend on what
 the client sent rather than on what the code says, which is harder to reason about and harder to test.
 
-<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md).</sub>
 
 <a id="security-access-is-checked-for-presence-not-meaning"></a>
 
@@ -2670,8 +2670,10 @@ opinion the route table refuses to hold.
 - **The decision readable only through `Core\Attributes::get` on the handler.** That call names the
   method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
   and nothing reports the omission.
+- **A compile error where an access decision is never read.** The compiler would have to recognise a
+  dispatch site, and it cannot follow a dispatch table a program builds from data.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0255](../decisions/0255.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0255](../decisions/0255.md).</sub>
 
 <a id="security-bidi-predicate"></a>
 
