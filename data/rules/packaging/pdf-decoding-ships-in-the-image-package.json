@@ -2,8 +2,7 @@
   "title": "PDF is a decode-only format of `nvs/image`, in the second wave, and never a member of `nvs/pdf`",
   "status": "designed",
   "because": [
-    "0120",
-    "0121"
+    "0120"
   ],
   "seeAlso": [
     "core-classes/pdf-page-is-an-image-source",

@@ -663,7 +663,7 @@ rather than gaps. A `<!DOCTYPE …>` leaves nothing behind, which is this door's
 other door refuses outright. A `<template>`'s contents stay on the element, because the DOM's
 separate fragment has no kind here and a program looks for them under the element it wrote.
 
-<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0121](../decisions/0121.md), [0223](../decisions/0223.md).</sub>
+<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0223](../decisions/0223.md).</sub>
 
 <a id="core-classes-xml-tree-and-stream"></a>
 
@@ -2466,8 +2466,8 @@ keyword; the fields cross as ISO fields and the guest converts them.
 
 `rule:core-classes/pdf-render-has-no-io`
 
-PDF generation is a first-party Tier 1 extension package, sandboxed, with everything a program names
-under one namespace and one registered class. It is not `Core`: a layout engine, a font parser and
+PDF generation is a first-party Tier 1 extension package, `nvs/pdf`, sandboxed, with everything a
+program names under `Novis\Pdf` and one registered class. It is not `Core`: a layout engine, a font parser and
 image codecs unsandboxed in every binary would contradict the reason the image component is an
 extension at all. It is not native: nothing in it holds state or privilege.
 
@@ -2481,11 +2481,27 @@ under the outbound policy, and passes the bytes.
 The class of exploit that defines HTML-to-PDF rendering — server-side request forgery and local file
 read through a `<img src>` — is thereby absent by construction: there is nothing to trick into
 fetching, because there is no fetching. Fonts follow the same rule, with a small embedded default set
-so a plain document renders out of the box, and the guest needs no clock.
+so a plain document renders out of the box, and the guest needs no clock: a rendered date is text
+the program already put in its HTML. HTML, CSS, font files, embedded images and SVG are still hostile
+bytes, and the sandbox's memory cap and epoch deadline contain that surface.
+
+The component's fixtures owe: a render with **no capability grants** that succeeds, so the no-I/O
+claim is demonstrated rather than asserted; and fixtures referencing `file:///…`, an `http:` URL and
+a name absent from the asset map, each throwing, with no network or filesystem access observable from
+the guest.
 
 **Not shipped.** There is no PDF package in the tree; M17 builds it.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0121](../decisions/0121.md), [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
+**Declined:**
+- **`Core`.** A layout engine, a font parser and image decoders would sit unsandboxed in every binary
+  and every in-flight request.
+- **Native.** Nothing here needs a connection lifetime or a runtime privilege, and the sandbox is the
+  feature rather than a cost to route around.
+- **Leaving the category to the third-party channel.** That produces incompatible libraries with
+  disjoint CSS subsets, and the popular ones fetch whatever the HTML names, which is the category's
+  vulnerability class. One first-party no-I/O way to do the job prevents both.
+
+<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-pdf-one-engine"></a>
 
@@ -2514,14 +2530,30 @@ never shipped in the default path, and documented as trading the no-I/O guarante
 a second *engine*, not a second API, which is the whole reason a single interface was worth fixing
 first.
 
-What it spends, per request that renders: the HTML, the asset map, the layout tree and the output
-document, all inside the extension's memory cap, none of it outliving the request. Wall-clock is
-milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
-queue.
+No HTML paged-media engine exists to link as a library, so the engine is assembled from production
+Rust crates — `html5ever`, `taffy` for layout, `rustybuzz` for shaping, `resvg` for SVG and
+`krilla`/`pdf-writer` for the file — plus the pagination layer nobody ships, which is ours to write.
+The rules on this component are written against the interface, not the crates: a production-grade Rust
+paged-media engine may replace the assembled one wholesale, and it must still meet them.
+
+- **Memory:** per request that renders, the HTML, the asset map, the layout tree and the output
+  document, all inside the extension's memory cap, none of it outliving the request. Wall-clock is
+  milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
+  queue.
 
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0121](../decisions/0121.md), [0051](../decisions/0051.md), [0120](../decisions/0120.md), [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
+**Declined:**
+- **An engine written in Novis.** It would be a second, unfuzzed implementation of shaping, bidi, line
+  breaking, cascade and layout, buying nothing the wasm build does not already give. Novis code
+  belongs in the builder and the templates.
+- **Headless Chromium as the engine.** It is a browser process per render, hundreds of megabytes
+  outside any request's attribution, with its own sandbox and lifecycle to operate. It is the opt-in
+  fidelity backend above, not the foundation.
+- **A first-party imperative PDF API.** The first-party answer to drawing at a coordinate is HTML, CSS
+  and SVG; a third-party package may carry one.
+
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0051](../decisions/0051.md), [0120](../decisions/0120.md), [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-pdf-css-subset"></a>
 
@@ -2536,11 +2568,15 @@ CSS's own forward-compatible parsing: an unknown declaration is dropped, never g
 What this rule adds to that standard behaviour is **visibility**. The render result carries the list
 of dropped declarations, so a test asserts the list is empty and a document that silently depends on
 unsupported CSS cannot survive CI. "Renders fine in the browser, wrong in the library" is the failure
-an invisible drop produces, and a visible list is what turns it into a test.
+an invisible drop produces, and a visible list is what turns it into a test. The subset stays a
+permanent compatibility surface: the list names each gap, and does not close it.
+
+The component's fixtures owe a fixture using an unsupported property that renders with that property
+in the dropped-declarations list, and a clean fixture whose list is empty.
 
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0121](../decisions/0121.md).</sub>
+<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
 
 <a id="core-classes-pdf-output-is-inert"></a>
 
@@ -2551,7 +2587,7 @@ an invisible drop produces, and a visible list is what turns it into a test.
 The writer never emits JavaScript, launch actions, embedded files, or any construct that makes a
 reader fetch or execute on open. Links exist only where the source wrote one with an `http(s):` or
 `mailto:` target. Rendering `tainted` input is safe by construction — the render is a transform, not
-a sink — and a program embedding untrusted markup that wants its *tags* constrained sanitizes first.
+a sink — and a program embedding untrusted markup that wants its *tags* constrained sanitizes first ([`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)).
 
 The writer also embeds **no timestamps and no generator entropy**, so two renders of equal input are
 byte-equal. That turns a document test into a byte comparison and removes the class of flaky fixture
@@ -2560,9 +2596,13 @@ every PDF test suite otherwise grows.
 The second, fidelity backend ([`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine)) makes no exception to any of this:
 it trades the no-I/O guarantee, not the inertness of what it writes.
 
+The component's fixtures owe a scanner over the output of the whole fixture corpus that finds no
+`/JavaScript`, `/Launch`, `/OpenAction` or `/EmbeddedFile` object, and the same input rendered twice
+and compared byte for byte.
+
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source). Decided in [0121](../decisions/0121.md), [0024](../decisions/0024.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source). Decided in [0024](../decisions/0024.md), [0079](../decisions/0079.md).</sub>
 
 <a id="core-classes-pdf-page-is-an-image-source"></a>
 
@@ -2615,7 +2655,7 @@ refuses to encode it (`extensions/image/src/encode.rs`).
 - **pdfium or MuPDF compiled to wasm.** pdfium is a large C++ build no other component needs a
   toolchain for, and MuPDF is AGPL and outside `deny.toml`, while a pure-Rust interpreter exists.
 
-<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals). Decided in [0120](../decisions/0120.md), [0121](../decisions/0121.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals). Decided in [0120](../decisions/0120.md), [0051](../decisions/0051.md).</sub>
 
 <a id="core-classes-pdf-decode-refusals"></a>
 
@@ -2651,7 +2691,7 @@ The decoder's fixtures hold this inside the guest, and owe:
 
 **Not shipped.** There is no PDF decoder in the image component.
 
-<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md), [0121](../decisions/0121.md), [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md), [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-spreadsheet-has-no-io"></a>
 
@@ -2701,7 +2741,7 @@ surfaced as data and nothing resolved.
 - **Exposing the crates' surfaces directly.** That is three disjoint APIs for one job inside a single
   component.
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0120](../decisions/0120.md), [0121](../decisions/0121.md), [0051](../decisions/0051.md), [0055](../decisions/0055.md).</sub>
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0120](../decisions/0120.md), [0051](../decisions/0051.md), [0055](../decisions/0055.md).</sub>
 
 <a id="core-classes-spreadsheet-formula-is-a-value"></a>
 
@@ -2792,7 +2832,7 @@ API tells the two apart, so the gap is visible.
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
   running the attacker's program ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset). Decided in [0051](../decisions/0051.md), [0121](../decisions/0121.md).</sub>
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset). Decided in [0051](../decisions/0051.md).</sub>
 
 <a id="core-classes-spreadsheet-output-is-inert"></a>
 
@@ -2814,7 +2854,7 @@ stream in, and the same input serialized twice and compared byte for byte.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0121](../decisions/0121.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="core-classes-net-one-api-three-transports"></a>
 
