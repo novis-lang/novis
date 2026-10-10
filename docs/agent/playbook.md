@@ -23,3 +23,15 @@ the rulebook under [docs/rules/](../rules/), with a decision record for its reas
 works goes in that crate's own module doc comment. The *shape* of something you are about to write is
 [conventions.md](conventions.md). What is left — the trap — is the playbook, and `bun nv orient` hands a
 session only the bullets its goal's `[context] playbook` selects and its item's own files promote.
+
+## Tooling
+
+## Running things
+
+## Writing a test case
+
+## Splitting a file
+
+## Writing Novis
+
+## Divergences
