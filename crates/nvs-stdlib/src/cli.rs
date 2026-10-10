@@ -47,7 +47,7 @@
 //!
 //! # What a `Text` is, and what it is not
 //!
-//! One slot, holding bytes that have already been through § 1's table, and one
+//! One slot, holding bytes that have already been through `rule:tooling/terminal-output-is-a-sink`'s table, and one
 //! member: `plain`. A `Text` is **the language's one raw path** — `echo` writes
 //! a carrier through unchanged rather than substituting over it, which is what
 //! `rule:tooling/terminal-output-is-a-sink`'s *"there is exactly one raw path, `Cli\Text`"* asks for and
@@ -75,12 +75,12 @@
 //!
 //! [`nvs_core_cli_text_styled`] keeps that style **as a run** beside the text
 //! it wears, and the escape sequence is rendered by whatever writes, for the
-//! stream it writes to, against the profile § 3 resolves once per process. So
+//! stream it writes to, against the profile `rule:tooling/the-terminal-profile-resolves-once` resolves once per process. So
 //! one `Text` goes styled to a terminal standard output and plain to a
 //! redirected standard error in the same run: [`rendered_at`] is where that
 //! happens and [`depth_for`] is the per-stream half of the answer.
 //!
-//! [`nvs_core_cli_text_concat`] is § 2's `Text + Text`, the third and last way
+//! [`nvs_core_cli_text_concat`] is `rule:tooling/text-is-the-one-raw-path`'s `Text + Text`, the third and last way
 //! a `Text` is obtained. It has no member row: the operator is the spelling,
 //! and `nvs_types::expr::operators` admits the pair the way it admits
 //! `Markup + Markup` — one rule over both sink carriers rather than one each.
@@ -100,7 +100,7 @@
 //! all — because a question written into an HTTP response body or a
 //! `Core\Out::capture` buffer reaches nobody, and a read after it would hold
 //! the core for a keystroke that is never coming. Both answers have to be yes
-//! before anything is opened; otherwise § 4's second rule applies and the
+//! before anything is opened; otherwise `rule:tooling/a-prompt-never-blocks` applies and the
 //! prompt answers its `default` or throws `Core\Cli\NotInteractive`.
 //!
 //! Both answers being yes is still not a promise that anyone will *type*
@@ -159,10 +159,10 @@ const CARD: ClassDoc = ClassDoc {
             updates in place.",
 };
 
-/// `rule:tooling/the-terminal-profile-resolves-once`'s profile, § 1's launderer and § 4's prompts, as registry
+/// `rule:tooling/the-terminal-profile-resolves-once`'s profile, `rule:tooling/terminal-output-is-a-sink`'s launderer and `rule:tooling/a-prompt-is-a-core-member`'s prompts, as registry
 /// rows. See [`crate::registry::CLASSES`].
 ///
-/// Fifteen members, which is the whole of § 3's table and § 4's prompts:
+/// Fifteen members, which is the whole of `rule:tooling/the-terminal-profile-resolves-once`'s members and `rule:tooling/a-prompt-is-a-core-member`'s prompts:
 /// `displayWidth` was the last row owed and is here, over the UAX #11 table
 /// `nvs_runtime::terminal` now carries.
 ///
@@ -171,11 +171,11 @@ const CARD: ClassDoc = ClassDoc {
 /// third: the words the program was started with come before the effect, and
 /// the effect before the launderer that performs the same table
 /// as a value, and [`nvs_core_cli_escape`] owns why that launderer could land
-/// ahead of it. § 4's five
+/// ahead of it. `rule:tooling/a-prompt-is-a-core-member`'s five
 /// prompts are all here now — `multiSelect` is the one whose answer is a set
 /// rather than a value, so it is `select`'s menu under a second reading loop
 /// rather than another row of the shape below. `live` and `progress` are last
-/// because § 5 is the section after the prompts, and they are one region with
+/// because `rule:tooling/in-place-output-is-a-scoped-live-region` follows the prompts, and they are one region with
 /// two ways of writing a frame rather than two surfaces.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: CLASS_NAME,
@@ -276,11 +276,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         },
         CoreMethod {
             name: "select",
-            // `choices` rather than § 4's own `$options`: `rule:core-api/shape-rules` R2 reserves
+            // `choices` rather than `$options`: `rule:core-api/shape-rules` R2 reserves
             // `options` as the name every member's trailing bag is callable
             // by, so a positional sharing it would be ambiguous at a named
-            // call site. That ADR's rule is the later and wider one, and § 4's
-            // table now writes `$choices` for the same reason.
+            // call site (`rule:core-api/options-bag`).
             names: &["question", "choices"],
             params: &[
                 CoreTy::Text(Qual::Neutral),
@@ -435,7 +434,7 @@ const DISPLAY_WIDTH_DOC: MethodDoc = MethodDoc {
 /// `Core\Cli::write`'s subject — `rule:tooling/the-terminal-profile-resolves-once`'s `string|Cli\Text $value`, and
 /// the one parameter in this file that admits the carrier as well as the text.
 ///
-/// [`Qual::Neutral`] rather than [`Qual::Sink`] is § 1's *"regardless of
+/// [`Qual::Neutral`] rather than [`Qual::Sink`] is `rule:tooling/terminal-output-is-a-sink`'s *"regardless of
 /// qualifier"* in the type system: the terminal substitutes over whatever it is
 /// given, so a `tainted` argument is ordinary here where it would be refused at
 /// a SQL or a shell sink — the neutralizing *is* the laundering, performed on
@@ -538,7 +537,7 @@ const ASK_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `Core\Cli::confirm`'s trailing options — § 4's `{default?: bool}`.
+/// `Core\Cli::confirm`'s trailing options — `rule:tooling/a-prompt-is-a-core-member`'s `{default?: bool}`.
 ///
 /// [`Const::Null`] again, and here the distinction it draws is the whole
 /// member: `false` is an answer, absence is not, and only absence makes an
@@ -549,7 +548,7 @@ const CONFIRM_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `Core\Cli::select`'s trailing options — § 4's
+/// `Core\Cli::select`'s trailing options — `rule:tooling/a-prompt-is-a-core-member`'s
 /// `{labels?: callable, default?: T}`.
 ///
 /// `default` is typed as the same variable the options array binds, so a
@@ -782,7 +781,7 @@ const LIVE_CARD: ClassDoc = ClassDoc {
 /// `rule:tooling/in-place-output-is-a-scoped-live-region`'s `Cli\Live` — the handle `$body` is handed, and the whole of
 /// what a program may do to a live region.
 ///
-/// One member, because § 5's table writes one: a region is *replaced* rather
+/// One member, because `rule:tooling/in-place-output-is-a-scoped-live-region` names one: a region is *replaced* rather
 /// than appended to, which is what makes it a region and not a log. There is no
 /// `close` and no `clear` — the scope is the `Core\Cli::live` call, and a
 /// member for ending one early would be the free-form cursor control that
@@ -885,7 +884,7 @@ const ADVANCE_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "label",
         // `Qual::Launder` for `Core\Cli\Text::plain`'s reason: the caption goes
-        // to the terminal sink, and § 1's substitution is what neutralizes it.
+        // to the terminal sink, and `rule:tooling/terminal-output-is-a-sink`'s substitution is what neutralizes it.
         ty: CoreTy::Text(Qual::Launder),
         default: Const::Null,
     },
@@ -899,7 +898,7 @@ const PROGRESS_CARD: ClassDoc = ClassDoc {
 
 /// `rule:tooling/in-place-output-is-a-scoped-live-region`'s `Cli\Progress` — the handle `progress`'s body is handed.
 ///
-/// One member, as § 5's table writes it. `progress` over `live` does not break
+/// One member, as `rule:tooling/in-place-output-is-a-scoped-live-region` names it. `progress` over `live` does not break
 /// `rule:core-api/one-paradigm-per-operation`, which forbids a procedural twin of a class API and a class
 /// wrapper around a static, and a closed, named behaviour built on a general
 /// one is neither — which is why this class has a counter and no `set`.
@@ -1025,7 +1024,7 @@ const COLOR_DEPTH_DOC: EnumDoc = EnumDoc {
 pub(crate) const SHELL_NAME: &str = r"Core\Cli\Shell";
 
 /// `rule:tooling/commands-are-compiled`'s `Cli\Shell` — the shell `Core\Command::completions` writes a
-/// script for, and a closed roster like [`crate::router::METHOD`]: § 6 names
+/// script for, and a closed roster like [`crate::router::METHOD`]: `rule:tooling/command-run-dispatches-and-help-is-generated` names
 /// `bash`, `zsh`, `fish` and `pwsh` and nothing else.
 ///
 /// The three POSIX-family shells come first and PowerShell last, which is
@@ -1182,7 +1181,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// # It is the sink `echo` already is, reached with a stream named
     ///
-    /// § 1 has one substitution table and this member performs the same one, on
+    /// `rule:tooling/terminal-output-is-a-sink` has one substitution table and this member performs the same one, on
     /// the same two cases `nvs_runtime`'s `nvs_echo_value` separates: a
     /// `Core\Cli\Text` is the language's single raw path and is written
     /// through unchanged, everything else is neutralized on the way out. The
@@ -1569,7 +1568,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// # It is not `fgets(STDIN)`, and that is the point
     ///
-    /// § 4: *prompts read the controlling terminal, not standard input*, so
+    /// `rule:tooling/a-prompt-is-a-core-member`: *prompts read the controlling terminal, not standard input*, so
     /// `cat data.csv | myprog` can still ask a question. `nvs_runtime::terminal`
     /// is where the device is opened by name; nothing in this module reads the
     /// standard input stream at all, which
@@ -1582,7 +1581,7 @@ nvs_runtime::nvs_helper! {
     /// [`CoreTy::TaintedStr`] — a promise about the *value*, unconditional,
     /// exactly as `rule:security/verification-does-not-launder`'s verified claims are. The question's own
     /// classification is [`Qual::Neutral`] rather than [`Qual::Sink`] because
-    /// the terminal substitutes instead of refusing (§ 1) and because the
+    /// the terminal substitutes instead of refusing (`rule:tooling/terminal-output-is-a-sink`) and because the
     /// answer's qualifier does not depend on the question's: a prompt built
     /// from a literal and a prompt built from a request parameter both answer
     /// something untrusted.
@@ -1644,7 +1643,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::confirm(string $question, {default?: bool}): bool` — § 4's
+    /// `Core\Cli::confirm(string $question, {default?: bool}): bool` — `rule:tooling/a-prompt-is-a-core-member`'s
     /// second prompt, and the one whose answer is **not** `tainted`.
     ///
     /// `rule:security/taint-propagation` launders a checked conversion, and a closed two-case
@@ -1681,7 +1680,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cli::select<T>(string $question, array<T> $choices, {labels?: callable, default?: T}): T`
-    /// — § 4's third prompt.
+    /// — `rule:tooling/a-prompt-is-a-core-member`'s third prompt.
     ///
     /// **It answers the value, not the index**, which is
     /// `rule:core-api/shape-rules` R4 and R5
@@ -1781,7 +1780,7 @@ fn chosen_of(answer: &str, offered: usize) -> Option<Vec<bool>> {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cli::multiSelect<T>(string $question, array<T> $choices, {labels?: callable}): array<T>`
-    /// — § 4's fourth prompt, and the only one whose answer is a set.
+    /// — `rule:tooling/a-prompt-is-a-core-member`'s fourth prompt, and the only one whose answer is a set.
     ///
     /// It is [`nvs_core_cli_select`] with a second reading loop and nothing
     /// else: the same menu from the same [`menu_of`], the same numbering, the
@@ -1792,12 +1791,12 @@ nvs_runtime::nvs_helper! {
     /// - **The order is the menu's, and each choice appears once.** Numbers
     ///   typed as `3,1,3` answer options 1 and 3 in that order. The order
     ///   someone typed is not information they meant to give, and an answer
-    ///   paired against `$choices` at the call site is the whole reason § 4
-    ///   returns values rather than indices.
+    ///   paired against `$choices` at the call site is the whole reason
+    ///   `rule:tooling/a-prompt-is-a-core-member` returns values rather than indices.
     /// - **An empty line is the empty array, not a silence.** Choosing none is
     ///   an answer a multi-select has to be able to give, and it is the only
     ///   spelling for it — the alternative forces every caller to add a "none
-    ///   of these" choice of its own. § 4's table gives this member no
+    ///   of these" choice of its own. `rule:tooling/a-prompt-is-a-core-member` gives this member no
     ///   `default` precisely because it needs none.
     /// - **A token that is not a number on the menu is asked again**, exactly
     ///   as `select` re-asks: `1-3` is refused rather than read as a range,
@@ -1831,7 +1830,7 @@ nvs_runtime::nvs_helper! {
         loop {
             let answer = match ask_terminal(ctx, &menu, Echo::Shown) {
                 Answer::Line(line) => line,
-                // No `default` in § 4's row, so the shared helper is reached
+                // No `default` in `rule:tooling/a-prompt-is-a-core-member`'s row, so the shared helper is reached
                 // with a `null` and always throws.
                 ref quiet => return unanswered(quiet, "multiSelect", Value::null()),
             };
@@ -1850,7 +1849,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::secret(string $question): secret tainted string` — § 4's
+    /// `Core\Cli::secret(string $question): secret tainted string` — `rule:tooling/a-prompt-is-a-core-member`'s
     /// fifth prompt, and the clearest demonstration of why
     /// `rule:security/secret-qualifier`'s
     /// qualifier was worth having: a password typed here structurally cannot
@@ -2233,13 +2232,13 @@ fn depth_for(process: ColorDepth, out_is_tty: bool, stream_is_tty: bool) -> Colo
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cli\Text::plain(string $text): Cli\Text` — `rule:tooling/styling-is-a-value-not-a-grammar`'s first
-    /// constructor, and the half of § 1's raw path that keeps it from being a
+    /// constructor, and the half of `rule:tooling/text-is-the-one-raw-path` that keeps it from being a
     /// hole.
     ///
     /// `echo` writes a carrier through **unchanged**, so a `Text` is the one
     /// value in the language whose bytes the terminal sink does not inspect.
     /// What makes that safe is that neither constructor accepts bytes it has
-    /// not neutralized: § 2's *"not a trust assertion a developer can be
+    /// not neutralized: `rule:tooling/text-is-the-one-raw-path`'s *"not a trust assertion a developer can be
     /// tricked into making, it is a constructor that cannot produce an injected
     /// sequence"*. So this is exactly [`nvs_core_cli_escape`]'s table with a
     /// carrier around the answer, and the two call the same
@@ -2301,7 +2300,7 @@ nvs_runtime::nvs_helper! {
 /// the third way a program obtains a [`TEXT`].
 ///
 /// Row-less exactly as [`crate::html::MARKUP_CONCAT_SYMBOL`] is, and for the
-/// same reason: `+` is the spelling § 2 gives composition, so the operator's
+/// same reason: `+` is the spelling `rule:tooling/text-is-the-one-raw-path` gives composition, so the operator's
 /// own lowering is the only thing allowed to reach this. A member row would be
 /// a way in that took its operands from anywhere, and both operands here are
 /// trusted **because they are already a `Text`** rather than because this body
@@ -2317,7 +2316,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **Nothing is substituted here**, which is the rule rather than an
     /// omission: every control byte either operand holds was put there by
-    /// `Cli\Style`, since § 2's two constructors substitute on the way in and
+    /// `Cli\Style`, since `rule:tooling/text-is-the-one-raw-path`'s two constructors substitute on the way in and
     /// nothing else builds a `Text` from source. Substituting again would
     /// neutralize a style the program asked for, and the result would be the
     /// escape sequence printed as a Control Picture.
@@ -2927,7 +2926,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cli\Color::rgb(uint $red, uint $green, uint $blue): Cli\Color` —
-    /// § 2's constructor for the sixteen million entries that are why this
+    /// `rule:tooling/styling-is-a-value-not-a-grammar`'s constructor for the sixteen million entries that are why this
     /// class is a value type and not an enum.
     ///
     /// The three channels are packed into one slot because they are read back
@@ -2991,13 +2990,13 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli\Text::styled(string $text, Cli\Style $style): Cli\Text` — ADR
-    /// 0086 § 2's second constructor, and the only thing in the language that
+    /// `Core\Cli\Text::styled(string $text, Cli\Style $style): Cli\Text` —
+    /// `rule:tooling/text-is-the-one-raw-path`'s second constructor, and the only thing in the language that
     /// puts a control byte in front of a program's own text.
     ///
     /// # The text is neutralized and the style is not
     ///
-    /// § 2: both constructors *"apply § 1's substitution to their input"*, so
+    /// `rule:tooling/text-is-the-one-raw-path`: both constructors *"apply the sink's substitution to their input"*, so
     /// this calls the same `nvs_render::text::substitute`
     /// [`nvs_core_cli_text_plain`] does and then wraps the answer. The escape
     /// bytes in the result therefore came from a `Cli\Style` — a value the
@@ -3062,7 +3061,7 @@ thread_local! {
     /// so a handle that outlived its region names a depth that is no longer
     /// there instead of a pointer that is no longer valid.
     ///
-    /// Per core and never shared: § 8 gives the terminal to the main task of a
+    /// Per core and never shared: `rule:tooling/the-tty-belongs-to-the-main-task` gives the terminal to the main task of a
     /// CLI program, so a second core with a region open is a program that has
     /// already broken that rule.
     static REGIONS: std::cell::RefCell<Vec<nvs_runtime::terminal::Region>> =
@@ -3108,7 +3107,7 @@ impl Drop for Open {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cli::live<T>(callable $body): T` — `rule:tooling/in-place-output-is-a-scoped-live-region`'s scoped live
-    /// region, and § 8's restoration obligation.
+    /// region, and `rule:tooling/the-terminal-is-restored-on-every-exit-path`'s restoration obligation.
     ///
     /// The whole member is: open a region, run `$body` with a handle to it, and
     /// answer what `$body` answered. Nothing here inspects the outcome, because
@@ -3116,9 +3115,9 @@ nvs_runtime::nvs_helper! {
     /// closed the region by the time the error leaves this frame, on that path
     /// and on the two that never reach a statement at all.
     ///
-    /// **A region never refuses for want of a terminal.** § 5's "renders
+    /// **A region never refuses for want of a terminal.** `rule:tooling/in-place-output-is-a-scoped-live-region`'s "renders
     /// nothing at all when the stream is not a terminal" is the rule for this
-    /// member, not § 4's silence: `$body` is the program's own work, and a
+    /// member, not `rule:tooling/a-prompt-never-blocks`'s silence: `$body` is the program's own work, and a
     /// piped run must do it. What throws is *claiming* the terminal, and an
     /// inert region claims nothing.
     fn nvs_core_cli_live(ctx, args: [1]) {
@@ -3155,7 +3154,7 @@ nvs_runtime::nvs_helper! {
     /// are one rule: a handle that escaped its `Core\Cli::live` call, and an
     /// outer handle painted while an inner region is open. Painting the second
     /// would interleave two regions' rows on one cursor, which is the state
-    /// § 5 exists to make unreachable.
+    /// `rule:tooling/in-place-output-is-a-scoped-live-region` exists to make unreachable.
     fn nvs_core_cli_live_set(_ctx, args: [2]) {
         let receiver = crate::instance::receiver(args[0], &LIVE, "set")?;
         let depth = crate::instance::slot(receiver, LIVE_DEPTH)
@@ -3304,8 +3303,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli\Progress::advance({by?: uint, label?: string}): void` — ADR
-    /// 0086 § 5's one member on a bar.
+    /// `Core\Cli\Progress::advance({by?: uint, label?: string}): void` —
+    /// `rule:tooling/in-place-output-is-a-scoped-live-region`'s one member on a bar.
     ///
     /// # Errors
     ///
@@ -3758,7 +3757,7 @@ mod tests {
             .methods
             .iter()
             .find(|method| method.name == "secret")
-            .expect("§ 4's fifth prompt is a row on this class");
+            .expect("the fifth prompt is a row on this class");
         assert!(
             matches!(row.return_ty, CoreTy::SecretTaintedStr),
             "a password answered as anything else can be echoed, logged and serialized"
@@ -4527,7 +4526,7 @@ mod tests {
         let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Buffer(Vec::new()));
         assert!(!watched(&ctx));
         // A context with nothing scripted onto it, which is every context
-        // outside a test: § 4's last paragraph adds an answer ahead of this
+        // outside a test: `rule:tooling/a-prompt-never-blocks`'s scripted queue adds an answer ahead of this
         // one, never a second way to reach the terminal.
         assert!(matches!(
             ask_terminal(&mut ctx, "Name? ", Echo::Shown),
@@ -4591,7 +4590,7 @@ mod tests {
     /// The last two assertions are the ones a behavioural test cannot make: the
     /// deadline the real [`ask_terminal`] uses is finite and human-scaled, and
     /// no prompt takes a parameter that lengthens it. A `timeout` option would
-    /// be a spelling for "wait longer", which `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s rule — the one § 4
+    /// be a spelling for "wait longer", which `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s rule — the one `rule:tooling/a-prompt-never-blocks`
     /// applies to this surface — exists to deny.
     #[test]
     fn no_prompt_blocks_without_a_deadline() {
@@ -4644,7 +4643,7 @@ mod tests {
                 .methods
                 .iter()
                 .find(|method| method.name == prompt)
-                .expect("§ 4's prompts are rows on this class");
+                .expect("the prompts are rows on this class");
             for named in row.names {
                 assert!(
                     !["timeout", "deadline", "wait", "within"].contains(named),
@@ -4663,7 +4662,7 @@ mod tests {
     /// Four claims, and each is a decision the shipped body would still look
     /// right without. A choice named twice is chosen once and the order is the
     /// **menu's** rather than the typing's, because an answer paired against
-    /// `$choices` at the call site is why § 4 answers values and not indices.
+    /// `$choices` at the call site is why `rule:tooling/a-prompt-is-a-core-member` answers values and not indices.
     /// An empty line is the empty set rather than a silence, which is why this
     /// member needs no `default` where the other four take one. And a token
     /// that is not a number on the menu is a refusal rather than a guess —
@@ -4689,7 +4688,7 @@ mod tests {
             assert_eq!(chosen(spelling), Some(vec![1, 2]), "`{spelling}`");
         }
         // The empty set is an answer, and it is the one no `default` is needed
-        // for — § 4's table gives this member none.
+        // for — `rule:tooling/a-prompt-is-a-core-member` gives this member none.
         assert_eq!(chosen(""), Some(Vec::new()));
         assert!(
             !MULTI_SELECT_OPTIONS
@@ -5059,7 +5058,7 @@ mod tests {
     /// differ" — a second read of a terminal nobody resized would agree by
     /// luck. It is that a second *resolution* could happen at all. So: the two
     /// reads are the same `&'static` profile, which is what proves the
-    /// `OnceLock` filled once; every one of § 3's four facts agrees across
+    /// `OnceLock` filled once; every one of `rule:tooling/the-terminal-profile-resolves-once`'s four facts agrees across
     /// them; and a freshly computed profile is **discarded** rather than
     /// installed, which is the property a caching bug breaks while leaving the
     /// first two intact.
@@ -5199,7 +5198,7 @@ mod tests {
     /// of them — a `<red>` markup tag and a raw `ESC [ 31 m` — and comes back
     /// with the tag as literal text and the escape substituted, so the only
     /// control bytes in a `Text` are the ones the `Style` put there. That is
-    /// § 2's *"a constructor that cannot produce an injected sequence"*, and it
+    /// `rule:tooling/text-is-the-one-raw-path`'s *"a constructor that cannot produce an injected sequence"*, and it
     /// is asserted against the style this process's own terminal renders, so
     /// the case says the same thing on a developer's console and in CI.
     ///

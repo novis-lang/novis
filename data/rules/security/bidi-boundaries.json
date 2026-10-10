@@ -2,7 +2,6 @@
   "title": "The lexer refuses an unterminated control and the sinks substitute it, and nobody writes a second predicate",
   "status": "shipped",
   "because": [
-    "0086",
     "0137"
   ],
   "seeAlso": [

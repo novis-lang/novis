@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0086 § 6's compile-time command table, as a program.
+// `rule:tooling/commands-are-compiled`'s compile-time command table, as a program.
 //
 // Structurally identical to the route table in `routes.nvs` with the routes swapped for
 // commands. `Core\Program::implementing<T>()` builds it, so the `autoload`

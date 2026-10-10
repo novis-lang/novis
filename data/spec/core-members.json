@@ -1759,7 +1759,7 @@
         [
           "`Core\\Command`",
           "`run(): uint`, `help(?string): Cli\\Text` and `completions(Cli\\Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\\Router` it dispatches, because a CLI has one entry point and no middleware question",
-          "[0086](../decisions/0086.md)"
+          "`rule:tooling/commands-are-compiled`"
         ],
         [
           "`Core\\Decimal`, `Core\\BigInt`",

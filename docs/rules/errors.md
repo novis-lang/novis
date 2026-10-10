@@ -356,7 +356,7 @@ ladder can leave; a `finally` is not enough, because an internal panic bypasses 
 design. A ladder that protects the process and leaves the shell unusable has failed at what it is
 for.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/log-write`](errors.md#errors-log-write). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="errors-panics-bypass-user-code"></a>
 
@@ -523,7 +523,7 @@ rendering can emit a reference.
 Tainted data flows into a record freely, because the record frames it and **the rendering is what
 makes it safe**. There is no raw escape hatch, and no rendering may be selected by an argument.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write). Decided in [0092](../decisions/0092.md), [0086](../decisions/0086.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="errors-renderings"></a>
 

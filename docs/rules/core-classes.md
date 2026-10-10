@@ -27,7 +27,7 @@ supplied wants [`core-classes/script-args`](core-classes.md#core-classes-script-
 Inside a request the array is empty: the launcher writes the command line, and only the CLI entry
 point writes one.
 
-<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
 <a id="core-classes-script-args"></a>
 
@@ -468,7 +468,7 @@ other fragment, and `Markup` keeps its one slot.
   person remembering every time, and an omitted call is exactly the bug this rule closes; escaping
   unless the source opts out with a literal is strictly safer.
 
-<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0133](../decisions/0133.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0133](../decisions/0133.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
 
 <a id="core-classes-html-template"></a>
 

@@ -2,7 +2,6 @@
   "title": "`Core\\Command::run` dispatches to the handler the first word names, and help and completions are generated from the table",
   "status": "shipped",
   "because": [
-    "0086",
     "0102"
   ],
   "seeAlso": [

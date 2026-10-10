@@ -172,7 +172,7 @@ registered.
   ([`testing/debug-probes`](testing.md#testing-debug-probes)), `swoole`, `parallel`, `event`, `pthreads`, `apcu`
   ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)) and `mysqlnd`.
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0086](../decisions/0086.md), [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0122](../decisions/0122.md).</sub>
 
 <a id="core-api-reserved-namespace"></a>
 

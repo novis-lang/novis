@@ -1,9 +1,7 @@
 {
   "title": "In-place output is a scoped live region the runtime paints, never a cursor primitive",
   "status": "shipped",
-  "because": [
-    "0086"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/the-terminal-is-restored-on-every-exit-path",
     "tooling/the-terminal-profile-resolves-once",

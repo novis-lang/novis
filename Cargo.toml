@@ -217,7 +217,7 @@ tungstenite = "0.30"
 # pure Rust with no C and no build script, and both are already in this tree's
 # lock file. `crates/nvs-config/src/trust.rs` owns which ACEs Windows accepts.
 #
-# ADR 0086 § 3 draws on the same two for the terminal profile, and the same two
+# The terminal profile (`rule:tooling/the-terminal-profile-resolves-once`) draws on the same two, and the same two
 # answers apply: `crates/nvs-runtime/src/terminal.rs` asks the operating system
 # how wide the controlling terminal is, which is an `ioctl` on Unix and two
 # console calls on Windows with no `std` spelling of either. Nothing a request
@@ -488,7 +488,7 @@ caseless = "0.2"
 # been rejected twice.
 unicode-normalization = "0.1"
 
-# --- Unicode display width (ADR 0086 § 3's `Core\Cli::displayWidth`) ---
+# --- Unicode display width (`rule:tooling/display-width-measures-what-the-sink-writes`) ---
 # UAX #11's East_Asian_Width table, plus the zero-width classes a column
 # count needs beside it — combining marks, Hangul medial and trailing jamo,
 # default-ignorables — and the emoji ZWJ sequences that are one column pair

@@ -2,7 +2,7 @@
 // The command line, as a program: a command declared as an attribute, the
 // help text nobody wrote, and the terminal fact that resolves once.
 //
-// [ADR 0086](/docs/decisions/0086.md) § 6 is the
+// `rule:tooling/commands-are-compiled` is the
 // reason `#[Command]` exists at all: the argument table is built *while
 // compiling*, from the function's own parameters, so the usage line below
 // is derived from the same declaration the call is checked against. There

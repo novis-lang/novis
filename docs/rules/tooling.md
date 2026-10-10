@@ -219,7 +219,7 @@ than an `echo` the HTML sink would escape into corruption
 - **Making `echo` a compile error in a context with no sink.** The terminal default leaves no such
   context, and an error for a construct with a safe, obvious meaning is friction that buys no security.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0086](../decisions/0086.md), [0092](../decisions/0092.md), [0177](../decisions/0177.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0092](../decisions/0092.md), [0177](../decisions/0177.md).</sub>
 
 <a id="tooling-terminal-output-is-a-sink"></a>
 
@@ -233,6 +233,9 @@ and `TAB` pass through; every other C0 byte, `ESC` and `CR` included, becomes it
 Picture (`ESC` → `␛`, `CR` → `␍`); `DEL` becomes `␡`; a C1 code point becomes `�`; an unterminated
 bidirectional control becomes `�` while a balanced one passes ([`security/bidi-predicate`](security.md#security-bidi-predicate)). Twelve
 terminal CVEs in 2022–23 were reached through exactly the output `git`, `less` and `kubectl` print.
+`CR` is on the list because a bare `CR` overwriting its own line is the oldest way to hide text, and
+it needs no `ESC`. A C1 code point loses its identity because several terminals still parse one as a
+CSI introducer, the U+2400 block has no glyph for it, and it is never legitimate text.
 
 The rule is **uniform**. It does not depend on whether the value is `tainted`, because that would make
 *whether output is escaped* hinge on a fact invisible at the `echo` line; and it does not depend on
@@ -247,7 +250,16 @@ is the sink's named launderer, performing exactly this table, for the program th
 neutralized form as a value. A `secret` value is refused outright with no carrier bypass
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), because substitution does nothing for confidentiality.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md).</sub>
+**Memory:** nothing is held. The substitution is one scan over bytes already being written.
+
+**Declined:**
+- **Deleting control bytes rather than substituting them.** It is silently lossy, and it gives up the
+  property that makes the default defensible: the rule shows itself in the output.
+- **Refusing `tainted` at the sink and requiring an explicit launderer.** It puts friction on the most
+  common CLI operation, printing data just read, and that friction trains a developer to reach for a
+  blanket launderer. With no launder step on the ordinary path, there is no omitted call to get wrong.
+
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named).</sub>
 
 <a id="tooling-text-is-the-one-raw-path"></a>
 
@@ -270,7 +282,7 @@ sends both the same bytes. Closing it would make the sink's carrier
 ([`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier)) two representations instead of one, and that trade is
 not worth making while `echo` writes standard output and nothing else can observe the difference.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier).</sub>
 
 <a id="tooling-an-escape-in-source-text-is-a-compile-error"></a>
 
@@ -289,7 +301,7 @@ time is to print a **computed** escape sequence, which is the attack the sink ex
 The diagnostic names `Cli\Text` so that a developer who wants colour finds the one raw path
 ([`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path)) instead of concluding that colour does not work.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path).</sub>
 
 <a id="tooling-styling-is-a-value-not-a-grammar"></a>
 
@@ -315,7 +327,15 @@ colours are class constants — `Color::RED` *is* `Color::index(1)`, written sho
 use site as any scalar constant is — and `Color::rgb(uint, uint, uint)` and `Color::index(uint)`
 construct the rest.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0086](../decisions/0086.md).</sub>
+**Memory:** each use of a named colour is one allocation in the request where it appears. Nothing
+is stored for it, and nothing is shared between isolates.
+
+**Declined:**
+- **Raw `"\e[31m"` escapes, or a `"<red>…</red>"` markup string.** Each is a fifth grammar, as above.
+  Typed values cost more keystrokes at the call site, and they are what lets a `Cli\Text` guarantee
+  that it carries no injected sequence ([`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path)).
+
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>
 
 <a id="tooling-the-terminal-profile-resolves-once"></a>
 
@@ -339,7 +359,9 @@ presentation one. Resolving once is what makes two reads of the width in one run
 construction, so a program that measures at the top and draws at the bottom cannot tear a frame; the
 cost is that a resize is not noticed until the process restarts.
 
-<sub>See also [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`tooling/display-width-measures-what-the-sink-writes`](tooling.md#tooling-display-width-measures-what-the-sink-writes), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink). Decided in [0086](../decisions/0086.md).</sub>
+**Memory:** one profile of scalar fields for the life of the process, charged to no request.
+
+<sub>See also [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`tooling/display-width-measures-what-the-sink-writes`](tooling.md#tooling-display-width-measures-what-the-sink-writes), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink).</sub>
 
 <a id="tooling-display-width-measures-what-the-sink-writes"></a>
 
@@ -365,7 +387,7 @@ the two [`types/bytes`](types.md#types-bytes) fixed — bytes for `bytes`, graph
 property of the renderer, not of the string; putting it on `Core\Str` would imply a string has an
 intrinsic width, the confusion [`types/string-is-utf8`](types.md#types-string-is-utf8) exists to remove.
 
-<sub>See also [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes).</sub>
 
 <a id="tooling-no-raw-handle-onto-standard-output"></a>
 
@@ -390,7 +412,7 @@ the sink closes. Spinners and table rendering, which are pure text composition o
 than Tier 0 ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). And a TUI widget layer — panes, focus, event loops —
 which is an application framework, not a language surface.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement).</sub>
 
 <a id="tooling-the-tty-belongs-to-the-main-task"></a>
 
@@ -409,7 +431,7 @@ throws is claiming the *terminal*; writing text never does. An isolate's `echo` 
 parent owns, never a tty ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)), which is why the two rules are
 consistent rather than in tension.
 
-<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments).</sub>
 
 <a id="tooling-in-place-output-is-a-scoped-live-region"></a>
 
@@ -442,7 +464,16 @@ at that end on every path including a throw. Cursor primitives — `moveUp`, `cl
 survive a resize, they interleave incoherently when two tasks write, and a program that dies holding
 them leaves the operator's shell unusable.
 
-<sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions). Decided in [0086](../decisions/0086.md).</sub>
+A resize is not repainted: the profile is resolved once
+([`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once)), so the width a region clamps its rows to is
+fixed for its life. The mutable `Cli\Live` and `Cli\Progress` handles are stateful objects, not value
+types, so the immutability of value types does not bind them, and `progress` is a closed, named
+behaviour built on `live` rather than a second way to write the same thing.
+
+**Memory:** a region holds two frames, the one on screen and the one waiting for the timer, each at
+most the terminal's width times its height, for as long as its `live` call runs.
+
+<sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions).</sub>
 
 <a id="tooling-a-prompt-is-a-core-member"></a>
 
@@ -467,7 +498,7 @@ controlling terminal, not standard input** — `/dev/tty`, `CONIN$` — so `cat 
 still ask a question; without that, piping and prompting are mutually exclusive, which is the defect
 in every hand-rolled version.
 
-<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/no-ffi`](security.md#security-no-ffi), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/no-ffi`](security.md#security-no-ffi), [`core-api/options-bag`](core-api.md#core-api-options-bag).</sub>
 
 <a id="tooling-a-prompt-never-blocks"></a>
 
@@ -496,7 +527,7 @@ five prompts already meet, so a sixth inherits it. A scripted line wins over a t
 and a queue with nothing left is the unattended run above, so scripting too few answers is assertable
 rather than a hang.
 
-<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute).</sub>
 
 <a id="tooling-the-terminal-is-restored-on-every-exit-path"></a>
 
@@ -520,7 +551,7 @@ guard was skipped, so the stack can never keep a region nobody can reach. What i
 the last frame; what is restored is the cursor, and the row below the region is where the next `echo`
 lands.
 
-<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor).</sub>
 
 <a id="tooling-commands-are-compiled"></a>
 
@@ -551,7 +582,7 @@ command line is [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](to
 `clap`-shaped builder registered at run time — loses all three compile errors and the generated
 completions, and is the design every other ecosystem already has.
 
-<sub>See also [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`tooling/command-run-dispatches-and-help-is-generated`](tooling.md#tooling-command-run-dispatches-and-help-is-generated), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`tooling/command-run-dispatches-and-help-is-generated`](tooling.md#tooling-command-run-dispatches-and-help-is-generated), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host).</sub>
 
 <a id="tooling-a-parameter-is-an-argument-unless-it-is-an-option"></a>
 
@@ -576,7 +607,7 @@ set of allowed values by its word ([`routing/a-capture-narrows-to-a-closed-set`]
 — no new laundering rule exists for the command line. An `#[Option]` written outside a `#[Command]`
 method supplies nothing, because there is no table for it to be a row of.
 
-<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments).</sub>
 
 <a id="tooling-command-run-dispatches-and-help-is-generated"></a>
 
@@ -600,7 +631,7 @@ mapping — and baking a convention in would fight it. A CLI has one entry point
 question, so the reason the router stops does not exist here, and stopping anyway would copy its
 shape rather than its reasoning.
 
-<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0086](../decisions/0086.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="tooling-fmt-is-one-canonical-style"></a>
 

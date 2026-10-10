@@ -3,7 +3,7 @@ namespace App;
 
 class Greet implements Command
 {
-    // ADR 0086 § 6: a parameter is a positional argument unless it carries
+    // `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`: a parameter is a positional argument unless it carries
     // `#[Option]` — one sentence, with no inference from defaults or types —
     // so `$name` is positional and arrives `tainted string`, nothing about a
     // raw argument having been checked. A `bool` `#[Option]` is a flag.

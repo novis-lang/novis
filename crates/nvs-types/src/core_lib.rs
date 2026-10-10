@@ -581,8 +581,8 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // reason: `Core\Request::bodyStream` hands back the bytes of the body
         // `body()` already types `tainted string`, one chunk at a time.
         CoreTy::TaintedBytes => interner.tainted_bytes(),
-        // Both axes at once, for the arms above's reasons taken together: ADR
-        // 0086 § 4's prompt answers a password that is confidential and came
+        // Both axes at once, for the arms above's reasons taken together:
+        // `rule:tooling/a-prompt-is-a-core-member`'s prompt answers a password that is confidential and came
         // from outside, and only a qualified result type can say both.
         CoreTy::SecretTaintedStr => interner.secret_tainted_string(),
         // The same arm on the octet axis. Both of these are written in an

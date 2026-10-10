@@ -1,9 +1,7 @@
 {
   "title": "A prompt is a `Core\\Cli` member that reads the controlling terminal, and `secret` originates a `secret`",
   "status": "shipped",
-  "because": [
-    "0086"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/a-prompt-never-blocks",
     "security/secret-qualifier",

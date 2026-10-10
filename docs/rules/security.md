@@ -1520,7 +1520,7 @@ visible in the source.
 A launderer written for a *new* sink is measured against the two conditions, not against today's
 table, and a sink that acquires an automatic launder reclassifies its own member the day it does.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md), [0086](../decisions/0086.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md).</sub>
 
 <a id="security-capture-answers-the-carrier"></a>
 
@@ -1868,7 +1868,7 @@ That is a declared return type, not an ambient grant.
 The cost is stated: `secret` protects only what a developer remembers to annotate. That is a real
 coverage gap relative to `tainted`, not an oversight.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/secret-propagation`](security.md#security-secret-propagation), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/secret-propagation`](security.md#security-secret-propagation), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments).</sub>
 
 <a id="security-secret-propagation"></a>
 
@@ -1950,7 +1950,7 @@ name of where to read the secret from.
   output ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)), which is what the refusal is for. If such commands turn
   out to be common, the answer is a narrow, named `Core\Cli` member, never a wider `echo`.
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0086](../decisions/0086.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="security-secret-crosses-no-boundary"></a>
 
@@ -2755,7 +2755,7 @@ grants.
 - **Handling it only at the sinks, not in source.** That inverts the severity: the source case is the
   one with a working exploit against code review, and the runtime cases are display deception.
 
-<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0086](../decisions/0086.md), [0137](../decisions/0137.md).</sub>
+<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0137](../decisions/0137.md).</sub>
 
 <a id="security-bidi-scope-is-the-whole-target"></a>
 

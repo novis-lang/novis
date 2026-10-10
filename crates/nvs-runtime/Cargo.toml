@@ -77,7 +77,7 @@ base64.workspace = true
 # `graphemes.rs` owns why the kernel lives in the runtime rather than beside
 # the unit choice in `nvs-stdlib`.
 unicode-segmentation.workspace = true
-# ADR 0086 § 3's `displayWidth` is UAX #11 columns, and § 8's region clamps a
+# `Core\Cli::displayWidth` is UAX #11 columns (`rule:tooling/display-width-measures-what-the-sink-writes`), and a live region clamps a
 # row to the same unit — one table, read by the two callers in
 # `src/terminal.rs`, so a row cut to the width a program measured cannot be
 # cut against a different answer than the one it was given.
@@ -91,7 +91,7 @@ unicode-width.workspace = true
 # on `uuid`.
 uuid.workspace = true
 
-# ADR 0086 § 3's terminal profile: how wide the controlling terminal is has no
+# The terminal profile (`rule:tooling/the-terminal-profile-resolves-once`): how wide the controlling terminal is has no
 # `std` spelling on either platform, and `rule:security/capability-check-at-the-door`
 # forbids `nvs-stdlib` from
 # reaching the operating system itself — so the calls live in `src/terminal.rs`

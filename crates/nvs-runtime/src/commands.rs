@@ -4,7 +4,7 @@
 //!
 //! # Why the table is a runtime value at all
 //!
-//! § 6 says `Core\Command::help` and `::run` are **generated from the table**,
+//! `rule:tooling/commands-are-compiled` says `Core\Command::help` and `::run` are **generated from the table**,
 //! and the table is a compile product — `nvs_types::commands::CommandTable`,
 //! built by the same `rule:programs/implementing` scan `rule:routing/routes-are-compiled-not-registered`'s routes are. The alternative
 //! this rejects is expanding those members while checking, which is what
@@ -25,7 +25,7 @@
 //! Written onto [`crate::Ctx`] before the program runs, by whoever compiled it
 //! — `nvs run` today — exactly as the configuration snapshot and the origin are,
 //! and never rewritten during the run. A context with no table is a program
-//! that declared no `#[Command]`, which is § 6's "a program with no `#[Command]`
+//! that declared no `#[Command]`, which is `rule:tooling/commands-are-compiled`'s "a program with no `#[Command]`
 //! builds no table, runs no scan, and pays nothing" as a member sees it, and it
 //! is also every context nobody installed one on. Both answer the same way, so
 //! there is one case to write rather than two.
@@ -36,14 +36,14 @@
 //! requests), per
 //! `rule:programs/memory-priority`.
 //!
-//! # Every conversion § 6 admits is on the table
+//! # Every conversion `rule:tooling/commands-are-compiled` admits is on the table
 //!
 //! Including the one § 3 spells as a union: `Log\Level::Warn|Log\Level::Error`
 //! crosses as [`ArgConv::Enum`] carrying those two cases, because the two
 //! questions a subset raises — which word, and what it becomes — are the ones
 //! that arm already answers for a whole enum, so a subset is those same pairs
 //! with the cases the union did not name dropped. The filter is
-//! `nvs_types::commands`'s, where § 6 owns the spelling;
+//! `nvs_types::commands`'s, where `rule:tooling/commands-are-compiled` owns the spelling;
 //! `nvs_types::routes::closed_set` still answers `None` for such a union on
 //! purpose, since it also serves
 //! `rule:routing/a-capture-narrows-to-a-closed-set`'s route captures, whose
@@ -51,7 +51,7 @@
 
 /// What an argument's text becomes before the handler is called.
 ///
-/// § 6's "a matched value's type comes from the parameter" as the *one* fact
+/// `rule:tooling/commands-are-compiled`'s "a matched value's type comes from the parameter" as the *one* fact
 /// about that type which crosses: not the type, but the conversion the checker
 /// already picked for it. `nvs_types::commands::ArgConv` is where the choice is
 /// made and is the home of the rule; this is the same closed set with the
@@ -62,7 +62,7 @@
 pub enum ArgConv {
     /// `string` — the argument's own text, unconverted and `tainted`.
     Text,
-    /// `bool` — § 6's flag, which an option is given by being *written* rather
+    /// `bool` — `rule:tooling/commands-are-compiled`'s flag, which an option is given by being *written* rather
     /// than by carrying text. A positional declared `bool` has no such spelling
     /// to be written, so it reads the words `true` and `false`.
     Flag,
@@ -123,8 +123,8 @@ pub enum ArgConv {
     /// [`crate::routes::CaptureConv::OneOf`] answers the same set with
     /// [`crate::routes::Param::Text`]. A set of allowed `int` values therefore
     /// binds the digits rather than the number, which is one wrinkle shared by
-    /// the two tables rather than two answers that could come to disagree; ADR
-    /// 0086 § 6 and `rule:routing/a-capture-narrows-to-a-closed-set` are the one home of the rule both read.
+    /// the two tables rather than two answers that could come to disagree;
+    /// `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option` and `rule:routing/a-capture-narrows-to-a-closed-set` are the one home of the rule both read.
     OneOf(Vec<String>),
     /// An enum, or the subset of one § 3 spells as a union of its cases: every
     /// admitted case as the word a command line writes it with and the value
@@ -150,12 +150,12 @@ pub enum ArgConv {
         /// order and a message has to read the same on two builds.
         cases: Vec<(String, CaseValue)>,
     },
-    /// A parameter whose declared type reaches no conversion — a type § 6 does
+    /// A parameter whose declared type reaches no conversion — a type `rule:tooling/commands-are-compiled` does
     /// not admit, or a union naming cases of two different enums, which leaves
     /// no enum for a word to be a case of.
     ///
     /// An `#[Option]` declared at one is refused where it is written, so what
-    /// crosses here is a *positional* argument's: § 6's compile error follows
+    /// crosses here is a *positional* argument's: `rule:tooling/commands-are-compiled`'s compile error follows
     /// the marker, and `nvs_types::commands::ArgConv::Unconverted` is the home
     /// of that split. `Core\Command::run` answers such a row as a `LogicError`
     /// naming the parameter, which is what a mistake in the *program* is — the
@@ -198,13 +198,13 @@ pub struct CommandArg {
     /// The `#[Option]`'s `about:`, or `None` on a positional argument.
     pub about: Option<String>,
     /// The parameter's declared default, as the text a command line would have
-    /// written to supply it — `Some("3")` for § 6's `#[Option] uint $retries =
+    /// written to supply it — `Some("3")` for `rule:tooling/commands-are-compiled`'s `#[Option] uint $retries =
     /// 3`, and `None` for an argument a command line must fill itself.
     ///
     /// Text rather than a constant, because [`ArgConv`] already turns a word
     /// into the parameter's value and a defaulted argument is then the same
     /// value a written one would have been; `nvs_types::commands::CommandArg`'s
-    /// own field is the home of that reasoning. **A flag ignores it** — § 6
+    /// own field is the home of that reasoning. **A flag ignores it** — `rule:tooling/commands-are-compiled`
     /// gives an option that is `bool` by being *written*, so the one nobody
     /// wrote is `false` whatever its declaration says.
     pub default: Option<String>,
@@ -221,16 +221,16 @@ impl CommandArg {
     }
 }
 
-/// One row of § 6's table: a declared command and the arguments a command line
+/// One row of `rule:tooling/commands-are-compiled`'s table: a declared command and the arguments a command line
 /// fills.
 #[derive(Clone, Debug)]
 pub struct Command {
-    /// § 6's `name:` — the word a command line selects this command by.
+    /// `rule:tooling/commands-are-compiled`'s `name:` — the word a command line selects this command by.
     pub name: String,
-    /// § 6's `about:`, the line a usage page renders beside the name, or `None`
+    /// `rule:tooling/commands-are-compiled`'s `about:`, the line a usage page renders beside the name, or `None`
     /// where the author wrote none. Nothing is derived from the method's name.
     pub about: Option<String>,
-    /// `Class::method` the `#[Command]` was attached to, which is what § 6's
+    /// `Class::method` the `#[Command]` was attached to, which is what `rule:tooling/commands-are-compiled`'s
     /// dispatch calls.
     pub handler: String,
     /// Every parameter in declaration order, positionals and options in one
@@ -242,7 +242,7 @@ pub struct Command {
 ///
 /// A `Vec` rather than a map, which is the compiler-side table's shape and its
 /// reason: order is what makes a rendered page deterministic for an unchanged
-/// program. A duplicate name cannot reach here at all — § 6 makes it a compile
+/// program. A duplicate name cannot reach here at all — `rule:tooling/commands-are-compiled` makes it a compile
 /// error.
 #[derive(Clone, Debug, Default)]
 pub struct CommandTable {

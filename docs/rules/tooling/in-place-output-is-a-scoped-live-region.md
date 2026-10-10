@@ -22,3 +22,12 @@ at that end on every path including a throw. Cursor primitives — `moveUp`, `cl
 `alternateScreen` — are **not** the surface. They break the moment output is piped, they cannot
 survive a resize, they interleave incoherently when two tasks write, and a program that dies holding
 them leaves the operator's shell unusable.
+
+A resize is not repainted: the profile is resolved once
+(`rule:tooling/the-terminal-profile-resolves-once`), so the width a region clamps its rows to is
+fixed for its life. The mutable `Cli\Live` and `Cli\Progress` handles are stateful objects, not value
+types, so the immutability of value types does not bind them, and `progress` is a closed, named
+behaviour built on `live` rather than a second way to write the same thing.
+
+**Memory:** a region holds two frames, the one on screen and the one waiting for the timer, each at
+most the terminal's width times its height, for as long as its `live` call runs.
