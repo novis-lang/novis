@@ -1,7 +1,6 @@
 {
-  "live": "looper-ready",
+  "live": "looper-cutover",
   "goals": [
-    "looper-ready",
     "looper-cutover",
     "decision-records-retired",
     "class-scoped-enums",
