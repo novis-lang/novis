@@ -1865,8 +1865,9 @@ pub enum InstKind {
         /// The array whose entries are copied out, already lowered.
         subject: ValueId,
     },
-    /// Removes `key` from `array` if it is present — `unset($a[$k]);`, ADR
-    /// 0028 § 3's one surviving `unset` target (the declared-*property* form
+    /// Removes `key` from `array` if it is present — `unset($a[$k]);`, the one
+    /// surviving `unset` target of `rule:classes/unset-is-refused-on-a-property`
+    /// (the declared-*property* form
     /// is a diagnostic `nvs_types::expr::check_unset_target` already reports,
     /// so it never reaches lowering).
     ///

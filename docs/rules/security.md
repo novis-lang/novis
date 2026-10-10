@@ -1552,7 +1552,7 @@ purpose. This closes *accidental* exposure, not *intentional, narrow* use. An at
 one sink with no way out at all, being folded into the program's own metadata; the fix is to carry the
 name of where to read the secret from.
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0092](../decisions/0092.md), [0028](../decisions/0028.md).</sub>
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0092](../decisions/0092.md).</sub>
 
 <a id="security-secret-crosses-no-boundary"></a>
 

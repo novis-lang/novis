@@ -929,7 +929,7 @@ one injection into a compromise; `LOAD DATA LOCAL INFILE`; `PDO::quote` and
 `lastInsertId` state; `PDO::ATTR_*`; and `PDO::inTransaction`. Query builders, ORMs and migration
 tooling are not `Core` at all.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-db-connection-is-named"></a>
 
@@ -1300,7 +1300,7 @@ Nesting on one connection issues `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`, which 
 the callable on deadlock and serialization failure only, outermost transactions only, and defaults to
 `0` because re-running a callable that sends mail is worse than surfacing the conflict.
 
-<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../decisions/0067.md), [0028](../decisions/0028.md), [0043](../decisions/0043.md), [0002](../decisions/0002.md).</sub>
+<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../decisions/0067.md), [0043](../decisions/0043.md), [0002](../decisions/0002.md).</sub>
 
 <a id="core-classes-db-error"></a>
 

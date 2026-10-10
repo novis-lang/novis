@@ -1,9 +1,7 @@
 {
   "title": "`unset` on a declared property is a compile error, and `isset` on one is an ordinary null test",
   "status": "shipped",
-  "because": [
-    "0028"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/definite-property-initialization",
     "classes/no-dynamic-properties",

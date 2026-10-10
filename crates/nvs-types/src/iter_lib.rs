@@ -326,7 +326,7 @@ mod tests {
 
     /// `rule:classes/stringable`'s `toString(): string`.
     #[test]
-    fn stringable_declares_adr_0028_s_conversion_member() {
+    fn stringable_declares_its_conversion_member() {
         let (table, interner) = seeded();
         let graph = ClassGraph::default();
         let (owner, sig) = resolve_method(&QName::parse(STRINGABLE), "toString", &table, &graph)

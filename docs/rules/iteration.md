@@ -125,7 +125,7 @@ Both members are declared without a body, and a class is held to every one of th
 **no key half** — nothing in `Iterator<T>` produces one — which is why a `foreach` over a cursor may
 bind a value and not a key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)).
 
-<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md), [0028](../decisions/0028.md).</sub>
+<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0007](../decisions/0007.md).</sub>
 
 <a id="iteration-concrete-generic-implements"></a>
 
@@ -161,7 +161,7 @@ is a second cost with no offsetting capability. Iteration is the one place a cap
 streaming a cursor without materialising it — and it has its own interfaces
 ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)).
 
-<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0053](../decisions/0053.md), [0028](../decisions/0028.md).</sub>
+<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0053](../decisions/0053.md).</sub>
 
 <a id="iteration-cursor-out-of-range"></a>
 

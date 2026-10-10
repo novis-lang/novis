@@ -13,3 +13,9 @@ Exactly one operand survives: an element of an array held by a local, a property
 including at depth. Everything else is refused, and the two shapes programs most often write are
 named — a local, which is declared once and definitely assigned so there is no undefined state to
 return it to, and a temporary, which copy-on-write would separate into a slot nothing can write back.
+
+**Declined:**
+- **`unset` resetting a non-nullable property to its type's default.** A silent default hides the
+  missing value (`rule:classes/no-undefined-value`).
+- **Keeping `__isset` and `__unset` for parity.** They intercept access to an undeclared property, and
+  that access is already a hard error (`rule:classes/no-dynamic-properties`).

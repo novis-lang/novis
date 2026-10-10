@@ -12,4 +12,8 @@ what the declaration site is doing.
 The refusal is made wherever the static type names a class, which is the whole of what a compile-time
 rule can promise. Through a `mixed` or a plain `object` the same question is answered from the
 instance's runtime class and a class with no `toString` throws there, because there was no site to
-refuse at.
+refuse at. A `Core` class implements no interface to prove it against, so which `Core` classes render
+is decided by their registry entries, and one with no `toString` is refused where it is rendered.
+
+What it costs is one ordinary method call at each rendering site. PHP's own fallback for an object
+with no `__toString` is a fatal error, so the diagnostic takes nothing permissive away.

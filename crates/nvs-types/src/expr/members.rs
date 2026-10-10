@@ -1106,8 +1106,8 @@ fn check_dynamic_class_name_const(
 /// Shared body for a property access, whether it appears as an ordinary
 /// expression (`$obj->prop`, `is_unset` false) or as `unset()`'s operand
 /// (`is_unset` true) — the receiver/member resolution is identical either
-/// way; only what happens once a *declared* property is found differs (ADR
-/// 0028 § 3: `unset()` on one is refused outright, per `rule:classes/definite-property-initialization`'s guarantee
+/// way; only what happens once a *declared* property is found differs
+/// (`rule:classes/unset-is-refused-on-a-property`: `unset()` on one is refused outright, per `rule:classes/definite-property-initialization`'s guarantee
 /// that a declared property can never become uninitialized again).
 #[expect(
     clippy::too_many_arguments,

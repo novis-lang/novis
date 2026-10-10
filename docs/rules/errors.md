@@ -531,7 +531,7 @@ lying view of the state a dump exists to show.
 Adding a fourth rendering later is a change to one crate, not to any call site — which is the
 property that makes refusing one now cheap to revisit.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0028](../decisions/0028.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="errors-debug-dump"></a>
 

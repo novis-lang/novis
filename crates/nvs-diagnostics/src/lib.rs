@@ -1277,8 +1277,8 @@ pub mod code {
     );
     /// `unset()` on a declared property, static or instance, regardless of
     /// nullability — refused outright because `rule:classes/definite-property-initialization` already guarantees no
-    /// declared property is ever anything but definitely initialized; see ADR
-    /// 0028 § 3. A static property is the same slot and the same guarantee, so
+    /// declared property is ever anything but definitely initialized; see
+    /// `rule:classes/unset-is-refused-on-a-property`. A static property is the same slot and the same guarantee, so
     /// it takes the same code, named for the class that *declares* it. Every
     /// other operand `unset()` cannot remove an entry from is
     /// [`E_UNSET_TARGET_NOT_AN_ELEMENT`].

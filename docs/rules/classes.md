@@ -460,7 +460,13 @@ including at depth. Everything else is refused, and the two shapes programs most
 named — a local, which is declared once and definitely assigned so there is no undefined state to
 return it to, and a temporary, which copy-on-write would separate into a slot nothing can write back.
 
-<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0028](../decisions/0028.md).</sub>
+**Declined:**
+- **`unset` resetting a non-nullable property to its type's default.** A silent default hides the
+  missing value ([`classes/no-undefined-value`](classes.md#classes-no-undefined-value)).
+- **Keeping `__isset` and `__unset` for parity.** They intercept access to an undeclared property, and
+  that access is already a hard error ([`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties)).
+
+<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`expressions/truthy-table`](expressions.md#expressions-truthy-table).</sub>
 
 <a id="classes-property-hooks"></a>
 
@@ -825,9 +831,13 @@ what the declaration site is doing.
 The refusal is made wherever the static type names a class, which is the whole of what a compile-time
 rule can promise. Through a `mixed` or a plain `object` the same question is answered from the
 instance's runtime class and a class with no `toString` throws there, because there was no site to
-refuse at.
+refuse at. A `Core` class implements no interface to prove it against, so which `Core` classes render
+is decided by their registry entries, and one with no `toString` is refused where it is rendered.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0028](../decisions/0028.md), [0007](../decisions/0007.md).</sub>
+What it costs is one ordinary method call at each rendering site. PHP's own fallback for an object
+with no `__toString` is a fatal error, so the diagnostic takes nothing permissive away.
+
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="classes-no-magic-methods"></a>
 
@@ -843,7 +853,12 @@ ordering's implicit property walk by `Comparable` ([`classes/comparable`](classe
 ([`classes/no-destructors`](classes.md#classes-no-destructors)), `__clone` and the four serialization hooks
 ([`classes/two-copy-depths`](classes.md#classes-two-copy-depths)), `__isset`/`__unset` ([`classes/unset-is-refused-on-a-property`](classes.md#classes-unset-is-refused-on-a-property)),
 `__debugInfo` ([`classes/no-debug-hook`](classes.md#classes-no-debug-hook)), `__invoke` ([`types/callable-values`](types.md#types-callable-values)) and
-`__set_state`, whose reconstruct-from-generated-code use is answered by the closed round trip instead.
+`__set_state`, whose reconstruct-from-generated-code use is answered by the closed round trip instead,
+with no source emitted that would have to be compiled to rebuild the object
+([`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format)).
+
+Every one of these shares one argument: a behaviour triggered by a reserved method name is invisible
+in the class declaration, and a checker or an IDE could read it only by reimplementing PHP's dispatch.
 
 Every one of those names is refused where it is *written*: the method-casing rule allows no leading
 underscore, so a class cannot declare a hook for the runtime to decline to call. That is stronger than
@@ -853,7 +868,11 @@ underscore, so a class cannot declare a hook for the runtime to decline to call.
 there is no runtime moment for a loader callback to attach to. What replaces
 `spl_autoload_register` is [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).
 
-<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0028](../decisions/0028.md), [0023](../decisions/0023.md).</sub>
+**Declined:**
+- **Keeping PHP's `var_export` and `__set_state` format for converted code.** It makes generated
+  source a data format, which the closed serialize format exists to avoid.
+
+<sub>See also [`classes/stringable`](classes.md#classes-stringable), [`classes/no-destructors`](classes.md#classes-no-destructors), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`classes/property-observer`](classes.md#classes-property-observer), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0023](../decisions/0023.md).</sub>
 
 <a id="classes-no-call-magic"></a>
 
@@ -897,12 +916,24 @@ One thing does run when a refcount reaches zero, and it is not a destructor: a g
 inside a `try ... finally` is resumed in a return-like mode so the `finally` runs
 ([`iteration/generators`](iteration.md#iteration-generators)). Nothing is declared, no name is recognized, and the release resumes a
 frame the program had already entered. A throw escaping such a `finally` is discarded, since a release
-is exactly the site with nowhere to report one.
+is exactly the site with nowhere to report one. PHP reports that throw as uncaught.
+
+A host resource a value wraps is still reclaimed by the runtime when nothing references it. That is
+memory management: no user code runs at that moment.
 
 What it costs is real: no RAII, so a caller who forgets an explicit `close()` gets nothing. A
-destructor is an unreliable safety net, but it is a net.
+destructor is an unreliable safety net, but it is a net. A destructor would also have to pick between
+two bad semantics: run every live object's destructor at teardown, which walks the heap on every
+request, or skip whatever is still reachable at teardown, which is PHP's own inconsistency for cycles.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0028](../decisions/0028.md), [0002](../decisions/0002.md), [0004](../decisions/0004.md).</sub>
+**Declined:**
+- **A `Disposable` interface called at scope exit.** No scope-exit call exists anywhere else in the
+  language, and it would be a lifecycle hook under another name.
+- **Keeping `__destruct`, forbidding a throw from it and skipping it at teardown.** It still walks
+  every object whose count reaches zero mid-request, which is the per-object cost the wholesale drop
+  avoids.
+
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`iteration/generators`](iteration.md#iteration-generators), [`errors/propagation`](errors.md#errors-propagation), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0002](../decisions/0002.md), [0004](../decisions/0004.md).</sub>
 
 <a id="classes-no-debug-hook"></a>
 
@@ -924,7 +955,7 @@ one is a built-in view, the other a call site a script constructs, and they have
 models. A `secret`-typed property is redacted wherever it is dumped, which is the qualifier's rule and
 not an exception to this one.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0028](../decisions/0028.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="classes-two-copy-depths"></a>
 

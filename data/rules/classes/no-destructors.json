@@ -2,7 +2,6 @@
   "title": "There are no destructors: cleanup is an explicit method call the holder makes",
   "status": "shipped",
   "because": [
-    "0028",
     "0002",
     "0004"
   ],
