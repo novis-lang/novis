@@ -12,7 +12,7 @@ stages:
     status: done
   - id: 4
     title: the Novis fact the table needs and nothing tests
-    status: open
+    status: done
     context: [crates/nvs-cli/tests/live_edit.rs, crates/nvs-server/src/serve.rs]
     extra:
       context:
@@ -284,20 +284,22 @@ File set: `benches/compare.json`, `website/src/data/compare.json`.
 
 ### State
 
-**Side goal `compare-page`, stage 3 done; stage 4 next.** `bun nv bench-compare` (`tools/nv/cmd/bench-compare.ts`) runs all four `CASES`: `hello`, `json-api`, `html-page` (`GET /products?q=`, 100 rows, the term `<b>"Tea" & 'Cups'</b>` escaped, `html: true`, plus a no-term, a plain and a non-ASCII input) and `wait` (`GET /wait`, 50 ms timer, concurrency 1000). Each case folder under `benches/compare/cases/` holds its four programs. `benches/compare/README.md` § *One program per case per peer* says why `html-page` and `wait` are built as they are, including why `nvs serve` keeps its defaults in `wait`.
+**Side goal `compare-page`, stage 4 done; stage 5 next.** `bun nv bench-compare` (`tools/nv/cmd/bench-compare.ts`) runs all four `CASES` (`hello`, `json-api`, `html-page`, `wait`), and `--smoke` is green in Docker for all four. `benches/compare/README.md` § *One program per case per peer* says why each case is built as it is.
 
-`bun nv bench-compare --smoke` is green in Docker for all four cases. A short recorded run (3000 requests, 1 rep, not kept) had every peer answer `200` 3000 times in `wait`, with no `503` from Novis. `nvs serve` prints no clamp line in the bench image. That run showed Novis at 0.39x of best in `wait` (p50 81 ms against Go's 62 ms); see the backlog. `bun test tools/nv/test/bench-compare.test.ts` is green.
+`crates/nvs-cli/tests/serve_isolation.rs` is green. Under `nvs serve` in production mode, with `workers = 1` and with `workers = 4`, 8 keep-alive connections at once send 25 requests each. Every request writes a class static from `?v=`, and every body is `0 <its own value>`. No request saw another's static, so stage 4 found no security bug, and the `isolation` row has its Novis fact.
 
-The driver's acceptance sweep is red on `serve-isolation` (stage 4), `--scenarios` (stage 5) and the page (stage 6). Each is an artefact not written yet, not a regression.
+The driver's acceptance sweep is red on `--scenarios` (stage 5) and the page (stage 6). Each is an artefact not written yet, not a regression.
 
 ### Next
 
-**Stage 4: the Novis fact the table needs and nothing tests**, one file set: `crates/nvs-cli/tests/serve_isolation.rs` (new), modelled on the `nvs serve` harness in `crates/nvs-cli/tests/live_edit.rs`.
+**Stage 5: the feature scenarios**, one file set: `benches/compare/scenarios/<id>/` (new, one folder per row) and `tools/nv/cmd/bench-compare.ts`.
 
-- [ ] **serve-isolation**: `a_static_set_by_one_request_is_not_seen_by_the_next`. A served program sets a class static, and the next request on the same worker reads it unset. Goal prose § *Stage 4*. The harness to copy is the `launch`/`get` pair at `crates/nvs-cli/tests/live_edit.rs:101` and `crates/nvs-cli/tests/live_edit.rs:199`. `crates/nvs-cli/tests/serve_isolation.rs:1`
+- [ ] **scenarios driver**: `--scenarios` beside `--smoke` in the option parser at `tools/nv/cmd/bench-compare.ts:459`, a `SCENARIOS` table beside `CASES` at `tools/nv/cmd/bench-compare.ts:160`, and `--scenarios --smoke` printing `<id>: <result per peer>`. Goal prose § *Stage 5*.
+- [ ] **the first rows**: `isolation`, `crash`, `headers` and `escape`, which need no load generator, each a folder under `benches/compare/scenarios/`. The `isolation` row's Novis program has the shape of `PROGRAM` at `crates/nvs-cli/tests/serve_isolation.rs:33`.
+- [ ] **unit tests** for the result mapping, in `tools/nv/test/bench-compare.test.ts:1`.
 
 ### Backlog
 
-- Stage 5: `bench-compare --scenarios`, goal prose § *Stage 5*.
+- The rest of stage 5's rows (`cores`, `runaway`, `taint`, `secret`, `csrf`, `waiting`, `parallel`, `live-edit`, `deploy`, `config`, `upgrade`), goal prose § *Stage 5*.
 - Stage 6: `website/src/content/docs/in-depth/compare.mdx`, goal prose § *Stage 6*.
 - `wait`: Novis reached 0.39x of best at 1000 connections on one CPU, with no `503`. The page reports it as measured, since the standing decisions keep the runtime unchanged. Why it is slower is not checked.
