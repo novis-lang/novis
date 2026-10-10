@@ -1,9 +1,7 @@
 {
   "title": "There is no temp file: a part lands on disk only where the application names a path under `fs.write`, and disk is the resource it must bound",
   "status": "shipped",
-  "because": [
-    "0097"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/a-part-is-consumed-in-one-of-three-ways",
     "http-server/request-body-and-upload-total-are-two-caps",

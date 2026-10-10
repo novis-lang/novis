@@ -2,7 +2,6 @@
   "title": "A CORS preflight is answered from `[http.cors]` before the unit is loaded, and a plain `OPTIONS` is passed through",
   "status": "shipped",
   "because": [
-    "0097",
     "0102"
   ],
   "seeAlso": [

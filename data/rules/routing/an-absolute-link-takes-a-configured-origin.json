@@ -2,8 +2,7 @@
   "title": "`urlAbsolute` prepends a configured origin and never one sniffed from a request header",
   "status": "shipped",
   "because": [
-    "0102",
-    "0097"
+    "0102"
   ],
   "seeAlso": [
     "routing/a-leftover-link-key-is-a-query-string",

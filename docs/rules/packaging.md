@@ -2494,7 +2494,7 @@ Socket activation — a privileged port with an empty capability set — is defe
 it changes how `nvs serve` acquires its listener, which makes it a server change the unit generator
 would simply follow.
 
-<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0097](../decisions/0097.md).</sub>
+<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
 
 <a id="packaging-a-bundle-may-not-install-itself"></a>
 

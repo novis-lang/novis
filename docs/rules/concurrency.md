@@ -1604,7 +1604,7 @@ The risk this closes is not that a poll loop is hard to write. It is that a poll
 becomes an executor — a ready queue, a spawn, work stealing — and then there are two schedulers on
 one core, each with its own idea of which stack may touch an arena.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
 
 <a id="concurrency-a-waker-is-one-permission-to-poll"></a>
 

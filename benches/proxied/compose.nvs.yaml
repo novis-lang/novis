@@ -1,4 +1,4 @@
-# The Novis stack: nginx in front of `nvs serve`, which is ADR 0097 § 1's proxied production origin.
+# The Novis stack: nginx in front of `nvs serve`, which is `rule:http-server/two-deployments-and-nothing-a-proxy-owns`'s proxied production origin.
 #
 # `benches/proxied/README.md` owns every decision here, including why this is a separate file from
 # `compose.php.yaml` rather than a profile in one -- the short version is that the two stacks must

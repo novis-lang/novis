@@ -277,7 +277,7 @@ It replaces the two-attribute spelling for one endpoint, which is legal but carr
 two forms could not share a name, one of them lost reverse-URL generation, and metrics saw one endpoint
 as two series. A link built with the optional capture left out of `$params` simply drops the segment.
 
-<sub>See also [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-a-query-parameter-is-declared-like-a-capture"></a>
 
@@ -517,7 +517,7 @@ rather than adding one — a match is about a quarter of the header parse the se
 caller chose. It takes the same walk as the door, so the two cannot disagree about one path, and an
 in-process test request ([`testing/in-process-request`](testing.md#testing-in-process-request)) crosses the door's match the same way.
 
-<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`testing/in-process-request`](testing.md#testing-in-process-request), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`testing/in-process-request`](testing.md#testing-in-process-request), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-the-servers-match-dispatches-nothing"></a>
 
@@ -564,7 +564,7 @@ Where an optional trailing capture makes a node terminal
 form cannot `404` while the longer one `405`s. A plain `OPTIONS` is answerable by an application from
 this list; the server still answers none on its behalf, because which to answer is a convention.
 
-<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-a-request-reads-its-mount"></a>
 
@@ -590,7 +590,7 @@ source state and a hostname is deployment state, so each lives where it changes,
 relocatable to `/ModuleA`, `/ModuleB` or `/` with no recompile. A program never derives its own prefix
 from the request target.
 
-<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-link-name-and-params-are-checked"></a>
 
@@ -642,7 +642,7 @@ The prefix is read off the request the door already wrote it on
 signed is the route's name and its parameters, not the path. A test describes its door with
 `Core\Test::request`'s `mount` key, so what a mounted deployment writes is pinned without a server.
 
-<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0097](../decisions/0097.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-a-leftover-link-key-is-a-query-string"></a>
 
@@ -688,7 +688,7 @@ mean two different things at one call site depending on a file the reader is not
 break the property that one compiled table serves at any mount prefix. Where the origin comes from when
 one binary serves several hosts is [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot).
 
-<sub>See also [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-an-origin-is-per-mount-and-checked-at-boot"></a>
 
@@ -721,7 +721,7 @@ and a reload that moves `[[app]] origin` folds it into the rows again. Either wa
 asked of every row that changed, so a row that no longer resolves an origin is left out of the table
 and the reason is logged.
 
-<sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0102](../decisions/0102.md), [0219](../decisions/0219.md).</sub>
 
 <a id="routing-table-is-opt-in"></a>
 

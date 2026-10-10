@@ -776,7 +776,7 @@ shipped defaults
 So `nvs serve --mode=development` on a mixed host does not drag an application that pins `production`
 along with it, and `[mode] ceiling` still bounds what any of them may select.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0097](../decisions/0097.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-reloadability-is-its-own-field"></a>
 
@@ -1267,7 +1267,7 @@ already the default *and* the bound; the revalidation rate cap
 never gates a *behaviour* — no dev toolbar, no source-context injection, no watcher. A feature that
 should differ between modes gets a directive first and a row second, in that order.
 
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`errors/log-level`](errors.md#errors-log-level), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0092](../decisions/0092.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`errors/log-level`](errors.md#errors-log-level), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0092](../decisions/0092.md).</sub>
 
 <a id="config-a-startup-default-is-never-flipped"></a>
 
@@ -1302,7 +1302,13 @@ read (`nvs_config::cache::Revalidation::from_config`), and `dispatch` and `stati
 `nvs_config::server::switches_for`, which the mount table is built from and which a reload compares
 to decide whether a core's table is rebuilt.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0097](../decisions/0097.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
+**Declined:**
+- **One mode table with no `System` row.** It keeps one property in one sentence, but then
+  `nvs serve --mode=development` enables neither path dispatch nor static files, and a development
+  configuration becomes a file people copy without reading. The cost accepted is that every new
+  directive has to say which table it belongs in.
+
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-a-program-may-read-and-flip-its-mode"></a>
 
@@ -1377,7 +1383,7 @@ would make a new script silently inherit the global defaults. Both keys are path
 accumulate across the tree like every other array of tables. An entry file matched by no block gets
 the global configuration, which is the ordinary case.
 
-<sub>See also [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0104](../decisions/0104.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0104](../decisions/0104.md).</sub>
 
 <a id="config-app-keys-are-canonicalized-before-matching"></a>
 
@@ -1420,7 +1426,7 @@ exists for. A host-wide default is a block with the widest `root`, which
 specific ones. `origin` keeps its class — `System`, and `Reload` on the restart axis — and
 [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin) reads it from here and from nowhere else.
 
-<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin). Decided in [0104](../decisions/0104.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin). Decided in [0104](../decisions/0104.md).</sub>
 
 <a id="config-every-matching-app-block-applies-least-specific-first"></a>
 
@@ -1504,7 +1510,7 @@ file, per-application mode works identically for `nvs serve` and `nvs run`, and 
 host is expressed with `[[app]]` blocks. `[mode] ceiling` still bounds what any `[[app]]` block may
 select, so nothing here widens what a mount could previously reach.
 
-<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0104](../decisions/0104.md), [0097](../decisions/0097.md), [0091](../decisions/0091.md).</sub>
+<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0104](../decisions/0104.md), [0091](../decisions/0091.md).</sub>
 
 <a id="config-scheduled-work-is-a-config-block"></a>
 
@@ -1895,7 +1901,7 @@ socket file for MySQL and MariaDB, a refusal for MSSQL — is
 A bare path in `url` is refused rather than read: a non-URL in a key called `url` is a thing to
 re-litigate rather than a thing to read.
 
-<sub>See also [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path), [`config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`](config.md#config-a-unix-spelling-with-no-af-unix-transport-refuses-at-boot). Decided in [0142](../decisions/0142.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path), [`config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`](config.md#config-a-unix-spelling-with-no-af-unix-transport-refuses-at-boot). Decided in [0142](../decisions/0142.md).</sub>
 
 <a id="config-a-unix-spelling-with-no-af-unix-transport-refuses-at-boot"></a>
 

@@ -2,7 +2,6 @@
   "title": "An absent `Host` is a `400`; matching strips the port, folds ASCII case and one trailing dot, refuses non-ASCII, and an unknown host on a host-mounted deployment is a `404`",
   "status": "designed",
   "because": [
-    "0097",
     "0197"
   ],
   "seeAlso": [

@@ -2287,7 +2287,7 @@ when to ask.
 **Not shipped.** `crates/nvs-stdlib/src/router.rs` carries neither member, and
 [`core-classes/signature`](core-classes.md#core-classes-signature) — the payload half both would sign — is not built either.
 
-<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0146](../decisions/0146.md), [0097](../decisions/0097.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0146](../decisions/0146.md), [0102](../decisions/0102.md).</sub>
 
 <a id="core-classes-uri-removable-components"></a>
 

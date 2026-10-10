@@ -2,7 +2,6 @@
   "title": "A mount matches on `prefix` or `host`, names one `entry` or one `scan`, and a scan expands against the disk at boot and again whenever a scanned directory changes",
   "status": "shipped",
   "because": [
-    "0097",
     "0102",
     "0104",
     "0197",

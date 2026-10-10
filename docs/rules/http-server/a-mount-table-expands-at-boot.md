@@ -20,3 +20,14 @@ A reload reaches the table too. The expansion reads `[server] root` and `[[serve
 snapshot a reload published, and a reload that changes either expands the table again at once, with no
 wait for `settle`. A reload that changes `[[app]] origin` folds it into the rows again. Either way the
 `origin` check is asked of every row that changed.
+
+Because a scan reads the disk, dropping a directory in place makes a module reachable, and a
+deployment that did not intend that must not put an unexpected directory under `[server] root`.
+`nvs info --config` prints the expanded table, which is what makes that inspectable.
+
+**Declined:**
+- **One entry point per process.** A document root of many modules, each with its own
+  `public/index.nvs`, is the normal shape of a PHP deployment. One entry point per process answers it
+  with one process, one unit cache and one resident footprint per module, giving up the shared
+  compiled-code cache, to defend an invariant (`rule:http-server/a-path-is-never-derived-from-a-url`)
+  that a table of any size already keeps.

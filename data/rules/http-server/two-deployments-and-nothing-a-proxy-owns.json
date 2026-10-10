@@ -2,7 +2,6 @@
   "title": "The server is a development server or a proxied production origin, and nothing a proxy does earlier is in it",
   "status": "shipped",
   "because": [
-    "0097",
     "0083"
   ],
   "seeAlso": [

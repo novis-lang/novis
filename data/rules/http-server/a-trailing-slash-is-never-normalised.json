@@ -1,9 +1,7 @@
 {
   "title": "A trailing slash is never normalised: `/users` and `/users/` are two URIs",
   "status": "shipped",
-  "because": [
-    "0097"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/head-runs-as-get",
     "routing/a-trailing-segment-may-be-absent",

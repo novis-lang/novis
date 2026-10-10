@@ -1,9 +1,7 @@
 {
   "title": "A forwarded token's port is removed, a withheld address answers `null`, and a token that neither names nor withholds one is a `400`",
   "status": "shipped",
-  "because": [
-    "0097"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
     "http-server/x-forwarded-for-is-the-only-address-header",

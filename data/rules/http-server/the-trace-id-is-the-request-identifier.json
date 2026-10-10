@@ -1,9 +1,7 @@
 {
   "title": "The trace id exists on every request regardless of sampling, is the only request identifier, is emitted on the response, and an inbound `X-Request-ID` is ignored",
   "status": "designed",
-  "because": [
-    "0097"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/the-access-log-is-a-mode-default",
     "errors/log-fields",

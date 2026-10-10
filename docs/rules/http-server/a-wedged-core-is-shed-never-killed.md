@@ -1,4 +1,4 @@
-What a watchdog report does is **report and shed, never kill**: the affected core stops accepting new work, and `max_in_flight` accounts for its share as unavailable so the remaining cores are not asked to carry a ceiling that assumes it (`rule:http-server/admission-is-arithmetic-not-a-number`).
+What a watchdog report does is **report and shed, never kill**: the affected core stops accepting new work, and `max_in_flight` accounts for its share as unavailable so the remaining cores are not asked to carry a ceiling that assumes it (`rule:http-server/admission-is-arithmetic-not-a-number`). The watchdog reads the in-flight deadline each worker already keeps, so a worker pays nothing for being watched.
 
 Killing is not available and the rule does not pretend otherwise. A thread cannot be safely killed in-process, and the process boundary that would make it possible is the one `rule:http-server/the-residue-is-one-named-fault-class` declines. The one process-level end this leaves is the service manager's own, and it is not this rule's kill: a
 unit with `WatchdogSec=` set stops a process that has stopped pinging, and

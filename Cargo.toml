@@ -135,7 +135,7 @@ core_affinity = "0.8"
 # contract above it.
 mio = { version = "1", features = ["os-poll", "net"] }
 
-# --- HTTP/1 framing (ADR 0097 § 1: a development server and a proxied origin) ---
+# --- HTTP/1 framing (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`) ---
 # The one dependency in this file that `rule:packaging/a-c-dependency-answers-two-questions`'s first question answers
 # **yes** to: every octet `hyper` parses arrived from the network, and framing is
 # where request smuggling lives. That is the reason to take it rather than a
@@ -153,7 +153,7 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # `server` and `client` the graph is `http`, `http-body`, `bytes`,
 # `futures-core`, `futures-channel`, `pin-project-lite`, `httparse`, `httpdate`,
 # `itoa`, `smallvec`, `atomic-waker`, `want` and `try-lock` — all pure Rust and
-# all MIT. No `http2`: ADR 0097 § 1 dropped h2c, and that feature is the one
+# all MIT. No `http2`: `rule:http-server/two-deployments-and-nothing-a-proxy-owns` drops h2c, and that feature is the one
 # `h2` comes from. `client` is on for the one client in this tree that is not an
 # application's: `nvs-server`'s OTLP exporter posts to a collector, and an
 # exchange framed by a parser of ours would be a parser of ours to get right. What a
@@ -202,7 +202,7 @@ hyper = { version = "1", default-features = false, features = [
 # `derive_accept_key` lives behind, and everything the set pulls — `http`,
 # `httparse`, `data-encoding`, `sha1`, `rand` — is already in this lock file for
 # `hyper`, `Core\Hash` and `Core\Random`. No `native-tls` and no `rustls`,
-# because a `wss://` listener is a TLS listener and ADR 0097 § 1 has none, and a
+# because a `wss://` listener is a TLS listener and `rule:http-server/two-deployments-and-nothing-a-proxy-owns` has none, and a
 # `wss://` client is `Core\Http\Socket`, whose transport hands `tungstenite` a
 # stream `nvs_host::tls` already decrypted.
 tungstenite = "0.30"

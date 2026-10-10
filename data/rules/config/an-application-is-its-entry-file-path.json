@@ -2,8 +2,7 @@
   "title": "An application is its entry file path, and an `[[app]]` block is keyed on a `root` directory or one `entry` file",
   "status": "shipped",
   "because": [
-    "0104",
-    "0097"
+    "0104"
   ],
   "seeAlso": [
     "config/app-keys-are-canonicalized-before-matching",

@@ -11,3 +11,6 @@ mode = "production"
 ```
 
 The two usually cover the same tree, and that is the intended shape. An application's identity is its entry file path, not its mount, so `nvs run` on the command line has one too and per-app configuration is reachable with no server at all. A mixed-application host — production by default, each application selecting its own mode — is expressed here, not in a mount key (`rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`).
+
+**Declined:**
+- **A `mode`, limits or capabilities on the mount.** The `[[app]]` block owns those facts, and a second home for them is worse than none.

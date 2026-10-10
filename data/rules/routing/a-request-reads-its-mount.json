@@ -2,8 +2,7 @@
   "title": "`Core\\Request::mount()` answers the prefix the door stripped and the tainted host captures, and it is never `null`",
   "status": "shipped",
   "because": [
-    "0102",
-    "0097"
+    "0102"
   ],
   "seeAlso": [
     "routing/matched-once-before-the-handler",

@@ -1,9 +1,7 @@
 {
   "title": "A trusted `X-Forwarded-Proto` sets the effective scheme and HSTS emission and feeds nothing else; no `X-Forwarded-Host` is read",
   "status": "shipped",
-  "because": [
-    "0097"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",
     "http-server/host-matching-is-on-the-host-part-only",

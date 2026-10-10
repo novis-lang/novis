@@ -84,7 +84,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
   [`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)).
 - **The built-in server exposed directly to the internet.** It is a development server and a proxied
   origin — no TLS listener, no h2c, no FastCGI
-  ([0097](docs/decisions/0097.md)). Findings that require ignoring that
+  (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`). Findings that require ignoring that
   are documentation questions.
 - **A fault that kills one request and only that request.** That is the design; report it as a normal bug.
 - **Scanner output with no demonstrated path**, missing hardening flags with no exploit, and advisories

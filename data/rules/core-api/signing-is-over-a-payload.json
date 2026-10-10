@@ -2,8 +2,7 @@
   "title": "A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines",
   "status": "designed",
   "because": [
-    "0146",
-    "0097"
+    "0146"
   ],
   "seeAlso": [
     "core-api/a-lifetime-is-written",

@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0138",
-    "0115",
-    "0097"
+    "0115"
   ],
   "seeAlso": [
     "concurrency/a-waker-is-one-permission-to-poll",

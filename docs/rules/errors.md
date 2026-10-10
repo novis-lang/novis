@@ -796,7 +796,7 @@ unknown but well-formed one, is accepted verbatim.
   state, and it refuses requests every other origin accepts (underscores in header names are common). It
   also makes the list open-ended, which the closed list exists to prevent.
 
-<sub>See also [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0097](../decisions/0097.md).</sub>
+<sub>See also [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals).</sub>
 
 <a id="errors-http-message-defects"></a>
 
@@ -839,7 +839,7 @@ that an upstream with a sloppy header emitter breaks an outbound call, visibly, 
   services, which is a real problem. The second code path would have to stay exactly as safe as the
   first, and an option like that is copy-pasted into the calls that did not need it.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0097](../decisions/0097.md).</sub>
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes).</sub>
 
 <a id="errors-cookie-name-bytes"></a>
 

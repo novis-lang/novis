@@ -2,8 +2,7 @@
   "title": "A missing path and a refused verb are different answers, and `methodsFor` is what tells them apart",
   "status": "shipped",
   "because": [
-    "0102",
-    "0097"
+    "0102"
   ],
   "seeAlso": [
     "routing/matched-once-before-the-handler",

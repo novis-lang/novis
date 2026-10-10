@@ -1,9 +1,7 @@
 {
   "title": "`health_path` is off by default; set, it answers `200` while accepting and `503` while draining, and checks no dependency",
   "status": "shipped",
-  "because": [
-    "0097"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "concurrency/a-drain-closes-a-connection-cleanly"

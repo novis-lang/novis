@@ -55,7 +55,7 @@ the request's state lives, eagerly, rather than by whichever subsystem asks firs
 **A trace id never becomes a metric label.** It is unbounded by construction, and
 [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) would refuse it anyway.
 
-<sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0097](../decisions/0097.md).</sub>
+<sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted).</sub>
 
 <a id="observability-a-log-record-carries-trace-ids-when-a-trace-is-active"></a>
 

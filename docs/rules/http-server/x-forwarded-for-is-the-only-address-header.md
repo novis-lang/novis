@@ -3,3 +3,6 @@
 **A trusted peer that sends one of the five, or `Forwarded`, and no `X-Forwarded-For` is served with the peer as the client and warned about once**: that is a misconfiguration Novis can see and the deployment cannot. `proxy_set_header X-Real-IP $remote_addr;` with nothing beside it is one of the most-copied nginx recipes there is, and under it every client is the proxy with nothing said. The list has one home, `nvs_server::forwarded`; adding a name widens nothing a proxy may assert, only what Novis will mention.
 
 **An `X-Forwarded-For` from an untrusted peer is ignored silently, never refused.** Any client can set the header, so refusing on its presence would let anyone deny service by sending it. Refusal is reserved for a value that was about to be *used*, and the `Warn` above is raised only for a peer that was allowed to speak: a stranger must not be able to turn on a log line per request.
+
+**Declined:**
+- **Reading RFC 7239 `Forwarded` beside `X-Forwarded-For`.** Two sources that can disagree are the ambiguity the server refuses, and the price would be paid for a header no common proxy sends by default.
