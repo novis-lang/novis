@@ -28,7 +28,22 @@ point in the same block, so a counter in the header costs nothing in time or spa
 work and neither is rewritten into the other; a counter read after its loop, or shared by two loops,
 is the case that still wants the declaration above.
 
-<sub>See also [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../decisions/0109.md).</sub>
+Every other binding position has a type slot — a local at its declaration, a `foreach` key and value,
+a destructuring pattern — and the init clause is where a counter is declared in the shape a reader
+writes first. Without the slot, `for (int $i = 0; …)` does not parse, and the reader gets a run of
+errors about a `;` and a counter typed `mixed` that name nothing about `for`. A reader who knows
+`foreach ($rows as int $row)` can guess this syntax and be right. The cost is one more production in
+the statement grammar, spent on simplicity of the language surface.
+
+**Declined:**
+- **Keeping the expression-only clause and improving the diagnostic.** It makes the gap legible
+  without making it defensible, since `foreach` has the slot. The diagnostic half is kept as
+  [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals), for the shapes that still do not parse.
+- **A comma-separated list of declarations**, `for (int $i = 0, int $j = 0; …)`. One declaration
+  declares one binding everywhere else, so this would be the one statement that declares two
+  (`E0125`, [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals)).
+
+<sub>See also [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals).</sub>
 
 <a id="iteration-for-counter-scope"></a>
 
@@ -45,7 +60,15 @@ So [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause) is a sp
 header is the same statement a declaration anywhere else is, which is what makes the declare-once
 rule, definite assignment and the lowering all apply to it unchanged.
 
-<sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals). Decided in [0109](../decisions/0109.md).</sub>
+**Memory:** none. The header declaration is the same binding in the same frame slot, with the same
+lifetime, as a declaration on the line above the loop.
+
+**Declined:**
+- **A loop-scoped counter, as in C and Java.** It is a second scoping rule in a language that has
+  one, and it would have to say what it means for definite assignment, for a closure that captures the
+  counter, and for an `inout` argument's frame ([`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local)).
+
+<sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-init-refusals`](iteration.md#iteration-for-init-refusals).</sub>
 
 <a id="iteration-for-init-refusals"></a>
 
@@ -66,7 +89,7 @@ Two grammatical refusals, each raised once and each naming the spelling that wor
 Each refused header reports **one** diagnostic and no second one, and keeps whatever declaration it
 held so no later phase reports an undeclared counter on top of it.
 
-<sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope). Decided in [0109](../decisions/0109.md).</sub>
+<sub>See also [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause), [`iteration/for-counter-scope`](iteration.md#iteration-for-counter-scope).</sub>
 
 <a id="iteration-foreach-subjects"></a>
 

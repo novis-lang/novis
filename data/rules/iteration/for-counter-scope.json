@@ -1,9 +1,7 @@
 {
   "title": "A header-declared counter is function-scoped, and a second header declaring it again is refused",
   "status": "shipped",
-  "because": [
-    "0109"
-  ],
+  "because": [],
   "seeAlso": [
     "iteration/for-init-clause",
     "iteration/for-init-refusals"
