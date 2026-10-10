@@ -40,3 +40,15 @@ consulted.
 A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated, and each must name a
 table the compiler builds for another reason or the table the completion files were loaded into. No
 completion source reads a directory or a file itself.
+
+The text an item inserts comes from the same place: a `Core` member is inserted from the registry the
+checker seeds its signatures from, so a suggestion never writes a call that then fails to resolve. An
+editor that writes such a call is worse than one that offers nothing, because the developer cannot tell
+the suggestion's mistake from their own.
+
+**Declined:**
+- **PHP built-in names as candidates, each answered with its Novis destination.** The answer needs a
+  table from PHP names to Novis ones, and there is none (`rule:programs/no-compatibility-promise`).
+- **A PHP name that resolves while the program runs, as an alias of a `Core` member.** It is a second
+  name for one member (`rule:statements/nothing-gets-a-second-name`), and it keeps PHP names in
+  committed source for good.
