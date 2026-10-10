@@ -68,10 +68,9 @@ var $rows = $db->query('select id, name from people order by id', []);
 echo 'rows=', $rows->count(), "\n";
 
 foreach ($rows as Row $row) {
-    // § 6: a typed reader converts losslessly or throws, and a `null` is a
-    // NULL column rather than a failure. `name` is `not null`, so the branch
-    // below is the one that never fires — it is here because `?T` is how
-    // absence is spelled and the program has to say what it would do.
+    // `$row->string()` gives the column as a string, or `null` for a NULL column.
+    // It throws an error if the value cannot be converted without a change.
+    // `name` is `not null`, so the branch below never runs here.
     var $name = $row->string('name');
     if ($name == null) {
         echo 'null name', "\n";

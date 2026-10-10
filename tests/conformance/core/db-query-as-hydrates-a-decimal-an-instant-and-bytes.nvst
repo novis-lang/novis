@@ -95,4 +95,4 @@ id 1
 owed 1.25
 photo yes
 Core\Db\Connection::queryAs: 1 column(s) of `Reading` did not match the row
-  at: the column came back as a `Core\Time\DateTime` and this field declares `Core\Time\Instant` — ADR 0067 § 9's type map is what each column reads back as
+  at: the column came back as a `Core\Time\DateTime` and this field declares `Core\Time\Instant` — `rule:core-classes/db-column-types`'s type map is what each column reads back as

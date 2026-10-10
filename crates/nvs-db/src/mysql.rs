@@ -3504,8 +3504,8 @@ pub(crate) fn next_row_of<S: Read + Write>(
                     state,
                     io::Error::new(
                         io::ErrorKind::InvalidData,
-                        "the server has a second result set for this statement, and ADR \
-                         0067 § 4's one-statement-at-a-time surface has nowhere to put it",
+                        "the server has a second result set for this statement, and a \
+                         statement can return only one result set",
                     ),
                 ));
             }

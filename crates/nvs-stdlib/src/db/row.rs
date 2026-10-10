@@ -489,8 +489,8 @@ pub(super) fn converted(
                 Ok(held)
             } else {
                 Err(format!(
-                    "the column came back as a `{}` and this field declares `{declared}` — ADR \
-                     0067 § 9's type map is what each column reads back as",
+                    "the column came back as a `{}` and this field declares `{declared}` — `rule:core-classes/db-column-types`'s \
+                     type map is what each column reads back as",
                     found.name()
                 ))
             }
@@ -514,7 +514,7 @@ pub(super) fn converted(
     }
 }
 
-/// § 5's message for a column that came back as something else, said with what
+/// The message for a column that came back as something else, said with what
 /// it actually is — [`wrong_column_type`]'s shape, for the walk that has a
 /// field's declared type in hand rather than a reader's name.
 pub(super) fn wanted(want: &str, held: Value) -> String {
@@ -534,8 +534,8 @@ pub(super) fn wanted(want: &str, held: Value) -> String {
 /// a field and a reader say the same thing about the same value.
 pub(super) fn lossy(want: &str, holds: &str) -> String {
     format!(
-        "the column holds {holds}, so reading it as {want} would not be the same value — `rule:core-classes/db-one-api` \
-         § 6 converts losslessly or throws"
+        "the column holds {holds}, so reading it as {want} would not be the same value — `rule:core-classes/db-column-types` \
+         converts losslessly or throws"
     )
 }
 

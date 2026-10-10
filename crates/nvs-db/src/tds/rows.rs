@@ -454,8 +454,8 @@ impl<S: Read + Write> Walk<'_, S> {
                     }
                     Some(Token::Columns(_)) => {
                         return Err(malformed(String::from(
-                            "the server has a second result set for this statement, and `rule:core-classes/db-one-api` \
-                             § 4's one-statement-at-a-time surface has nowhere to put it",
+                            "the server has a second result set for this statement, and a \
+                             statement can return only one result set",
                         )));
                     }
                     Some(Token::LoginAck(_)) => {
