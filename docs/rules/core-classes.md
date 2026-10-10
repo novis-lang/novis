@@ -1632,7 +1632,7 @@ field. So the refusal is of the call that asks for a whole instance out of a doc
 than of the declaration, at every door that reads a derived codec. There is no whole-class naming policy — that would make a wire
 format depend on a setting rather than on the source.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0071](../decisions/0071.md), [0022](../decisions/0022.md), [0038](../decisions/0038.md), [0030](../decisions/0030.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0071](../decisions/0071.md), [0022](../decisions/0022.md), [0030](../decisions/0030.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-derive-reports-every-field"></a>
 
