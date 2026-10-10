@@ -14,8 +14,7 @@
 // tree the main store recorded, and run what the branch changed rather than the whole floor. The database
 // fixtures' certificate is a copy of a Docker volume's that `.gitignore` keeps out of git, and a floor
 // check that opens the database fails without it. The fuzz corpus directory is made empty rather than
-// copied: the floor's `nv playbook --check` needs every path a bullet names to exist, and a fuzz run
-// fills it.
+// copied: a fuzz run needs it to exist, and fills it.
 //
 // What it spends: a second checkout and a second `target/`, for as long as the side goal lives.
 //

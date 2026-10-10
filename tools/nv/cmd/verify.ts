@@ -5,7 +5,7 @@
 //     bun nv verify                  every step the change reaches
 //     bun nv verify -p nvs-ir        the same build; only nvs-ir's test binaries run
 //     bun nv verify --fast           build and test only, for a mid-work check
-//     bun nv verify --doc            the rustdoc gate alone; the driver's goal-end call
+//     bun nv verify --doc            the rustdoc gate alone; the sweep's goal-end call
 //     bun nv verify --start          run it detached through `nv bg` and return at once
 //     bun nv verify --wait           collect what --start left, with its exit status
 //     bun nv verify --full           do not truncate the failing step's output
@@ -81,13 +81,14 @@
 //
 // `-p` narrows which test binaries run, off the one build, and the steps that run `nvs` over the trees
 // do not run; what it leaves out is owed. `cargo doc` with broken intra-doc links denied is `--doc`, run
-// alone. The documentation gates (`rules`, `records`, links, the plan, the playbook) are not steps: `nv
-// session --wrap` refuses a wrap that breaks them.
+// alone. The documentation gates (`rules`, `records`, links, the plan) are not steps: CI's `docs` job
+// runs them.
 //
 // Every process verify starts is killed with the processes it started when it runs out of time, and a
 // test binary or case batch that fails has what it left running killed (`lib/proc.ts`).
 //
-// `.agent-tmp/verify-progress.json` names the step in flight, for whoever watches the run.
+// `.agent-tmp/verify-progress.json` names the step in flight and its process, which is how a person
+// tells a slow `--start` run from a stuck one.
 //
 // Exits 0 when every step is green, 1 when one is red, and 2 on a bad argument or a `--wait` with nothing
 // to collect.

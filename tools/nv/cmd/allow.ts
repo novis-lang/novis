@@ -5,8 +5,7 @@
 // A session runs under `--permission-mode auto`: a shell call that matches an allow rule runs at once, and
 // any other call waits on the harness's classifier, which approves it or blocks it. `--learn` reads a
 // finished session's stream-json events, records what it saw (`AllowWatch`, `record`), and then adds and
-// commits the rules the tree owes (`settle`). The driver calls the same code in-process: it watches the
-// session's events as they arrive, records them when it ends, and settles before the next launch.
+// commits the rules the tree owes (`settle`).
 //
 // Two kinds of rule are added without a person:
 //
@@ -20,8 +19,9 @@
 // rewrites) never becomes a rule, because a prefix rule would approve every later call that starts the
 // same way, whatever follows it. A read-only command is not counted either: auto mode runs it unasked.
 //
-// `.loop/allow-seen.json` keeps the count from one session to the next. A rule is committed by the driver
-// alone, by path, and never while `.claude/settings.json` has an uncommitted edit of somebody else's.
+// `.loop/allow-seen.json` keeps the count from one session to the next. A rule is committed by this
+// command alone, by path, and never while `.claude/settings.json` has an uncommitted edit of somebody
+// else's.
 //
 // It exits 0 when the session is recorded, whether or not a rule was added, 1 when the events file
 // cannot be read, and 2 on a usage error.

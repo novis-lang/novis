@@ -1,5 +1,4 @@
-// `bun nv sweep`: the sweep after a session, the one the loop's turn runs in-process and looper's hook runs
-// as a command.
+// `bun nv sweep`: the sweep after a session, which a person or a looper hook runs as a command.
 //
 //     bun nv sweep [--goal <slug>] [--done] [--keep-runs <n>] [--session <label>]
 //
@@ -56,7 +55,7 @@ export const HEAVY_FULL_META = "heavy-full:since";
  */
 export const HEAVY_FULL_EVERY = 3;
 
-/** How the sweep reports itself: the driver paints it on its console, the command prints it. */
+/** How the sweep reports itself: the command prints it, and a test silences it. */
 export interface SweepVoice {
   /** A step of the sweep. */
   step(line: string): void;

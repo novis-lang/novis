@@ -18,7 +18,7 @@ import { ROOT } from "./paths.ts";
 
 const GOALS = "docs/goals";
 
-/** Set to a side goal's slug in every process of a side run: the driver, its turns and their sessions. */
+/** Set to a side goal's slug in every process of a side run: its hooks, its checks and its sessions. */
 export const SIDE_ENV = "NOVIS_SIDE_GOAL";
 
 /** The goal a looper hook names for the command it runs, which a command's `--goal` overrides. */

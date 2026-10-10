@@ -122,8 +122,8 @@ export async function buildCovws(opts: CovwsOptions = {}): Promise<CovwsBuild> {
   const dir = abs(`${COVWS_TARGET}/${hostTriple()}/debug`);
   const nvs = `${dir}/nvs${EXE}`;
   if (!existsSync(nvs)) throw new Error(`the covws build left no ${nvs}`);
-  // The driver's module is loaded for the test executables alone, so a command that needs this file for
-  // the build's paths, or builds `nvs` alone, does not load the driver.
+  // The acceptance module is loaded for the test executables alone, so a command that needs this file for
+  // the build's paths, or builds `nvs` alone, does not load it.
   const tests = opts.tests ? (await import("../accept/accept.ts")).testExecutables(await cargo(["test", "--no-run"])) : new Map<string, TestExe[]>();
   return { triple: hostTriple(), dir, nvs, tests };
 }

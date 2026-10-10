@@ -10,7 +10,7 @@
 //   past       a milestone before M9. Everything before M9 is complete, so the tag names owed work
 //              whose carrier has been and gone.
 //   live       the goal `docs/goals/README.md`'s chain names live, or the side goal this process runs. Accepted,
-//              because the driver's owner gate (`--closes`) will not let that goal walk while the gap
+//              because the sweep's owner gate (`--closes`) will not let that goal walk while the gap
 //              names it, so the gap cannot outlive its owner.
 //   goal       any other goal. A goal is a schedule rather than an owner: the goal switch deletes it,
 //              and the gap outlives it.

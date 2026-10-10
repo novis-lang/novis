@@ -13,7 +13,7 @@ import { holdOrigin, type Origin } from "./origin.ts";
 import { PlanSweep } from "./runner.ts";
 import { needLine, sharedResources, takeSweepLock } from "./sweep-lock.ts";
 
-/** The check's name as the driver prints it: its own, or its fixture's run line. */
+/** The check's name as the sweep prints it: its own, or its fixture's run line. */
 export function nameOf(c: Check): string {
   return c.name ?? `run ${[...(c.args ?? []), c.file ?? ""].join(" ")}`.trimEnd();
 }

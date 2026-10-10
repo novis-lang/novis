@@ -1,4 +1,4 @@
-// The acceptance sweep's order and verdicts: the half of the driver's sweep that decides, from a check
+// The acceptance sweep's order and verdicts: the half of `bun nv sweep` that decides, from a check
 // record and what its run printed, whether it is green. The judging functions are exported on their
 // own, because each is a pure function of a check and what its process printed, and
 // `tools/nv/test/accept.test.ts` pins them from recorded output. What runs a check is
