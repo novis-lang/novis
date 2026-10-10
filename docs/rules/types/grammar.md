@@ -26,7 +26,8 @@ target's, both settled by a checkpointed trial parse that commits only when the 
 and a `(` follows, so `new Foo < $x` stays a comparison. Only a compiler-owned generic declaration may
 carry one. `class<T>` is read in type position only too, and adds no ambiguity: `class` is already a
 keyword and a class declaration is `class Name`, never `class <`. Its argument closes through the same
-`>`-splitting close `array<T>` uses, so `array<class<Animal>>` parses.
+`>`-splitting close `array<T>` uses, so `array<class<Animal>>` parses, and `property<T>` reads the same
+way. `property` is a keyword in type position only.
 
 `Name` covers four kinds of atom told apart by resolution: a class or interface name, an enum's name,
 an enum case (`rule:types/enum-case-type`), and a `type` alias (`rule:types/type-alias`). A class name

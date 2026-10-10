@@ -2,7 +2,6 @@
   "title": "Three sites accept a `class<T>`, and every other operand is still refused there",
   "status": "shipped",
   "because": [
-    "0126",
     "0192"
   ],
   "seeAlso": [

@@ -25,3 +25,16 @@ behave exactly as they do there.
 fine, and a class whose fields are all assignable is unaffected. It is deliberately compile-time:
 where a request-controlled name selects a field to write, refusing at build time is the direction
 security points in.
+
+Applying a key costs exactly what the erased access costs, because it is that access: one call per
+direction, with no new descriptor field and no new calling convention. A written-out `$user->email`
+pays nothing.
+
+**Declined:**
+- **A hook entry and a `readonly` flag per field on the class descriptor.** The hook entry buys
+  nothing, because the erased access already runs hooks. The flag buys a run-time throw where the
+  write above is already refused at compile time.
+- **A chain of name tests over the key's set, one ordinary read per public property.** It spends a
+  comparison and a basic block per property at every access to reach the slot the erased access finds
+  in one call. Each arm's read would also be tagged into the union before the join, so it gives no
+  statically typed read.

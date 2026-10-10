@@ -342,7 +342,7 @@ pub enum Ty {
     /// makes `class<T>` a type written wherever a type is written, so a
     /// descriptor reaches a local, a parameter, a field and a return value
     /// — which costs nothing beyond the word it already is, since a
-    /// descriptor is immortal and process-wide (§ 1's own sentence) and the
+    /// descriptor is immortal and process-wide (`rule:types/class-reference`) and the
     /// slot holding one needs no lifecycle at all. What the erasure drops is
     /// the `T`: two `class<T>`s over different bounds are one representation
     /// here, exactly as [`Self::Object`] drops which class an instance is, and

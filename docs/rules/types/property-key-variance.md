@@ -10,3 +10,8 @@ check the conversion's second row already describes.
 The rule at the site follows and adds nothing: `$obj->$key` requires `$obj`'s type to be a `T`, where
 `T` is the key's argument. A key made against `Animal` reads a `Dog`; a key made against `Dog` does not
 read an `Animal`.
+
+**Declined:**
+- **`property<T>` covariant, like `class<T>`.** It reads as the obvious rule and is unsound: a
+  `property<Dog>` passed where `property<Animal>` is wanted lets `$breed` reach an `Animal` receiver,
+  which has no such storage.

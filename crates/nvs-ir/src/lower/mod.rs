@@ -4026,7 +4026,7 @@ pub(crate) fn erase_checked_ty(id: TypeId, checked_types: &TypeInterner) -> Ty {
         // `rule:types/property-key`: **a key is a name**, so its values are exactly the
         // `string`s `T`'s public properties are declared under and the
         // representation is the one a `string` already has — no descriptor
-        // field, no tag of its own, and § 2's `property<T>` → `string` row
+        // field, no tag of its own, and `rule:types/property-key`'s `property<T>` → `string` row
         // free by construction.
         //
         // The argument is dropped here the way `class<T>`'s is one arm above,

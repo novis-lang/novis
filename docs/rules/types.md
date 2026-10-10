@@ -157,7 +157,8 @@ target's, both settled by a checkpointed trial parse that commits only when the 
 and a `(` follows, so `new Foo < $x` stays a comparison. Only a compiler-owned generic declaration may
 carry one. `class<T>` is read in type position only too, and adds no ambiguity: `class` is already a
 keyword and a class declaration is `class Name`, never `class <`. Its argument closes through the same
-`>`-splitting close `array<T>` uses, so `array<class<Animal>>` parses.
+`>`-splitting close `array<T>` uses, so `array<class<Animal>>` parses, and `property<T>` reads the same
+way. `property` is a keyword in type position only.
 
 `Name` covers four kinds of atom told apart by resolution: a class or interface name, an enum's name,
 an enum case ([`types/enum-case-type`](types.md#types-enum-case-type)), and a `type` alias ([`types/type-alias`](types.md#types-type-alias)). A class name
@@ -173,7 +174,7 @@ name already says. The refusal recovers as `mixed`, which is what keeps one miss
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0136](../decisions/0136.md).</sub>
 
 <a id="types-integer-literals"></a>
 
@@ -991,7 +992,8 @@ carried at run time is that name, a string in the representation but **not** in 
 `T` names one **class**. An interface, an enum, a scalar, a `class<...>` — anything that is not a
 class — is `E0799` where it is written, and so is a class declaring no public property at all, since
 no value of that type could exist. The interface row is the conservative one: a key's set has to be a
-roster the receiver certainly has storage for. The set is the same roster reflection walks; the
+roster the receiver certainly has storage for, and an interface names a contract its implementors
+satisfy with properties it does not itself declare. The set is the same roster reflection walks; the
 visibility question has one shared implementation and this is not a second one.
 
 **`as` is its only source.** A string literal is a `string` and stays one, so no program acquires a key
@@ -1011,7 +1013,43 @@ It is its own **equality domain**: two keys are equal when they name the same pr
 ever equal to one, and ordering one is refused ([`types/ordering`](types.md#types-ordering)). `property` is a keyword only
 in type position — `$property`, a method named `property` and a class named `Property` are untouched.
 
-<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md).</sub>
+The type exists because the refusal of `$obj->$name` alone leaves three bad options for a request that
+names a field — a sort column, a patch document's key, a form input. A hand-written `match` the
+compiler cannot check covers the class; an `array<string, T>` beside the object gives up the declared
+types; and reflection returns `mixed` and moves every check to run time. Each re-derives a fact the
+compiler already has: the class's property roster is finite, declared and known
+([`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties)). The bound a key sets is narrower than the `match`, because the
+compiler cannot tell whether one arm of the `match` was mistyped. A key is not a replacement for
+`array<string, mixed>`: a program that wants arbitrary keys still wants an array, and a key is for
+fields that are the class's own when the choice among them is made late.
+
+The run-time conversion is one field lookup and one visibility test, the pair reflection already
+performs, once where the string arrives. A written-out operand skips it. The value is a name and not a
+slot index: an index would bind the key to one class's field layout, while a key is applied to
+receivers of every subclass ([`types/property-key-variance`](types.md#types-property-key-variance)), and the lookup an index would save
+is one the erased access performs anyway.
+
+- **Memory:** a key is one string value, the property's name. Nothing is added to the class
+  descriptor, and nothing is spent per request or per instance.
+
+**Declined:**
+- **Keep the refusal and offer nothing.** It pushes the ordinary program onto a `match` the compiler
+  cannot check or an array that erases the declared types, both with less checking than the syntax it
+  replaces.
+- **Hooked and `readonly` properties left out of the set.** "The public properties" would become two
+  rosters, this one and reflection's. Adding a hook to a property later would also turn a working `as`
+  into a run-time throw in a file that did not change. The `readonly` half is refused at the write
+  instead ([`types/property-key-access`](types.md#types-property-key-access)).
+- **A `Core` function that takes a property name and a class as two strings.** It checks only at run
+  time and gives back a value the checker cannot type, so the read is `mixed` and the write is
+  unchecked. A type is the only shape that reaches the access site.
+- **A bare `string` accepted at `$obj->$name` when the class is written out.** The check moves from the
+  source to every use, so an unchecked string flows through the program.
+- **A key that may name a `private` property, with visibility checked at the access.** The conversion
+  would succeed on a name the caller may not use, and the throw would land at a site that looks
+  correct. Visibility belongs to the set, so it is checked where the set is entered.
+
+<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="types-property-key-variance"></a>
 
@@ -1032,7 +1070,12 @@ The rule at the site follows and adds nothing: `$obj->$key` requires `$obj`'s ty
 `T` is the key's argument. A key made against `Animal` reads a `Dog`; a key made against `Dog` does not
 read an `Animal`.
 
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/property-key-access`](types.md#types-property-key-access). Decided in [0126](../decisions/0126.md).</sub>
+**Declined:**
+- **`property<T>` covariant, like `class<T>`.** It reads as the obvious rule and is unsound: a
+  `property<Dog>` passed where `property<Animal>` is wanted lets `$breed` reach an `Animal` receiver,
+  which has no such storage.
+
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/property-key-access`](types.md#types-property-key-access).</sub>
 
 <a id="types-property-key-access"></a>
 
@@ -1068,7 +1111,20 @@ fine, and a class whose fields are all assignable is unaffected. It is deliberat
 where a request-controlled name selects a field to write, refusing at build time is the direction
 security points in.
 
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0126](../decisions/0126.md), [0274](../decisions/0274.md).</sub>
+Applying a key costs exactly what the erased access costs, because it is that access: one call per
+direction, with no new descriptor field and no new calling convention. A written-out `$user->email`
+pays nothing.
+
+**Declined:**
+- **A hook entry and a `readonly` flag per field on the class descriptor.** The hook entry buys
+  nothing, because the erased access already runs hooks. The flag buys a run-time throw where the
+  write above is already refused at compile time.
+- **A chain of name tests over the key's set, one ordinary read per public property.** It spends a
+  comparison and a basic block per property at every access to reach the slot the erased access finds
+  in one call. Each arm's read would also be tagged into the union before the join, so it gives no
+  statically typed read.
+
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="types-unions-and-mixed"></a>
 
@@ -1354,7 +1410,7 @@ reads the wrong value later.
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
   ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
@@ -2038,7 +2094,7 @@ declared property observer behave here exactly as they do anywhere, because this
 and not a family of them — [`types/property-key-access`](types.md#types-property-key-access) and [`types/mixed-subscript`](types.md#types-mixed-subscript) are the
 same access one step along.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0126](../decisions/0126.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed).</sub>
 
 <a id="types-class-reference"></a>
 
@@ -2173,7 +2229,7 @@ the reference already promised. No second operator tests a class ([`types/one-ty
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
 member" ([`types/property-key-access`](types.md#types-property-key-access)).
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0126](../decisions/0126.md), [0192](../decisions/0192.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0192](../decisions/0192.md).</sub>
 
 <a id="types-class-constant"></a>
 

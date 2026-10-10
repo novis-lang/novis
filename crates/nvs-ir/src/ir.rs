@@ -1212,11 +1212,11 @@ pub enum InstKind {
     /// `rule:types/property-key-access`'s keyed read, and [`InstKind::SlotGet`] with the name arriving as a
     /// **value** instead of as a `String` this instruction carries.
     ///
-    /// That is the whole difference, and it is § 5's recorded choice: a key is
+    /// That is the whole difference, and it is `rule:types/property-key-access`'s choice: a key is
     /// a name, so what the access needs is exactly the by-name lookup on the
     /// receiver's concrete descriptor that `rule:types/erased-member-access`'s erased read already
     /// performs — one call, no allocation, and the same catchable throw for a
-    /// name the concrete class does not carry. The alternative § 5 weighed was
+    /// name the concrete class does not carry. The alternative weighed was
     /// a closed-set chain over the key's roster, one `BinOp::Eq` per name and
     /// an ordinary [`InstKind::FieldGet`] per arm joined by a
     /// [`InstKind::Phi`]; it needs no new instruction, and it spends a
@@ -1226,7 +1226,7 @@ pub enum InstKind {
     /// static-read advantage it looks like it buys is not there.
     ///
     /// **Per-property hooks and a declared `PropertyObserver` therefore behave
-    /// exactly as they do on `rule:types/erased-member-access`'s erased path**, which is what § 5
+    /// exactly as they do on `rule:types/erased-member-access`'s erased path**, which is what `rule:types/property-key-access`
     /// says and not a second answer: the erased access's own known gap — it
     /// reaches storage past a per-property `get`/`set` hook — is recorded on
     /// `nvs_runtime::nvs_object_key_get` and closes for every caller at once.

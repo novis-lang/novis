@@ -4723,7 +4723,7 @@ impl<'a> Lowering<'a> {
         // `rule:types/property-key-access`'s `$obj->$key`, the one access whose member name is not
         // in this table at all: it arrives as a value when the statement runs,
         // so none of the three facts below — the declaring class, the hook, the
-        // label — is a question this site can ask. § 5 lowers it to `rule:types/erased-member-access`'s erased access with the name taken from the key, which is
+        // label — is a question this site can ask. `rule:types/property-key-access` lowers it to `rule:types/erased-member-access`'s erased access with the name taken from the key, which is
         // `InstKind::KeyGet`.
         if let Some(ExprInfo::KeyedProperty { ty, .. }) = self.exprs.lookup(expr.span) {
             let ty = *ty;
@@ -5189,7 +5189,7 @@ impl<'a> Lowering<'a> {
 
     /// `$obj->$key` — `rule:types/property-key-access`'s keyed read, which is
     /// [`Self::lower_shape_property_access`] with the name lowered rather than
-    /// carried. [`InstKind::KeyGet`] owns why § 5 chose the erased access over
+    /// carried. [`InstKind::KeyGet`] owns why `rule:types/property-key-access` takes the erased access over
     /// a closed-set chain.
     ///
     /// Two temporaries can be staged here where the erased read stages one: the
