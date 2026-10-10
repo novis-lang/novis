@@ -12,7 +12,13 @@ column rather than a feature: a deployment that never purges pays one nullable c
 write per enqueue for it, and nothing else.
 
 **Grouping is decided at enqueue, not at removal.** A caller that wants a batch deletable tags it when
-it creates the batch, because nothing can group rows that were never grouped. The alternative — a
-predicate over the payload — is refused: `args` is one JSON document in a text column, so selecting
-inside it is a different unindexed dialect on each of `rule:core-classes/db-one-api`'s backends, over
-the one table in the runtime that grows without bound.
+it creates the batch, because nothing can group rows that were never grouped. That is a real cost to
+the caller, and it puts the grouping decision in the source at the `push` that creates the group
+rather than hiding it in the sweep that removes it.
+
+**Declined:**
+- **A predicate over the payload.** `args` is one JSON document in a text column, so selecting inside
+  it is a different unindexed dialect on each of `rule:core-classes/db-one-api`'s backends, over the one
+  table in the runtime that grows without bound. A tag gives the same result in one indexed column on
+  every backend.
+- **`key` as the group.** It would cap every group at one pending job (above).

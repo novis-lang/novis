@@ -2125,7 +2125,7 @@ application's primary database, and that cost is the reason `[queue] connection`
 - **Creating the tables at boot or on first use.** DDL is a privileged act an operator takes, never one
   a running server takes on its own.
 
-<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0145](../decisions/0145.md), [0153](../decisions/0153.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0145](../decisions/0145.md), [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-session-is-started-explicitly"></a>
 
