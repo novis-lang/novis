@@ -23,7 +23,7 @@ This is what makes "a fatal is not catchable" hold at the ABI level without ever
 cooperating, and it is why no catch-loop can be written for a resource limit at all — not merely
 why one is unlikely.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/compile-failure`](errors.md#errors-compile-failure). Decided in [0020](../decisions/0020.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/compile-failure`](errors.md#errors-compile-failure).</sub>
 
 <a id="errors-propagation"></a>
 
@@ -166,7 +166,7 @@ those. Request data also recurses through engine frames — a nested document in
 value graph in teardown — which are bounded separately by an explicit depth counter and an
 iterative teardown.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/propagation`](errors.md#errors-propagation). Decided in [0020](../decisions/0020.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/propagation`](errors.md#errors-propagation). Decided in [0106](../decisions/0106.md).</sub>
 
 <a id="errors-on-limit"></a>
 
@@ -192,7 +192,11 @@ safety net is exactly the case where the choice should belong to someone else.
 `nvs-runtime`, which holds no `Core` class descriptor to instantiate one from — and a keyed array
 takes a later field without changing the signature of a handler already written.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0020](../decisions/0020.md).</sub>
+**Memory:** the memory reserve is a ceiling, not an allocation. Ordinary execution runs under
+`[limits] memory` less the reserve, which is 1 MiB by default and never more than a quarter of the
+ceiling. A request with no memory ceiling reserves nothing.
+
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code).</sub>
 
 <a id="errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself"></a>
 
@@ -260,7 +264,14 @@ Every tier that writes a log line writes the same record through the same native
 ([`errors/log-write`](errors.md#errors-log-write)), so a dashboard never reconciles two shapes depending on which tier
 produced a line.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0020](../decisions/0020.md).</sub>
+**Declined:**
+- **A `catch (Throwable)` that intercepts a `FATAL` anywhere in the stack.** It would reopen the
+  status model of [`errors/propagation`](errors.md#errors-propagation) and spread the catch-loop risk to every stack depth
+  instead of containing it at one boundary ([`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy)).
+- **An engine-only logger with no script tier.** Routing and formatting errors would move to a
+  second, host-side configuration surface instead of the language the application is written in.
+
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/engine-floor`](errors.md#errors-engine-floor).</sub>
 
 <a id="errors-on-uncaught-throw"></a>
 
@@ -283,7 +294,7 @@ the ladder — it runs at every non-fatal ending including successful ones, need
 observes the ending rather than reporting a failure. A handler faulting here changes nothing about
 it.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script). Decided in [0020](../decisions/0020.md), [0127](../decisions/0127.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script). Decided in [0127](../decisions/0127.md).</sub>
 
 <a id="errors-handler-script"></a>
 
@@ -310,7 +321,11 @@ The tier is the shared catch-all: it fires for any tier-1 or tier-2 failure, for
 never registered at all, for an internal panic unconditionally, and for an entry-script compile
 failure where no frame ever existed to register anything from.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/log-write`](errors.md#errors-log-write). Decided in [0020](../decisions/0020.md).</sub>
+**Memory:** the allotment is a ceiling, 16 MiB by default, and the same whatever the failing
+request was allowed. Nothing is held between failures; in flight the handler costs one more isolate
+context, so it does not grow with the number of requests served.
+
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="errors-engine-floor"></a>
 
@@ -341,7 +356,7 @@ ladder can leave; a `finally` is not enough, because an internal panic bypasses 
 design. A ladder that protects the process and leaves the shell unusable has failed at what it is
 for.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/log-write`](errors.md#errors-log-write). Decided in [0020](../decisions/0020.md), [0086](../decisions/0086.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/log-write`](errors.md#errors-log-write). Decided in [0086](../decisions/0086.md), [0106](../decisions/0106.md).</sub>
 
 <a id="errors-panics-bypass-user-code"></a>
 
@@ -361,7 +376,7 @@ So **only a resource-limit `FATAL` reaches [`errors/on-limit`](errors.md#errors-
 to [`errors/handler-script`](errors.md#errors-handler-script) — still user-formattable, still routed wherever the operator sends
 diagnostics — without ever calling back into the failing request's own code.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/handler-script`](errors.md#errors-handler-script). Decided in [0020](../decisions/0020.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/handler-script`](errors.md#errors-handler-script).</sub>
 
 <a id="errors-compile-failure"></a>
 
@@ -381,7 +396,12 @@ running: an ordinary `ParseError`, catchable at the call site like any `Throwabl
 lets a framework fail a bad template or plugin gracefully instead of the whole request. Uncaught, it
 rides the normal [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw) path — by then a frame did exist.
 
-<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0020](../decisions/0020.md), [0091](../decisions/0091.md).</sub>
+**Declined:**
+- **Every compile failure handled only at the boundary.** A `require` that fails while the request
+  runs would end the whole request, where a catchable `ParseError` lets the caller recover, as PHP's
+  does.
+
+<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0091](../decisions/0091.md).</sub>
 
 <a id="errors-diagnostic-record"></a>
 
@@ -621,7 +641,7 @@ JSON was chosen over `logfmt` because an arbitrary error message or a multi-line
 escaping that is correct on the first and only attempt at the floor, and JSON's escaping is a
 solved, mechanical problem where `logfmt`'s quoting of embedded quotes, newlines and spaces is not.
 
-<sub>See also [`errors/log-level`](errors.md#errors-log-level), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0020](../decisions/0020.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`errors/log-level`](errors.md#errors-log-level), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="errors-log-level"></a>
 

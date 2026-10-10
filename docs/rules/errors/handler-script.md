@@ -16,3 +16,7 @@ It is a named carve-out for this purpose and not a precedent.
 The tier is the shared catch-all: it fires for any tier-1 or tier-2 failure, for a handler that was
 never registered at all, for an internal panic unconditionally, and for an entry-script compile
 failure where no frame ever existed to register anything from.
+
+**Memory:** the allotment is a ceiling, 16 MiB by default, and the same whatever the failing
+request was allowed. Nothing is held between failures; in flight the handler costs one more isolate
+context, so it does not grow with the number of requests served.

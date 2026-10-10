@@ -139,7 +139,7 @@ rather than from what came back, so a body that caught its own failure has still
 which nothing failed is itself a failure; and the passing assertions inside a discharged body stay,
 because they really ran.
 
-<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0079](../decisions/0079.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-constructor-is-setup"></a>
 
@@ -525,7 +525,7 @@ Report order is **declaration order**, even though execution is unordered. Total
 execution order semantically irrelevant, so nothing is bought by randomizing it and stable output is
 worth a great deal.
 
-<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/db-transaction`](testing.md#testing-db-transaction). Decided in [0079](../decisions/0079.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/db-transaction`](testing.md#testing-db-transaction). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-report-formats"></a>
 

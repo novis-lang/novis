@@ -4,8 +4,7 @@
   "because": [
     "0112",
     "0081",
-    "0061",
-    "0020"
+    "0061"
   ],
   "seeAlso": [
     "security/no-runtime-grant",

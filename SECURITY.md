@@ -61,7 +61,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
 - **Process-wide impact from one request** — a panic, resource-limit bypass or budget evasion that takes
   down the process or another request instead of dying alone
   ([`rule:programs/memory-priority`](docs/rules/programs.md#programs-memory-priority),
-  [0020](docs/decisions/0020.md)).
+  `rule:errors/escalation-ladder`).
 - **A closed door found open** — any route to FFI or native loading, stream wrappers and scheme dispatch,
   cross-request state, or `eval` ([0052](docs/decisions/0052.md)).
 - **Unsafe protocol or platform defaults** — request smuggling, header or cookie parsing flaws, CSRF/CORS

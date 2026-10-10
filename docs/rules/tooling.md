@@ -476,7 +476,7 @@ guard was skipped, so the stack can never keep a region nobody can reach. What i
 the last frame; what is restored is the cursor, and the row below the region is where the next `echo`
 lands.
 
-<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0086](../decisions/0086.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-commands-are-compiled"></a>
 

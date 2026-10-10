@@ -2,8 +2,7 @@
   "title": "A pattern runs on the linear engine unless it cannot, and the backtracking tier's step budget throws when exhausted",
   "status": "shipped",
   "because": [
-    "0056",
-    "0020"
+    "0056"
   ],
   "seeAlso": [
     "core-classes/regex-compile-time-tiering",

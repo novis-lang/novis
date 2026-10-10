@@ -1157,7 +1157,7 @@ jobs:
             -p nvs-stdlib
       # The backend runs in the same sanitizer with one option off, and it is not a preference.
       # `detect_stack_use_after_return` moves an address-taken local into a heap fake frame, and
-      # `nvs-codegen`'s `stack_limit` tests arm ADR 0020 § 1's window from the address of one — so
+      # `nvs-codegen`'s `stack_limit` tests arm `rule:errors/stack-depth`'s window from the address of one — so
       # with it on, the window lands megabytes away from the stack the JIT'd frames actually walk
       # down, and a runaway recursion either trips on its first frame or overflows for real. A JIT
       # frame is not instrumented, so there is no spelling of that measurement the fake stack does

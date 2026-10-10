@@ -75,7 +75,7 @@ record was written.
 Two fields added to a shape that already exists, and they are what lets an operator jump from a
 log line to the trace that produced it — the single highest-value thing an observability stack does.
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request). Decided in [0076](../decisions/0076.md), [0020](../decisions/0020.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request). Decided in [0076](../decisions/0076.md), [0092](../decisions/0092.md).</sub>
 
 <a id="observability-metrics-three-members"></a>
 
@@ -828,7 +828,7 @@ before the deferred work, for the same reason. The four mechanisms route by one 
 is scoped cleanup, `afterResponse` is post-response work, `Core\Fatal` observes a failure the request
 cannot survive, `onExit` is the end of the script.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0127](../decisions/0127.md), [0020](../decisions/0020.md), [0072](../decisions/0072.md), [0131](../decisions/0131.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0127](../decisions/0127.md), [0072](../decisions/0072.md), [0131](../decisions/0131.md).</sub>
 
 <a id="observability-a-fatal-and-a-cancellation-run-no-exit-hook"></a>
 
@@ -853,7 +853,7 @@ failing or already gone. Process death is the same answer for free.
 The firing set is therefore narrower than "every ending". Someone who assumed "no matter what" learns the two
 exceptions, and gets `Core\Fatal::onLimit` for the one that matters.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code). Decided in [0127](../decisions/0127.md), [0020](../decisions/0020.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code). Decided in [0127](../decisions/0127.md), [0072](../decisions/0072.md).</sub>
 
 <a id="observability-a-hook-observes-and-never-steers"></a>
 
@@ -873,4 +873,4 @@ register another hook; it joins the tail of the same drain.
 Only one thing stops the drain early: a limit breach inside a hook is a `FATAL`, and
 [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook) takes over from there.
 
-<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`errors/log-write`](errors.md#errors-log-write). Decided in [0127](../decisions/0127.md), [0020](../decisions/0020.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`errors/log-write`](errors.md#errors-log-write). Decided in [0127](../decisions/0127.md), [0072](../decisions/0072.md).</sub>

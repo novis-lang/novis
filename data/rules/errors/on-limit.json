@@ -1,9 +1,7 @@
 {
   "title": "Tier 1 — a resource limit reaches the request that spent it",
   "status": "shipped",
-  "because": [
-    "0020"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/escalation-ladder",
     "errors/stack-depth",

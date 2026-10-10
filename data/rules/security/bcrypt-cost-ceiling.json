@@ -2,8 +2,7 @@
   "title": "A stored bcrypt cost above 17 is refused before any work is done",
   "status": "shipped",
   "because": [
-    "0129",
-    "0020"
+    "0129"
   ],
   "seeAlso": [
     "security/bcrypt-read-roster",

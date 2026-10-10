@@ -97,7 +97,7 @@ would encourage reading a spawn as a function call. Code that wants the terse fo
 the diagnostic then names the isolate rather than a parent frame it never had. Nothing unwinds across
 the boundary, for the reason nothing unwinds across a JIT frame ([`errors/propagation`](errors.md#errors-propagation)).
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy). Decided in [0006](../decisions/0006.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="security-isolate-output-is-captured"></a>
 
@@ -646,7 +646,7 @@ name is the string they will add to their configuration.
 A predicate that would otherwise answer `false` is refused rather than answered, so an ungranted
 deployment never looks like a negative result.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0118](../decisions/0118.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="security-optional-capability-degrades"></a>
 
@@ -673,7 +673,7 @@ widens ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 checking. The required/optional manifest split, the guard at an optional call site and the compile
 error for a required one have no representation in the tree.
 
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md).</sub>
 
 <a id="security-no-runtime-grant"></a>
 
@@ -1163,7 +1163,7 @@ about confidentiality rather than structure and a log is an output
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)). Stating both here is what stops a future reader from applying
 one rule's answer to the other axis.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write). Decided in [0088](../decisions/0088.md), [0020](../decisions/0020.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write). Decided in [0088](../decisions/0088.md), [0087](../decisions/0087.md).</sub>
 
 <a id="security-launderers-are-sink-named"></a>
 
@@ -2430,7 +2430,7 @@ the CPU the attacker was buying.
 The same shape guards the modern algorithm's memory parameter, which is the reason this is a ceiling
 on a stored value rather than a validation of a written one.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0129](../decisions/0129.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0129](../decisions/0129.md).</sub>
 
 <a id="security-bcrypt-truncation"></a>
 

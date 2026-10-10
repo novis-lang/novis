@@ -34,7 +34,7 @@ nvs-footprint.workspace = true
 # `nvs-config` depends on `nvs-diagnostics`, `serde` and `toml` and on nothing
 # in this crate, so the edge is one-way.
 nvs-config.workspace = true
-# ADR 0020 § 6's tier-4 floor writes the *same* record through the *same*
+# `rule:errors/log-write`'s tier-4 floor writes the *same* record through the *same*
 # renderer `Core\Log::write` reaches, so that a log pipeline never has to
 # reconcile two shapes depending on which tier produced a line — and a floor
 # with its own JSON writer would be exactly the two-writers-that-agree-today
@@ -49,7 +49,7 @@ nvs-render.workspace = true
 # module doc argues at length. No new crate reaches the tree: `nvs-stdlib`
 # depends on both this crate and `rand` already.
 rand.workspace = true
-# ADR 0020 § 6's record carries `ts` as RFC 3339, and `Ctx::stamp_envelope`
+# `rule:errors/log-write`'s record carries `ts` as RFC 3339, and `Ctx::stamp_envelope`
 # writes it for both of that section's writers. One renderer of that format in
 # the tree, not two: `Core\Time\Instant::toIso` is `jiff::Timestamp`'s own
 # `Display` and this is the same call, so a floor record's timestamp and a

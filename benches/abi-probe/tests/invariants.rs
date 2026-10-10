@@ -347,7 +347,7 @@ fn a_teardown_path_that_panics_does_not_recurse() {
 
 #[test]
 fn engine_recursion_is_bounded_before_the_stack_is() {
-    // ADR 0020 § 1 bounds recursion through Novis frames. A decoder's descent
+    // `rule:errors/stack-depth` bounds recursion through Novis frames. A decoder's descent
     // over request data has no Novis frames in it, so its own counter is the
     // only bound — and the stack that bound has to stay under is not this
     // thread's. Every request runs on a coroutine stack, which is where the

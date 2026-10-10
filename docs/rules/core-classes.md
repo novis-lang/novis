@@ -326,7 +326,7 @@ constant `crates/nvs-stdlib/src/regex.rs` states. `false` does not spell an unbo
 reads as that same constant, because a pattern allowed to backtrack forever is the hang this rule
 exists to stop.
 
-<sub>See also [`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../decisions/0056.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../decisions/0056.md).</sub>
 
 <a id="core-classes-regex-compile-time-tiering"></a>
 
@@ -2350,7 +2350,7 @@ smaller of the call's and the key's value in the request's snapshot before the c
 (`tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`). The
 `Novis\Image` builder that would pass a program's own `{maxPixels}` is not written.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0055](../decisions/0055.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
 
 <a id="core-classes-image-correct-by-default"></a>
 

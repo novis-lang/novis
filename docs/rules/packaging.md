@@ -1854,7 +1854,7 @@ implements that budget over a request's own deadline and memory accounting yet. 
 is a `FATAL` naming the limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and no
 host raises it on a request yet.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0020](../decisions/0020.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-a-guest-crash-throws"></a>
 

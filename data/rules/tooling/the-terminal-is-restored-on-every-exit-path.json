@@ -2,8 +2,7 @@
   "title": "Raw mode, a hidden cursor and a live region are restored on a throw, a fatal, a panic and a signal",
   "status": "shipped",
   "because": [
-    "0086",
-    "0020"
+    "0086"
   ],
   "seeAlso": [
     "tooling/in-place-output-is-a-scoped-live-region",

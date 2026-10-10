@@ -25,7 +25,7 @@ tsan = []
 
 [dependencies]
 nvs-runtime.workspace = true
-# ADR 0020 § 3's tier-3 handler is an isolate, so the spawn is `src/ladder.rs`'s — and the record it
+# `rule:errors/handler-script`'s tier-3 handler is an isolate, so the spawn is `src/ladder.rs`'s — and the record it
 # is handed is `nvs_render::Record`, which that module names in its own signature. A leaf crate
 # already in this binary through `nvs-runtime`'s floor; the direct line only makes the spelling
 # sayable here, and closes no cycle because `nvs-render` depends on nothing of ours.

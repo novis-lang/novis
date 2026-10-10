@@ -2,8 +2,7 @@
   "title": "A test that asserts nothing fails, a skip states a reason, and a retry is reported flaky rather than green",
   "status": "shipped",
   "because": [
-    "0079",
-    "0020"
+    "0079"
   ],
   "seeAlso": [
     "testing/failure-ledger",

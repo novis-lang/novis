@@ -1,10 +1,5 @@
 <?nvs
-// The child `examples/logging.nvs` watches fail. It throws with nothing
-// above it, so the throw leaves the program entirely and ADR 0020 § 1's
-// ladder takes over: the operator's handler script runs, charged to the
-// engine's own reserve rather than to this script's remaining budget.
-//
-// There is deliberately no `try` here. A `catch` would make this a program
-// that handles its own failure, which is the rung `examples/logging.nvs`
-// already shows on its own.
+// This program throws an error and does not catch it, so the program stops.
+// `examples/logging.nvs` starts it. Novis then runs the error handler script, `examples/logging/handler.nvs`.
+// There is no `try` here, because `examples/logging.nvs` already shows a program that catches its own error.
 throw new RuntimeError('the child gave up');

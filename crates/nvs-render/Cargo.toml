@@ -20,7 +20,7 @@ doctest = false
 # reason — it moved down out of `nvs-syntax` when the tier-4 floor became a
 # dependent, and `nvs-syntax` reads it from here now.
 [dependencies]
-# ADR 0020 § 6 chose JSON over `logfmt` because the escaping has to be correct
+# `rule:errors/log-write` chose JSON over `logfmt` because the escaping has to be correct
 # on the first and only attempt at the true floor, and JSON's is a solved,
 # mechanical problem — so the JSON rendering (`src/json.rs`) delegates every
 # quote, every escape and every number to the same crate `Core\Json::encode`
