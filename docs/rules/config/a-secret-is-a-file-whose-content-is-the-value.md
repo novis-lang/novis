@@ -21,3 +21,14 @@ content must be valid UTF-8, and an empty file, a whitespace-only file, or one o
 Only the `password_file` that won the merge is opened. The value never enters the merged table, is
 never logged, and `nvs config dump` renders it `<secret>` beside the file it came from —
 `password_file` stays set so the dump can name it.
+
+**Declined:**
+- **Decrypting SOPS, `age` or a KMS envelope inside the binary**, so that a directive could name an
+  encrypted file. It does not compose with the format: SOPS has no TOML store, so an encrypted
+  configuration would be one opaque blob ahead of the merge, the includes and the dump. It puts the
+  key that unlocks every credential into the process that compiles a program and parses hostile bytes,
+  where today that process holds one plaintext credential. And it adds nothing: `sops -d`, a Vault
+  agent, Sealed Secrets and a Kubernetes secret volume all end in a file, which a `_file` sibling
+  reads unchanged. A deployment target that cannot produce a file at all is what would reopen this.
+- **A `_file` sibling for every string directive.** It doubles the key space of the format and
+  complicates the unknown-key refusal, to serve the handful of directives the registry marks.

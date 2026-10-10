@@ -2,7 +2,6 @@
   "title": "Every file the configuration reads, and its directory, must be owned by the runtime account or root and writable by nobody else",
   "status": "shipped",
   "because": [
-    "0103",
     "0281"
   ],
   "seeAlso": [

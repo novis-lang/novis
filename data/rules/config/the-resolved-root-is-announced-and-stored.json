@@ -2,7 +2,6 @@
   "title": "The resolved root is canonicalized once at boot, announced with every file it reached, and re-read from that stored path on reload",
   "status": "designed",
   "because": [
-    "0103",
     "0281"
   ],
   "seeAlso": [

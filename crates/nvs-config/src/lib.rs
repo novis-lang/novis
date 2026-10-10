@@ -32,7 +32,7 @@
 //! assignments is in force is a question only the merge has answered.
 //!
 //! [`mod@app`] is `rule:config/an-application-is-its-entry-file-path` and `rule:config/every-matching-app-block-applies-least-specific-first`: which `[[app]]` blocks an entry file belongs to, and the one
-//! effective block they fold into. It rests on the same canonicalization § 6 does —
+//! effective block they fold into. It rests on the same canonicalization `rule:config/ownership-is-the-trust-boundary` does —
 //! [`trust::canonical`] is the only one, because a second would accept a `..` or a symlink the
 //! other refuses — and its fold is [`resolve`]'s own `merge_table`, because § 2 is later-wins in a
 //! different order rather than a second precedence rule.

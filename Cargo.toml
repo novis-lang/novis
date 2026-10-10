@@ -207,8 +207,8 @@ hyper = { version = "1", default-features = false, features = [
 # stream `nvs_host::tls` already decrypted.
 tungstenite = "0.30"
 
-# --- the configuration's trust boundary (ADR 0103 § 6) ---
-# § 6 is "no account but this one, root or an administrator may write it", and
+# --- the configuration's trust boundary (`rule:config/ownership-is-the-trust-boundary`) ---
+# The rule is "no account but this one, root or an administrator may write it", and
 # neither half of it is in `std`: the effective uid is a `libc` call, and Windows
 # has no mode bits at all, so the same question there is the owner SID plus the
 # DACL. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "no" — what reaches these calls is a
@@ -234,7 +234,7 @@ windows-sys = { version = "0.61", features = [
     # the memory budget by the
     # per-request cap, and on Windows this is the one call that answers what the budget is.
     "Win32_System_SystemInformation",
-    # `ACCESS_ALLOWED_ACE_TYPE` and `ACCESS_DENIED_ACE_TYPE`: ADR 0103 § 6's trust check walks a
+    # `ACCESS_ALLOWED_ACE_TYPE` and `ACCESS_DENIED_ACE_TYPE`: `rule:config/ownership-is-the-trust-boundary`'s trust check walks a
     # DACL itself rather than paying `GetEffectiveRightsFromAclW` per principal, and these two name
     # the entries it accounts for. `crates/nvs-config/src/trust.rs` is the one caller.
     "Win32_System_SystemServices",

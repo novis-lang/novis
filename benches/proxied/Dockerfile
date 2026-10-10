@@ -67,8 +67,8 @@ RUN apt-get update \
 COPY --from=build /out/nvs /usr/local/bin/nvs
 
 # `/app` is the read-only mount of `benches/serve` the compose file supplies, and the working
-# directory is it: `nvs serve` resolves `./nvs.toml` out of the working directory (ADR 0103 § 1
-# step 2), and that directory deliberately holds none -- the repository's own `nvs.toml` is written
+# directory is it: `nvs serve` resolves `./nvs.toml` out of the working directory
+# (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2), and that directory deliberately holds none -- the repository's own `nvs.toml` is written
 # around fixtures with database and capability blocks, and a benchmark inheriting them would be
 # measuring a configuration no operator has.
 WORKDIR /app

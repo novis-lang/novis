@@ -35,4 +35,15 @@ What makes the working-directory step safe is `rule:config/ownership-is-the-trus
 announced path (`rule:config/the-resolved-root-is-announced-and-stored`) and an installer that always
 stores an absolute `--config` for a service (`rule:packaging/the-installer-is-a-sink`). What survives
 is one narrow case — an interactive `nvs serve` in a directory the runtime account can write — stated
-rather than defended: an operator who wants it closed passes `--config`.
+rather than defended: an operator who wants it closed passes `--config`. If the announced path shows
+`./nvs.toml` being read in production, the answer is to confine the working-directory step to the
+commands attached to a terminal, not to remove it.
+
+**Declined:**
+- **A platform default path, such as `/etc/nvs/nvs.toml`.** A deployment that wants a fixed path runs
+  under a service manager, and the installer stores an absolute `--config` for it anyway
+  (`rule:packaging/the-installer-is-a-sink`).
+- **A path built into the binary at compile time**, as nginx's `--conf-path` is. It is one more
+  resolution step for a case `--config` already covers.
+- **Walking up from the working directory or the entry file.** The single-directory step stops one
+  step short of a walk (`rule:config/nvs-toml-is-not-a-project-manifest`).

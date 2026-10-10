@@ -8,14 +8,14 @@
 //! **[`canonicalize`] and [`bound`] run at resolve time.** [`matching`] and [`layer`] need an
 //! entry file, and `nvs run <file>`'s entry is not known when the tree is read, so they are
 //! called by whatever builds the per-app snapshot rather than living in
-//! [`resolve`](crate::resolve) the way § 7's secrets do. What they need from that tree is the merged `toml::Table` and its origins, which is
+//! [`resolve`](crate::resolve) the way `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secrets do. What they need from that tree is the merged `toml::Table` and its origins, which is
 //! why [`Resolved`] keeps both.
 //!
 //! **[`layer`] answers what the effective block *is*; it is not how the snapshot is built.**
 //! [`Snapshot::build`](crate::snapshot::Snapshot::build) folds each matching block over the global
 //! tree in [`matching`]'s order instead, by the same [`merge_table`](crate::resolve) — same values,
 //! and every key still named by the file the block that wrote it lives in, which an effective block
-//! folded from three files cannot do with one origin for all of its keys. This function is § 9's
+//! folded from three files cannot do with one origin for all of its keys. This function is `rule:config/check-and-dump-audit-the-tree-offline`'s
 //! per-app `nvs config dump`.
 //!
 //! **The comparison is canonicalize-then-prefix, and the canonicalization is
@@ -26,10 +26,10 @@
 //! per run — and the prefix test is `Path::starts_with`, which compares whole components, so
 //! `/srv/www/shopfront` is not under `/srv/www/shop`.
 //!
-//! **A block's key is canonicalized in place**, replacing what the operator wrote, exactly as § 7
+//! **A block's key is canonicalized in place**, replacing what the operator wrote, exactly as `rule:config/a-secret-is-a-file-whose-content-is-the-value`
 //! writes a secret file's content into `password`. Two reasons: a comparison against a path that has
 //! not been through [`trust::canonical`](crate::trust::canonical) is the bug this module exists to
-//! prevent, and § 9's `nvs config dump` then prints the path the match will actually use rather than
+//! prevent, and `rule:config/check-and-dump-audit-the-tree-offline`'s `nvs config dump` then prints the path the match will actually use rather than
 //! a relative fragment the reader has to resolve by hand.
 //!
 //! **A key that cannot be canonicalized refuses the boot** (`E0605`) rather than never matching.
@@ -54,7 +54,7 @@ use crate::value::{Quantity, unit_of};
 /// § 1's keys, resolved: each `[[app]]` block's `root` or `entry` made absolute against the file
 /// that wrote it (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`) and canonicalized, written back into the block.
 ///
-/// Runs once over the flattened tree, beside § 7's secrets and for the same reason: `[[app]]`
+/// Runs once over the flattened tree, beside `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secrets and for the same reason: `[[app]]`
 /// blocks accumulate across the tree (`rule:config/a-value-array-replaces-and-a-table-appends`), so the roster is a question only the merge
 /// has answered.
 ///
@@ -77,7 +77,7 @@ pub fn canonicalize(
             (None, None) => return Err(no_key(index)),
         };
         let written_in = origins.get(&format!("app.{index}.{field}"));
-        // § 5: relative to the file it was written in, which is the same rule an `[[include]]` and
+        // `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`: relative to the file it was written in, which is the same rule an `[[include]]` and
         // a `password_file` follow. A key with no origin was written nowhere this merge recorded,
         // so there is nothing but the path itself to resolve against.
         let base = written_in
@@ -678,7 +678,7 @@ fn duplicate(path: &Path, first: usize, second: usize, written_in: Option<&Origi
 /// block, or raise the host's ceiling if every application may have it.
 ///
 /// The block is named by the key's own `app.N` segment rather than by [`ordinal`], which counts
-/// from one: the dotted key is what the origins map and § 9's `nvs config dump` both spell, and two
+/// from one: the dotted key is what the origins map and `rule:config/check-and-dump-audit-the-tree-offline`'s `nvs config dump` both spell, and two
 /// numberings for one block in one sentence is a worse reading than either alone.
 fn above_ceiling(
     key: &str,

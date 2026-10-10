@@ -52,10 +52,15 @@ The `[limits]`/`[limits.hard]` layout is the changeability model's
 - **Dhall, or configuration written in Novis.** Either makes the configuration a program, reopening the
   door [`security/closed-doors`](security.md#security-closed-doors) closed on `eval` in the one root-owned file read before any sandbox
   exists.
+- **`${ENV_VAR}` interpolation in a value.** It makes the configuration compute, the same door Dhall
+  reopens. The run mode is never read from the environment
+  ([`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode)), and an inherited, unaudited namespace is no
+  source for the file that grants capabilities. A secret arrives as a file instead
+  ([`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value)).
 - **Accepting both `.ini` and `.toml`.** Two formats to specify, parse and test, and a deployment that
   holds both with no answer for which wins; nothing in Novis gets a second syntax.
 
-<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot).</sub>
 
 <a id="config-a-size-or-duration-is-a-quoted-string-with-its-suffix"></a>
 
@@ -145,7 +150,7 @@ is reported with both origins. The property protected is that no assignment is *
 inside one file the only way to hold it is to refuse, and an included file is refused inside exactly as
 the root is.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot).</sub>
 
 <a id="config-every-block-is-argued-where-it-is-added"></a>
 
@@ -184,7 +189,7 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 `[[schedule]]`, like `[[extension]]`, is an array of tables because it is a repeated record with
 several fields.
 
-<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one). Decided in [0103](../decisions/0103.md), [0104](../decisions/0104.md), [0275](../decisions/0275.md).</sub>
+<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one). Decided in [0104](../decisions/0104.md), [0275](../decisions/0275.md).</sub>
 
 <a id="config-nvs-toml-is-not-a-project-manifest"></a>
 
@@ -199,7 +204,10 @@ the entry file" stands, and it is about discovery and lifetime rather than synta
 a property of the source tree, while `nvs.toml` is deployment state: it is absent from
 `nvs build --compile` and from an editor's `nvs check`, and a map in it would make one source tree
 behave differently under two hosts, which the artifact cache would then have to key on. Sharing an extension
-with `Cargo.toml` is not a collision; the name, the location and the owner all differ.
+with `Cargo.toml` is not a collision; the name, the location and the owner all differ. A package may
+not hold an `nvs.toml` ([`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host)), and a working directory is
+not a package: committing a development `nvs.toml` to a project is fine, and deploying it is what
+`--config` is for.
 
 Where the file *is* found is [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults):
 a `--config` list, else `./nvs.toml` in exactly one directory, else the data folder's `nvs.toml`. That
@@ -208,7 +216,7 @@ folder's file is Novis's own default, one per data folder and not per project. W
 working directory safe to read there is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), the resolved
 absolute path announced at boot, and the installer storing an absolute `--config` for every service.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults"></a>
 
@@ -253,9 +261,20 @@ What makes the working-directory step safe is [`config/ownership-is-the-trust-bo
 announced path ([`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored)) and an installer that always
 stores an absolute `--config` for a service ([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). What survives
 is one narrow case — an interactive `nvs serve` in a directory the runtime account can write — stated
-rather than defended: an operator who wants it closed passes `--config`.
+rather than defended: an operator who wants it closed passes `--config`. If the announced path shows
+`./nvs.toml` being read in production, the answer is to confine the working-directory step to the
+commands attached to a terminal, not to remove it.
 
-<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
+**Declined:**
+- **A platform default path, such as `/etc/nvs/nvs.toml`.** A deployment that wants a fixed path runs
+  under a service manager, and the installer stores an absolute `--config` for it anyway
+  ([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)).
+- **A path built into the binary at compile time**, as nginx's `--conf-path` is. It is one more
+  resolution step for a case `--config` already covers.
+- **Walking up from the working directory or the entry file.** The single-directory step stops one
+  step short of a walk ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)).
+
+<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="config-no-configuration-file-is-a-complete-configuration"></a>
 
@@ -296,7 +315,7 @@ each of which is the same TOML key as the `pool = false` beside it and cannot be
 a key of the same name, which is the one arrangement where uncommenting the key alone would be
 accepted into the wrong block.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0091](../decisions/0091.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-resolved-root-is-announced-and-stored"></a>
 
@@ -326,7 +345,7 @@ The announcement is half of what makes the two implicit steps of
 When no step finds a file, the shipped-defaults line is printed instead, and the resolved absolute
 path is logged in every case.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="config-include-takes-a-path-or-a-dir"></a>
 
@@ -363,7 +382,13 @@ as in the root, its paths resolve against its own directory, and it must pass
 [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). What `optional` does and does not cover is
 [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory).
 
-<sub>See also [`config/an-include-cycle-is-refused-and-nesting-is-capped-at-eight`](config.md#config-an-include-cycle-is-refused-and-nesting-is-capped-at-eight), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0103](../decisions/0103.md).</sub>
+**Declined:**
+- **A `sha256` pin on an `[[include]]`**, as `[[extension]]` has. The pin exists on an extension
+  because it accepts a precompiled binary from outside the deployment. An include is a text file under
+  the same ownership check, edited by hand, and a pin on it would be stale after the next edit. An
+  include that arrives from a package is what would reopen this.
+
+<sub>See also [`config/an-include-cycle-is-refused-and-nesting-is-capped-at-eight`](config.md#config-an-include-cycle-is-refused-and-nesting-is-capped-at-eight), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in).</sub>
 
 <a id="config-an-include-cycle-is-refused-and-nesting-is-capped-at-eight"></a>
 
@@ -381,7 +406,7 @@ built out of symlinks closes on a file the resolver has already seen even though
 the chain match. A lexical comparison would let that ring through until the depth cap caught it, and
 report the wrong thing.
 
-<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching). Decided in [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching).</sub>
 
 <a id="config-later-wins-and-every-override-is-recorded"></a>
 
@@ -406,7 +431,16 @@ partly written block keeps every unwritten key's default independently.
 [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one) keeps its scope: the same key twice
 in *one* file is still refused.
 
-<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first). Decided in [0103](../decisions/0103.md).</sub>
+- **Memory:** a live snapshot keeps one origin, a file and a line, for each directive set, plus the
+  list of overrides. It is bounded by the number of directives, never by traffic, and the tree is
+  parsed at boot and on each reload, never on the request path.
+
+**Declined:**
+- **Refusing every cross-file duplicate, so that an include may only add keys no other file set.** A
+  host-local file could then never override a base default, only fill a gap the base left open, and
+  that removes the reason to split files at all. Recording the override is what makes it safe instead.
+
+<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first).</sub>
 
 <a id="config-a-value-array-replaces-and-a-table-appends"></a>
 
@@ -427,7 +461,7 @@ root list from four files to know what it is.
 
 A third array shape that fits neither half is the thing that would reopen this.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first). Decided in [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first).</sub>
 
 <a id="config-a-relative-path-resolves-against-the-file-it-is-written-in"></a>
 
@@ -458,7 +492,7 @@ a database beside *that* file, not beside the running program. A scheduled scrip
 are resolved while the configuration is read, so every fire and every escalation runs the same file
 whatever folder the server was started in.
 
-<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md), [0175](../decisions/0175.md), [0241](../decisions/0241.md), [0245](../decisions/0245.md).</sub>
+<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0175](../decisions/0175.md), [0241](../decisions/0241.md), [0245](../decisions/0245.md).</sub>
 
 <a id="config-any-file-in-the-tree-may-set-any-directive"></a>
 
@@ -478,7 +512,7 @@ directives to the root, or letting an include only narrow, would each invert den
 file layer: the root would have to grant every right any environment needs so that each host could
 take some away.
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it). Decided in [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it).</sub>
 
 <a id="config-ownership-is-the-trust-boundary"></a>
 
@@ -500,8 +534,9 @@ directory of compiled code.
 **On Windows the equivalent is the DACL**: the owner is the runtime account, `BUILTIN\Administrators`
 or `NT AUTHORITY\SYSTEM`, and no *effective* write right — data, append, EA, attributes, `DELETE`,
 `WRITE_DAC` or `WRITE_OWNER` — reaches `Everyone`, `Authenticated Users`, `BUILTIN\Users`,
-`BUILTIN\Guests` or `ANONYMOUS LOGON`. Effective rights rather than the presence of an ACE, so a deny
-entry counts. Windows grants `Authenticated Users` modify rights by default on a non-system drive's
+`BUILTIN\Guests` or `ANONYMOUS LOGON`. The two ACL rights are in the mask because either one buys all
+the others in a second step. Effective rights rather than the presence of an ACE, so a deny entry
+counts and an inherited grant is seen. Windows grants `Authenticated Users` modify rights by default on a non-system drive's
 root, so a configuration kept under such a path refuses until that inheritance is broken — that default
 *is* the hole this rule closes.
 
@@ -514,7 +549,7 @@ checked as any file is, with the private data folder as its directory.
 
 Where the check runs is [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered).
 
-<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure). Decided in [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-ownership-check-runs-where-it-can-be-answered"></a>
 
@@ -543,7 +578,7 @@ unchecked file on the `run` path carries the invoking account's own authority an
 `nvs.toml` can grant a CLI program nothing it could not take for itself, and the rule that places the
 capability check is bound by that sentence.
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="config-optional-covers-absence-and-moves-the-check-to-the-directory"></a>
 
@@ -573,7 +608,7 @@ exist either, the check walks up to the nearest ancestor that does: the promise 
 the shallowest directory an attacker would have to write in order to keep it. A `dir` include's
 directory is checked the same way.
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir).</sub>
 
 <a id="config-a-secret-is-a-file-whose-content-is-the-value"></a>
 
@@ -605,7 +640,18 @@ Only the `password_file` that won the merge is opened. The value never enters th
 never logged, and `nvs config dump` renders it `<secret>` beside the file it came from —
 `password_file` stays set so the dump can name it.
 
-<sub>See also [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0103](../decisions/0103.md).</sub>
+**Declined:**
+- **Decrypting SOPS, `age` or a KMS envelope inside the binary**, so that a directive could name an
+  encrypted file. It does not compose with the format: SOPS has no TOML store, so an encrypted
+  configuration would be one opaque blob ahead of the merge, the includes and the dump. It puts the
+  key that unlocks every credential into the process that compiles a program and parses hostile bytes,
+  where today that process holds one plaintext credential. And it adds nothing: `sops -d`, a Vault
+  agent, Sealed Secrets and a Kubernetes secret volume all end in a file, which a `_file` sibling
+  reads unchanged. A deployment target that cannot produce a file at all is what would reopen this.
+- **A `_file` sibling for every string directive.** It doubles the key space of the format and
+  complicates the unknown-key refusal, to serve the handful of directives the registry marks.
+
+<sub>See also [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure"></a>
 
@@ -625,7 +671,7 @@ wall off every containerised deployment; saying nothing would hide a real mistak
 **Integrity is enforced; confidentiality is advised.** The advisory is printed in full by `nvs config
 check` and counted on its summary line, and it never changes the verdict.
 
-<sub>See also [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
 
 <a id="config-one-parser-for-the-boot-path-and-config-set"></a>
 
@@ -703,7 +749,7 @@ configuration path every two seconds on the checking thread.
 - **Restart only.** Defensible behind a load balancer with rolling deploys, and still not enough
   when one process holds the whole concurrency.
 
-<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0103](../decisions/0103.md), [0219](../decisions/0219.md), [0271](../decisions/0271.md).</sub>
+<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0219](../decisions/0219.md), [0271](../decisions/0271.md).</sub>
 
 <a id="config-three-changeability-classes"></a>
 
@@ -776,7 +822,7 @@ shipped defaults
 So `nvs serve --mode=development` on a mixed host does not drag an application that pins `production`
 along with it, and `[mode] ceiling` still bounds what any of them may select.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0091](../decisions/0091.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-reloadability-is-its-own-field"></a>
 
@@ -1160,7 +1206,7 @@ read without the ownership check
 ([`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered)). What a reload actually published is
 the record it writes to `Core\Log` ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value).</sub>
 
 <a id="config-two-modes-and-the-default-is-production"></a>
 
@@ -1212,7 +1258,7 @@ payment for flag-over-file is visible rather than silent.
 The ceiling bounds a runtime flip, not the startup value: `nvs serve --mode=development` in a
 directory with no `nvs.toml` simply works, and the ceiling follows it.
 
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md).</sub>
 
 <a id="config-no-environment-variable-selects-the-mode"></a>
 
@@ -1453,7 +1499,7 @@ as well, and specificity has no order left to decide which of them wins with.
 Matching happens once per entry file, at the point it is resolved — for a served request at
 compile-time route resolution, never per request.
 
-<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0104](../decisions/0104.md), [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0104](../decisions/0104.md).</sub>
 
 <a id="config-an-app-block-may-widen-bounded-by-the-global-ceiling"></a>
 

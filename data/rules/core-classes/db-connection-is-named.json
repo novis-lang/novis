@@ -1,9 +1,7 @@
 {
   "title": "A connection is named in configuration or built from settings, and both memoize for the request",
   "status": "shipped",
-  "because": [
-    "0103"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/db-capabilities",
     "core-classes/db-safe-connection-defaults",

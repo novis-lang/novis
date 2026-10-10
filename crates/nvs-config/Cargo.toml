@@ -57,7 +57,7 @@ toml.workspace = true
 # How this crate's tests reach files outside the package.
 nvs-repo.workspace = true
 
-# ADR 0103 § 6's ownership check is the platform's own question, and `std` asks
+# `rule:config/ownership-is-the-trust-boundary`'s ownership check is the platform's own question, and `std` asks
 # neither half of it: `src/trust.rs` owns what each one is.
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
@@ -65,7 +65,7 @@ libc.workspace = true
 [target.'cfg(windows)'.dependencies]
 windows-sys.workspace = true
 
-# `unsafe_code` is `deny` rather than the workspace's `forbid` because § 6's
+# `unsafe_code` is `deny` rather than the workspace's `forbid` because that rule's
 # check is four `advapi32` calls and a `geteuid`, each carrying its own
 # `#[expect]` with the reason it is sound.
 

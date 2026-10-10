@@ -12,8 +12,9 @@ directory of compiled code.
 **On Windows the equivalent is the DACL**: the owner is the runtime account, `BUILTIN\Administrators`
 or `NT AUTHORITY\SYSTEM`, and no *effective* write right — data, append, EA, attributes, `DELETE`,
 `WRITE_DAC` or `WRITE_OWNER` — reaches `Everyone`, `Authenticated Users`, `BUILTIN\Users`,
-`BUILTIN\Guests` or `ANONYMOUS LOGON`. Effective rights rather than the presence of an ACE, so a deny
-entry counts. Windows grants `Authenticated Users` modify rights by default on a non-system drive's
+`BUILTIN\Guests` or `ANONYMOUS LOGON`. The two ACL rights are in the mask because either one buys all
+the others in a second step. Effective rights rather than the presence of an ACE, so a deny entry
+counts and an inherited grant is seen. Windows grants `Authenticated Users` modify rights by default on a non-system drive's
 root, so a configuration kept under such a path refuses until that inheritance is broken — that default
 *is* the hole this rule closes.
 

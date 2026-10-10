@@ -1,7 +1,7 @@
 //! `rule:config/a-secret-is-a-file-whose-content-is-the-value`: a secret arrives as a file whose content is the value.
 //!
 //! Every case runs against an in-memory [`Files`] for the same reason `tests/resolve.rs` does, plus
-//! one of its own: § 7's refusals are about *content* — empty, whitespace-only, oversized, not
+//! one of its own: `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s refusals are about *content* — empty, whitespace-only, oversized, not
 //! UTF-8 — and a case that had to write those to a real directory would be asserting on what the
 //! host's filesystem did with the bytes rather than on what the resolver made of them. The two
 //! halves this reader cannot answer, whether a mode makes a file writable or readable by another
@@ -21,7 +21,7 @@ fn p(path: &str) -> PathBuf {
     path.split('/').collect()
 }
 
-/// The filesystem the cases describe, holding **bytes**: a secret file is not text until § 7 has
+/// The filesystem the cases describe, holding **bytes**: a secret file is not text until `rule:config/a-secret-is-a-file-whose-content-is-the-value` has
 /// decided it is one.
 #[derive(Default)]
 struct Fake {
@@ -41,19 +41,19 @@ impl Fake {
         }
     }
 
-    /// A file whose content is not text, which is the only way to ask § 7's UTF-8 question.
+    /// A file whose content is not text, which is the only way to ask `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s UTF-8 question.
     fn raw(mut self, path: &str, bytes: &[u8]) -> Self {
         self.files.insert(p(path), bytes.to_vec());
         self
     }
 
-    /// The paths whose § 6 check fails, the way a group-writable file's does.
+    /// The paths whose `rule:config/ownership-is-the-trust-boundary` check fails, the way a group-writable file's does.
     fn untrusting(mut self, paths: &[&str]) -> Self {
         self.untrusted = paths.iter().map(|path| p(path)).collect();
         self
     }
 
-    /// The paths § 7's advisory has something to say about — a mode another account can read.
+    /// The paths `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s advisory has something to say about — a mode another account can read.
     fn exposing(mut self, path: &str, how: &str) -> Self {
         self.exposed.insert(p(path), how.to_string());
         self
@@ -74,7 +74,7 @@ impl Files for Fake {
         Ok(path.to_path_buf())
     }
 
-    /// The path itself: no case here has an `[[app]]` block, and § 7's own paths are absolute.
+    /// The path itself: no case here has an `[[app]]` block, and `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s own paths are absolute.
     fn canonical(&self, path: &Path) -> Result<PathBuf, String> {
         if self.exists(path) {
             Ok(path.to_path_buf())
@@ -135,7 +135,7 @@ fn password(resolved: &Resolved) -> Option<&str> {
 /// A root naming `secrets/db` as `[db.main]`'s password file, and nothing else.
 const ROOT: &str = "[db.main]\ndriver = \"postgres\"\npassword_file = \"secrets/db\"\n";
 
-/// § 7's central claim, and both halves of its one trimming rule: the file's **whole** content is
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s central claim, and both halves of its one trimming rule: the file's **whole** content is
 /// the value, minus one trailing newline, with the leading and trailing spaces a password may
 /// legitimately carry left exactly where they were.
 // covers: tools:config/secrets-from-files
@@ -148,7 +148,7 @@ fn a_password_file_yields_its_content_with_one_trailing_newline_stripped() {
     assert_eq!(
         resolved.config.db["main"].password_file.as_deref(),
         Some("secrets/db"),
-        "the file stays named after the value is read: § 9's dump renders the value `<secret>` and \
+        "the file stays named after the value is read: `rule:config/check-and-dump-audit-the-tree-offline`'s dump renders the value `<secret>` and \
          names where it came from, which it can only do if this is still here",
     );
     let codes: Vec<_> = resolved
@@ -165,7 +165,7 @@ fn a_password_file_yields_its_content_with_one_trailing_newline_stripped() {
     );
 }
 
-/// § 7 keeps a credential as it was written, so the only thing left to do about an edge space is to
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value` keeps a credential as it was written, so the only thing left to do about an edge space is to
 /// name it: `W1007`, in both spellings of the pair, with the value untouched either way.
 ///
 /// The two halves are one case because the rule is one sentence. The file half is the reason the
@@ -216,7 +216,7 @@ fn a_credential_with_an_edge_space_is_kept_and_advised_in_both_spellings() {
 
 /// The ordinary credential says nothing at all. An advisory an operator sees on every boot is one
 /// they stop reading, so the case that matters most for `W1007` is the one where it is silent —
-/// including § 7's own `echo secret > file`, whose one trailing newline is removed before this
+/// including `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s own `echo secret > file`, whose one trailing newline is removed before this
 /// question is asked.
 #[test]
 fn an_ordinary_credential_raises_no_advisory() {
@@ -228,7 +228,7 @@ fn an_ordinary_credential_raises_no_advisory() {
     );
 }
 
-/// § 7 strips *one* newline, so a credential that genuinely ends in one is written with two. The
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value` strips *one* newline, so a credential that genuinely ends in one is written with two. The
 /// value-carrying half of this is a unit test in `src/secret.rs`; this is the same rule asserted
 /// through the resolver, where the bytes actually arrive.
 #[test]
@@ -238,7 +238,7 @@ fn a_second_trailing_newline_is_part_of_the_value() {
     assert_eq!(password(&tree_of(&fs, "etc/nvs.toml")), Some("hunter2\n"));
 }
 
-/// § 7: exactly one of the pair may be set. Two sources for one value is the second spelling
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value`: exactly one of the pair may be set. Two sources for one value is the second spelling
 /// `rule:statements/nothing-gets-a-second-name` refuses, and the refusal names both so an operator can see which to remove.
 // covers: tools:config/secrets-from-files
 #[test]
@@ -267,7 +267,7 @@ fn setting_both_halves_of_the_pair_is_refused() {
     );
 }
 
-/// § 7 reaches a block that is not a map: `[http.client.proxy]`'s credential is the same pair in a
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value` reaches a block that is not a map: `[http.client.proxy]`'s credential is the same pair in a
 /// block an operator does not name, so the file half is read into the value half and setting both
 /// is the same refusal a `[db.<name>]` gets.
 #[test]
@@ -313,7 +313,7 @@ fn a_proxy_password_and_its_file_together_are_refused() {
     );
 }
 
-/// § 7's content refusals, each of which would otherwise become a credential: an empty file, a
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s content refusals, each of which would otherwise become a credential: an empty file, a
 /// whitespace-only one, and one over the 64 KiB cap. Each is `E0608` and each names the path,
 /// because the operator's next move is to look at that file.
 #[test]
@@ -337,7 +337,7 @@ fn an_empty_a_whitespace_only_and_an_oversized_file_are_all_refused() {
     }
 }
 
-/// § 7: the content must be valid UTF-8 for a string-typed directive — and that is a refusal about
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value`: the content must be valid UTF-8 for a string-typed directive — and that is a refusal about
 /// the file's *content*, `E0608`, rather than a failure to read it at all. Which is why the secret
 /// file goes through `read_bytes`: a reader that decoded first could only report the second.
 #[test]
@@ -353,7 +353,7 @@ fn a_secret_file_that_is_not_utf8_is_refused_as_content() {
     );
 }
 
-/// § 7's permission split, enforced half: the secret file is a configuration input like any other,
+/// `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s permission split, enforced half: the secret file is a configuration input like any other,
 /// so a file another account can write is `E0607` — whoever can rewrite it chooses the credential
 /// the server connects with. Nothing in this module implements that; it is `Files::trust`, which is
 /// the whole point of reading the secret through it.
@@ -371,7 +371,7 @@ fn a_secret_file_another_account_can_write_refuses_the_boot() {
     );
 }
 
-/// § 7's permission split, advised half: readable by another account is `W1005` and the boot goes
+/// `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s permission split, advised half: readable by another account is `W1005` and the boot goes
 /// on with the value, because a Compose secret is mounted `0444`. A warning that stopped the boot
 /// would refuse the normal deployment of every container secret store there is.
 #[test]
@@ -384,7 +384,7 @@ fn a_secret_file_another_account_can_read_warns_and_the_value_still_resolves() {
     let warning = resolved
         .warnings
         .first()
-        .expect("§ 7 advises about a readable secret file");
+        .expect("`rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure` advises about a readable secret file");
     assert_eq!(warning.code, Some(code::W_SECRET_FILE_READABLE));
     assert!(
         warning.message.contains("mode 0644"),
@@ -393,7 +393,7 @@ fn a_secret_file_another_account_can_read_warns_and_the_value_still_resolves() {
     );
 }
 
-/// § 5 reaches § 7: a relative `password_file` resolves against the directory of the file it was
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` reaches `rule:config/a-secret-is-a-file-whose-content-is-the-value`: a relative `password_file` resolves against the directory of the file it was
 /// written in, not the working directory and not the root file's — so an included file may name a
 /// secret beside itself.
 // covers: tools:config/secrets-from-files
@@ -412,7 +412,7 @@ fn a_relative_secret_path_resolves_against_the_file_that_wrote_it() {
     assert_eq!(password(&tree_of(&fs, "etc/nvs.toml")), Some("hunter2"));
 }
 
-/// § 3 reaches § 7: the secret pass runs over the **flattened** tree, so a `password_file` a later
+/// `rule:config/later-wins-and-every-override-is-recorded` reaches `rule:config/a-secret-is-a-file-whose-content-is-the-value`: the secret pass runs over the **flattened** tree, so a `password_file` a later
 /// file replaced is never read. The loser here names a file that would fail the boundary if it were
 /// opened, which is what makes this case say more than "the winning value won".
 #[test]
@@ -431,7 +431,7 @@ fn only_the_password_file_that_won_the_merge_is_read() {
     assert_eq!(password(&tree_of(&fs, "etc/nvs.toml")), Some("hunter2"));
 }
 
-/// § 7 reaches the reader: the value survives into the snapshot a request reads, and does **not**
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value` reaches the reader: the value survives into the snapshot a request reads, and does **not**
 /// arrive there through the merged table.
 ///
 /// Both halves are the finding this case was written for. The snapshot deserializes its typed tree
@@ -473,7 +473,7 @@ fn a_secret_survives_into_the_snapshot_without_entering_the_table() {
 /// `rule:programs/framework-core-half` needs so that `nvs_stdlib::mail` would accept it.
 const MAIL_ROOT: &str = "[mail.relay]\nhost = \"smtp.internal\"\nfrom = \"app@example.test\"\nuser = \"app\"\npassword_file = \"secrets/mail\"\n";
 
-/// § 7 is about the pairs the registry marks, and `[mail.<name>] password` is one of them: an
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value` is about the pairs the registry marks, and `[mail.<name>] password` is one of them: an
 /// SMTP submission credential is written by an operator into a named block and injected into a
 /// container as a file, exactly as a database password is.
 ///
@@ -502,11 +502,11 @@ fn a_mail_endpoints_password_arrives_as_a_file_too() {
     assert_eq!(
         resolved.config.mail["relay"].password_file.as_deref(),
         Some("secrets/mail"),
-        "and the file stays named, so § 9's dump can say where the credential came from",
+        "and the file stays named, so `rule:config/check-and-dump-audit-the-tree-offline`'s dump can say where the credential came from",
     );
 }
 
-/// `[ldap.<name>] password` is one of the registry's pairs, and an empty file is refused by § 7
+/// `[ldap.<name>] password` is one of the registry's pairs, and an empty file is refused by `rule:config/a-secret-is-a-file-whose-content-is-the-value`
 /// before the `[ldap]` check sees a `user` with nothing beside it
 /// (`rule:security/ldap-empty-password-is-refused`).
 #[test]
@@ -527,11 +527,11 @@ fn a_directory_password_arrives_as_a_file_and_an_empty_one_is_refused() {
     assert_eq!(
         refusal(&fs, "etc/nvs.toml").code,
         Some(code::E_BAD_SECRET_FILE),
-        "an empty file is § 7's refusal, which names the file",
+        "an empty file is `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s refusal, which names the file",
     );
 }
 
-/// § 7's one-of-the-pair rule is the registry's and not `[db]`'s: the same refusal, naming the block
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s one-of-the-pair rule is the registry's and not `[db]`'s: the same refusal, naming the block
 /// that actually set both.
 #[test]
 fn setting_both_halves_of_a_mail_endpoints_pair_is_refused() {
@@ -557,7 +557,7 @@ fn setting_both_halves_of_a_mail_endpoints_pair_is_refused() {
 const CACHE_ROOT: &str =
     "[cache.shared]\nurl = \"redis://cache.internal\"\npassword_file = \"secrets/cache\"\n";
 
-/// § 7 reaches the coherent tier: `[cache.shared] password` is a pair like every other, in a block
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value` reaches the coherent tier: `[cache.shared] password` is a pair like every other, in a block
 /// an operator does not name, so `AUTH` carries a credential a container mounted as a file.
 ///
 /// The `secrets` assertion is the one that matters, for the reason the mail case gives — that map
@@ -591,7 +591,7 @@ fn a_cache_shared_password_is_read_from_its_file_sibling_and_never_enters_the_me
     assert_eq!(
         shared.and_then(|shared| shared.password_file.as_deref()),
         Some("secrets/cache"),
-        "and the file stays named, so § 9's dump can say where the credential came from",
+        "and the file stays named, so `rule:config/check-and-dump-audit-the-tree-offline`'s dump can say where the credential came from",
     );
     assert!(
         !toml::to_string(&resolved.table)
@@ -601,7 +601,7 @@ fn a_cache_shared_password_is_read_from_its_file_sibling_and_never_enters_the_me
     );
 }
 
-/// § 7's one-of-the-pair rule over a block with no name in it: the same refusal a `[db.<name>]`
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s one-of-the-pair rule over a block with no name in it: the same refusal a `[db.<name>]`
 /// gets, naming `cache.shared` itself.
 #[test]
 fn both_halves_of_the_cache_shared_password_pair_is_refused() {

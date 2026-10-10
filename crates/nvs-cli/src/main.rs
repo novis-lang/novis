@@ -41,7 +41,7 @@
 //! * `nvs config check` (M6) — resolve the configuration tree and report what
 //!   it holds, exiting non-zero on any refusal.
 //!   `rule:config/check-and-dump-audit-the-tree-offline`
-//!   's offline audit, which exists because § 3's later-wins precedence is
+//!   's offline audit, which exists because `rule:config/later-wins-and-every-override-is-recorded`'s later-wins precedence is
 //!   only safe while it is auditable. It compiles nothing and needs no server;
 //!   see [`config`], which also holds the reader `run` resolves that tree
 //!   through.
@@ -236,7 +236,7 @@ struct Cli {
     // reads, and `config check`/`config dump` audit the same files without
     // running anything.
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-    // step 1, and § 5 is the resolution against the working directory.
+    // step 1, and `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` is the resolution against the working directory.
     #[arg(long, value_name = "PATH", global = true)]
     config: Vec<PathBuf>,
 
@@ -3043,7 +3043,7 @@ fn run_run(
     }
     // `rule:config/the-config-is-an-immutable-snapshot`: the tree is resolved and folded into one snapshot **before**
     // the request exists, and the request then clones it once. A refusal here is
-    // a refusal to start — `rule:config/later-wins-and-every-override-is-recorded`'s later-wins and § 6's boundary are only
+    // a refusal to start — `rule:config/later-wins-and-every-override-is-recorded`'s later-wins and `rule:config/ownership-is-the-trust-boundary`'s boundary are only
     // worth anything if a tree that does not resolve stops the run.
     let mut config_sources = SourceMap::new();
     let snapshot = match config::boot_snapshot(config, &config_entry, &mut config_sources, init) {

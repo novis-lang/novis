@@ -2,7 +2,7 @@
 //! they flatten to says.
 //!
 //! Every case runs against an in-memory [`Files`], not a temporary directory. That is not a
-//! convenience: § 2 **mandates** the order a `dir` include is read in rather than inheriting
+//! convenience: `rule:config/include-takes-a-path-or-a-dir` **mandates** the order a `dir` include is read in rather than inheriting
 //! `readdir`'s, so a case that got its order from a real filesystem would pass by accident on the
 //! host that happens to return entries sorted and prove nothing.
 
@@ -42,7 +42,7 @@ impl Fake {
         }
     }
 
-    /// The paths whose § 6 check fails, the way a group-writable file's does.
+    /// The paths whose `rule:config/ownership-is-the-trust-boundary` check fails, the way a group-writable file's does.
     fn untrusting(mut self, paths: &[&str]) -> Self {
         self.untrusted = paths.iter().map(|path| p(path)).collect();
         self
@@ -112,19 +112,19 @@ impl Files for Fake {
             .ok_or_else(|| "no such file".to_string())
     }
 
-    /// Whatever `read` says, as bytes: § 7's content refusals are `tests/secret.rs`'s, and a case
+    /// Whatever `read` says, as bytes: `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s content refusals are `tests/secret.rs`'s, and a case
     /// here only ever names configuration files, which are text by construction.
     fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, String> {
         self.read(path).map(String::into_bytes)
     }
 
-    /// Nothing is exposed: § 7's advisory is about a secret file and no case here has one.
+    /// Nothing is exposed: `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s advisory is about a secret file and no case here has one.
     fn exposure(&self, _path: &Path) -> Option<String> {
         None
     }
 
     /// Deliberately **reverse** sorted, so a case that passes is one where the resolver did the
-    /// ordering § 2 mandates rather than one where the reader happened to.
+    /// ordering `rule:config/include-takes-a-path-or-a-dir` mandates rather than one where the reader happened to.
     fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String> {
         let mut entries: Vec<PathBuf> = self
             .files
@@ -179,7 +179,7 @@ fn memory(resolved: &Resolved) -> Option<&Setting> {
     resolved.config.limits.as_ref()?.memory.as_ref()
 }
 
-/// § 1's whole ladder: `--config` is repeatable and ordered, and **any** explicit `--config`
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s whole ladder: `--config` is repeatable and ordered, and **any** explicit `--config`
 /// disables the `./nvs.toml` and data-folder steps entirely — an operator naming files never gets a
 /// surprise merge with whatever is in the working directory or the data folder — while a directory
 /// holding no file falls through to the shipped defaults rather than to a failure.
@@ -207,7 +207,7 @@ fn a_root_is_named_by_config_else_found_else_defaulted() {
         roots(&[p("etc/base.toml")], &p("app"), None, &fs),
         Roots::Files(vec![p("app/etc/base.toml")]),
         "a flag disables step 2 even though `app/nvs.toml` is right there — and the flag itself \
-         resolves against the working directory, because that is what a shell argument means (§ 5)",
+         resolves against the working directory, because that is what a shell argument means (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`)",
     );
     assert_eq!(
         roots(&[], &p("elsewhere"), None, &fs),
@@ -216,7 +216,7 @@ fn a_root_is_named_by_config_else_found_else_defaulted() {
     );
 }
 
-/// § 1 step 3: the data folder's `nvs.toml` is read when the working directory has none, the
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3: the data folder's `nvs.toml` is read when the working directory has none, the
 /// working directory's file wins when both exist, a named `--config` disables it as it disables
 /// step 2, and a data folder with no file, or no usable data folder, falls through to step 4.
 // covers: tools:config/the-file-and-where-it-is-read-from
@@ -256,7 +256,7 @@ fn the_data_folder_s_file_is_read_when_the_working_directory_has_none() {
     );
 }
 
-/// § 1 step 2: `./nvs.toml` is **exactly one directory, never a walk upward**, so a nested
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2: `./nvs.toml` is **exactly one directory, never a walk upward**, so a nested
 /// directory falls through to the shipped defaults rather than finding its parent's file.
 // covers: tools:config/the-file-and-where-it-is-read-from
 #[test]
@@ -266,7 +266,7 @@ fn the_local_file_is_not_searched_for_upward() {
     assert_eq!(roots(&[], &p("app/sub"), None, &fs), Roots::Defaults);
 }
 
-/// § 1 step 4: nothing found is a complete and valid configuration, not a failure.
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 4: nothing found is a complete and valid configuration, not a failure.
 #[test]
 fn the_shipped_defaults_resolve_to_the_default_tree() {
     let mut sources = SourceMap::new();
@@ -359,7 +359,7 @@ fn trailer(rest: &str) -> String {
     String::new()
 }
 
-/// § 1 step 3 from the other side: the file this project ships is the shipped defaults written out,
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 from the other side: the file this project ships is the shipped defaults written out,
 /// so a directory that took it resolves to what that directory resolved to while it was empty. That
 /// equality is the whole licence for a command to write the file without being asked, and it holds
 /// only while every key in it is commented out — one live key moves this assertion and nothing else
@@ -427,7 +427,7 @@ fn an_empty_array_entry_is_still_an_entry() {
     assert_eq!(diagnostic.code, Some(code::E_BAD_APP_BLOCK));
 }
 
-/// § 3: an include overrides the file that pulled it in — the base-plus-local shape, with the
+/// `rule:config/later-wins-and-every-override-is-recorded`: an include overrides the file that pulled it in — the base-plus-local shape, with the
 /// include line at the point the operator wants overridden — and **both origins are recorded**.
 /// That record is the whole of what makes later-wins acceptable here, so it is asserted, not the
 /// winning value alone.
@@ -448,7 +448,7 @@ fn a_key_set_in_two_files_resolves_to_the_later_one_with_both_origins_reported()
     let record = resolved
         .overrides
         .first()
-        .expect("§ 3 requires the override to be recorded");
+        .expect("`rule:config/later-wins-and-every-override-is-recorded` requires the override to be recorded");
     assert_eq!(record.key, "limits.memory");
     assert_eq!(record.replaced.path, p("etc/nvs.toml"));
     assert_eq!(record.winner.path, p("etc/local.toml"));
@@ -459,7 +459,7 @@ fn a_key_set_in_two_files_resolves_to_the_later_one_with_both_origins_reported()
     );
 }
 
-/// § 3: the stream is the root's own keys, *then* its includes depth-first in list order. Asserted
+/// `rule:config/later-wins-and-every-override-is-recorded`: the stream is the root's own keys, *then* its includes depth-first in list order. Asserted
 /// on the file list rather than on a value, because a resolver that read the right files in the
 /// wrong order still answers plausibly for any single key.
 // covers: tools:config/include-a-tree-of-files
@@ -486,7 +486,7 @@ fn includes_are_depth_first_in_list_order_after_the_files_own_keys() {
     );
 }
 
-/// § 2: a `dir` include reads every `*.toml` **directly** inside, ascending by filename, without
+/// `rule:config/include-takes-a-path-or-a-dir`: a `dir` include reads every `*.toml` **directly** inside, ascending by filename, without
 /// recursing and without touching anything that is not a `.toml`. The fake reader hands them back
 /// reversed on purpose.
 // covers: tools:config/include-a-tree-of-files
@@ -531,7 +531,7 @@ fn an_included_directory_and_an_absent_optional_include_are_probed() {
     assert_eq!(resolved.probed, vec![p("etc/conf.d"), p("etc/local.toml")]);
 }
 
-/// § 4, both sides of the split named together: `key = [...]` is one value and is replaced
+/// `rule:config/a-value-array-replaces-and-a-table-appends`, both sides of the split named together: `key = [...]` is one value and is replaced
 /// wholesale, so the last file that mentions a grant states the whole grant; `[[table]]` entries
 /// accumulate, because two of them in one file already mean two.
 ///
@@ -572,7 +572,7 @@ fn a_value_array_replaces_where_a_table_appends() {
     );
 }
 
-/// § 5: a relative path resolves against the directory of the file it is written in, which is the
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`: a relative path resolves against the directory of the file it is written in, which is the
 /// only rule under which a config directory survives being copied or relocated whole.
 // covers: tools:config/the-file-and-where-it-is-read-from
 #[test]
@@ -594,10 +594,10 @@ fn a_relative_path_resolves_against_the_file_it_is_written_in() {
     assert_eq!(resolved.files.len(), 3);
 }
 
-/// § 5 again, on the key `rule:core-classes/db-capabilities` makes a whole database out of: a `[db.<name>] path` written in
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` again, on the key `rule:core-classes/db-capabilities` makes a whole database out of: a `[db.<name>] path` written in
 /// an included file names a file beside *that* file, not beside whatever directory a request happens
 /// to be running in. It is asserted here rather than in `tests/db.rs` because the rule under test is
-/// § 5's and not § 3's — `crates/nvs-config/src/db.rs`'s module doc owns why the bundle beside it is
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`'s and not `rule:config/later-wins-and-every-override-is-recorded`'s — `crates/nvs-config/src/db.rs`'s module doc owns why the bundle beside it is
 /// additionally trust-checked and this one is not.
 #[test]
 fn a_db_blocks_path_resolves_against_the_file_it_is_written_in() {
@@ -632,7 +632,7 @@ fn a_db_blocks_path_resolves_against_the_file_it_is_written_in() {
     );
 }
 
-/// § 5 for the other path a `[db]` block can carry, and § 6 for what makes it the sharper case: a
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` for the other path a `[db]` block can carry, and `rule:config/ownership-is-the-trust-boundary` for what makes it the sharper case: a
 /// `tls_ca_file` is trust-checked at the *resolved* path, so a pass that rewrote the typed tree alone
 /// would prove one file safe and hand the driver a different one to open.
 #[test]
@@ -992,7 +992,7 @@ fn resolve_proxy_writes_one_warn_at_every_boot() {
     }
 }
 
-/// § 2: a cycle is refused with the chain named. The chain and not merely the repeated file, because
+/// `rule:config/an-include-cycle-is-refused-and-nesting-is-capped-at-eight`: a cycle is refused with the chain named. The chain and not merely the repeated file, because
 /// an operator shown only the file that repeated has to rediscover how it was reached.
 // covers: tools:config/include-a-tree-of-files
 #[test]
@@ -1040,7 +1040,7 @@ fn a_cycle_built_out_of_a_symlink_is_refused_with_the_chain_named() {
     );
 }
 
-/// § 2's depth cap: an include tree too deep to read, whether or not it ever closes. A ring is not
+/// `rule:config/an-include-cycle-is-refused-and-nesting-is-capped-at-eight`'s depth cap: an include tree too deep to read, whether or not it ever closes. A ring is not
 /// what this catches — the case above is — so a tree that nests past the cap without repeating a
 /// file is the one shape left for it.
 #[test]
@@ -1067,7 +1067,7 @@ fn nesting_past_the_cap_is_refused() {
     );
 }
 
-/// § 6: `optional = true` covers **absence and nothing else**, and every half is asserted
+/// `rule:config/optional-covers-absence-and-moves-the-check-to-the-directory`: `optional = true` covers **absence and nothing else**, and every half is asserted
 /// together — a resolver that skipped every failing include would pass on the absent-and-optional
 /// one alone. The unreadable file is the one a naive implementation gets wrong: a file that is
 /// *there* and cannot be read is a hard refusal even under `optional`, because otherwise a stray
@@ -1110,7 +1110,7 @@ fn optional_covers_absence_and_not_unreadability() {
     );
 }
 
-/// § 1: a `--config` naming a file that does not exist is **always** a hard refusal. Optionality is
+/// `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`: a `--config` naming a file that does not exist is **always** a hard refusal. Optionality is
 /// a property a file declares about its own includes, never something argv can assert.
 #[test]
 fn a_config_flag_naming_a_missing_file_is_a_hard_refusal() {
@@ -1119,7 +1119,7 @@ fn a_config_flag_naming_a_missing_file_is_a_hard_refusal() {
     assert_eq!(diagnostic.code, Some(code::E_UNREADABLE_CONFIG));
 }
 
-/// § 2: an entry carries `path` **or** `dir`, never both and never neither. A shape TOML cannot
+/// `rule:config/include-takes-a-path-or-a-dir`: an entry carries `path` **or** `dir`, never both and never neither. A shape TOML cannot
 /// express, so it is a refusal rather than a type.
 #[test]
 fn an_include_entry_carrying_both_or_neither_is_refused() {
@@ -1218,7 +1218,7 @@ fn two_files_setting_different_keys_of_one_block_both_survive() {
     );
 }
 
-/// § 6: a file some other account can write refuses the boot rather than being read, and the
+/// `rule:config/ownership-is-the-trust-boundary`: a file some other account can write refuses the boot rather than being read, and the
 /// refusal is `E0607` naming **that** file — not the `E0605` an unreadable one gets, because an
 /// operator told "cannot read" goes looking for a typo when the answer is a mode. **A directory an
 /// `[[include]]` reads is asked the same question**, and it is asserted here beside the file
@@ -1262,7 +1262,7 @@ fn a_group_writable_file_or_directory_refuses_the_boot() {
     );
 }
 
-/// § 6: an absent `optional` include puts the check on the directory that would hold it — asserted
+/// `rule:config/optional-covers-absence-and-moves-the-check-to-the-directory`: an absent `optional` include puts the check on the directory that would hold it — asserted
 /// on both sides, because a check that refused every optional include would pass the first half of
 /// this alone. The directory is a standing slot, and the promise that a file appearing there later
 /// will be trusted is only keepable where the file is not.
@@ -1306,7 +1306,7 @@ fn an_absent_optional_include_checks_the_directory_that_would_hold_it() {
     );
 }
 
-/// § 6, continued: when the directory an `optional` include names does not exist either, the check
+/// `rule:config/optional-covers-absence-and-moves-the-check-to-the-directory`, continued: when the directory an `optional` include names does not exist either, the check
 /// walks up to the nearest one that does. The promise is only as strong as the shallowest directory
 /// an attacker would have to write to keep it.
 #[test]

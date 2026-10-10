@@ -476,7 +476,8 @@ fn the_app_roster_is_not_in_the_snapshot() {
     assert!(!snapshot.origins.keys().any(|key| key.starts_with("app")));
 }
 
-/// § 2 is [0103 § 3]'s later-wins in a different order, so a block taking a key from the global
+/// `rule:config/every-matching-app-block-applies-least-specific-first` is
+/// `rule:config/later-wins-and-every-override-is-recorded`'s later-wins in a different order, so a block taking a key from the global
 /// tree is reported exactly as a later file taking one is — both origins named, and the origin of
 /// the winner is the file the *block* was written in.
 #[test]

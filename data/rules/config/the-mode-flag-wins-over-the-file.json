@@ -2,8 +2,7 @@
   "title": "The mode a server starts in comes from `nvs.toml` or from `nvs serve --mode=`, and the flag is the last word",
   "status": "designed",
   "because": [
-    "0091",
-    "0103"
+    "0091"
   ],
   "seeAlso": [
     "config/two-modes-and-the-default-is-production",

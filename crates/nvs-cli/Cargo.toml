@@ -32,7 +32,7 @@ default = ["exporter"]
 exporter = ["nvs-server/exporter"]
 
 [dependencies]
-# ADR 0103's tree and `rule:config/the-config-is-an-immutable-snapshot`: `nvs run` is the first caller
+# `rule:config/include-takes-a-path-or-a-dir`'s tree and `rule:config/the-config-is-an-immutable-snapshot`: `nvs run` is the first caller
 # that resolves a real `nvs.toml`, and `LocalFiles` in `config.rs` owns which of
 # the two `Files` readers it is.
 nvs-config.workspace = true
@@ -112,7 +112,7 @@ serde_json.workspace = true
 # key in the order the file had it, which `serde_json::Map` does not: `agent.rs`'s
 # `Doc` implements the two traits by hand.
 serde.workspace = true
-# ADR 0103 § 9's `nvs config dump` walks the merged table `nvs_config::Resolved`
+# `rule:config/check-and-dump-audit-the-tree-offline`'s `nvs config dump` walks the merged table `nvs_config::Resolved`
 # hands back and serializes it, so this crate names the type it is made of. The
 # format decision itself is `rule:config/the-file-is-nvs-toml-and-it-is-toml`'s
 # and belongs to `nvs-config`.

@@ -74,7 +74,8 @@ COPY --chmod=0755 bin/${TARGETARCH}/nvs /usr/local/bin/nvs
 COPY bin/notices/ /usr/share/doc/novis/
 COPY --from=nvsdata --chown=nonroot:nonroot --chmod=0700 /.nvsdata /usr/local/bin/.nvsdata
 
-# Where a user mounts their application. `nvs` looks for `./nvs.toml` here (ADR 0103 § 1 step 2),
+# Where a user mounts their application. `nvs` looks for `./nvs.toml` here
+# (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2),
 # so a mounted tree's own configuration is found with nothing passed on the command line, and a
 # relative path in the user's command resolves against the mount.
 WORKDIR /app

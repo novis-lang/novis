@@ -39,5 +39,10 @@ The `[limits]`/`[limits.hard]` layout is the changeability model's
 - **Dhall, or configuration written in Novis.** Either makes the configuration a program, reopening the
   door `rule:security/closed-doors` closed on `eval` in the one root-owned file read before any sandbox
   exists.
+- **`${ENV_VAR}` interpolation in a value.** It makes the configuration compute, the same door Dhall
+  reopens. The run mode is never read from the environment
+  (`rule:config/no-environment-variable-selects-the-mode`), and an inherited, unaudited namespace is no
+  source for the file that grants capabilities. A secret arrives as a file instead
+  (`rule:config/a-secret-is-a-file-whose-content-is-the-value`).
 - **Accepting both `.ini` and `.toml`.** Two formats to specify, parse and test, and a deployment that
   holds both with no answer for which wins; nothing in Novis gets a second syntax.

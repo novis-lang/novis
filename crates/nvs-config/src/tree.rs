@@ -18,7 +18,7 @@
 //! `same_site = "None"` with `secure = false` is refused by the HTTP layer that reads the pair
 //! (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`). The split is deliberate: a value refusal wants to name the unit it
 //! expected, which `serde`'s "invalid type" cannot, and the override stream of
-//! [ADR 0103 § 3](/docs/decisions/0103.md) resolves *before*
+//! `rule:config/later-wins-and-every-override-is-recorded` resolves *before*
 //! anything is interpreted, so a value overridden by a later file must not have had to parse.
 //!
 //! Which is also why every field is an [`Option`]: unset and set-to-the-shipped-default are
@@ -136,12 +136,12 @@ pub struct Config {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Include {
-    /// One file, relative to the directory of the file this entry is written in (§ 5).
+    /// One file, relative to the directory of the file this entry is written in (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`).
     pub path: Option<String>,
     /// Every `*.toml` directly inside, ascending by filename and not recursing. Not a glob.
     pub dir: Option<String>,
     /// Absence is fine; unreadable, unowned or unparseable is not, and the ownership check moves to
-    /// the directory that would hold the file (§ 6).
+    /// the directory that would hold the file (`rule:config/ownership-is-the-trust-boundary`).
     pub optional: Option<bool>,
 }
 
@@ -150,7 +150,7 @@ pub struct Include {
 /// `root` or `entry`, never both and never neither; `mode` and `origin` sit directly on the block
 /// while its directives live in the sub-tables below. Which of those two rules this struct can hold
 /// is the difference between a type and a check: TOML gives no way to spell "one of these two
-/// keys", so the exclusivity is the resolver's (§ 2) and only the field set is here.
+/// keys", so the exclusivity is the resolver's (`rule:config/include-takes-a-path-or-a-dir`) and only the field set is here.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct App {

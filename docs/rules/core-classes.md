@@ -1043,7 +1043,7 @@ done by the arena instead. `close()` releases one early, and the name is then fr
   encoding structure the type system should carry ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)), and it puts
   credentials in source by default.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0103](../decisions/0103.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api).</sub>
 
 <a id="core-classes-db-capabilities"></a>
 
