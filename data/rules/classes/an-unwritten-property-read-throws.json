@@ -2,8 +2,7 @@
   "title": "Reading a property that has never been written throws a catchable error and never yields a value",
   "status": "shipped",
   "because": [
-    "0022",
-    "0019"
+    "0022"
   ],
   "seeAlso": [
     "classes/definite-property-initialization",

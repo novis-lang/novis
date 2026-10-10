@@ -271,9 +271,10 @@ by checked return ([`errors/propagation`](errors.md#errors-propagation)) rather 
 The read never succeeds, so nothing is handed back that a caller could inspect or compare against.
 Writing first makes every later read ordinary.
 
-Two declarations can reach the state: a `lateinit` property, and an object built through reflection
-with no constructor run. Every other non-nullable property is discharged at its constructor
-([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)).
+A `lateinit` property is the one declaration that can reach the state. Every other non-nullable
+property is discharged at its constructor ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), and
+reflection builds no object without running its constructor
+([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
 
 Internally the slot carries one non-user-observable "never written" marker, distinct from every legal
 value including `null`. It is not an entry in the type system and no expression produces one. It costs
@@ -281,7 +282,7 @@ zero additional bytes per property: the tagged value representation already had 
 and the compiled read goes by the payload — null in this state and in no other, because `lateinit` is
 restricted to a non-nullable class or interface type.
 
-<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/lateinit`](classes.md#classes-lateinit), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0022](../decisions/0022.md), [0019](../decisions/0019.md).</sub>
+<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/lateinit`](classes.md#classes-lateinit), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0022](../decisions/0022.md).</sub>
 
 <a id="classes-lateinit"></a>
 
@@ -882,7 +883,7 @@ one is a built-in view, the other a call site a script constructs, and they have
 models. A `secret`-typed property is redacted wherever it is dumped, which is the qualifier's rule and
 not an exception to this one.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0028](../decisions/0028.md), [0092](../decisions/0092.md), [0019](../decisions/0019.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0028](../decisions/0028.md), [0092](../decisions/0092.md).</sub>
 
 <a id="classes-two-copy-depths"></a>
 

@@ -3,9 +3,9 @@
 // description will not open, the one question only a `mixed` can be asked,
 // and source read as data.
 //
-// [ADR 0019](/docs/decisions/0019.md)
-// makes both of these built in rather than extension-provided, and gives
-// them the two rules the third and fourth lines below exist for.
+// `rule:tooling/reflection-and-source-parsing-are-core-features` makes both
+// of these built in rather than extension-provided, and gives them the two
+// rules the third and fourth lines below exist for.
 //
 // **Reflection enforces the same visibility and hook checks ordinary code
 // does.** A `private` member is not reachable through `Core\Reflect` from

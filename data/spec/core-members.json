@@ -1734,12 +1734,12 @@
         [
           "`Core\\Reflect`",
           "`forClass`, `forObject`, `typeOf(mixed): TypeKind`, and the visibility-respecting walk. Replaces `ReflectionClass` **and** `get_class`, `get_object_vars`, `get_class_methods`, `method_exists`, `property_exists`, `class_exists`, `is_a`, `is_subclass_of`, `class_implements`, `spl_object_id`",
-          "[0019](../decisions/0019.md)"
+          "`rule:core-classes/reflect`"
         ],
         [
           "`Core\\Ast`",
           "`parse(string): Node` returning inert typed data",
-          "[0019](../decisions/0019.md)"
+          "`rule:core-classes/ast-is-inert`"
         ],
         [
           "`Core\\Attributes`",

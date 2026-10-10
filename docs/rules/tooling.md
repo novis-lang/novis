@@ -94,7 +94,14 @@ observer ordinary code at that site would face, and there is no `setAccessible(t
 into execution, because `eval` does not exist. Neither touches the filesystem, the network or another
 process, so neither needs a capability grant ([`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability)).
 
-<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0019](../decisions/0019.md).</sub>
+**Declined:**
+- **Ship reflection and leave source parsing to a library.** That is the split that lets a
+  third-party grammar drift from the engine's, and avoiding it costs nothing because the compiler's
+  parser already exists.
+- **`setAccessible(true)` or any equivalent.** It would make every access modifier advisory and skip
+  a declared property observer without a trace ([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
+
+<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="tooling-python-claims"></a>
 

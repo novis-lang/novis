@@ -2,7 +2,6 @@
   "title": "`Core\\Reflect` is read-only structural introspection, and it is a first-class feature rather than an extension",
   "status": "shipped",
   "because": [
-    "0019",
     "0043"
   ],
   "seeAlso": [

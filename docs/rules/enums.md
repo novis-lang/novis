@@ -209,4 +209,4 @@ identity, and nothing that acts on a value. It is a second description of the sa
 type ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), not a reopening of [`enums/no-class-machinery`](enums.md#enums-no-class-machinery) — a
 description of a case list is not a `::cases()` the language does not have.
 
-<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0019](../decisions/0019.md).</sub>
+<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>

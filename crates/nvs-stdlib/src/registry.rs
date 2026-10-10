@@ -2349,7 +2349,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::reflect::CLASS_INFO,
     // One row of that description's method roster. A class of its own rather
     // than a `{name, public}` shape, because a shape has no member to hang the
-    // next question off and the roster ADR 0019 § 1 names is a family of
+    // next question off and `rule:core-classes/reflect`'s roster is a family of
     // descriptions, not of records.
     crate::reflect::METHOD_INFO,
     // The same row one member over, for the description's other roster. Its

@@ -4,9 +4,10 @@ by checked return (`rule:errors/propagation`) rather than routed through
 The read never succeeds, so nothing is handed back that a caller could inspect or compare against.
 Writing first makes every later read ordinary.
 
-Two declarations can reach the state: a `lateinit` property, and an object built through reflection
-with no constructor run. Every other non-nullable property is discharged at its constructor
-(`rule:classes/definite-property-initialization`).
+A `lateinit` property is the one declaration that can reach the state. Every other non-nullable
+property is discharged at its constructor (`rule:classes/definite-property-initialization`), and
+reflection builds no object without running its constructor
+(`rule:security/reflection-enforces-visibility`).
 
 Internally the slot carries one non-user-observable "never written" marker, distinct from every legal
 value including `null`. It is not an entry in the type system and no expression produces one. It costs

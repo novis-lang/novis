@@ -2,7 +2,6 @@
   "title": "`Core\\Ast` runs the compiler's own parser and hands back typed, inert nodes",
   "status": "shipped",
   "because": [
-    "0019",
     "0006"
   ],
   "seeAlso": [
@@ -19,6 +18,8 @@
     "tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst",
     "tests/conformance/core/core-ast-node-position-names-the-first-character-of-its-production.nvst",
     "tests/conformance/core/core-ast-node-positions-hold-over-the-whole-walk-asserted-by-counting.nvst",
-    "tests/conformance/core/core-ast-node-column-counts-characters-where-offset-counts-bytes.nvst"
+    "tests/conformance/core/core-ast-node-column-counts-characters-where-offset-counts-bytes.nvst",
+    "crates/nvs-stdlib/src/ast.rs",
+    "fuzz/fuzz_targets/ast.rs"
   ]
 }

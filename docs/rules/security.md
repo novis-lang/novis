@@ -315,7 +315,7 @@ Running code chosen at run time is `spawn script`: in an isolate, spending the p
 `script.spawn` â€” which is what a template engine or a plugin loader actually needs, with a boundary
 `eval` never had.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0052](../decisions/0052.md), [0019](../decisions/0019.md), [0022](../decisions/0022.md), [0024](../decisions/0024.md), [0042](../decisions/0042.md), [0048](../decisions/0048.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0052](../decisions/0052.md), [0022](../decisions/0022.md), [0024](../decisions/0024.md), [0042](../decisions/0042.md), [0048](../decisions/0048.md).</sub>
 
 <a id="security-a-path-is-not-a-url"></a>
 
@@ -353,7 +353,9 @@ exactly the visibility check, and any declared property observer, that ordinary 
 would face. A reflective call from outside a class to one of its `private` methods fails the way an
 ordinary out-of-class call would. A `protected` member is where that promise is worth stating twice:
 a reflective read, write or call written inside a subclass's body reaches it, because an ordinary
-access there reaches it, while the same site is refused the class's `private` members.
+access there reaches it, while the same site is refused the class's `private` members. Constructing
+through reflection calls the constructor under the same check, so a `private` constructor is reached
+from its own class's bodies and from nowhere else.
 
 **There is no `setAccessible(true)` and no equivalent.** It is rejected outright rather than left
 undocumented, because an escape hatch for reaching a private member from anywhere is a structural
@@ -362,7 +364,7 @@ serializer or a test helper that reached into private state through reflection h
 the declaring class to offer the access, which is the same answer [`testing/private-in-the-same-file`](testing.md#testing-private-in-the-same-file)
 gives a test.
 
-<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0019](../decisions/0019.md), [0014](../decisions/0014.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0014](../decisions/0014.md), [0274](../decisions/0274.md).</sub>
 
 <a id="security-reflection-needs-no-capability"></a>
 
@@ -381,7 +383,7 @@ need a grant precisely because it would then be an effect. The two rules hold ea
 is free to be open because there is nothing behind it
 ([`security/no-eval`](security.md#security-no-eval), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
 
-<sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility). Decided in [0019](../decisions/0019.md), [0052](../decisions/0052.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility). Decided in [0052](../decisions/0052.md), [0118](../decisions/0118.md).</sub>
 
 <a id="security-capability-check-at-the-door"></a>
 
@@ -694,7 +696,7 @@ in exchange for reintroducing the dynamic escape the language closed elsewhere â
 Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
 further one opened, and every claim above it would have to be qualified.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md), [0031](../decisions/0031.md), [0019](../decisions/0019.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md), [0031](../decisions/0031.md).</sub>
 
 <a id="security-capability-costs-nothing-unasked"></a>
 

@@ -38,7 +38,7 @@ nvs-render.workspace = true
 # `nvs_syntax::duration` -- the lexer reads a duration written in the source with it, this
 # crate reads a run-time string with it, and `nvs.toml` will read a directive
 # with it. That module's own docs own why the shared code sits in the syntax
-# crate; ADR 0019's `Core\Ast` owes this same edge regardless.
+# crate; `Core\Ast`, which runs the compiler's own parser, owes this same edge regardless.
 nvs-syntax.workspace = true
 # `rule:core-api/tier-roster` puts `Core\Http\Client` over "the runtime's own reactor rather
 # than a second event loop", and the parking stream that reaches it is

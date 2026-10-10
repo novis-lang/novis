@@ -30,3 +30,17 @@ exist and stays rejected: a string has no stable identity, no cache key, and no 
 path. A program can walk a tree, print it, or rewrite it into a new source string to hand to a human
 or a file — never a way to run what it describes. Shipping this is therefore not `eval` under a
 different name; it is the same refusal restated.
+
+A handler that passes request text to `parse` makes the parser reachable by whoever sent the
+request, so its bounds hold at run time as they do at compile time: nesting past 96 levels stops the
+parse with an error, and once it stops, the rest of the input costs at most one step per token. The
+same seed corpus the parser's fuzz target reads is replayed through `Core\Ast::parse`, and a fuzz
+target of its own drives the member with arbitrary input.
+
+**Memory:** one object per node of the parsed source, plus one array per node with children,
+charged to the request that called `parse` and freed with the tree. The source's line table is held
+only for the length of the call.
+
+**Declined:**
+- **An untyped array for the tree.** That is the `mixed`-shaped shortcut `rule:types/declaration`
+  closes everywhere else.

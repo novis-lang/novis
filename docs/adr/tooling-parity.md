@@ -31,7 +31,7 @@ limited to what ships; this page also carries what is only planned, which that c
 | Xdebug — step debugging | breakpoints, stepping | `nvs dap`, on the safepoints codegen already emits | `rule:ide/the-debug-adapter-does-not-wait-for-an-editor` | M10 |
 | Xdebug — coverage, trace, profile | observing a run | `Core\Debug` over always-compiled probe sites; Clover/lcov/Callgrind out | [0018](../decisions/0018.md) | probes on disk (M3); surface M10 |
 | phpDocumentor / Doctum | API docs from source | none — the one tool category with no answer; see the gaps below | — | open |
-| Deptrac / phpat / PHPStan custom rules | project-specific structural rules | a `#[Test]` walking `Core\Ast` / `Core\Reflect` / `Core\Program` | [0019](../decisions/0019.md), [0079](../decisions/0079.md) | blocked; see the gaps below |
+| Deptrac / phpat / PHPStan custom rules | project-specific structural rules | a `#[Test]` walking `Core\Ast` / `Core\Reflect` / `Core\Program` | `rule:tooling/reflection-and-source-parsing-are-core-features`, [0079](../decisions/0079.md) | blocked; see the gaps below |
 | Faker | realistic fake data | out of scope — data, not tooling; § 13's generators cover the structural half | [0079](../decisions/0079.md) § 13 | — |
 | PHPMD / phpmetrics | complexity and "mess" metrics | none, on purpose — the type system and `--mutate` keep the part that found bugs | [0007](../decisions/0007.md), [0079](../decisions/0079.md) § 21 | — |
 | Composer, for the dev-tools above | installing all of it | nothing to install — which is this whole page; packages proper are [0081](../decisions/0081.md) | — | — |

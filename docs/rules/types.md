@@ -769,7 +769,7 @@ It is its own **equality domain**: two keys are equal when they name the same pr
 ever equal to one, and ordering one is refused ([`types/ordering`](types.md#types-ordering)). `property` is a keyword only
 in type position — `$property`, a method named `property` and a class named `Property` are untouched.
 
-<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0019](../decisions/0019.md), [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
 
 <a id="types-property-key-variance"></a>
 
