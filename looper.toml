@@ -1,0 +1,51 @@
+# looper's configuration for this repository. Each value is the runbook's, docs/agent/looper-cutover.md § 1,
+# or a call its goal file's Stage 2 lists; the key names are looper's own, from its docs/design.md.
+
+[project]
+name = "mwl"
+stacks = ["rust"]
+goals_dir = "docs/goals"
+playbook = "docs/agent/playbook.md"
+playbook_dir = "docs/agent/playbook"
+harvest = false           # Novis harvests nothing: a reached goal's decisions are already rules
+carry_to_floor = false    # no check joins the floor when its goal is reached
+scratch = ".agent-tmp"
+
+[budget]                  # the ceilings of AGENTS.md § Session workflow step 2; no kill, as the old driver had none
+hard = 200000
+interactive = 250000
+slice = 120000
+
+[loop]
+min_free_gb = 10          # `nv disk`'s MIN_FREE_GB
+sweep = "every"
+
+[verify]
+run = [["bun", "nv", "verify"]]
+
+[checks]
+timeout = 1800            # the acceptance runner's own
+
+[prose]
+scope = "Text an end user reads"
+paths = [
+  "website/**/*.mdx",
+  "website/**/*.md",
+  "**/about.md",
+  "docs/examples/**/*.nvs",
+  "tests/hostile/**/*.nvs",
+  "benches/members/**/*.nvs",
+  "website/snippets/**/*.nvs",
+]
+
+[sync]
+skip = [
+  "docs/decisions/README.md",
+  "docs/agent/commands.md",
+  "docs/agent/conventions.md",
+  "docs/agent/doc-style.md",
+]
+
+[commits]
+subject_max = 120
+types = ["feat", "fix", "docs", "refactor", "perf", "test", "chore", "build"]

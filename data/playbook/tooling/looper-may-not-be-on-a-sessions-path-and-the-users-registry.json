@@ -1,0 +1,11 @@
+{
+  "lead": "`looper` may not be on a session's `PATH`, and the user's registry `Path` may name a deleted looper.",
+  "body": "`looper self-update` puts each build in a new `E:\\loop-plan-tool\\var\\bin\\<version>-<hash>\\` and deletes older ones, so the registry entry the driver reads can name a directory that is gone. Run the newest directory's `looper.exe` by its full path (`Get-ChildItem E:\\loop-plan-tool\\var\\bin` sorted by time), and say in the handoff which one you ran. `tools/nv/driver/handover.ts` resolves looper from that same registry entry.",
+  "files": [
+    "tools/nv/driver/handover.ts"
+  ],
+  "until": {
+    "kind": "gone",
+    "arg": "tools/nv/driver/handover.ts:registry"
+  }
+}
