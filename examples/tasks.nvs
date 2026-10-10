@@ -1,26 +1,22 @@
 <?nvs
-// ADR 0072's `Core\Task` roster, as a program — one block per section the
-// roster is specified in.
+// This program runs work at the same time with `Core\Task::all` and `Core\Task::map`.
 //
 // The four lines this prints are frozen by an exact check in a goal record
 // under `data/goals/`; the source below is not, and the session that lands each item
 // is expected to rewrite the block that reaches it.
 
-// § 1: a fixed, heterogeneous set. Each field's type binds from the written
-// anonymous function's declared return type, so `->rows` is an `array<int>` and
-// `->label` a `string` at the use site with no cast — which is the whole
-// reason the member exists rather than returning `array<mixed>`. The other
-// half of § 1, that a field holding a `callable` *variable* is a compile
-// error, is a `nvs-types` case: no program can print it.
+// `Core\Task::all` runs each function at the same time. It returns an object with
+// the same field names, and each field has the return type of its function.
+// So `->rows` is an `array<int>` and `->label` is a `string`, with no cast.
 var $page = Core\Task::all({
     rows:  fn(): array<int> => [1, 2, 3],
     label: fn(): string     => 'all',
 });
 echo $page->label, '=', Core\Arr::count($page->rows), "\n";
 
-// § 2: the homogeneous case, subject first, the result preserving the
-// input's keys and order regardless of completion order — which is what the
-// four squares below assert and a completion-ordered result would not.
+// `Core\Task::map` runs the function once for each element, at the same time.
+// The result has the keys and order of the input, whichever call ends first.
+// This prints `map=1,4,9,16`.
 var $squares = Core\Task::map([1, 2, 3, 4], fn(int $n): int => $n * $n);
 var $line = '';
 foreach ($squares as int $v) {
@@ -31,10 +27,9 @@ foreach ($squares as int $v) {
 }
 echo 'map=', $line, "\n";
 
-// § 3: `deadline` is a wall-clock bound on the whole call, not per child,
-// and § 4 says what expiry does — every child is cancelled, the call waits
-// for those cancellations, and `TimeoutError` is thrown. It is thrown rather
-// than returned because a deadline is not one of the results.
+// `deadline` limits the time of the whole call, not of each function.
+// When the time is over, every function is stopped and the call waits for them.
+// Then the call throws a `TimeoutError`.
 try {
     Core\Task::map([1, 2], fn(int $n): int => {
         Core\Time::sleep(200ms);
@@ -45,10 +40,10 @@ try {
     echo 'deadline hit', "\n";
 }
 
-// § 3: `limit` is a concurrency shaper — exceeding it *schedules*, and never
-// throws, deliberately unlike § 4's `max_concurrent`, which is a host bound.
-// What proves the shaping is the peak, not the total: six children each hold
-// the gauge across a sleep, so a `limit` that was ignored would print 6.
+// `limit` is the most functions that run at the same time. The other functions
+// wait for their turn, and no error is thrown.
+// Each function counts itself while it sleeps, so this prints `limit held at 2`.
+// Without the limit, it would print 6.
 class Gauge
 {
     public static int $live = 0;

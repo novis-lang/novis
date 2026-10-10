@@ -1,9 +1,7 @@
 {
   "title": "Concurrency is the `Core\\Task` roster over the runtime's own single scheduler",
   "status": "shipped",
-  "because": [
-    "0072"
-  ],
+  "because": [],
   "seeAlso": [
     "security/isolate-shares-nothing",
     "core-api/tier-roster"

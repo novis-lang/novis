@@ -54,8 +54,8 @@ nvs-runtime.workspace = true
 # never the directives behind the sink.
 nvs-render.workspace = true
 # `nvs run` executes its program inside a task rather than on the main thread's
-# stack, because ADR 0072 § 1's children are children *of the calling task* and
-# there has to be one. `main.rs`'s § *What `run` executes* owns the rest.
+# stack, because `rule:concurrency/a-child-belongs-to-the-calling-task` makes
+# every child a child *of the calling task* and there has to be one. `main.rs`'s § *What `run` executes* owns the rest.
 nvs-host.workspace = true
 # `nvs serve` is the accept loop with a socket and a handler bound to it, and
 # this binary is the only crate that can supply the second: turning a path into

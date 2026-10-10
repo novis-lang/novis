@@ -302,7 +302,7 @@ Because the clock is under the test's control, a `Duration` sleep inside a task 
 That makes retry, backoff and timeout logic — some of the most error-prone code anyone writes, and
 the least tested — testable in microseconds rather than in the seconds it describes.
 
-<sub>See also [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-db-transaction"></a>
 

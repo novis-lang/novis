@@ -2,8 +2,7 @@
   "title": "An isolate's class statics are its own, and a child cannot reach its parent's",
   "status": "shipped",
   "because": [
-    "0116",
-    "0072"
+    "0116"
   ],
   "seeAlso": [
     "statements/storage-that-outlives-a-call",

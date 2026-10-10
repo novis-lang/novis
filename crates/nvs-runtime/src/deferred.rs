@@ -4,7 +4,7 @@
 //!
 //! # When "after the response" is, on a host that has no response
 //!
-//! § 6 is written for a request: the connection ends, the request tree does
+//! `rule:concurrency/after-response-outlives-the-connection` is written for a request: the connection ends, the request tree does
 //! not. `nvs run` has no response at all — it is a CLI invocation — so the
 //! section's trigger has to be stated as something both hosts share. **It is
 //! the response being complete: the request task's own frame has returned and
@@ -19,7 +19,7 @@
 //! `rule:errors/escalation-ladder` `FATAL` all
 //! leave the request's status on the context, and that status is what the host
 //! is about to report; script running over it would either lose the status or
-//! lose its own. § 6's subject is a request that produced a response, and every
+//! lose its own. `rule:concurrency/after-response-outlives-the-connection`'s subject is a request that produced a response, and every
 //! other ending belongs to the ladder rather than to this queue. The
 //! registrations are released with the context, unrun.
 //!
@@ -29,7 +29,7 @@
 //! child and the deferred callables below, which run as children
 //! themselves — is born **sealed**. A registration made on one would be drained
 //! by nobody and released when that child ended, so a refusal is the only
-//! honest answer: `Core\Task::afterResponse` throws the `RuntimeError` § 6's
+//! honest answer: `Core\Task::afterResponse` throws the `RuntimeError` `rule:concurrency/after-response-outlives-the-connection`'s
 //! last bullet names, at the call site, while there is still a request to
 //! decide what to do about it. What this costs is a `Core\Task::all` child that
 //! wants to defer having to hand the work back to the request that started it;
@@ -44,16 +44,16 @@
 //! so a served request's after-response work runs on a tree the connection no
 //! longer holds. The connection letting go is not enough on its own: a task's
 //! death cancels whatever it left running, so that path detaches the tree from
-//! the connection (`nvs_host::detach_current`) before it runs any of § 6's
+//! the connection (`nvs_host::detach_current`) before it runs any of `rule:concurrency/after-response-outlives-the-connection`'s
 //! work.
 //!
 //! # Each registration is one task, and the queue is a leaf
 //!
 //! A deferred callable runs as a group of one through [`crate::host::Host::run_group`],
-//! which is what makes it "an ordinary task" in § 6's sense: it may `Core\Task::all`
-//! inside itself with no special case, it is cancelled with the tree, and § 7's
+//! which is what makes it "an ordinary task" in `rule:concurrency/after-response-outlives-the-connection`'s sense: it may `Core\Task::all`
+//! inside itself with no special case, it is cancelled with the tree, and `rule:concurrency/deferred-is-bounded-by-two-directives`'s
 //! `deadline` is [`Bounds::deadline`] with nothing else to implement. They run
-//! in registration order rather than concurrently — § 6 asks for no ordering
+//! in registration order rather than concurrently — `rule:concurrency/after-response-outlives-the-connection` asks for no ordering
 //! between two `afterResponse` calls, and running them one at a time keeps a
 //! tree's peak where the request already put it.
 //!
@@ -61,11 +61,11 @@
 //! this module's own children and not a second rule: a deferred callable runs on
 //! a sealed context like every other child. The drain also seals the request's
 //! own queue as it takes it, so nothing extends a drain already under way. A
-//! queue that could extend itself is a tree that never leaves flight, and § 6's
+//! queue that could extend itself is a tree that never leaves flight, and `rule:concurrency/after-response-outlives-the-connection`'s
 //! whole affordability argument is that the tree stays in flight only *a
 //! little* longer than the connection.
 //!
-//! # § 7's `max_concurrent` counts trees, and the refusal is at the call site
+//! # `rule:concurrency/deferred-is-bounded-by-two-directives`'s `max_concurrent` counts trees, and the refusal is at the call site
 //!
 //! The cap bounds "request trees per core kept alive for deferred work", so the
 //! count is **per core and per tree**: a request takes one slot at its *first*
@@ -76,7 +76,7 @@
 //!
 //! [`DeferError::AtCapacity`] is the whole of the refusal, and it happens
 //! **before** anything is queued: `Core\Task::afterResponse` turns it into the
-//! `RuntimeError` § 7 names, at the call site, while the request is still
+//! `RuntimeError` `rule:concurrency/a-full-deferred-executor-throws` names, at the call site, while the request is still
 //! running and can still decide what to do about it. It does not queue and it
 //! does not wait, for the reason that section gives — an unbounded queue in
 //! front of a non-durable executor hides the overload and then loses the work
@@ -111,12 +111,12 @@ use crate::value::Value;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeferError {
     /// The queue is sealed: this context is a child — a `Core\Task` child or
-    /// deferred work itself, never an isolate — and § 6's last bullet refuses it. The
+    /// deferred work itself, never an isolate — and `rule:concurrency/only-the-request-registers-deferred-work` refuses it. The
     /// caller hands the work back to the request that started it; retrying
     /// cannot help.
     Sealed,
     /// This core is already holding `cap` trees alive for after-response work
-    /// (§ 7). The caller may do the work inline, respond anyway, or tell its own
+    /// (`rule:concurrency/deferred-is-bounded-by-two-directives`). The caller may do the work inline, respond anyway, or tell its own
     /// caller to retry — the load will pass.
     AtCapacity {
         /// `[deferred] max_concurrent` in force, so the message can name the
@@ -127,7 +127,7 @@ pub enum DeferError {
 
 thread_local! {
     /// How many request trees this core is holding open for after-response
-    /// work, against § 7's cap.
+    /// work, against `rule:concurrency/deferred-is-bounded-by-two-directives`'s cap.
     ///
     /// Maintained by [`Ctx::defer`] and [`Ctx::release_deferred_slot`] and by
     /// nothing else, which is why it can be a bare [`Cell`]: every write is on
@@ -154,7 +154,7 @@ pub(crate) fn give_back_tree_slot() {
 
 /// How many trees this core is holding open for after-response work right now.
 ///
-/// The observable half of § 7's cap: the number an operator sizes
+/// The observable half of `rule:concurrency/deferred-is-bounded-by-two-directives`'s cap: the number an operator sizes
 /// `max_concurrent` against, and the one thing a test can read to tell a tree
 /// that is still in flight from one that has gone.
 #[must_use]
@@ -169,7 +169,7 @@ pub struct Deferred {
     /// The callable, owned: a helper's arguments are borrowed from the caller's
     /// frame and this one outlives the call by the rest of the request.
     pub(crate) callable: Value,
-    /// § 7's `deadline` in nanoseconds — the option the call named, or the
+    /// `rule:concurrency/deferred-is-bounded-by-two-directives`'s `deadline` in nanoseconds — the option the call named, or the
     /// `[deferred] deadline` default it inherited — and `0` for neither, which
     /// is a deferred task under no deadline of its own.
     pub(crate) deadline_nanos: u64,
@@ -190,7 +190,7 @@ pub fn run_deferred(ctx: &mut Ctx) {
     for work in ctx.take_deferred() {
         run_one(ctx, work);
     }
-    // At the end and not at the take above, because § 7's cap counts a tree for
+    // At the end and not at the take above, because `rule:concurrency/deferred-is-bounded-by-two-directives`'s cap counts a tree for
     // as long as it is *kept alive* for this work — and the arena an operator
     // is sizing for is still held all the way through the loop.
     ctx.release_deferred_slot();
@@ -213,7 +213,7 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
         host.run_group(ctx, vec![job], bounds)
     });
     match outcome {
-        // § 6: an uncaught throw goes through `rule:errors/escalation-ladder`'s ladder, and tier 2's
+        // `rule:concurrency/deferred-work-cannot-write-the-response`: an uncaught throw goes through `rule:errors/escalation-ladder`'s ladder, and tier 2's
         // `onUncaughtThrow` does **not** fire, because it was the finished
         // request's. So this lands at tier 4, the floor, as the same record
         // `Core\Log::write` writes — `crate::floor` owns why one shape and not
@@ -330,7 +330,7 @@ mod tests {
         let cap = Ctx::new(OutputSink::Sink).deferred_max_concurrent();
         assert!(
             cap > 0,
-            "§ 7's default cap is not a number to hold trees at"
+            "`rule:concurrency/deferred-is-bounded-by-two-directives`'s default cap is not a number to hold trees at"
         );
         assert_eq!(
             trees_in_flight(),
@@ -503,7 +503,7 @@ mod tests {
         assert_eq!(
             STILL_STANDING.with(Cell::get),
             Some(true),
-            "§ 6's work is user code, and § 3 puts the sweep after all of it"
+            "`rule:concurrency/after-response-outlives-the-connection`'s work is user code, and `rule:core-classes/temporary-dir-sweep` puts the sweep after all of it"
         );
 
         drop(ctx);
@@ -514,7 +514,7 @@ mod tests {
         assert_eq!(
             trees_in_flight(),
             0,
-            "the drained tree is still holding a slot against § 7's cap"
+            "the drained tree is still holding a slot against `rule:concurrency/deferred-is-bounded-by-two-directives`'s cap"
         );
     }
 
@@ -526,7 +526,7 @@ mod tests {
     /// The other half is that the abort runs **no user code** — `rule:concurrency/cancellation-runs-no-user-code`'s
     /// teardown — so the registrations go unrun. Asserted together because a
     /// worker that drained a cancelled request's queue would pass the sweep
-    /// assertion while running exactly the script § 5 forbids, and one that
+    /// assertion while running exactly the script that rule forbids, and one that
     /// dropped the tree without sweeping would pass the ordering one.
     #[test]
     fn an_aborted_requests_dirs_are_swept_by_the_surviving_worker() {
@@ -561,7 +561,7 @@ mod tests {
         assert_eq!(
             trees_in_flight(),
             0,
-            "a tree that ended without draining kept its slot against § 7's cap"
+            "a tree that ended without draining kept its slot against `rule:concurrency/deferred-is-bounded-by-two-directives`'s cap"
         );
     }
 }

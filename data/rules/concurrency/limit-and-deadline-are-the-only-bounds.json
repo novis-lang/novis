@@ -1,9 +1,7 @@
 {
   "title": "`{limit, deadline}` is the whole of what bounds a group, and there is no `timeout` member and no `race`",
   "status": "shipped",
-  "because": [
-    "0072"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/options-bag",
     "types/duration",

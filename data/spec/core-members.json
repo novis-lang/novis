@@ -1817,7 +1817,7 @@
         [
           "`Core\\Task`",
           "§ 19 below — `all`, `map`, `afterResponse`",
-          "[0072](../decisions/0072.md)"
+          "`rule:concurrency/one-scheduler`"
         ],
         [
           "`Core\\Net`",

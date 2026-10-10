@@ -302,8 +302,9 @@ fn notify(channel: *mut ObjHeader) {
 ///
 /// # Errors
 ///
-/// [`Ctx::cancel`]'s status when the task was cancelled while it waited — ADR
-/// 0072 § 5 reached through the return status rather than through an unwind,
+/// [`Ctx::cancel`]'s status when the task was cancelled while it waited —
+/// `rule:concurrency/cancellation-runs-no-user-code` reached through the return
+/// status rather than through an unwind,
 /// because the task is standing on this `extern "C"` frame — and a
 /// [`Fault::fatal`] naming `member` when there is no task to park at all,
 /// which is a program asking for backpressure on a thread that cannot deliver

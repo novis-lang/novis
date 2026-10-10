@@ -164,7 +164,7 @@ mio = { version = "1", features = ["os-poll", "net"] }
 # `src/upgrade.rs`, on the h1 server path — and tokio's own default feature set
 # is empty, so what is compiled is its synchronisation primitives and *nothing*
 # else: no `rt`, no `net`, no `time`, no executor, no reactor, no `spawn`. That
-# is the distinction ADR 0072 actually draws, and it survives: this binary still
+# is the distinction `rule:concurrency/one-scheduler` draws, and it survives: this binary still
 # has exactly one scheduler, `nvs-host`'s, and the connection future is driven
 # by `nvs_host::block_on` on the coroutine that owns the connection (ADR 0138)
 # over `crates/nvs-server/src/io.rs`'s adapters. h1 needs no `Executor` and
@@ -194,8 +194,8 @@ hyper = { version = "1", default-features = false, features = [
 # `tungstenite::WebSocket::from_raw_socket` wants a `Read + Write` and the
 # parking stream is one, so a read that would block hands the core back and the
 # codec never learns that it suspended. That is why this crate and not
-# `tokio-tungstenite`, which wants the executor ADR 0072 says this binary does
-# not have.
+# `tokio-tungstenite`, which wants the executor `rule:concurrency/one-scheduler`
+# says this binary does not have.
 #
 # Default features, which is TLS-free: `handshake` is what
 # `derive_accept_key` lives behind, and everything the set pulls — `http`,
@@ -362,7 +362,7 @@ wasmtime-wasi-io = "48"
 # `Connection::stdio()` spawns the two io threads and hands back a pair of
 # `crossbeam-channel` endpoints, so the server is a `for msg in receiver` loop
 # on the thread that called it. No executor, no task type, no `Future` — the
-# distinction ADR 0072 draws is not even reachable here. It is rust-analyzer's
+# distinction `rule:concurrency/one-scheduler` draws is not even reachable here. It is rust-analyzer's
 # own framing layer, extracted by its authors for this use, and the alternative
 # is owning `Content-Length` framing plus the
 # `initialize`/`initialized`/`shutdown`/`exit` state machine, which is a wire

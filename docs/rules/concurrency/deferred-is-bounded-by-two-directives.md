@@ -11,7 +11,7 @@ it counts **trees**, not registrations: one request with ten deferred callables 
 **`deadline` is `Runtime`** — an ordinary per-request default a call may name its own value for,
 bounded like every other limit by the tree's remaining budget.
 
-What it spends, stated so an operator sizes it rather than discovers it: a deferred tree holds its
-arena at its peak for the length of its deferred work, so the worst case per core is `max_concurrent
-× [limits.hard] memory` **on top of** in-flight requests. That is bounded, and it is O(in-flight
-deferred trees) rather than O(requests served).
+- **Memory:** a deferred tree holds its arena at its peak for the length of its deferred work, so
+  the worst case per core is `max_concurrent × [limits.hard] memory` **on top of** in-flight
+  requests. That is bounded, it is O(in-flight deferred trees) rather than O(requests served), and
+  it is stated so an operator sizes it rather than discovers it.

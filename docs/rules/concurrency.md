@@ -27,7 +27,16 @@ The guarantee the whole roster is built on is [`concurrency/nothing-is-still-run
 and it is a property of the call rather than of a scope object: there is no nursery, no task group
 and no handle to leak, so a task tree is bounded by the same accounting a request already has.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0072](../decisions/0072.md).</sub>
+**Declined:**
+- **An open-ended scope object** — a block that children are added to, the shape of a nursery or a
+  task group. It is the general form of a need no program has shown yet, and more to learn than two
+  calls. Adding one later changes nothing above, so it waits for code that `all` and `map` cannot
+  express.
+- **Growing the roster on request.** `race`, `first`, `any` and `settled` are each one more member,
+  and each is argued against a real use before it lands rather than added because it is familiar
+  ([`concurrency/limit-and-deadline-are-the-only-bounds`](concurrency.md#concurrency-limit-and-deadline-are-the-only-bounds)).
+
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`core-api/tier-roster`](core-api.md#core-api-tier-roster).</sub>
 
 <a id="concurrency-a-child-belongs-to-the-calling-task"></a>
 
@@ -48,7 +57,7 @@ that ends cancels what it left running, so the tree cannot outlive it and there 
 A host with no calling task therefore has no place to put children, which is why every entry point
 that runs a program makes a task first even where one buys nothing else.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0072](../decisions/0072.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="concurrency-on-worker-runs-the-child-on-another-core"></a>
 
@@ -139,7 +148,11 @@ carries for this one purpose, and what each field is worth is read off
 shape and never an array; that is the line between it and [`concurrency/map-preserves-keys-and-order`](concurrency.md#concurrency-map-preserves-keys-and-order),
 and each member refuses the other's subject.
 
-<sub>See also [`types/object-top`](types.md#types-object-top), [`core-api/shape-rules`](core-api.md#core-api-shape-rules). Decided in [0072](../decisions/0072.md), [0136](../decisions/0136.md).</sub>
+**Declined:**
+- **One untyped signature answering `array<mixed>`.** It is simpler to declare and puts a cast at every
+  call site, which costs more than the type the registry carries for this one parameter.
+
+<sub>See also [`types/object-top`](types.md#types-object-top), [`core-api/shape-rules`](core-api.md#core-api-shape-rules). Decided in [0136](../decisions/0136.md).</sub>
 
 <a id="concurrency-an-all-field-answers-what-its-callable-declares"></a>
 
@@ -163,7 +176,7 @@ naming: until a `callable` carried a signature, the type existed only at the wri
 framework storing callables in a variable could not use `all` at all. It can now, and it pays only
 for the signatures it declines to write.
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type). Decided in [0072](../decisions/0072.md), [0114](../decisions/0114.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type). Decided in [0114](../decisions/0114.md), [0136](../decisions/0136.md).</sub>
 
 <a id="concurrency-map-preserves-keys-and-order"></a>
 
@@ -184,7 +197,11 @@ fixed set of differently-typed things, and one operation over many same-typed th
 spellings of one. An anonymous object cannot express "one per element of a runtime array", and an array
 cannot carry a per-element type. Each refuses the other's subject rather than coercing it.
 
-<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/callback-receives-value-and-key`](core-api.md#core-api-callback-receives-value-and-key). Decided in [0072](../decisions/0072.md).</sub>
+**Declined:**
+- **`parallel_map`.** It takes its subject last and abbreviates its name, so it breaks
+  [`core-api/subject-first`](core-api.md#core-api-subject-first) and the library's naming; `map` on `Core\Task` is the same job.
+
+<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/callback-receives-value-and-key`](core-api.md#core-api-callback-receives-value-and-key).</sub>
 
 <a id="concurrency-limit-and-deadline-are-the-only-bounds"></a>
 
@@ -208,13 +225,18 @@ and cost every group a word the watchdog has to find. There is no default deadli
 none is bounded by its request's `wall_time` and `cpu_time`, and both are uncapped unless the
 deployment writes them.
 
-These two are the whole vocabulary. There is no `timeout` member — a timeout over a group is this
-option, and a timeout on one I/O call is that call's own option — and there is no `race`: over a
-heterogeneous shape its answer would be a union the caller must discriminate, which is `mixed` and a
-cast in practice. The homogeneous case that is actually wanted, hedging one request across two
-replicas, has a name reserved for it so it cannot arrive twice.
+These two are the whole vocabulary, and an optional argument is an options field, never a wrapper
+function ([`core-api/options-bag`](core-api.md#core-api-options-bag)).
 
-<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/duration`](types.md#types-duration), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0072](../decisions/0072.md).</sub>
+**Declined:**
+- **A `timeout` member.** A timeout over a group is `deadline`, and a timeout on one I/O call is
+  that call's own `timeout` option ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)).
+- **`race`.** Over a heterogeneous shape its answer is a union the caller must discriminate, which
+  is `mixed` and a cast in practice. The case actually wanted, hedging one request across two
+  replicas, is homogeneous: `Core\Task::first(array<T>, callable, {deadline?})` is the name kept for
+  it, so it cannot arrive as a second `race`, and it lands additively when a program needs it.
+
+<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/duration`](types.md#types-duration), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api).</sub>
 
 <a id="concurrency-nothing-is-still-running-when-a-call-returns"></a>
 
@@ -246,7 +268,13 @@ It is bought at a stated price — [`concurrency/a-deadline-bounds-the-cancel-no
 it is why cancellation is the runtime's own teardown rather than anything a program participates in
 ([`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code)).
 
-<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0072](../decisions/0072.md), [0266](../decisions/0266.md).</sub>
+**Declined:**
+- **Propagating the first throw without waiting for the siblings.** It returns sooner and is what a
+  naive group does, and it leaves running work that nobody holds a handle to: the orphan
+  [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)'s tree accounting exists to rule out, and a row lock still
+  held after the `catch` has run.
+
+<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0266](../decisions/0266.md).</sub>
 
 <a id="concurrency-cancellation-runs-no-user-code"></a>
 
@@ -272,7 +300,14 @@ The consequence to learn: **work that must happen does not go in a cancellable t
 goes inside the transaction that made it necessary, in
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)'s deferred work, or in a durable queue.
 
-<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`http-server/a-request-outlives-a-client-that-goes-away`](http-server.md#http-server-a-request-outlives-a-client-that-goes-away). Decided in [0072](../decisions/0072.md), [0106](../decisions/0106.md), [0265](../decisions/0265.md).</sub>
+**Declined:**
+- **Cancellation as a catchable `Throwable`.** It is familiar and lets a `finally` clean up, and it
+  runs unbudgeted code inside a failure, which [`errors/escalation-ladder`](errors.md#errors-escalation-ladder) refuses at every tier.
+- **A narrow cleanup hook that runs on cancellation.** It would need a reserved budget and a
+  zero-retry rule of its own, the way the ladder's tiers have one. That is a new mechanism with its
+  own argument to win, and it is not offered as an exception to this rule.
+
+<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`http-server/a-request-outlives-a-client-that-goes-away`](http-server.md#http-server-a-request-outlives-a-client-that-goes-away). Decided in [0106](../decisions/0106.md), [0265](../decisions/0265.md).</sub>
 
 <a id="concurrency-a-deadline-bounds-the-cancel-not-the-return"></a>
 
@@ -283,7 +318,8 @@ goes inside the transaction that made it necessary, in
 A `deadline` bounds when cancellation is **requested**, not when the call returns.
 
 A child blocked mid-statement cannot simply be abandoned: a database connection with an unread
-result set is unusable, so the statement is cancelled through the driver's own mechanism and the
+result set is unusable, so the statement is cancelled through the driver's own mechanism (`KILL
+QUERY`, `PQcancel`, `sqlite3_interrupt`) and the
 call waits until that connection is back in a known state. That drain is bounded in turn by the
 connection's own `timeout`, after which the connection is **closed rather than returned to the
 pool**.
@@ -293,7 +329,12 @@ Overrunning a stated deadline by a bounded amount is the correct trade against h
 connection back to a pool, where it would fail some later, unrelated request. A deadline is a bound
 on when the work stops being asked for; it is not a hard wall-clock guarantee on return.
 
-<sub>See also [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0072](../decisions/0072.md).</sub>
+**Declined:**
+- **Returning at the deadline and abandoning the blocked child.** It would make the deadline exact,
+  and it breaks [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns) and puts a
+  connection with an unread result set back in the pool.
+
+<sub>See also [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state).</sub>
 
 <a id="concurrency-after-response-outlives-the-connection"></a>
 
@@ -325,9 +366,18 @@ peer going away cancels nothing.
 **It is not a queue.** Nothing is durable, nothing retries, and a process that dies loses the work
 with no record. Receipts, webhooks, cache warming and audit shipping are what it is for; anything
 that *must* happen belongs in the transaction that made it necessary or in a store the application
-owns.
+owns. The word "task" suggests a job queue to anyone who has used one, so the documentation of this
+member says it is not one in its first paragraph.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0072](../decisions/0072.md), [0266](../decisions/0266.md).</sub>
+**Declined:**
+- **Flushing the response and running on to the end of the script.** That shape is invisible to
+  every limit and every account, has no deadline, no cap and no cancellation, and cannot be told
+  apart from a slow request in any metric.
+- **Making this member durable.** Durability needs a store, a schema, retries, a dead-letter table
+  and an operator command, which is a subsystem and not one member; it is the job queue's
+  ([`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table)).
+
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0266](../decisions/0266.md).</sub>
 
 <a id="concurrency-only-the-request-registers-deferred-work"></a>
 
@@ -350,7 +400,7 @@ extend itself is a tree that never leaves flight, and the whole argument for
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) is that the tree outlives the connection
 only a little.
 
-<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/a-child-belongs-to-the-calling-task`](concurrency.md#concurrency-a-child-belongs-to-the-calling-task). Decided in [0072](../decisions/0072.md).</sub>
+<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/a-child-belongs-to-the-calling-task`](concurrency.md#concurrency-a-child-belongs-to-the-calling-task).</sub>
 
 <a id="concurrency-deferred-work-cannot-write-the-response"></a>
 
@@ -371,7 +421,7 @@ affect, so the log is the whole of what it can reach.
 `all` and `map` compose inside deferred work with no special case, because a deferred callable runs as an
 ordinary task.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0072](../decisions/0072.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member).</sub>
 
 <a id="concurrency-deferred-is-bounded-by-two-directives"></a>
 
@@ -392,12 +442,12 @@ it counts **trees**, not registrations: one request with ten deferred callables 
 **`deadline` is `Runtime`** — an ordinary per-request default a call may name its own value for,
 bounded like every other limit by the tree's remaining budget.
 
-What it spends, stated so an operator sizes it rather than discovers it: a deferred tree holds its
-arena at its peak for the length of its deferred work, so the worst case per core is `max_concurrent
-× [limits.hard] memory` **on top of** in-flight requests. That is bounded, and it is O(in-flight
-deferred trees) rather than O(requests served).
+- **Memory:** a deferred tree holds its arena at its peak for the length of its deferred work, so
+  the worst case per core is `max_concurrent × [limits.hard] memory` **on top of** in-flight
+  requests. That is bounded, it is O(in-flight deferred trees) rather than O(requests served), and
+  it is stated so an operator sizes it rather than discovers it.
 
-<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive). Decided in [0072](../decisions/0072.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive). Decided in [0064](../decisions/0064.md).</sub>
 
 <a id="concurrency-a-full-deferred-executor-throws"></a>
 
@@ -419,7 +469,11 @@ durability. A deployment reaching this cap has outgrown
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) and wants the durable queue it declines to
 be. Failing loudly is what makes that legible, instead of receipts quietly ceasing to be sent.
 
-<sub>See also [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0072](../decisions/0072.md).</sub>
+**Declined:**
+- **Queueing past the cap.** It is smoother under a burst, and it is the hidden overload and lost
+  work described above.
+
+<sub>See also [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="concurrency-cross-request-state-is-explicit"></a>
 
@@ -721,7 +775,7 @@ a connection is a root, sees only what its arguments copied in, and ends when th
 timeout fires or a budget is exceeded. A fatal error inside one tears down the connection and nothing
 wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and the peer is told with a defined close code.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md).</sub>
 
 <a id="concurrency-an-upgrade-is-spawn-shaped"></a>
 
@@ -1658,7 +1712,7 @@ it once, on the way back in; there the loop stops and the drive answers nothing.
 wait on a wake that is not coming, which is a wedged coroutine rather than a slow one, and going on
 would serve a request the client is no longer attached to.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0138](../decisions/0138.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0138](../decisions/0138.md).</sub>
 
 <a id="concurrency-the-park-route-is-chosen-once"></a>
 

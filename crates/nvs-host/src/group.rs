@@ -30,7 +30,7 @@
 //!   the buffers to the parent **in job order** once the group is over. That
 //!   is deliberate: a child's `echo` interleaved by completion order would make
 //!   the output of a `Task::map` depend on which child finished first, which is
-//!   exactly the non-determinism § 2's "preserving the input's keys and order"
+//!   exactly the non-determinism `rule:concurrency/map-preserves-keys-and-order`'s "preserving the input's keys and order"
 //!   removes from the result. Assertions travel the same way, so an assertion
 //!   inside a child still reaches `rule:testing/failure-ledger`'s ledger, which is the one
 //!   record a `catch` cannot erase.
@@ -42,14 +42,14 @@
 //! The alias is what makes this module's structure load-bearing rather than
 //! tidy. A child holds a bare pointer into its parent's storage, so **the
 //! parent must outlive it**, and that is discharged twice over: `run_group`
-//! does not return while a child is still running (§ 4), and a parent torn down
+//! does not return while a child is still running (`rule:concurrency/nothing-is-still-running-when-a-call-returns`), and a parent torn down
 //! first cancels its children through [`crate::Scheduler`]'s tree, which then
 //! unwinds them without resuming any of them — so no child ever executes an
 //! instruction after its parent's context is gone.
 //!
 //! # 2. The sequence, which is the whole guarantee
 //!
-//! § 4's promise is that *control does not leave the call with work still
+//! `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s promise is that *control does not leave the call with work still
 //! running*, and it is a property of the order these steps happen in:
 //!
 //! 1. Start children while the `limit` allows one and nothing has gone wrong.
@@ -63,17 +63,17 @@
 //!    stopped by the request's `cpu_time` through the tree's safepoint word, as
 //!    `rule:concurrency/limit-and-deadline-are-the-only-bounds` says.
 //! 4. **Keep parking until the count reaches zero**, whichever of those ended
-//!    it. This is the step that costs something and the one § 4 exists for: the
+//!    it. This is the step that costs something and the one `rule:concurrency/nothing-is-still-running-when-a-call-returns` exists for: the
 //!    call waits for the cancellations rather than returning as soon as it has
 //!    decided what to answer.
 //!
 //! A `limit` of `0` is clamped to `1`. A bound of zero would mean the call can
-//! never start anything and therefore can never return, and § 4 is a promise
+//! never start anything and therefore can never return, and `rule:concurrency/nothing-is-still-running-when-a-call-returns` is a promise
 //! that work does not outlive the call — not that the call may never happen.
 //! Whether a `{limit: 0}` deserves a diagnostic is the member's question, not
 //! this seam's.
 //!
-//! § 4's second throw is *written* rather than swallowed, which is all
+//! `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s second throw is *written* rather than swallowed, which is all
 //! `rule:concurrency/nothing-is-still-running-when-a-call-returns` asks. It goes to the failing
 //! child's diagnostic channel — [`OutputSink::Stderr`](nvs_runtime::OutputSink) unless a test
 //! moved it — and not to `Core\Log` (`nvs_stdlib::log`): pointing this seam at that class is
@@ -165,7 +165,7 @@ impl Host for SchedulerHost {
             // No task beneath the call, which takes a host installed by
             // something other than a running scheduler. The jobs still have to
             // run and the answer still has to be right, so they run here, in
-            // order, on the caller's own context — § 4's guarantee holds
+            // order, on the caller's own context — `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s guarantee holds
             // trivially when there was never a second stack.
             None => run_here(ctx, jobs, bounds),
         }
@@ -416,7 +416,7 @@ impl Child {
         // A cancelled child did not fail. It ran until a member told it it was
         // cancelled and then stopped by `rule:errors/propagation`'s return status, so its
         // context carries a pending message the way every stopped request does
-        // — and § 5 means that message is neither a `Throwable` the group may
+        // — and `rule:concurrency/cancellation-runs-no-user-code` means that message is neither a `Throwable` the group may
         // propagate nor a second throw to write down. Its slot stays empty,
         // exactly as it does for a child a forced unwind tore down.
         let cancelled = ctx.cancelled();
@@ -602,7 +602,7 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
             ending = Some(Ending::TimedOut);
         }
         if ending.is_some() && !queue.is_empty() {
-            // Dropped rather than run: § 4 has already decided this call's
+            // Dropped rather than run: `rule:concurrency/nothing-is-still-running-when-a-call-returns` has already decided this call's
             // answer, and `Job`'s own docs carry the release obligation that
             // makes dropping one safe.
             queue.clear();
@@ -654,7 +654,7 @@ fn disarm_deadline() {
     }
 }
 
-/// Splices what the children produced back into the request and answers § 4's
+/// Splices what the children produced back into the request and answers `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s
 /// table.
 fn collect(ctx: &mut Ctx, group: &Rc<RefCell<Group>>, ending: Option<Ending>) -> Outcome {
     let mut group = group.borrow_mut();
@@ -678,7 +678,7 @@ fn collect(ctx: &mut Ctx, group: &Rc<RefCell<Group>>, ending: Option<Ending>) ->
         && let Some(thrown) = failed.take()
     {
         // The caller is being torn down, or stopped by a child's limit, so
-        // there is nobody left to propagate to — and § 4's "never swallowed"
+        // there is nobody left to propagate to — and `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s "never swallowed"
         // holds all the same, through the channel a second throw already uses.
         let message = format!("uncaught in a cancelled group: {}\n", thrown.message());
         let _ = ctx.write_diagnostic(message.as_bytes());
@@ -850,7 +850,7 @@ mod tests {
         assert_eq!(answers(&seen.borrow()[0]), vec![0, 1, 2]);
     }
 
-    /// § 4's whole point, asserted from inside the call's own frame: the line
+    /// `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s whole point, asserted from inside the call's own frame: the line
     /// after `run_group` returns already knows every child ended.
     #[test]
     fn no_child_is_still_running_when_the_call_returns() {
@@ -931,7 +931,7 @@ mod tests {
         assert_eq!(report.cancelled, 3);
     }
 
-    /// § 3's `limit` shapes concurrency rather than throwing, and what proves
+    /// `rule:concurrency/limit-and-deadline-are-the-only-bounds`'s `limit` shapes concurrency rather than throwing, and what proves
     /// it is the **peak** — a total would be the same either way.
     #[test]
     fn a_limit_bounds_how_many_children_run_at_once() {
@@ -967,7 +967,7 @@ mod tests {
         assert_eq!(peak.get(), 2, "never more than the limit at once");
     }
 
-    /// The deadline cancels every child and the call waits, which is § 4's
+    /// The deadline cancels every child and the call waits, which is `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s
     /// fourth row. It needs a reactor, because the parent's own wait is what
     /// the clock has to end.
     #[test]
@@ -1089,7 +1089,7 @@ mod tests {
     }
 
     /// The same deadlock with no deadline at all: what ends it is the
-    /// cancellation of the task awaiting it, which is § 4's last row. The
+    /// cancellation of the task awaiting it, which is `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s last row. The
     /// children die with that wait rather than outliving it, and the call
     /// answers [`Outcome::Cancelled`] rather than unwinding through itself.
     #[test]
@@ -1378,7 +1378,7 @@ mod tests {
     }
 
     /// The fallback: a host reached with no task beneath it still answers, and
-    /// still answers § 4's table.
+    /// still answers `rule:concurrency/nothing-is-still-running-when-a-call-returns`'s table.
     #[test]
     fn a_group_with_no_task_beneath_it_runs_its_jobs_here() {
         let _installed = install();

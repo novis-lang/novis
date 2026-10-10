@@ -1,9 +1,7 @@
 {
   "title": "Every task is a child of the task that started it, shares that request's accounting, and dies with it",
   "status": "shipped",
-  "because": [
-    "0072"
-  ],
+  "because": [],
   "seeAlso": [
     "security/isolate-shares-nothing",
     "security/isolate-budget-is-the-trees",

@@ -2,7 +2,6 @@
   "title": "`Core\\Task::all` answers a shape with the argument's own field names, each field keeping its own type",
   "status": "shipped",
   "because": [
-    "0072",
     "0136"
   ],
   "seeAlso": [

@@ -10,3 +10,7 @@ Completion order is a scheduling detail and is never observable in the answer.
 fixed set of differently-typed things, and one operation over many same-typed things — and not two
 spellings of one. An anonymous object cannot express "one per element of a runtime array", and an array
 cannot carry a per-element type. Each refuses the other's subject rather than coercing it.
+
+**Declined:**
+- **`parallel_map`.** It takes its subject last and abbreviates its name, so it breaks
+  `rule:core-api/subject-first` and the library's naming; `map` on `Core\Task` is the same job.

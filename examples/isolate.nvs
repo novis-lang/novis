@@ -3,10 +3,8 @@
 // Each child runs in the same process, with its own memory and its own variables.
 // The children are in `examples/isolate/`. A path is read from the folder of this file.
 
-// `output: 'inherit'` — the child writes to this program's stdout directly,
-// so its line arrives before anything below it. Awaiting first is what makes
-// that ordering a fact rather than a race: § 4 of ADR 0072 applies to an
-// isolate exactly as it does to a task.
+// `output: 'inherit'` makes the child write to this program's output directly.
+// `await` waits until the child has ended, so its line is printed before anything below it.
 var $hello = spawn script 'isolate/hello.nvs' with(
     output: 'inherit',
 );

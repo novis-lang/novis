@@ -15,3 +15,10 @@ cancellation would do exactly that.
 The consequence to learn: **work that must happen does not go in a cancellable task's cleanup.** It
 goes inside the transaction that made it necessary, in
 `rule:concurrency/after-response-outlives-the-connection`'s deferred work, or in a durable queue.
+
+**Declined:**
+- **Cancellation as a catchable `Throwable`.** It is familiar and lets a `finally` clean up, and it
+  runs unbudgeted code inside a failure, which `rule:errors/escalation-ladder` refuses at every tier.
+- **A narrow cleanup hook that runs on cancellation.** It would need a reserved budget and a
+  zero-retry rule of its own, the way the ladder's tiers have one. That is a new mechanism with its
+  own argument to win, and it is not offered as an exception to this rule.

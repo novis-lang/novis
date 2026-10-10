@@ -4,8 +4,8 @@
 //! spawns one reader thread and one writer thread and hands back a pair of
 //! channel endpoints, and everything else happens on the thread that called it.
 //! That is `rule:ide/the-server-is-synchronous` in full — there is no executor,
-//! no task type and no `Future` anywhere in this crate's graph, so ADR 0072's
-//! "one scheduler, and it is `nvs-host`'s" is not even a question here.
+//! no task type and no `Future` anywhere in this crate's graph, so
+//! `rule:concurrency/one-scheduler` is not even a question here.
 //!
 //! **stdout belongs to the protocol.** The writer thread owns this process's
 //! standard output, so anything else that prints a byte to it desynchronises
