@@ -3512,8 +3512,8 @@ nvs_runtime::nvs_helper! {
     /// [`identity::value_identical`] — `rule:expressions/equality-semantics`'s numeric row included, so
     /// `[1.0]` contains `1` — and not `rule:classes/comparable`'s `compareTo`: `assertEquals` is
     /// the member that names an object comparison, and a membership test whose
-    /// comparison changed with the element type is the silent fallback 0013
-    /// refused.
+    /// comparison changed with the element type is the silent fallback
+    /// `rule:testing/assertions-are-typed` refuses.
     ///
     /// A `string` subject is refused for `assertCount`'s reason: a substring is
     /// `Core\Str`'s question, asked as

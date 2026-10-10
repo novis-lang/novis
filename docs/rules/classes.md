@@ -689,7 +689,22 @@ is a separate question and is unaffected: a `Comparable` class still compares by
 ([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)), and asking the content question explicitly is
 `$a->compareTo($b) == 0`.
 
-<sub>See also [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to), [`classes/comparable-is-same-class-only`](classes.md#classes-comparable-is-same-class-only), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`types/ordering`](types.md#types-ordering). Decided in [0013](../decisions/0013.md), [0011](../decisions/0011.md).</sub>
+The common `compareTo` is one line that delegates to a field's own `<=>`, which every numeric type
+already defines ([`types/ordering`](types.md#types-ordering)). A sort written with its own comparator, such as
+`fn ($a, $b) => $a->x <=> $b->x`, never reads the objects' `compareTo` and is untouched by this rule.
+
+- **Memory:** none. An ordering is one ordinary method call, with no storage and no runtime
+  representation of its own.
+
+**Declined:**
+- **One magic method per operator**, such as `__lessThan` and `__greaterThan`. A class could
+  implement them inconsistently, so that `$a < $b` and `$b > $a` disagree
+  ([`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to)).
+- **Folding equality into `Comparable`**, so that `compareTo` returning `0` also means `==`. Every
+  class wanting a custom order would then have to redefine equality too, and the two are often
+  independent.
+
+<sub>See also [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to), [`classes/comparable-is-same-class-only`](classes.md#classes-comparable-is-same-class-only), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`types/ordering`](types.md#types-ordering). Decided in [0011](../decisions/0011.md).</sub>
 
 <a id="classes-comparable-is-same-class-only"></a>
 
@@ -711,7 +726,7 @@ method — `Money::isGreaterThan(Distance $d): bool` reads oddly on purpose. The
 crosses two classes until a parameterized `Comparable<T>` is designed, and no such generic exists
 yet.
 
-<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to). Decided in [0013](../decisions/0013.md).</sub>
+<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`classes/ordering-lowers-to-compare-to`](classes.md#classes-ordering-lowers-to-compare-to).</sub>
 
 <a id="classes-ordering-lowers-to-compare-to"></a>
 
@@ -731,7 +746,7 @@ answers, because the call reaches the receiver's own implementation like any oth
 A `compareTo` that throws propagates as a checked status ([`errors/propagation`](errors.md#errors-propagation)), so an ordering
 is a call site with a failure edge rather than an operator that cannot fail.
 
-<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`types/arithmetic`](types.md#types-arithmetic), [`errors/propagation`](errors.md#errors-propagation). Decided in [0013](../decisions/0013.md).</sub>
+<sub>See also [`classes/comparable`](classes.md#classes-comparable), [`types/arithmetic`](types.md#types-arithmetic), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="classes-stringable"></a>
 
@@ -755,7 +770,7 @@ rule can promise. Through a `mixed` or a plain `object` the same question is ans
 instance's runtime class and a class with no `toString` throws there, because there was no site to
 refuse at.
 
-<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0028](../decisions/0028.md), [0013](../decisions/0013.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0028](../decisions/0028.md), [0007](../decisions/0007.md).</sub>
 
 <a id="classes-no-magic-methods"></a>
 

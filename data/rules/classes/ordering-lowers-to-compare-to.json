@@ -1,9 +1,7 @@
 {
   "title": "`<`, `>`, `<=`, `>=` and `<=>` on two objects lower to one `compareTo` call",
   "status": "shipped",
-  "because": [
-    "0013"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/comparable",
     "types/arithmetic",
@@ -11,6 +9,7 @@
   ],
   "guardedBy": [
     "tests/conformance/class/comparable-answers-every-relational-operator.nvst",
-    "tests/conformance/class/comparable-orders-a-subclass-through-its-override.nvst"
+    "tests/conformance/class/comparable-orders-a-subclass-through-its-override.nvst",
+    "tests/hostile/lang/classes/comparable/01-comparisons-that-turn-on-the-program-that-wrote-them.nvs"
   ]
 }

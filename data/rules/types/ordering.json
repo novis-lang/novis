@@ -2,7 +2,6 @@
   "title": "Only the types the table orders may be ordered, and two objects need `Comparable`",
   "status": "shipped",
   "because": [
-    "0013",
     "0007",
     "0047"
   ],

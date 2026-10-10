@@ -378,7 +378,7 @@ named, and an enum case orders as the integer it is even though the written spel
 
 `==` and `!=` are a different question and are unaffected by any of this.
 
-<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0013](../decisions/0013.md), [0007](../decisions/0007.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md).</sub>
 
 <a id="types-string-is-utf8"></a>
 
@@ -1654,7 +1654,7 @@ The read is deliberately **not** widened to `?T`: optionality and nullability ar
 ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable)), and one language does not answer "the key may be
 absent" two different ways in two containers.
 
-<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0013](../decisions/0013.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
+<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0157](../decisions/0157.md), [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
 
 <a id="types-erased-member-access"></a>
 

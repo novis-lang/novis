@@ -114,7 +114,7 @@ years later.
 The roster is wide on purpose. Ranking the right member by the subject's type at the call site is
 the language server's job, and not a reason to reshape the API into a chain.
 
-<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots). Decided in [0079](../decisions/0079.md), [0063](../decisions/0063.md), [0013](../decisions/0013.md), [0090](../decisions/0090.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots). Decided in [0079](../decisions/0079.md), [0063](../decisions/0063.md), [0090](../decisions/0090.md), [0007](../decisions/0007.md).</sub>
 
 <a id="testing-failure-ledger"></a>
 
