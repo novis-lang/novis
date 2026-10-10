@@ -929,12 +929,18 @@ switching a `current` link between two releases never builds a program from both
 A compile that fails leaves the pointer where it was
 ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)), and a deleted file a program still
 reaches is that case. The table keeps, per path, the unit in force and the one it replaced, so a
-reverted edit is a pointer swap and not a compile. Any older unit is freed when the last request
-holding it ends, so units stay in proportion to entry files, never to edits.
+reverted edit is a pointer swap and not a compile.
 
 There is no file-system watcher, no stop-the-world phase and no second process, and a client cannot
 trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
-file, and one per listed directory, per `revalidate_freq`, off the request path.
+file, and one per listed directory, per `revalidate_freq`, off the request path. Only a program some
+request has loaded is checked, so a deploy that touches many files recompiles only the programs in
+use. The table is the one structure every core shares, so a swap made by the check is what every
+core's next lookup reads, with no broadcast and no second cache to keep in step.
+
+- **Memory:** the path pointer is a second map beside the content-keyed table, one entry per entry
+  file. Beyond the two units each path keeps, an older unit is freed when the last request holding
+  it ends, so units stay in proportion to entry files, never to edits.
 
 **What is on disk.** All of it for the program. The quiet time is measured from the newest
 modification time among the files the program's last compile read. `nvs serve <file>` keeps its
@@ -942,7 +948,24 @@ entry unresolved, but resolves its mount root once at boot, so its static files 
 release it started with. A `[[server.mount]]` table resolves every entry and root at boot, so a link
 switch does not reach a server that mounts one.
 
-<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
+**Declined:**
+- **A file-system watcher pushing invalidation.** It is four platform APIs, its watch descriptors are
+  a finite OS resource, and it degrades silently on network file systems. It also misses a replace
+  by rename, so the stamp check would still be needed beside it.
+- **A restart, or a supervisor that respawns the process, on a change.** It drops every in-flight
+  request, not only the ones that touch the changed file.
+- **One global generation counter compared on every lookup.** It serialises unrelated files'
+  updates against one another's readers. Swapping each path's pointer only if it still names the key
+  the check started from needs no counter, and a slower compile of an older edit loses that compare.
+- **Mutating a `Ready` entry in place instead of the path pointer.** A `Ready` entry is read
+  without synchronisation because its content never changes. Collapsing the two maps into one
+  `path → state` map gives that up, and every guarantee above rests on it.
+- **Trusting `mtime` alone.** It fails on containers, some network mounts and coarse clocks, which
+  are the file systems least likely to be noticed failing.
+- **Pushing an edit to every process of a fleet.** Sub-second propagation across processes or hosts
+  is a distribution problem, not a concurrency one. A signal for it would feed the same pointer swap.
+
+<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0078](../decisions/0078.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
 
 <a id="config-a-request-keeps-the-unit-it-resolved"></a>
 
@@ -964,10 +987,13 @@ isolated any request's execution of that code is ([`security/isolate-shares-noth
 connection isolate is the long-lived case of the same rule
 ([`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit)).
 
-Old generations are retained only while some in-flight request still holds one, bounded by that
-request's own wall-clock and CPU limits — O(in-flight), never O(edits ever made).
+- **Memory:** an old generation is retained only while some in-flight request still holds it,
+  bounded by that request's own wall-clock and CPU limits — O(in-flight), never O(edits ever made).
+  A file edited continuously while one slow request holds an old generation keeps that generation
+  until the request ends or reaches its limit. That limit already exists, and a second bound on the
+  same thing would be a second copy of one rule.
 
-<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0017](../decisions/0017.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="config-a-broken-edit-fails-the-requests-that-resolve-it"></a>
 
@@ -990,7 +1016,7 @@ would buy availability nothing needs.
 The same policy covers an extension removed while source still references it: nothing proves that at
 reload time, and the units that call it fail when a request next resolves them, and only those.
 
-<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved). Decided in [0017](../decisions/0017.md), [0078](../decisions/0078.md).</sub>
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved). Decided in [0078](../decisions/0078.md).</sub>
 
 <a id="config-a-reload-names-what-it-could-not-apply"></a>
 
@@ -1197,7 +1223,7 @@ read (`nvs_config::cache::Revalidation::from_config`), and `dispatch` and `stati
 `nvs_config::server::switches_for`, which the mount table is built from and which a reload compares
 to decide whether a core's table is rebuilt.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0017](../decisions/0017.md), [0097](../decisions/0097.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0097](../decisions/0097.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-a-program-may-read-and-flip-its-mode"></a>
 
@@ -1512,7 +1538,7 @@ why not even `RuntimeTighten` applies. This is the same class and the same reaso
 `[queue]`, the durable job queue beside the schedule, is `System` throughout for the same reason: work
 a request could redirect is work a request could redirect into a database it was never granted.
 
-<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0073](../decisions/0073.md), [0005](../decisions/0005.md), [0017](../decisions/0017.md).</sub>
+<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0073](../decisions/0073.md), [0005](../decisions/0005.md).</sub>
 
 <a id="config-a-schedule-entry-narrows-only"></a>
 
@@ -1865,7 +1891,7 @@ extension. Finer would need per-unit dependency tracking including negative depe
 subsystem for a modest win. The compile pool bounds how much of the resulting wave is in flight at
 once.
 
-<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0017](../decisions/0017.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0042](../decisions/0042.md).</sub>
 
 <a id="config-opcache-revalidation-is-system-class"></a>
 
@@ -1895,7 +1921,7 @@ wins, because the mode supplies a default and nothing more.
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
 
-<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0017](../decisions/0017.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0218](../decisions/0218.md).</sub>
+<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0218](../decisions/0218.md).</sub>
 
 <a id="config-opcache-file-cache-directives-are-system"></a>
 
@@ -1925,7 +1951,7 @@ started is not re-checked mid-run, consistent with every other `System` directiv
 looks like on disk, how an entry is verified before it is mapped executable, and the refusal of a
 world-writable directory are the packaging chapter's; this rule is only the roster and its class.
 
-<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0005](../decisions/0005.md), [0017](../decisions/0017.md), [0175](../decisions/0175.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0005](../decisions/0005.md), [0175](../decisions/0175.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-telemetry-and-update-endpoints-are-configuration"></a>
 

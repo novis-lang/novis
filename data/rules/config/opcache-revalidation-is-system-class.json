@@ -2,7 +2,6 @@
   "title": "`opcache.validate`, its rate cap and `opcache.settle` are `System`, `validate` has no `never`, and `settle`'s startup default is chosen by the run mode",
   "status": "shipped",
   "because": [
-    "0017",
     "0091",
     "0005",
     "0218"

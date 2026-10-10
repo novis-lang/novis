@@ -230,7 +230,7 @@ other three are refused for the behaviour each names, not for being PHP-shaped.
 - **An automatic once-guard as `require`'s only mode.** A template partial required in a loop would
   silently run once, trading one silent PHP behaviour for another.
 
-<sub>See also [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals), [`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed), [`errors/propagation`](errors.md#errors-propagation). Decided in [0049](../decisions/0049.md), [0011](../decisions/0011.md), [0017](../decisions/0017.md).</sub>
+<sub>See also [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals), [`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed), [`errors/propagation`](errors.md#errors-propagation). Decided in [0049](../decisions/0049.md), [0011](../decisions/0011.md).</sub>
 
 <a id="statements-a-required-file-shares-declarations-not-locals"></a>
 

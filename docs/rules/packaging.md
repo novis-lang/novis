@@ -41,7 +41,7 @@ independently creatable, verifiable and discardable, so a bug or an attack again
 blast radius of exactly one entry. The `[opcache]` directives that govern the store are
 [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system)'s.
 
-<sub>See also [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header). Decided in [0042](../decisions/0042.md), [0078](../decisions/0078.md), [0017](../decisions/0017.md).</sub>
+<sub>See also [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header). Decided in [0042](../decisions/0042.md), [0078](../decisions/0078.md).</sub>
 
 <a id="packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header"></a>
 

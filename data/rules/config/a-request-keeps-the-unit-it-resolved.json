@@ -2,7 +2,6 @@
   "title": "A file is resolved once per isolate, so an edit is invisible to a request already running",
   "status": "shipped",
   "because": [
-    "0017",
     "0006"
   ],
   "seeAlso": [
@@ -11,6 +10,7 @@
     "concurrency/a-connection-keeps-its-compiled-unit"
   ],
   "guardedBy": [
-    "crates/nvs-cli/src/script.rs"
+    "crates/nvs-cli/src/script.rs",
+    "crates/nvs-cli/tests/live_edit.rs"
   ]
 }

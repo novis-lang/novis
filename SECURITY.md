@@ -50,7 +50,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
 - **Request or isolate boundary escape** — one request reading, corrupting or influencing another;
   anything shared between requests but compiled code; a poisoned artifact or hot-reload cache
   ([0006](docs/decisions/0006.md),
-  [0017](docs/decisions/0017.md),
+  [`config/a-request-keeps-the-unit-it-resolved`](docs/rules/config.md#config-a-request-keeps-the-unit-it-resolved),
   [0059](docs/decisions/0059.md)).
 - **Extension sandbox or capability escape** — a wasm component reaching outside its grant, or a manifest
   loosening the qualifier analysis instead of tightening it

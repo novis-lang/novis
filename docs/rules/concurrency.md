@@ -710,7 +710,7 @@ a connection is a root, sees only what its arguments copied in, and ends when th
 timeout fires or a budget is exceeded. A fatal error inside one tears down the connection and nothing
 wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and the peer is told with a defined close code.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0017](../decisions/0017.md), [0005](../decisions/0005.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0005](../decisions/0005.md), [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-an-upgrade-is-spawn-shaped"></a>
 
@@ -961,7 +961,7 @@ The swap is a write to the compilation table and nothing else: a program already
 unit's pages, so the next resolve of that path hands the new unit to whoever asks next while the open
 connection never sees it.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0083](../decisions/0083.md), [0017](../decisions/0017.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0083](../decisions/0083.md), [0042](../decisions/0042.md).</sub>
 
 <a id="concurrency-a-drain-closes-a-connection-cleanly"></a>
 
@@ -1333,7 +1333,7 @@ one script compiles it once.
 Output is captured rather than written through, because a job's `echo` landing in the middle of what
 the server or the run's own script is writing is exactly the mixing capture exists to prevent.
 
-<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0017](../decisions/0017.md), [0271](../decisions/0271.md).</sub>
+<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0271](../decisions/0271.md).</sub>
 
 <a id="concurrency-who-runs-a-job-is-configuration"></a>
 

@@ -2,7 +2,6 @@
   "title": "A source change reaches the next request in every mode: every file a program reached is checked in the background, and a change is compiled whole from a quiet tree before one pointer swap",
   "status": "shipped",
   "because": [
-    "0017",
     "0078",
     "0042",
     "0218"
@@ -15,6 +14,7 @@
     "concurrency/a-connection-keeps-its-compiled-unit"
   ],
   "guardedBy": [
-    "crates/nvs-cli/src/script.rs"
+    "crates/nvs-cli/src/script.rs",
+    "crates/nvs-cli/tests/live_edit.rs"
   ]
 }

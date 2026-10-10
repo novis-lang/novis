@@ -28,15 +28,38 @@ switching a `current` link between two releases never builds a program from both
 A compile that fails leaves the pointer where it was
 (`rule:config/a-broken-edit-fails-the-requests-that-resolve-it`), and a deleted file a program still
 reaches is that case. The table keeps, per path, the unit in force and the one it replaced, so a
-reverted edit is a pointer swap and not a compile. Any older unit is freed when the last request
-holding it ends, so units stay in proportion to entry files, never to edits.
+reverted edit is a pointer swap and not a compile.
 
 There is no file-system watcher, no stop-the-world phase and no second process, and a client cannot
 trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
-file, and one per listed directory, per `revalidate_freq`, off the request path.
+file, and one per listed directory, per `revalidate_freq`, off the request path. Only a program some
+request has loaded is checked, so a deploy that touches many files recompiles only the programs in
+use. The table is the one structure every core shares, so a swap made by the check is what every
+core's next lookup reads, with no broadcast and no second cache to keep in step.
+
+- **Memory:** the path pointer is a second map beside the content-keyed table, one entry per entry
+  file. Beyond the two units each path keeps, an older unit is freed when the last request holding
+  it ends, so units stay in proportion to entry files, never to edits.
 
 **What is on disk.** All of it for the program. The quiet time is measured from the newest
 modification time among the files the program's last compile read. `nvs serve <file>` keeps its
 entry unresolved, but resolves its mount root once at boot, so its static files still come from the
 release it started with. A `[[server.mount]]` table resolves every entry and root at boot, so a link
 switch does not reach a server that mounts one.
+
+**Declined:**
+- **A file-system watcher pushing invalidation.** It is four platform APIs, its watch descriptors are
+  a finite OS resource, and it degrades silently on network file systems. It also misses a replace
+  by rename, so the stamp check would still be needed beside it.
+- **A restart, or a supervisor that respawns the process, on a change.** It drops every in-flight
+  request, not only the ones that touch the changed file.
+- **One global generation counter compared on every lookup.** It serialises unrelated files'
+  updates against one another's readers. Swapping each path's pointer only if it still names the key
+  the check started from needs no counter, and a slower compile of an older edit loses that compare.
+- **Mutating a `Ready` entry in place instead of the path pointer.** A `Ready` entry is read
+  without synchronisation because its content never changes. Collapsing the two maps into one
+  `path → state` map gives that up, and every guarantee above rests on it.
+- **Trusting `mtime` alone.** It fails on containers, some network mounts and coarse clocks, which
+  are the file systems least likely to be noticed failing.
+- **Pushing an edit to every process of a fleet.** Sub-second propagation across processes or hosts
+  is a distribution problem, not a concurrency one. A signal for it would feed the same pointer swap.

@@ -2,8 +2,7 @@
   "title": "A `lateinit` read the enclosing method can prove is too early is a compile error, and nothing wider is attempted",
   "status": "shipped",
   "because": [
-    "0022",
-    "0017"
+    "0022"
   ],
   "seeAlso": [
     "classes/lateinit",
