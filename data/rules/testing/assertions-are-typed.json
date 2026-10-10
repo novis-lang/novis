@@ -2,7 +2,6 @@
   "title": "An assertion names its subject first and compares two values of one type",
   "status": "shipped",
   "because": [
-    "0079",
     "0090"
   ],
   "seeAlso": [

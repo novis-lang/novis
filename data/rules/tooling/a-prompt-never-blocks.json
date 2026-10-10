@@ -2,8 +2,7 @@
   "title": "A prompt never blocks: no terminal or no answer in five minutes takes the `default` or throws `Cli\\NotInteractive`",
   "status": "shipped",
   "because": [
-    "0086",
-    "0079"
+    "0086"
   ],
   "seeAlso": [
     "tooling/a-prompt-is-a-core-member",

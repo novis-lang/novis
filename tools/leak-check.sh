@@ -14,7 +14,7 @@
 #
 # `--test` runs the fixtures through `nvs test` instead of `nvs run`, which is a
 # different program: the entry file's own statements do not run and the
-# `#[Test]` methods and ADR 0079 § 8's fixtures do, so a refcount edge on that
+# `#[Test]` methods and `rule:testing/fixtures`'s fixtures do, so a refcount edge on that
 # path is unreachable from `run` at all.
 #
 # `--request` answers the request that file describes, for the same reason: a

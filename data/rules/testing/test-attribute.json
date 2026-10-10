@@ -2,7 +2,6 @@
   "title": "A test is a method marked `#[Test]`, and its table is built while compiling",
   "status": "shipped",
   "because": [
-    "0079",
     "0172"
   ],
   "seeAlso": [

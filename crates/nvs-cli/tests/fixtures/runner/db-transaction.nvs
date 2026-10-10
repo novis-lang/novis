@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0079 § 17, as the runner sees it: a `#[Test(db: "test")]` method runs
+// `rule:testing/db-transaction`, as the runner sees it: a `#[Test(db: "test")]` method runs
 // inside a transaction the runner opened before it and rolls back after it, so
 // the test writes no cleanup code and the next test sees a pristine database.
 //
@@ -36,7 +36,7 @@ class Rows {
 
     // Whether the table is there at all, which is a different question from how
     // many rows it holds — the last case has nothing to count and still has
-    // something to assert (ADR 0079 § 20).
+    // something to assert (`rule:testing/runner-is-strict`).
     public static function tables(Core\Db\Connection $db): int {
         var $row = $db->query(
             "select count(*) as n from information_schema.tables where table_name = 'nvs_test_db_rollback'",
@@ -66,7 +66,7 @@ class Rollback {
     }
 
     // The write half. Everything here happens inside the runner's transaction,
-    // including the nested one — § 17's second sentence — so the `rollBack`
+    // including the nested one — `rule:testing/db-transaction`'s second sentence — so the `rollBack`
     // below undoes its own `SAVEPOINT` and leaves the row written above it.
     #[Core\Test(db: "test")]
     public function itWritesInsideTheRunnersTransaction(): void {

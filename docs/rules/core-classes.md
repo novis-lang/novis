@@ -2580,7 +2580,7 @@ text and what the box is, and `Image::text`, `Image::measureText` and `Font::fro
 checks only the file's first four bytes and calls no export. SVG is not, and its fixtures owe an SVG
 that references an external file and rasterises with the reference unresolved.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-intl-roster"></a>
 
@@ -2828,7 +2828,7 @@ and compared byte for byte.
 
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source).</sub>
 
 <a id="core-classes-pdf-page-is-an-image-source"></a>
 
@@ -3080,7 +3080,7 @@ stream in, and the same input serialized twice and compared byte for byte.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
 
 <a id="core-classes-net-one-api-three-transports"></a>
 

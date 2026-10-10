@@ -1,9 +1,7 @@
 {
   "title": "`#[TestWith]` is matched against the parameters by name and by type, and each row is its own case",
   "status": "shipped",
-  "because": [
-    "0079"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/fixtures",
     "testing/test-attribute",

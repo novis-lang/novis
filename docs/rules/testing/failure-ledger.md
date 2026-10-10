@@ -14,3 +14,8 @@ purpose: it runs the body, requires that it fail, and removes that entry. It dec
 rather than from what came back, so a body that caught its own failure has still failed; a body in
 which nothing failed is itself a failure; and the passing assertions inside a discharged body stay,
 because they really ran.
+
+**Declined:**
+- **A failure that escalates past `catch`.** It is the strongest guarantee, and it makes a
+  user-written assertion helper, a retry wrapper and a soft-assert block impossible to express. The
+  ledger gives the same guarantee without that loss.

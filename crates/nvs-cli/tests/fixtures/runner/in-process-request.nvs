@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0079 § 18's in-process request, as the runner sees it: a `#[Test]` method
+// `rule:testing/in-process-request`'s in-process request, as the runner sees it: a `#[Test]` method
 // asks for a path, and what answers is this same program's entry with ADR 0102
 // § 1's match already on the carrier.
 //

@@ -1604,7 +1604,7 @@ impl ClassDesc {
     /// it by that field's own invariant.
     ///
     /// Its caller is [`crate::Ctx::pending_conforms_to`], and through it ADR
-    /// 0079 § 4's `Core\Test::assertThrows`, whose expectation arrives as
+    /// `rule:testing/assertions-are-typed`'s `Core\Test::assertThrows`, whose expectation arrives as
     /// `ParseError::class`'s folded `string` constant — the same spelling this
     /// table names a class with.
     #[must_use]

@@ -68,7 +68,7 @@ wherever Novis is compared to Python. It reopens only on evidence that "what is 
 build, and what would be built then is a debugger-shaped inspector over a paused isolate, not a
 general evaluator.
 
-<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0100](../decisions/0100.md), [0079](../decisions/0079.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0100](../decisions/0100.md), [0092](../decisions/0092.md).</sub>
 
 <a id="tooling-reflection-and-source-parsing-are-core-features"></a>
 
@@ -452,7 +452,7 @@ five prompts already meet, so a sixth inherits it. A scripted line wins over a t
 and a queue with nothing left is the unattended run above, so scripting too few answers is assertable
 rather than a hang.
 
-<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../decisions/0086.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="tooling-the-terminal-is-restored-on-every-exit-path"></a>
 

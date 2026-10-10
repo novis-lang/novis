@@ -39384,9 +39384,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "the assertions, each ending in a `{message?: string}` bag: `assertSame<T>(T $actual, T $expected)`, `assertEquals<T>(T $actual, T $expected)`, `assertEqualsDeep<T>(T $actual, T $expected)`, `assertTrue(bool $actual)`, `assertNull(mixed $actual)`, `assertCount<T>(array<T> $actual, uint $expected)`, `assertContains<T>(array<T> $actual, T $expected)`, `assertMatchesInline(mixed $actual, string $expected)`, `assertThrows(callable(): mixed $body, string $expected)`, `assertDoesNotThrow(callable(): mixed $body)` and `assertCompletes(callable(): mixed $body, {within: Time\\Duration} $settings)`; `expectFailure(callable(): mixed $body): void`, which passes when `$body` fails an assertion. Doubles: `double<T>(object $answers): T`, `partial<T>(T $real, object $answers): T`, `assertCalled(object $double, method $method, {times?: uint, with?: array<mixed>, message?: string})` and `assertNeverCalled(object $double, method $method, {message?: string})`. The clock and the `Core\\Cli` prompts: `advance(Time\\Duration $by): void` and `scriptAnswers(array<string> $answers): void`. The program's own routes: `request(Http\\Method $method, string $path, {headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string>}): Core\\Test\\Response` — one in-process request against the `#[Route]` table — and `serverUrl(): ?string`. Outbound calls: `answerHttp(string $url, uint $status, {json?: mixed, body?: string|bytes, headers?: array<string|array<string>>, tls?: Http\\TlsInfo}): void`, `tlsSession({version?, cipher?, verified?, subject?, issuer?, expiry?}): Http\\TlsInfo`, `sentHttp(): array<Core\\Test\\SentRequest>`, `answerSocket(string $url, array<string|bytes> $frames, {protocol?: string}): void` and `sentSocket(): array<Socket\\Message>`. Every assertion is subject-first and generic where it compares",
-      "adrs": [
-        "0079"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -40880,9 +40878,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "what `Core\\Test::request` returns: `status(): uint`, `body(): string`, `header(string $name): ?string`, `headers(): array<array<string>>`, `cookies(): array<string>`, `json({maxDepth?: uint}): mixed` and `jsonAs<T>({maxDepth?: uint}): T`, the last two reading the body as `Core\\Request::json` and `::jsonAs` do",
-      "adrs": [
-        "0079"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
@@ -41128,9 +41124,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "one outbound call `Core\\Test::sentHttp` recorded: `method(): Http\\Method`, `url(): string`, `header(string $name): ?string` and `body(): bytes`",
-      "adrs": [
-        "0079"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [

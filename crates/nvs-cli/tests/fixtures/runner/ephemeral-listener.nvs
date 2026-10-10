@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0079 § 18's second mechanism, as the runner sees it: a `#[Test(server:
+// `rule:testing/in-process-request`'s second mechanism, as the runner sees it: a `#[Test(server:
 // true)]` method is given a real listener on a port the operating system chose,
 // and reaches this same program over the wire.
 //
@@ -18,7 +18,7 @@ class Wire {
             return;
         }
         // A real socket, a real request line and a real response head — which is
-        // the whole of why § 18 has two mechanisms rather than one.
+        // the whole of why `rule:testing/in-process-request` has two mechanisms rather than one.
         var $answered = Core\Http\Client::get($url);
         Core\Test::assertEquals($answered->status(), 200);
         Core\Test::assertEquals($answered->text(), "on the wire");
@@ -26,7 +26,7 @@ class Wire {
 
     #[Core\Test]
     public function itHasNoListenerWithoutTheOption(): void {
-        // § 2's boundary, stated on the address: a sibling that asked for no
+        // `rule:testing/isolate-per-test`'s boundary, stated on the address: a sibling that asked for no
         // listener cannot read the port the test above bound, because the URL
         // is on that test's own context and not on the process.
         Core\Test::assertNull(Core\Test::serverUrl());

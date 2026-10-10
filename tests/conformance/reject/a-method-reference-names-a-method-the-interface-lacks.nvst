@@ -2,7 +2,7 @@
 A method reference naming a method the interface does not declare is refused where it is written — `rule:testing/interaction-after-the-fact`
 --FILE--
 <?nvs
-// ADR 0079 § 11's compile-checked reference, seen from the side that makes it
+// `rule:testing/interaction-after-the-fact`'s compile-checked reference, seen from the side that makes it
 // worth having. `Mailer::purge` is the name of no method `Mailer` declares, so
 // the assertion never compiles — which is the whole reason the member takes
 // `Mailer::send` rather than `"send"`: renaming a method breaks the test that

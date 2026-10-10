@@ -33,7 +33,15 @@ The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
 so a single `use Core\Test;` places both.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0172](../decisions/0172.md).</sub>
+**Declined:**
+- **A `test` keyword** (`test "a name is trimmed" { ... }`). It reads better, and it costs new
+  grammar, a second scoping rule and a construct the formatter, the language server, the resilient
+  parser and the converter must each learn, for a readability gain over a mechanism the route table
+  already uses.
+- **A `test*` naming convention.** The compiler reads no meaning out of spelling
+  ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)), and a method misspelled `tsetFoo` would silently be nothing.
+
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0172](../decisions/0172.md).</sub>
 
 <a id="testing-tests-never-reach-a-build"></a>
 
@@ -51,7 +59,7 @@ artifact. Production pays nothing for them, and no test surface is reachable at 
 `nvs check` does type-check test code. That is the one place tests and non-tests are treated alike,
 and deliberately so: a test cannot rot silently while the code around it changes.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test).</sub>
 
 <a id="testing-isolate-per-test"></a>
 
@@ -74,7 +82,16 @@ Each test isolate spends its parent's budget, so a suite has the same enforceabl
 and CPU that a request has, and a runaway test is terminated rather than left to consume the
 machine.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0079](../decisions/0079.md).</sub>
+- **Memory:** each test in flight holds one isolate, one copy of each fixture it declares and one
+  ledger entry per assertion it executes, all released when it joins. That is O(tests running), not
+  O(tests in the suite): a suite of any size costs at one instant what its running tests cost.
+
+**Declined:**
+- **One isolate per test class.** It is cheaper and familiar, and it restores exactly the ordering
+  dependence between cases that makes real suites flaky. Fixtures recover the setup cost it would
+  save without the coupling ([`testing/fixtures`](testing.md#testing-fixtures)).
+
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics).</sub>
 
 <a id="testing-private-in-the-same-file"></a>
 
@@ -89,7 +106,7 @@ This is the narrowest rule that avoids the failure it exists to prevent: a `publ
 exists only because a test needed to reach it. White-box testing stays possible where the author has
 already chosen to put the test next to the code; everything at a distance tests behaviour.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build).</sub>
 
 <a id="testing-assertions-are-typed"></a>
 
@@ -114,7 +131,20 @@ years later.
 The roster is wide on purpose. Ranking the right member by the subject's type at the call site is
 the language server's job, and not a reason to reshape the API into a chain.
 
-<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots). Decided in [0079](../decisions/0079.md), [0090](../decisions/0090.md).</sub>
+**Declined:**
+- **A fluent matcher chain** (`Core\Test::that($actual)->equals($expected)`). A chain's one
+  advantage over a static roster is matchers scoped to the subject's type, and that needs members
+  that exist only at some instantiations of a generic class, which Novis does not have. Without it
+  every matcher is declared for every subject, so `that(5)->startsWith("x")` checks the prefix and
+  not the subject: the chain type-checks strictly less than the roster, and also costs a builder and
+  a second shape unlike every other `Core` member. Only member specialization would reopen it, never
+  the roster's size.
+- **Static members for scalars beside a per-kind assertion class for collections.** It does scope
+  its matchers correctly, and it buys not repeating the subject across consecutive lines at the cost
+  of two ways to assert about an array and a boundary between them to defend forever. Each repeated
+  line also carries its own failure location.
+
+<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots). Decided in [0090](../decisions/0090.md).</sub>
 
 <a id="testing-failure-ledger"></a>
 
@@ -139,7 +169,12 @@ rather than from what came back, so a body that caught its own failure has still
 which nothing failed is itself a failure; and the passing assertions inside a discharged body stay,
 because they really ran.
 
-<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0079](../decisions/0079.md).</sub>
+**Declined:**
+- **A failure that escalates past `catch`.** It is the strongest guarantee, and it makes a
+  user-written assertion helper, a retry wrapper and a soft-assert block impossible to express. The
+  ledger gives the same guarantee without that loss.
+
+<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
 
 <a id="testing-constructor-is-setup"></a>
 
@@ -156,7 +191,7 @@ A test class's constructor therefore declares no parameters. One that does is re
 failing rather than pretended past: the runner constructs the class with no arguments, and a test
 method's own parameters are filled by [`testing/fixtures`](testing.md#testing-fixtures) and [`testing/data-rows`](testing.md#testing-data-rows) instead.
 
-<sub>See also [`testing/after-hook`](testing.md#testing-after-hook), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/after-hook`](testing.md#testing-after-hook), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
 <a id="testing-after-hook"></a>
 
@@ -171,7 +206,7 @@ inside it with it, which is what leaves this marker one narrow job rather than a
 Every such residue is capability-bearing, so there is nothing `#[After]` can usefully do until a
 test run can hold a capability.
 
-<sub>See also [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
 <a id="testing-fixtures"></a>
 
@@ -194,7 +229,12 @@ Only a fixture that a test which will actually run asks for is built — a skipp
 setup nobody wanted. Resolution runs once the whole class is collected rather than as the walk
 descends, because a test may be written above the fixture that supplies it.
 
-<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md).</sub>
+- **Memory:** a class's built fixtures are held from before its first test to after its last, and
+  each test that declares one holds its own copy of it, made with the one graph copy `spawn` uses,
+  for that test's life. A suite whose copies come to dominate its cost is answered by a copy-on-write
+  path for immutable fixtures, measured first, never by sharing an isolate between tests.
+
+<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
 <a id="testing-data-rows"></a>
 
@@ -218,7 +258,7 @@ this method's own parameter list, while a fixture answers every method of the cl
 row's values are folded to constants in parameter order rather than in written order, because that
 is the order the call is made in, and are released when that call returns.
 
-<sub>See also [`testing/fixtures`](testing.md#testing-fixtures), [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/fixtures`](testing.md#testing-fixtures), [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats).</sub>
 
 <a id="testing-doubles"></a>
 
@@ -241,7 +281,7 @@ backtrace. There is no builder, no matcher mini-language and no notion of a "nic
 double — that last one is not a choice, since a double of `now(): Instant` has nothing legal to
 return by default. Every double is strict because nothing else is expressible.
 
-<sub>See also [`testing/interaction-after-the-fact`](testing.md#testing-interaction-after-the-fact), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/interaction-after-the-fact`](testing.md#testing-interaction-after-the-fact), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
 <a id="testing-interaction-after-the-fact"></a>
 
@@ -263,7 +303,7 @@ method's own name.
 There is no `expects()`. An expectation declared before the exercise reads backwards and reports its
 failure from a line that is no longer where the problem is.
 
-<sub>See also [`testing/doubles`](testing.md#testing-doubles), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/doubles`](testing.md#testing-doubles), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
 <a id="testing-determinism-declared-on-the-test"></a>
 
@@ -283,7 +323,13 @@ the test where it is visible and inert everywhere else, in the same category as 
 `nvs.toml` — and a test declaration reaches no built artifact, so none of this exists in production
 even in principle.
 
-<sub>See also [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md).</sub>
+**Declined:**
+- **A clock parameter as the only way to control time.** It is strictly honest and mirrors the
+  seeded generator being a separate type, and it taxes every time-aware class in every program with a
+  constructor parameter forever. The attribute is configuration declared at the point of use, and it
+  cannot reach production ([`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build)).
+
+<sub>See also [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build).</sub>
 
 <a id="testing-task-tree-and-virtual-clock"></a>
 
@@ -301,8 +347,9 @@ work.
 Because the clock is under the test's control, a `Duration` sleep inside a task elapses instantly.
 That makes retry, backoff and timeout logic — some of the most error-prone code anyone writes, and
 the least tested — testable in microseconds rather than in the seconds it describes.
+`Core\Test::assertCompletes(fn, {within: Duration})` states a budget against that same clock.
 
-<sub>See also [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
 <a id="testing-db-transaction"></a>
 
@@ -324,7 +371,7 @@ contend rather than nest.
 The rollback is armed around the whole retry allowance rather than around one attempt, because a
 retry calls the method again.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="testing-in-process-request"></a>
 
@@ -368,9 +415,17 @@ is the operating system's and the address is loopback, so two suites on one mach
 and no suite serves the program under test to a network. The listener is a **sibling** of the test's
 isolate rather than a child — leftover work is read off the test's own task — and it is retired when
 the test that asked for it has joined. It serves under the **default** policy rather than the tree's:
-reading a deployment's configuration would make the test's subject the deployment.
+reading a deployment's configuration would make the test's subject the deployment. The two
+mechanisms are both kept because they answer measurably different questions: the in-process path
+never builds a response head, so the wire is not something it can be asked about.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0102](../decisions/0102.md).</sub>
+`Core\Test::serverUrl(): ?string` reads the listener's address back, and is `null` where none was
+bound, so it can be called from anywhere. A test reaching its own listener needs the outbound pair
+granted — `net.connect` for the host and `net.internal` for loopback
+([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)) — because nothing about the listener being the
+test's own widens that policy.
+
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="testing-an-outbound-call-is-answered-from-a-table"></a>
 
@@ -454,7 +509,7 @@ A failure shrinks to a minimal counterexample and reports the seed that reproduc
 `string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
 `string` is — a property that only holds for ASCII is a property that is not true.
 
-<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
 <a id="testing-inline-snapshots"></a>
 
@@ -479,7 +534,13 @@ a diff. A run that rewrote a snapshot still reports the test as failed; the re-r
 new text is the one the author meant. The rendering is canonical, ordered, and redacts a `secret`,
 so a snapshot cannot become the place secrets get committed.
 
-<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../decisions/0079.md).</sub>
+**Declined:**
+- **Separate snapshot files.** They are better for very large payloads, and worse at the thing that
+  actually goes wrong: a reviewer approving a snapshot diff unread.
+- **Snapshots in a library.** The updater needs the written literal's span, which only the compiler
+  records, so a library version would be permanently worse rather than merely external.
+
+<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/report-formats`](testing.md#testing-report-formats).</sub>
 
 <a id="testing-mutation-testing"></a>
 
@@ -501,7 +562,7 @@ hundred mutants that is the difference between minutes and most of a day.
 
 The operator set is enumerated where it is implemented, so adding an operator changes no rule.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs).</sub>
 
 <a id="testing-runner-is-strict"></a>
 
@@ -525,7 +586,7 @@ Report order is **declaration order**, even though execution is unordered. Total
 execution order semantically irrelevant, so nothing is bought by randomizing it and stable output is
 worth a great deal.
 
-<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/db-transaction`](testing.md#testing-db-transaction). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/db-transaction`](testing.md#testing-db-transaction).</sub>
 
 <a id="testing-report-formats"></a>
 
@@ -535,7 +596,8 @@ worth a great deal.
 
 Human output is the default and is written as the run goes, which is what keeps a long suite
 legible. A JUnit XML document and a versioned JSON one are each written whole at the end, because
-neither has a prefix worth streaming. All three render the same case list and a verdict is decided
+neither has a prefix worth streaming. JUnit XML rather than a Novis-native document, because it is
+what every CI system already ingests. All three render the same case list and a verdict is decided
 **once**, so the plaintext mark, the JSON string and the XML element cannot disagree about how a
 test came out.
 
@@ -563,7 +625,7 @@ summary, since a summary of zeros is a report of a run that did not happen and a
 its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
 `--update` and a `.nvst` tree are each refused beside it rather than ignored.
 
-<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli). Decided in [0079](../decisions/0079.md), [0172](../decisions/0172.md).</sub>
+<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli). Decided in [0172](../decisions/0172.md).</sub>
 
 <a id="testing-coverage-report"></a>
 
@@ -612,7 +674,7 @@ The two formats answer different questions and are not unified, now or later. `n
 both — a path of `.nvst` files, or a program's compiled test table — and reports each in the shape
 that fits it.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="testing-a-directory-of-programs-is-one-test-program"></a>
 
@@ -797,7 +859,7 @@ policy nothing can check. A single feature excused from a single proof is a skip
 **the reason as its value**, so "this cannot be measured" and "nobody wrote one" never look the same
 in the audit.
 
-<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0079](../decisions/0079.md), [0117](../decisions/0117.md), [0216](../decisions/0216.md), [0272](../decisions/0272.md).</sub>
+<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0117](../decisions/0117.md), [0216](../decisions/0216.md), [0272](../decisions/0272.md).</sub>
 
 <a id="testing-roster-is-derived"></a>
 
@@ -979,7 +1041,7 @@ collect coverage, and the two are independent mechanisms.
 - **Hooking a central dispatch routine, the way an interpreter's tracer does.** There is none to hook:
   typed scalar operations lower to native instructions with no common dispatch point.
 
-<sub>See also [`testing/debug-surface`](testing.md#testing-debug-surface), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/bench-counters`](testing.md#testing-bench-counters). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/debug-surface`](testing.md#testing-debug-surface), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/bench-counters`](testing.md#testing-bench-counters).</sub>
 
 <a id="testing-debug-surface"></a>
 
@@ -1215,7 +1277,16 @@ this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md).</sub>
+**Declined:**
+- **Wall-clock benchmarks with statistical treatment.** It is what other languages ship, and it
+  produces a number CI cannot gate on. The counters cost less and produce one it can.
+- **Instruction counts under callgrind.** They are Linux-only, many times slower than a plain run
+  and blind to symbols inside JIT frames, so a user benchmarking on Windows has none
+  ([`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms) keeps them for measuring Novis itself).
+- **A declared per-member cost table.** It would be more faithful for code that spends its time in
+  native members, at the price of hundreds of hand-written numbers, none of them guarded.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger).</sub>
 
 <a id="testing-perf-two-mechanisms"></a>
 

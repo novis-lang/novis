@@ -11,7 +11,7 @@
 //!
 //! # The option roster is the shape
 //!
-//! § 1 writes the payload as `{skip?: string, at?: string, seed?: int,
+//! `rule:testing/test-attribute` writes the payload as `{skip?: string, at?: string, seed?: int,
 //! db?: string, server?: bool, retries?: int, because?: string}` — **every**
 //! field optional. That cannot be a [`crate::ty::Ty::Shape`] target: `rule:types/shape-type`'s width subtyping requires every field the target names to be present
 //! in the literal, so a shape of seven fields would refuse the bare `#[Test]`
@@ -25,20 +25,20 @@
 //!
 //! The one rule that roster *cannot* state is a dependency between two of its
 //! fields, every field being admitted on its own and all of them optional:
-//! § 20's `retries:` charges a written `because:`, and
+//! `rule:testing/runner-is-strict`'s `retries:` charges a written `because:`, and
 //! [`check_retries_state_a_reason`] is where that is refused
 //! ([`code::E_TEST_RETRIES_WITHOUT_REASON`]), once the payload has been
 //! walked rather than at either field.
 //!
-//! Two of § 1's compile errors fall out of the types rather than needing a
+//! Two of `rule:testing/test-attribute`'s compile errors fall out of the types rather than needing a
 //! rule of their own: `#[Test(skip: true)]` is a `bool` where `skip` declares
-//! a `string`, which is § 20's "a skip states a reason" said by the type, and
+//! a `string`, which is `rule:testing/runner-is-strict`'s "a skip states a reason" said by the type, and
 //! a misspelled option is the unknown-option refusal rather than an option
 //! silently doing nothing.
 //!
 //! # The shape a test method must have
 //!
-//! The other four of § 1's six compile errors are about the *declaration*
+//! The other four of `rule:testing/test-attribute`'s six compile errors are about the *declaration*
 //! rather than the payload, and all four are decided in [`check_class_tests`]
 //! because that walk is already holding each member's [`MethodMember`]: a
 //! `#[Test]` that is `static`, that is not `public`, that returns anything
@@ -46,7 +46,7 @@
 //! and they share one code ([`code::E_TEST_METHOD_SHAPE`]) because they are
 //! one question asked once — the runner constructs the class and calls the
 //! member with no arguments and no result, so a `static` member has no
-//! receiver for §§ 8-9's `#[Fixture]` to be installed on, a non-`public` one
+//! receiver for `rule:testing/fixtures` and `rule:testing/data-rows`'s `#[Fixture]` to be installed on, a non-`public` one
 //! cannot be called from outside its class at all, a returned value has
 //! nowhere to go, and an `abstract` one has no code to call. The fifth, two
 //! `#[Test]` methods sharing one name, is `E_DUPLICATE_DECLARATION` — the same
@@ -57,14 +57,14 @@
 //! than off the modifier list a second time, so an omitted visibility keyword
 //! reads as `public` here exactly as it does everywhere else and is left to
 //! the `E_MISSING_VISIBILITY` `nvs_syntax::casing` already reports, rather
-//! than being named twice under two codes. § 1's remaining bullet — a
+//! than being named twice under two codes. `rule:testing/test-attribute`'s remaining bullet — a
 //! parameter no `#[Fixture]` supplies and no data row fills — is
 //! [`resolve_injections`] below, which is the one pass holding both rosters.
 //! Two parameter *shapes* are refused by these codes rather than by that one,
 //! because no roster would make either injectable:
 //! [`reject_uninjectable_parameters`] owns which and why.
 //!
-//! # § 8's `#[Fixture]` roster is the second table, keyed by type
+//! # `rule:testing/fixtures`'s `#[Fixture]` roster is the second table, keyed by type
 //!
 //! A fixture is built **once, in the parent isolate**, and injected into each
 //! test that declares a parameter of its type, so what a roster of them has to
@@ -72,7 +72,7 @@
 //! [`check_fixture_shape`] is where the declaration is held to being able to
 //! supply one at all. Its three refusals are [`code::E_FIXTURE_METHOD_SHAPE`]
 //! and are the inverse of [`check_method_shape`]'s: a fixture that is not
-//! `static` has no instance to be built against, since § 20 gives each test
+//! `static` has no instance to be built against, since `rule:testing/runner-is-strict` gives each test
 //! its own and that is the opposite of once; a non-`public` one cannot be
 //! called from outside its class; and one returning `void` supplies nothing.
 //! The fourth is a member carrying **both** markers, which is one method
@@ -85,13 +85,13 @@
 //! nothing.
 //!
 //! Two fixtures of one class returning **one** type is the roster's own
-//! refusal rather than a shape one — § 8 resolves by type, so it is one
+//! refusal rather than a shape one — `rule:testing/fixtures` resolves by type, so it is one
 //! declaration made twice — and it is decidable here, with no parameter
 //! anywhere in it.
 //!
 //! # The injection is resolved once the whole class is collected
 //!
-//! [`resolve_injections`] is § 8's by-type resolution and runs *after* the
+//! [`resolve_injections`] is `rule:testing/fixtures`'s by-type resolution and runs *after* the
 //! walk above, because a test may be written above the fixture that supplies
 //! it. What each parameter resolves to is recorded as an order on the row
 //! ([`TestCase::params`], [`Fixture::fixtures`]) so the runner reads one
@@ -99,7 +99,7 @@
 //! nothing supplies is [`code::E_FIXTURE_PARAMETER_UNSUPPLIED`] and a fixture
 //! that requires itself is [`code::E_FIXTURE_CYCLE`].
 //!
-//! # § 9's data rows are the second answer, and they resolve by name
+//! # `rule:testing/data-rows`'s data rows are the second answer, and they resolve by name
 //!
 //! `#[TestWith(...)]` ([`crate::derive::TEST_WITH`]) is the one recognized
 //! attribute that may repeat on a declaration, each occurrence being a row and
@@ -112,9 +112,9 @@
 //! So [`resolve_parameters`] answers both questions in one place, and asks the
 //! row one first: a row names a parameter of *this* method while a fixture
 //! answers every method of the class at once, so the more specific of the two
-//! wins a parameter both could fill. § 9's "each parameter's source is
+//! wins a parameter both could fill. `rule:testing/data-rows`'s "each parameter's source is
 //! unambiguous" is that precedence, and [`Injection`] is what it is recorded
-//! as. One rule § 9 does not write out falls out of each row being a case:
+//! as. One rule `rule:testing/data-rows` does not write out falls out of each row being a case:
 //! every row of one method fills the same parameters, because the parameters a
 //! method declares do not vary row by row — a row omitting a field its
 //! siblings supply is [`code::E_TEST_ROW_FIELD`] along with every other way a
@@ -122,7 +122,7 @@
 //!
 //! # The table is built while checking, and rides in [`crate::ExprTypeTable`]
 //!
-//! § 1's "the compiler collects every `#[Test]` into a table" is
+//! `rule:testing/test-attribute`'s "the compiler collects every `#[Test]` into a table" is
 //! [`check_class_tests`], run from [`crate::check`]'s own walk for
 //! [`crate::derive::check_class_derive`]'s reason exactly: which `Name` a
 //! `#[Test]` is depends on the namespace and the import set, and that walk is
@@ -159,7 +159,7 @@ use crate::{Ctx, Env, span_text};
 /// because a second copy of three variants is how two attributes come to
 /// disagree about what `int` means.
 ///
-/// Three scalar rows, because § 1's shape names three types, and two that are
+/// Three scalar rows, because `rule:testing/test-attribute`'s shape names three types, and two that are
 /// not scalars at all: `rule:attributes/payload-is-a-compile-time-constant` admits an enum case in a payload and
 /// `rule:routing/route-attribute`'s `method` is one, and `rule:attributes/access-payload` declares a field whose
 /// type is `mixed` on purpose. A sixth row is a decision about what some
@@ -268,18 +268,18 @@ pub struct TestCase {
     /// An *order* rather than a set, because the runner passes values
     /// positionally and re-deriving which source answers which parameter
     /// would mean re-doing the by-type and by-name resolution below a crate
-    /// that holds no types. Empty for the parameterless test § 1's own example
+    /// that holds no types. Empty for the parameterless test `rule:testing/test-attribute`'s own example
     /// writes, which is what makes a program that declares no fixture and no
     /// row pay nothing for this.
     pub params: Vec<Injection>,
-    /// § 9's data rows, one per `#[TestWith(...)]` attached to the method, in
+    /// `rule:testing/data-rows`'s data rows, one per `#[TestWith(...)]` attached to the method, in
     /// source order — each of them **parameter-length**, holding a value at
     /// exactly the positions [`Self::params`] marks [`Injection::Row`].
     ///
     /// Parameter-length rather than only as long as the fields written, so the
     /// runner walks one list per call rather than joining two: position `i` is
     /// answered by `params[i]`, and a `Row` there reads this row's own `i`.
-    /// Empty for a test with no rows at all, which is the one call § 1
+    /// Empty for a test with no rows at all, which is the one call `rule:testing/test-attribute`
     /// describes.
     pub rows: Vec<Vec<Option<ConstArg>>>,
 }
@@ -294,9 +294,9 @@ pub struct TestCase {
 /// every method of the class at once.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Injection {
-    /// The named `#[Fixture]` method of the same class, built once (§ 8).
+    /// The named `#[Fixture]` method of the same class, built once (`rule:testing/fixtures`).
     Fixture(String),
-    /// This case's own data row (§ 9), read at the same position.
+    /// This case's own data row (`rule:testing/data-rows`), read at the same position.
     Row,
 }
 
@@ -305,7 +305,7 @@ pub enum Injection {
 #[derive(Clone, Debug)]
 pub struct Fixture {
     /// The method's own name, exactly as declared. Nothing about a fixture is
-    /// inferred from this spelling: § 8 resolves a request for one by
+    /// inferred from this spelling: `rule:testing/fixtures` resolves a request for one by
     /// **type**, and the name is what a diagnostic points at.
     pub method: String,
     /// What the method returns, which is what it supplies. This is the key of
@@ -314,7 +314,7 @@ pub struct Fixture {
     /// [`TypeId`] equality every other type question in this crate uses.
     pub ty: TypeId,
     /// What *this* fixture's own parameters resolve to, in parameter order —
-    /// § 8's "a fixture may itself declare fixture parameters", read by the
+    /// `rule:testing/fixtures`'s "a fixture may itself declare fixture parameters", read by the
     /// runner as a build order. A cycle among these is
     /// [`code::E_FIXTURE_CYCLE`], and the row a cycle was reported for carries
     /// an empty list, so what rides across is always a graph that can be
@@ -355,7 +355,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         let fixture = attribute_named(&m.attributes, crate::derive::FIXTURE, ctx, env);
         let rows = rows_attached(&m.attributes, ctx, env);
         if test.is_none() && fixture.is_none() {
-            // § 9 attaches a row to a `#[Test]`, and to nothing else: what a
+            // `rule:testing/data-rows` attaches a row to a `#[Test]`, and to nothing else: what a
             // row is matched against is that method's parameter list, and a
             // method the runner never calls has no call for one to fill. A
             // marker that silently did nothing is the mistake the whole
@@ -365,8 +365,8 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
         }
         let method = span_text(env.src, m.name).to_owned();
         if test.is_some() && fixture.is_some() {
-            // The two shapes are inverted — § 1's test is an instance method
-            // returning nothing, § 8's fixture a `static` one returning
+            // The two shapes are inverted — `rule:testing/test-attribute`'s test is an instance method
+            // returning nothing, `rule:testing/fixtures`'s fixture a `static` one returning
             // something — so a member carrying both is not two facts about it
             // but one contradiction, and neither roster gets a row rather
             // than one roster getting a row the other has just refused.
@@ -457,7 +457,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
 ///
 /// It is a second pass over the two rosters rather than a step inside that
 /// walk, and for one reason: a test may be declared **above** the fixture that
-/// supplies it, which is how § 8's own worked example is not written but is
+/// supplies it, which is how `rule:testing/fixtures`'s own worked example is not written but is
 /// the first thing a reader will try. Resolving as the walk descends would
 /// answer that one "nothing supplies `Schema`" and the same file with the
 /// members swapped "here it is", which is a rule about source order and not
@@ -467,7 +467,7 @@ pub(crate) fn check_class_tests(decl: &ClassDecl, class: &QName, ctx: &Ctx<'_>, 
 /// ([`TestCase::params`]), because the runner passes values positionally and
 /// nothing below this crate holds a [`TypeId`] to redo the match against.
 ///
-/// § 9's data rows fill a parameter by *name* and are the second answer this
+/// `rule:testing/data-rows`'s data rows fill a parameter by *name* and are the second answer this
 /// refusal consults, so a parameter **neither** roster reaches is refused
 /// outright rather than left to a runner that would call the method with a
 /// hole in its argument list. A name is the more specific of the two, so a
@@ -491,7 +491,7 @@ fn resolve_injections(
         let method = fixtures[index].method.clone();
         let (params, _) =
             resolve_parameters(class, &method, "#[Fixture]", *span, &roster, &[], env);
-        // A `#[Fixture]` is resolved against no rows at all — § 9 attaches one
+        // A `#[Fixture]` is resolved against no rows at all — `rule:testing/data-rows` attaches one
         // to a `#[Test]`, and `check_class_tests` has already refused every
         // other member carrying the marker — so every position here is a
         // fixture's, and the other arm is an internal-consistency check on
@@ -524,10 +524,10 @@ fn resolve_injections(
 }
 
 /// One marked method's parameters, each resolved to the source that fills it
-/// — the `#[Fixture]` method supplying its type (§ 8), or this method's own
-/// data rows naming it (§ 9) — plus those rows folded, parameter-length.
+/// — the `#[Fixture]` method supplying its type (`rule:testing/fixtures`), or this method's own
+/// data rows naming it (`rule:testing/data-rows`) — plus those rows folded, parameter-length.
 ///
-/// The fixture match is [`TypeId`] equality, which is § 8's "resolution is by
+/// The fixture match is [`TypeId`] equality, which is `rule:testing/fixtures`'s "resolution is by
 /// type" exactly: an interned type is the same id wherever it is written, so a
 /// parameter declaring the fixture's own return type is the one that resolves
 /// and a subtype of it deliberately is not — a fixture supplies *a* type, and
@@ -575,7 +575,7 @@ fn resolve_parameters(
         )
     };
 
-    // § 9's rows, field by field: each names a parameter, and its value is a
+    // `rule:testing/data-rows`'s rows, field by field: each names a parameter, and its value is a
     // literal of that parameter's declared type or the row is not one for this
     // method at all.
     let mut ok = true;
@@ -690,7 +690,7 @@ fn resolve_parameters(
                 ),
             )
             .with_primary(span, format!("`{parameter}` asks for `{described}`"))
-            // § 9 attaches a row to a `#[Test]` and to nothing else, so the
+            // `rule:testing/data-rows` attaches a row to a `#[Test]` and to nothing else, so the
             // second answer is offered only where it can be taken: naming it
             // to a `#[Fixture]`'s parameter would be a fix that is itself
             // refused.
@@ -713,7 +713,7 @@ fn resolve_parameters(
     (resolved, folded)
 }
 
-/// One [`code::E_TEST_ROW_FIELD`] — § 9's "by name and by type", wherever a
+/// One [`code::E_TEST_ROW_FIELD`] — `rule:testing/data-rows`'s "by name and by type", wherever a
 /// row and the method it is attached to fail to line up.
 fn report_row_field(at: Span, message: String, help: &str, env: &mut Env<'_>) {
     env.diags.report(
@@ -723,7 +723,7 @@ fn report_row_field(at: Span, message: String, help: &str, env: &mut Env<'_>) {
     );
 }
 
-/// Every `#[TestWith(...)]` attached to one member, in source order — § 9's
+/// Every `#[TestWith(...)]` attached to one member, in source order — `rule:testing/data-rows`'s
 /// "each row is its own reported case" is what makes this the one recognized
 /// name that may repeat on a declaration.
 fn rows_attached(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &Env<'_>) -> Vec<RawRow> {
@@ -738,7 +738,7 @@ fn rows_attached(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &Env<'_>) -> Vec
         .collect()
 }
 
-/// § 9 attaches a data row to a `#[Test]` method and to nothing else: this is
+/// `rule:testing/data-rows` attaches a data row to a `#[Test]` method and to nothing else: this is
 /// every other member carrying one, refused where the marker is written.
 ///
 /// A marker that quietly did nothing is what `rule:core-classes/derive-attribute`'s closed, recognized
@@ -757,7 +757,7 @@ fn report_stray_rows(rows: &[RawRow], did: &str, env: &mut Env<'_>) {
     }
 }
 
-/// § 8's last sentence: a fixture may declare fixture parameters of its own,
+/// `rule:testing/fixtures`'s last sentence: a fixture may declare fixture parameters of its own,
 /// and a cycle among them is a compile error
 /// ([`code::E_FIXTURE_CYCLE`]).
 ///
@@ -882,7 +882,7 @@ pub(crate) fn attribute_named<'a>(
 /// Read off the resolved signature for [`check_method_shape`]'s reason
 /// exactly. `None` — no row at all — for a fixture with nothing to supply: a
 /// method the signature table has no row for, which `nvs_syntax` is already
-/// refusing, and one returning `void`, which has no type for § 8's by-type
+/// refusing, and one returning `void`, which has no type for `rule:testing/fixtures`'s by-type
 /// resolution to key on. The other two refusals still record their row, so
 /// that a test asking for the type is answered by the fixture the author
 /// plainly wrote rather than by a second diagnostic saying nothing supplies
@@ -944,7 +944,7 @@ fn report_fixture_shape(m: &MethodMember, method: &str, did: &str, help: &str, e
     );
 }
 
-/// `#[Fixture]` carries no payload at all — § 8 writes it bare, and what it
+/// `#[Fixture]` carries no payload at all — `rule:testing/fixtures` writes it bare, and what it
 /// supplies is its return type rather than anything written on the marker.
 ///
 /// So the roster [`OPTIONS`] is for `#[Test]` has no counterpart here, and a
@@ -1027,7 +1027,7 @@ fn check_method_shape(m: &MethodMember, method: &str, class: &QName, env: &mut E
     reject_uninjectable_parameters(m, method, sig, &report_shape, env);
 }
 
-/// The two parameter *shapes* §§ 8-9's injection cannot fill, for a `#[Test]`
+/// The two parameter *shapes* `rule:testing/fixtures` and `rule:testing/data-rows`'s injection cannot fill, for a `#[Test]`
 /// or a `#[Fixture]` alike — reported through whichever of the two shape
 /// codes the marker owns, `report` being that choice.
 ///
@@ -1112,13 +1112,13 @@ pub(crate) fn check_payload(fields: &[AnonObjectField], ctx: &Ctx<'_>, env: &mut
     check_retries_state_a_reason(fields, env);
 }
 
-/// § 20's other half of the retry bullet: `retries:` requires `because:`.
+/// `rule:testing/runner-is-strict`'s other half of the retry bullet: `retries:` requires `because:`.
 ///
 /// The roster above cannot say this. An options bag admits each field on its
 /// own and every one of them is optional, which is exactly what lets the bare
 /// `#[Test]` parse — so a *dependency* between two of them is a rule about the
 /// payload as a whole and is checked once it has been walked. It is the one
-/// § 20 bullet that is worth a diagnostic rather than a convention: a retry is
+/// `rule:testing/runner-is-strict` bullet that is worth a diagnostic rather than a convention: a retry is
 /// sometimes the right engineering call and always a claim about the world,
 /// and the reason is what a reader of the attribute has in place of the run
 /// that produced it.
@@ -1144,7 +1144,7 @@ fn check_retries_state_a_reason(fields: &[AnonObjectField], env: &mut Env<'_>) {
     );
 }
 
-/// One written `Core\Test::assertMatchesInline(…, "…")`, as § 14's
+/// One written `Core\Test::assertMatchesInline(…, "…")`, as `rule:testing/inline-snapshots`'s
 /// `nvs test --update` needs it: **where the snapshot literal is**, which is
 /// the one fact nothing at run time can supply.
 ///
@@ -1152,7 +1152,7 @@ fn check_retries_state_a_reason(fields: &[AnonObjectField], env: &mut Env<'_>) {
 /// it, so `nvs_runtime::SnapshotMismatch` can only say what the snapshot *was*
 /// and what it should have been. This row is the other half of that join, and
 /// it is collected here rather than searched for in the source afterwards for
-/// § 14's own workflow's sake: a snapshot is written empty and filled by the
+/// `rule:testing/inline-snapshots`'s own workflow's sake: a snapshot is written empty and filled by the
 /// updater, and `""` occurs in every file.
 #[derive(Clone, Debug)]
 pub struct InlineSnapshot {
@@ -1173,7 +1173,7 @@ pub struct InlineSnapshot {
     pub owner: Option<String>,
 }
 
-/// Records § 14's row for a `Core\Test::assertMatchesInline` whose `$expected`
+/// Records `rule:testing/inline-snapshots`'s row for a `Core\Test::assertMatchesInline` whose `$expected`
 /// is a written literal, and does nothing for every other call.
 ///
 /// The hook [`crate::expr::calls::infer_static_call`] reaches after the target

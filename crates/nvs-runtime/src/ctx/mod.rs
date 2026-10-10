@@ -1015,7 +1015,7 @@ pub struct Ctx {
     /// is every context outside a test. That is why this does not reopen
     /// `rule:statements/static-is-a-member-modifier`'s "nothing holds
     /// state behind a function's back": the one thing that moves it afterwards
-    /// is `Core\Test::advance`, which § 12 declares beside the clock and which
+    /// is `Core\Test::advance`, which `rule:testing/determinism-declared-on-the-test` declares beside the clock and which
     /// exists nowhere but inside a test.
     ///
     /// Nanoseconds since the epoch rather than a `jiff::Timestamp` because this
@@ -1056,13 +1056,13 @@ pub struct Ctx {
     ///
     /// **Beside [`Self::fixed_clock`] for that field's own reason** — a test
     /// declares the world its subject runs in and the isolate is what scopes
-    /// the declaration (§ 2), so the address lives on the child's context and
+    /// the declaration (`rule:testing/isolate-per-test`), so the address lives on the child's context and
     /// dies with it. A `thread_local` would outlive the listener it names and
     /// answer the next test with a port nothing is bound to.
     ///
     /// A `String` and not a `SocketAddr`: what a program does with it is write
     /// it into a URL, this crate has no URL type, and the scheme is a fact the
-    /// runner knows and the address does not carry (§ 18's listener is `http`,
+    /// runner knows and the address does not carry (`rule:testing/in-process-request`'s listener is `http`,
     /// `rule:http-server/two-deployments-and-nothing-a-proxy-owns`
     /// having dropped the TLS listener). `nvs_stdlib::test`'s `serverUrl` is
     /// the only reader and `nvs_cli::runner` the only writer.
@@ -1400,7 +1400,7 @@ pub struct Ctx {
     /// answered "how many assertions failed" would hand the test back the very
     /// eraser this exists to take away, so there is none, and the only member
     /// that *writes* to it beyond appending is
-    /// `Core\Test::expectFailure(callable)` — § 5's single greppable spelling
+    /// `Core\Test::expectFailure(callable)` — `rule:testing/failure-ledger`'s single greppable spelling
     /// for "this failure was on purpose".
     ///
     /// **What it spends:** one entry per assertion executed, charged to the
@@ -1410,7 +1410,7 @@ pub struct Ctx {
     /// itself, [`AssertionOutcome::member`] being a `&'static str` the member
     /// names rather than a built string.
     assertions: Vec<AssertionOutcome>,
-    /// § 14's inline snapshots that did not hold, in the order they ran — the
+    /// `rule:testing/inline-snapshots`'s inline snapshots that did not hold, in the order they ran — the
     /// material `nvs test --update` splices from, and empty for every run that
     /// asserted no snapshot or whose snapshots all held.
     ///

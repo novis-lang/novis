@@ -462,7 +462,7 @@ builds the trace as the throw unwinds — so those three parts are the whole of 
 object a record of a throw carries is the throw itself, whose declared properties are walked like
 any other value and redact like any other value.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="errors-a-record-names-where-it-was-produced"></a>
 

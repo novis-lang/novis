@@ -2,7 +2,6 @@
   "title": "Comparison, hashing, placeholders, text, QR codes and SVG are one entry point each, because each is one job",
   "status": "designed",
   "because": [
-    "0079",
     "0095"
   ],
   "seeAlso": [

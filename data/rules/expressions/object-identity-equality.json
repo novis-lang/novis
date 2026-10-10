@@ -2,8 +2,7 @@
   "title": "Two objects are equal only when they are the same object, and no class may change that",
   "status": "shipped",
   "because": [
-    "0090",
-    "0079"
+    "0090"
   ],
   "seeAlso": [
     "expressions/equality-semantics",

@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0079 § 16, from the language surface: a body runs under the test's own
+// `rule:testing/task-tree-and-virtual-clock`, from the language surface: a body runs under the test's own
 // clock and is judged by what it left behind. The first test spends a budget on
 // a body that finishes and then reads the moved clock, so the pass and the
 // advance are one claim rather than two; the second leaves a child running

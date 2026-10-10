@@ -19,3 +19,11 @@ declared.
 The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `use`d `#[Test]` are
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
 so a single `use Core\Test;` places both.
+
+**Declined:**
+- **A `test` keyword** (`test "a name is trimmed" { ... }`). It reads better, and it costs new
+  grammar, a second scoping rule and a construct the formatter, the language server, the resilient
+  parser and the converter must each learn, for a readability gain over a mechanism the route table
+  already uses.
+- **A `test*` naming convention.** The compiler reads no meaning out of spelling
+  (`rule:core-api/identifier-casing`), and a method misspelled `tsetFoo` would silently be nothing.

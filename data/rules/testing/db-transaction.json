@@ -2,7 +2,6 @@
   "title": "`#[Test(db:)]` opens a transaction on the test's own context and rolls it back",
   "status": "shipped",
   "because": [
-    "0079",
     "0067"
   ],
   "seeAlso": [

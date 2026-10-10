@@ -1834,7 +1834,7 @@ Separately and always, the reporter escapes control characters in every value it
 string is not confidential and may be shown, but a fixture full of terminal escapes must not be able
 to rewrite the developer's terminal from inside a failure message.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0079](../decisions/0079.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="security-redaction-reaches-the-tools-own-renderings"></a>
 

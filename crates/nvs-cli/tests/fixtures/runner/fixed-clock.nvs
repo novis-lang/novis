@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0079 § 12, from the language surface: a fixed clock is per test. The
+// `rule:testing/determinism-declared-on-the-test`, from the language surface: a fixed clock is per test. The
 // first test reads the instant its own `at:` names; the second advances that
 // reading and reads back the moved clock; the third declares no `at:` at all
 // and so reads the host's. The third is the one that makes this a claim about
