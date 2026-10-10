@@ -1634,7 +1634,7 @@ The risk this closes is not that a poll loop is hard to write. It is that a poll
 becomes an executor — a ready queue, a spawn, work stealing — and then there are two schedulers on
 one core, each with its own idea of which stack may touch an arena.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0138](../decisions/0138.md).</sub>
 
 <a id="concurrency-a-waker-is-one-permission-to-poll"></a>
 
@@ -1657,7 +1657,7 @@ of sleeping on a wake that has already happened.
 A waker cloned and held past the call fires into an empty slot and sets a flag nobody reads. That is
 inert, and it is the same reading as a wake that raced with the task ending.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md).</sub>
 
 <a id="concurrency-one-permission-per-drive"></a>
 
@@ -1678,7 +1678,7 @@ A connection whose every wait ends in socket readiness — the ordinary one, sin
 task by id and never through a waker — therefore issues exactly one permission for the whole
 connection, and gives it back unused when the drive returns.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0229](../decisions/0229.md).</sub>
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing). Decided in [0138](../decisions/0138.md), [0229](../decisions/0229.md).</sub>
 
 <a id="concurrency-a-wake-never-moves-a-task"></a>
 
@@ -1700,7 +1700,7 @@ It is also why a waker's payload is a shared flag and slot rather than the sched
 wake, which is deliberately not thread-safe: a waker built over that would be sound exactly until a
 clone crossed a thread, and unsound with no diagnostic afterwards.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md).</sub>
 
 <a id="concurrency-a-handle-given-up-by-its-task-wakes-nothing"></a>
 
@@ -1763,7 +1763,7 @@ Blocking the thread is right in that last case for the reason every off-core wai
 there is no coroutine to suspend and no neighbour to starve, so blocking starves nobody. On a core it
 would be precisely wrong.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll). Decided in [0138](../decisions/0138.md).</sub>
 
 <a id="concurrency-the-parking-contract"></a>
 
@@ -1790,7 +1790,7 @@ otherwise get backwards.
 5. **One reactor per worker**, not shared. A descriptor a request owns is registered with, and woken
    by, that request's own core — which is what keeps refcounts non-atomic.
 
-<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0115](../decisions/0115.md).</sub>
+<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="concurrency-try-the-syscall-then-park"></a>
 
@@ -1812,7 +1812,7 @@ always finds the request bytes already buffered: they arrived with the connectio
 A registration is kept while the task holds the stream rather than torn down per park, so a stream
 that parks repeatedly pays a modification and not a creation.
 
-<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../decisions/0115.md).</sub>
+<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream).</sub>
 
 <a id="concurrency-the-reactor-reports-readiness"></a>
 
@@ -1824,17 +1824,25 @@ The reactor reports **readiness**, never completion, on every platform: epoll on
 BSDs and macOS, and on Windows a poll of `\Device\Afd` through the completion port, which turns it
 into a readiness source. One contract, three back ends, and the stream code above it is written once.
 
-That choice is the reason there is one stream implementation rather than two. Completion semantics are
-a *different* contract — a completion-based read owns its buffer across a suspension and a
-readiness-based one does not — so adopting the native Windows shape would duplicate every stream and
-every helper that reads one, on the platform that gets the least traffic.
+That choice is the reason there is one stream implementation rather than two.
 
 The readiness layer is a poller and not an async runtime: no executor, no task type, no futures. The
 runtime brings its own scheduler ([`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract)), and nothing
 attacker-controlled reaches a registration, which carries a descriptor and an interest set and no
 parsed input at all.
 
-<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park). Decided in [0115](../decisions/0115.md).</sub>
+**Declined:**
+- **Completion semantics on Windows.** It is the native contract there and faster at very high
+  connection counts, but a completion-based read owns its buffer across a suspension and a
+  readiness-based one does not. Every stream and every helper that reads one would exist twice, and
+  the copy that gets less traffic would be on a first-class platform.
+- **Hand-written epoll, kqueue and AFD back ends.** Three `unsafe` FFI layers with nothing specific to
+  this runtime in any of them, against a pure-Rust poller whose whole surface is exactly this. What is
+  specific is the parking contract above it.
+- **An async runtime such as `tokio`.** Its value is an executor and a task model, and the runtime has
+  its own, in which a stackful coroutine suspends from *inside a helper*, which a future cannot.
+
+<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park).</sub>
 
 <a id="concurrency-a-stream-is-an-ordinary-io-stream"></a>
 
@@ -1856,7 +1864,13 @@ What it costs is that a stack is the unit of concurrency
 space rather than the hundred bytes a stackless future would be. Simplicity of the language surface
 outranks footprint, and that trade is taken knowingly.
 
-<sub>See also [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled). Decided in [0115](../decisions/0115.md), [0132](../decisions/0132.md).</sub>
+**Declined:**
+- **A stackless transform of Novis functions.** It would shrink a task to a few hundred bytes, which
+  is how async languages reach their concurrency counts, but it colours every function that can
+  suspend, and the colour reaches the language surface: a `Core` member that reads a socket would
+  need a form ordinary code cannot call.
+
+<sub>See also [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled). Decided in [0132](../decisions/0132.md).</sub>
 
 <a id="concurrency-a-task-stack-is-reserved-wide-and-pooled"></a>
 
@@ -1872,12 +1886,15 @@ handlers touched.
 
 The reservation is charged to the request that owns the task, and it is the *reservation* that enters
 a worker's admission arithmetic, because address space is the resource an admission decision can count
-ahead of time.
+ahead of time. Resident growth is bounded by the recursion limit that already bounds how deep a task
+may go ([`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack)).
 
-Stacks are pooled per worker and bounded by that worker's in-flight cap. A stack is an `mmap` or
-`VirtualAlloc` pair, which is the wrong thing to do per request on a hot path, so a freed stack goes
-back to the pool and is handed to the next task. The pool can never hold more stacks than the worker
-has admitted tasks, which is the O(in-flight) shape [`programs/memory-priority`](programs.md#programs-memory-priority) asks for.
+Stacks are pooled per worker. A stack is an `mmap` or `VirtualAlloc` pair, which is the wrong thing
+to do per request on a hot path, so a freed stack goes back to the pool and is handed to the next
+task. The pool never holds more stacks than the worker has had tasks in flight at once, and it keeps
+at most 1024 idle; a stack freed past that is handed back to the operating system, so one burst does
+not leave its stacks resident for the life of the worker. That is the O(in-flight) shape
+[`programs/memory-priority`](programs.md#programs-memory-priority) asks for.
 
 A parse whose native recursion depth is set by its input, such as `Core\Json::decode` at its 1024-level
 ceiling, runs on the worker thread's one **spare stack**, 8 MiB reserved, and never on the task's
@@ -1886,7 +1903,11 @@ sizes, so the task's stack cannot promise room for such a parse. The spare stack
 worker thread, O(workers), and the pages the deepest parse touched stay resident for the life of the
 thread. Code on it never calls compiled Novis code, whose recursion limit is armed for the task's stack.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../decisions/0115.md).</sub>
+- **Memory:** each task in flight reserves 1 MiB of address space, charged to its request, and keeps
+  resident only the pages its frames touched. Each worker also holds up to 1024 idle reservations
+  between tasks, and each worker thread one 8 MiB spare stack.
+
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream).</sub>
 
 <a id="concurrency-a-tasks-recursion-limit-comes-from-its-own-stack"></a>
 
@@ -1904,4 +1925,4 @@ between the soft recursion limit and the hard floor ([`errors/on-limit`](errors.
 several times that reserve before the two numbers are coherent — which is why a 64 KiB stack is
 rejected on arithmetic rather than on taste.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled). Decided in [0115](../decisions/0115.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled).</sub>

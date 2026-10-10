@@ -87,8 +87,9 @@ immutable and therefore shared across all cores through `Arc` with no copying.
 `a_helper_can_suspend_with_jit_frames_live_above_it` and `a_coroutine_round_trip_stays_cheap` in
 [`benches/abi-probe`](../../benches/abi-probe/). The decisive property is the absence of *function
 colouring*: any Novis function may perform I/O and yield without being marked `async`, so converted PHP call
-chains become concurrent with no rewriting. The cost is a stack per in-flight task (default 64 KiB,
-configurable, grown lazily) and a small audited unsafe core for stack switching, taken as a dependency
+chains become concurrent with no rewriting. The cost is a stack per in-flight task (1 MiB of
+reserved address space, resident only in the pages it touches,
+`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`) and a small audited unsafe core for stack switching, taken as a dependency
 (`corosensei`) rather than hand-rolled. The memory is paid deliberately, under
 `rule:programs/memory-priority`.
 

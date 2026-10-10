@@ -2,8 +2,7 @@
   "title": "Where a drive parks is decided once when it starts, and off a core it blocks the thread",
   "status": "shipped",
   "because": [
-    "0138",
-    "0115"
+    "0138"
   ],
   "seeAlso": [
     "concurrency/one-future-per-connection",

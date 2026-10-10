@@ -37,7 +37,8 @@ corosensei.workspace = true
 core_affinity.workspace = true
 # Readiness, one contract over epoll/kqueue/AFD. Not an async runtime — the
 # workspace `Cargo.toml`'s comment above this dependency answers `rule:packaging/a-c-dependency-answers-two-questions`'s
-# two questions, and ADR 0115 § 1 says why a poller is not a `tokio`.
+# two questions, and `rule:concurrency/the-reactor-reports-readiness` says
+# why a poller is not a `tokio`.
 mio.workspace = true
 # TLS, as a wrapper over the stream above rather than a transport beside it —
 # `src/tls.rs` is the whole of it and its module doc owns the trust anchor

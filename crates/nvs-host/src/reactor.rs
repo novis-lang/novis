@@ -1,10 +1,12 @@
 //! Readiness for one core: `mio` underneath, [`TaskId`] on top.
 //!
-//! `rule:concurrency/the-reactor-reports-readiness`
-//! is this module's specification — § 1 for why the mechanism is readiness on
-//! all three platforms and why a poller is not the async runtime the goal's
-//! standing decisions forbid, § 2 for the five-rule parking contract this file
-//! implements. What follows is only what a reader of *this* code needs.
+//! Two rules are this module's specification:
+//! `rule:concurrency/the-reactor-reports-readiness` for why the mechanism is
+//! readiness on all three platforms and why a poller is not the async runtime
+//! the goal's standing decisions forbid, and
+//! `rule:concurrency/the-parking-contract` for the five-rule parking contract
+//! this file implements. What follows is only what a reader of *this* code
+//! needs.
 //!
 //! # The contract, as it appears here
 //!

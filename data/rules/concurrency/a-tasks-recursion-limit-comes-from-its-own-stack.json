@@ -1,9 +1,7 @@
 {
   "title": "A task's recursion limit is armed from the real bounds of the stack it was handed",
   "status": "shipped",
-  "because": [
-    "0115"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/on-limit",
     "concurrency/a-task-stack-is-reserved-wide-and-pooled"

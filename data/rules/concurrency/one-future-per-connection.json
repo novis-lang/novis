@@ -2,8 +2,7 @@
   "title": "A connection is one future, driven to completion by the coroutine that owns it",
   "status": "shipped",
   "because": [
-    "0138",
-    "0115"
+    "0138"
   ],
   "seeAlso": [
     "concurrency/a-waker-is-one-permission-to-poll",

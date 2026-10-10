@@ -1772,7 +1772,7 @@ The bound is stated because the default it replaces is not: an unbounded pool of
   but it is a second I/O model on one platform only, in a workspace that keeps its runtime dependency
   surface narrow. Simplicity outweighs it until a measurement says otherwise.
 
-<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0115](../decisions/0115.md).</sub>
+<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="http-server-a-wedged-core-is-detected-by-its-deadline"></a>
 
@@ -1822,7 +1822,7 @@ The case it answers: a request hangs on something slow and the user closes the t
 
 After the response is on the wire, the connection's end means nothing to the request — the tree outlives it for exactly the work [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) admits, which a detached request reaches as an attached one does.
 
-<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0115](../decisions/0115.md), [0265](../decisions/0265.md).</sub>
+<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0265](../decisions/0265.md).</sub>
 
 <a id="http-server-every-deadline-is-monotonic"></a>
 
