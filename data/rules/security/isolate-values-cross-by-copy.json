@@ -1,9 +1,7 @@
 {
   "title": "A value crosses an isolate boundary as one graph copy, and a callable, an alias or a host handle does not cross at all",
   "status": "shipped",
-  "because": [
-    "0116"
-  ],
+  "because": [],
   "seeAlso": [
     "security/isolate-shares-nothing",
     "security/secret-crosses-no-boundary",

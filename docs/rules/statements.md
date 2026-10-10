@@ -476,7 +476,7 @@ aliases the request's static-property base rather than freshening it, and a chil
 would give one request two copies of every static. Collapsing both into one helper with a flag would leave
 the next field added to the context classified by whoever adds it rather than by whoever needs it fresh.
 
-<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0116](../decisions/0116.md).</sub>
+<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
 <a id="statements-no-host-populated-variables"></a>
 

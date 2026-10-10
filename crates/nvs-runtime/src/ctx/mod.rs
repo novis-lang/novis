@@ -1487,8 +1487,9 @@ pub struct Ctx {
     /// first time something asks, which is a subscribe or a delivery and
     /// therefore a connection.
     deliveries: Option<std::rc::Rc<crate::peer::Inbox>>,
-    /// Every object this context has allocated and not yet dismantled — ADR
-    /// 0116 § 2's live list, whose sweep in [`Drop`] reclaims the cyclic graph
+    /// Every object this context has allocated and not yet dismantled — the
+    /// live list of `rule:security/isolate-teardown-is-a-drain-then-a-sweep`,
+    /// whose sweep in [`Drop`] reclaims the cyclic graph
     /// the root drain could not. [`crate::object`]'s own docs are the home of
     /// the mechanism and of what it spends, including why the list is a
     /// separate allocation rather than a word of this struct.

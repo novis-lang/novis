@@ -1,9 +1,7 @@
 {
   "title": "A request and everything it spawns share one budget, accounted at the tree's root",
   "status": "shipped",
-  "because": [
-    "0116"
-  ],
+  "because": [],
   "seeAlso": [
     "security/isolate-shares-nothing",
     "security/arena-is-an-ownership-root",

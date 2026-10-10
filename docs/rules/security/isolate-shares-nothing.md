@@ -35,6 +35,9 @@ compilation at all.
   allocates, held until it ends and charged to the root's budget. Concurrent isolates each hold their
   own arena, so a tree's peak is the sum over its live isolates, under the root's cap. A finished
   isolate's arena is released wholesale, so nothing grows with the number of isolates ever spawned.
+  A crossing holds one hash-map entry per distinct object in the graph being copied, for the length
+  of that one copy. Compiled code costs nothing per isolate: ten thousand isolates of one file
+  compile it once.
 
 **Declined:**
 - **Running another `nvs` process.** It pays the process cost and the ambient authority above. A program

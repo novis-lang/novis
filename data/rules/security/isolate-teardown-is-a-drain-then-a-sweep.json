@@ -2,7 +2,6 @@
   "title": "An isolate ends by draining its roots through the one release worklist and then sweeping what a cycle held up",
   "status": "shipped",
   "because": [
-    "0116",
     "0274"
   ],
   "seeAlso": [
@@ -10,6 +9,8 @@
     "programs/memory-priority"
   ],
   "guardedBy": [
-    "crates/nvs-runtime/src/object.rs"
+    "crates/nvs-runtime/src/object.rs",
+    "examples/isolate.nvs",
+    "examples/cycles.nvs"
   ]
 }

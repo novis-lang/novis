@@ -48,6 +48,9 @@ compilation at all.
   allocates, held until it ends and charged to the root's budget. Concurrent isolates each hold their
   own arena, so a tree's peak is the sum over its live isolates, under the root's cap. A finished
   isolate's arena is released wholesale, so nothing grows with the number of isolates ever spawned.
+  A crossing holds one hash-map entry per distinct object in the graph being copied, for the length
+  of that one copy. Compiled code costs nothing per isolate: ten thousand isolates of one file
+  compile it once.
 
 **Declined:**
 - **Running another `nvs` process.** It pays the process cost and the ambient authority above. A program
@@ -79,7 +82,7 @@ compilation at all.
 - **Persistent isolates reused across requests.** Warm state is attractive, and it contradicts
   shared-nothing directly ([`security/no-cross-request-state`](security.md#security-no-cross-request-state)).
 
-<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0116](../decisions/0116.md).</sub>
+<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics).</sub>
 
 <a id="security-isolate-values-cross-by-copy"></a>
 
@@ -99,6 +102,17 @@ object whose class the receiving side cannot resolve is refused with a diagnosti
 never degraded into a stub. A `secret`-typed property is refused there too
 ([`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary)).
 
+A value crosses exactly twice, and both crossings are the same walk. In, at the spawn, the `args:`
+value crosses from the parent's ownership root into the child's. Out, at the `await`, the child's
+top-level return value, its captured output and, on failure, its error as data cross back. Nothing
+else moves: the parent's output buffer, the backing state of its request accessor classes
+([`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)) and any open handle are not reachable from the child's
+root, and neither crossing makes them reachable.
+
+The out crossing runs before the child's root is released. Both contexts allocate from the same place
+([`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root)), so a move at refcount 1 is a pointer handoff with no copy
+and no bookkeeping, and a child returning a large array costs the walk and not the array.
+
 There is one walk and one set of refusals, which is why it is the audited surface. Two boundaries
 with different value rules would be two sets of rules for a developer to learn and two implementations
 to keep correct, and a refusal at the boundary is a diagnostic where the mistake was made rather than a
@@ -107,7 +121,7 @@ walk is the same but the **move is not available**: refcounts are non-atomic bec
 reachable from one core only, so a cross-core crossing copies at every node. That cost belongs to the
 placement option, not to the boundary.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0116](../decisions/0116.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root).</sub>
 
 <a id="security-isolate-budget-is-the-trees"></a>
 
@@ -141,7 +155,7 @@ naming the directive, and never by a page fault at an address nobody chose
   is not that case: the connection ends there and the request tree does not
   ([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)).
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0116](../decisions/0116.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit).</sub>
 
 <a id="security-isolate-failure-is-a-value"></a>
 
@@ -205,11 +219,23 @@ native drop runs on the way. A cancelled isolate takes the same path and no othe
 The drain frees only what the refcounts say is dead, and a cycle's members hold each other above zero.
 An object is the one shape that can close a cycle, so the drain is followed by a **sweep** over the
 context's intrusive live list. The sweep first tallies, per member, how many references come from
-another member's field slot; a member the tally does not exactly account for is reachable from outside
+another member's field slot or from an array that member solely owns; a member the tally does not exactly account for is reachable from outside
 and is left alone, along with everything under it. Freeing memory somebody still holds is a
 use-after-free, so security decides a question memory footprint would have answered the other way.
+A survivor is taken off the list, because the list dies with the context and the object does not.
+Only the remainder is dismantled, through the same worklist, so native teardown runs there too.
 
-<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0274](../decisions/0274.md).</sub>
+The sweep is an obligation, not an option. Without it a cyclic object graph would be retained for the
+life of the process, and in the server that is a leak growing with requests served. The tally reads
+an array only when one member solely owns it; the elements of a shared array read as held from
+outside, so a cycle whose only closing edge runs through one survives the sweep rather than risk a
+use-after-free. `crates/nvs-runtime/src/object.rs` is the mechanism's one home.
+
+- **Memory:** reclamation is O(live values), not the O(1) of unmapping a region; in exchange the drain
+  is the runtime's only reclamation path, so it is the only one that can be wrong. The sweep spends two
+  pointers per live object and a few non-atomic stores at each object's allocation and death.
+
+<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="security-arena-is-an-ownership-root"></a>
 
@@ -230,7 +256,35 @@ reuse what it freed, so a loop appending to a string would make the footprint O(
 O(live), which [`programs/memory-priority`](programs.md#programs-memory-priority) calls a leak; and the latency a region is reached for
 is already collected by the pooled allocator.
 
-<sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0116](../decisions/0116.md).</sub>
+Entering an isolate is a context construction and a pooled stack, with no mapping call in it, so
+spawn-to-result for a trivial child stays in microseconds. A region would put a map and an unmap on
+every isolate, which for a trivial child is most of its lifetime. Because both sides allocate from the
+same place, a move at refcount 1 across the boundary can hand the allocation over without copying it
+([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)).
+
+With no address range to fall back on, the graph copy is the only way state can bleed between
+isolates. That concentrates the audit in one file with one test suite, rather than spreading an
+invariant across every allocation site, and it is why [`classes/graph-copy`](classes.md#classes-graph-copy)'s one operation with
+two carriers carries weight here.
+
+**Declined:**
+- **A bump-pointer region per isolate, reclaimed with one call.** It skips native teardown, its
+  footprint tracks work done rather than live data, and it competes for a latency win the pooled
+  allocator has already taken.
+- **A separate allocator instance per isolate.** It costs a pointer in the context and a load on every
+  allocation to buy accounting that arithmetic at the allocation site already gives
+  ([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)), and it fragments the per-thread cache that made the
+  allocator worth having.
+- **An arena pointer in the context.** Compiled code loads the context's fields at fixed offsets, so a
+  new field is an ABI change, and once the arena is an ownership root there is nothing for it to point
+  at.
+- **Segregating isolates by address range and checking pointers at the boundary.** A check cheap enough
+  for the request path can only ask which region an address is in. It cannot see that a property is
+  `secret` or that a class is unresolvable on the far side, and the walk answers all three in one pass.
+- **An OS process per isolate.** It is the one design that gives an unreachable address range for free,
+  and it pays the cost and the ambient authority [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing) declines.
+
+<sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees).</sub>
 
 <a id="security-one-isolation-implementation"></a>
 
@@ -248,7 +302,7 @@ state-bleed suite for isolates, and a fix on either path cannot forget the other
 property a second implementation would quietly give up, since two isolation mechanisms are two places
 for the same bug to be fixed once.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0116](../decisions/0116.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root).</sub>
 
 <a id="security-script-spawn-capability"></a>
 
@@ -1875,7 +1929,7 @@ cost of keeping one copy operation rather than two.
   isolate.** It splits the one graph copy into two operations with two behaviours to keep correct
   ([`classes/two-copy-depths`](classes.md#classes-two-copy-depths)).
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0116](../decisions/0116.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="security-secret-comparison-is-constant-time"></a>
 
