@@ -338,6 +338,8 @@ export interface Scenario {
   copy?: boolean;
   /** The backend container's memory cap, for a row whose program allocates without end. */
   memory?: string;
+  /** The backend's cpus, for a row that needs more than the run's budget. */
+  cpus?: number;
   /** The result of a peer that has nothing to run for this row, with the documentation that says so. */
   fixed?: Record<string, RowResult>;
   /** A row about requests: sent to one stack the driver brings up. */
@@ -441,12 +443,36 @@ export function runawayResult(load: Steady, loop: Stopped, alloc: Stopped, runni
  * admits only as many requests as the container's memory affords at `memory` each, so the value leaves
  * room for the row's load and its two runaways: at `64M` a 512 MiB container admits six.
  */
-export const RUNAWAY_LIMITS: Record<string, { edit: string[]; name: string }> = {
-  nvs: {
-    edit: ["sed", "-i", '/^\\[limits\\]$/,/^\\[/{s|^#memory = .*|memory = "16M"|;s|^#cpu_time = .*|cpu_time = "1s"|}', "/usr/local/bin/.nvsdata/nvs.toml"],
-    name: "[limits]",
-  },
+export const RUNAWAY_LIMITS: Record<string, TableEdit> = {
+  nvs: { table: "limits", set: { memory: '"16M"', cpu_time: '"1s"' }, name: "[limits]" },
 };
+
+/**
+ * Keys a row sets in one table of the Novis data folder's `nvs.toml`. The shipped file has each key
+ * commented out inside its table, and the same key may be commented out in another table too, so the
+ * edit uncomments it only between the table's header and the next one.
+ */
+export interface TableEdit {
+  table: string;
+  set: Record<string, string>;
+  /** The setting's name in the row. */
+  name: string;
+}
+
+/** The command that makes `edit` inside the Novis container. */
+export function tableEditCommand(edit: TableEdit): string[] {
+  const header = edit.table.replaceAll(".", "\\.");
+  const subs = Object.entries(edit.set).map(([key, value]) => `s|^#${key} = .*|${key} = ${value}|`);
+  return ["sed", "-i", `/^\\[${header}\\]$/,/^\\[/{${subs.join(";")}}`, "/usr/local/bin/.nvsdata/nvs.toml"];
+}
+
+/** Makes `edit` in the running Novis container and waits until `nvs serve` has reloaded it. */
+async function applyTableEdit(p: Probe, edit: TableEdit): Promise<void> {
+  const command = tableEditCommand(edit);
+  const wrote = p.exec(command);
+  if (wrote.code !== 0) throw new Fail(`${command.join(" ")}: ${wrote.output}`);
+  if ((await logUntil(p, "configuration reloaded")) === null) throw new Fail(`${edit.name} was written, and the configuration was not reloaded`);
+}
 
 /** Sends one runaway request and waits up to `RUNAWAY_WAIT_MS` for its reply. */
 async function stoppedAt(p: Probe, path: string): Promise<Stopped> {
@@ -577,6 +603,49 @@ export const CONFIG_CHANGES: Record<string, ConfigChange> = {
   },
 };
 
+/** The parts one request of the parallel row splits its work into, and the backend cpus it has for them. */
+export const PARALLEL_PARTS = 4;
+
+/** The loop turns in one part: enough that a part takes far longer than starting a thread or a child. */
+export const PARALLEL_TURNS = 200_000_000;
+
+/** Requests the parallel row sends at each part count. The fastest one counts. */
+export const PARALLEL_TRIES = 3;
+
+/** The speedup over doing the parts one after another below which a peer is not using the cores. */
+export const PARALLEL_SPEEDUP = 2;
+
+/** How each peer's program runs its parts at once, where it can. */
+export const PARALLEL_WAY: Record<string, string> = { nvs: 'spawn script … on: "worker"', bun: "Worker", go: "goroutines" };
+
+/** The setting a peer needs before its program may run a part elsewhere. Novis denies `spawn script` by default. */
+export const PARALLEL_GRANT: Record<string, TableEdit> = {
+  nvs: { table: "capabilities.script", set: { spawn: "true" }, name: "[capabilities.script] spawn" },
+};
+
+/**
+ * `four` is the seconds for `PARALLEL_PARTS` parts, `one` for one part. A speedup of `PARALLEL_SPEEDUP` or
+ * more over running them one after another is built in, or `one-setting` where the peer needs a setting.
+ * Less than that is `no`.
+ */
+export function parallelResult(one: number, four: number, way: string | undefined, setting: string | undefined): RowResult {
+  const speedup = Number(((PARALLEL_PARTS * one) / four).toFixed(2));
+  const evidence = { seconds_1_part: one, seconds_4_parts: four, speedup, way: way ?? null };
+  if (!(speedup >= PARALLEL_SPEEDUP)) return { result: "no", evidence };
+  return setting === undefined ? { result: "built-in", evidence } : { result: "one-setting", setting, evidence };
+}
+
+/** The fewest seconds `PARALLEL_TRIES` requests for `parts` parts took, each checked to answer `200`. */
+async function fastest(p: Probe, parts: number): Promise<number> {
+  let best = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < PARALLEL_TRIES; i++) {
+    const start = performance.now();
+    ok(await p.get(`/?parts=${parts}&turns=${PARALLEL_TURNS}`), `${parts} parts`);
+    best = Math.min(best, (performance.now() - start) / 1000);
+  }
+  return Number(best.toFixed(3));
+}
+
 /** A peer whose response headers are written in the program, with no config file that sets them. */
 const headersInCode: RowResult = { result: "your-code", evidence: { config_file: "none", headers_set_in: "the program" } };
 
@@ -625,11 +694,7 @@ export const SCENARIOS: Scenario[] = [
     memory: RUNAWAY_MEMORY,
     probe: async (p) => {
       const limits = RUNAWAY_LIMITS[p.peer];
-      if (limits !== undefined) {
-        const wrote = p.exec(limits.edit);
-        if (wrote.code !== 0) throw new Fail(`${limits.edit.join(" ")}: ${wrote.output}`);
-        if ((await logUntil(p, "configuration reloaded")) === null) throw new Fail(`${limits.name} was written, and the configuration was not reloaded`);
-      }
+      if (limits !== undefined) await applyTableEdit(p, limits);
       ok(await p.get("/"), "the first request");
       const load = p.steady("/", RUNAWAY_LOAD_SECONDS);
       await Bun.sleep(RUNAWAY_START_MS);
@@ -702,6 +767,18 @@ export const SCENARIOS: Scenario[] = [
     tree: "cases",
     case: "wait",
     timed: async (t) => waitingResult(await t.pass(1), Math.min(t.requests, t.concurrency), WAITING_SETTING[t.peer]),
+  },
+  {
+    id: "parallel",
+    tree: "scenarios",
+    case: "parallel",
+    cpus: PARALLEL_PARTS,
+    probe: async (p) => {
+      const grant = PARALLEL_GRANT[p.peer];
+      if (grant !== undefined) await applyTableEdit(p, grant);
+      const one = await fastest(p, 1);
+      return parallelResult(one, await fastest(p, PARALLEL_PARTS), PARALLEL_WAY[p.peer], grant?.name);
+    },
   },
   {
     id: "live-edit",
@@ -1118,7 +1195,7 @@ async function scenarios(o: Options, cpus: number, commit: string, load: Load): 
     const byPeer = new Map<string, RowResult>();
     for (const peer of PEERS) {
       console.log(`  ${s.id}: ${peer.label} ...`);
-      byPeer.set(peer.id, await scenarioPass(peer, s, { cpus, concurrency: SCENARIO_CONCURRENCY, tree: s.tree, case: s.case, commit, memory: s.memory }, load));
+      byPeer.set(peer.id, await scenarioPass(peer, s, { cpus: s.cpus ?? cpus, concurrency: SCENARIO_CONCURRENCY, tree: s.tree, case: s.case, commit, memory: s.memory }, load));
     }
     console.log(rowLine(s.id, byPeer));
     for (const peer of PEERS) {

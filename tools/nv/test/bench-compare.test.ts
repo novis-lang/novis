@@ -23,6 +23,9 @@ import {
   PEERS,
   type PeerResult,
   phpChildren,
+  PARALLEL_GRANT,
+  PARALLEL_PARTS,
+  parallelResult,
   RUNAWAY_LIMITS,
   rowLine,
   type RowResult,
@@ -30,6 +33,8 @@ import {
   SCENARIOS,
   stackEnv,
   steadyResult,
+  type TableEdit,
+  tableEditCommand,
   waitingResult,
 } from "../cmd/bench-compare.ts";
 
@@ -149,7 +154,7 @@ describe("the feature scenarios", () => {
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "isolation", "runaway", "crash", "escape", "taint", "secret", "csrf", "headers", "waiting", "live-edit", "config"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "isolation", "runaway", "crash", "escape", "taint", "secret", "csrf", "headers", "waiting", "parallel", "live-edit", "config"]);
   });
 
   test("every row either probes a stack or times a case, never both, and a timed row names a case", () => {
@@ -270,11 +275,35 @@ describe("the feature scenarios", () => {
     });
   });
 
-  test("the runaway limits are uncommented inside the `[limits]` table and nowhere else", () => {
+  // What the `sed` range `/^\[table\]$/,/^\[/` of `tableEditCommand` changes, so the shipped file is
+  // checked without a `sed` on the host: from the table's header to the next header, each `#key = `
+  // line becomes `key = value`.
+  const editedLines = (shipped: string, edit: TableEdit): string[] => {
+    const lines = shipped.split("\n");
+    const start = lines.indexOf(`[${edit.table}]`);
+    if (start < 0) return [];
+    const after = lines.slice(start + 1).findIndex((line) => line.startsWith("["));
+    const end = after < 0 ? lines.length : start + 1 + after;
+    return lines
+      .slice(start, end + 1)
+      .flatMap((line) => Object.entries(edit.set).filter(([key]) => line.startsWith(`#${key} = `)).map(([key, value]) => `${key} = ${value}`));
+  };
+
+  test("a table edit uncomments each key inside its own table and nowhere else", () => {
     const shipped = readFileSync(join(import.meta.dir, "..", "..", "..", "crates", "nvs-config", "src", "default.toml"), "utf8");
-    const out = Bun.spawnSync(["sed", RUNAWAY_LIMITS.nvs!.edit[2]!], { stdin: Buffer.from(shipped) }).stdout.toString();
-    const changed = out.split("\n").filter((line, i) => line !== shipped.split("\n")[i]);
-    expect(changed).toEqual(['memory = "16M"', 'cpu_time = "1s"']);
+    expect(editedLines(shipped, RUNAWAY_LIMITS.nvs!)).toEqual(['memory = "16M"', 'cpu_time = "1s"']);
+    expect(editedLines(shipped, PARALLEL_GRANT.nvs!)).toEqual(["spawn = true"]);
+    expect(tableEditCommand(PARALLEL_GRANT.nvs!)[2]).toBe("/^\\[capabilities\\.script\\]$/,/^\\[/{s|^#spawn = .*|spawn = true|}");
+  });
+
+  test("parallel is built in from twice the speed of parts run one after another, and names the setting it needs", () => {
+    expect(parallelResult(1, 1.2, "goroutines", undefined)).toEqual({
+      result: "built-in",
+      evidence: { seconds_1_part: 1, seconds_4_parts: 1.2, speedup: 3.33, way: "goroutines" },
+    });
+    expect(parallelResult(1, 1.5, "spawn", "[capabilities.script] spawn")).toMatchObject({ result: "one-setting", setting: "[capabilities.script] spawn" });
+    expect(parallelResult(1, PARALLEL_PARTS, undefined, undefined).result).toBe("no");
+    expect(parallelResult(1, 2.1, "Worker", undefined).result).toBe("no");
   });
 
   test("a crash is survived when the next request is answered and the backend is still up", () => {

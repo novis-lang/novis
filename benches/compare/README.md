@@ -134,6 +134,14 @@ escape, the developer calls an escaper, so the result is `your-code` and not `no
   `pm.max_children`, whose default pool is a handful of workers. Any other answer is `no`. The memory
   per request is `memory.peak` less the idle `memory.current`, over the requests in flight at once,
   which is the concurrency or the run's `--requests` if that is smaller.
+- `parallel` gives the backend four cpus whatever the run's budget. It sends `?parts=1` and then
+  `?parts=4`, three times each, and keeps the fastest of each. One part is the same integer loop in
+  every program, long enough that starting a thread or a child is a small share of it. With four
+  parts, Go starts goroutines, Bun starts `Worker` threads and Novis spawns child scripts
+  `on: "worker"`. PHP-FPM has no way to do it, so its parts run one after another. A speedup of 2x
+  or more over four parts in a row is `built-in`. Novis denies `spawn script` by default, so it
+  writes `spawn = true` in its `[capabilities.script]` table first and is `one-setting`. Less than
+  2x is `no`.
 - `live-edit` serves a copy of its folder under `generated/`, changes `version 1` to `version 2` in
   the copy, and polls for 20 seconds. The stacks run in their production setting, so PHP's opcache
   does not check timestamps and Bun runs without `--hot`. An edit that never shows is
