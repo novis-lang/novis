@@ -112,8 +112,21 @@ deleted, `bun nv links` is green, and so are `bun nv verify` and `looper lint`.
 
 ### State
 
-**Goal `nv-loop-retired` has not started.** It runs first under looper, after goal `looper-cutover`'s
-handover. Nothing of it has landed.
+**Stage 1 is blocked on the user: both its checks need a change to `.claude/settings.json`.**
+`looper.toml`'s `[sync] skip` no longer lists that file. `bun nv verify` is green again: the handover's
+deletion of `data/chain.json` had turned `tools/nv/test/surfaces.test.ts`'s `loop --list` test red,
+and `crates/nvs-stdlib/tests/spec_registry_coverage.rs` panicked reading the file. That test now reads
+the chain from `docs/goals/README.md`'s front matter (`chain()`), and the `loop --list` test is gone.
+
+- `looper doctor` fails on `.claude/settings.json:201`, `Bash(bunx tsc:*)`: `bunx` is not on PATH here,
+  and nothing in the tree runs it. `Bash(bun x tsc:*)` replaces it, and `looper sync` writes that entry.
+- `looper lint` and `looper sync --check` fail because the handover wrote only `Bash(looper:*)`,
+  `PowerShell(looper:*)` and the `looper guard` hook. Looper's template also wants its per-command
+  `looper` entries, `bun install`, `bun run`, `bun x tsc`, `cargo run`, `cargo tree` and
+  `cargo metadata`, for both shells.
+
+**The user's fix:** run `looper sync`, delete the `Bash(bunx tsc:*)` line, and commit
+`.claude/settings.json`. Then `looper doctor` and `looper lint` are expected to pass (*not checked*).
 
 **For the user: `.claude/settings.json` loses entries in Stage 3.** Once the seven loop commands are
 deleted, its `bun nv` allow entries for `chain`, `goal`, `loop`, `loop-stats`, `orient`, `playbook` and
@@ -125,10 +138,18 @@ file, so removing them is the user's change.
 **Stage 1: the first session under looper is the proof** — one file set: `looper.toml`,
 `docs/agent/looper-cutover.md`.
 
-- [ ] **The proof** — the runbook's § 7 steps 2 and 3, `docs/agent/looper-cutover.md:1`, then `looper doctor`.
+- [x] **The proof** — this session ran under looper, and `looper verify` is green.
+- [x] **The `[sync] skip` line** for `.claude/settings.json` is deleted from `looper.toml`.
+- [ ] **`looper doctor` and `looper lint`** — run both once the user's fix to `.claude/settings.json:201`
+  above lands. Then set
+  stage 1's status to `done`.
+
+**Then Stage 2: the readers** — `docs/agent/looper-cutover.md:117-149` names each one. Still open
+there: `crates/nvs-ir/tests/refusals.rs:95` (`HOLES_READS` lists `data/chain.json` and `data/goals`),
+`tools/nv/lib/chain.ts`, and the tests that read the chain.
 
 ### Backlog
 
-- Stage 2: the readers of the old goal data, and the playbook trailers.
+- Stage 2: the rest of the readers of the old goal data, and the playbook trailers.
 - Stage 3: the deletes.
 - Stage 4: the docs.

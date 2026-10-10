@@ -40,7 +40,6 @@ paths = [
 
 [sync]
 skip = [
-  ".claude/settings.json",  # only the old driver's handover writes it; goal `nv-loop-retired` drops this line
   "docs/decisions/README.md",
   "docs/agent/commands.md",
   "docs/agent/conventions.md",
