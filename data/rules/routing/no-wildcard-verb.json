@@ -2,7 +2,6 @@
   "title": "There is no wildcard verb: `method` is required, singular, and one case of a closed enum",
   "status": "shipped",
   "because": [
-    "0110",
     "0102",
     "0096"
   ],

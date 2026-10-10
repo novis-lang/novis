@@ -2,7 +2,6 @@
   "title": "A shared name is one `url()` target, one `Match::name` for every verb, and one `operationId` per verb",
   "status": "shipped",
   "because": [
-    "0110",
     "0102"
   ],
   "seeAlso": [
@@ -11,5 +10,7 @@
     "routing/an-absolute-link-takes-a-configured-origin",
     "routing/link-name-and-params-are-checked"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/core/a-match-answers-the-verb-that-matched-where-one-method-serves-two.nvst"
+  ]
 }

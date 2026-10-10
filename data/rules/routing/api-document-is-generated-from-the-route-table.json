@@ -2,8 +2,7 @@
   "title": "The API document is generated from the route table while compiling, so it cannot drift from the code",
   "status": "shipped",
   "because": [
-    "0102",
-    "0110"
+    "0102"
   ],
   "seeAlso": [
     "routing/api-document-is-a-deterministic-build-artifact",

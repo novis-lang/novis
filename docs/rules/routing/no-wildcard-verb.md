@@ -19,3 +19,7 @@ was wanted for — one name, one `url()` target, one metrics series. What it doe
 *line*, and that is the point: each verb a route answers stays visible at the declaration, where
 `methodsFor` and the CSRF classification read it. A method serving a safe and an unsafe verb carries
 one `#[Access]` for both, and the CSRF check is still per verb from that one declaration.
+
+**Declined:**
+- **A `methods: array<Method>` field on the attribute.** It gives one route two syntaxes and makes the
+  repeatable attribute redundant (`rule:routing/route-attribute`).

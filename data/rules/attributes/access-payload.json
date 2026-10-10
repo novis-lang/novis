@@ -2,8 +2,7 @@
   "title": "`#[Access]` names one resolvable decision in `allow`, and one of them covers a method",
   "status": "shipped",
   "because": [
-    "0096",
-    "0110"
+    "0096"
   ],
   "seeAlso": [
     "attributes/access-is-a-required-sibling",

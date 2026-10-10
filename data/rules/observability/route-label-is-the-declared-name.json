@@ -2,8 +2,7 @@
   "title": "The `route` label carries the route's declared name, never the request path, and a route without one has no label",
   "status": "shipped",
   "because": [
-    "0102",
-    "0110"
+    "0102"
   ],
   "seeAlso": [
     "observability/default-series",

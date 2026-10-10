@@ -2,7 +2,6 @@
   "title": "`#[Route]` is `{path, method, name?}` on a method, recognized by name and never by shape",
   "status": "shipped",
   "because": [
-    "0110",
     "0102"
   ],
   "seeAlso": [

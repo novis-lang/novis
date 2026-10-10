@@ -329,7 +329,7 @@ readings — conjunction or disjunction — and choosing between them silently i
 prevents. A method carrying several `#[Route]` attributes still carries one `#[Access]`, covering all
 of them.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0096](../decisions/0096.md), [0110](../decisions/0110.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0096](../decisions/0096.md).</sub>
 
 <a id="attributes-a-deprecation-names-its-replacement-as-code"></a>
 

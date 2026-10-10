@@ -44,7 +44,7 @@ costs nothing.
   on `string`. It brings order-dependence back and makes the duplicate check partial rather than
   total.
 
-<sub>See also [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0102](../decisions/0102.md), [0110](../decisions/0110.md).</sub>
+<sub>See also [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-route-attribute"></a>
 
@@ -87,7 +87,7 @@ cheap to add is how an attribute set becomes an undocumented second language sur
 - **A `host` field.** A hostname in the compiled table would end the relocatability mounts buy
   ([`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount)).
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb). Decided in [0110](../decisions/0110.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-path-grammar"></a>
 
@@ -150,7 +150,11 @@ was wanted for — one name, one `url()` target, one metrics series. What it doe
 `methodsFor` and the CSRF classification read it. A method serving a safe and an unsafe verb carries
 one `#[Access]` for both, and the CSRF check is still per verb from that one declaration.
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path). Decided in [0110](../decisions/0110.md), [0102](../decisions/0102.md), [0096](../decisions/0096.md).</sub>
+**Declined:**
+- **A `methods: array<Method>` field on the attribute.** It gives one route two syntaxes and makes the
+  repeatable attribute redundant ([`routing/route-attribute`](routing.md#routing-route-attribute)).
+
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`routing/a-refused-verb-is-not-a-missing-path`](routing.md#routing-a-refused-verb-is-not-a-missing-path). Decided in [0102](../decisions/0102.md), [0096](../decisions/0096.md).</sub>
 
 <a id="routing-precedence-is-structural"></a>
 
@@ -364,7 +368,17 @@ is written on each line rather than inherited from the first: the attributes are
 payload objects, and an inheritance rule would make their order matter, which the route table's precedence
 rules exist to avoid.
 
-<sub>See also [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered). Decided in [0110](../decisions/0110.md).</sub>
+The exception costs its complexity at the diagnostic and not at the matcher: `E0749` has to say which
+condition failed and name two sites in each case.
+
+**Declined:**
+- **Inheriting the `name` from the first of the repeated attributes.** It saves characters and makes the
+  attributes' order significant, which the route table is built to avoid.
+- **A shared `name` across different paths, with `url()` taking a verb to choose between them.** Callers
+  would pass an argument for one route's shape and not another's, and `url()` would need a rule to choose
+  between two declarations, which the one-path condition exists to avoid.
+
+<sub>See also [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered).</sub>
 
 <a id="routing-a-shared-name-is-one-endpoint-everywhere"></a>
 
@@ -392,7 +406,7 @@ The route table's shape does not change: one row per `(path, method)`, with `nam
 row rather than a key into them, and the reverse index `url()` reads is built from that column.
 Runtime cost is zero and memory cost is one `?string` column's worth of repeats.
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0110](../decisions/0110.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-matching-is-not-dispatching"></a>
 
@@ -808,7 +822,7 @@ published artifact.
   is an operation with an opaque response
   ([`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact)).
 
-<sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change), [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture). Decided in [0102](../decisions/0102.md), [0110](../decisions/0110.md).</sub>
+<sub>See also [`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change), [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict), [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture). Decided in [0102](../decisions/0102.md).</sub>
 
 <a id="routing-api-document-is-a-deterministic-build-artifact"></a>
 
@@ -892,7 +906,16 @@ and `AdminUserController::listPending(Request $r)` offers `/admin-user/list-pend
 pluralized**: pluralization is English-only and irregular, and editing the inserted text is the
 point of inserting text rather than deriving a path.
 
-This is a fix, not a generator. A generator's output has to be *right*, and a URL is not
+This is a fix, not a generator. A generator's output has to be *right*
+([`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined)), and a URL is not
 type-determined by anything; this output is a starting point, read as a diff before it is accepted.
+The fix is backed by a diagnostic the checker already emits, since `path` is a required field of
+`Core\Route` ([`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion)).
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`routing/route-attribute`](routing.md#routing-route-attribute). Decided in [0110](../decisions/0110.md).</sub>
+**Declined:**
+- **Convention routing**, a `path` or `name` the compiler derives from the class and method. It makes a
+  route free to declare, and is pleasant where the URLs are nobody's API, but it welds a public interface
+  to an implementation detail. A quick fix writes the derived path once instead, and that path is real
+  text: searchable, and stable under every later rename.
+
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`routing/route-attribute`](routing.md#routing-route-attribute).</sub>
