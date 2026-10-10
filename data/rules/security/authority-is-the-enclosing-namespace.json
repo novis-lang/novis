@@ -1,9 +1,7 @@
 {
   "title": "Authority is a property of the namespace enclosing the code, never of the nesting depth or the name being called",
   "status": "designed",
-  "because": [
-    "0081"
-  ],
+  "because": [],
   "seeAlso": [
     "security/grants-are-keyed-on-a-namespace",
     "security/longest-prefix-wins",

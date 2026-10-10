@@ -16,3 +16,14 @@ than an afterthought.
 
 A minimum is a floor and never a ceiling, so the algorithm is sound only if a higher version is
 always acceptable — which is what `rule:packaging/a-breaking-release-is-a-new-name` guarantees.
+
+A graph where two packages require different minimums of a third selects the higher, and no other
+package's version changes. No manifest exists for which resolution reports a conflict.
+
+**Declined:**
+- **A solver over version ranges.** A range can say "not 2.3.1, it is broken", and every incumbent has
+  one. It brings back unsolvable graphs, slow resolution, and an error that blames the user for a
+  conflict between two libraries they never read. Retraction covers the one case a range expresses
+  that a minimum cannot (`rule:packaging/a-known-bad-version-is-retracted-not-deleted`).
+- **Exact pins only, with no minimums.** Every transitive upgrade becomes a manual sweep across the
+  whole graph, so a security patch spreads more slowly still.

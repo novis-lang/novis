@@ -97,7 +97,7 @@ that look alike are Native and Ext, and the line between them is test 1 — a co
 across requests cannot be sandboxed, because handing it a host-owned handle is writing it natively with
 extra steps.
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0081](../decisions/0081.md).</sub>
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present).</sub>
 
 <a id="core-api-tier-roster"></a>
 

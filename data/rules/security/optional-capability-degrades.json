@@ -1,9 +1,7 @@
 {
   "title": "A capability is required or optional, and only a required one refuses to build",
   "status": "designed",
-  "because": [
-    "0081"
-  ],
+  "because": [],
   "seeAlso": [
     "security/no-runtime-grant",
     "security/capability-roster-is-closed",

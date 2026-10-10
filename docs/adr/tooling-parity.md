@@ -34,7 +34,7 @@ limited to what ships; this page also carries what is only planned, which that c
 | Deptrac / phpat / PHPStan custom rules | project-specific structural rules | a `#[Test]` walking `Core\Ast` / `Core\Reflect` / `Core\Program` | `rule:tooling/reflection-and-source-parsing-are-core-features`, `rule:testing/test-attribute` | blocked; see the gaps below |
 | Faker | realistic fake data | out of scope — data, not tooling; `rule:testing/property-testing`'s generators cover the structural half | `rule:testing/property-testing` | — |
 | PHPMD / phpmetrics | complexity and "mess" metrics | none, on purpose — the type system and `--mutate` keep the part that found bugs | `rule:types/declaration`, `rule:testing/mutation-testing` | — |
-| Composer, for the dev-tools above | installing all of it | nothing to install — which is this whole page; packages proper are [0081](../decisions/0081.md) | — | — |
+| Composer, for the dev-tools above | installing all of it | nothing to install — which is this whole page; packages proper are `rule:packaging/a-package-is-its-digest` | — | — |
 
 ## Why testing needed no package
 

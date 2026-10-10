@@ -600,7 +600,7 @@ it reaches code no package manager ever touched.
 
 **Not on disk.** Nothing in the tree reads a per-namespace grant table.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../decisions/0081.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
 <a id="security-grants-are-keyed-on-a-namespace"></a>
 
@@ -652,7 +652,7 @@ covering code no package manager fetched, which is the code a package key left h
 **Not on disk.** The tree reads the deployment's capability block; it has no per-namespace grant
 table, and the diagnostics this rule needs do not exist.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins). Decided in [0081](../decisions/0081.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins).</sub>
 
 <a id="security-longest-prefix-wins"></a>
 
@@ -709,7 +709,7 @@ A discovery glob happens to skip a directory such as `vendor/` because its name 
 
 **Not on disk.** There is no fetch step and no audit that writes or checks these lines.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0081](../decisions/0081.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
 <a id="security-path-scope-canonicalise-then-prefix"></a>
 
@@ -825,7 +825,7 @@ error for a required one have no representation in the tree.
   the request path. The split keeps refusal as the default and makes degradation something an author
   asks for, per capability, in writing.
 
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0081](../decisions/0081.md).</sub>
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace).</sub>
 
 <a id="security-no-runtime-grant"></a>
 
@@ -893,9 +893,22 @@ socket, read a file, spawn a process, reach a database or spawn a script unless 
 in a grant line. The compromise of a transitive dependency degrades from *arbitrary action with the
 process's authority* to *arbitrary computation with no authority at all*.
 
+Grant lines are friction, and the friction is the point. Some users will grant everything without
+reading, the way some run containers as root; the design cannot prevent that, only make it visible and
+diffable. What it prevents is authority arriving without anybody writing anything.
+
+A package can never be the code that declares data safe. Only a `Core` member removes `tainted`
+([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), so a package can compute over a `tainted` value and return
+it still `tainted`.
+
+**Declined:**
+- **Ambient capabilities: the process is granted, and every package inherits.** That is what every
+  mainstream package system does, and it is how a compromised transitive dependency becomes a breach.
+  No incumbent can retrofit the refusal.
+
 **Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant).</sub>
 
 <a id="security-process-exec-capability"></a>
 

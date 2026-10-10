@@ -1,9 +1,7 @@
 {
   "title": "A known-bad version is retracted, never deleted, and `nvs audit` names the minimum bump that clears it",
   "status": "designed",
-  "because": [
-    "0081"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/resolution-takes-the-highest-minimum",
     "packaging/the-registry-keeps-an-append-only-log"

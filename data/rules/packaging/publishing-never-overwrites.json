@@ -1,9 +1,7 @@
 {
   "title": "`nvs publish` uploads a clean-checkout archive, and the registry never overwrites a published `name@version`",
   "status": "designed",
-  "because": [
-    "0081"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/the-registry-keeps-an-append-only-log",
     "packaging/a-git-dependency-is-root-only",

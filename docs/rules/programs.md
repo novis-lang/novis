@@ -766,7 +766,7 @@ and form binding over `Core\Validate` — the ergonomics, never the laundering; 
 the template engine and the HTML sink already auto-escapes by default, so a second templating language
 would be a second spelling of one job. `Web\Response::view` renders a `.nvs` file and nothing more.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0082](../decisions/0082.md), [0081](../decisions/0081.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0082](../decisions/0082.md).</sub>
 
 <a id="programs-framework-refusals"></a>
 
