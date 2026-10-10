@@ -1,5 +1,6 @@
 #!/bin/sh
-# Reject a commit message carrying an attribution trailer.
+# Reject a commit message carrying an attribution trailer, and, where looper is installed, one whose
+# shape looper's check refuses.
 #
 # A commit message in this repository documents the work and stops -- docs/agent/conventions.md
 # § *A commit message* is the home of that rule. `Co-Authored-By`, `Signed-off-by`,
@@ -68,12 +69,24 @@ if [ "$status" -ne 0 ]; then
     exit 1
 fi
 
-[ -z "$offenders" ] && exit 0
+if [ -n "$offenders" ]; then
+    echo "commit-msg: this repository keeps no attribution trailers." >&2
+    echo "A commit message documents the work and stops -- docs/agent/conventions.md, A commit message." >&2
+    echo "" >&2
+    echo "$offenders" >&2
+    echo "" >&2
+    echo "Delete those lines and commit again. Do not pass --no-verify." >&2
+    exit 1
+fi
 
-echo "commit-msg: this repository keeps no attribution trailers." >&2
-echo "A commit message documents the work and stops -- docs/agent/conventions.md, A commit message." >&2
-echo "" >&2
-echo "$offenders" >&2
-echo "" >&2
-echo "Delete those lines and commit again. Do not pass --no-verify." >&2
-exit 1
+# The shape of the message -- `type(scope): subject`, its type list and its length, as `looper.toml`'s
+# `[commits]` sets them -- is looper's check. A contributor to this public repository may not have
+# looper, so without it on PATH the trailer check above is the whole hook. A merge and git's own
+# `fixup!`, `squash!` and `amend!` subjects are not checked for shape: git writes those, and a
+# rebase rewrites the last three away.
+command -v looper >/dev/null 2>&1 || exit 0
+[ -f "$(git rev-parse --git-path MERGE_HEAD)" ] && exit 0
+case "$(head -n 1 "$msg")" in
+    'fixup! '* | 'squash! '* | 'amend! '*) exit 0 ;;
+esac
+exec looper hook commit-msg "$msg"
