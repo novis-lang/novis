@@ -17,7 +17,7 @@ stages:
     context: [tools/nv/cmd/audit.ts]
   - id: 4
     title: the docs
-    status: open
+    status: done
     context: [docs/agent/coordinator.md, docs/agent/loop-authoring.md, docs/agent/playbook.md]
 checks:
   - id: looper-doctor
@@ -112,20 +112,18 @@ deleted, `bun nv links` is green, and so are `bun nv verify` and `looper lint`.
 
 ### State
 
-**Stages 1, 2 and 3 are done. Stage 4's docs and tool comments are done. Its crate comments are
-not.** `bun nv verify` is green on this tree.
+**All four stages are done, and the goal is reached.** `bun nv verify`, `bun nv verify --doc`,
+`bun nv links`, `looper lint` and `looper doctor` are green on this tree, the driver-import grep finds
+nothing, and `bun nv owners --closes nv-loop-retired` names no gap.
 
-- Landed: no comment under `tools/` names the old driver as if it ran, except `goalCopies` and
-  `LEGACY` in `tools/nv/cmd/audit.ts`, which guard against its files and name them on purpose.
-  `nv audit checks` no longer reads `docs/agent/loop-goal.toml`, which nothing writes. `lib/progress.ts`
-  lost its `NV_PROGRESS_DIR` file mode and `readProgress`: only the old driver set or read them.
-  `bun nv peek`'s ledger no longer reads `.loop/logs`, which looper never writes; the idle timer alone
-  separates sessions. `.agent-tmp/verify-progress.json` stays, because the playbook bullet on a hung
-  `verify --start` reads it.
-- `docs/goals/decision-records-retired.md:542` quotes line spans of `loop-authoring.md` and
-  `commands.md` that this group moved. That goal's first session re-derives them with a grep.
-- `bun nv disk --clean` ran after every session under the old driver. Nothing runs it now, and
-  `docs/agent/commands.md` says so. A looper hook for it would be a general feature.
+- Landed: no crate comment, test message or outstanding-members file cites `docs/agent/goals/` or
+  `data/goals/`. A citation of a deleted goal is restated or dropped; a pointer to goal records now
+  reads "a goal file under `docs/goals/`".
+- `rule:tooling/the-chain-names-its-live-goal` describes looper's chain in `docs/goals/README.md`,
+  and its record no longer guards with deleted files.
+- The two `nvs-stdlib` Redis lease tests failed under the gate's load: a one-second lease expired
+  between two calls. They now take a thirty-second lease for the refusal half and a three-second
+  one for the renewal (`crates/nvs-stdlib/src/cache/redis.rs:1347`).
 
 **For the user: `.claude/settings.json` holds allow entries for deleted commands.** Its `bun nv`
 entries for `chain`, `goal`, `loop`, `loop-stats`, `orient`, `playbook` and `session` name commands
@@ -133,22 +131,13 @@ that no longer exist. No session edits that file, so removing them is the user's
 
 ### Next
 
-**Stage 4: the crate comments that name the old goal data** — doc comments only, so `bun nv verify`
-rebuilds but no behaviour changes. A goal is now `docs/goals/<slug>.md` (`tools/nv/lib/chain.ts:1`).
-
-- [x] Tool comments, `tools/nv/cmd/audit.ts`'s toml read, and the readers with no caller.
-- [ ] **`crates/nvs-cli/tests/openapi.rs:394` and six more** say "the goal records under `data/goals/`",
-  which becomes "a goal file under `docs/goals/`": `crates/nvs-db/src/catalog.rs:2426`,
-  `crates/nvs-stdlib/src/mail.rs:1148`, `crates/nvs-stdlib/src/storage.rs:597`,
-  `crates/nvs-stdlib/tests/tier_boundary.rs:36`, `crates/nvs-types/tests/visibility.rs:14`,
-  `crates/nvs-stdlib/tests/spec_registry_coverage.rs:39`.
-- [ ] **`crates/nvs-host/src/timer.rs:4` and 16 more files cite the deleted `docs/agent/goals/`**:
-  `git grep -n docs/agent/goals/ -- crates Cargo.toml` lists 21 lines, among them `Cargo.toml`, `crates/nvs-stdlib/src/arr.rs`,
-  `crates/nvs-ir/tests/type_atoms.rs` and four `crates/nvs-stdlib/tests/spec-*-outstanding.txt`.
-  Restate what the citation pointed at, or drop it; never point at a goal file that is gone.
-- [ ] `docs/rules/tooling/the-chain-names-its-live-goal.md:11`, the same citation in a rule.
+Nothing in this goal. The next goal on the chain is `decision-records-retired`;
+`docs/goals/decision-records-retired.md:542` quotes line spans of `loop-authoring.md` and
+`commands.md` that this goal moved, so its first session re-derives them with a grep.
 
 ### Backlog
 
-- Stage 4: playbook bullets whose `until` names a deleted file, such as
-  `tools/nv/cmd/orient.ts`; `looper playbook retire` deletes them once it runs.
+- Playbook bullets whose `until` names a deleted file, such as `tools/nv/cmd/orient.ts`:
+  `looper playbook retire` deletes them (`docs/agent/playbook.md`).
+- `bun nv rules --render` reports rule citations in later goals' files whose rules do not exist yet;
+  each goal writes its own (`docs/goals/pdf.md:134`).
