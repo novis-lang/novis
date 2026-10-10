@@ -5,13 +5,13 @@ summary: "An `enum` becomes a member of a class or interface body, the way a `ty
 context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-syntax/src/parser/ty.rs, crates/nvs-syntax/src/ast.rs, crates/nvs-hir/src/aliases.rs, crates/nvs-hir/src/resolve.rs, crates/nvs-types/src/enums.rs, crates/nvs-types/src/lower.rs, crates/nvs-types/src/expr/members.rs]
 stages:
   - id: 2
-    title: the record and its fragments
+    title: the fragments
     status: open
     extra:
       context:
         adrs: []
-        rules: [types/grammar, types/enum-case-type, enums/reflection, ide/the-stub-tree-is-where-core-is-declared, statements/nothing-gets-a-second-name]
-        shapes: [A decision record, A rule fragment]
+        rules: [types/grammar, types/enum-case-type, enums/reflection, ide/the-stub-tree-is-where-core-is-declared, statements/nothing-gets-a-second-name, classes/a-type-is-declared-at-file-scope]
+        shapes: [A rule fragment]
   - id: 3
     title: the parser
     status: open
@@ -83,7 +83,7 @@ stages:
 checks:
   - id: class-scoped-enums-the-record-creates-its-fragments
     stage: 2
-    name: "rulebook: the record created the member's rule and the placement rule"
+    name: "rulebook: Stage 2 created the member's rule and the placement rule"
     run: [bun, nv, peek, "rule:enums/class-scoped-enum", "rule:enums/an-enum-lives-in-the-class-that-uses-it"]
     output_ordered: [docs/rules/enums/class-scoped-enum.md, docs/rules/enums/an-enum-lives-in-the-class-that-uses-it.md]
   - id: nvs-syntax-an-enum-is-a-class-member
@@ -232,9 +232,9 @@ It carries `position: last` because every goal on the chain is pinned there.
 The sentences on disk this goal makes untrue, each rewritten whole by the session that lands what
 makes it untrue, and not before:
 
-- **By Stage 2's record:** `docs/adr/README.md:342` ("A `class`, `interface` or `enum` is declared
-  at file scope, or not at all": it stays true for a body that *runs*, and gains the class-body
-  exception); `docs/rules/types/class-scoped-alias.md` § *A name is one thing* (the order of
+- **By Stage 2:** `docs/rules/classes/a-type-is-declared-at-file-scope.md` (a `class`, `interface`
+  or `enum` is declared at file scope: it stays true for a body that *runs*, and gains the
+  class-body exception); `docs/rules/types/class-scoped-alias.md` § *A name is one thing* (the order of
   readings gains the enum, and `E0304` covers an enum member);
   `docs/rules/statements/an-enum-name-is-a-type-everywhere.md` (the qualified form);
   `docs/rules/enums/reflection.md` (the name an owned enum reports);
@@ -249,7 +249,7 @@ makes it untrue, and not before:
 
 The search that closes the stage, run after Stage 10:
 `git grep -n -E "file scope|nested (class|enum|type)" -- docs/rules docs/reference docs/examples website/src`,
-read line by line. Every hit is true as it stands, rewritten, or under `docs/decisions/`.
+read line by line. Every hit is true as it stands or rewritten.
 `docs/novis.md`, `docs/ground-rules.md` and the `docs/rules/*.md` chapters are generated and are
 regenerated, never edited.
 
@@ -304,7 +304,7 @@ green, with its `Core\Ldap` enums at their new names after Stage 7.
   (`Encoding`, `IO`), `Core\Unit` (`DateTime`, `Date`, `TimeOfDay`), `Core\Crypto\KeyKind` (four
   classes), `Core\Http\Method` (seven classes and `#[Route]`), `Core\Audience`, `Core\Db\Driver`
   (`Db`, `Db\Connection`). A session that finds a use site this table missed applies the rule, not
-  the table, and corrects the table in the record.
+  the table, and corrects the table in the placement rule's fragment.
 - **The built-in components' table:** every `Novis\Image` enum but `Format` moves into `Image`
   (`Gravity`, `Fit`, `Filter`, `Axis`, `Blend`, `Align`, `Output`, `HashKind`, `PlaceholderKind`),
   and `QrLevel` → `QrCode::Level`. `Novis\Intl`: `Collator::Strength`, `Collator::CaseFirst`,
@@ -313,35 +313,35 @@ green, with its `Core\Ldap` enums at their new names after Stage 7.
   `RelativeTime::Unit`, `RelativeTime::Numeric`, `ListFormat::Type`, `Locale::Service`; `Width`
   stays.
 - **A name that does not parse** as a member (a keyword clash) keeps its old word with the owner's
-  prefix dropped the other way, and the record says which.
-- **One record slot**: one new record and no other number, checked against `docs/decisions/` right
-  before it is written, because another agent may take a number first. It is Stage 2's first slice.
-- **The tradeoffs**, stated here and in the record because AGENTS.md asks. Performance: none at run
-  time; a case is still an inlined integer. Memory: none per request; one table entry per
-  declaration at compile time. Usability: a class's enums live with it, and `OrderStatus` stops
-  carrying its owner in its name; every `Core` enum a program names changes spelling once, before
-  the first release. Simplicity: a second place to declare an enum and a three-part value form,
+  prefix dropped the other way, and the fragment says which.
+- **The tradeoffs**, stated here, and in the fragments and the commit, because AGENTS.md asks.
+  Performance: none at run time; a case is still an inlined integer. Memory: none per request; one
+  table entry per declaration at compile time. Usability: a class's enums live with it, and
+  `OrderStatus` stops carrying its owner in its name; every `Core` enum a program names changes
+  spelling once, before the first release. Simplicity: a second place to declare an enum and a three-part value form,
   both resolved before any code runs, and one placement rule a tool enforces.
 - **No new limit**, and no compatibility spelling: an old `Core` name is gone, not deprecated.
-- **Neutral names only** in every test, example and record: `Shop`, `Blog`, `example.com`.
+- **Neutral names only** in every test, example and fragment: `Shop`, `Blog`, `example.com`.
 
 ## Stages
 
-### 2. the record and its fragments
+### 2. the fragments
 
-**Does:** Writes the record from § *Standing decisions* and the fragments it creates and rewrites.
+**Does:** Writes the fragments § *Standing decisions* creates and rewrites.
 
-One file set: `docs/decisions/`, `docs/rules/enums/`, `docs/rules/types/`,
-`docs/rules/statements/`, `docs/rules/ide/`, `docs/adr/README.md`.
+One file set: `docs/rules/enums/`, `docs/rules/types/`, `docs/rules/statements/`,
+`docs/rules/ide/`, `docs/rules/classes/`.
 
-- **The record**, this goal's one slot, written first: the declaration sites, the two spellings and
-  the three-part value form, no modifiers, no inheritance, one name per owner, no import of a
-  member, the name an owned enum reports, the placement rule and the full rename table for `Core`
-  and the built-in components (§ *Standing decisions*), and the tradeoffs. It amends
-  `rule:types/class-scoped-alias` (the reading order of `Owner::Name`) and the `docs/adr/README.md:342` paragraph.
-- **The fragments.** It creates `enums/class-scoped-enum` (the member itself) and
-  `enums/an-enum-lives-in-the-class-that-uses-it` (the placement rule, binding `Core`, the built-in
-  components and every published example), and rewrites the five fragments Stage 0 names.
+- **The fragments**, written first: the declaration sites, the two spellings and the three-part
+  value form, no modifiers, no inheritance, one name per owner, no import of a member, the name an
+  owned enum reports, the placement rule and the full rename table for `Core` and the built-in
+  components (§ *Standing decisions*), each with its reasons, a `**Memory:**` bullet where it
+  spends memory, and a `**Declined:**` list, and the tradeoffs. It creates
+  `enums/class-scoped-enum` (the member itself) and `enums/an-enum-lives-in-the-class-that-uses-it`
+  (the placement rule, binding `Core`, the built-in components and every published example). It
+  rewrites `rule:types/class-scoped-alias` (the reading order of `Owner::Name`),
+  `rule:classes/a-type-is-declared-at-file-scope` (the class-body exception) and the other
+  fragments Stage 0 names.
 - **Pinned by** the Stage 2 check.
 
 ### 3. the parser
@@ -383,8 +383,8 @@ One file set: `crates/nvs-hir/src/resolve.rs`, `aliases.rs`, `members.rs`, `hier
 - **The key.** `EnumTable` (`crates/nvs-types/src/enums.rs:98`) is keyed by `QName`, and `collect`
   (`:233`) walks file scope only. An owned enum is keyed by its owner and its name, never by a
   synthetic `Ns\Order\Status`, for the reason `AliasKey::Member` gives at `aliases.rs:58-70`:
-  `Ns\Order\Status` is also the name of a class `Status` in namespace `Ns\Order`. The record says
-  how the key is spelled; the name a program sees is § *Standing decisions*'.
+  `Ns\Order\Status` is also the name of a class `Status` in namespace `Ns\Order`. The fragment
+  `enums/class-scoped-enum` says how the key is spelled; the name a program sees is § *Standing decisions*'.
 - **The symbol table** (`crates/nvs-hir/src/resolve.rs:96`, `:159-172`) does not get a file-scope
   entry for an owned enum. `check_body_aliases` (`:279`) is the model.
 - **Type position.** `lower_member_type` (`crates/nvs-types/src/lower.rs:406`) reads an owned enum
@@ -544,10 +544,9 @@ Facts about the tree as the goal was written. `class Order { enum Status { Open,
 
 ### Next
 
-**Stage 2: the record and its fragments**, one file set: `docs/decisions/`, `docs/rules/enums/`, `docs/rules/types/`, `docs/rules/statements/`, `docs/rules/ide/`, `docs/adr/README.md`.
+**Stage 2: the fragments**, one file set: `docs/rules/enums/`, `docs/rules/types/`, `docs/rules/statements/`, `docs/rules/ide/`, `docs/rules/classes/`.
 
-- [ ] **The record** — one new record, its number checked against `docs/decisions/` right before it is written: the declaration sites, `Owner::Name` and `Owner::Name::Case` from anywhere and the bare name inside the owner, the refusals with their codes, no member import, the name a program sees (`Shop\Order::Status`), the placement rule, the `Core` and built-in rename tables, and the tradeoffs. Its front matter amends `rule:types/class-scoped-alias` and creates the two fragments below. `docs/decisions/0281.md:1`
-- [ ] **The fragments** — create `enums/class-scoped-enum` and `enums/an-enum-lives-in-the-class-that-uses-it`; rewrite `types/class-scoped-alias` § *A name is one thing*, `statements/an-enum-name-is-a-type-everywhere`, `enums/reflection` and `ide/the-stub-tree-is-where-core-is-declared`; rewrite the `docs/adr/README.md:342` paragraph so a class body is the one place besides file scope an enum may be declared. `docs/rules/enums/reflection.md:1`
+- [ ] **The fragments**, written first: the declaration sites, `Owner::Name` and `Owner::Name::Case` from anywhere and the bare name inside the owner, the refusals with their codes, no member import, the name a program sees (`Shop\Order::Status`), the placement rule, the `Core` and built-in rename tables, each with its reasons, a `**Memory:**` bullet where it spends memory, and a `**Declined:**` list, and the tradeoffs. It creates `enums/class-scoped-enum` and `enums/an-enum-lives-in-the-class-that-uses-it`; it rewrites `types/class-scoped-alias` § *A name is one thing*, `statements/an-enum-name-is-a-type-everywhere`, `enums/reflection` and `ide/the-stub-tree-is-where-core-is-declared`, and `rule:classes/a-type-is-declared-at-file-scope` so a class body is the one place besides file scope an enum may be declared. `docs/rules/enums/reflection.md:1`
 - [ ] **The stage contexts** — add `enums/class-scoped-enum` to the `context.rules` of Stages 3 to 6 and `enums/an-enum-lives-in-the-class-that-uses-it` to Stages 7 to 9 in `data/goals/class-scoped-enums.json`, now that both exist. `docs/goals/class-scoped-enums.md:1`
 
 ### Backlog

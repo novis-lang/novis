@@ -14,7 +14,7 @@ stages:
         shapes: [Citing a document]
   - id: 3
     title: the queued goals stop writing records
-    status: open
+    status: done
     extra:
       context:
         adrs: []
@@ -569,23 +569,27 @@ One file set: `AGENTS.md`, `docs/agent/*.md`, `docs/agent/goals/README.md`, `dat
 
 ### State
 
-**Stage 2 is done.** The merge shape is in `docs/agent/conventions.md` § *A rule fragment* (reasons, a `**Memory:**` bullet, a `**Declined:**` list) and § *A decision record* (no new record; the five merge steps). `because` may be empty and must name a record on disk (`tools/nv/cmd/rules.ts:184-186`). `data/decisions/` went with the summaries, so the `decision` schema went too: `because` is a list of plain strings now, which pulls part of Stage 12 forward (`tools/nv/schema/decision.ts` is already gone). Record 0199 is merged into `rule:routing/a-match-is-not-invocable` and `rule:security/access-is-checked-for-presence-not-meaning`; `routing/matching-is-not-dispatching` already said everything 0199 added.
+**Stages 2 and 3 are done.** Records 0051, 0120, 0121, 0123, 0128, 0166, 0190, 0247 are merged and deleted, one commit each, and the three queued goals plan rule fragments instead of a record; both Stage 3 checks are green. The `docs/adr/README.md` nested-type paragraph is now `rule:classes/a-type-is-declared-at-file-scope`, a first Stage 11 merge. Each merge went to one general-purpose subagent briefed with conventions.md § *A decision record*; one record of about 45 rules fits one subagent.
+
+The merge shape is in `docs/agent/conventions.md` § *A rule fragment* (reasons, a `**Memory:**` bullet, a `**Declined:**` list) and § *A decision record* (no new record; the five merge steps). `because` may be empty and must name a record on disk (`tools/nv/cmd/rules.ts:184-186`). `data/decisions/` went with the summaries, so the `decision` schema went too: `because` is a list of plain strings now, which pulls part of Stage 12 forward (`tools/nv/schema/decision.ts` is already gone). Record 0199 is merged into `rule:routing/a-match-is-not-invocable` and `rule:security/access-is-checked-for-presence-not-meaning`; `routing/matching-is-not-dispatching` already said everything 0199 added.
 
 `bun nv records` is now only the merge tracker: `--left [<from>-<to> | adr]` and `--check` (the `links` check inside the records, and the tree-wide `citations` check). The old record audit is gone. A record left on disk that links to a merged one must be unlinked to plain text, which the `links` check reports; `docs/decisions/0255.md` was the one for 0199. Citations inside `docs/decisions/` and this goal's own file are not checked. A "cited by N file(s)" count in `--left` includes the generated chapter under `docs/rules/`, which drops out with the record's `because` entry.
 
-`bun nv rules --check` is red before this goal touched it: queued goals (`class-scoped-enums`, `pdf`, `spreadsheet`, `nvs-code`, `env-context`) cite rules they will create. Stage 13's guard check needs it green.
+`bun nv rules --check` is red before this goal touched it: 16 findings, all queued goals (`class-scoped-enums`, `pdf`, `spreadsheet`, `nvs-code`, `env-context`) citing rules they will create. Stage 13's guard check needs it green. `bun nv records --check` has one finding, `tools/nv/test/prose.test.ts:56`, a test string naming 0199: the `citations` check reads test fixtures as citations.
 
 ### Next
 
-**Stage 3: the queued goals stop writing records**, one file set: `docs/goals/class-scoped-enums.md`, `docs/goals/pdf.md`, `docs/goals/spreadsheet.md`, and the rules the records below reach.
+**Stage 4: records 0002 to 0039**, 37 left (`bun nv records --left 0002-0039`). One subagent per one to three records, run one after another, each committing one record at a time. Start with the records that reach one topic, whose file sets do not overlap:
 
-- [ ] **The checks name the right files.** Both Stage 3 checks grep `data/goals/*.json` and `docs/agent/goals/*.md`, which do not exist, so they pass with nothing read. Point them at `docs/goals/<slug>.md` and use a pattern for looper's YAML (`adrs: \[[0-9]`). `docs/goals/decision-records-retired.md:133-141`
-- [ ] **The records** — merge 0051, 0120, 0121, 0123, 0128, 0166, 0190 and 0247 the way conventions.md § *A decision record* says; `bun nv records --left` lists each one's rules. `docs/agent/conventions.md:495`
-- [ ] **The goals** — each "One record slot", "the record" item, `docs/decisions/` file-set entry and "ADR NNNN" mention becomes the rule id or the fragment it writes, and "A decision record" leaves each `shapes` list. `docs/goals/class-scoped-enums.md:317` `docs/goals/pdf.md:389` `docs/goals/pdf.md:465`
+- [ ] **The narrow ones** — 0010 (enums), 0016 (ide), 0025 (packaging), 0035 (expressions), 0038 (classes), 0039 (tooling), merged as conventions.md § *A decision record* says. `docs/agent/conventions.md:495` `docs/decisions/0010.md:1` `docs/decisions/0016.md:1`
+- [ ] **The middle ones** — 0017, 0021, 0027, 0034, 0037 (under 10 citing files each). `docs/decisions/0017.md:1` `docs/decisions/0034.md:1`
+- [ ] **The wide ones last, one subagent each** — 0006 (65 citing files), 0007 (44), 0020, 0033, 0024, 0002. `docs/decisions/0006.md:1` `docs/decisions/0007.md:1`
 
 ### Backlog
 
-- Stages 4 to 10: merge every record by number range, rewrite each one's citations in the same slice, and delete it.
-- Stage 11: merge and delete `docs/adr/`; `class-scoped-enums` cites `docs/adr/README.md:342`.
+- Stages 5 to 10: merge every record by number range, rewrite each one's citations in the same slice, and delete it.
+- `rule:core-classes/pdf-one-engine` still describes the builder and the headless-browser backend the `pdf` goal drops; that goal's Stage 2 rewrites it.
+- `website/src/data/core.json` still lists merged record numbers in its `adrs` fields until `bun nv render --website` runs; its unrelated drift was reverted each time.
+- Stage 11: merge and delete the rest of `docs/adr/`.
 - Stage 12: the rest of the tools forget records (`tools/nv/cmd/pack.ts:47` `SHAPE_IMPLIES`, `pack.ts:221`).
 - Stage 13: the process docs (`docs/agent/doc-cleanup.md:129`, `docs/agent/loop-authoring.md:125`, the playbook bullet `tooling/a-decision-records-changes-block-needs-modifies-spelled-out`) and the guard; `nv rules --check` must be green first.

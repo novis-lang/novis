@@ -5,13 +5,13 @@ summary: "The fourth component built into every `nvs` binary."
 context: [crates/nvs-ext/build.rs, crates/nvs-ext/src/builtin.rs, crates/nvs-ext/src/load.rs, crates/nvs-ext/src/call.rs, extensions/image/src/lib.rs]
 stages:
   - id: 2
-    title: "the record, its fragments and `wit/spreadsheet.wit`"
+    title: "the fragments and `wit/spreadsheet.wit`"
     status: open
     extra:
       context:
         adrs: []
         rules: [core-classes/spreadsheet-has-no-io, core-classes/spreadsheet-bulk-boundary, core-classes/spreadsheet-evaluation-and-roster, core-classes/spreadsheet-formula-is-a-value, core-classes/spreadsheet-output-is-inert, core-classes/decompression-bound, packaging/a-value-crosses-as-its-wit-type, packaging/a-guest-has-no-ambient-authority, core-api/options-bag, core-api/one-paradigm-per-operation]
-        shapes: [A decision record, A rule fragment]
+        shapes: [A rule fragment]
   - id: 3
     title: "the component is built in, and the streaming writer"
     status: open
@@ -113,7 +113,7 @@ stages:
 checks:
   - id: spreadsheet-the-record-creates-its-fragments
     stage: 2
-    name: "rulebook: the `Novis\\Spreadsheet` record created its fragments"
+    name: "rulebook: Stage 2 created the `Novis\\Spreadsheet` fragments"
     run: [bun, nv, brief, --where, spreadsheet]
     output_ordered: ["rule:core-classes/spreadsheet-writes-as-a-stream", "rule:core-classes/spreadsheet-value-types", "rule:core-classes/spreadsheet-styles-and-defaults", "rule:core-classes/spreadsheet-template-fill", "rule:core-classes/spreadsheet-reads-as-a-stream"]
   - id: nvs-stdlib-the-spreadsheet-interface-parses-against-the-world
@@ -262,7 +262,7 @@ right. It does no I/O of its own: bytes come back to the Novis half, which write
 program said.
 
 ```nvs
-use Novis\Spreadsheet\{Workbook, Reader, Template, Style, Formula};   // names are the record's; this is a sketch
+use Novis\Spreadsheet\{Workbook, Reader, Template, Style, Formula};   // names are Stage 2's; this is a sketch
 
 Workbook::fromRows($orders)->download('orders.xlsx');     // styled header, frozen, filtered, auto width
 
@@ -305,7 +305,7 @@ It carries `position: last` because every goal on the chain is pinned there.
 The sentences on disk this goal makes untrue, each rewritten whole by the session that lands what
 makes it untrue, and not before:
 
-- **By Stage 2's record**, because they state decisions this goal reverses:
+- **By Stage 2**, because they state decisions this goal reverses:
   `docs/rules/core-classes/spreadsheet-bulk-boundary.md` (the cell cap, "reading pulls whole sheets",
   "a million-row export belongs in the queue"); `spreadsheet-evaluation-and-roster.md` (CSV now reads
   and writes through the component and is parsed by `Core\Csv`; the second wave keeps ods writing and
@@ -320,7 +320,7 @@ makes it untrue, and not before:
 
 The search that closes the stage, run after Stage 14:
 `grep -rn -i "spreadsheet\|xlsx\|cell cap\|nvs/spreadsheet" docs/rules docs/reference docs/plan/m17.md`,
-read line by line. Every hit is true as it stands, rewritten, or under `docs/decisions/`.
+read line by line. Every hit is true as it stands or rewritten.
 `docs/novis.md`, `docs/ground-rules.md`, the `docs/rules/*.md` chapters and `website/` are generated and
 are regenerated, never edited.
 
@@ -375,33 +375,32 @@ bound applies only to a consumer that streams a part and never holds it.
   defaults to `'en'`. A duplicate header gets ` (2)`, an empty one its column letter. The 1,000-row
   auto-width window and the cap of 60. The PhpSpreadsheet concept-mapping table M17 owed is
   dropped. Class names in the sketch and the checks (`Workbook`, `Sheet`, `Reader`, `Template`,
-  `Style`, `Cell`, `Formula`, `CellError`, `Chart`, `Engine` for the manifest class) are the record's
+  `Style`, `Cell`, `Formula`, `CellError`, `Chart`, `Engine` for the manifest class) are Stage 2's
   to change; a rename rewrites the checks in the same slice.
 - **Out, for good unless the user reopens it**: pivot tables, sparklines, threaded comments, writing
   encrypted or password-protected files, writing xls, every chart type outside the subset, lists
   inside lists in templates, a per-cell accessor (`rule:core-classes/spreadsheet-bulk-boundary`), and
   a grant of any directory to the component.
-- **One record slot**: one new record and no other number, checked against `docs/decisions/` right
-  before it is written, because another agent may take a number first. It is Stage 2's first slice.
 - **The crates**, each pinned: `calamine`, `zip` with `deflate` only, `miniz_oxide` or `flate2` on its
   pure-Rust backend, `crc32fast`, `quick-xml`, `itoa`, `ryu`. `rust_xlsxwriter` is a source of chart XML
   and of Excel-made fixtures, never a dependency. `umya-spreadsheet` and `ironcalc` are not
   dependencies. A crate that fails to build for `wasm32-wasip2` is replaced by its nearest pure-Rust
-  equivalent, and the record says so.
+  equivalent, and `core-classes/spreadsheet-evaluation-and-roster`'s fragment says so.
 - **How a session judges output**: values by reading back (Stage 13), parts by comparing XML with
   Excel-made fixtures, memory by the guest's peak in the growth check. A fixture is never rewritten
   to make a check pass.
 - **Determinism is part of every stage**: two writes or two template fills of equal input are
   byte-equal.
-- **The tradeoffs**, stated here and in the record because AGENTS.md asks. Performance: one guest call
-  per batch, not per cell; a download starts before the first row is written. Memory: nothing until
+- **The tradeoffs**, stated here, and in the fragments and the commit, because AGENTS.md asks.
+  Performance: one guest call per batch, not per cell; a download starts before the first row is
+  written. Memory: nothing until
   first use; then the compiled module, shared by every core, and per request one batch of rows, the
   compressor's window, the sheet-end parts and, on read, the shared strings of the file being read,
   all inside the request's cap and freed when the request ends. The binary grows by Stage 12's
   measured figure. Usability: an export in one line, styled by default, imports with typed values and
   row numbers, templates designed in Excel. Simplicity: one way to write, no editable mode, and
   forward-only rules that are written down once.
-- **Neutral names only** in every test, example and record: `Shop`, `Blog`, `example.com`.
+- **Neutral names only** in every test, example and fragment: `Shop`, `Blog`, `example.com`.
 - **Every comment in a new `.nvs` and every `about.md` this goal writes follows `AGENTS.md`
   § *Text an end user reads* at the first write**, and `bun nv proofs --comments <paths>` is run over
   them before the wrap.
@@ -410,24 +409,24 @@ bound applies only to a consumer that streams a part and never holds it.
 
 ## Stages
 
-### 2. the record, its fragments and `wit/spreadsheet.wit`
+### 2. the fragments and `wit/spreadsheet.wit`
 
-**Does:** Writes the `Novis\Spreadsheet` record from § *Standing decisions*, the fragments it creates
-and rewrites, and the WIT interface the component exports.
+**Does:** Writes the `Novis\Spreadsheet` fragments § *Standing decisions* creates and rewrites, and
+the WIT interface the component exports.
 
-One file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packaging/`,
-`wit/spreadsheet.wit` (new).
+One file set: `docs/rules/core-classes/`, `docs/rules/packaging/`, `wit/spreadsheet.wit` (new).
 
-- **The record**, this goal's one slot, written first. Every class, member and options shape under
+- **The fragments**, written first. Every class, member and options shape under
   `Novis\Spreadsheet`; the write type table and the read type table of § *Standing decisions*; the
   style fields and their layering; the defaults; the template syntax; the formula helpers; the reader
-  options and defaults; the limits; the error kinds; the tradeoffs; and the user's calls as decided. It
-  amends the five `spreadsheet-*` rules (built in, not a package; CSV through the component; the cell cap dropped; the
-  PhpSpreadsheet concept-mapping table it owed is dropped, because goal `php-oracle-retired` removed
-  every PHP-to-Novis table) and `rule:core-classes/decompression-bound` (the streamed-part bound), and the built-in count of
-  `rule:packaging/the-first-party-components-are-built-in`.
-- **The fragments.** It rewrites the five `spreadsheet-*` fragments and `decompression-bound` to the new
-  decisions, and creates at least these, under the ids the Stage 2 check reads:
+  options and defaults; the limits; the error kinds; and the user's calls as decided; each with its
+  reasons, a `**Memory:**` bullet where it spends memory, and a `**Declined:**` list, and the
+  tradeoffs. It rewrites the five `spreadsheet-*` fragments (built in, not a package; CSV through
+  the component; the cell cap dropped; the PhpSpreadsheet concept-mapping table it owed is dropped,
+  because goal `php-oracle-retired` removed every PHP-to-Novis table),
+  `rule:core-classes/decompression-bound` (the streamed-part bound) and the built-in count of
+  `rule:packaging/the-first-party-components-are-built-in` to the new decisions, and creates at
+  least these, under the ids the Stage 2 check reads:
   `core-classes/spreadsheet-writes-as-a-stream` (target first, batches, `finish`, sheets one after
   another, what stays changeable), `core-classes/spreadsheet-value-types` (both tables and the zone
   rule), `core-classes/spreadsheet-styles-and-defaults`, `core-classes/spreadsheet-template-fill`,
@@ -435,14 +434,14 @@ One file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packagi
 - **`wit/spreadsheet.wit`**, resource-shaped where intl is batch-shaped: a `writer` resource (`open`
   with the workbook options, `sheet`, `rows` taking a batch and returning the compressed bytes ready to
   leave, the sheet-end calls, `finish` returning the last bytes), a `reader` resource over a byte
-  source, and a `template` resource. **How the guest reads byte ranges** is the record's call between
+  source, and a `template` resource. **How the guest reads byte ranges** is Stage 2's call between
   two shapes: a host import serving ranges of the handle the program passed (it grants nothing, but
   it changes the `extension` world, so `crates/nvs-stdlib/tests/ext_world.rs` and
   `rule:packaging/a-guest-has-no-ambient-authority` change with it), or a pull loop in the Novis half
-  where the guest returns "need bytes at offset N, length L" and the Novis code answers. The record
-  says which, and why, against request latency.
-- **The proofs checks the record makes possible**: one `bun nv proofs --verify --group '<class>'`
-  check per class it names, added to Stage 14 of `data/goals/spreadsheet.json`, written here for the
+  where the guest returns "need bytes at offset N, length L" and the Novis code answers. The fragment
+  `core-classes/spreadsheet-reads-as-a-stream` says which, and why, against request latency.
+- **The proofs checks the fragments make possible**: one `bun nv proofs --verify --group '<class>'`
+  check per class they name, added to Stage 14 of `data/goals/spreadsheet.json`, written here for the
   reason goal `pdf` gives (`gatesInFrontOfGroups` in `tools/nv/lib/chain.ts`).
 - **A `cargo deny` over the component's own graph**, using the check goal `pdf` added.
 - **Pinned by** the Stage 2 check.
@@ -701,7 +700,7 @@ One file set: `extensions/spreadsheet/tests/` (the reference comparisons), `exte
 
 ### 14. the feature proofs
 
-**Does:** Writes the feature proofs for every member the record named.
+**Does:** Writes the feature proofs for every member the fragments named.
 
 One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/novis/`,
 `docs/reference/novis/` (new pages for `Novis\Spreadsheet`), `data/proofs/policy.json`.
@@ -725,16 +724,15 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 The five `spreadsheet-*` rules and M17 Part 3 planned this work as an unscheduled first-party package; this goal schedules it and reverses several of their decisions: it is built in, CSV goes through the component, the cell cap is dropped, and streaming is the only way to write. The user settled the scope question by question when the goal was written, under the rule goal `pdf` used: every common case is in, an easy edge case is in, a hard edge case almost nobody needs is out. The goal file's § *Standing decisions* holds those calls with the writer's own calls beside them. No session re-decides one.
 
-Facts about the tree as the goal was written. `Novis\` is reserved for built-in components (`rule:packaging/the-first-party-components-are-built-in`), so `Novis\Spreadsheet` is the fourth built-in and the record amends that rule's count, as well as the `spreadsheet-*` rules and `rule:core-classes/decompression-bound`. The five `spreadsheet-*` fragments under `docs/rules/core-classes/` and `decompression-bound` state decisions this goal reverses (the cell cap, whole-sheet reads, `nvs/spreadsheet` as a package). A guest resource lives for one request (`crates/nvs-ext/src/call.rs:50-57`). The build and load tables the component joins are `crates/nvs-ext/build.rs:115` (`COMPONENTS`), `crates/nvs-ext/src/builtin.rs:18` and `crates/nvs-ext/src/load.rs:667`. `Core\Csv::rows` is `crates/nvs-stdlib/src/csv.rs:119-185` and gives a short record fewer keys (`csv.rs:77`); `Core\IO\File::seek` is `crates/nvs-stdlib/src/io.rs:1404`. `rust_xlsxwriter`'s constant-memory mode writes through a `std::fs::File`, so the writer is our own and that crate is a source of chart XML and fixtures only.
+Facts about the tree as the goal was written. `Novis\` is reserved for built-in components (`rule:packaging/the-first-party-components-are-built-in`), so `Novis\Spreadsheet` is the fourth built-in and Stage 2 rewrites that rule's count, as well as the `spreadsheet-*` rules and `rule:core-classes/decompression-bound`. The five `spreadsheet-*` fragments under `docs/rules/core-classes/` and `decompression-bound` state decisions this goal reverses (the cell cap, whole-sheet reads, `nvs/spreadsheet` as a package). A guest resource lives for one request (`crates/nvs-ext/src/call.rs:50-57`). The build and load tables the component joins are `crates/nvs-ext/build.rs:115` (`COMPONENTS`), `crates/nvs-ext/src/builtin.rs:18` and `crates/nvs-ext/src/load.rs:667`. `Core\Csv::rows` is `crates/nvs-stdlib/src/csv.rs:119-185` and gives a short record fewer keys (`csv.rs:77`); `Core\IO\File::seek` is `crates/nvs-stdlib/src/io.rs:1404`. `rust_xlsxwriter`'s constant-memory mode writes through a `std::fs::File`, so the writer is our own and that crate is a source of chart XML and fixtures only.
 
 ### Next
 
-**Stage 2: the record, its fragments and `wit/spreadsheet.wit`**, one file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packaging/`, `wit/spreadsheet.wit`.
+**Stage 2: the fragments and `wit/spreadsheet.wit`**, one file set: `docs/rules/core-classes/`, `docs/rules/packaging/`, `wit/spreadsheet.wit`.
 
-- [ ] **The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Novis\Spreadsheet` class, member and options shape, the write and read type tables, the style fields and their layering, the defaults, the template syntax, the formula helpers, the reader options, the limits, the error kinds, the tradeoffs, and the user's calls as decided. Its front matter amends the `spreadsheet-*` rules (built in, CSV through the component, the cell cap and the concept-mapping table dropped), `rule:core-classes/decompression-bound` (the streamed-part bound) and `rule:packaging/the-first-party-components-are-built-in`'s built-in count. `docs/decisions/0281.md:1`
-- [ ] **The fragments** — the five `spreadsheet-*` fragments and `decompression-bound` rewritten to the new decisions, and the five new ids the Stage 2 check reads, listed in the goal's Stage 2. Then `docs/plan/m17.md` Part 3 through a `## milestone: M17` wrap section. `docs/rules/core-classes/spreadsheet-bulk-boundary.md:1`
-- [ ] **`wit/spreadsheet.wit`** resource-shaped: a `writer`, a `reader` over a byte source and a `template`, with its two tests in `crates/nvs-stdlib/tests/ext_world.rs`. The record decides how the guest reads byte ranges — a host import or a pull loop in the Novis half — and why, against request latency. `wit/spreadsheet.wit:1`
-- [ ] **The proofs checks the record makes possible** — one `bun nv proofs --verify --group '<class>'` check per class the record names, in Stage 14 of `data/goals/spreadsheet.json`, and a `cargo deny` over the component's own `wasm32-wasip2` graph in the form goal `pdf` added. `docs/goals/spreadsheet.md:1`
+- [ ] **The fragments**, written first: every `Novis\Spreadsheet` class, member and options shape, the write and read type tables, the style fields and their layering, the defaults, the template syntax, the formula helpers, the reader options, the limits, the error kinds, and the user's calls as decided, each with its reasons, a `**Memory:**` bullet where it spends memory, and a `**Declined:**` list, and the tradeoffs. It rewrites the five `spreadsheet-*` fragments (built in, CSV through the component, the cell cap and the concept-mapping table dropped), `rule:core-classes/decompression-bound` (the streamed-part bound) and `rule:packaging/the-first-party-components-are-built-in`'s built-in count to the new decisions, and creates the five new ids the Stage 2 check reads, listed in the goal's Stage 2. Then `docs/plan/m17.md` Part 3 through a `## milestone: M17` wrap section. `docs/rules/core-classes/spreadsheet-bulk-boundary.md:1`
+- [ ] **`wit/spreadsheet.wit`** resource-shaped: a `writer`, a `reader` over a byte source and a `template`, with its two tests in `crates/nvs-stdlib/tests/ext_world.rs`. The fragments decide how the guest reads byte ranges — a host import or a pull loop in the Novis half — and why, against request latency. `wit/spreadsheet.wit:1`
+- [ ] **The proofs checks the fragments make possible** — one `bun nv proofs --verify --group '<class>'` check per class the fragments name, in Stage 14 of `data/goals/spreadsheet.json`, and a `cargo deny` over the component's own `wasm32-wasip2` graph in the form goal `pdf` added. `docs/goals/spreadsheet.md:1`
 
 ### Backlog
 

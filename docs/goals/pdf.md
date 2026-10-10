@@ -5,13 +5,13 @@ summary: "The third component built into every `nvs` binary, and the image compo
 context: [crates/nvs-ext/build.rs, crates/nvs-ext/src/builtin.rs, crates/nvs-ext/src/load.rs, extensions/image/src/lib.rs, wit/image.wit]
 stages:
   - id: 2
-    title: "the record, its fragments, `wit/pdf.wit` and the font licence"
+    title: "the fragments, `wit/pdf.wit` and the font licence"
     status: open
     extra:
       context:
         adrs: []
         rules: [core-api/tier-roster, core-classes/pdf-render-has-no-io, core-classes/pdf-css-subset, core-classes/pdf-output-is-inert, core-classes/pdf-one-engine, core-classes/pdf-page-is-an-image-source, core-classes/pdf-decode-refusals, packaging/pdf-decoding-ships-in-the-image-package, packaging/a-value-crosses-as-its-wit-type, core-api/options-bag, core-api/one-paradigm-per-operation, core-classes/html-template]
-        shapes: [A decision record, A rule fragment]
+        shapes: [A rule fragment]
   - id: 3
     title: SVG and PDF open as images
     status: open
@@ -129,12 +129,12 @@ stages:
 checks:
   - id: pdf-the-record-creates-its-fragments
     stage: 2
-    name: "rulebook: the `Novis\\Pdf` record created its fragments"
+    name: "rulebook: Stage 2 created the `Novis\\Pdf` fragments"
     run: [bun, nv, brief, --where, pdf]
     output_ordered: ["rule:core-classes/pdf-css-subset-table", "rule:core-classes/pdf-tables-across-pages", "rule:core-classes/pdf-header-is-a-page-function", "rule:core-classes/pdf-factur-x-is-the-one-attachment", "rule:core-classes/pdf-reader-and-merge", "rule:core-classes/pdf-default-fonts"]
   - id: image-the-record-creates-the-barcode-roster
     stage: 2
-    name: "rulebook: the record created the image component's barcode roster"
+    name: "rulebook: Stage 2 created the image component's barcode roster"
     run: [bun, nv, brief, --where, barcode]
     output_ordered: ["rule:core-classes/image-barcode-roster"]
   - id: nvs-stdlib-the-pdf-interface-parses-against-the-world
@@ -297,7 +297,7 @@ and writes PDF/A, PDF/UA-1, Factur-X and password-protected files. `Novis\Image`
 decoding, real text shaping and barcodes.
 
 ```nvs
-use Novis\Pdf\{Document, Page, Pages, Reader, Standard};   // names are the record's; this is a sketch
+use Novis\Pdf\{Document, Page, Pages, Reader, Standard};   // names are Stage 2's; this is a sketch
 
 $result = Document::fromHtml(html`<h1>Invoice <?= $number ?></h1><table>...</table>`)
     ->asset('logo.png', $logo)                      // every image, font, stylesheet and PDF is bytes by name
@@ -333,7 +333,7 @@ It carries `position: last` because every goal on the chain is pinned there.
 The sentences on disk this goal makes untrue, each rewritten whole by the session that lands what
 makes it untrue, and not before:
 
-- **By Stage 2's record**, because they state decisions this goal reverses:
+- **By Stage 2**, because they state decisions this goal reverses:
   `docs/rules/core-classes/pdf-one-engine.md` (the builder paragraph, the headless-browser backend,
   the crate list); `pdf-output-is-inert.md` ("never … embedded files", the fidelity-backend
   paragraph); `pdf-render-has-no-io.md` ("a scheme … throws", which `data:` now passes);
@@ -348,7 +348,7 @@ makes it untrue, and not before:
 
 The search that closes the stage, run after Stage 16:
 `grep -rn -i "pdf\|svg\|headless\|fidelity\|two first-party" docs/rules docs/reference docs/plan/m17.md extensions/image/src`,
-read line by line. Every hit is true as it stands, rewritten, or under `docs/decisions/`.
+read line by line. Every hit is true as it stands or rewritten.
 `docs/novis.md`, `docs/ground-rules.md`, the `docs/rules/*.md` chapters and `website/` are generated and
 are regenerated, never edited.
 
@@ -384,31 +384,30 @@ purpose, with the fixture's expected output rewritten in that slice and the reas
   runs under its request's memory cap and deadline, the HTML under the parser's element cap, a raster
   image priced by the memory cap, and a bulk render belongs in `Core\Queue`. Class names in the sketch
   and the checks (`Document`, `Page`, `Rendered`, `Pages`, `Reader`, `Standard`, `Engine` for the
-  manifest class, `Novis\Image\Barcode`) are the record's to change; a rename rewrites the checks in
+  manifest class, `Novis\Image\Barcode`) are Stage 2's to change; a rename rewrites the checks in
   the same slice.
-- **One record slot**: one new record and no other number, checked against `docs/decisions/` right
-  before it is written, because another agent may take a number first. It is Stage 2's first slice.
 - **The crates**, each pinned: `krilla` and `krilla-svg` (with the `pdf` feature for placing pages),
   `parley` with `fontique`'s system discovery off, `harfrust`, `skrifa`, `taffy`, `cssparser`,
   `selectors`, `hypher`, `html5ever` through `vendor/html5ever`, `hayro`, `resvg` and `usvg`,
   `barcoders`, `datamatrix`. `cssparser` and `selectors` are MPL-2.0, already on `deny.toml`'s list.
   `fulgur` (the same design, young) and WeasyPrint are references and test comparisons, never
   dependencies. A crate that fails to build for `wasm32-wasip2` is replaced by its nearest pure-Rust
-  equivalent, and the record says so.
+  equivalent, and `core-classes/pdf-one-engine`'s fragment says so.
 - **How a session judges layout.** Box geometry is asserted in the crate's host tests
   (`extensions/pdf/tests/`). A visual result is checked by rasterising the page with the image
   component's PDF decoding from Stage 3 and reading the PNG; a golden PNG is compared with
   `Image::compare` at a tolerance. A golden is never rewritten to make a check pass.
 - **Determinism is part of every stage**: two renders of equal input are byte-equal, including
   encrypted output.
-- **The tradeoffs**, stated here and in the record because AGENTS.md asks. Performance: one call per
-  render, two with a header function; milliseconds for an invoice and seconds for a long report.
+- **The tradeoffs**, stated here, and in the fragments and the commit, because AGENTS.md asks.
+  Performance: one call per render, two with a header function; milliseconds for an invoice and
+  seconds for a long report.
   Memory: nothing until first use; then the compiled module, shared by every core, and each rendering
   request's layout tree and output inside its own cap, freed when the request ends. The binary grows
   by the measured size of Stage 14. Usability: invoices, reports, labels and letters with no
   installation, headers and tables that survive page breaks, and e-invoices. Simplicity: one input
   language, one engine, no builder, and a CSS subset that is written down and tested.
-- **Neutral names only** in every test, example and record: `Shop`, `Blog`, `example.com`.
+- **Neutral names only** in every test, example and fragment: `Shop`, `Blog`, `example.com`.
 - **Every comment in a new `.nvs` and every `about.md` this goal writes follows `AGENTS.md`
   § *Text an end user reads* at the first write**, and `bun nv proofs --comments <paths>` is run over
   them before the wrap.
@@ -417,22 +416,22 @@ purpose, with the fixture's expected output rewritten in that slice and the reas
 
 ## Stages
 
-### 2. the record, its fragments, `wit/pdf.wit` and the font licence
+### 2. the fragments, `wit/pdf.wit` and the font licence
 
-**Does:** Writes the `Novis\Pdf` record from § *Standing decisions*, the fragments it creates and
-rewrites, the WIT interface the component exports, and admits the default fonts' licence.
+**Does:** Writes the `Novis\Pdf` fragments § *Standing decisions* creates and rewrites, the WIT
+interface the component exports, and admits the default fonts' licence.
 
-One file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packaging/`, `wit/pdf.wit`
-(new), `wit/image.wit`, `tools/nv/cmd/gen-attribution.ts:66`, `deny.toml:38`.
+One file set: `docs/rules/core-classes/`, `docs/rules/packaging/`, `wit/pdf.wit` (new),
+`wit/image.wit`, `tools/nv/cmd/gen-attribution.ts:66`, `deny.toml:38`.
 
-- **The record**, this goal's one slot, written first. Every class, member and options shape under
-  `Novis\Pdf`, the new `Novis\Image` members (barcodes, SVG output, `open`'s `page` and `dpi`), the
-  documented CSS subset as a table, the `Page` value and its marks, the table rules, the standards,
-  the reader and `merge`, encryption, the error kinds, the tradeoffs, and the user's calls as decided.
-  It amends the `pdf-*` rules under `docs/rules/core-classes/` and
-  `rule:packaging/the-first-party-components-are-built-in`'s count, and records the headless-browser backend,
-  form filling, signatures, PDF417 and Aztec as declined.
-- **The fragments.** It rewrites the seven `pdf-*` fragments to the new decisions, and creates at
+- **The fragments**, written first. Every class, member and options shape under `Novis\Pdf`, the
+  new `Novis\Image` members (barcodes, SVG output, `open`'s `page` and `dpi`), the documented CSS
+  subset as a table, the `Page` value and its marks, the table rules, the standards, the reader and
+  `merge`, encryption, the error kinds, and the user's calls as decided, each with its reasons, a
+  `**Memory:**` bullet where it spends memory, and a `**Declined:**` list, and the tradeoffs. The
+  headless-browser backend, form filling, signatures, PDF417 and Aztec go on a `**Declined:**`
+  list. It rewrites the seven `pdf-*` fragments under `docs/rules/core-classes/` to the new
+  decisions and `rule:packaging/the-first-party-components-are-built-in`'s count, and creates at
   least these, under the ids the Stage 2 check reads: `core-classes/pdf-css-subset-table` (the
   subset as data a test reads), `core-classes/pdf-tables-across-pages`,
   `core-classes/pdf-header-is-a-page-function`, `core-classes/pdf-factur-x-is-the-one-attachment`,
@@ -441,8 +440,8 @@ One file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packagi
 - **`wit/pdf.wit`**, batch-shaped like `wit/intl.wit`: `render` (HTML, the asset map, options, and
   the per-page header and footer markup when a second pass carries it), `merge`, `read`, and the
   types they share. The two-pass header design (§ *Standing decisions*) is in it from the first write.
-- **The proofs checks the record makes possible**: one `bun nv proofs --verify --group '<class>'`
-  check per class it names, in both components, added to Stage 16 of `data/goals/pdf.json`. They
+- **The proofs checks the fragments make possible**: one `bun nv proofs --verify --group '<class>'`
+  check per class they name, in both components, added to Stage 16 of `data/goals/pdf.json`. They
   are written here and not with the goal, because a `--group` check behind a goal whose list runs
   the whole-roster gate holds that goal (`gatesInFrontOfGroups` in `tools/nv/lib/chain.ts`).
 - **The font licence.** OFL-1.1 is admitted for **font data only**: `PREFERENCE` in
@@ -450,7 +449,7 @@ One file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packagi
   copyright. `deny.toml` gains it only if a crate in a component's graph declares it.
 - **A `cargo deny` over each component's own graph.** None exists today: `deny.toml`'s `[graph]
   targets` omit `wasm32-wasip2` and `extensions/` is outside the workspace. The slice that adds it
-  adds its check to this record.
+  adds its check to this goal's checks.
 - **Pinned by** the Stage 2 check.
 
 ### 3. SVG and PDF open as images
@@ -589,7 +588,7 @@ One file set: `extensions/pdf/src/paginate/` (new), `extensions/pdf/tests/pagina
   `orphans` and `widows`.
 - **A table of contents**: `target-counter()` and `leader()`, laid out again until the page numbers
   stop changing, which `counter(pages)` needs anyway. A document whose numbers never settle throws
-  after a fixed number of passes the record names.
+  after a fixed number of passes the fragments name.
 - **Links and structure**: `<a href>` to `http(s):`, `mailto:` and `#anchor`; bookmarks from `h1` to
   `h6`; `<title>`, `<meta>` and `lang` become metadata.
 - **Pinned by** the Stage 9 checks.
@@ -730,7 +729,7 @@ One file set: `editors/vscode/package.json:29` (`contributes`), `editors/vscode/
 
 ### 16. the feature proofs
 
-**Does:** Writes the feature proofs for every member the record named, in both components.
+**Does:** Writes the feature proofs for every member the fragments named, in both components.
 
 One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/novis/`,
 `docs/reference/novis/` (new pages for `Novis\Pdf`), `data/proofs/policy.json`.
@@ -757,17 +756,16 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 The `pdf-*` rules under `docs/rules/core-classes/` and M17 Parts 1 and 2 planned this work unscheduled; this goal schedules it and changes several of their decisions. The user made fifteen calls when the goal was written, under one rule of theirs: every common case is in, an easy edge case is in, a hard edge case almost nobody needs is out. The goal file's § *Standing decisions* holds them with the writer's own calls beside them. No session re-decides one.
 
-Facts about the tree as the goal was written. `Novis\` is reserved for built-in components (`rule:packaging/the-first-party-components-are-built-in`), so `Novis\Pdf` is the third built-in and the record amends that rule's count. `Svg` and `Pdf` are only enum cases in the image component: `sniff` rejects both (`extensions/image/src/decode.rs:60`), and the WIT's `page` and `dpi` are dropped by the guest mapping (`extensions/image/src/lib.rs:446`) and absent from `Image::open` (`extensions/image/nvs/Image.nvs:61`). OFL-1.1, the Liberation fonts' licence, is in neither `deny.toml:38` nor `tools/nv/cmd/gen-attribution.ts:66`. No `cargo deny` runs over an extension's own `wasm32-wasip2` graph. `html5ever` is the patched copy at `vendor/html5ever` (`Cargo.toml:1151`), which an `extensions/pdf` workspace must point at itself. pdfium-in-wasm needs Emscripten, so `hayro` (0.8 when the goal was written) has no fallback.
+Facts about the tree as the goal was written. `Novis\` is reserved for built-in components (`rule:packaging/the-first-party-components-are-built-in`), so `Novis\Pdf` is the third built-in and Stage 2 rewrites that rule's count. `Svg` and `Pdf` are only enum cases in the image component: `sniff` rejects both (`extensions/image/src/decode.rs:60`), and the WIT's `page` and `dpi` are dropped by the guest mapping (`extensions/image/src/lib.rs:446`) and absent from `Image::open` (`extensions/image/nvs/Image.nvs:61`). OFL-1.1, the Liberation fonts' licence, is in neither `deny.toml:38` nor `tools/nv/cmd/gen-attribution.ts:66`. No `cargo deny` runs over an extension's own `wasm32-wasip2` graph. `html5ever` is the patched copy at `vendor/html5ever` (`Cargo.toml:1151`), which an `extensions/pdf` workspace must point at itself. pdfium-in-wasm needs Emscripten, so `hayro` (0.8 when the goal was written) has no fallback.
 
 ### Next
 
-**Stage 2: the record, its fragments, `wit/pdf.wit` and the font licence**, one file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packaging/`, `wit/pdf.wit`, `wit/image.wit`.
+**Stage 2: the fragments, `wit/pdf.wit` and the font licence**, one file set: `docs/rules/core-classes/`, `docs/rules/packaging/`, `wit/pdf.wit`, `wit/image.wit`.
 
-- [ ] **The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Novis\Pdf` class, member and options shape, the new `Novis\Image` members, the CSS subset as `extensions/pdf/subset.json`'s table, `Page` and `data-mark`, the eight table rules, the standards and Factur-X, the reader, `merge` and encryption, the error kinds, the tradeoffs, and the user's calls as decided. Its front matter amends the `pdf-*` rules and `rule:packaging/the-first-party-components-are-built-in`; it records the headless-browser backend, form filling, signatures, PDF417 and Aztec as declined. `docs/decisions/0281.md:1`
-- [ ] **The fragments** — the seven `pdf-*` fragments rewritten to the new decisions (the builder, the browser backend and the `data:` refusal gone; Factur-X the one attachment; reading and merging in `Novis\Pdf`), and the seven new ids the Stage 2 checks read, listed in the goal's Stage 2. Then `docs/plan/m17.md` Parts 1 and 2 through a `## milestone: M17` wrap section. `docs/rules/core-classes/pdf-one-engine.md:1`
+- [ ] **The fragments**, written first: every `Novis\Pdf` class, member and options shape, the new `Novis\Image` members, the CSS subset as `extensions/pdf/subset.json`'s table, `Page` and `data-mark`, the eight table rules, the standards and Factur-X, the reader, `merge` and encryption, the error kinds, and the user's calls as decided, each with its reasons, a `**Memory:**` bullet where it spends memory, and a `**Declined:**` list (the headless-browser backend, form filling, signatures, PDF417 and Aztec), and the tradeoffs. It rewrites the seven `pdf-*` fragments to the new decisions (the builder, the browser backend and the `data:` refusal gone; Factur-X the one attachment; reading and merging in `Novis\Pdf`) and `rule:packaging/the-first-party-components-are-built-in`, and creates the seven new ids the Stage 2 checks read, listed in the goal's Stage 2. Then `docs/plan/m17.md` Parts 1 and 2 through a `## milestone: M17` wrap section. `docs/rules/core-classes/pdf-one-engine.md:1`
 - [ ] **`wit/pdf.wit`** batch-shaped like `wit/intl.wit`, with the second pass for header and footer markup in it from the first write, and its two tests in `crates/nvs-stdlib/tests/ext_world.rs`; `wit/image.wit` gains the barcode export. `wit/pdf.wit:1`
-- [ ] **The proofs checks the record makes possible** — one `bun nv proofs --verify --group '<class>'` check per class the record names, `Novis\Pdf` and the new `Novis\Image` members both, in Stage 16 of `data/goals/pdf.json`. `docs/goals/pdf.md:1`
-- [ ] **The font licence and the deny check** — OFL-1.1 admitted for font data in `gen-attribution.ts`'s `PREFERENCE`, and a `cargo deny` over each component's own `wasm32-wasip2` graph with its check added to `data/goals/pdf.json`. These two share no files with the record and may be their own session. `tools/nv/cmd/gen-attribution.ts:1`
+- [ ] **The proofs checks the fragments make possible** — one `bun nv proofs --verify --group '<class>'` check per class the fragments name, `Novis\Pdf` and the new `Novis\Image` members both, in Stage 16 of `data/goals/pdf.json`. `docs/goals/pdf.md:1`
+- [ ] **The font licence and the deny check** — OFL-1.1 admitted for font data in `gen-attribution.ts`'s `PREFERENCE`, and a `cargo deny` over each component's own `wasm32-wasip2` graph with its check added to `data/goals/pdf.json`. These two share no files with the fragments and may be their own session. `tools/nv/cmd/gen-attribution.ts:1`
 
 ### Backlog
 
