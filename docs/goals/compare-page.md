@@ -296,5 +296,5 @@ File set: `benches/compare.json`, `website/src/data/compare.json`.
 
 ### Backlog
 
-- Then stages 3 to 7 in order (docs/agent/goals/side/compare-page.md).
-- Then the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes compare-page` (docs/agent/goals/side/compare-page.md).
+- Then stages 3 to 7 in order (§ *Stages* above).
+- Then the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes compare-page` (AGENTS.md § *In the loop*).

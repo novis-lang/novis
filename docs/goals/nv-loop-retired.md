@@ -13,8 +13,8 @@ stages:
     context: [tools/nv/cmd/affected.ts, tools/nv/cmd/guard.ts, .github/workflows/ci.yml]
   - id: 3
     title: the deletes
-    status: open
-    context: [docs/agent/goals/README.md, docs/agent/session-prompt.md, tools/nv/cmd/audit.ts]
+    status: done
+    context: [tools/nv/cmd/audit.ts]
   - id: 4
     title: the docs
     status: open
@@ -112,29 +112,20 @@ deleted, `bun nv links` is green, and so are `bun nv verify` and `looper lint`.
 
 ### State
 
-**Stages 1 and 2 are done, and Stage 3's code deletes have landed.** The check
-`no-import-of-the-driver` is green: `git grep` finds no file under `tools/` that names the driver or a
-deleted loop command.
+**Stages 1, 2 and 3 are done.** No file of the old driver, its loop commands, its goal data or its
+prompts is left, and `no-import-of-the-driver` is green. What stays is prose that still describes them.
 
-- `tools/nv/driver/`, its tests, the seven loop commands and their `main.ts` entries are gone, with
-  `lib/handoff.ts`, `test/driver-boundary.test.ts` and `accept/accept.ts`'s `featureMatches`, whose only
-  caller was `loop --list`. `test/surfaces.test.ts` covers `brief --where` and `guard --check` alone.
-- `schema/index.ts` registers ten types. The `chain`, `goal`, `handoff` and playbook schemas,
-  `data/goals/`, `data/playbook/` and their JSON Schemas under `data/schema/` are deleted, and so are
-  `renderers/goal-plan.ts`, `docs/agent/goal-plan.md` and `lib/playbook-fragments.ts`. A gap's `goal` is
-  now a plain slug (`schema/gap.ts:17`), and `bun nv owners` checks it against `docs/goals/`.
-  `test/no-hand-build.test.ts` reads every goal file's checks through `lib/chain.ts`.
-- Every bullet under `docs/agent/playbook/` ends on looper's `` `until: <kind> <arg>` `` trailer. None
-  used the `rule` kind. A trailer whose argument held backticks was cut to text without them, because
-  looper ends the trailer at the next backtick (`crates/looper-core/src/playbook.rs:98` in looper's tree).
-  The many bullets whose trailer says `gone` of a deleted file now hold their condition, so
-  `looper playbook retire` deletes them when it runs.
-- `lib/written.ts` writes only `LOOPER_WRITTEN`'s ledger.
-- `bun nv side --prepare` looks for the side goal at `docs/goals/<slug>.md` (`cmd/side.ts:88`).
-- The old driver's files under `.loop/` are deleted: `chain.json`, `run.json`, `session-start.json`,
-  `written.txt`, `pack-size.jsonl`, `progress/` and `logs/`. The rest stays, because a live tool or
-  looper writes it, or its writer is *not checked*: `dossier-*`, `optimization/`, `optimize-status.txt`,
-  `release-gate.json`, `state.sqlite` and `test.nvs`.
+- `docs/agent/goals/`, `session-prompt.md` and `repair-prompt.md` are deleted. Their rules a looper
+  session still needs are in AGENTS.md: the handoff's shape in § *Keep each slice small*, side goals
+  under looper in § *The schedule is the chain*, and the rest in the new § *In the loop* (permission
+  denials, delegated searches, `verify --start`, `BLOCKED`, the goal-end gates, a repair's bar). The
+  side goals' old prose differed from `docs/goals/compare-page.md` and `search-questions.md` only in
+  its headings.
+- `bun nv audit goals` now flags any tracked file under `docs/agent/goals/` as a copy, and reads goal
+  numbers under `docs/goals/` alone; the live goal's prose it skips is `docs/goals/<live>.md`
+  (`cmd/audit.ts:47-55`, `:250`). `LEGACY`'s `docs/agent/goals/` pattern stays, since it names old
+  paths as history.
+- The old driver's code, data and `.loop/` files went in earlier sessions; `git log` has the list.
 
 **For the user: `.claude/settings.json` holds allow entries for deleted commands.** Its `bun nv` entries
 for `chain`, `goal`, `loop`, `loop-stats`, `orient`, `playbook` and `session` (lines 32-70 and 115-153)
@@ -142,23 +133,22 @@ name commands that no longer exist. No session edits that file, so removing them
 
 ### Next
 
-**Stage 3's last item, then the stage is done.** Files: `docs/agent/goals/` (`README.md` and
-`side/{compare-page,search-questions}.md`), `docs/agent/session-prompt.md`, `docs/agent/repair-prompt.md`,
-`AGENTS.md`, `tools/nv/cmd/audit.ts`.
+**Stage 4: the docs, process prose first** — one file set: `AGENTS.md`, `docs/agent/*.md`,
+`CONTRIBUTING.md`. The commit is `docs(agent): point the loop rules at looper`.
 
-- [x] **The driver and the seven loop commands**, with `lib/handoff.ts`.
-- [x] **The record types and their data together**, with their tests and JSON Schemas.
-- [x] **`renderers/goal-plan.ts`** and `docs/agent/goal-plan.md`.
-- [x] **The playbook trailers**, in looper's form.
-- [x] **`lib/written.ts`** writes looper's ledger alone, and the old driver's files under `.loop/` are deleted.
-- [ ] **`docs/agent/goals/` and the prompts** (`docs/agent/looper-cutover.md:176`), once AGENTS.md
-  holds their rules. First compare each rule of `session-prompt.md` and `repair-prompt.md` with
-  AGENTS.md § *Session workflow* and § *The context budget*, and move into AGENTS.md what it lacks.
-  `docs/agent/goals/side/*.md` duplicate `docs/goals/compare-page.md` and `search-questions.md`; check
-  that nothing in them is missing there before deleting. `cmd/audit.ts:36` (`GOALS`), `:48`, `:57`,
-  `:218` and `:255` still name `docs/agent/goals/`: they recognise its old paths as history, so decide
-  whether each test stays as a legacy pattern or goes, with `test/audit.test.ts:27-176`.
-  `optimization-prompt.md` is not a loop prompt and stays.
+- [ ] **AGENTS.md's Novis half names deleted commands.** `bun nv orient` at `AGENTS.md:21-22` and
+  `:269`, `bun nv session --wrap` at `AGENTS.md:101` and `:298-301`, `nv session` at `AGENTS.md:31`,
+  `bun nv loop-stats` at `AGENTS.md:283`. Each becomes looper's command or goes; the looper block
+  (`AGENTS.md:356` on) is `looper sync`'s and is not edited by hand.
+- [ ] **Dead links to the deleted prompts and goals README**: `docs/agent/coordinator.md:21`, `:28`,
+  `:42`, `:80`, `:222`, `:419`, `:493`, `:550`, `:562`; `docs/agent/user-report.md:85` and `:119`;
+  `CONTRIBUTING.md:203-205`; `docs/agent/optimization-prompt.md:107`. A side-goal link goes to
+  AGENTS.md § *The schedule is the chain*. `bun nv links` names 10 dead links, these with
+  `docs/agent/carried-refusals.md:28`, `docs/agent/guard-name-debt.md:80` and
+  `docs/decisions/0130.md:129`.
+- [ ] **`coordinator.md`, `loop-authoring.md` and `docs/agent/playbook.md:5-6`** rewritten to point at
+  looper, per § *Standing decisions*; then `docs/agent/looper-cutover.md` is deleted and `bun nv links`
+  run.
 
 ### Backlog
 
@@ -174,4 +164,7 @@ name commands that no longer exist. No session edits that file, so removing them
   `:38-54`, `lib/proctree.ts:3`, `lib/progress.ts:6`, `proofs/run.ts:60`, `tools/git-hooks/commit-msg:11`
   and `tools/leak-check.sh:3`. `cmd/plan.ts`'s `applyPlan` and `cmd/site.ts`'s `wrapGate` were
   `bun nv session --wrap`'s, so check whether each still has a caller.
-- Stage 4: `docs/agent/playbook.md:5-6` still describes the `[until: …]` form and `cmd/playbook.ts`.
+- Stage 4: crate comments citing old goal prose under `docs/agent/goals/` (`Cargo.toml:147`,
+  `crates/nvs-ir/tests/refusals.rs:24` and `:302`, `crates/nvs-ir/tests/type_atoms.rs:40`, and more;
+  `git grep -n docs/agent/goals/ -- crates Cargo.toml` lists them), and
+  `docs/rules/tooling/the-chain-names-its-live-goal.md:11`.

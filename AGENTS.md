@@ -311,10 +311,16 @@ Step 5 above, in detail:
 
 - Always commit your work before you exit, and never leave a slice uncommitted. Stage each slice's own
   files, and let the last commit sweep whatever is left.
-- The handoff is the live goal's record `data/goals/<slug>.handoff.json`, written by the wrap file's
-  `## handoff` section. **Overwrite it**, never append: it says where the work stands now. Its shape is
-  [docs/agent/session-prompt.md](docs/agent/session-prompt.md) § *The handoff's shape*. Then show the
-  user the same prompt in chat.
+- The handoff is the live goal's `## Handoff` in `docs/goals/<slug>.md`. **Overwrite it**, never append:
+  every later session reads it whole, so it is a bounded state file, not a changelog. Its three parts:
+  `### State`, a few lines on what is on disk and what is blocked; `### Next`, the next group as two to
+  four slices under one line naming the stage and the file set they share, each item naming the rule
+  that specifies it and its anchors repo-rooted (`crates/nvs-runtime/src/ctx/isolate.rs:116`), because
+  the item is where `looper orient` reads the code it inlines into the next pack; and `### Backlog`, up
+  to six one-line items, each with its owning doc. A fact that outlives ten sessions goes to the
+  playbook, a rule's fragment or a module doc, and the handoff points at that home rather than restating
+  it. Aim for about 60 lines, and never spend a session trimming it. Then show the user the same
+  prompt in chat.
 - **The playbook is the opposite file**: traps, not history ([docs/agent/playbook.md](docs/agent/playbook.md)).
   Add a bullet in the shape [conventions.md](docs/agent/conventions.md) § *A playbook bullet* gives when a
   trap costs you time, edit one when it stops being true, and never reword one or write a session's story
@@ -330,18 +336,40 @@ Step 5 above, in detail:
   [docs/plan/design.md](docs/plan/design.md). Overwrite a field in place; never append a paragraph or add
   a field. Known-gap detail belongs in the crate's module doc. `bun nv plan --show M8` prints a milestone,
   `--show M8:verify` its acceptance paragraph, and a `## milestone: M8` wrap section rewrites one.
-- **The schedule is the chain, not the milestone table.** `data/chain.json` holds `goals`, the slugs in
-  the order the loop walks them, and `live`, the goal the driver works on and moves on when one is
-  reached. A goal is its prose at `docs/agent/goals/<slug>.md` and its record at `data/goals/<slug>.json`.
-  A milestone is an identity tag goals carry, so its number says nothing about what is next. **A side
-  goal is off the chain** and run by hand in a worktree of its own —
-  [goals/README.md](docs/agent/goals/README.md) § *Side goals*.
+- **The schedule is the chain, not the milestone table.** The chain and the goal files are looper's,
+  under [docs/goals/](docs/goals/README.md), as § *Goals* below says. A milestone is an identity tag
+  goals carry, so its number says nothing about what is next. **A side goal is a goal file off the
+  chain.** It runs as a side loop (`looper loop add --side <slug>`) in its own worktree at
+  `.agent-tmp/worktrees/side/<slug>`, which `bun nv side --prepare` makes; it lands on `main` by hand
+  once its checks are green, and its file is deleted as it lands.
 - **Name a goal by its slug, never by its number** — in prose, a comment, a commit message, an owner
   column and what a tool prints. A position beside a total (`29 of 43`) is fine; a position moves when a
-  goal is inserted, and a slug never does. `bun nv chain --check` fails on a goal named by its number.
-- **`bun nv chain` reorders the chain**: `--new`, `--move` or `--remove <slug>` with one place —
-  `--after <goal>`, `--before <goal>`, `--to <position>`, `--next` or `--end`. It edits `goals` only,
-  never `live`; a goal's record and prose are written by hand around it.
+  goal is inserted, and a slug never does.
+
+## In the loop
+
+What a loop session owes on top of § *Session workflow*:
+
+- **A denied call is not retried in another form.** The loop runs under `--permission-mode auto`, so a
+  call outside `.claude/settings.json`'s allowlist is reviewed and may be refused. Do the work with an
+  allowed command, or name the call you needed in the handoff.
+- **Do not re-read what the pack printed**: the handoff, the stage, the decisions, the traps.
+- **A read-heavy search goes to an `Explore` subagent**, which has no Edit or Write tool. Delegate
+  *where is X*, *how many Y*, *which syntax the corpus uses*, over files you will not otherwise open;
+  never a write, a file you are about to edit, a design question, whether a check passed, or the wrap.
+  Its prompt is the question, the place to look and the answer's shape (`file.rs:NN` and one line each,
+  no excerpts), never the project, because it reads its own copy of this file.
+- **Start `bun nv verify --start` before you write the handoff**, and collect it with `--wait`. A
+  mid-work check is `--fast` or `-p <crate>`, never the full gate.
+- **`BLOCKED` is for a decision expensive to reverse with no safe default.** Otherwise take the safe
+  option and say so in the handoff.
+- **Before `DONE`, the goal-end gates.** `bun nv verify --doc` and every broken doc link it names
+  fixed, then `bun nv owners --closes <slug>` and every gap it names closed or given another owner.
+  A reached goal's file is deleted, so first move each decision only its prose holds to a rule or a
+  module doc, and turn each check that proves more than a suite does into a test.
+- **A repair fixes the cause, not the symptom.** The loop's tooling under `tools/` is in scope, and so
+  is a check that is itself wrong; renaming a test, removing a check or loosening a bound until it
+  passes is not a fix. A verdict already fixed on disk needs no change, and the status line says so.
 
 ## Where Novis departs from the stack files
 

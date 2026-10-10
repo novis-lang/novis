@@ -208,5 +208,5 @@ File set: `tools/nv/cmd/site.ts`, `tools/nv/test/site-questions.test.ts`.
 
 ### Backlog
 
-- Then stages 3 to 6 in order (docs/agent/goals/side/search-questions.md).
-- Then the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes search-questions` (docs/agent/goals/side/search-questions.md).
+- Then stages 3 to 6 in order (§ *Stages* above).
+- Then the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes search-questions` (AGENTS.md § *In the loop*).
