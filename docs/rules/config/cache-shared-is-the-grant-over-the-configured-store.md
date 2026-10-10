@@ -24,3 +24,13 @@ may reach.
 
 The grant is asked at the door and after the directive is read — a deployment that configured no
 store hears that first, because there is no tier for a grant to be about yet.
+
+The address table governs strictly less because of this rule, and that is bounded: its reach shrinks
+only over endpoints an operator wrote. Every program-supplied endpoint — `Core\Http\Client`,
+`Core\Net`, `Core\Db::open`'s settings — is governed exactly as before.
+
+**Declined:**
+- **`net.connect` kept, with `[cache.shared]` carved out of the address table.** It ends the loopback
+  double grant, but the application still names a host only the deployment knows, and a socket path
+  still has nothing to put in `connect`. Both problems have one cause, a grant that asks about an
+  address, and one fix.

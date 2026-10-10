@@ -318,8 +318,9 @@ services:
       - /certs/ca.crt
       - --tls-auth-clients
       - "no"
-      # ADR 0142's second door onto the same store, which `examples/cache-shared-socket.nvs` is the
-      # fixture for. It is a third listener and not a second service: the claim that fixture makes
+      # The second door onto the same store, a socket as
+      # `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` spells it, which
+      # `examples/cache-shared-socket.nvs` is the fixture for. It is a third listener and not a second service: the claim that fixture makes
       # is about the transport, so a socket onto a *different* store would be asserting the
       # transport and the store at once. `unixsocketperm` is world-writable because the process
       # that connects is a developer's own and the store holds nothing -- the same reading the

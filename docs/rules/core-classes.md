@@ -1173,7 +1173,11 @@ takes — and answer a server the same way over either, which is what
 `a_driver_answers_the_same_over_either_transport` asserts. `crates/nvs-db/src/tds/mod.rs` refuses a
 path in `TdsTarget::resolve`, as `BlockError`'s `NoSocketTransport`.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md).</sub>
+**Declined:**
+- **A full socket path for Postgres**, uniform with MySQL's. No existing Postgres connection string is
+  written that way, so the uniformity would be paid for by every migrating deployment.
+
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum).</sub>
 
 <a id="core-classes-server-version-is-what-the-server-said"></a>
 

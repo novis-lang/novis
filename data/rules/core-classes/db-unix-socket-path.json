@@ -1,9 +1,7 @@
 {
   "title": "A Unix-socket host is the string that deployment already holds, and MSSQL refuses one",
   "status": "shipped",
-  "because": [
-    "0142"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/db-connection-is-named",
     "core-classes/db-drivers-are-an-enum"

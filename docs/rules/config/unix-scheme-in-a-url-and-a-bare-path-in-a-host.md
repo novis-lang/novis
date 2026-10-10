@@ -24,3 +24,7 @@ socket file for MySQL and MariaDB, a refusal for MSSQL — is
 
 A bare path in `url` is refused rather than read: a non-URL in a key called `url` is a thing to
 re-litigate rather than a thing to read.
+
+On a single-machine deployment a socket makes the shared tier's round trip a local one, for sessions
+and rate limits as much as for the cache. The per-core local tier still may not hold a session: a
+socket is coherent across cores and a per-core map is not.

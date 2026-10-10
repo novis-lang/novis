@@ -3,7 +3,7 @@
 // `examples/cache.nvs`, against a store `examples/cache-shared-socket.toml`
 // reaches at a path instead of at an address.
 //
-// [ADR 0142](/docs/decisions/0142.md) is why this is
+// `rule:config/cache-shared-is-the-grant-over-the-configured-store` is why this is
 // a spelling in the operator's file and nothing in the program: the grant is
 // `cache.shared`, which names the *store* and asks no address, so a store that
 // has no address at all is not a special case of it. Nothing below mentions the

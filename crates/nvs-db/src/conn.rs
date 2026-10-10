@@ -126,9 +126,8 @@ pub fn socket_endpoint(host: &str) -> std::io::Result<Endpoint> {
 /// A refusal and never a fallback: a Unix spelling on a platform without the
 /// transport does not quietly become loopback TCP, because the two are not the
 /// same server and an operator who wrote a path did not ask for a port.
-/// [ADR 0142 § 4](/docs/decisions/0142.md) is the argument, and
-/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` the
-/// rule it left.
+/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` is
+/// the rule and its argument.
 ///
 /// # Errors
 ///

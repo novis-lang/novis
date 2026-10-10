@@ -1958,7 +1958,17 @@ may reach.
 The grant is asked at the door and after the directive is read — a deployment that configured no
 store hears that first, because there is no tier for a grant to be about yet.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it). Decided in [0142](../decisions/0142.md).</sub>
+The address table governs strictly less because of this rule, and that is bounded: its reach shrinks
+only over endpoints an operator wrote. Every program-supplied endpoint — `Core\Http\Client`,
+`Core\Net`, `Core\Db::open`'s settings — is governed exactly as before.
+
+**Declined:**
+- **`net.connect` kept, with `[cache.shared]` carved out of the address table.** It ends the loopback
+  double grant, but the application still names a host only the deployment knows, and a socket path
+  still has nothing to put in `connect`. Both problems have one cause, a grant that asks about an
+  address, and one fix.
+
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it).</sub>
 
 <a id="config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it"></a>
 
@@ -1987,7 +1997,12 @@ sockets on a host is open, distribution-specific and grows when anything is inst
 must enumerate what to refuse is wrong on the machine nobody tested. The grant a program-supplied
 path would need is [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster).
 
-<sub>See also [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0142](../decisions/0142.md).</sub>
+**Declined:**
+- **A socket gated on `fs.write` over its path.** It adds no capability, but one grant would mean both
+  "may write files here" and "may talk to whatever daemon listens here": `fs.write = ["/run/"]`,
+  written to reach a store, would also permit overwriting every socket and pidfile in `/run`.
+
+<sub>See also [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink).</sub>
 
 <a id="config-unix-scheme-in-a-url-and-a-bare-path-in-a-host"></a>
 
@@ -2022,7 +2037,11 @@ socket file for MySQL and MariaDB, a refusal for MSSQL — is
 A bare path in `url` is refused rather than read: a non-URL in a key called `url` is a thing to
 re-litigate rather than a thing to read.
 
-<sub>See also [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path), [`config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`](config.md#config-a-unix-spelling-with-no-af-unix-transport-refuses-at-boot). Decided in [0142](../decisions/0142.md).</sub>
+On a single-machine deployment a socket makes the shared tier's round trip a local one, for sessions
+and rate limits as much as for the cache. The per-core local tier still may not hold a session: a
+socket is coherent across cores and a per-core map is not.
+
+<sub>See also [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path), [`config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot`](config.md#config-a-unix-spelling-with-no-af-unix-transport-refuses-at-boot).</sub>
 
 <a id="config-a-unix-spelling-with-no-af-unix-transport-refuses-at-boot"></a>
 
@@ -2033,7 +2052,8 @@ re-litigate rather than a thing to read.
 A Unix spelling on a platform this build has no Unix transport for is refused **where the key was
 written**, at boot, with a note naming the platform and pointing at loopback TCP. The Unix transport
 is `#[cfg(unix)]`, and there is no Windows fallback because `AF_UNIX` exists there but the reactor's
-I/O layer does not carry it.
+I/O layer does not carry it. Such a deployment stays on loopback TCP, and the refusal lifts with no
+change to this rule if that layer gains the transport.
 
 At boot rather than at run time, which is the opposite of the answer a session `backend = "db"` gets
 ([`core-api/session-roster`](core-api.md#core-api-session-roster)), and the difference is what each is waiting for. `db` names a store
@@ -2047,7 +2067,7 @@ refused where it is written, so a deployment cannot run believing it has a store
 runs as another is worse than one that does not run, because the difference is invisible in exactly
 the review that would have caught it.
 
-<sub>See also [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`core-api/session-roster`](core-api.md#core-api-session-roster). Decided in [0142](../decisions/0142.md), [0139](../decisions/0139.md).</sub>
+<sub>See also [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`core-api/session-roster`](core-api.md#core-api-session-roster). Decided in [0139](../decisions/0139.md).</sub>
 
 <a id="config-net-local-is-named-and-not-on-the-roster"></a>
 
@@ -2081,7 +2101,7 @@ as strict. `Core\Net::connect` still may not take a path, because it is not the 
 a host and a path are separately-typed arguments to separate members, which is
 [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url) holding by construction rather than by a check.
 
-<sub>See also [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/net-address-policy`](security.md#security-net-address-policy). Decided in [0142](../decisions/0142.md), [0162](../decisions/0162.md).</sub>
+<sub>See also [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/net-address-policy`](security.md#security-net-address-policy). Decided in [0162](../decisions/0162.md).</sub>
 
 <a id="config-the-extension-set-is-in-every-unit-key"></a>
 
