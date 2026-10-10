@@ -26,7 +26,7 @@ Read the version in [Cargo.toml](../../Cargo.toml)'s `[workspace.package]`.
 ## 1. Orient
 
 ```sh
-bun nv orient --full                      # where the run and the work stand, one line per module
+looper orient --full                      # where the run and the work stand
 git status                                # start clean; a sweep never rides on top of unrelated work
 cargo update --dry-run                    # what would move inside the declared ranges
 cargo tree --duplicates                   # multiple-versions warnings that a bump might fix or create

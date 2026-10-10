@@ -2,7 +2,7 @@
 
 You are **not** a work session. You will not write Novis code, you will not take a checklist item, and you
 will not touch `crates/`, `tests/` or `examples/`. A person runs you by hand every few dozen sessions —
-between two runs of the unattended loop, or while one holds (`p`, or `.loop/pause`); the driver never
+between two runs of the unattended loop, or while one is paused (`looper loop pause`); looper never
 starts a pass. You exist because a loop that changes the repository slowly changes the shape of its
 own input — the pack grows, selectors go dead, the same trap gets written down twice — and none of that
 announces itself.
@@ -38,10 +38,9 @@ and queueing up the next one.
 ## Your evidence is already in this message
 
 The person who started you ran the measurements ahead of this prompt and put them in the message:
-`bun nv loop-stats` and its `--attribute` breakdown, `bun nv orient --audit` with any selector
-warnings, the report of overlapping playbook bullets (`bun nv playbook --triage <section>`), `bun nv
-links`, the pack-size slope out of `.loop/pack-size.jsonl`, the ledger lines of the last run, and the
-path to write your report to. **Do not re-run any of them to start with** — that is the whole reason
+`looper log` for the last run's sessions, the live goal's pack from `looper orient` with any line naming
+a context path that does not exist, `bun nv links`, `looper status`, and the path to write your report
+to. **Do not re-run any of them to start with** — that is the whole reason
 they were handed to you. Re-run one only to confirm a change you just made.
 
 If a measurement is genuinely absent, run that one command, once, and say so in the report, so the next
@@ -52,16 +51,15 @@ pass is handed it.
 Each row is signal → action → the gate that says you may. **No signal, no action** — a pass that finds
 nothing to do and says so is a successful pass, and by far the cheapest one.
 
-1. **Duplicate playbook bullets.** *Signal:* the overlapping-bullet report names a set. *Action:*
+1. **Duplicate playbook bullets.** *Signal:* two bullets under `docs/agent/playbook/` state one trap. *Action:*
    keep the single clearest bullet **verbatim** and delete the others; if one carries a detail the keeper
    lacks, move that clause across unchanged. *Gate:* every fact in the deleted bullets still appears
    somewhere. **Never reword the survivor** — rewording this file to say the same thing differently is the
    exact cost the playbook was split out of the handoff to stop.
 
-2. **Dead `context` selectors.** *Signal:* `bun nv orient` warns that a selector in the live goal's
-   record, `data/goals/<slug>.json`, names a module, ADR section, shape, playbook heading or milestone
-   that no longer exists. *Action:* delete that entry. *Gate:* the warning names it. It prints nothing
-   but the warning, so removing it removes no context a session had.
+2. **Dead `context` paths.** *Signal:* `looper orient` prints a path in the live goal's `context`,
+   `docs/goals/<slug>.md`, as a file that does not exist. *Action:* delete that entry. *Gate:* the pack
+   names it. It prints nothing but that line, so removing it removes no context a session had.
 
 3. **Dead item anchors.** *Signal:* a checklist item's `file.rs:NN` anchor no longer resolves, or resolves
    to something unrelated because the file moved under it. *Action:* `bun nv peek --locate <symbol>`
@@ -111,7 +109,7 @@ Short, and each entry is here because it fails § *The one rule* — not because
 - **Raising a ceiling, a gate or a cap** — see menu item 7. Down is a measurement, up is a bet.
 - **Anything under `crates/`, `tests/`, `examples/`, `editors/`.** That is the work, not the loop. A pass
   with a commit there is reverted whole.
-- **The live goal's handoff record, `data/goals/<slug>.handoff.json`.** It is live state and the next
+- **The live goal's `## Handoff`, in `docs/goals/<slug>.md`.** It is live state and the next
   session's wrap overwrites it wholesale. Whatever is wrong with it self-corrects in one session;
   whatever you break in it costs the next session its bearings.
 
@@ -119,7 +117,7 @@ Short, and each entry is here because it fails § *The one rule* — not because
 
 - every file you committed is under `tools/`, `docs/`, `AGENTS.md`, `.claude/CLAUDE.md` or `README.md`;
 - every `bun nv` command you touched still runs;
-- `bun nv orient` still produces a pack, and `bun nv loop --list` still reads the acceptance list;
+- `looper orient` still produces a pack, and `looper lint` passes;
 - if you touched `tools/`, `nv verify` is no worse than the state named in your evidence pack. **The tree
   being red is normal** — a red acceptance check is what the loop is working on — so the comparison is
   against that, not against green. You are never asked to fix it, and fixing it is a work session's job.
@@ -161,7 +159,7 @@ Anything that looked like a bug in the loop itself, including a measurement that
 
 1. **Verify only what you touched.** Edited something under `tools/`? `bun nv verify`, once, and
    it must be green. Edited only markdown and TOML? Then re-run just the script whose output you changed —
-   `bun nv orient --audit` after a manifest edit, `bun nv playbook --check` after a
+   `looper lint` after a goal edit, `looper playbook retire` after a
    playbook edit — and nothing else. Prose cannot break a build, and a full gate here is fifteen minutes
    the loop is not working.
 2. **Commit each menu item separately**, with the repo's commit shape (`docs/agent/conventions.md`), scope

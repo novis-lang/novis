@@ -136,7 +136,7 @@ The proofs are the same as for any change:
   write it, because the loop may take one concurrently.
 
 The loop may be committing on `main` while you work: stage only your own files, and never touch
-the live goal's handoff record, `data/goals/<slug>.handoff.json`.
+the live goal's `## Handoff` in `docs/goals/<slug>.md`.
 
 ## 7. Before every commit: the neutral-name check
 

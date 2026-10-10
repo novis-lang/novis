@@ -1,8 +1,8 @@
 # Guard-name debt
 
-A `cargo-named` check in a goal's record, `data/goals/<slug>.json`, is a **substring match against
-the test names `cargo test` actually runs**. A name that matches nothing reports `did not run`, and the
-acceptance sweep stops at the first red check — so one stale name hides every check behind it.
+A check's `tests` list in a goal's front matter, `docs/goals/<slug>.md`, names tests that must appear
+in `cargo test`'s output **as run and passed**. A name that matches nothing fails the check, so one
+stale name holds the goal open with nothing else wrong.
 
 That is not hypothetical. `a_spaceship_answers_minus_one_zero_or_one_for_a_scalar` blocked the
 acceptance test at check 6 of 60 for 65 consecutive sessions: the fixtures, both `.nvst` suites, the
@@ -16,7 +16,7 @@ for p in nvs-syntax nvs-hir nvs-types nvs-ir nvs-runtime nvs-codegen nvs-stdlib 
   cargo test -p $p -- --list; done
 ```
 
-then substring-match every entry of a check's `tests` in the goal's record against that roster. Measured
+then match every entry of a check's `tests` in the goal's front matter against that roster. Measured
 at `e0c9f3e`, **54 of 156 named guard tests matched nothing cargo would run.** All
 fifty-four were reconciled, one ticked line each, and the ticked lines were then deleted in place:
 `git log -S <name> -- docs/agent/guard-name-debt.md` holds every one of them with what it became.
@@ -27,7 +27,7 @@ What outlives them is the part below — why a name goes stale, and what each ca
 Three causes, and they want different fixes. Do not assume the first one.
 
 1. **The work landed under a different name.** The commonest. A session writes the test, names it
-   the way [conventions.md](conventions.md) asks, and never reconciles the goal's record. Confirmed
+   the way [conventions.md](conventions.md) asks, and never reconciles the goal's check. Confirmed
    examples: `an_instanceof_narrows_its_operand` is
    [narrowing.rs:145](../../crates/nvs-types/tests/narrowing.rs#L145)
    `an_is_test_over_a_written_class_narrows_its_subject`; `a_literal_comparison_narrows_its_operand` is
@@ -41,7 +41,7 @@ Three causes, and they want different fixes. Do not assume the first one.
    `each_test_with_is_a_row_folded_in_parameter_order`;
    `an_abandoned_generator_resumes_to_unwind` is
    `an_abandoned_generator_resumes_into_the_finally_it_is_suspended_inside`.
-   **Fix: rewrite the name in the goal's record.** Nothing else.
+   **Fix: rewrite the name in the goal's check.** Nothing else.
 2. **The check names a Rust test for work that got pinned in a `.nvst` case instead.** The commonest
    *fix*, and `nvs-stdlib (the assertion roster)` was its cleanest case: `crates/nvs-stdlib/tests/`
    holds no assertion test file at all because `rule:testing/assertions-are-typed`, `rule:testing/failure-ledger` and `rule:testing/report-formats` are pinned by conformance
@@ -54,7 +54,7 @@ Three causes, and they want different fixes. Do not assume the first one.
    [refusals.rs](../../crates/nvs-ir/tests/refusals.rs), which runs `bun nv holes` over the tree rather
    than carrying a second recognizer. **Fix: write it.**
 
-A session that lands a guard test **reconciles its name here and in the goal's record in the same
+A session that lands a guard test **reconciles its name here and in the goal's check in the same
 slice**. That is the only thing that keeps this file from growing back.
 
 ## Names owed on purpose are cause 3, and deliberately so
@@ -66,7 +66,7 @@ the acceptance test failed at the first check holding it and reached nothing beh
 | | the fifty-four | a name owed on purpose |
 |---|---|---|
 | the work | landed | not started |
-| the fix | rewrite the name in the goal's record | write the test |
+| the fix | rewrite the name in the goal's check | write the test |
 | renaming it to something green | restores a check that was already true | hides an open hole |
 
 **One is outstanding:**

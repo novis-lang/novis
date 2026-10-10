@@ -6,8 +6,8 @@
 //
 // `--apply <wrap-file | ->` is the one mode that writes. It takes a wrap file's `## plan:`, `## plan-edit:`
 // and `## milestone:` sections, checks them with `planChecks`, and writes them only when every one is
-// sound; `--dry` checks and writes nothing. `bun nv session --wrap` calls the same `planChecks` and
-// `apply*` functions for those sections, so a wrap and a hook that runs `--apply` write the plan alike.
+// sound; `--dry` checks and writes nothing. A session runs it on its wrap file before `looper wrap`,
+// which does not read those sections.
 //
 // The roster and the status block are read from the `milestone` and `plan_status` records under
 // `data/plan/`. A milestone's scope is prose, `docs/plan/<id>.md`, and its H1 is where the body starts.
@@ -314,8 +314,8 @@ function check(): number {
       console.log(`  ${name.padEnd(20)} ${String(n).padStart(6)} bytes   ${round0(n / aim)}x the aim, ${ceiling - n} B under the ${ceiling} B ceiling`);
     }
   }
-  console.log("  Every one of these is shipped into every session by nv orient and nv brief.");
-  console.log(`  The aim is guidance; the ${ceiling} B ceiling is a gate on GROWTH: nv session --wrap`);
+  console.log("  Every one of these is shipped into every session by nv pack and nv brief.");
+  console.log(`  The aim is guidance; the ${ceiling} B ceiling is a gate on GROWTH: nv plan --apply`);
   console.log("  refuses an edit that leaves a field both over it and bigger than it was. A shrink");
   console.log("  is always taken, so there is never prose to shave -- a sentence is replaced instead.");
 

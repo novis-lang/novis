@@ -40,8 +40,8 @@ paragraph is repeated from one commit to the next.
 `Signed-off-by`, no `Generated-with`, no tool or model attribution in any spelling. Who or what wrote a
 commit is not part of the record this project keeps, and boilerplate at the foot of every message is
 noise every future reader pays for. `git log` should read as a history of the language, not of its
-authorship. This is enforced twice — `bun nv session --wrap` strips a trailer out of any message it is handed,
-and the `commit-msg` hook in `tools/git-hooks/` rejects one that arrives any other way.
+authorship. The `commit-msg` hook in `tools/git-hooks/` rejects a message that carries one, whoever
+commits it.
 
 The one line that is not attribution: the commit that fixes **a bug reported in a public issue** ends its
 body with `Fixes #<n>`, which links the fix to the issue and closes it. Nothing else says a change came
@@ -434,9 +434,9 @@ so the file opens on the first sentence of the rule. Its **opening sentence is c
 paragraph where one is enough, four where the rule has a table of cases in it.
 
 **Then run `bun nv rules --render`**, which rewrites the three generated files. `--check` and
-`--render --check` are CI's `docs` job, and `bun nv session --wrap` runs both for any session that has
-touched `docs/rules/` — so a fragment edited without a render, or a rule renamed under its citations,
-refuses the wrap rather than reaching CI.
+`--render --check` are CI's `docs` job, and a session that touched `docs/rules/` runs both before it
+wraps, so a fragment edited without a render, or a rule renamed under its citations, is caught before
+it reaches CI.
 
 ## Where a rule sits in the order
 
@@ -557,7 +557,7 @@ every index is derived.
 
 ## A diagnostic
 
-Next free code per band: `bun nv orient`, under *The next free number*. Bands are by compiler phase and the legend is
+Next free code per band: `bun nv pack`, under *The next free number*. Bands are by compiler phase and the legend is
 `crates/nvs-diagnostics/src/lib.rs`'s own table. Declare it there as a `Code::new` constant next to its
 siblings — that file is the whole registry, so a code declared anywhere else does not exist.
 
@@ -603,29 +603,28 @@ bun nv plan --check              # field names and sizes
 bun nv plan --get "Open now"     # its current text
 ```
 
-A field is written by the wrap, never by hand: a `## plan: <Field>` section in the `bun nv session
---wrap` file replaces it whole, and `## plan-edit: <Field>` replaces one fragment of it. The field set
-is fixed, and the wrap refuses a name that is not already there.
+A field is written by `bun nv plan --apply <file>`, never by hand: a `## plan: <Field>` section in the
+wrap file replaces it whole, and `## plan-edit: <Field>` replaces one fragment of it. The field set is
+fixed, and `--apply` refuses a name that is not already there.
 
 ## A playbook bullet
 
 ```
 - **<The trap, as one claim a reader can match against their own symptom.>** <Why it happens, one
   or two sentences.> <What to do instead, one sentence naming the file, flag, command or rule.>
-  [until: <kind> <arg>]
+  `until: <kind> <arg>`
 ```
 
-Three sentences and about 400 bytes; `bun nv session --wrap` refuses a new bullet past 700. The first
-sentence is the bullet's selector — a goal manifest fetches it by the opening words of that bold text — so it
-states the trap and not the story. It is also the bullet's file name: the wrap writes each bullet to
-`docs/agent/playbook/<section>/<lead-in words>.md`, with its record under `data/playbook/`. The
-trailer is required, and `tools/nv/cmd/playbook.ts`'s module doc is the only home of its four kinds
-(`test`, `exists`, `gone`, `rule`). Each one is a condition the tree answers, so `bun nv playbook
---retire` deletes the bullet the day it stops being true. A bullet names, in backticks, at least one
-file in the tree by its path from the repository root, and the wrap refuses one that names none.
+Three sentences and about 400 bytes; `looper wrap` refuses a new bullet past 700. The first sentence
+states the trap and not the story, because it is what a session matches against its symptom. It is
+also the bullet's file name: each bullet is `docs/agent/playbook/<section>/<lead-in words>.md`. The
+trailer is required, and looper's `docs/goal-format.md` § *The playbook* is the only home of its kinds.
+Each one is a condition the tree answers, so `looper playbook retire` deletes the bullet the day it
+stops being true. A bullet names, in backticks, at least one file in the tree by its path from the
+repository root, and the wrap refuses one that names none.
 
 What does **not** go in: the session's narrative (which stage, which check, what was tried first —
 `git log` holds it), a measured number, a rule that already has a home (a `rule:` token, a module doc,
 `AGENTS.md`), or a trap whose whole subject is a stale line in a goal's record or prose or a wrong claim
-in a handoff — fix the line instead. `bun nv orient --traps <path>` before writing prints the traps
-already filed against that path.
+in a handoff — fix the line instead. Grep `docs/agent/playbook/` for the path before writing, to find
+the traps already filed against it.
