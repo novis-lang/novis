@@ -199,7 +199,7 @@ been, which is why it passes [`security/metric-label-refuses-tainted`](security.
   one series per user, the cardinality bomb every label rule in this chapter exists to prevent, and
   offering it as an option means it would be chosen.
 
-<sub>See also [`observability/default-series`](observability.md#observability-default-series), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0110](../decisions/0110.md).</sub>
+<sub>See also [`observability/default-series`](observability.md#observability-default-series), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/table-is-opt-in`](routing.md#routing-table-is-opt-in), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0102](../decisions/0102.md), [0110](../decisions/0110.md).</sub>
 
 <a id="observability-a-registry-is-per-core-and-nothing-reads-it"></a>
 

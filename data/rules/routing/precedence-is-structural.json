@@ -2,7 +2,6 @@
   "title": "Precedence is structural — a fixed segment beats a capture beats an optional beats a catch-all — never declaration order",
   "status": "shipped",
   "because": [
-    "0077",
     "0102"
   ],
   "seeAlso": [

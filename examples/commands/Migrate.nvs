@@ -13,8 +13,8 @@ class Migrate implements Command
     {
         // § 6: a `#[Command]` method returns `void` (status 0) or the `uint`
         // process exit status. That is the one place ADR 0086 diverges from
-        // 0077 — a CLI has one entry point and no pipeline to own, so this
-        // table dispatches where the route table stops at matching.
+        // the route table. A CLI has one entry point and no pipeline to own,
+        // so this table dispatches where the route table stops at matching.
         //
         // Two returns rather than one ternary: a bare `0` is placed at the
         // declared `uint`, but a ternary's arms are checked with no expectation

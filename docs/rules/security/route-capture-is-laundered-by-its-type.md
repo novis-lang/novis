@@ -23,7 +23,8 @@ because `tainted` is a property of `string` and `bytes` and never of a class
 refused by the assignability rule that already stands. No new sink, no new launderer, no new rule — the
 existing one arriving somewhere useful.
 
-**A regex constraint is not among the admitted types and never will be.** An application-authored
-pattern over the request path runs before any rate limiting, which makes catastrophic backtracking an
-unauthenticated denial of service; a closed set is spelled as a set of allowed values or a subset of
-an enum's cases instead.
+**Declined:**
+- **A regex constraint on a capture**, now or later. An application-authored pattern over the
+  request path runs before any rate limiting, which makes catastrophic backtracking an
+  unauthenticated denial of service; a closed set is spelled as a set of allowed values or a subset
+  of an enum's cases instead (`rule:routing/a-capture-narrows-to-a-closed-set`).

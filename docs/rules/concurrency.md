@@ -746,7 +746,7 @@ side.
 Calling it is what performs the upgrade, and it answers `void`. Nothing in this language reads a
 handler's return value, so an upgrade handed back to the runtime would be handed to nobody.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md).</sub>
 
 <a id="concurrency-an-upgrades-options-are-spawn-scripts"></a>
 

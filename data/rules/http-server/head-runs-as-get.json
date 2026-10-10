@@ -2,8 +2,7 @@
   "title": "`HEAD` runs as `GET` with the body discarded and `Content-Length` kept; `method()` reports `Get` and `isHead()` tells the truth",
   "status": "shipped",
   "because": [
-    "0097",
-    "0077"
+    "0097"
   ],
   "seeAlso": [
     "http-server/a-preflight-is-answered-before-any-code-runs",

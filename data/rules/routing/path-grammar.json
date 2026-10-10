@@ -2,7 +2,6 @@
   "title": "A path is fixed segments and three capture forms, each capture a whole segment naming a parameter",
   "status": "shipped",
   "because": [
-    "0077",
     "0102"
   ],
   "seeAlso": [

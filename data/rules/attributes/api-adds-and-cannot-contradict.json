@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0085",
-    "0071",
-    "0077"
+    "0071"
   ],
   "seeAlso": [
     "attributes/access-is-a-required-sibling",

@@ -12,3 +12,8 @@ candidate, and is a `404` only if nothing else claims the path
 
 The model is the radix-trie rule `matchit` implements — the rule is the precedence, not the data
 structure, and a matcher is free to compute the same answer by ranking rows.
+
+**Declined:**
+- **Declaration-order precedence**, first match wins, which is what a linear route list gives. Moving
+  a declaration between files becomes a behaviour change, and a routing file has to be read top to
+  bottom to be understood.

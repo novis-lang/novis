@@ -259,7 +259,7 @@ A `security` name is carried uninterpreted rather than compared: nothing in the 
 `nvs.toml` declares a scheme, so there is no roster to check against and the emitted document names
 schemes it does not define. The comparison lands here on the day a scheme has a home.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata). Decided in [0085](../decisions/0085.md), [0071](../decisions/0071.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata). Decided in [0085](../decisions/0085.md), [0071](../decisions/0071.md).</sub>
 
 <a id="attributes-access-is-a-required-sibling"></a>
 
@@ -291,7 +291,7 @@ attached behaviour: this attaches a *declaration* to the method, not a filter, a
 opinion. The guarantee is that the decision was **written**, not that it was **honoured** — the
 compiler never asks what the name means.
 
-<sub>See also [`attributes/access-payload`](attributes.md#attributes-access-payload), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict). Decided in [0096](../decisions/0096.md), [0094](../decisions/0094.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`attributes/access-payload`](attributes.md#attributes-access-payload), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict). Decided in [0096](../decisions/0096.md), [0094](../decisions/0094.md).</sub>
 
 <a id="attributes-access-payload"></a>
 

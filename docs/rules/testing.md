@@ -33,7 +33,7 @@ The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
 so a single `use Core\Test;` places both.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0172](../decisions/0172.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0172](../decisions/0172.md).</sub>
 
 <a id="testing-tests-never-reach-a-build"></a>
 
@@ -370,7 +370,7 @@ isolate rather than a child â€” leftover work is read off the test's own task â€
 the test that asked for it has joined. It serves under the **default** policy rather than the tree's:
 reading a deployment's configuration would make the test's subject the deployment.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0102](../decisions/0102.md).</sub>
 
 <a id="testing-an-outbound-call-is-answered-from-a-table"></a>
 

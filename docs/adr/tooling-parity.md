@@ -54,7 +54,7 @@ definite property initialization (`rule:classes/definite-property-initialization
 read-before-write (`rule:classes/lateinit-read-before-write`), member existence and
 every-path-returns at compile time, literal regex/format/URI validation
 (`rule:expressions/intrinsic-constant-arguments`), the route table checked while compiling
-([0077](../decisions/0077.md)), and taint/secret flow as type qualifiers
+(`rule:routing/routes-are-compiled-not-registered`), and taint/secret flow as type qualifiers
 (`rule:security/tainted-qualifier`,
 `rule:security/secret-qualifier`). Levels and baseline files have no
 analogue because they exist to bolt gradual strictness onto untyped code, and there is no untyped

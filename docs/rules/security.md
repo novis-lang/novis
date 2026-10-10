@@ -1279,7 +1279,7 @@ name or an error message is what people reach for first, so this refusal is met 
   collector already has the series, and a compile error at the responsible line is strictly better
   than a warning hours later on another machine.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0077](../decisions/0077.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type).</sub>
 
 <a id="security-log-is-not-a-sink"></a>
 
@@ -1409,12 +1409,13 @@ because `tainted` is a property of `string` and `bytes` and never of a class
 refused by the assignability rule that already stands. No new sink, no new launderer, no new rule — the
 existing one arriving somewhere useful.
 
-**A regex constraint is not among the admitted types and never will be.** An application-authored
-pattern over the request path runs before any rate limiting, which makes catastrophic backtracking an
-unauthenticated denial of service; a closed set is spelled as a set of allowed values or a subset of
-an enum's cases instead.
+**Declined:**
+- **A regex constraint on a capture**, now or later. An application-authored pattern over the
+  request path runs before any rate limiting, which makes catastrophic backtracking an
+  unauthenticated denial of service; a closed set is spelled as a set of allowed values or a subset
+  of an enum's cases instead ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)).
 
-<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`types/single-value-types`](types.md#types-single-value-types). Decided in [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0160](../decisions/0160.md).</sub>
+<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`types/single-value-types`](types.md#types-single-value-types). Decided in [0102](../decisions/0102.md), [0160](../decisions/0160.md).</sub>
 
 <a id="security-derived-codec-qualifiers"></a>
 
@@ -2464,7 +2465,7 @@ opinion the route table refuses to hold.
   method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
   and nothing reports the omission.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0082](../decisions/0082.md), [0255](../decisions/0255.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0082](../decisions/0082.md), [0255](../decisions/0255.md).</sub>
 
 <a id="security-bidi-predicate"></a>
 

@@ -2,8 +2,7 @@
   "title": "A `url()` key that is not a capture becomes a percent-encoded query string, and one that is neither a capture nor a declared `#[Query]` parameter does not compile",
   "status": "shipped",
   "because": [
-    "0102",
-    "0077"
+    "0102"
   ],
   "seeAlso": [
     "routing/a-query-parameter-is-declared-like-a-capture",

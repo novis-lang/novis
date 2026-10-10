@@ -2,8 +2,7 @@
   "title": "`consume` and `shed` are two jobs with two verbs, and neither is a tier of the other",
   "status": "shipped",
   "because": [
-    "0063",
-    "0077"
+    "0063"
   ],
   "seeAlso": [
     "core-classes/ratelimit-gcra",

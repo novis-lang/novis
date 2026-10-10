@@ -1,7 +1,7 @@
 <?nvs
 // ADR 0086 § 6's compile-time command table, as a program.
 //
-// Structurally identical to ADR 0077's route table with the routes swapped for
+// Structurally identical to the route table in `routes.nvs` with the routes swapped for
 // commands. `Core\Program::implementing<T>()` builds it, so the `autoload`
 // root is what finds the classes nothing names.
 autoload 'App' from './commands';

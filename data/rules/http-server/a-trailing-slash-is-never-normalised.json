@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0097",
-    "0095",
-    "0077"
+    "0095"
   ],
   "seeAlso": [
     "http-server/head-runs-as-get",
