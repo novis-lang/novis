@@ -14,3 +14,12 @@ execution.
 Nothing else is generated: no OpenRC, no SysV, no `rc.d`; `launchd` would take the same printing-only
 shape if it is ever added. What the printed unit contains is
 `rule:packaging/the-generated-unit-is-hardened`.
+
+The helper's value on Linux is the content, not the access. A unit is a text file any operator can
+write, but the hardening block is what almost nobody writes by hand and what an audited deployment is
+checked against.
+
+**Declined:**
+- **Installing the unit by default on Linux, the same as on Windows.** One model instead of two, but it
+  makes the destructive path the default on the one platform where another tool already owns the
+  directory.

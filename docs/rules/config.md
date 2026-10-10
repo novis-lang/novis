@@ -255,7 +255,7 @@ stores an absolute `--config` for a service ([`packaging/the-installer-is-a-sink
 is one narrow case — an interactive `nvs serve` in a directory the runtime account can write — stated
 rather than defended: an operator who wants it closed passes `--config`.
 
-<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-no-configuration-file-is-a-complete-configuration"></a>
 
@@ -543,7 +543,7 @@ unchecked file on the `run` path carries the invoking account's own authority an
 `nvs.toml` can grant a CLI program nothing it could not take for itself, and the rule that places the
 capability check is bound by that sentence.
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-optional-covers-absence-and-moves-the-check-to-the-directory"></a>
 
@@ -1160,7 +1160,7 @@ read without the ownership check
 ([`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered)). What a reload actually published is
 the record it writes to `Core\Log` ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0103](../decisions/0103.md).</sub>
 
 <a id="config-two-modes-and-the-default-is-production"></a>
 

@@ -393,7 +393,7 @@ ordinary `nvs run` pipeline.
   re-sign it on every rebundle instead of once at build time, and raise the question of who may
   trigger a rebundle and as which identity. The author already has the source and reruns the build.
 
-<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`](packaging.md#packaging-a-bundle-is-found-by-its-footer-before-argv-is-read), [`packaging/a-macos-bundle-is-ad-hoc-signed-at-build`](packaging.md#packaging-a-macos-bundle-is-ad-hoc-signed-at-build). Decided in [0093](../decisions/0093.md).</sub>
+<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`](packaging.md#packaging-a-bundle-is-found-by-its-footer-before-argv-is-read), [`packaging/a-macos-bundle-is-ad-hoc-signed-at-build`](packaging.md#packaging-a-macos-bundle-is-ad-hoc-signed-at-build).</sub>
 
 <a id="packaging-a-bundle-carries-source-not-artifacts"></a>
 
@@ -2209,7 +2209,15 @@ manager ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-se
 
 What that argv may name is [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)'s closed list.
 
-<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0093](../decisions/0093.md).</sub>
+`start`/`stop`/`status` are a second way to write what `sc` and `systemctl` already do, and that cost
+is accepted: without them, an administrator on Windows decodes `sc query`'s output by hand.
+
+**Declined:**
+- **`nvs install-service <args…>` with no separator**, the way `mysqld --install` is written. No rule
+  a user would predict separates the installer's options from the hosted program's. The hidden alias
+  keeps the habit, and `--` removes the ambiguity.
+
+<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only).</sub>
 
 <a id="packaging-the-installer-is-a-sink"></a>
 
@@ -2263,7 +2271,12 @@ a registration refused because the name is taken is followed by no deregistratio
 the service that holds the name. An undo that does not finish says what is left and that `nvs service
 uninstall` removes it.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0093](../decisions/0093.md), [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0204](../decisions/0204.md), [0281](../decisions/0281.md).</sub>
+**Declined:**
+- **Any subcommand hostable, with the argv passed straight through.** Every *parameter* is passable;
+  the *subcommand* is what is constrained. That constraint alone keeps `--fault-inject` and a
+  crash-looping `nvs test` out of an argv a privileged account runs at every boot.
+
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0204](../decisions/0204.md), [0281](../decisions/0281.md).</sub>
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 
@@ -2291,7 +2304,7 @@ Novis's default install location is such a path, and the finding usually appears
 the installation. Arguments given to `sc start <name> arg` reach `ServiceMain` but are not persisted;
 nothing may depend on them, and `nvs service run` ignores them.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md).</sub>
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv).</sub>
 
 <a id="packaging-a-service-runs-as-a-virtual-account"></a>
 
@@ -2327,7 +2340,7 @@ it. Every path the service reads is then owned by root or by itself and writable
 is what [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) checks at boot. An uninstall gives each path back
 to root with the owner's bits of its mode only.
 
-<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0093](../decisions/0093.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="packaging-a-service-answers-its-manager"></a>
 
@@ -2362,7 +2375,17 @@ string, and `nvs.exe` carries the message table that renders it
 and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no unit
 file, no granted ACL.
 
-<sub>See also [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0093](../decisions/0093.md), [0204](../decisions/0204.md).</sub>
+An arbitrary executable is not a Windows service: the SCM needs the process itself to call
+`StartServiceCtrlDispatcher` soon after it starts and to answer controls for the rest of its life. A
+shim answers on the hosted process's behalf and can only say that the process exited. The drain is
+the service's own, so only the service can report it.
+
+**Declined:**
+- **Documenting NSSM or WinSW and shipping nothing.** A shim observes the process from outside, so a
+  stop is a kill rather than a drain, and a Windows deployment would begin by downloading an unrelated
+  binary.
+
+<sub>See also [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0204](../decisions/0204.md).</sub>
 
 <a id="packaging-the-unit-is-printed-and-install-is-the-opt-in"></a>
 
@@ -2387,7 +2410,16 @@ Nothing else is generated: no OpenRC, no SysV, no `rc.d`; `launchd` would take t
 shape if it is ever added. What the printed unit contains is
 [`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened).
 
-<sub>See also [`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md).</sub>
+The helper's value on Linux is the content, not the access. A unit is a text file any operator can
+write, but the hardening block is what almost nobody writes by hand and what an audited deployment is
+checked against.
+
+**Declined:**
+- **Installing the unit by default on Linux, the same as on Windows.** One model instead of two, but it
+  makes the destructive path the default on the one platform where another tool already owns the
+  directory.
+
+<sub>See also [`packaging/the-generated-unit-is-hardened`](packaging.md#packaging-the-generated-unit-is-hardened), [`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv).</sub>
 
 <a id="packaging-the-generated-unit-is-hardened"></a>
 
@@ -2459,7 +2491,7 @@ Socket activation — a privileged port with an empty capability set — is defe
 it changes how `nvs serve` acquires its listener, which makes it a server change the unit generator
 would simply follow.
 
-<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../decisions/0093.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="packaging-a-bundle-may-not-install-itself"></a>
 
@@ -2480,7 +2512,7 @@ The narrower rule — allow it for a non-`serve` payload — is rejected as a co
 carry in their head to serve a case nobody has asked for. Reopening this means arguing the trust-domain
 point directly.
 
-<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0093](../decisions/0093.md).</sub>
+<sub>See also [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink).</sub>
 
 <a id="packaging-a-service-is-operator-surface"></a>
 
@@ -2494,12 +2526,19 @@ program cannot install itself as a service, only an operator can, from the comma
 "an application can never grant itself rights" ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)) intact rather than
 restating it.
 
-What the feature costs is paid at start and at stop: one control-handler thread with its stack plus a
-status structure per served process — kilobytes, O(1), attributable to no request because no request
-causes it — and nothing per request. Its dependencies are the two platform crates the
+What the feature costs is paid at start and at stop, and nothing on the request path.
+
+**Memory:** one control-handler thread with its stack plus a status structure per served process —
+kilobytes, O(1), attributable to no request because no request causes it — and nothing per request.
+
+Its dependencies are the two platform crates the
 binary already takes for a signal disposition and a console control handler — one Windows-only, one
 Unix-only — both behind `#[cfg]`, both pure Rust with no build script, and neither reachable from a
 served request. `sd_notify` adds none of its own: it is a datagram of `NAME=value` lines to whatever
 `$NOTIFY_SOCKET` names, and it is written by hand.
 
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md).</sub>
+**Declined:**
+- **A `Core\Service` class, so a program can install itself.** That is an application granting itself
+  rights ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)) under another name.
+
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv).</sub>

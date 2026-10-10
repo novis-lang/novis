@@ -251,12 +251,15 @@ windows-sys = { version = "0.61", features = [
     # `crates/nvs-runtime/src/beneath.rs` is the one caller.
     "Win32_System_IO",
     # `CreateServiceW`, `ChangeServiceConfig2W`, `ControlService` and `QueryServiceStatusEx`:
-    # ADR 0093 § 3's registration is the SCM's own state and has no file to write, so installing a
-    # service *is* these calls. § 4's `PRESHUTDOWN`, delayed auto-start, description and failure
-    # actions are configuration levels on the handle `CreateServiceW` returns.
+    # a Windows service's registration is the SCM's own state and has no file to write
+    # (`rule:packaging/the-argv-lives-in-imagepath`), so installing a service *is* these calls. The
+    # `PRESHUTDOWN`, delayed auto-start, description and failure actions of
+    # `rule:packaging/a-service-answers-its-manager` are configuration levels on the handle
+    # `CreateServiceW` returns.
     # `crates/nvs-cli/src/service.rs` is the one caller.
     "Win32_System_Services",
-    # `RegCreateKeyExW` and `RegDeleteTreeW`: ADR 0093 § 4's event-log source is a subkey under
+    # `RegCreateKeyExW` and `RegDeleteTreeW`: the event-log source of
+    # `rule:packaging/a-service-answers-its-manager` is a subkey under
     # `SYSTEM\CurrentControlSet\Services\EventLog\Application` and nothing else, so registering one
     # at install and removing it at uninstall are a key write and a key delete.
     # `crates/nvs-cli/src/service.rs` is the one caller.

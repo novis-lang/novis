@@ -1,9 +1,7 @@
 {
   "title": "`nvs build --compile` appends a program to a copy of the `nvs` binary, and rebundling is running it again",
   "status": "shipped",
-  "because": [
-    "0093"
-  ],
+  "because": [],
   "seeAlso": [
     "programs/bundle-trust-domain",
     "packaging/a-bundle-carries-source-not-artifacts",

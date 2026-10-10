@@ -1,9 +1,7 @@
 {
   "title": "A single-file bundle may not install itself as a service",
   "status": "shipped",
-  "because": [
-    "0093"
-  ],
+  "because": [],
   "seeAlso": [
     "programs/bundle-trust-domain",
     "packaging/the-installer-is-a-sink"

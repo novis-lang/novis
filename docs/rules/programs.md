@@ -684,7 +684,7 @@ itself a bundle.
   owner when the configuration ships inside an app-built artifact, which engages the root and app
   capability separation directly rather than sitting beside it.
 
-<sub>See also [`programs/compile-target`](programs.md#programs-compile-target), [`programs/audience`](programs.md#programs-audience). Decided in [0093](../decisions/0093.md).</sub>
+<sub>See also [`programs/compile-target`](programs.md#programs-compile-target), [`programs/audience`](programs.md#programs-audience).</sub>
 
 <a id="programs-first-party-framework"></a>
 

@@ -2,8 +2,7 @@
   "title": "A memory-safety fault in `unsafe` code or a miscompile is the one residue: the process dies, the supervisor restarts it, and the answer is frequency, not a boundary",
   "status": "shipped",
   "because": [
-    "0106",
-    "0093"
+    "0106"
   ],
   "seeAlso": [
     "http-server/a-requests-blast-radius-is-bounded-at-four-tiers",
