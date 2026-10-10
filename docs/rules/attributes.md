@@ -175,7 +175,7 @@ A written `$member` is checked against the target's real declarations and one na
 absent attribute gives, and nothing downstream could tell them apart. A `$member` that is not a string
 literal has no name to check and folds to an empty result.
 
-<sub>See also [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0027](../decisions/0027.md), [0022](../decisions/0022.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0022](../decisions/0022.md), [0033](../decisions/0033.md).</sub>
 
 <a id="attributes-retrieval-folds-while-checking"></a>
 

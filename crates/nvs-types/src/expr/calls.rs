@@ -337,8 +337,9 @@ pub(crate) fn infer_static_call(
                     // owns: `self::f()`/`parent::f()` from an instance method forward
                     // that frame's `$this` and are the ordinary spelling, so what is
                     // refused is a non-static target reached where no receiver is in
-                    // scope — the frame `nvs_ir::lower::expr` would panic on. ADR
-                    // 0027's `Class::method(...)` is not that frame and not a call:
+                    // scope — the frame `nvs_ir::lower::expr` would panic on. A
+                    // method reference, `Class::method(...)`
+                    // (`rule:expressions/method-reference`), is not that frame and not a call:
                     // it names the method, and `Core\Attributes::get<T>(C::m(...))`
                     // folds it at check time without ever needing a receiver
                     // (`docs/reference/lang/90-attributes.md`).

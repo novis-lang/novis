@@ -1259,9 +1259,12 @@ outlives the site and there is no class present to read a callee off
 ([`types/erased-member-access`](types.md#types-erased-member-access)).
 
 **There is no `__invoke`.** `$obj(...)` is a diagnostic whenever `$obj` is not itself a callable,
-whatever methods the object's class declares; a method literally named `__invoke` parses as an
-ordinary method with no special meaning. `()` therefore stays one thing rather than a second operator
-any class can opt into.
+whatever methods the object's class declares, and a method named `__invoke` does not compile, like
+every leading-underscore name ([`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers)). `()` therefore
+stays one thing rather than a second operator any class can opt into. `$obj(...)` names no method at
+the call site, which is the hidden dispatch [`classes/no-call-magic`](classes.md#classes-no-call-magic) closes, and a class that
+could opt into `()` would be a second operator-overloading mechanism beside the one narrow,
+interface-gated one ([`classes/comparable`](classes.md#classes-comparable)).
 
 A callee the checker cannot prove is a callable — one typed `mixed`, or a `?callable` that holds
 `null` — is checked when the call runs. A value that is not a callable throws a catchable `LogicError`
@@ -1271,7 +1274,21 @@ The rule is the same at every position typed `callable` — a parameter, a prope
 stdlib signature: the argument must already be a callable by the time it arrives, never a string, an
 array, or an object the checker would have to interpret.
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0027](../decisions/0027.md), [0031](../decisions/0031.md), [0007](../decisions/0007.md), [0014](../decisions/0014.md), [0136](../decisions/0136.md).</sub>
+A string or array callable resolves by name at the call site, against whatever happens to be declared
+there, so neither a reader, the checker nor an editor can follow it without reimplementing PHP's
+lookup. A callable made by an anonymous function or a method reference always leads back to the place
+that made it, so "go to definition" on any callable value lands on real code.
+
+**Declined:**
+- **Keeping all five of PHP's callable shapes**, an object with `__invoke` and the three by-name
+  spellings beside the anonymous function. That keeps the by-name path next to the syntax that
+  already replaces it.
+- **Keeping `__invoke` as the one exception.** It is the hidden dispatch and the second
+  operator-overloading mechanism above.
+- **A dedicated `MethodRef` or `FunctionRef` type.** A second type with no behaviour of its own adds
+  surface and nothing else ([`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type)).
+
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0031](../decisions/0031.md), [0007](../decisions/0007.md), [0014](../decisions/0014.md), [0136](../decisions/0136.md).</sub>
 
 <a id="types-anonymous-function"></a>
 
@@ -1298,7 +1315,7 @@ expression-bodied anonymous function already produce exactly the value a block-b
 anonymous function that needs to call itself carries a self-name instead
 ([`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name)).
 
-<sub>See also [`types/implicit-capture`](types.md#types-implicit-capture), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/callable-values`](types.md#types-callable-values). Decided in [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`types/implicit-capture`](types.md#types-implicit-capture), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/callable-values`](types.md#types-callable-values). Decided in [0031](../decisions/0031.md), [0015](../decisions/0015.md).</sub>
 
 <a id="types-callable-signature"></a>
 
@@ -1330,7 +1347,7 @@ The two binding-site variants that stood in for this — a callback-return param
 callbacks — are retired, and the restriction that a shape's every field be a *written* anonymous function
 goes with them, because a `callable(): T`-typed variable now carries what the field needs.
 
-<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0015](../decisions/0015.md).</sub>
+<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0015](../decisions/0015.md).</sub>
 
 <a id="types-callable-arity"></a>
 
@@ -1456,7 +1473,7 @@ $result = $fn($arg);       // replaces call_user_func($fn, $arg)
 $result = $fn(...$args);   // replaces call_user_func_array($fn, $args)
 ```
 
-<sub>See also [`types/callable-values`](types.md#types-callable-values), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/grammar`](types.md#types-grammar). Decided in [0031](../decisions/0031.md), [0027](../decisions/0027.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/callable-values`](types.md#types-callable-values), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/grammar`](types.md#types-grammar). Decided in [0031](../decisions/0031.md), [0007](../decisions/0007.md).</sub>
 
 <a id="types-implicit-capture"></a>
 

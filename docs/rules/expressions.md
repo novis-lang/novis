@@ -581,7 +581,7 @@ Nothing about the `Core` roster, scalar methods or any security property changes
 Str::format($_, $n)` is refused for the same reason the nested call is. There is no callable allocated
 and no dynamic dispatch.
 
-<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference). Decided in [0098](../decisions/0098.md), [0011](../decisions/0011.md), [0027](../decisions/0027.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference). Decided in [0098](../decisions/0098.md), [0011](../decisions/0011.md), [0063](../decisions/0063.md).</sub>
 
 <a id="expressions-pipeline-precedence"></a>
 
@@ -778,7 +778,7 @@ member:
 `Core\Str::length(...)`, `$user->getName(...)`, `self::helper(...)` (early-bound) and
 `static::helper(...)` (late-bound). There is no second reference-taking spelling — no `::ref` form,
 and no reuse of `::class`, which stays a class-name-to-string operator unrelated to producing a
-callable value.
+callable value, so that one token never means two unrelated things.
 
 Every spelling above resolves a member at the reference itself rather than at call time, and the
 checker records that resolved target under a variant that cannot be mistaken for an ordinary call.
@@ -791,7 +791,7 @@ A `callable` may carry its signature. The resolvability this rule is after comes
 the value's creation site rather than from the static type, so it holds whether or not the slot being
 filled declares one.
 
-<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0027](../decisions/0027.md), [0015](../decisions/0015.md), [0031](../decisions/0031.md), [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0015](../decisions/0015.md), [0031](../decisions/0031.md), [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
 
 <a id="expressions-no-partial-application"></a>
 
@@ -809,4 +809,4 @@ The pipeline operator is unaffected: its `$_` is a parse-time substitution, not 
 ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the hole diagnostic
 ([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once)) already teaches the difference.
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once). Decided in [0124](../decisions/0124.md), [0027](../decisions/0027.md), [0031](../decisions/0031.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once). Decided in [0124](../decisions/0124.md), [0031](../decisions/0031.md).</sub>
