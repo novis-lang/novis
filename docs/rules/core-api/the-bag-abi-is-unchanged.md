@@ -16,3 +16,9 @@ every member registered today lowers to the same instructions and nothing needs 
 `crates/nvs-runtime/src/value.rs` carries the marker tag, `nvs_ir::ir::InstKind::ConstUnset` is the
 one instruction that materializes it, and `nvs_codegen`'s arm for that writes the tag byte over a
 zero payload. Every member registered before this lowers byte for byte as it did.
+
+**Declined:**
+- **A presence bitmask as one more ABI argument.** It is correct, and it would serve a user-declared
+  function too. But it changes the calling convention the flattening keeps, and it charges a word to
+  every call that passes a bag, for a distinction a handful of fields want. Reusing a tag that already
+  exists costs nothing.

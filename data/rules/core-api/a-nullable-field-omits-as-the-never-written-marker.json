@@ -1,9 +1,7 @@
 {
   "title": "A bag or shape field is nullable exactly when its omission fills the never-written marker",
   "status": "shipped",
-  "because": [
-    "0147"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/omission-is-not-a-written-null",
     "core-api/the-marker-never-reaches-a-program",

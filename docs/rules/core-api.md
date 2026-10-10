@@ -275,7 +275,7 @@ them under that name, and ports each call by finding the `Core` member that does
   duplication whole, a function family and a subsystem shipped twice, and makes a surface of about 1,900
   names permanent, which is the expensive cost [`core-api/tier-placement`](core-api.md#core-api-tier-placement) ranks first.
 
-<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0147](../decisions/0147.md).</sub>
+<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation).</sub>
 
 <a id="core-api-subject-first"></a>
 
@@ -905,7 +905,7 @@ The cost is that a bag's keys are declared and fixed: a member that must take a 
 at run time needs a second member taking a `string`, which is why `Core\Uri` carries both `with` and a
 query-parameter pair rather than one member doing both.
 
-<sub>See also [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`types/object-top`](types.md#types-object-top). Decided in [0147](../decisions/0147.md).</sub>
+<sub>See also [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`types/object-top`](types.md#types-object-top).</sub>
 
 <a id="core-api-required-optional-and-nullable"></a>
 
@@ -968,7 +968,7 @@ this removes rather than relocates.
 `a_nullable_shape_field_omits_as_the_never_written_marker`, hold the pairing over every registered row.
 `Core\Uri::with` is the first member to spend it.
 
-<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0147](../decisions/0147.md).</sub>
+<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag).</sub>
 
 <a id="core-api-a-nullable-field-omits-as-the-never-written-marker"></a>
 
@@ -998,7 +998,7 @@ The two guards in `crates/nvs-stdlib/src/registry.rs` —
 `a_nullable_shape_field_omits_as_the_never_written_marker` — assert exactly this pairing, one per
 spelling, over every registered row.
 
-<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi). Decided in [0147](../decisions/0147.md).</sub>
+<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi).</sub>
 
 <a id="core-api-a-written-null-removes"></a>
 
@@ -1027,7 +1027,26 @@ is not an absent one — so overloading it would reinstate the in-band sentinel 
 `Core\Uri::with` the first member to spend them: `{port: null}`, `{query: null}` and
 `{fragment: null}` each clear their component, where omitting the key carries it over.
 
-<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings). Decided in [0147](../decisions/0147.md).</sub>
+This is what lets a bag express a partial update, the shape every `with`-style member and every
+PATCH-shaped API needs. It costs one new way to be wrong, the standing trade of merge-patch semantics:
+`$u->with({fragment: $maybe})` with a `?string` computed elsewhere removes the fragment when that value
+happens to be `null`. The trade is accepted. The nullability is written in the signature, so the
+possibility is visible at the call site, and a field stays non-nullable wherever an accidental removal
+would be dangerous rather than merely surprising. A member may still make a nullable key *required*
+where a `null` has to be typed on purpose, as a signature's lifetime is
+([`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written)).
+
+**Declined:**
+- **A reserved constant per class meaning remove.** It is still in-band, still a value of the field's
+  type, and one more name to learn per class. Nothing stops it being written into a field where removal
+  means nothing.
+- **A second bag key listing what to clear, such as `{clear: ["fragment"]}`.** It is stringly-typed against
+  a key set the shape already declares, so a typo becomes a run-time throw where the bag gives a compile
+  error. It also puts one component's fate in two places when a call both sets and clears.
+- **Making `with` mutate the receiver.** Nothing mutates ([`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates)), and removal is
+  a syntax problem: an in-place setter taking the same bag could not express it either.
+
+<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings).</sub>
 
 <a id="core-api-the-marker-never-reaches-a-program"></a>
 
@@ -1051,7 +1070,7 @@ that is a language-surface decision this one does not open. A native helper can 
 states by a test; a user's function body cannot be, and giving it a state it has no way to name would be
 exactly the observable marker this rule refuses.
 
-<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable). Decided in [0147](../decisions/0147.md).</sub>
+<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable).</sub>
 
 <a id="core-api-the-bag-abi-is-unchanged"></a>
 
@@ -1078,7 +1097,13 @@ every member registered today lowers to the same instructions and nothing needs 
 one instruction that materializes it, and `nvs_codegen`'s arm for that writes the tag byte over a
 zero payload. Every member registered before this lowers byte for byte as it did.
 
-<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0147](../decisions/0147.md).</sub>
+**Declined:**
+- **A presence bitmask as one more ABI argument.** It is correct, and it would serve a user-declared
+  function too. But it changes the calling convention the flattening keeps, and it charges a word to
+  every call that passes a bag, for a distinction a handful of fields want. Reusing a tag that already
+  exists costs nothing.
+
+<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="core-api-field-wise-precedence"></a>
 

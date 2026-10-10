@@ -2412,7 +2412,21 @@ query string gains no second canonicalization. The name a parameter is reached b
 so an array value is what writes brackets — which is what makes the pair a round trip rather than
 two members that each invented a spelling.
 
-<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0147](../decisions/0147.md).</sub>
+The pair is singular and reached by name, the same operation `Core\Request::query(string $name)` performs
+on the same bracket convention from the other side of a request. A query keeps exactly one syntax per
+state: pairs are written by this pair, an empty query is `with({query: ""})`, and no query is
+`with({query: null})`. There is no plural `withQueryParameters` and no `withoutQueryParameter`: setting
+several is the member twice or the existing parse-and-build pair, and removing is `null`.
+
+`userInfo` is not a key of the `with` bag at all, so `with` neither adds nor drops a credential.
+
+**Declined:**
+- **One member per removable component, such as `withoutFragment()`.** It multiplies the surface by the
+  number of clearable components on every class that has any. Symmetric naming
+  ([`core-api/symmetric-names`](core-api.md#core-api-symmetric-names)) would then want `with` and `without` treated as a pair, which they
+  are not: one takes an anonymous object and the other would take names.
+
+<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature).</sub>
 
 <a id="core-classes-output-that-scales-with-its-input-bounds-the-input"></a>
 
