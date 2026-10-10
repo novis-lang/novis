@@ -12,7 +12,7 @@ stages:
     status: done
   - id: 4
     title: configuration and CLI
-    status: open
+    status: done
   - id: 5
     title: the handwritten pages
     status: open
@@ -193,9 +193,9 @@ File set: `tools/nv/cmd/site.ts`, `tools/nv/test/site-questions.test.ts`.
 
 ### State
 
-**Side goal `search-questions`: stage 3 is done, stage 4 is next.** `website/src/data/questions.json` has 1126 stamped entries, one for every Core class and method page (the last batch was `regex*` through `zip`: 335 pages). `tools/nv/cmd/site.ts` module doc § *The questions* is the home of how they work.
+**Side goal `search-questions`: stages 3 and 4 are done, stage 5 is next.** `website/src/data/questions.json` has stamped entries for every Core, `/reference/config/` and `/reference/cli/` page. `tools/nv/cmd/site.ts` module doc § *The questions* is the home of how they work.
 
-`--questions --status`: core 0 owed, config 31, cli 25, pages 146, nothing stale. The acceptance check `core-questions` is green, and so is `bun nv site --check questions`. Under Git Bash, pass URLs with `MSYS_NO_PATHCONV=1` (playbook § *Running things*).
+`--questions --status`: core, config and cli 0 owed, pages 146 owed, nothing stale. The acceptance checks `core-questions` and `config-cli-questions` are green, and so is `bun nv site --check questions`. Under Git Bash, pass URLs with `MSYS_NO_PATHCONV=1` (playbook § *Running things*).
 
 There is no wrap gate for stale questions. `main` removed `nv session --wrap` and the page wrap gate with it, so `bun nv site --check questions` is the only check. CI's `nv site --check` step (`.github/workflows/ci.yml:352`) does not name the `questions` part yet.
 
@@ -203,17 +203,16 @@ The Astro build with the new banner is *not checked*: `bun nv site --build` fail
 
 The rustdoc gate was green: `bun nv verify --doc` passed after the `child_watch.rs`, `dispatch.rs` and `service.rs` link fixes, which `main` made the same way.
 
-The driver's three LDAP "selection misses" (`Ldap-Ad-AccountFlags/passwordExpired/01`, `passwordNeverExpires/01`, `Ldap-Connection/add/01`) are in the acceptance log's `diverged` list: the same tree gave a different exit code on two runs. They are flaky, they are not caused by this branch (it touches only `website/`, `tools/nv/` and doc comments), and no session chased them. `looper verify` keeps failing the same way while the sessions change only `questions.json`: `crates/nvs-stdlib/tests/ldap.rs` fails alone as well, with 11 timed-out cases in one session and one (`dirsync_returns_only_what_changed_since_its_cookie`) in the last. They need an owner on `main`.
+The driver's three LDAP "selection misses" (`Ldap-Ad-AccountFlags/passwordExpired/01`, `passwordNeverExpires/01`, `Ldap-Connection/add/01`) are in the acceptance log's `diverged` list: the same tree gave a different exit code on two runs. They are flaky, they are not caused by this branch (it touches only `website/`, `tools/nv/` and doc comments), and no session chased them. `crates/nvs-stdlib/tests/ldap.rs` has also failed alone under `looper verify` in earlier sessions, with timed-out cases. This session `looper verify` was green, because nothing it builds or tests had changed. The LDAP cases need an owner on `main`.
 
 ### Next
 
-**Stage 4: configuration and CLI**, one file set: `website/src/data/questions.json`.
+**Stage 5: the handwritten pages**, one file set: `website/src/data/questions.json`.
 
-- [ ] **Questions for the 31 `/reference/config/` pages and the 25 `/reference/cli/` pages** (`rule:testing/website-pages-are-stamped`): dump `bun nv site --questions --owed config --limit 2000` and the same for `cli` to `.agent-tmp/`. Each dump is about 100 KB, so split each into two groups of 12 to 16 pages on the `== ` lines and send four general-purpose subagents in one message. A configuration key has no page of its own, so its questions go on its block's page (§ *Stages* 4). Several pages are sections rather than one feature (`the-file-and-where-it-is-read-from`, `values-and-units`, `a-worked-session`, `one-binary`): give them broad questions, and keep a block's task questions on the block page. Each subagent writes `{ url: [questions] }` to its own scratch file. Read every file yourself. A short scratch `bun` script then checks each page for four to six questions, at most 15 words, no word from the user-text table or another language's function name, and no question that repeats one already in the file. It then adds the arrays to the file as `{ feature: "", hash: "", questions }`, and `--questions --stamp` fills in the rest and sorts. A repeat across pages is what the script catches most often (a class page and its method page, or a page and its twin in another class): rewrite one of the two by hand. Anchor: `website/src/data/questions.json:1`, the material from `tools/nv/cmd/site.ts:438`, the sources from `tools/nv/cmd/site.ts:377`.
+- [ ] **Questions for the 146 handwritten pages** (`rule:testing/website-pages-are-stamped`): 61 `guides/`, 61 `syntax/`, 14 `in-depth/`, 4 `install/`, and `reference/`, `sponsoring`, `impressum`, `datenschutz` and the front page. Dump `bun nv site --questions --owed pages --limit 2000` to `.agent-tmp/`. The dump is about 280 KB, because each page is its whole `.mdx`, so split it on the `== ` lines into six groups of about 25 pages, keeping each section's pages together. Send six general-purpose subagents in one message, each writing `{ url: [questions] }` to its own scratch file. A page whose subject is also a Core method or a config block page (a guide on sending mail, the syntax page for `match`) gets questions about the task or the concept, so it does not repeat the reference page's. The legal pages and the front page get four broad questions each. Read every file yourself. Then a scratch `bun` script checks each page for four to six questions, at most 15 words, no word from the user-text table, and no repeat of a question already in the file. It adds the arrays as `{ feature: "", hash: "", questions }`, and `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <urls>` fills in the rest. The script catches exact repeats only, so read across pages for near repeats ("every setting in effect" turned up on three pages in stage 4). Anchor: `website/src/data/questions.json:1`, the material from `tools/nv/cmd/site.ts:438`, the sources from `tools/nv/cmd/site.ts:377`.
 
 ### Backlog
 
-- Questions for the 146 handwritten `pages`: stage 5 (§ *Stages* above).
-- The scratch check of a batch (count, length, words, repeats) is a manual step done four times now. It belongs in `--check questions`, in `tools/nv/cmd/site.ts`.
+- The scratch check of a batch (count, length, words, repeats) is a manual step done five times now. It belongs in `--check questions`, in `tools/nv/cmd/site.ts`.
 - The blind-query measurement of two builds: stage 6 and § *Standing decisions*.
 - Then the goal's end gates: `bun nv verify --doc` and `bun nv owners --closes search-questions` (AGENTS.md § *In the loop*).
