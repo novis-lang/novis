@@ -36,7 +36,9 @@ function site(questions: Record<string, unknown>): string {
   return s.root;
 }
 
-const asked = ["How do I count the characters in a string?"];
+const ask = (topic: string) => [`How do I ${topic}?`, `What does ${topic} return?`, `Can I ${topic} in a loop?`, `Example of how to ${topic}`];
+const asked = ask("count characters");
+const every = { [STR]: ask("use strings"), [LEN]: asked, [LIMITS]: ask("limit memory"), [HELLO]: ask("say hello") };
 
 describe("nv site --questions", () => {
   test("every built page has a source, and a handwritten page's URL drops its extension and index", () => {
@@ -52,17 +54,17 @@ describe("nv site --questions", () => {
   });
 
   test("a bare list is never stamped, and a stamp records the feature and the hash", () => {
-    const root = site({ [LEN]: asked });
+    const root = site(every);
     expect(readQuestions(root)[LEN]).toEqual({ feature: "", hash: "", questions: asked });
-    expect(questionProblems(world(), root)).toEqual([`stale: ${LEN} (Core\\Str::length): reread the page, rewrite its questions, then \`bun nv site --questions --stamp ${LEN}\``]);
-    expect(stampQuestions(world(), [LEN], root)).toEqual([]);
+    expect(questionProblems(world(), root)).toContain(`stale: ${LEN} (Core\\Str::length): reread the page, rewrite its questions, then \`bun nv site --questions --stamp ${LEN}\``);
+    expect(stampQuestions(world(), [STR, LEN, LIMITS, HELLO], root)).toEqual([]);
     expect(readQuestions(root)[LEN]!.feature).toBe("Core\\Str::length");
     expect(questionProblems(world(), root)).toEqual([]);
   });
 
   test("a changed about.md or page file makes its questions stale", () => {
-    const root = site({ [LEN]: asked, [HELLO]: asked });
-    stampQuestions(world(), [LEN, HELLO], root);
+    const root = site(every);
+    stampQuestions(world(), [STR, LEN, LIMITS, HELLO], root);
     s.put("docs/examples/core/Str/length/about.md", "Counts the characters of a string.\n");
     s.put(`${DOCS}/install/hello-world.mdx`, "---\ntitle: Hello\ncovers: []\n---\n\nNew text.\n");
     expect(questionProblems(world(), root).map((p) => p.split(" (")[0])).toEqual([`stale: ${LEN}`, `stale: ${HELLO}`]);
@@ -74,5 +76,17 @@ describe("nv site --questions", () => {
     expect(stampQuestions(world(), ["/reference/core/str/gone/"], root)).toEqual(["/reference/core/str/gone/: no built page has this URL"]);
     expect(stampQuestions(world(), [STR], root)).toEqual([`${STR}: has no questions to stamp`]);
     expect(questionCounts(world(), root)).toEqual(["questions core: 1 owed, 1 stale", "questions config: 1 owed, 0 stale", "questions cli: 0 owed, 0 stale", "questions pages: 1 owed, 0 stale"]);
+  });
+
+  test("an owed page fails, and so do too few questions, a long one, a word from the table and a repeat", () => {
+    const long = "Which method holds the length of a string in this language for me today please now?";
+    const root = site({ [STR]: ask("use strings"), [LEN]: ["How do I count?", long], [LIMITS]: [...ask("limit memory").slice(0, 3), "how do I USE strings"] });
+    expect(questionProblems(world(), root).filter((p) => !p.startsWith("stale:"))).toEqual([
+      `owed: ${HELLO} (install/hello-world.mdx): \`bun nv site --questions --owed pages\` prints what to write its questions from, then add them and \`bun nv site --questions --stamp ${HELLO}\``,
+      `shape: ${LEN}: has 2 questions, not four to six`,
+      `shape: ${LEN}: "${long}" has 16 words, more than 15`,
+      `shape: ${LEN}: "${long}" uses "holds"`,
+      `repeat: ${LIMITS}: "how do I USE strings" is also a question of ${STR}`,
+    ]);
   });
 });

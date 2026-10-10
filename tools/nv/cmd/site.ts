@@ -67,8 +67,14 @@
 // CLI page is its roster id and `featureHash`, a Core class page its card and members' names, a
 // configuration block page every feature it shows, and a handwritten page its key and its file. An
 // entry whose feature or hash moved, or that was never stamped, is **stale**. An entry no built page
-// has is **broken**. A built page with no entry is **owed**, which `--questions --status` counts and
-// nothing fails on yet. The questions are not a feature proof.
+// has is **broken**. A built page with no entry is **owed**, and `--check questions` fails on all
+// three, so a new feature's page fails CI until it has questions. The same check holds each entry to
+// four to six questions of at most 15 words, none using a word from AGENTS.md § *Text an end user
+// reads* (`QUESTION_WORDS`), and no question two entries share. A session writes them from what
+// `--questions --owed` prints, and no tool or build calls a language-model service for them. They name
+// no function from another language (`strlen`), and each belongs to the page that answers it best, so
+// two close pages (`trim` and `trimStart`) split the phrasing. They live in an indexed attribute, never
+// in hidden page text. The questions are not a feature proof.
 //
 // The parts of `--check`: `structure` (the nav is the four areas from `website/config/site.mjs`, then
 // Install and Sponsoring, each area is one sidebar group, no retired page or generator is on disk, the
@@ -76,7 +82,7 @@
 // `builtUrls` does not list), `snippets` (no handwritten page has an
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and has the files § *A snippet*
-// names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `questions` (no entry is broken or stale), `reference` (see
+// names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `questions` (see `questionProblems`),`reference` (see
 // `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `in-depth`
 // (see `inDepthProblems`), `apps` (see `appsProblems`) and `prose` (the countable bounds of AGENTS.md
 // § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
@@ -421,10 +427,50 @@ export function questionStatus(world: World, root: string = ROOT): QuestionStatu
   };
 }
 
-/** What `--check questions` fails on: each broken URL and each stale entry. An owed page does not fail yet. */
+/**
+ * The words AGENTS.md § *Text an end user reads* keeps out of text a user reads, matched whole. `name`
+ * and `mark` are not here: a visitor's question uses them in their plain sense ("a file's name").
+ */
+const QUESTION_WORDS = ["spelling", "answers", "hands back", "hands you", "asks", "asking", "stands in for", "lets go of", "drops", "refuses", "refused", "refusal", "member", "binding", "holds", "shard", "tier", "slot", "refcount", "lowering", "the registry"];
+
+/** How one entry's questions break the bounds: four to six, at most 15 words each, no word from `QUESTION_WORDS`. */
+function questionShape(url: string, questions: string[]): string[] {
+  const out: string[] = [];
+  if (questions.length < 4 || questions.length > 6) out.push(`shape: ${url}: has ${questions.length} questions, not four to six`);
+  for (const q of questions) {
+    const words = q.trim().split(/\s+/).length;
+    if (words > 15) out.push(`shape: ${url}: "${q}" has ${words} words, more than 15`);
+    const banned = QUESTION_WORDS.filter((w) => new RegExp(`\\b${w}\\b`, "i").test(q));
+    if (banned.length > 0) out.push(`shape: ${url}: "${q}" uses ${banned.map((w) => `"${w}"`).join(", ")}`);
+  }
+  return out;
+}
+
+/**
+ * What `--check questions` fails on: each broken URL, each stale entry, each owed page with the command
+ * that prints what its questions are written from, each entry outside `questionShape`'s bounds, and each
+ * question another entry already has, compared in lower case without punctuation.
+ */
 export function questionProblems(world: World, root: string = ROOT): string[] {
   const s = questionStatus(world, root);
-  return [...s.broken.map((u) => `broken: ${u}: no page has this URL`), ...s.stale.map((x) => `stale: ${x.url} (${x.feature}): reread the page, rewrite its questions, then \`bun nv site --questions --stamp ${x.url}\``)];
+  const questions = readQuestions(root);
+  const seen = new Map<string, string>();
+  const repeats: string[] = [];
+  for (const [url, e] of Object.entries(questions)) {
+    for (const q of e.questions) {
+      const key = q.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+      const first = seen.get(key);
+      if (first === undefined) seen.set(key, url);
+      else repeats.push(`repeat: ${url}: "${q}" is also a question of ${first}`);
+    }
+  }
+  return [
+    ...s.broken.map((u) => `broken: ${u}: no page has this URL`),
+    ...s.stale.map((x) => `stale: ${x.url} (${x.feature}): reread the page, rewrite its questions, then \`bun nv site --questions --stamp ${x.url}\``),
+    ...s.owed.map((x) => `owed: ${x.url} (${x.feature}): \`bun nv site --questions --owed ${x.area}\` prints what to write its questions from, then add them and \`bun nv site --questions --stamp ${x.url}\``),
+    ...Object.entries(questions).flatMap(([url, e]) => questionShape(url, e.questions)),
+    ...repeats,
+  ];
 }
 
 /** `--questions --status`: one line per area, owed and stale counted. */

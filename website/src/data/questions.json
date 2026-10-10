@@ -1813,7 +1813,7 @@
       "How do I find the key of a value in an array?",
       "Get the index of an item in a list",
       "Find the position of a value in an array",
-      "Which key holds this value?",
+      "Which key has this value?",
       "Search a list for a value and return its index"
     ]
   },
@@ -2228,7 +2228,7 @@
       "Arbitrary precision whole number math",
       "How do I avoid integer overflow with very big numbers?",
       "Calculate with integers that have hundreds of digits",
-      "What type holds a whole number of any size?"
+      "What type stores a whole number of any size?"
     ]
   },
   "/reference/core/bigint/abs/": {
@@ -3105,7 +3105,7 @@
     "feature": "Core\\Cli\\Text",
     "hash": "d9d5d8eba3955ec1",
     "questions": [
-      "What kind of value holds colored terminal text?",
+      "Which type is used for colored terminal text?",
       "Combine plain and colored pieces of terminal text",
       "Terminal text with colors and styles",
       "Join styled text parts into one line"
@@ -5052,7 +5052,7 @@
     "feature": "Core\\Http\\Event::id",
     "hash": "7f3b9a45da2b02cf",
     "questions": [
-      "How do I resume an event stream after the connection drops?",
+      "How do I resume an event stream after the connection is lost?",
       "Get the last event id to send back on reconnect",
       "Continue a server-sent event stream from where it stopped",
       "Which event id did the server send?",
@@ -6400,7 +6400,7 @@
     "hash": "fb21d335b817c88f",
     "questions": [
       "How do I divide integers without a fraction?",
-      "Integer division that drops the remainder",
+      "Integer division without the remainder",
       "Convert seconds to minutes and seconds",
       "How many full groups fit into a number?"
     ]
@@ -8672,7 +8672,7 @@
       "How do I shuffle an array?",
       "Put a list in a random order",
       "Shuffle a deck of cards",
-      "Show answers in a different order each time"
+      "Show quiz choices in a different order each time"
     ]
   },
   "/reference/core/random/token/": {
@@ -11464,9 +11464,9 @@
     "hash": "274c3521657e85dc",
     "questions": [
       "How do I test a command-line program that prompts for input?",
-      "Give typed answers to prompts in a test",
+      "Give typed replies to prompts in a test",
       "Simulate a user at the keyboard in tests",
-      "Test a setup wizard with yes and no answers"
+      "Test a setup wizard with yes and no replies"
     ]
   },
   "/reference/core/test/senthttp/": {
