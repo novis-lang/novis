@@ -17,3 +17,15 @@ than clamped. A block is bounded only by a ceiling the host actually wrote.
 Everything an application sets for itself at runtime is unchanged and layers on top:
 `rule:config/ini-set-is-core-config-set` writes the per-request overlay over the effective per-app
 value, and its ceiling is still the global `[limits.hard]`.
+
+A capability grant is therefore something a reader looks for in more than one place: the global
+`[capabilities]` block and every `[[app]]` block whose `root` covers the code in question. `nvs config
+dump --origin` names which block set each effective value
+(`rule:config/check-and-dump-audit-the-tree-offline`), which is what makes that answerable.
+
+**Declined:**
+- **Narrowing only.** It forces the global block to grant every right any application needs so that
+  each block can remove some, and a missing block becomes a grant.
+- **Widening limits but only narrowing capabilities.** Resources are not rights, so the split is
+  defensible, and it fails for the same reason: one application that needs `process.exec` forces a
+  global grant that every other application on the host inherits unless its own block removes it.

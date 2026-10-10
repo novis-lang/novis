@@ -360,7 +360,7 @@ per constant in a migrated file; what the inference did is now a check against w
 **`namespace X;` is the only namespace statement — once per file, before any declaration.** The braced form
 `namespace X { … }`, and with it a file holding two namespaces, is refused at parse time.
 `rule:security/authority-is-the-enclosing-namespace` keys authority on the namespace enclosing the
-code and [0104](../decisions/0104.md) keys an application on its entry file; a file
+code and `rule:config/an-application-is-its-entry-file-path` keys an application on its entry file; a file
 that is two namespaces is a file whose authority is a function of the line number, and neither of
 them has a reading to give that. The rewrite is one file per namespace.
 

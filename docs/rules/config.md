@@ -189,7 +189,7 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 `[[schedule]]`, like `[[extension]]`, is an array of tables because it is a repeated record with
 several fields.
 
-<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one). Decided in [0104](../decisions/0104.md), [0275](../decisions/0275.md).</sub>
+<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one). Decided in [0275](../decisions/0275.md).</sub>
 
 <a id="config-nvs-toml-is-not-a-project-manifest"></a>
 
@@ -1429,7 +1429,22 @@ would make a new script silently inherit the global defaults. Both keys are path
 accumulate across the tree like every other array of tables. An entry file matched by no block gets
 the global configuration, which is the ordinary case.
 
-<sub>See also [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0104](../decisions/0104.md).</sub>
+A sub-table such as `[app.limits]` attaching to the `[[app]]` above it is valid TOML that reads
+subtly: a reader who takes `[app.limits]` for a global block is wrong, and nothing in TOML flags it.
+The shipped configuration file writes each sub-table directly under its `[[app]]` block and says it
+applies to that application alone.
+
+**Declined:**
+- **An exact entry-file key only, with no prefix matching.** A project with thirty `bin/*.nvs` scripts
+  needs thirty blocks, and the thirty-first silently falls back to the global defaults.
+- **A quoted path as the table key**, `[app."/srv/www/shop/index.nvs".limits]`. It avoids the
+  array-of-tables subtlety, at the cost of a Windows path needing literal-string quoting inside a table
+  key, long unreadable lines, and no room for a selector that is not a path.
+- **Deriving an application from the package or `require` graph.** It would identify an application
+  more precisely than a directory does, and it needs the compiler to have run before the configuration
+  is known. The configuration is read at boot, and programs are resolved after it.
+
+<sub>See also [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in).</sub>
 
 <a id="config-app-keys-are-canonicalized-before-matching"></a>
 
@@ -1452,7 +1467,7 @@ matching nothing. A block that covers no file hands every application it was wri
 configuration instead, so a typo in the `root` of a block that narrows limits or grants a capability
 would change what runs and report nothing. A missing directory is a loud refusal instead.
 
-<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0104](../decisions/0104.md).</sub>
+<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
 <a id="config-origin-is-a-block-key-and-there-is-no-app-table"></a>
 
@@ -1472,7 +1487,7 @@ exists for. A host-wide default is a block with the widest `root`, which
 specific ones. `origin` keeps its class — `System`, and `Reload` on the restart axis — and
 [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin) reads it from here and from nowhere else.
 
-<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin). Decided in [0104](../decisions/0104.md).</sub>
+<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin).</sub>
 
 <a id="config-every-matching-app-block-applies-least-specific-first"></a>
 
@@ -1499,7 +1514,12 @@ as well, and specificity has no order left to decide which of them wins with.
 Matching happens once per entry file, at the point it is resolved — for a served request at
 compile-time route resolution, never per request.
 
-<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0104](../decisions/0104.md).</sub>
+- **Memory:** a published configuration holds one snapshot for each distinct chain of matching blocks,
+  bounded by the configuration, and one map entry for each entry file it resolved, bounded by the
+  files on disk. A request pays one map lookup for its entry file's snapshot. None of it grows with
+  traffic.
+
+<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling).</sub>
 
 <a id="config-an-app-block-may-widen-bounded-by-the-global-ceiling"></a>
 
@@ -1527,7 +1547,19 @@ Everything an application sets for itself at runtime is unchanged and layers on 
 [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set) writes the per-request overlay over the effective per-app
 value, and its ceiling is still the global `[limits.hard]`.
 
-<sub>See also [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0104](../decisions/0104.md).</sub>
+A capability grant is therefore something a reader looks for in more than one place: the global
+`[capabilities]` block and every `[[app]]` block whose `root` covers the code in question. `nvs config
+dump --origin` names which block set each effective value
+([`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline)), which is what makes that answerable.
+
+**Declined:**
+- **Narrowing only.** It forces the global block to grant every right any application needs so that
+  each block can remove some, and a missing block becomes a grant.
+- **Widening limits but only narrowing capabilities.** Resources are not rights, so the split is
+  defensible, and it fails for the same reason: one application that needs `process.exec` forces a
+  global grant that every other application on the host inherits unless its own block removes it.
+
+<sub>See also [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives).</sub>
 
 <a id="config-a-mount-routes-and-an-app-block-sets-policy"></a>
 
@@ -1556,7 +1588,7 @@ file, per-application mode works identically for `nvs serve` and `nvs run`, and 
 host is expressed with `[[app]]` blocks. `[mode] ceiling` still bounds what any `[[app]]` block may
 select, so nothing here widens what a mount could previously reach.
 
-<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0104](../decisions/0104.md), [0091](../decisions/0091.md).</sub>
+<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0091](../decisions/0091.md).</sub>
 
 <a id="config-scheduled-work-is-a-config-block"></a>
 

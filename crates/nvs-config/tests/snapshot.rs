@@ -166,7 +166,7 @@ fn shop() -> Fake {
     ])
 }
 
-/// § 2's closing sentence: an entry file matched by no block gets the global configuration, which
+/// `rule:config/an-application-is-its-entry-file-path`: an entry file matched by no block gets the global configuration, which
 /// is the ordinary case and needs no block at all.
 #[test]
 fn an_entry_no_block_matches_gets_the_global_configuration() {
@@ -406,7 +406,7 @@ fn a_host_only_set_serves_its_snapshot_to_every_entry() {
     }
 }
 
-/// § 2's worked example, both halves at once: `/srv/www/shop/bin/import.nvs` gets a memory of
+/// `rule:config/every-matching-app-block-applies-least-specific-first`'s worked example, both halves at once: `/srv/www/shop/bin/import.nvs` gets a memory of
 /// `512M` from the `/srv/www/shop` block and a `wall_time` of `600s` from its own, while
 /// inheriting everything neither states.
 #[test]
@@ -488,7 +488,7 @@ fn a_block_overriding_a_global_key_is_reported_with_both_origins() {
             "[limits]\nmemory = \"128M\"\n\n[[include]]\npath = \"conf.d/shop.toml\"\n",
         ),
         // The `root` is relative to the file that wrote it (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`), and that file is one
-        // directory down — which is the half of § 5 an `[[app]]` key is easiest to get wrong.
+        // directory down — which is the half of `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` an `[[app]]` key is easiest to get wrong.
         (
             "conf.d/shop.toml",
             "[[app]]\nroot = \"../srv/www/shop\"\n\n[app.limits]\nmemory = \"512M\"\n",

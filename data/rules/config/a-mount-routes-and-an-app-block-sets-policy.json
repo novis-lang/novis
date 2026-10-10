@@ -2,7 +2,6 @@
   "title": "A `[[server.mount]]` routes and carries no `mode`; an `[[app]]` block sets policy",
   "status": "shipped",
   "because": [
-    "0104",
     "0091"
   ],
   "seeAlso": [

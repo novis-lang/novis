@@ -16,3 +16,8 @@ as well, and specificity has no order left to decide which of them wins with.
 
 Matching happens once per entry file, at the point it is resolved — for a served request at
 compile-time route resolution, never per request.
+
+- **Memory:** a published configuration holds one snapshot for each distinct chain of matching blocks,
+  bounded by the configuration, and one map entry for each entry file it resolved, bounded by the
+  files on disk. A request pays one map lookup for its entry file's snapshot. None of it grows with
+  traffic.

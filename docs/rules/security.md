@@ -802,7 +802,7 @@ A granted root that does not exist yet — a socket nothing has bound — is res
 so both sides are spelled by one resolution. A root left as typed could not match a canonical
 argument wherever a directory above it is a symlink, as `/tmp` and `/var` are on macOS.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0104](../decisions/0104.md).</sub>
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals).</sub>
 
 <a id="security-writes-open-beneath-a-handle"></a>
 

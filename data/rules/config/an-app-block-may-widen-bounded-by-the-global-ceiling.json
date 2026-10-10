@@ -1,9 +1,7 @@
 {
   "title": "An `[[app]]` block may widen a limit or grant a capability up to the global ceiling, and may only lower its own ceiling",
   "status": "shipped",
-  "because": [
-    "0104"
-  ],
+  "because": [],
   "seeAlso": [
     "config/every-matching-app-block-applies-least-specific-first",
     "config/ini-set-is-core-config-set",

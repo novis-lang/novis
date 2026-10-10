@@ -101,7 +101,7 @@ deployment that did not intend that must not put an unexpected directory under `
   compiled-code cache, to defend an invariant ([`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url))
   that a table of any size already keeps.
 
-<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0104](../decisions/0104.md), [0197](../decisions/0197.md), [0200](../decisions/0200.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0197](../decisions/0197.md), [0200](../decisions/0200.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
 
 <a id="http-server-a-mount-carries-no-policy"></a>
 
@@ -126,7 +126,7 @@ The two usually cover the same tree, and that is the intended shape. An applicat
 **Declined:**
 - **A `mode`, limits or capabilities on the mount.** The `[[app]]` block owns those facts, and a second home for them is worse than none.
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/the-mode-ceiling-defaults-to-the-startup-mode`](http-server.md#http-server-the-mode-ceiling-defaults-to-the-startup-mode), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path). Decided in [0104](../decisions/0104.md), [0091](../decisions/0091.md).</sub>
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/the-mode-ceiling-defaults-to-the-startup-mode`](http-server.md#http-server-the-mode-ceiling-defaults-to-the-startup-mode), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path). Decided in [0091](../decisions/0091.md).</sub>
 
 <a id="http-server-the-served-file-is-optional"></a>
 
@@ -185,7 +185,7 @@ A Unix-socket listener is implicitly trusted for the forwarded headers ([`http-s
 
 For the mixed host, per-app configuration is the primary answer and the in-code flip is the escape hatch: the `[[app]]` block involves no application code and nothing the application can get wrong ([`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy)). `Core\Config::set` is for when the application knows something the operator does not.
 
-<sub>See also [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy). Decided in [0091](../decisions/0091.md), [0104](../decisions/0104.md).</sub>
+<sub>See also [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy). Decided in [0091](../decisions/0091.md).</sub>
 
 <a id="http-server-a-development-server-on-a-public-interface-warns-and-serves"></a>
 

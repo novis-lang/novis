@@ -1,9 +1,7 @@
 {
   "title": "`origin` and `mode` sit on the `[[app]]` block itself, and there is no global `[app]` table",
   "status": "shipped",
-  "because": [
-    "0104"
-  ],
+  "because": [],
   "seeAlso": [
     "config/an-application-is-its-entry-file-path",
     "config/every-matching-app-block-applies-least-specific-first",

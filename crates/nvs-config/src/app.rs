@@ -19,7 +19,7 @@
 //! per-app `nvs config dump`.
 //!
 //! **The comparison is canonicalize-then-prefix, and the canonicalization is
-//! [`trust::canonical`](crate::trust::canonical)'s.** That is the whole security content of § 1:
+//! [`trust::canonical`](crate::trust::canonical)'s.** That is the whole security content of `rule:config/app-keys-are-canonicalized-before-matching`:
 //! without it `/srv/www/shop/../other/x.nvs` matches `root = "/srv/www/shop"` and a symlink planted
 //! inside an application's tree inherits that application's capabilities. Both sides are
 //! canonicalized — the block's key by [`canonicalize`] once at boot, the entry file by [`matching`]
@@ -51,7 +51,7 @@ use crate::resolve::{Files, Origin, Override, Resolved, origin_note};
 use crate::tree::{App, Config, LimitSet, Limits, Setting};
 use crate::value::{Quantity, unit_of};
 
-/// § 1's keys, resolved: each `[[app]]` block's `root` or `entry` made absolute against the file
+/// `rule:config/an-application-is-its-entry-file-path`'s keys, resolved: each `[[app]]` block's `root` or `entry` made absolute against the file
 /// that wrote it (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`) and canonicalized, written back into the block.
 ///
 /// Runs once over the flattened tree, beside `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secrets and for the same reason: `[[app]]`
@@ -109,19 +109,19 @@ pub fn canonicalize(
     Ok(())
 }
 
-/// § 3's bound: an `[[app]]` block may widen `[app.limits]` and lower its own `[app.limits.hard]`,
+/// `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`'s bound: an `[[app]]` block may widen `[app.limits]` and lower its own `[app.limits.hard]`,
 /// and neither may pass the global `[limits.hard]`.
 ///
 /// Runs beside [`canonicalize`] and for the same reason — the global ceiling and the blocks bounded
 /// by it are both properties of the merged tree — but it needs no filesystem, so it takes no
 /// [`Files`]. With no global `[limits.hard]` written there is no bound to apply and every block
-/// passes: § 3 bounds a block by the host's answer, and a host that gave none has not answered.
+/// passes: `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` bounds a block by the host's answer, and a host that gave none has not answered.
 ///
-/// The refusal is at boot and the value is **not** clamped, which is § 3 citing `rule:config/three-changeability-classes`'s
+/// The refusal is at boot and the value is **not** clamped, which is `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` citing `rule:config/three-changeability-classes`'s
 /// treatment of `Core\Config::set`: a clamped block still reads as though it got what it asked for,
 /// and the operator finds out at the first request that hits the real ceiling.
 ///
-/// What this deliberately does not check, because § 3 does not state it: a per-app default above
+/// What this deliberately does not check, because `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` does not state it: a per-app default above
 /// the block's *own* lowered ceiling, and the same shape globally. Each is incoherent rather than
 /// unsafe — the value in force is still bounded by the ceiling the request is held to.
 ///
@@ -414,7 +414,7 @@ pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 6] 
     ]
 }
 
-/// § 2's matching blocks for one entry file, **least-specific first** — shortest `root` first,
+/// `rule:config/every-matching-app-block-applies-least-specific-first`'s matching blocks for one entry file, **least-specific first** — shortest `root` first,
 /// longest last, an `entry` match last of all.
 ///
 /// Indices into `apps` rather than references, because [`layer`] needs to reach the block's own
@@ -422,7 +422,7 @@ pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 6] 
 ///
 /// `apps` must have come through [`canonicalize`], which [`resolve`](crate::resolve::resolve) does
 /// for every tree it returns; a block still holding what the operator typed compares against the
-/// wrong thing and is the failure § 1 is written to prevent.
+/// wrong thing and is the failure `rule:config/app-keys-are-canonicalized-before-matching` is written to prevent.
 ///
 /// Ordering is by the key path's component count alone, and that already puts an `entry` match
 /// last: an `entry` block matches only the entry file itself, which is longer than every `root`
@@ -467,7 +467,7 @@ pub fn record_roster(config: &Config) {
     }
 }
 
-/// What § 2's layering produced for one entry file.
+/// What `rule:config/every-matching-app-block-applies-least-specific-first`'s layering produced for one entry file.
 #[derive(Clone, Debug, Default)]
 pub struct Layered {
     /// The effective block: every matching block's directives folded into one, later-wins by
@@ -475,16 +475,16 @@ pub struct Layered {
     /// key carried over from the most specific of them would read as a block that was written.
     pub app: App,
     /// The blocks that matched, least-specific first, by the canonical path each is keyed on.
-    /// This is § 2's `info: app blocks: …` line.
+    /// This is `rule:config/every-matching-app-block-applies-least-specific-first`'s `info: app blocks: …` line.
     pub blocks: Vec<PathBuf>,
     /// Every directive one block took from another, in the order it happened, carrying **both**
-    /// origins exactly as `rule:config/later-wins-and-every-override-is-recorded`'s own record does — which is § 2's whole argument for
+    /// origins exactly as `rule:config/later-wins-and-every-override-is-recorded`'s own record does — which is `rule:config/every-matching-app-block-applies-least-specific-first`'s whole argument for
     /// being a fourth ordering rather than a third precedence rule.
     ///
     pub overrides: Vec<Override>,
 }
 
-/// § 2: every block matching `entry` applied, least-specific first.
+/// `rule:config/every-matching-app-block-applies-least-specific-first`: every block matching `entry` applied, least-specific first.
 ///
 /// The fold is [`resolve`](crate::resolve)'s own `merge_table` over the blocks' tables, not a
 /// second implementation of later-wins. That is the section's central claim — "this is not a third
@@ -579,7 +579,7 @@ pub(crate) fn block_table(resolved: &Resolved, index: usize) -> Option<toml::Tab
 ///
 /// `root` is a **proper** prefix: a root that equals the entry file would mean a directory used as
 /// a file, and `entry` is the spelling for one file. `Path::starts_with` is the component-wise
-/// test § 1 asks for, so `/srv/www/shopfront/index.nvs` does not match `root = "/srv/www/shop"`.
+/// test `rule:config/an-application-is-its-entry-file-path` asks for, so `/srv/www/shopfront/index.nvs` does not match `root = "/srv/www/shop"`.
 fn covers(block: &App, entry: &Path) -> bool {
     if let Some(root) = &block.root {
         let root = Path::new(root);
@@ -601,7 +601,7 @@ pub(crate) fn key_of(block: &App) -> Option<&Path> {
         .map(Path::new)
 }
 
-/// `E0609` for a block naming both keys: § 1 gives one application one key, and a block naming a
+/// `E0609` for a block naming both keys: `rule:config/an-application-is-its-entry-file-path` gives one application one key, and a block naming a
 /// directory *and* a file has not said which of the two it means.
 fn both_keys(index: usize, origins: &BTreeMap<String, Origin>) -> Diagnostic {
     Diagnostic::error(
@@ -639,10 +639,10 @@ fn no_key(index: usize) -> Diagnostic {
     )
 }
 
-/// `E0609` for two blocks on one path — § 2's duplicate, which is not a refinement.
+/// `E0609` for two blocks on one path — `rule:config/every-matching-app-block-applies-least-specific-first`'s duplicate, which is not a refinement.
 ///
 /// Keyed on the canonical path rather than on the spelling, so the same directory reached through
-/// two relative paths, or through a symlink, is caught as well: § 2's argument is about which
+/// two relative paths, or through a symlink, is caught as well: `rule:config/every-matching-app-block-applies-least-specific-first`'s argument is about which
 /// block's value wins, and two blocks on one path have no order between them to answer with.
 fn duplicate(path: &Path, first: usize, second: usize, written_in: Option<&Origin>) -> Diagnostic {
     Diagnostic::error(
@@ -670,7 +670,7 @@ fn duplicate(path: &Path, first: usize, second: usize, written_in: Option<&Origi
     )
 }
 
-/// `E0610` for § 3's bound: a block asking for more than the host's `[limits.hard]` allows, named
+/// `E0610` for `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`'s bound: a block asking for more than the host's `[limits.hard]` allows, named
 /// on both sides with where each was written.
 ///
 /// The message says *what the block asked for* rather than "exceeds the ceiling", because the two
