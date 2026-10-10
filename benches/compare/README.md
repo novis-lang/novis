@@ -110,6 +110,20 @@ escape, the developer calls an escaper, so the result is `your-code` and not `no
 - `headers` reads hello's response for `X-Content-Type-Options: nosniff`, a frame policy
   (`X-Frame-Options` or a `frame-ancestors` CSP) and a `Referrer-Policy`. Any one missing is
   `your-code`.
+- `live-edit` serves a copy of its folder under `generated/`, changes `version 1` to `version 2` in
+  the copy, and polls for 20 seconds. The stacks run in their production setting, so PHP's opcache
+  does not check timestamps and Bun runs without `--hot`. An edit that never shows is
+  `one-setting` where the peer's documentation names the setting that would show it, and the
+  measured `null` stays in the evidence. Go compiles its program into the image, so it runs nothing
+  and is `no`.
+- `config` changes one response header in the peer's own config file, inside the container. A bind
+  mount shows every file as world-writable, and Novis refuses such a config file, so Novis edits the
+  `nvs.toml` its data folder holds. The change applied with no command is `built-in`, after the
+  peer's documented reload command is `one-setting` naming it, and only after a restart is `no`.
+  Bun and Go have no config file that sets a response header, so they run nothing and are
+  `your-code`.
+
+`--row <id>` runs one row, which is how a fix to one probe is checked.
 
 ## Agreement before timing
 

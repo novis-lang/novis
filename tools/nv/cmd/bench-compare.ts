@@ -2,6 +2,7 @@
 //
 //     bun nv bench-compare --smoke                               # every peer and case, a few hundred requests
 //     bun nv bench-compare --scenarios --smoke                   # every feature row against every peer
+//     bun nv bench-compare --scenarios --smoke --row config      # one row
 //     bun nv bench-compare --record benches/compare.json         # the fair arm, recorded
 //     bun nv bench-compare --arm deployed --record PATH          # four cpus to each backend
 //     bun nv bench-compare --down                                # tear every stack down
@@ -22,7 +23,7 @@
 // results in `Verdict`, with the evidence beside it.
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { rel, ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
@@ -291,6 +292,12 @@ export interface Probe {
   running(): boolean;
   /** `nvs check` over a file of the row's folder, in a one-off app container: the exit code and what it printed. */
   check(file: string): { code: number; output: string };
+  /** A command run in the backend container, as an operator would run it there. */
+  exec(command: string[]): { code: number; output: string };
+  /** The peer's `id` in `PEERS`. */
+  peer: string;
+  /** The host folder the stack serves, which a row that edits the program writes to. */
+  dir: string;
 }
 
 export interface Scenario {
@@ -300,6 +307,8 @@ export interface Scenario {
   case: string;
   /** `false` for a row that only checks a program, so no stack is brought up. */
   serves?: boolean;
+  /** Serve a fresh copy of the folder under `generated/`, for a row that edits the program. */
+  copy?: boolean;
   /** The result of a peer that has nothing to run for this row, with the documentation that says so. */
   fixed?: Record<string, RowResult>;
   probe(p: Probe): Promise<RowResult>;
@@ -365,6 +374,79 @@ export function checkResult(code: number, output: string, expected: string): Row
 
 /** A peer with no check for the row's mistake: `no`, and the page it documents the mistake on. */
 const noCheck = (docs: string): RowResult => ({ result: "no", evidence: { check: "none", docs } });
+
+/** How long a row that waits for a change polls before it says the change never came. */
+export const CHANGE_WAIT_MS = 20_000;
+
+/**
+ * An edit that shows is built in. One that never shows is `one-setting` where the peer has the setting that
+ * would show it, and `no` where it has none. The seconds stay `null` in the evidence either way.
+ */
+export function liveEditResult(seconds: number | null, setting: string | undefined): RowResult {
+  const evidence = { seconds_to_new_answer: seconds, restarts: 0 };
+  if (seconds !== null) return { result: "built-in", evidence };
+  return setting === undefined ? { result: "no", evidence } : { result: "one-setting", setting, evidence };
+}
+
+/** The setting each peer's documentation names for showing an edit without a restart, where it has one. */
+export const LIVE_EDIT_SETTING: Record<string, string> = { php: "opcache.validate_timestamps=1", bun: "bun --hot" };
+
+/** The line the live-edit program prints, and the line the driver edits it to. */
+export const LIVE_EDIT_FROM = "version 1";
+export const LIVE_EDIT_TO = "version 2";
+
+/**
+ * A changed config file that applies on its own is built in. One that applies after a reload command is
+ * `one-setting`, naming the command. One that applies only after a restart is `no`.
+ */
+export function configResult(withoutCommand: number | null, afterCommand: number | null, command: string | undefined): RowResult {
+  const evidence = { seconds_without_command: withoutCommand, seconds_after_command: afterCommand, command: command ?? null, restarts: 0 };
+  if (withoutCommand !== null) return { result: "built-in", evidence };
+  if (afterCommand !== null && command !== undefined) return { result: "one-setting", setting: command, evidence };
+  return { result: "no", evidence };
+}
+
+/** One peer's config change: the command that edits its config file, the reply that shows it, and its reload command. */
+export interface ConfigChange {
+  edit: string[];
+  applied(r: Reply): boolean;
+  /** The command the peer's documentation gives for a reload, and its name in the row. */
+  reload?: { command: string[]; name: string };
+}
+
+/**
+ * The edits are made inside the container. A bind mount shows every file as world-writable, and Novis
+ * refuses a config file anybody can write, so its file is the data folder's `nvs.toml` the image wrote.
+ * That file already has an `[http.headers]` table with the key commented out, so the edit uncomments it.
+ */
+export const CONFIG_CHANGES: Record<string, ConfigChange> = {
+  nvs: {
+    edit: ["sed", "-i", 's|^#referrer_policy = .*|referrer_policy = "same-origin"|', "/usr/local/bin/.nvsdata/nvs.toml"],
+    applied: (r) => r.headers["referrer-policy"] === "same-origin",
+  },
+  php: {
+    edit: ["sh", "-c", "echo 'expose_php = Off' > /usr/local/etc/php/conf.d/zz-config.ini"],
+    applied: (r) => r.headers["x-powered-by"] === undefined,
+    reload: { command: ["sh", "-c", "kill -USR2 1"], name: "php-fpm reload" },
+  },
+};
+
+/** A peer whose response headers are written in the program, with no config file that sets them. */
+const headersInCode: RowResult = { result: "your-code", evidence: { config_file: "none", headers_set_in: "the program" } };
+
+/** Polls `/` until `test` holds: the seconds it took, or `null` after `CHANGE_WAIT_MS`. A failed request is polled again. */
+async function secondsUntil(p: Probe, test: (r: Reply) => boolean): Promise<number | null> {
+  const start = performance.now();
+  while (performance.now() - start < CHANGE_WAIT_MS) {
+    try {
+      if (test(await p.get("/"))) return Number(((performance.now() - start) / 1000).toFixed(1));
+    } catch {
+      // nginx answers for a backend that is reloading; a reset connection is polled again like a 502.
+    }
+    await Bun.sleep(250);
+  }
+  return null;
+}
 
 /** A reply the row needs to be a 200, or the row cannot say anything. */
 function ok(reply: Reply, what: string): Reply {
@@ -441,6 +523,39 @@ export const SCENARIOS: Scenario[] = [
     tree: "cases",
     case: "hello",
     probe: async (p) => headersResult(ok(await p.get("/"), "hello").headers),
+  },
+  {
+    id: "live-edit",
+    tree: "scenarios",
+    case: "live-edit",
+    copy: true,
+    fixed: { go: { result: "no", evidence: { compiled_into: "the image", restarts: 1 } } },
+    probe: async (p) => {
+      const before = ok(await p.get("/"), "the first version").body;
+      if (!before.includes(LIVE_EDIT_FROM)) throw new Fail(`the first version: body ${pyRepr(before.slice(0, 200))}`);
+      for (const name of readdirSync(p.dir)) {
+        const file = join(p.dir, name);
+        writeFileSync(file, readFileSync(file, "utf8").replace(LIVE_EDIT_FROM, LIVE_EDIT_TO));
+      }
+      return liveEditResult(await secondsUntil(p, (r) => r.status === 200 && r.body.includes(LIVE_EDIT_TO)), LIVE_EDIT_SETTING[p.peer]);
+    },
+  },
+  {
+    id: "config",
+    tree: "cases",
+    case: "hello",
+    fixed: { bun: headersInCode, go: headersInCode },
+    probe: async (p) => {
+      const change = CONFIG_CHANGES[p.peer]!;
+      if (change.applied(ok(await p.get("/"), "hello"))) throw new Fail("the header already has the value the change sets");
+      const wrote = p.exec(change.edit);
+      if (wrote.code !== 0) throw new Fail(`${change.edit.join(" ")}: ${wrote.output}`);
+      const without = await secondsUntil(p, change.applied);
+      if (without !== null || change.reload === undefined) return configResult(without, null, undefined);
+      const reloaded = p.exec(change.reload.command);
+      if (reloaded.code !== 0) throw new Fail(`${change.reload.name}: ${reloaded.output}`);
+      return configResult(null, await secondsUntil(p, change.applied), change.reload.name);
+    },
   },
 ];
 
@@ -660,12 +775,23 @@ async function replyOf(peer: Peer, path: string, method = "GET", extra: Record<s
 async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx): Promise<RowResult> {
   const fixed = s.fixed?.[peer.id];
   if (fixed !== undefined) return fixed;
+  if (s.copy === true) {
+    rmSync(join(GENERATED, s.case), { recursive: true, force: true });
+    cpSync(join(COMPARE_DIR, s.tree, s.case), join(GENERATED, s.case), { recursive: true });
+    ctx = { ...ctx, tree: "generated" };
+  }
   const env = stackEnv(peer, ctx);
   const stack = stackPath(peer);
   peer.prepare?.(ctx);
   try {
     if (s.serves !== false) up(stack, env, "app", "nginx");
     return await s.probe({
+      peer: peer.id,
+      dir: join(COMPARE_DIR, ctx.tree, ctx.case),
+      exec: (command) => {
+        const done = compose(stack, ["exec", "-T", "app", ...command], env, true);
+        return { code: done.code, output: done.stdout + done.stderr };
+      },
       get: (path) => replyOf(peer, path),
       send: (method, path, headers) => replyOf(peer, path, method, headers),
       running: () => {
@@ -690,7 +816,7 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx): Promise<RowR
 
 const USAGE =
   "usage: nv bench-compare [-h] [--smoke] [--scenarios] [--arm {fair,deployed}] [--backend-cpus N]\n" +
-  "                        [--requests REQUESTS] [--reps REPS] [--record PATH] [--down]";
+  "                        [--row ID] [--requests REQUESTS] [--reps REPS] [--record PATH] [--down]";
 
 interface Options {
   smoke: boolean;
@@ -701,10 +827,11 @@ interface Options {
   reps: number | null;
   record: string | null;
   down: boolean;
+  row: string | null;
 }
 
 function options(args: string[]): Options | null {
-  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record"] });
+  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row"] });
   if (p.flags.has("--help")) return null;
   const int = (o: string): number | null => {
     const word = p.values.get(o);
@@ -724,6 +851,7 @@ function options(args: string[]): Options | null {
     reps: int("--reps"),
     record: p.values.get("--record") ?? null,
     down: p.flags.has("--down"),
+    row: p.values.get("--row") ?? null,
   };
 }
 
@@ -745,6 +873,7 @@ function help(): string {
     "  --requests REQUESTS   requests per timed pass (default 20000, 300 with --smoke)",
     "  --reps REPS           timed passes per arm, best wins (default 3, 1 with --smoke)",
     "  --record PATH         write this run to PATH as one JSON object",
+    "  --row ID              with --scenarios, run only the row ID",
     "  --down                tear every peer's stack down and stop",
     "",
     "benches/compare/README.md is the design; this tool is only how it is run. It needs bun and Docker.",
@@ -757,7 +886,9 @@ const SCENARIO_CONCURRENCY = 8;
 /** `--scenarios`: every row against every peer, one fresh stack per pair, one line per row. */
 async function scenarios(o: Options, cpus: number, commit: string): Promise<number> {
   if (o.record !== null) throw new Fail("--scenarios records nothing; drop --record or --scenarios");
-  for (const s of SCENARIOS) {
+  const rows = SCENARIOS.filter((s) => o.row === null || s.id === o.row);
+  if (rows.length === 0) throw new Fail(`--row ${o.row}: no such row; the rows are ${SCENARIOS.map((s) => s.id).join(", ")}`);
+  for (const s of rows) {
     const byPeer = new Map<string, RowResult>();
     for (const peer of PEERS) {
       console.log(`  ${s.id}: ${peer.label} ...`);

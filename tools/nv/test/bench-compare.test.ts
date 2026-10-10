@@ -7,8 +7,10 @@ import {
   buildRecord,
   CASES,
   COMPARE_DIR,
+  CONFIG_CHANGES,
   checkResult,
   comparable,
+  configResult,
   crashResult,
   csrfResult,
   ESCAPE_TERM,
@@ -16,6 +18,7 @@ import {
   headersResult,
   htmlEntities,
   isolationResult,
+  liveEditResult,
   PEERS,
   type PeerResult,
   phpChildren,
@@ -133,22 +136,45 @@ describe("the feature scenarios", () => {
     const files: Record<string, string> = { nvs: "main.nvs", php: "index.php", bun: "server.ts", go: "main.go" };
     for (const s of SCENARIOS) {
       for (const peer of PEERS) {
-        expect(existsSync(join(COMPARE_DIR, s.tree, s.case, files[peer.id]!))).toBe(s.fixed?.[peer.id] === undefined);
+        // A row that serves a case serves every peer's program, fixed or not.
+        expect(existsSync(join(COMPARE_DIR, s.tree, s.case, files[peer.id]!))).toBe(s.tree === "cases" || s.fixed?.[peer.id] === undefined);
       }
     }
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["isolation", "crash", "escape", "taint", "secret", "csrf", "headers"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["isolation", "crash", "escape", "taint", "secret", "csrf", "headers", "live-edit", "config"]);
   });
 
-  test("a fixed result is `no` and links the peer's own documentation", () => {
+  test("a fixed result says why in its evidence, and a documentation link is a URL", () => {
     for (const s of SCENARIOS) {
       for (const r of Object.values(s.fixed ?? {})) {
-        expect(r.result).toBe("no");
-        expect(String(r.evidence.docs)).toStartWith("https://");
+        expect(Object.keys(r.evidence).length).toBeGreaterThan(0);
+        if (r.evidence.docs !== undefined) expect(String(r.evidence.docs)).toStartWith("https://");
       }
     }
+  });
+
+  test("an edit that shows is built in, and one that never shows names the peer's setting if it has one", () => {
+    expect(liveEditResult(1.5, "bun --hot")).toEqual({ result: "built-in", evidence: { seconds_to_new_answer: 1.5, restarts: 0 } });
+    expect(liveEditResult(null, "bun --hot")).toEqual({ result: "one-setting", setting: "bun --hot", evidence: { seconds_to_new_answer: null, restarts: 0 } });
+    expect(liveEditResult(null, undefined).result).toBe("no");
+  });
+
+  test("a config change is built in without a command, one-setting after a reload, and no otherwise", () => {
+    expect(configResult(2.8, null, undefined).result).toBe("built-in");
+    expect(configResult(null, 0.5, "php-fpm reload")).toEqual({
+      result: "one-setting",
+      setting: "php-fpm reload",
+      evidence: { seconds_without_command: null, seconds_after_command: 0.5, command: "php-fpm reload", restarts: 0 },
+    });
+    expect(configResult(null, null, "php-fpm reload").result).toBe("no");
+    expect(configResult(null, null, undefined).result).toBe("no");
+  });
+
+  test("every peer the config row runs has a change, and every other peer a fixed result", () => {
+    const config = SCENARIOS.find((s) => s.id === "config")!;
+    for (const peer of PEERS) expect(CONFIG_CHANGES[peer.id] !== undefined).toBe(config.fixed?.[peer.id] === undefined);
   });
 
   test("the cross-site POST is rejected when its reply does not say the state changed", () => {
