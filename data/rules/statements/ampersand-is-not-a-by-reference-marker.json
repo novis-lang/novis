@@ -2,8 +2,7 @@
   "title": "`&` in a by-reference position is refused at parse time",
   "status": "shipped",
   "because": [
-    "0107",
-    "0045"
+    "0107"
   ],
   "seeAlso": [
     "statements/inout-is-the-by-reference-spelling",
