@@ -22,7 +22,10 @@ between two kinds.
   `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip`, and so is the `$key` a callback is handed —
   on a packed list exactly as on a map. A key **parameter** still takes `int|string`, because the
   subscript normalisation above is what makes those one key. A key binding declaring any other type is
-  refused where it is written (`E0723`), because there is no array that could fill it.
+  refused where it is written (`E0723`), because there is no array that could fill it. A callback
+  that declares `int $k` throws `LogicError` at the call, on a list exactly as on a map.
+- **Memory:** a packed list keeps a key as a position, so a `Core\Arr` member renders one decimal
+  string per entry for its callback, and only where the callback declares a key parameter.
 - `Core\Json::encode` writes a JSON array exactly when the keys are `"0"` … `"n−1"` in order, and a
   JSON object otherwise, so string keys change nothing in the encoded output.
 
@@ -81,3 +84,5 @@ between two kinds.
 **Declined:**
 - **Integer keys kept beside string keys.** Two key domains need a rule for converting between them,
   and that rule is where `$a[8]`, `$a["8"]` and `$a["08"]` stop meaning what they look like.
+- **A callback's `$key` handed on as a position on a packed list.** The key's type would then depend
+  on how the array happens to be stored, which is the integer-key and string-key split again.

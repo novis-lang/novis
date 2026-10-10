@@ -666,7 +666,10 @@ between two kinds.
   `keyOf`, `firstKey`, `lastKey`, `findKey` and `flip`, and so is the `$key` a callback is handed —
   on a packed list exactly as on a map. A key **parameter** still takes `int|string`, because the
   subscript normalisation above is what makes those one key. A key binding declaring any other type is
-  refused where it is written (`E0723`), because there is no array that could fill it.
+  refused where it is written (`E0723`), because there is no array that could fill it. A callback
+  that declares `int $k` throws `LogicError` at the call, on a list exactly as on a map.
+- **Memory:** a packed list keeps a key as a position, so a `Core\Arr` member renders one decimal
+  string per entry for its callback, and only where the callback declares a key parameter.
 - `Core\Json::encode` writes a JSON array exactly when the keys are `"0"` … `"n−1"` in order, and a
   JSON object otherwise, so string keys change nothing in the encoded output.
 
@@ -725,8 +728,10 @@ between two kinds.
 **Declined:**
 - **Integer keys kept beside string keys.** Two key domains need a rule for converting between them,
   and that rule is where `$a[8]`, `$a["8"]` and `$a["08"]` stop meaning what they look like.
+- **A callback's `$key` handed on as a position on a packed list.** The key's type would then depend
+  on how the array happens to be stored, which is the integer-key and string-key split again.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0069](../decisions/0069.md), [0114](../decisions/0114.md), [0159](../decisions/0159.md), [0188](../decisions/0188.md), [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0114](../decisions/0114.md), [0159](../decisions/0159.md), [0188](../decisions/0188.md), [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
 
 <a id="types-array-combination"></a>
 
@@ -760,7 +765,38 @@ Two related behaviours are stated here too: `unique`, `diff` and `intersect` com
 identity**, never by a string cast of each value; and `flip` collapses duplicate values, last
 occurrence winning, its result typed `array<string>`.
 
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0069](../decisions/0069.md), [0063](../decisions/0063.md).</sub>
+Which member was called decides the result, and no key's spelling takes part, so a combining call is
+predictable without knowing the data. PHP's `array_merge` renumbers an integer key and overwrites a
+string key, so its result depends on each key's runtime type. With one key type
+([`types/arrays`](types.md#types-arrays)), reproducing it would mean sniffing the text of every key, under a name that
+shows the reader neither outcome. A `...$a` spread does keep that reading, but it is written at the
+site with both arrays in view, and its two outcomes are the two writes the caller could have written
+by hand.
+
+`overlay` is PHP's `array_replace`, `underlay` is PHP's `$a + $b` in both entries and key order, and
+`appendAll` is `array_merge` over lists. No member is `array_merge` itself. `+` is arithmetic notation
+for a set operation and silently left-biased, yet `$options + $defaults` is common, so it gets a
+named replacement and not only a removal. `overlayDeep` tests for a list with `Arr::isList`, a
+predicate the language already has. A list overlaid element-wise, `[9]` onto `[1, 2, 3]` giving
+`[9, 2, 3]`, is the surprise PHP's `array_replace_recursive` has.
+
+**Declined:**
+- **`Arr::merge` with `array_merge`'s rule.** It needs the key-content sniff above, and it makes the
+  most common array operation the one whose result depends on data the reader cannot see.
+- **`Arr::merge` with only the right-wins rule.** A PHP developer writing `Arr::merge($list1, $list2)`
+  expects concatenation and silently gets an overwrite by position. A name that means something else in
+  PHP is not reused.
+- **`Arr::overlay($b, $a)` as the replacement for `+`, with no `underlay`.** The key order differs, so
+  the replacement would be silently wrong in an insertion-ordered array.
+- **`concat` for `appendAll`.** A member name is a full word ([`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words)),
+  and `appendAll` pairs with `append`: arrays against values.
+- **`Arr::each`.** It can return nothing and mutate nothing ([`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates)), so it
+  would be a slower `foreach` with a closure allocation, and a member does not restate a language
+  construct ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)).
+- **A member for `array_merge_recursive`.** It turns two colliding scalars into a two-element array, a
+  change of data shape no typed member can make. `overlayDeep` is the nearest member.
+
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/preserve-keys`](types.md#types-preserve-keys). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="types-preserve-keys"></a>
 
@@ -776,9 +812,15 @@ would be the key-type-dependent rule [`types/array-combination`](types.md#types-
 option name.
 
 `false` is the default because these members are overwhelmingly called with a list. For an argument
-with non-numeric keys, `false` drops the keys and `{preserveKeys: true}` keeps them.
+with non-numeric keys, `false` drops the keys and `{preserveKeys: true}` keeps them. PHP's
+`array_slice` and `array_reverse` keep string keys whatever the option says, so here the result
+differs from PHP.
 
-<sub>See also [`types/array-combination`](types.md#types-array-combination), [`types/arrays`](types.md#types-arrays). Decided in [0069](../decisions/0069.md).</sub>
+**Declined:**
+- **A default of `true`.** Slicing a list from offset 2 would give keys `"2"` and `"3"`, which is not a
+  list, breaking the common case and every `Core\Json::encode` after it.
+
+<sub>See also [`types/array-combination`](types.md#types-array-combination), [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="types-mixed-subscript"></a>
 

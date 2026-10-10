@@ -2,7 +2,6 @@
   "title": "An array is PHP's ordered hash with `string` keys and a declared element type",
   "status": "shipped",
   "because": [
-    "0069",
     "0114",
     "0159",
     "0188",
