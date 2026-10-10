@@ -2,7 +2,6 @@
   "title": "`callable` is satisfied by an anonymous function or a method reference and by nothing else, and no object is callable",
   "status": "shipped",
   "because": [
-    "0031",
     "0007",
     "0014",
     "0136"

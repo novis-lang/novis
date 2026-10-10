@@ -152,7 +152,7 @@ name already says. The refusal recovers as `mixed`, which is what keeps one miss
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0031](../decisions/0031.md), [0033](../decisions/0033.md), [0036](../decisions/0036.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0036](../decisions/0036.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
 
 <a id="types-integer-literals"></a>
 
@@ -1303,7 +1303,7 @@ that made it, so "go to definition" on any callable value lands on real code.
 - **A dedicated `MethodRef` or `FunctionRef` type.** A second type with no behaviour of its own adds
   surface and nothing else ([`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type)).
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0031](../decisions/0031.md), [0007](../decisions/0007.md), [0014](../decisions/0014.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0007](../decisions/0007.md), [0014](../decisions/0014.md), [0136](../decisions/0136.md).</sub>
 
 <a id="types-anonymous-function"></a>
 
@@ -1328,9 +1328,19 @@ This removes a second spelling rather than adding a capability: a method referen
 expression-bodied anonymous function already produce exactly the value a block-bodied anonymous function does
 ([`types/callable-values`](types.md#types-callable-values)). Capture is never written ([`types/implicit-capture`](types.md#types-implicit-capture)), and an
 anonymous function that needs to call itself carries a self-name instead
-([`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name)).
+([`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name)). The block body is not a new form: PHP's arrow function
+never grew one only because it was added after the `function` literal, and nothing requires `fn` to
+keep that restriction.
 
-<sub>See also [`types/implicit-capture`](types.md#types-implicit-capture), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/callable-values`](types.md#types-callable-values). Decided in [0031](../decisions/0031.md).</sub>
+**Declined:**
+- **Keeping both `function (...) {...}` and `fn`.** Two spellings of one value
+  ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
+- **A bare `($x) => ...` without `fn`.** A parenthesised list before `=>` cannot be told apart from a
+  parenthesised expression without a cover grammar; `fn` decides it from one token.
+- **Blocks that are expressions, returning their last value.** That decides statements against
+  expressions for the whole language to save one `return`.
+
+<sub>See also [`types/implicit-capture`](types.md#types-implicit-capture), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/callable-values`](types.md#types-callable-values).</sub>
 
 <a id="types-callable-signature"></a>
 
@@ -1362,7 +1372,7 @@ The two binding-site variants that stood in for this — a callback-return param
 callbacks — are retired, and the restriction that a shape's every field be a *written* anonymous function
 goes with them, because a `callable(): T`-typed variable now carries what the field needs.
 
-<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md).</sub>
+<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
 
 <a id="types-callable-arity"></a>
 
@@ -1447,7 +1457,7 @@ dynamic one while writing *less*: `$u->name` stops being an erased-receiver fetc
 A block-bodied `fn` still declares its own return type; inferring one under an expected type is
 whole-body return-type inference and is not part of this ([`types/anonymous-function`](types.md#types-anonymous-function)).
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0136](../decisions/0136.md), [0036](../decisions/0036.md), [0031](../decisions/0031.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0136](../decisions/0136.md), [0036](../decisions/0036.md).</sub>
 
 <a id="types-callable-is-the-only-function-type"></a>
 
@@ -1488,7 +1498,11 @@ $result = $fn($arg);       // replaces call_user_func($fn, $arg)
 $result = $fn(...$args);   // replaces call_user_func_array($fn, $args)
 ```
 
-<sub>See also [`types/callable-values`](types.md#types-callable-values), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/grammar`](types.md#types-grammar). Decided in [0031](../decisions/0031.md), [0007](../decisions/0007.md).</sub>
+**Declined:**
+- **Keeping `Closure` beside `callable`, reserved for a typed signature.** A signature is written on
+  the one name, `callable(int): string` ([`types/callable-signature`](types.md#types-callable-signature)).
+
+<sub>See also [`types/callable-values`](types.md#types-callable-values), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/grammar`](types.md#types-grammar). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="types-implicit-capture"></a>
 
@@ -1518,7 +1532,23 @@ $get       = fn() => $count->value;     // ...but $count is a heap object, so th
 There is no `Core\Ref<T>` or boxed-cell builtin for this, and an anonymous object
 ([`types/anonymous-object`](types.md#types-anonymous-object)) is the lightweight way to write the carrier.
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/anonymous-object`](types.md#types-anonymous-object). Decided in [0031](../decisions/0031.md).</sub>
+A written capture list exists to make the free variables visible where the function is written.
+Capturing what the body reads makes the same set visible from the body itself, and cannot drift from
+it. Dropping by-reference capture also removes a known trap: anonymous functions made inside a loop
+that each capture the loop variable by reference, and all see its last value.
+
+- **Memory:** evaluating an anonymous function allocates one object with one field per captured
+  variable. One that captures nothing holds no fields.
+
+**Declined:**
+- **`use ($y)` kept as documentation.** Capture is already implicit, so the list would be unchecked
+  decoration that drifts from the body.
+- **`use (&$y)` kept and the by-value form dropped.** By value is the common, safe case; by reference
+  is the trap above.
+- **A builtin boxed cell such as `Core\Ref<T>`.** No real code has shown the object carrier above is
+  a tax. If it does, the answer is a narrow named type, never by-reference capture again.
+
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-function-self-name`](types.md#types-anonymous-function-self-name), [`types/anonymous-object`](types.md#types-anonymous-object).</sub>
 
 <a id="types-anonymous-function-self-name"></a>
 
@@ -1548,13 +1578,16 @@ recursive call is finally held to. An anonymous function that declares no return
 find out, and a self-call there answers `mixed`; its parameter list has no such half-measure, being
 complete before the body is entered.
 
+The self-name exists because recursion is the one job a by-reference capture of the function's own
+variable did that nothing else can ([`types/implicit-capture`](types.md#types-implicit-capture)).
+
 It does not reopen "every callable is a declared class member": that rule bars a free, globally
 callable function existing outside a class, and this name is unreachable from anywhere but its own
 body — the same status as a parameter name. A recursive helper that *is* reusable elsewhere still
 belongs on a class as a named method; the self-name covers only the case where the sole reason an
 anonymous function would need a name is to call itself.
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/implicit-capture`](types.md#types-implicit-capture), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0031](../decisions/0031.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/implicit-capture`](types.md#types-implicit-capture), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0011](../decisions/0011.md).</sub>
 
 <a id="types-object-top"></a>
 

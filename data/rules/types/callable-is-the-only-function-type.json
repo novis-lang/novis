@@ -2,7 +2,6 @@
   "title": "`callable` is the only type name for a function value, and a callable is invoked directly",
   "status": "shipped",
   "because": [
-    "0031",
     "0007"
   ],
   "seeAlso": [

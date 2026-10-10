@@ -1,9 +1,7 @@
 {
   "title": "An anonymous function captures `$this` only when its body names it, so `static fn` has nothing left to assert",
   "status": "shipped",
-  "because": [
-    "0031"
-  ],
+  "because": [],
   "seeAlso": [
     "statements/static-is-a-member-modifier"
   ],

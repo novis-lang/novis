@@ -696,7 +696,7 @@ in exchange for reintroducing the dynamic escape the language closed elsewhere â
 Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
 further one opened, and every claim above it would have to be qualified.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md), [0031](../decisions/0031.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md).</sub>
 
 <a id="security-capability-costs-nothing-unasked"></a>
 

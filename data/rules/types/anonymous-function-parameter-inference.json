@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0136",
-    "0036",
-    "0031"
+    "0036"
   ],
   "seeAlso": [
     "types/callable-signature",

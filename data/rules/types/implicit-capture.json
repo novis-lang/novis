@@ -1,9 +1,7 @@
 {
   "title": "An anonymous function captures by value exactly the outer names its body reads, and there is no `use` clause",
   "status": "shipped",
-  "because": [
-    "0031"
-  ],
+  "because": [],
   "seeAlso": [
     "types/anonymous-function",
     "types/anonymous-function-self-name",
@@ -12,6 +10,7 @@
   "guardedBy": [
     "crates/nvs-types/tests/anon_fns.rs",
     "crates/nvs-syntax/src/parser/tests/expr.rs",
-    "tests/conformance/class/an-anonymous-function-returned-from-a-method-keeps-this.nvst"
+    "tests/conformance/class/an-anonymous-function-returned-from-a-method-keeps-this.nvst",
+    "tests/conformance/lang/every-outer-value-an-anonymous-function-reads-is-the-copy-that-was-there-when-it-was-written.nvst"
   ]
 }

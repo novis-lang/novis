@@ -513,7 +513,7 @@ extend the enclosing object's lifetime. The cost is the corner — a `$this`-fre
 built inside a method and then bound to a *different* object gives a callable that ignores the
 binding, because `bindTo()` and `bind()` return an equivalent callable rather than rebinding anything.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0031](../decisions/0031.md).</sub>
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier).</sub>
 
 <a id="statements-inout-is-the-by-reference-spelling"></a>
 
@@ -539,7 +539,7 @@ one path that does not reach the write-back, so a caller sees no partial write. 
 is the other mechanism, pushing each assignment through to the array element as it happens. Neither is an
 alias. Which declarations may carry one is unchanged: an anonymous function may not, and a generator may not.
 
-<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0107](../decisions/0107.md), [0031](../decisions/0031.md), [0053](../decisions/0053.md).</sub>
+<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0107](../decisions/0107.md), [0053](../decisions/0053.md).</sub>
 
 <a id="statements-inout-is-written-at-the-call"></a>
 
@@ -619,7 +619,7 @@ the site above it nothing to report but a malformed intersection.
 The already-refused spellings keep their own codes and gain the new word in their help text: `$a = &$b` is
 `E0701`, an anonymous function parameter `E0493`, a generator's `E0492`.
 
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0107](../decisions/0107.md), [0031](../decisions/0031.md), [0045](../decisions/0045.md).</sub>
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0107](../decisions/0107.md), [0045](../decisions/0045.md).</sub>
 
 <a id="statements-exit-is-the-only-termination-keyword"></a>
 

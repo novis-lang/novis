@@ -241,7 +241,7 @@ backtrace. There is no builder, no matcher mini-language and no notion of a "nic
 double — that last one is not a choice, since a double of `now(): Instant` has nothing legal to
 return by default. Every double is strict because nothing else is expressible.
 
-<sub>See also [`testing/interaction-after-the-fact`](testing.md#testing-interaction-after-the-fact), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0036](../decisions/0036.md), [0031](../decisions/0031.md), [0052](../decisions/0052.md), [0043](../decisions/0043.md).</sub>
+<sub>See also [`testing/interaction-after-the-fact`](testing.md#testing-interaction-after-the-fact), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0036](../decisions/0036.md), [0052](../decisions/0052.md), [0043](../decisions/0043.md).</sub>
 
 <a id="testing-interaction-after-the-fact"></a>
 

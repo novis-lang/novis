@@ -204,7 +204,7 @@ too.
 The natural ordering used for sorting is a separate question and answers differently for `float`; the
 two are not the same table.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation). Decided in [0090](../decisions/0090.md), [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0009](../decisions/0009.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation). Decided in [0090](../decisions/0090.md), [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md).</sub>
 
 <a id="expressions-mixed-equality"></a>
 
@@ -791,7 +791,7 @@ A `callable` may carry its signature. The resolvability this rule is after comes
 the value's creation site rather than from the static type, so it holds whether or not the slot being
 filled declares one.
 
-<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0031](../decisions/0031.md), [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
 
 <a id="expressions-no-partial-application"></a>
 
@@ -809,4 +809,4 @@ The pipeline operator is unaffected: its `$_` is a parse-time substitution, not 
 ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the hole diagnostic
 ([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once)) already teaches the difference.
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once). Decided in [0124](../decisions/0124.md), [0031](../decisions/0031.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once). Decided in [0124](../decisions/0124.md).</sub>

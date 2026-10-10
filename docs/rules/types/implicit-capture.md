@@ -19,3 +19,19 @@ $get       = fn() => $count->value;     // ...but $count is a heap object, so th
 
 There is no `Core\Ref<T>` or boxed-cell builtin for this, and an anonymous object
 (`rule:types/anonymous-object`) is the lightweight way to write the carrier.
+
+A written capture list exists to make the free variables visible where the function is written.
+Capturing what the body reads makes the same set visible from the body itself, and cannot drift from
+it. Dropping by-reference capture also removes a known trap: anonymous functions made inside a loop
+that each capture the loop variable by reference, and all see its last value.
+
+- **Memory:** evaluating an anonymous function allocates one object with one field per captured
+  variable. One that captures nothing holds no fields.
+
+**Declined:**
+- **`use ($y)` kept as documentation.** Capture is already implicit, so the list would be unchecked
+  decoration that drifts from the body.
+- **`use (&$y)` kept and the by-value form dropped.** By value is the common, safe case; by reference
+  is the trap above.
+- **A builtin boxed cell such as `Core\Ref<T>`.** No real code has shown the object carrier above is
+  a tax. If it does, the answer is a narrow named type, never by-reference capture again.

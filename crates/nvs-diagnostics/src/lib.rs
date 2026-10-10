@@ -3072,8 +3072,8 @@ pub mod code {
     ///
     /// The mirror of [`E_INOUT_ARG_MISSING`]: a marker that is allowed to be
     /// wrong is worth nothing to the reader, so `rule:statements/inout-is-written-at-the-call` makes the extra
-    /// one an error too. Through a `callable` it can never be right — ADR
-    /// 0031 § 4 keeps that type opaque and [`E_ANON_FN_INOUT_PARAM`] refuses
+    /// one an error too. Through a `callable` it can never be right —
+    /// `rule:types/callable-is-the-only-function-type` keeps that type opaque and [`E_ANON_FN_INOUT_PARAM`] refuses
     /// the declaration end outright — and a spread hands over a subject's
     /// entries rather than the subject, which is the same reason
     /// [`E_INOUT_ARG_NOT_A_PLACE`] wants one storage location. Through a
