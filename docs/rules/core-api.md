@@ -555,7 +555,7 @@ either — it encodes as an object keyed by its field names.
 The decode half is part of the same contract, so a type that encodes also decodes, and no program
 hand-writes the step that turns decoded data back into an object.
 
-<sub>See also [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`types/object-top`](types.md#types-object-top). Decided in [0063](../decisions/0063.md), [0071](../decisions/0071.md).</sub>
 
 <a id="core-api-qualifier-behaviour-is-declared"></a>
 

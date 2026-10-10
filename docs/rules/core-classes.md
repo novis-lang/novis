@@ -136,7 +136,7 @@ coroutine into a `TimeoutError` naming the member. A handle whose timeout has pa
 error from every later member but `kill`. A timeout that is not a positive length of time is a
 `RuntimeError` before anything starts, as `Core\Net\Listener::accept`'s bound is.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-process-spawn"></a>
 
@@ -782,7 +782,7 @@ safe to keep comes out", and each such function's author carries responsibility 
 
 `reveal` removes `secret` and nothing else: a value that was also `tainted` stays `tainted`.
 
-<sub>See also [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra). Decided in [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-reflect"></a>
 
@@ -900,7 +900,7 @@ It is **not** built on the shared cache, which is deliberately lossy — right f
 for a message a subscriber is waiting on. Cross-machine fan-out is not the runtime's: a fleet bridges
 topics to a broker in application code.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0059](../decisions/0059.md), [0076](../decisions/0076.md).</sub>
 
 <a id="core-classes-db-one-api"></a>
 
@@ -956,7 +956,7 @@ A connection is released by the runtime at request teardown — the job a destru
 done by the arena instead. `close()` releases one early, and the name is then free for the next
 `connect`.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0067](../decisions/0067.md), [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0033](../decisions/0033.md), [0047](../decisions/0047.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0067](../decisions/0067.md), [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0047](../decisions/0047.md).</sub>
 
 <a id="core-classes-db-capabilities"></a>
 
@@ -1324,7 +1324,7 @@ is a `secret` sink. The SQL text may, being developer-authored. The four raw val
 one boxed slice, which is eight bytes narrower than the single slot it replaced and costs one
 allocation on a path that is already allocating the object, the message and the backtrace.
 
-<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../decisions/0067.md), [0033](../decisions/0033.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../decisions/0067.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-db-crate-boundary"></a>
 
@@ -1912,7 +1912,7 @@ nature and the store's protocol is length-prefixed, so a key cannot reshape a co
 TTL. The in-process tier is an existing crate; the shared tier is a small script of our own, an
 algorithm over our own state.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-classes-ratelimit-unreachable-store-throws"></a>
 
@@ -2004,7 +2004,7 @@ payload" is not a property the checker can see, so it is not one the return type
 **Not shipped.** There is no `Core\Signature` in `crates/nvs-stdlib/src/`; the nearest landed member
 is `signed_cookie.rs`, whose key-ring shape this one adopts.
 
-<sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md).</sub>
 
 <a id="core-classes-router-signed-url"></a>
 

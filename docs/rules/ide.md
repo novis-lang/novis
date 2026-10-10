@@ -2247,7 +2247,7 @@ or a restart. An empty answer means nothing to redact; a *missing* answer means 
 
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0101](../decisions/0101.md), [0033](../decisions/0033.md), [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
 
 <a id="ide-redaction-covers-bytes-only"></a>
 

@@ -596,8 +596,8 @@ pub(crate) fn admits_tainted_argument(
     }
 }
 
-/// Whether a parameter classified `qual` accepts a `secret` argument — ADR
-/// 0033 § 3, which is one mark and, in the registry that writes it, two
+/// Whether a parameter classified `qual` accepts a `secret` argument —
+/// `rule:core-classes/secret-reveal`, which is one mark and, in the registry that writes it, two
 /// classes wide: `Core\Secret`, which is the escape hatch, and `Core\Password`,
 /// whose `hash` and `verify` are the one *operation* on a password that
 /// legitimately answers something that is not one. That roster is closed and

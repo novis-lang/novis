@@ -152,7 +152,7 @@ name already says. The refusal recovers as `mixed`, which is what keeps one miss
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0024](../decisions/0024.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
 
 <a id="types-integer-literals"></a>
 
@@ -544,7 +544,7 @@ Two limits are deliberate: **no `float` single-value type**, because float equal
 that a type allowing only `0.1` is a footgun; and **no wildcard matching** over constant or case names,
 since the whole point is that the accepted set is spelled out.
 
-<sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0007](../decisions/0007.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0066](../decisions/0066.md).</sub>
+<sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0047](../decisions/0047.md), [0007](../decisions/0007.md), [0024](../decisions/0024.md), [0066](../decisions/0066.md).</sub>
 
 <a id="types-constant-in-type-position"></a>
 
@@ -801,7 +801,7 @@ It is its own **equality domain**: two keys are equal when they name the same pr
 ever equal to one, and ordering one is refused ([`types/ordering`](types.md#types-ordering)). `property` is a keyword only
 in type position — `$property`, a method named `property` and a class named `Property` are untouched.
 
-<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md), [0024](../decisions/0024.md).</sub>
 
 <a id="types-property-key-variance"></a>
 
@@ -1106,7 +1106,7 @@ where it runs.
 condition, which tests any type for truthiness without asking for one. The `(int)` cast syntax
 is not a second spelling — it does not parse at all ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0024](../decisions/0024.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
@@ -1835,7 +1835,7 @@ ever equal to one — `$cls == "Dog"` is exactly the string-as-a-class confusion
 and ordering one is refused with the other unordered types ([`types/ordering`](types.md#types-ordering)). A descriptor is
 immortal and process-wide, so holding one costs a word and frees nothing.
 
-<sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0250](../decisions/0250.md).</sub>
+<sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0250](../decisions/0250.md).</sub>
 
 <a id="types-class-reference-variance"></a>
 

@@ -3503,8 +3503,8 @@ pub mod code {
     /// `rule:errors/record-transformations`'s redaction row states it: a `secret`-qualified value written at a
     /// `Core\Debug::dump`/`render` call site is refused where it is written.
     ///
-    /// It is a *call-site* rule rather than a parameter type, for ADR 0033
-    /// § *Context*'s reason and `Core\Log::write`'s: both members declare
+    /// It is a *call-site* rule rather than a parameter type, for
+    /// `rule:security/secret-sinks-refuse`'s reason and `Core\Log::write`'s: both members declare
     /// `mixed`, which a `secret string` satisfies, so the only place the
     /// qualifier is still visible is the argument expression itself.
     ///
@@ -4291,9 +4291,8 @@ pub mod code {
     );
 
     /// A `secret`-qualified value reaches
-    /// `rule:classes/graph-copy`'s graph copy — [ADR
-    /// 0033](/docs/decisions/0033.md)
-    /// § 4's `serialize()`-and-`spawn` sink, which that bullet deliberately
+    /// `rule:classes/graph-copy`'s graph copy —
+    /// `rule:security/secret-crosses-no-boundary`'s `serialize()`-and-`spawn` sink, which that rule deliberately
     /// states once for *both* carriers rather than distinguishing "crossing to
     /// a live isolate" from "externalizing to bytes".
     ///

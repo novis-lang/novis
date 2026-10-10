@@ -2,8 +2,7 @@
   "title": "`ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else",
   "status": "shipped",
   "because": [
-    "0044",
-    "0033"
+    "0044"
   ],
   "seeAlso": [
     "core-classes/process-run",

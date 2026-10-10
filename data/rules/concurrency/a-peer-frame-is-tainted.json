@@ -4,8 +4,7 @@
   "because": [
     "0083",
     "0024",
-    "0082",
-    "0033"
+    "0082"
   ],
   "seeAlso": [
     "concurrency/a-connection-is-a-loop",

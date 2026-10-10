@@ -503,7 +503,7 @@ rendering can emit a reference.
 Tainted data flows into a record freely, because the record frames it and **the rendering is what
 makes it safe**. There is no raw escape hatch, and no rendering may be selected by an argument.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write). Decided in [0092](../decisions/0092.md), [0033](../decisions/0033.md), [0086](../decisions/0086.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write). Decided in [0092](../decisions/0092.md), [0086](../decisions/0086.md), [0087](../decisions/0087.md).</sub>
 
 <a id="errors-renderings"></a>
 

@@ -25,7 +25,7 @@ limited to what ships; this page also carries what is only planned, which that c
 | Infection | mutation testing | `nvs test --mutate` — type-valid mutants, run against the tests coverage says touch them | [0079](../decisions/0079.md) § 21 | M10 |
 | PHPBench | benchmarking | `#[Bench]` reports the deterministic counter stream, so CI can gate on it | [0079](../decisions/0079.md) § 15 | M10 |
 | PHPStan / Psalm / Phan | static analysis | `nvs check` — the compiler is the analyzer; see below | [0007](../decisions/0007.md) and the section below | on disk |
-| Psalm `--taint-analysis` | taint analysis | `tainted` and `secret` are type qualifiers, enforced as hard errors | [0024](../decisions/0024.md), [0033](../decisions/0033.md) | on disk |
+| Psalm `--taint-analysis` | taint analysis | `tainted` and `secret` are type qualifiers, enforced as hard errors | [0024](../decisions/0024.md), `rule:security/secret-qualifier` | on disk |
 | PHP CS Fixer / PHP_CodeSniffer | layout and style | `nvs fmt`, canonical and unconfigurable — and the bug-adjacent rules are compile errors already | `rule:tooling/fmt-is-one-canonical-style`; `rule:core-api/identifier-casing`, [0094](../decisions/0094.md) | errors on disk; `nvs fmt` M10 |
 | Rector | automated codebase rewrites | `nvs convert` for PHP→Novis; Novis→Novis declined, with a recorded reopen trigger | [0089](../decisions/0089.md); `rule:tooling/fmt-is-never-a-diagnostic` | M11 |
 | Xdebug — step debugging | breakpoints, stepping | `nvs dap`, on the safepoints codegen already emits | `rule:ide/the-debug-adapter-does-not-wait-for-an-editor` | M10 |
@@ -56,7 +56,7 @@ every-path-returns at compile time, literal regex/format/URI validation
 ([0057](../decisions/0057.md)), the route table checked while compiling
 ([0077](../decisions/0077.md)), and taint/secret flow as type qualifiers
 ([0024](../decisions/0024.md),
-[0033](../decisions/0033.md)). Levels and baseline files have no
+`rule:security/secret-qualifier`). Levels and baseline files have no
 analogue because they exist to bolt gradual strictness onto untyped code, and there is no untyped
 code. CI reads `nvs check --json`
 ([0108](../decisions/0108.md)

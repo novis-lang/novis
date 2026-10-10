@@ -15,3 +15,8 @@ accepted gap**, chosen for consistency and recorded here rather than discovered 
 
 Conversions between `string` and `bytes` preserve `secret` in either direction, the same way they
 preserve `tainted`.
+
+**Declined:**
+- **A checked conversion keeps `secret` while it strips `tainted`.** It is the technically correct
+  answer, since a shape proof does not reduce confidentiality. It is held back for consistency between
+  the two axes, and is the change to make if numeric credentials are seen leaking past a conversion.

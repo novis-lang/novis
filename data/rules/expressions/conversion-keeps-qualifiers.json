@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0066",
-    "0024",
-    "0033"
+    "0024"
   ],
   "seeAlso": [
     "expressions/nullable-conversion",

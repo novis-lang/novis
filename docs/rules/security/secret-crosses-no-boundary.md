@@ -12,3 +12,8 @@ Where a worker genuinely needs a credential to do its job, the conspicuous revea
 the intended escape — explicit, greppable, and at the one call site where the decision belongs. That
 this may add friction to a worker that exists specifically to isolate credential handling is a stated
 cost of keeping one copy operation rather than two.
+
+**Declined:**
+- **Refusing a `secret` only on the way to bytes, and letting it cross into a live worker or
+  isolate.** It splits the one graph copy into two operations with two behaviours to keep correct
+  (`rule:classes/two-copy-depths`).

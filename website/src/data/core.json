@@ -12865,7 +12865,7 @@
       "name": "Core\\Fatal",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../decisions/0033.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point",
+      "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the `secret` axis (`rule:security/secret-sinks-refuse`); on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point",
       "adrs": [
         "0020",
         "0092"
@@ -12955,7 +12955,7 @@
       "slug": "fatal",
       "url": "/reference/core/fatal/",
       "summaryHtml": "",
-      "surfaceHtml": "structured logging. <code>write(Log\\Level, string $message, array&lt;string, mixed&gt; $fields = [])</code>, where <code>Log\\Level</code> is <code>Debug</code>, <code>Info</code>, <code>Warn</code>, <code>Error</code>, <code>Critical</code>. Both refuse a <code>secret</code> argument at the call site — a sink on the <a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md\">0033</a> axis; on the <code>tainted</code> axis neither is a sink, because a field is <em>data</em> (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md\">0088</a> § 7) and logging tainted input is the point"
+      "surfaceHtml": "structured logging. <code>write(Log\\Level, string $message, array&lt;string, mixed&gt; $fields = [])</code>, where <code>Log\\Level</code> is <code>Debug</code>, <code>Info</code>, <code>Warn</code>, <code>Error</code>, <code>Critical</code>. Both refuse a <code>secret</code> argument at the call site — a sink on the <code>secret</code> axis (<code>rule:security/secret-sinks-refuse</code>); on the <code>tainted</code> axis neither is a sink, because a field is <em>data</em> (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md\">0088</a> § 7) and logging tainted input is the point"
     },
     {
       "id": "Hash",
@@ -20048,7 +20048,7 @@
       "name": "Core\\Log",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the [0033](../decisions/0033.md) axis; on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point",
+      "surface": "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the `secret` axis (`rule:security/secret-sinks-refuse`); on the `tainted` axis neither is a sink, because a field is *data* ([0088](../decisions/0088.md) § 7) and logging tainted input is the point",
       "adrs": [
         "0020",
         "0092"
@@ -20124,7 +20124,7 @@
       "slug": "log",
       "url": "/reference/core/log/",
       "summaryHtml": "",
-      "surfaceHtml": "structured logging. <code>write(Log\\Level, string $message, array&lt;string, mixed&gt; $fields = [])</code>, where <code>Log\\Level</code> is <code>Debug</code>, <code>Info</code>, <code>Warn</code>, <code>Error</code>, <code>Critical</code>. Both refuse a <code>secret</code> argument at the call site — a sink on the <a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0033.md\">0033</a> axis; on the <code>tainted</code> axis neither is a sink, because a field is <em>data</em> (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md\">0088</a> § 7) and logging tainted input is the point"
+      "surfaceHtml": "structured logging. <code>write(Log\\Level, string $message, array&lt;string, mixed&gt; $fields = [])</code>, where <code>Log\\Level</code> is <code>Debug</code>, <code>Info</code>, <code>Warn</code>, <code>Error</code>, <code>Critical</code>. Both refuse a <code>secret</code> argument at the call site — a sink on the <code>secret</code> axis (<code>rule:security/secret-sinks-refuse</code>); on the <code>tainted</code> axis neither is a sink, because a field is <em>data</em> (<a href=\"https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md\">0088</a> § 7) and logging tainted input is the point"
     },
     {
       "id": "Mail",

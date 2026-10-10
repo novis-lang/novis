@@ -53,7 +53,7 @@ walk is the same but the **move is not available**: refcounts are non-atomic bec
 reachable from one core only, so a cross-core crossing copies at every node. That cost belongs to the
 placement option, not to the boundary.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md).</sub>
 
 <a id="security-isolate-budget-is-the-trees"></a>
 
@@ -893,7 +893,7 @@ every request-handling function would have to launder on its first line.
 `tainted` is written after `secret` when both appear, and `tainted secret string` is a diagnostic
 naming the required order rather than a second spelling ([`security/secret-qualifier`](security.md#security-secret-qualifier)).
 
-<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0033](../decisions/0033.md), [0157](../decisions/0157.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0157](../decisions/0157.md), [0279](../decisions/0279.md).</sub>
 
 <a id="security-tainted-sources"></a>
 
@@ -1129,7 +1129,7 @@ already refuses it ([`security/secret-sinks-refuse`](security.md#security-secret
 The `Core\Metrics` surface this governs is not on disk: nothing in the tree exports a series or takes
 a label, so the refusal has no implementation to verify against.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0076](../decisions/0076.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0076](../decisions/0076.md), [0024](../decisions/0024.md), [0077](../decisions/0077.md).</sub>
 
 <a id="security-log-is-not-a-sink"></a>
 
@@ -1284,7 +1284,7 @@ with skipping the field as the stated fix. This adds no sink — encoding was al
 the encoder to the declaration that put it on the wire contract, and it replaces a silent omission
 with a written one.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0071](../decisions/0071.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0071](../decisions/0071.md), [0024](../decisions/0024.md), [0067](../decisions/0067.md).</sub>
 
 <a id="security-assert-trusted"></a>
 
@@ -1470,10 +1470,22 @@ a credential legitimately ([`security/secret-sinks-refuse`](security.md#security
 rule.
 
 Two orthogonal questions — trust and confidentiality — get their own checked axis instead of being
-conflated into one. They compose for the case that matters most in practice, a submitted password,
-without needing a third combined concept.
+conflated into one. `tainted` asks whether a value's shape is safe for a sink; `secret` asks where the
+value may go at all. A well-shaped API key is still catastrophic to leak, and a username safe to
+display is still attacker-controlled. They compose for the case that matters most in practice, a
+submitted password, without needing a third combined concept.
 
-<sub>See also [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/secret-propagation`](security.md#security-secret-propagation), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`types/grammar`](types.md#types-grammar). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0007](../decisions/0007.md).</sub>
+- **Memory:** none. The qualifier is erased before codegen, so a `secret` value is the same bytes as
+  the plain one.
+
+**Declined:**
+- **An opaque `Core\Secret` wrapper type instead of a qualifier.** It would be a second mechanism
+  beside `tainted`'s, with a wrapper's usual friction: no interpolation, and an explicit unwrap at
+  every use.
+- **Zeroing a `secret` value's memory when it goes out of scope.** That needs a destructor-shaped hook,
+  and there are none ([`classes/no-destructors`](classes.md#classes-no-destructors)); the qualifier stays compile-time only.
+
+<sub>See also [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/secret-propagation`](security.md#security-secret-propagation), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`types/grammar`](types.md#types-grammar). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md).</sub>
 
 <a id="security-secret-has-no-ambient-source"></a>
 
@@ -1499,7 +1511,7 @@ That is a declared return type, not an ambient grant.
 The cost is stated: `secret` protects only what a developer remembers to annotate. That is a real
 coverage gap relative to `tainted`, not an oversight.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/secret-propagation`](security.md#security-secret-propagation), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0033](../decisions/0033.md), [0086](../decisions/0086.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/secret-propagation`](security.md#security-secret-propagation), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="security-secret-propagation"></a>
 
@@ -1525,7 +1537,12 @@ accepted gap**, chosen for consistency and recorded here rather than discovered 
 Conversions between `string` and `bytes` preserve `secret` in either direction, the same way they
 preserve `tainted`.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/taint-propagation`](security.md#security-taint-propagation), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0066](../decisions/0066.md).</sub>
+**Declined:**
+- **A checked conversion keeps `secret` while it strips `tainted`.** It is the technically correct
+  answer, since a shape proof does not reduce confidentiality. It is held back for consistency between
+  the two axes, and is the change to make if numeric credentials are seen leaking past a conversion.
+
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/taint-propagation`](security.md#security-taint-propagation), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0024](../decisions/0024.md), [0066](../decisions/0066.md).</sub>
 
 <a id="security-secret-sinks-refuse"></a>
 
@@ -1543,7 +1560,24 @@ credential is still a leaked credential, just HTML-safe.
 
 "Terminal" understates the reach, which is the argument for the row: a scheduled script, a job worker,
 a test method and a spawned isolate all write through that sink, so it covers a CI log, a job log and
-a test report — which is where a credential in practice leaks.
+a test report — which is where a credential in practice leaks. A terminal is the secret shown to a
+person, which is disclosure, not use; a command whose purpose is to print a token writes
+`Core\Secret::reveal()` with its reason on that one line. It also agrees with the way in:
+`Core\Cli::secret()` reads a password with terminal echo disabled
+([`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member)).
+
+The refusal costs the cheapest debugging tool there is: `echo $x` does not work for exactly the
+values hardest to reason about. A dump still shows a `secret`-typed property as a placeholder, so its
+presence is visible and its bytes are not, and `Core\Secret::reveal()` with a reason is one line when
+the bytes are what is being debugged.
+
+The log sink is the opposite default from `tainted`, which a log takes freely
+([`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink)). `Core\Log::write`'s `fields` bag is `array<string, mixed>` on
+purpose, so no parameter type can refuse a `secret` inside it; the checker reads the call site's
+written argument expressions instead. A `Throwable` message requires the plain type because a
+credential in an exception message ends up in a stack trace or an error page. The dump placeholder is
+a built-in rule keyed on the declared type, applied the same way to every class, and no class can hook
+or override it.
 
 **Three positions are deliberately not on the list**: bound database parameters, a process argv, and
 an outbound request's headers and body. A credential legitimately needs to reach a driver, a
@@ -1552,7 +1586,14 @@ purpose. This closes *accidental* exposure, not *intentional, narrow* use. An at
 one sink with no way out at all, being folded into the program's own metadata; the fix is to carry the
 name of where to read the secret from.
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0092](../decisions/0092.md).</sub>
+**Declined:**
+- **A terminal refusal that depends on whether the output is a tty.** Output piped and read by a person
+  later is the common case ([`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink)).
+- **Letting `echo` write a `secret` for a command that prints a token.** `echo` reaches every captured
+  output ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)), which is what the refusal is for. If such commands turn
+  out to be common, the answer is a narrow, named `Core\Cli` member, never a wider `echo`.
+
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0024](../decisions/0024.md), [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0092](../decisions/0092.md).</sub>
 
 <a id="security-secret-crosses-no-boundary"></a>
 
@@ -1575,7 +1616,12 @@ the intended escape — explicit, greppable, and at the one call site where the 
 this may add friction to a worker that exists specifically to isolate credential handling is a stated
 cost of keeping one copy operation rather than two.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../decisions/0033.md), [0116](../decisions/0116.md), [0006](../decisions/0006.md).</sub>
+**Declined:**
+- **Refusing a `secret` only on the way to bytes, and letting it cross into a live worker or
+  isolate.** It splits the one graph copy into two operations with two behaviours to keep correct
+  ([`classes/two-copy-depths`](classes.md#classes-two-copy-depths)).
+
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md).</sub>
 
 <a id="security-secret-comparison-is-constant-time"></a>
 
@@ -1604,9 +1650,17 @@ program comparing its own session token, API key or signature with `==` sits out
 oracle, and receives no diagnostic anywhere.
 
 The cost, stated: roughly eight extra nanoseconds per comparison of two 32-byte values, invisible at
-any scale a request reaches, and the comparison cannot early-exit, which is the entire point.
+any scale a request reaches, and the comparison cannot early-exit, which is the entire point. Making
+the operator right by construction is the only version that does not depend on every future call site
+remembering.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0033](../decisions/0033.md), [0090](../decisions/0090.md), [0060](../decisions/0060.md).</sub>
+**Declined:**
+- **Refusing `==` on a `secret` and naming `Core\Hash::equals` in the diagnostic.** It is more explicit
+  at the call site, but `==` is the one equality operator for every type
+  ([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)), and comparing a credential is something programs
+  legitimately do.
+
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0090](../decisions/0090.md), [0060](../decisions/0060.md).</sub>
 
 <a id="security-secret-in-a-test-report"></a>
 
@@ -1627,7 +1681,7 @@ Separately and always, the reporter escapes control characters in every value it
 string is not confidential and may be shown, but a fixture full of terminal escapes must not be able
 to rewrite the developer's terminal from inside a failure message.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0079](../decisions/0079.md), [0033](../decisions/0033.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0079](../decisions/0079.md), [0092](../decisions/0092.md).</sub>
 
 <a id="security-redaction-reaches-the-tools-own-renderings"></a>
 
@@ -1658,7 +1712,7 @@ dump this rule has already redacted.
 
 **Not on disk.** The dump emits no such placeholder.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server). Decided in [0101](../decisions/0101.md), [0033](../decisions/0033.md), [0099](../decisions/0099.md), [0092](../decisions/0092.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0092](../decisions/0092.md), [0158](../decisions/0158.md).</sub>
 
 <a id="security-extension-manifest-only-tightens"></a>
 
@@ -1823,7 +1877,7 @@ two reasons the protocol roster stays in `Core` ([`security/protocol-roster`](se
 (`tests/conformance/reject/a-secret-argument-to-an-extension-does-not-compile.nvst`), and a manifest
 declaring a `secret` return does not load (`crates/nvs-ext/tests/load.rs`).
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0055](../decisions/0055.md), [0033](../decisions/0033.md), [0060](../decisions/0060.md).</sub>
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0055](../decisions/0055.md), [0060](../decisions/0060.md).</sub>
 
 <a id="security-image-component-declares-nothing"></a>
 
@@ -1933,7 +1987,7 @@ What the roster still owes is not a member but the flow around one: fetching, ca
 a key set are a package's job ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)), and every member here is
 stateless over the key it is handed.
 
-<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0060](../decisions/0060.md), [0033](../decisions/0033.md), [0055](../decisions/0055.md), [0146](../decisions/0146.md), [0179](../decisions/0179.md).</sub>
+<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0060](../decisions/0060.md), [0055](../decisions/0055.md), [0146](../decisions/0146.md), [0179](../decisions/0179.md).</sub>
 
 <a id="security-protocol-admission-test"></a>
 
@@ -2018,7 +2072,7 @@ credentials, the operator is right by construction anyway
 A refusal says one sentence and the same sentence for every forgery, so the failure carries no oracle
 about which part of the token was wrong.
 
-<sub>See also [`security/secret-comparison-is-constant-time`](security.md#security-secret-comparison-is-constant-time), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md), [0033](../decisions/0033.md), [0056](../decisions/0056.md).</sub>
+<sub>See also [`security/secret-comparison-is-constant-time`](security.md#security-secret-comparison-is-constant-time), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md), [0056](../decisions/0056.md).</sub>
 
 <a id="security-verification-does-not-launder"></a>
 
@@ -2402,7 +2456,7 @@ notices. A throw wakes an operator ([`errors/ambiguous-input-refused`](errors.md
 The roster having two entries instead of one does not change that property; it moves where the
 boundary sits, and this rule is the boundary's home.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0129](../decisions/0129.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0129](../decisions/0129.md).</sub>
 
 <a id="security-a-session-id-the-store-did-not-issue-is-rejected"></a>
 

@@ -2,8 +2,7 @@
   "title": "A stored value outside the read roster throws, and the message never quotes the bytes",
   "status": "shipped",
   "because": [
-    "0129",
-    "0033"
+    "0129"
   ],
   "seeAlso": [
     "security/bcrypt-read-roster",

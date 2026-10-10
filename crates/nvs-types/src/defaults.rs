@@ -478,8 +478,8 @@ fn report_static_in_constant_expression(span: Span, env: &mut Env<'_>) {
 /// on what the name means. A constant whose own declaration folded to nothing
 /// is `None` here, and that residue is the whole of what `E0731` still reports.
 ///
-/// There is no `secret` gate, because there is nothing left to launder: ADR
-/// 0033 § 4's fifth sink already refused a `secret` constant where the
+/// There is no `secret` gate, because there is nothing left to launder:
+/// `rule:security/secret-sinks-refuse`'s attribute-payload sink already refused a `secret` constant where the
 /// attribute was *written* ([`crate::attributes`]), one whole pass earlier.
 pub(crate) fn fold_const_reference(
     expr: &Expr,

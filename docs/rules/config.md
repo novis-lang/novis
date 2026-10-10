@@ -586,7 +586,7 @@ wall off every containerised deployment; saying nothing would hide a real mistak
 **Integrity is enforced; confidentiality is advised.** The advisory is printed in full by `nvs config
 check` and counted on its summary line, and it never changes the verdict.
 
-<sub>See also [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0103](../decisions/0103.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0103](../decisions/0103.md).</sub>
 
 <a id="config-one-parser-for-the-boot-path-and-config-set"></a>
 

@@ -4,8 +4,7 @@
   "because": [
     "0075",
     "0063",
-    "0024",
-    "0033"
+    "0024"
   ],
   "seeAlso": [
     "core-classes/ratelimit-two-members",

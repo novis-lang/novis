@@ -3,8 +3,7 @@
   "status": "designed",
   "because": [
     "0146",
-    "0060",
-    "0033"
+    "0060"
   ],
   "seeAlso": [
     "core-classes/router-signed-url",

@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0006",
-    "0116",
-    "0033"
+    "0116"
   ],
   "seeAlso": [
     "security/isolate-shares-nothing",

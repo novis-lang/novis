@@ -537,7 +537,7 @@ The copy is a real per-`get` cost, paid to keep the request model intact. An imp
 later share immutable scalars within a core by refcount, since a core is single-threaded — an
 optimisation, and it must not be observable.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0059](../decisions/0059.md), [0033](../decisions/0033.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0059](../decisions/0059.md), [0181](../decisions/0181.md).</sub>
 
 <a id="concurrency-cache-memory-is-charged-to-the-core"></a>
 
@@ -735,7 +735,7 @@ side.
 Calling it is what performs the upgrade, and it answers `void`. Nothing in this language reads a
 handler's return value, so an upgrade handed back to the runtime would be handed to nobody.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0024](../decisions/0024.md), [0077](../decisions/0077.md).</sub>
 
 <a id="concurrency-an-upgrades-options-are-spawn-scripts"></a>
 
@@ -826,7 +826,7 @@ metric label does — a name derived from user input is how one tenant subscribe
 so a name is built from checked values or it does not compile — and a `secret` may never be passed
 through an upgrade's arguments or published to a topic.
 
-<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../decisions/0083.md), [0024](../decisions/0024.md), [0082](../decisions/0082.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../decisions/0083.md), [0024](../decisions/0024.md), [0082](../decisions/0082.md).</sub>
 
 <a id="concurrency-a-stream-that-outlives-its-request-is-a-connection"></a>
 
@@ -1419,7 +1419,7 @@ instead of being laundered by a database. The queue's table is trusted exactly a
 the application's database is — an attacker who can write to it has already won — which is a better
 answer than returning every field `tainted` and training every job to launder reflexively.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file). Decided in [0084](../decisions/0084.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file). Decided in [0084](../decisions/0084.md), [0024](../decisions/0024.md).</sub>
 
 <a id="concurrency-foreign-connection-enqueue-is-counted"></a>
 

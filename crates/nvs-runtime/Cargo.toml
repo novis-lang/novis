@@ -56,7 +56,7 @@ rand.workspace = true
 # program's cannot come to disagree about a leap second or a fractional digit.
 # No new crate reaches the tree -- `nvs-stdlib` and `nvs-config` both name it.
 jiff.workspace = true
-# ADR 0033 § 5's `secret == secret` is a constant-time comparison, and this
+# `rule:security/secret-comparison-is-constant-time`'s `secret == secret` is a constant-time comparison, and this
 # crate cannot call `nvs-stdlib`, where `Core\Hash::equals` already uses the
 # same crate for the same reason — the workspace manifest's own comment beside
 # `subtle` states it: an optimiser is free to turn the obvious loop back into

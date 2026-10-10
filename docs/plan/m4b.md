@@ -75,9 +75,9 @@ and `decimal`, Novis's own keywords (`spawn`, `spawn script`, `autoload`, `type`
 rejects may be coloured as valid** (`===`, legacy casts, `|>`, the alternative colon syntax). Then
 **semantic tokens** colour what a regex structurally cannot know: `defaultLibrary` on a `Core` class,
 enum members, type aliases, and two modifiers of Novis's own — **`tainted` and `secret`** — so a qualified
-value is visibly qualified at every use site, which is the cheapest teaching surface ADRs
+value is visibly qualified at every use site, which is the cheapest teaching surface
 [0024](../decisions/0024.md) and
-[0033](../decisions/0033.md) have. **Novis ships no colours** — colour is
+`rule:security/secret-qualifier` have. **Novis ships no colours** — colour is
 the user's theme's — so both layers ship *names*, every one of them from the standard TextMate vocabulary
 or LSP's standard legend, because a theme styles only names it recognises and an invented scope renders as
 unstyled body text. The two custom modifiers reach a theme through `semanticTokenScopes`, and the

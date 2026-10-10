@@ -479,7 +479,7 @@ a diff. A run that rewrote a snapshot still reports the test as failed; the re-r
 new text is the one the author meant. The rendering is canonical, ordered, and redacts a `secret`,
 so a snapshot cannot become the place secrets get committed.
 
-<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../decisions/0079.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-mutation-testing"></a>
 
