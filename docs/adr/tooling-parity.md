@@ -53,7 +53,7 @@ strict configuration: every binding typed (`rule:types/declaration`),
 definite property initialization (`rule:classes/definite-property-initialization`), `lateinit`
 read-before-write (`rule:classes/lateinit-read-before-write`), member existence and
 every-path-returns at compile time, literal regex/format/URI validation
-([0057](../decisions/0057.md)), the route table checked while compiling
+(`rule:expressions/intrinsic-constant-arguments`), the route table checked while compiling
 ([0077](../decisions/0077.md)), and taint/secret flow as type qualifiers
 (`rule:security/tainted-qualifier`,
 `rule:security/secret-qualifier`). Levels and baseline files have no

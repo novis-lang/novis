@@ -607,7 +607,7 @@ set may do and where the ceiling comes from all live in the configuration crate,
 reachable from the stdlib member at all, which is what makes the claim true by construction rather
 than by discipline.
 
-<sub>See also [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/a-size-or-duration-is-a-quoted-string-with-its-suffix`](config.md#config-a-size-or-duration-is-a-quoted-string-with-its-suffix), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0064](../decisions/0064.md), [0057](../decisions/0057.md).</sub>
+<sub>See also [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/a-size-or-duration-is-a-quoted-string-with-its-suffix`](config.md#config-a-size-or-duration-is-a-quoted-string-with-its-suffix), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0064](../decisions/0064.md).</sub>
 
 <a id="config-the-config-is-an-immutable-snapshot"></a>
 

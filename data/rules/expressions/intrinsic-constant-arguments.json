@@ -2,7 +2,6 @@
   "title": "A constant argument to an intrinsic `Core` call is validated while checking and prepared into the artifact",
   "status": "shipped",
   "because": [
-    "0057",
     "0046",
     "0042"
   ],

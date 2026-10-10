@@ -2,7 +2,6 @@
   "title": "The intrinsic roster is a closed set in the compiler's own source, and nothing declares itself into it",
   "status": "shipped",
   "because": [
-    "0057",
     "0063"
   ],
   "seeAlso": [

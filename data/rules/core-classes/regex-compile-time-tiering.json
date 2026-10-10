@@ -2,8 +2,7 @@
   "title": "A pattern given as a string literal is validated and tiered while checking, and a malformed one is a compile error",
   "status": "shipped",
   "because": [
-    "0056",
-    "0057"
+    "0056"
   ],
   "seeAlso": [
     "core-classes/regex-two-tiers",

@@ -20,3 +20,17 @@ static tier report and the preparation are what a constant argument buys, and th
 prefer it.
 
 This adds no syntax. It is a property of a call whose arguments happen to be constants.
+
+The check exists because an argument of this kind is a program, and a program parsed on first use
+fails on whichever path reaches it first — often the error path, often in production. Moving the
+failure to check time also makes a security control possible: a regex pattern's engine tier is known
+before any request runs, so a deployment can refuse a pattern that can be made to backtrack
+(`rule:core-classes/regex-compile-time-tiering`).
+
+**Declined:**
+- **Regex and date literal syntax, such as `/pattern/i`.** `/` is division, and the rules other
+  languages use to tell the two apart are a recurring source of parser bugs. The grammar cost is
+  permanent, and the benefit over a checked string literal is only how the call looks.
+- **Validating every such argument at run time.** It keeps errors that are decidable while compiling
+  among the ones found in production, and it leaves a backtracking pattern unrefusable until a request
+  reaches it.

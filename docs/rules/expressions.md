@@ -350,7 +350,21 @@ prefer it.
 
 This adds no syntax. It is a property of a call whose arguments happen to be constants.
 
-<sub>See also [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0057](../decisions/0057.md), [0046](../decisions/0046.md), [0042](../decisions/0042.md).</sub>
+The check exists because an argument of this kind is a program, and a program parsed on first use
+fails on whichever path reaches it first — often the error path, often in production. Moving the
+failure to check time also makes a security control possible: a regex pattern's engine tier is known
+before any request runs, so a deployment can refuse a pattern that can be made to backtrack
+([`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering)).
+
+**Declined:**
+- **Regex and date literal syntax, such as `/pattern/i`.** `/` is division, and the rules other
+  languages use to tell the two apart are a recurring source of parser bugs. The grammar cost is
+  permanent, and the benefit over a checked string literal is only how the call looks.
+- **Validating every such argument at run time.** It keeps errors that are decidable while compiling
+  among the ones found in production, and it leaves a backtracking pattern unrefusable until a request
+  reaches it.
+
+<sub>See also [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0046](../decisions/0046.md), [0042](../decisions/0042.md).</sub>
 
 <a id="expressions-intrinsic-list-is-closed"></a>
 
@@ -370,7 +384,17 @@ that runs over it stay one artefact rather than two lists to keep in step.
 A closed set is what makes [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour) enforceable: every row
 can be tested against its runtime twin, because the rows are enumerable.
 
-<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0057](../decisions/0057.md), [0063](../decisions/0063.md).</sub>
+The roster is a permanent coupling between the compiler and the library: the compiler knows a
+handful of `Core` method names. The closed set bounds that coupling, since it grows only when a row is
+added deliberately. What it costs is that a package or an extension cannot have its own
+pattern-shaped argument checked early.
+
+**Declined:**
+- **An open intrinsic mechanism**, an attribute or manifest field by which any library declares a
+  method foldable. It turns "the compiler knows a few names" into "the compiler runs code a library
+  chose while compiling", which is a larger attack surface and much harder to reason about.
+
+<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="expressions-bracket-destructuring"></a>
 
@@ -584,7 +608,12 @@ One observable difference is named rather than denied: a fully folded call is no
 per-call probe does not fire for it. A *prepared* call — the common case — is still a call and probes
 normally, and the enclosing statement's probe is unaffected either way.
 
-<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0057](../decisions/0057.md), [0042](../decisions/0042.md), [0189](../decisions/0189.md).</sub>
+**Declined:**
+- **Folding eagerly, evaluating whole calls wherever possible.** The calls worth touching mostly
+  depend on runtime state, so an eager rule would either be wrong or need this same carve-out, stated
+  less clearly.
+
+<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0042](../decisions/0042.md), [0189](../decisions/0189.md).</sub>
 
 <a id="expressions-pipeline-substitution"></a>
 

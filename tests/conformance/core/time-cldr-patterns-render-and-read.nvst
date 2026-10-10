@@ -43,10 +43,11 @@ try {
 // The grammar is closed: an unquoted letter outside it is a diagnostic naming
 // itself, which is CLDR's own rule and the opposite of `strftime`'s.
 //
-// Both patterns arrive in a variable. `Core\Time\DateTime::format` is on ADR
-// 0057 § 1's list, so a *literal* one of these is the same refusal made while
-// compiling, and § 2's division is that only a computed argument still reaches
-// a `catch`.
+// Both patterns arrive in a variable. `Core\Time\DateTime::format` is on the
+// closed intrinsic list (`rule:expressions/intrinsic-list-is-closed`), so a
+// *literal* one of these is the same refusal made while compiling, and only a
+// computed argument still reaches a `catch`
+// (`rule:expressions/intrinsic-constant-arguments`).
 string $unknownLetter = "yyyy j";
 string $openQuote = "yyyy 'unclosed";
 try {

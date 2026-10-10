@@ -2,8 +2,7 @@
   "title": "The boot path and `Core\\Config::set` parse a value through one implementation",
   "status": "shipped",
   "because": [
-    "0064",
-    "0057"
+    "0064"
   ],
   "seeAlso": [
     "config/ini-set-is-core-config-set",
