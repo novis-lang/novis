@@ -1852,7 +1852,7 @@
         [
           "`Core\\Process`",
           "`run`, `spawn` — argv only, never a shell string",
-          "[0044](../decisions/0044.md)"
+          "`rule:core-classes/process-is-argv-only`"
         ],
         [
           "`Core\\Mail`",

@@ -74,7 +74,19 @@ What this costs is the one case where a shell genuinely was the feature — a pi
 redirect. Those are written in Novis, or by spawning the shell explicitly and owning the quoting at
 that call site.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn). Decided in [0044](../decisions/0044.md), [0118](../decisions/0118.md).</sub>
+The two members differ only in whether the caller waits, which is an axis worth keeping. Shell string
+against argv is the axis this class removes: there is no escaping function to forget, because there is
+no string position to escape into.
+
+**Declined:**
+- **One member with a `$useShell` flag.** A flag that looks like an ordinary parameter switches a call
+  site between an argv and a shell string whose escaping is the caller's problem, and it invites
+  passing `true` to get something working.
+- **A separate, clearly named shell member** such as `runViaShell(string $command)`. It is still a
+  convenience handed out for the one operation this class makes inconvenient on purpose. Spawning
+  `sh -c` or `cmd.exe /c` through the argv API is one line longer and visibly the caller's own risk.
+
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="core-classes-process-run"></a>
 
@@ -105,7 +117,13 @@ allowed to produce, which is a refusal in [`security/denial-is-a-runtime-error`]
 who ran a chattier child than it meant to can catch it and run a different one. `Core\IO::read` holds
 a file to the same directive out of the same pair of methods, so the two answer a program alike.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0044](../decisions/0044.md).</sub>
+**Declined:**
+- **Blocking the core's thread for the wait** until profiling showed a problem. With one thread per
+  core and nothing shared between cores, one blocked wait stalls every other request on that core.
+  That is a correctness property, so there was nothing to measure first
+  ([`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall)).
+
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="core-classes-process-options"></a>
 
@@ -127,7 +145,9 @@ program `process.exec` approved, and it can change its own folder the moment it 
 parent's — explicit replacement is simpler to reason about than merge semantics. Every key and value
 is plain `string`, so an API key held as a `secret` needs [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal) first;
 this is a new sink reusing an existing escape hatch, not a new mechanism. A name that is empty or holds
-`=` or a NUL, and a value that holds a NUL, are refused before anything starts.
+`=` or a NUL, and a value that holds a NUL, are refused before anything starts. Left out, `env`
+inherits the parent's environment whole, the default Python, Go, Rust, Node and PHP's `proc_open` all
+share.
 
 `timeout` counts from the start of the child, and is no timer of its own: it bounds the waits the two
 members already park on. `run`'s wait for the exit and every `Core\Process\Handle` member that parks —
@@ -136,7 +156,7 @@ coroutine into a `TimeoutError` naming the member. A handle whose timeout has pa
 error from every later member but `kill`. A timeout that is not a positive length of time is a
 `RuntimeError` before anything starts, as `Core\Net\Listener::accept`'s bound is.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="core-classes-process-spawn"></a>
 
@@ -184,7 +204,7 @@ report does not change the exit status.
 Both members take the same options bag, [`core-classes/process-options`](core-classes.md#core-classes-process-options), and its `timeout` bounds
 every handle member that parks.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only).</sub>
 
 <a id="core-classes-process-refuses-a-shell-target"></a>
 
@@ -195,6 +215,13 @@ every handle member that parks.
 A target the platform can only run by handing it to a second command-line parser — `.bat` and `.cmd`
 to `cmd.exe`, `.ps1` to `powershell.exe` — is refused before spawning, with a diagnostic naming the
 extension and the reason.
+
+On Windows a process receives one command-line string, not an argument vector, and each program
+splits it by its own quoting convention. Quoting an argument vector into that string is a solved
+problem for an ordinary executable, but a batch file is not a process image: Windows runs it by
+handing the command line to `cmd.exe`, whose grammar (`^`, `&`, `|`, `%` and its quote handling) has
+no clean escaping once an argument a caller did not choose reaches it. `.ps1` is the same shape one
+layer up.
 
 The check runs on **every platform build**, not only on Windows, even though the underlying risk (a
 second parser re-reading an already-quoted argument) is real only there. Behaviour that silently
@@ -210,7 +237,12 @@ There is no convenience for the case where a batch file really is the target: a 
 `cmd.exe` explicitly, through the same argv API, and takes the quoting risk visibly rather than
 through a flag that looks as safe as every other call.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0044](../decisions/0044.md).</sub>
+**Declined:**
+- **Careful quoting for `.bat` and `.cmd` targets instead of refusing them.** Node and Rust both
+  shipped that and then patched it after a published vulnerability (CVE-2024-27980,
+  CVE-2024-24576). Quoting it carefully is choosing to write the same bug eventually.
+
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run).</sub>
 
 <a id="core-classes-io-write-stream"></a>
 
@@ -2670,7 +2702,7 @@ paged-media engine may replace the assembled one wholesale, and it must still me
 - **A first-party imperative PDF API.** The first-party answer to drawing at a coordinate is HTML, CSS
   and SVG; a third-party package may carry one.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0122](../decisions/0122.md).</sub>
 
 <a id="core-classes-pdf-css-subset"></a>
 
@@ -2808,7 +2840,7 @@ The decoder's fixtures hold this inside the guest, and owe:
 
 **Not shipped.** There is no PDF decoder in the image component.
 
-<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md), [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-spreadsheet-has-no-io"></a>
 

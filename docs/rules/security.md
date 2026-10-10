@@ -840,7 +840,7 @@ which is the resolution the grant was compared against, so the program the opera
 the one the check approved — a name a `PATH` entry would have answered instead is a program from a
 directory no grant named.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0044](../decisions/0044.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
 
 <a id="security-net-address-policy"></a>
 

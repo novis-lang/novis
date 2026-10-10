@@ -28218,9 +28218,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "`run`, `spawn` — argv only, never a shell string",
-      "adrs": [
-        "0044"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [

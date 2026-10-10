@@ -2179,7 +2179,7 @@ Novis's default install location is such a path, and the finding usually appears
 the installation. Arguments given to `sc start <name> arg` reach `ServiceMain` but are not persisted;
 nothing may depend on them, and `nvs service run` ignores them.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md), [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md).</sub>
 
 <a id="packaging-a-service-runs-as-a-virtual-account"></a>
 

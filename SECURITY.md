@@ -67,7 +67,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
 - **Unsafe protocol or platform defaults** — request smuggling, header or cookie parsing flaws, CSRF/CORS
   defaults that fail open, session-record forgery, a shell string accepted by `Core\Process` or argv
   quoting that recombines, an outbound request that ignores address pinning
-  ([0044](docs/decisions/0044.md),
+  ([`rule:core-classes/process-is-argv-only`](docs/rules/core-classes.md#core-classes-process-is-argv-only),
   [0058](docs/decisions/0058.md),
   [0074](docs/decisions/0074.md),
   [0139](docs/decisions/0139.md)).
