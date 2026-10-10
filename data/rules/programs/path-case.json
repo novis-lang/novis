@@ -2,8 +2,7 @@
   "title": "A `require` path is compared against the on-disk entry exactly, on every OS",
   "status": "shipped",
   "because": [
-    "0062",
-    "0021"
+    "0062"
   ],
   "seeAlso": [
     "programs/autoload"

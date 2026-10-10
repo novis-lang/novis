@@ -100,7 +100,7 @@ diagnostic for `and` and `or` names the one-token replacement.
 All three keywords stay reserved words. They are not freed for use as identifiers, which is what lets
 the diagnostic fire at all.
 
-<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0045](../decisions/0045.md), [0021](../decisions/0021.md).</sub>
+<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0045](../decisions/0045.md).</sub>
 
 <a id="expressions-nullable-condition-lint"></a>
 

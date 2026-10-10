@@ -215,7 +215,22 @@ exists nowhere in the language. The repeat-guard axis is not needed either: decl
 namespace and through the per-path compiled-unit cache rather than by splice count, and a template partial
 required from inside a loop must still run every time.
 
-<sub>See also [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals), [`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed), [`errors/propagation`](errors.md#errors-propagation). Decided in [0021](../decisions/0021.md), [0049](../decisions/0049.md), [0011](../decisions/0011.md), [0017](../decisions/0017.md).</sub>
+PHP spells one operation with four keywords across those two axes, which is the second name for one
+behaviour [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) rules out. The survivor is `require` because its
+PHP meaning is already exactly the kept behaviour, so a PHP file that writes it needs no rewrite. The
+other three are refused for the behaviour each names, not for being PHP-shaped.
+
+**Declined:**
+- **Keeping `include` without its `_once` form.** Warn-and-continue is the one thing `include` adds over
+  `require`, and its name would lead a PHP reader to expect it.
+- **Keeping `require_once` beside `require`.** That is still two names on the repeat-guard axis, which
+  has no work to do once declarations resolve by namespace.
+- **A new, shorter keyword such as `load`.** Every PHP file that writes `require` would need rewriting
+  for no change in behaviour.
+- **An automatic once-guard as `require`'s only mode.** A template partial required in a loop would
+  silently run once, trading one silent PHP behaviour for another.
+
+<sub>See also [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals), [`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed), [`errors/propagation`](errors.md#errors-propagation). Decided in [0049](../decisions/0049.md), [0011](../decisions/0011.md), [0017](../decisions/0017.md).</sub>
 
 <a id="statements-a-required-file-shares-declarations-not-locals"></a>
 
@@ -237,7 +252,10 @@ would need one flow-sensitive definite-assignment analysis spanning a graph whos
 an `if` decides at run time. A program that relied on it passes what it means as a constructor argument or
 a static.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0021](../decisions/0021.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
+Nothing here is isolated: the required file runs in the caller's own process and request, with the
+caller's capabilities. Isolation is what `spawn script` gives, and `require` gives none of it.
+
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
 
 <a id="statements-a-require-expression-is-mixed"></a>
 
@@ -254,7 +272,7 @@ boundary value of unknown-until-runtime shape needs before it can populate a typ
 is carved into the type system for `require`, and nothing about the construct is a second unchecked
 position.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct). Decided in [0021](../decisions/0021.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct). Decided in [0007](../decisions/0007.md).</sub>
 
 <a id="statements-static-is-a-member-modifier"></a>
 
