@@ -290,14 +290,32 @@ public function home(): Response { … }
 
 There is no implicit `Public` and no configuration that supplies one. A route that is public because
 its author decided so and one that is public because its author forgot are otherwise indistinguishable
-at every later reading.
+at every later reading, and a forgotten permission check is the most exploited class of web
+vulnerability. The qualifiers and the sinks delete injection; without this rule, nothing would catch
+a handler that forgets its check, which compiles, serves and produces no diagnostic.
+
+The cost is one line on every route, public ones included, so the reader of a route never has to ask
+whether an absence meant anything. Nothing here runs: the check is compile-time, and the check a
+handler performs at run time is one it would have performed anyway.
 
 `#[Route]` gains no field. Two attributes rather than one is what keeps the route table free of
 attached behaviour: this attaches a *declaration* to the method, not a filter, a group or a dispatch
 opinion. The guarantee is that the decision was **written**, not that it was **honoured** — the
 compiler never asks what the name means.
 
-<sub>See also [`attributes/access-payload`](attributes.md#attributes-access-payload), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict). Decided in [0096](../decisions/0096.md).</sub>
+**Declined:**
+- **An `access:` field on `#[Route]`.** One attribute reads better and cannot be half-applied, but it
+  puts behaviour on the attribute that carries none, and the line between metadata the table carries
+  and a dispatch opinion gets harder to hold for whatever asks next.
+- **A completeness check against an access map the framework declares.** The map is a second place to
+  keep in sync with the routes, and the diagnostic points at the map rather than at the route that is
+  missing.
+- **Leaving the decision entirely to a framework layer.** That is the arrangement every framework
+  already has, and the most exploited class of vulnerability lives underneath it.
+- **`#[Access(allow: Audience::Public)]` when the attribute is omitted.** It is the implicit default
+  this rule exists to make visible.
+
+<sub>See also [`attributes/access-payload`](attributes.md#attributes-access-payload), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict).</sub>
 
 <a id="attributes-access-payload"></a>
 
@@ -329,7 +347,7 @@ readings — conjunction or disjunction — and choosing between them silently i
 prevents. A method carrying several `#[Route]` attributes still carries one `#[Access]`, covering all
 of them.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0096](../decisions/0096.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable).</sub>
 
 <a id="attributes-a-deprecation-names-its-replacement-as-code"></a>
 

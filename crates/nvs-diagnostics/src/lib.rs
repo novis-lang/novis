@@ -4105,8 +4105,9 @@ pub mod code {
     /// An `#[Access]` gives no `allow`.
     ///
     /// `rule:attributes/access-payload` marks only `csrf` optional: the attribute exists to carry
-    /// a decision, so one carrying none is exactly the omission § 3 refuses,
-    /// written out instead of left out. Reported by the payload walk rather
+    /// a decision, so one carrying none is exactly the omission
+    /// `rule:attributes/access-is-a-required-sibling` refuses, written out
+    /// instead of left out. Reported by the payload walk rather
     /// than by the roster check, for [`E_ROUTE_INCOMPLETE`]'s reason — a
     /// roster says what a field may hold, and *required* is not a fact a
     /// roster can state.
@@ -4117,12 +4118,13 @@ pub mod code {
 
     /// An `#[Access]`'s `allow` value is not an enum case or a class constant.
     ///
-    /// `rule:attributes/access-payload`: the field's declared type is `mixed` because § 2 is a
+    /// `rule:attributes/access-payload`: the field's declared type is `mixed` because
+    /// `rule:security/access-is-checked-for-presence-not-meaning` is a
     /// promise *not* to know what the decision means, so a narrower type would
     /// be a claim the compiler does not make. What stands in place of the type
     /// is that the value **names** something — a bare literal names nothing,
     /// so `allow: "admin"` is the magic string the attribute exists to
-    /// replace, and § 2's whole guarantee is that the name resolves.
+    /// replace, and that rule's whole guarantee is that the name resolves.
     pub const E_ACCESS_ALLOW_NOT_A_NAME: Code = Code::new("E0761").card(
         "The `allow` value of `#[Access]` must be an enum case or a class constant. Write \
          `allow: Role::Admin`, not a string like `allow: \"admin\"`.",
@@ -4130,7 +4132,8 @@ pub mod code {
 
     /// A `#[Route]` method carries no `#[Access]`.
     ///
-    /// ADR 0096 §§ 1 and 3, and the whole of why that ADR exists: there is no
+    /// `rule:attributes/access-is-a-required-sibling`, and the whole of why
+    /// that rule exists: there is no
     /// implicit `Public` and no configuration that supplies one, so a route
     /// that is open because its author decided so and one that is open because
     /// its author forgot are not the same text. Reported at the `#[Route]`

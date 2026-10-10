@@ -2629,11 +2629,14 @@ by a bearer token — says so **in its own declaration**, per route, in the attr
 carries: never a group and never a configuration key. Writing it on the route is what keeps the
 exemption reviewable next to the handler it exempts.
 
-Enforcing only when a session cookie is present was rejected within this rule. It sounds tighter,
-since forgery can only target cookie-authenticated requests, but it makes protection depend on what
-the client sent rather than on what the code says, which is harder to reason about and harder to test.
+**Declined:**
+- **Enforcing only when a session cookie is present.** It sounds tighter, since forgery can only
+  target cookie-authenticated requests, but it makes protection depend on what the client sent rather
+  than on what the code says, which is harder to reason about and harder to test.
+- **Tokens available, and enforcement left to the program.** An unprotected state-changing route would
+  look the same as a protected one at compile time and at run time.
 
-<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md).</sub>
+<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload).</sub>
 
 <a id="security-access-is-checked-for-presence-not-meaning"></a>
 
@@ -2666,6 +2669,10 @@ that it was *honoured*.** An application that hand-rolls dispatch and never read
 no enforcement from anyone. Closing that would require recognising a dispatch site, which is an
 opinion the route table refuses to hold.
 
+Object-level authorisation is outside it too. Most privilege escalation is a request for a row that
+belongs to another user, and no language-level mechanism answers that, because the check needs the
+row. The handler that loads the row makes that check.
+
 **Declined:**
 - **The decision readable only through `Core\Attributes::get` on the handler.** That call names the
   method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
@@ -2673,7 +2680,7 @@ opinion the route table refuses to hold.
 - **A compile error where an access decision is never read.** The compiler would have to recognise a
   dispatch site, and it cannot follow a dispatch table a program builds from data.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0255](../decisions/0255.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0255](../decisions/0255.md).</sub>
 
 <a id="security-bidi-predicate"></a>
 

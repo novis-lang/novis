@@ -1262,7 +1262,7 @@ unbounded lifetime on a field that must be written either way.
 
 **Designed, not shipped.**
 
-<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null). Decided in [0146](../decisions/0146.md), [0096](../decisions/0096.md).</sub>
+<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null). Decided in [0146](../decisions/0146.md).</sub>
 
 <a id="core-api-signing-is-over-a-payload"></a>
 
