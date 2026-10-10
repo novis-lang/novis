@@ -236,7 +236,7 @@ the premise the calling convention exists for.
 | Isolates | `spawn script` runs another `.nvs` file in-process with a fresh heap, on the caller's budget ([ADR 0006](docs/decisions/0006.md)) |
 | Config | a tree of root-owned `nvs.toml` files states the defaults; a script may retune its own limits within operator-set ceilings, and `nvs config check` audits the result offline ([ADR 0005](docs/decisions/0005.md), [ADR 0103](docs/decisions/0103.md)) |
 | Serving | built-in HTTP/1.1 with exactly two deployments — a development server, and a proxied production origin that replaces FastCGI. No TLS listener, no h2c, no compression: a proxy does each earlier and better. A filesystem path is never derived from a URL at request time ([ADR 0097](docs/decisions/0097.md)) |
-| Extensions | built-in, sandboxed wasm (`.nvsx`), or statically linked native — never `dlopen` ([ADR 0003](docs/decisions/0003.md)) |
+| Extensions | built-in, sandboxed wasm (`.nvsx`), or statically linked native — never `dlopen` ([`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)) |
 
 This is the short form. The fuller decision table, with the sequencing each choice implies, is in
 [docs/implementation-plan.md](docs/implementation-plan.md); the reasoning behind each choice and the

@@ -482,7 +482,7 @@ pin is checked when the bundle builds and again when it starts.
 `.nvsx` and its entry, and the bundle loads them from its payload with no file beside it
 (`crates/nvs-cli/tests/bundle.rs`; the layout is in `crates/nvs-cli/src/bundle.rs`'s module doc).
 
-<sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0048](../decisions/0048.md), [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0048](../decisions/0048.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-a-macos-bundle-is-ad-hoc-signed-at-build"></a>
 
@@ -783,7 +783,7 @@ what makes "the digest is the identity" a statement about code a human could rea
 subcommand, no `package.toml` or `package.lock` reader, and nothing in the tree digests a package
 archive.
 
-<sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0042](../decisions/0042.md), [0003](../decisions/0003.md).</sub>
+<sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0042](../decisions/0042.md).</sub>
 
 <a id="packaging-package-toml-is-a-tool-input"></a>
 
@@ -1367,9 +1367,25 @@ colouring at the boundary ([`packaging/a-guest-call-yields-on-its-core`](packagi
 [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), and an author who wants direct heap access cannot have it.
 That is the point.
 
-**Not on disk.** wasmtime is used only by `benches/abi-probe`; nothing loads a component.
+`nvs_ext` is the wasmtime host: it loads a component (`crates/nvs-ext/tests/load.rs`) and calls it
+under the request's budget (`crates/nvs-ext/tests/call.rs`).
 
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0052](../decisions/0052.md), [0246](../decisions/0246.md).</sub>
+**Declined:**
+- **Native shared libraries loaded with `dlopen`.** They give up memory safety and request isolation
+  ([`security/no-ffi`](security.md#security-no-ffi)), call `open()` and `connect()` past every capability check, and need one
+  binary per platform because Rust has no stable ABI.
+- **Rust dynamic libraries over a versioned stable ABI.** They are easier for a Rust author, and they
+  still have no sandbox, no capability check and one binary per platform.
+- **Extensions in their own process, called over IPC.** The isolation is good, and each round trip
+  costs microseconds: two to three orders of magnitude more than a component call, for fine-grained
+  work.
+- **Extensions written only in Novis.** A Novis package is safe and portable, and it cannot wrap an
+  existing C or Rust library, which is the main reason an extension exists. Packages are the other
+  half of the story, not a substitute ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)).
+- **A wasm engine of Novis's own on the Cranelift it already embeds.** Its validator would be a
+  sandbox nobody else audits.
+
+<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0052](../decisions/0052.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-three-tiers"></a>
 
@@ -1394,11 +1410,14 @@ answer for a different class of code:
   the regex engine, crypto. Safe because it is safe Rust, and built from source, which is exactly the
   right friction for code that runs unsandboxed.
 
+What it spends is two host interfaces to keep in step: the internal one Tier 0 uses and the WIT world
+Tier 1 uses.
+
 Which tier a candidate lands at is decided by [`core-api/tier-placement`](core-api.md#core-api-tier-placement)'s six ordered tests,
 and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Those tests decide the partition, and no
 other runtime's packaging is a reason to place a candidate.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost).</sub>
 
 <a id="packaging-the-first-party-components-are-built-in"></a>
 
@@ -1531,7 +1550,7 @@ reads both sections and parses the manifest and the source list without linking 
 checks a manifest against its component's exports and the world's version
 (`crates/nvs-ext/tests/load.rs`), and nothing builds a component against the world.
 
-<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0003](../decisions/0003.md), [0055](../decisions/0055.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0055](../decisions/0055.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-an-extension-package-carries-two-payloads"></a>
 
@@ -1617,7 +1636,7 @@ artifact cache. No named type (an enum, a `Core` value class, a union, a `resour
 export check. `nvs ext pin` prints an entry `nvs config check` accepts, for a file that loads
 (`crates/nvs-cli/tests/ext_command.rs`).
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0003](../decisions/0003.md), [0064](../decisions/0064.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0064](../decisions/0064.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-extension-calls-are-statically-typed"></a>
 
@@ -1661,7 +1680,7 @@ Codegen emits it as a direct call of one runtime helper with the export named in
 `nvs serve`, keeping one request's instances in its request tree until the request ends
 (`crates/nvs-cli/tests/live_config.rs`).
 
-<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0003](../decisions/0003.md), [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0078](../decisions/0078.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-a-value-crosses-as-its-wit-type"></a>
 
@@ -1743,7 +1762,7 @@ program, and the row-table case passes `mixed` values to the fixture's `kindOf`
 (`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). There is
 no bulk byte copy beyond `as-bytes`.
 
-<sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-a-fresh-instance-per-request"></a>
 
@@ -1767,7 +1786,7 @@ because a guest re-instantiated per request loses them every time; such a client
 ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). Cross-request state a program wants is explicit and host-owned
 ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)).
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget). Decided in [0003](../decisions/0003.md).</sub>
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget).</sub>
 
 <a id="packaging-a-guest-call-yields-on-its-core"></a>
 
@@ -1835,7 +1854,7 @@ implements that budget over a request's own deadline and memory accounting yet. 
 is a `FATAL` naming the limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and no
 host raises it on a request yet.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0003](../decisions/0003.md), [0020](../decisions/0020.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0020](../decisions/0020.md), [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-a-guest-crash-throws"></a>
 
@@ -1912,7 +1931,7 @@ reach it. `nvs:ext/settings` reads the `[ext.<name>]` block of the request's sna
 `nvs_ext::call::Budget::send`, which `nvs serve` and `nvs run` answer with `Core\Http\Client`'s
 transport under the request's own context (`crates/nvs-ext/tests/http.rs`).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0003](../decisions/0003.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-nvs-ext-is-the-authoring-tool"></a>
 
@@ -1985,7 +2004,10 @@ a comparator, because sorting ten thousand strings through a per-comparison boun
 130,000 crossings; the image component crosses once per terminal
 ([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
 
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0003](../decisions/0003.md).</sub>
+A capability whose in-guest compute is too slow for a real workload moves to Tier 0 or Tier 2. It never
+opens a native loading path ([`security/no-ffi`](security.md#security-no-ffi)).
+
+<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline).</sub>
 
 <a id="packaging-a-c-dependency-answers-two-questions"></a>
 

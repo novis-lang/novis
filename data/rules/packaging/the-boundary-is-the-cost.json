@@ -1,9 +1,7 @@
 {
   "title": "An extension call costs a fixed ten-odd nanoseconds over a built-in call, so an extension's API is coarse-grained",
   "status": "designed",
-  "because": [
-    "0003"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/three-tiers",
     "packaging/values-cross-as-handles",

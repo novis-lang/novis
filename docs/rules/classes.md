@@ -32,7 +32,7 @@ declaration at file scope. What it costs is a class name on every call to a libr
   name a file-scope function is, and keeping it would leave one row of
   [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call) as the only such name, with no argument for why.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant). Decided in [0003](../decisions/0003.md).</sub>
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`types/class-constant`](types.md#types-class-constant).</sub>
 
 <a id="classes-a-type-is-declared-at-file-scope"></a>
 

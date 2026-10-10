@@ -172,7 +172,7 @@ not restate them.**
 | A throw propagates, and a runtime panic is *contained*, across native frames | `tests/invariants.rs` | [0002](../decisions/0002.md) |
 | A checked-return frame stays cheap, and throwing costs no more than returning | `a_checked_return_frame_stays_cheap`, `throwing_costs_about_the_same_as_returning` | [0002](../decisions/0002.md) |
 | A coroutine can suspend from beneath live JIT frames, cheaply | `a_helper_can_suspend_with_jit_frames_live_above_it`, `a_coroutine_round_trip_stays_cheap` | [adr/README.md](../adr/README.md), *Stackful coroutines* |
-| A wasm guest cannot read past the host heap or outlive its deadline, and the boundary is affordable | `tests/wasm_sandbox.rs`, `a_host_to_guest_call_stays_cheap`, `per_request_instantiation_stays_affordable` | [0003](../decisions/0003.md) |
+| A wasm guest cannot read past the host heap or outlive its deadline, and the boundary is affordable | `tests/wasm_sandbox.rs`, `a_host_to_guest_call_stays_cheap`, `per_request_instantiation_stays_affordable` | `rule:packaging/the-boundary-is-the-cost` |
 | An OS process still costs orders of magnitude more than a task — the whole cost case for in-process isolation | `an_os_process_costs_orders_of_magnitude_more_than_a_task` | [0006](../decisions/0006.md) |
 
 Those spikes forced one design change, and it is normative for everything below: **exceptions propagate by

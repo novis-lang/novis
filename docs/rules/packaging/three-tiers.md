@@ -15,6 +15,9 @@ answer for a different class of code:
   the regex engine, crypto. Safe because it is safe Rust, and built from source, which is exactly the
   right friction for code that runs unsandboxed.
 
+What it spends is two host interfaces to keep in step: the internal one Tier 0 uses and the WIT world
+Tier 1 uses.
+
 Which tier a candidate lands at is decided by `rule:core-api/tier-placement`'s six ordered tests,
 and the resulting roster is `rule:core-api/tier-roster`. Those tests decide the partition, and no
 other runtime's packaging is a reason to place a candidate.

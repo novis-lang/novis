@@ -25,7 +25,7 @@ an optional subsystem was not built or installed. That would make the reserved n
 Attempting either — a loaded extension declaring a class under `Core\` or `Novis\` — is a load-time
 diagnostic naming the class, not a silently missing symbol.
 
-<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements). Decided in [0003](../decisions/0003.md).</sub>
+<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements).</sub>
 
 <a id="core-api-tier-placement"></a>
 
@@ -73,7 +73,7 @@ runtime's: the database drivers, the HTTP client and the crypto primitives are a
   third-party ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), and leaving HTTP, JSON, crypto and dates to
   an ecosystem produces several incompatible implementations of each.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0003](../decisions/0003.md), [0082](../decisions/0082.md), [0145](../decisions/0145.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0082](../decisions/0082.md), [0145](../decisions/0145.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-api-five-placements"></a>
 
@@ -97,7 +97,7 @@ that look alike are Native and Ext, and the line between them is test 1 — a co
 across requests cannot be sandboxed, because handing it a host-owned handle is writing it natively with
 extra steps.
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0003](../decisions/0003.md), [0081](../decisions/0081.md).</sub>
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="core-api-tier-roster"></a>
 
@@ -1171,7 +1171,7 @@ a place for the capability check and a place for the methods. The `resource` ato
 grammar ([`types/grammar`](types.md#types-grammar)) only for opaque handles an extension supplies, and `Core` never produces
 one.
 
-<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/no-destructors`](classes.md#classes-no-destructors), [`types/grammar`](types.md#types-grammar). Decided in [0063](../decisions/0063.md), [0003](../decisions/0003.md).</sub>
+<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`classes/no-destructors`](classes.md#classes-no-destructors), [`types/grammar`](types.md#types-grammar). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-a-lifetime-is-written"></a>
 

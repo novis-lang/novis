@@ -1029,7 +1029,7 @@ placeholder rewriter, the statement cache, the pool, the Novis side of the type 
 normalisation, whose per-driver code tables are *data* each driver supplies rather than behaviour it
 overrides.
 
-<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0003](../decisions/0003.md).</sub>
+<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-db-unix-socket-path"></a>
 
@@ -2223,7 +2223,7 @@ pixel source is held to the default pixel cap, not the `[image]` one.
   component declines to own, and a C codebase that size is still one to build and audit inside the
   sandbox.
 
-<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0063](../decisions/0063.md), [0003](../decisions/0003.md), [0276](../decisions/0276.md).</sub>
+<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0063](../decisions/0063.md), [0276](../decisions/0276.md).</sub>
 
 <a id="core-classes-image-pixel-model"></a>
 

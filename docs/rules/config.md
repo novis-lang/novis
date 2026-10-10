@@ -85,7 +85,7 @@ registry names the directive by its full dotted path either way. Neither spellin
 Across files the two shapes behave differently, which is
 [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends).
 
-<sub>See also [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0064](../decisions/0064.md), [0003](../decisions/0003.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0064](../decisions/0064.md), [0006](../decisions/0006.md).</sub>
 
 <a id="config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one"></a>
 

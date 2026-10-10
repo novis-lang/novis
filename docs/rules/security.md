@@ -271,7 +271,7 @@ whole purpose is process-global state or in-process native binding — and cross
 shared-memory latency is not available at any price. That spends latency to buy isolation, which is
 the ordering [`programs/memory-priority`](programs.md#programs-memory-priority) mandates.
 
-<sub>See also [`security/no-ffi`](security.md#security-no-ffi), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/no-eval`](security.md#security-no-eval). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md), [0059](../decisions/0059.md).</sub>
+<sub>See also [`security/no-ffi`](security.md#security-no-ffi), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/no-eval`](security.md#security-no-eval). Decided in [0052](../decisions/0052.md), [0059](../decisions/0059.md).</sub>
 
 <a id="security-no-ffi"></a>
 
@@ -292,7 +292,7 @@ The wasm component tier exists so this is unnecessary. Wrapping an existing C or
 stated purpose, and it delivers the same capability with a memory boundary, a capability grant, a CPU
 deadline and a memory cap — which is the whole of what an FFI gives up.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../decisions/0052.md).</sub>
 
 <a id="security-no-eval"></a>
 
@@ -1685,7 +1685,7 @@ refuses any other key, and refuses a `secret` or `tainted` written into a type
 `MethodSig` fields a `Core` row fills, and the call is checked by the code a `Core` call goes through
 (`crates/nvs-types/tests/extensions.rs`).
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0055](../decisions/0055.md), [0003](../decisions/0003.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0055](../decisions/0055.md), [0088](../decisions/0088.md).</sub>
 
 <a id="security-extension-grants-are-an-intersection"></a>
 

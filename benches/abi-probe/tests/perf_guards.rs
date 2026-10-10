@@ -687,8 +687,9 @@ fn a_raise_renders_one_frame_label_and_nothing_larger() {
 fn a_coroutine_round_trip_stays_cheap() {
     let _quiet = serialised();
 
-    // A suspend and resume through JIT frames, which ADR 0003's preamble and
-    // docs/adr/README.md price as the cost of "no async colouring".
+    // A suspend and resume through JIT frames, which
+    // `rule:packaging/a-guest-call-yields-on-its-core` and docs/adr/README.md
+    // price as the cost of "no async colouring".
     //
     // The proof is counted, so it holds on any machine however loaded. A
     // suspend and the resume after it switch between two stacks that both
@@ -721,7 +722,7 @@ fn a_coroutine_round_trip_stays_cheap() {
         counted.value, 0,
         "{COUNTED} suspend and resume round trips made {} allocations. A round trip switches \
          between two stacks that already exist and allocates nothing; one that allocates is no \
-         longer the cheap switch ADR 0003's \"no async colouring\" rests on.",
+         longer the cheap switch an extension's \"no async colouring\" rests on.",
         counted.value
     );
 
@@ -742,7 +743,7 @@ fn a_coroutine_round_trip_stays_cheap() {
     judge(
         "coroutine suspend/resume through 2 JIT frames",
         PER_TRIP,
-        "A round trip in this class is no longer the cheap switch ADR 0003's \"no async \
+        "A round trip in this class is no longer the cheap switch an extension's \"no async \
          colouring\" rests on.",
         |_yard| {
             batch(10_000); // warm up
@@ -1005,9 +1006,9 @@ mod wasm_guards {
     #[test]
     #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
     fn a_host_to_guest_call_stays_cheap() {
-        // ADR 0003's whole tier argument rests on this call costing tens of
-        // nanoseconds rather than a microsecond, which is where the hard bound
-        // sits.
+        // The whole tier argument (`rule:packaging/the-boundary-is-the-cost`)
+        // rests on this call costing tens of nanoseconds rather than a
+        // microsecond, which is where the hard bound sits.
         const PER_CALL: Bound = Bound::time_under(200.0, 2_000.0);
 
         let probe = WasmProbe::new().expect("wasm probe");
@@ -1019,7 +1020,7 @@ mod wasm_guards {
         judge(
             "wasm host->guest call",
             PER_CALL,
-            "ADR 0003's tier argument assumes a call in the tens of nanoseconds.",
+            "The extension tier argument assumes a call in the tens of nanoseconds.",
             |_yard| Reading {
                 value: ns_per_op(200_000, 5, || {
                     black_box(add.call(&mut store, (1, 2)).expect("call"));
@@ -1033,7 +1034,8 @@ mod wasm_guards {
     #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
     fn per_request_instantiation_stays_affordable() {
         // What makes a fresh instance per request — and therefore per-request
-        // isolation for extensions — affordable (ADR 0003). A figure past the
+        // isolation for extensions — affordable
+        // (`rule:packaging/a-fresh-instance-per-request`). A figure past the
         // hard bound most likely means the pooling allocator is no longer in
         // use.
         const PER_INSTANCE: Bound = Bound::time_under(100_000.0, 1_000_000.0);

@@ -2,8 +2,7 @@
   "title": "Anything with a lifetime is an object, and `Core` never hands back a handle",
   "status": "shipped",
   "because": [
-    "0063",
-    "0003"
+    "0063"
   ],
   "seeAlso": [
     "core-api/one-paradigm-per-operation",

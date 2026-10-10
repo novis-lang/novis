@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0132",
-    "0067",
-    "0003"
+    "0067"
   ],
   "seeAlso": [
     "core-classes/db-crate-boundary",

@@ -2,8 +2,7 @@
   "title": "No userland mechanism loads native code into the process",
   "status": "shipped",
   "because": [
-    "0052",
-    "0003"
+    "0052"
   ],
   "seeAlso": [
     "security/closed-doors",

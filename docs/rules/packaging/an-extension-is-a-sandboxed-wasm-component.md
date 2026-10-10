@@ -18,4 +18,20 @@ colouring at the boundary (`rule:packaging/a-guest-call-yields-on-its-core`). Wh
 `rule:packaging/the-boundary-is-the-cost`, and an author who wants direct heap access cannot have it.
 That is the point.
 
-**Not on disk.** wasmtime is used only by `benches/abi-probe`; nothing loads a component.
+`nvs_ext` is the wasmtime host: it loads a component (`crates/nvs-ext/tests/load.rs`) and calls it
+under the request's budget (`crates/nvs-ext/tests/call.rs`).
+
+**Declined:**
+- **Native shared libraries loaded with `dlopen`.** They give up memory safety and request isolation
+  (`rule:security/no-ffi`), call `open()` and `connect()` past every capability check, and need one
+  binary per platform because Rust has no stable ABI.
+- **Rust dynamic libraries over a versioned stable ABI.** They are easier for a Rust author, and they
+  still have no sandbox, no capability check and one binary per platform.
+- **Extensions in their own process, called over IPC.** The isolation is good, and each round trip
+  costs microseconds: two to three orders of magnitude more than a component call, for fine-grained
+  work.
+- **Extensions written only in Novis.** A Novis package is safe and portable, and it cannot wrap an
+  existing C or Rust library, which is the main reason an extension exists. Packages are the other
+  half of the story, not a substitute (`rule:packaging/a-package-is-its-digest`).
+- **A wasm engine of Novis's own on the Cranelift it already embeds.** Its validator would be a
+  sandbox nobody else audits.

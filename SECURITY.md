@@ -54,7 +54,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
   [0059](docs/decisions/0059.md)).
 - **Extension sandbox or capability escape** — a wasm component reaching outside its grant, or a manifest
   loosening the qualifier analysis instead of tightening it
-  ([0003](docs/decisions/0003.md),
+  ([`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component),
   [0055](docs/decisions/0055.md)).
 - **Memory unsafety** — any undefined behaviour reachable from safe Novis or from safe Rust, including in
   the three audited `unsafe` modules, and any JIT miscompilation that emits unsound code.
@@ -81,7 +81,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
 - **Running adversarial Novis source in-process.** An isolate is exactly as strong as the request boundary
   and no stronger; sandboxed wasm is the boundary for code you must assume hostile
   ([0006](docs/decisions/0006.md) *Consequences*,
-  [0003](docs/decisions/0003.md)).
+  [`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)).
 - **The built-in server exposed directly to the internet.** It is a development server and a proxied
   origin — no TLS listener, no h2c, no FastCGI
   ([0097](docs/decisions/0097.md)). Findings that require ignoring that

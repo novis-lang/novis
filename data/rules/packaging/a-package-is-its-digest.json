@@ -3,8 +3,7 @@
   "status": "designed",
   "because": [
     "0081",
-    "0042",
-    "0003"
+    "0042"
   ],
   "seeAlso": [
     "packaging/a-package-name-is-vendor-slash-name",

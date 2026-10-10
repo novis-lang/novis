@@ -2,7 +2,6 @@
   "title": "A candidate lands in exactly one of five placements: Core, Native, Ext, Dropped or answered",
   "status": "shipped",
   "because": [
-    "0003",
     "0081"
   ],
   "seeAlso": [
