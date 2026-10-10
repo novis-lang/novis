@@ -144,7 +144,7 @@ the language server's job, and not a reason to reshape the API into a chain.
   of two ways to assert about an array and a boundary between them to defend forever. Each repeated
   line also carries its own failure location.
 
-<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots). Decided in [0090](../decisions/0090.md).</sub>
+<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots).</sub>
 
 <a id="testing-failure-ledger"></a>
 

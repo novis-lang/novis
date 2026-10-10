@@ -192,7 +192,29 @@ time ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality))
 Ordering — `<`, `<=`, `>`, `>=`, `<=>` — is a separate question with its own rule, and this operator
 says nothing about it.
 
-<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md).</sub>
+Loose comparison is a hazard family, not a convenience: a falsy value passing a loose test is why
+verification returns claims or throws ([`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time)). Removing the
+construct closes the family, and security and request isolation are not traded for familiarity. The
+standard library already compares strictly: `Core\Arr::contains` is always strict, and the natural
+ordering throws on a pair from two different rows rather than converting one side. One operator keeps
+the library and the language on one answer. `==` is also the spelling of every language without
+juggling, so a reader arriving from anywhere but PHP already knows it.
+
+The porting cost is real and lands mostly on one row: `"1" == "01"` is true in PHP and false here, and
+nothing in the compiled program flags it. A defensive `$x == null` on a non-nullable type, copied from
+PHP, stops compiling; the check was always dead.
+
+**Declined:**
+- **Both operators, with PHP's meanings.** That brings the loose-comparison hazard family back, and with
+  this type system the two spellings would disagree only on the three rows nobody chooses the loose
+  reading for.
+- **Both operators, with `==` defined as strict.** Two spellings for one operation
+  ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)), and the worse one: a PHP reader seeing `==` assumes
+  juggling that is not there.
+- **`===` kept and `==` dropped.** `===` exists only as an escape from a loose `==`. With nothing to
+  escape, it is three characters saying what two say everywhere else.
+
+<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality).</sub>
 
 <a id="expressions-equality-semantics"></a>
 
@@ -223,7 +245,7 @@ too.
 The natural ordering used for sorting is a separate question and answers differently for `float`; the
 two are not the same table.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation). Decided in [0090](../decisions/0090.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation).</sub>
 
 <a id="expressions-mixed-equality"></a>
 
@@ -243,9 +265,17 @@ compiler can prove the answer before the program runs, which makes it dead code 
 question ([`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)).
 
 The asymmetry is worth stating plainly: **`mixed` is where you pay for not declaring a type.** A
-comparison against `mixed` silently answers `false` where a typed one would have refused to compile.
+comparison against `mixed` silently answers `false` where a typed one would have refused to compile,
+so widening a parameter to `mixed` makes the diagnostic go away without fixing anything.
 
-<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0090](../decisions/0090.md).</sub>
+Nothing here is measured separately: the typed path is one instruction, and the `mixed` path is the
+tag dispatch every operation on `mixed` already pays.
+
+**Declined:**
+- **A cross-row pair throws**, the way the natural ordering does for a sort or a minimum. Ordering has
+  no correct answer for a mismatched pair; equality has one, and it is `false`.
+
+<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/truthy-table`](expressions.md#expressions-truthy-table).</sub>
 
 <a id="expressions-object-identity-equality"></a>
 
@@ -269,9 +299,23 @@ Two named ways to ask the other question already exist:
   request path should reach for by accident.
 
 A class needing content equality in production and wanting no order writes an ordinary named method.
-That reads worse than `==` by exactly one call, and it is visible at the call site.
+That reads worse than `==` by exactly one call, and it is visible at the call site. A value class ported
+from PHP, whose `==` compared two objects by their properties, pays that call and a `Comparable`
+declaration.
 
-<sub>See also [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality). Decided in [0090](../decisions/0090.md).</sub>
+**Declined:**
+- **Structural equality, PHP's `==` reading.** Its cost is unbounded in the object graph's size, it is
+  ambient and undeclarable, and no class can opt out: the same refusal [`classes/comparable`](classes.md#classes-comparable) makes
+  for ordering.
+- **An `Equatable` interface or an `__equals` hook.** `==` would mean something different per class,
+  which is the property removed from every other magic method.
+- **A separate identity operator, so `==` could be structural.** That is two equality operators again.
+  Identity is the reading a reference type wants by default, and content comparison is the one that
+  gains from being visible at the call site.
+- **A content-equality member in `Core`.** None exists. One would be a method, never an operator or an
+  interface, and the case for it is `compareTo(…) == 0` repeated in real programs.
+
+<sub>See also [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality).</sub>
 
 <a id="expressions-disjoint-comparison-refused"></a>
 
@@ -300,9 +344,15 @@ Refused: a non-nullable type against `null`; `string` against `bytes`; an enum a
 integer, where `$e as int` is the written spelling; two unrelated classes; and anything else disjoint.
 
 This turns the entire class of comparisons that could only ever answer one constant into a diagnostic
-at the site that wrote it.
+at the site that wrote it. `$row['id'] == 1` against a string column and `$s == 0` against a
+non-numeric string are the common cases.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md).</sub>
+**Declined:**
+- **A statically disjoint comparison answers `false`**, the way a run-time mismatch does
+  ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality)). The compiler can prove the answer, and code whose answer is
+  known before it runs is a mistake worth naming, the same argument definite assignment makes.
+
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality).</sub>
 
 <a id="expressions-switch-match-equality"></a>
 
@@ -323,7 +373,7 @@ A label or arm whose static type is disjoint from the subject's is
 Truthiness has no part in this. A `switch` subject and a `match` subject are compared, never tested
 for truth, and [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions)'s six positions do not include either.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0090](../decisions/0090.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics).</sub>
 
 <a id="expressions-intrinsic-constant-arguments"></a>
 

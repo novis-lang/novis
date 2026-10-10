@@ -1,9 +1,7 @@
 {
   "title": "Comparing two types that no single value inhabits is a compile error",
   "status": "shipped",
-  "because": [
-    "0090"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/one-equality-operator",
     "expressions/equality-semantics",

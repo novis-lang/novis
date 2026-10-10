@@ -1901,7 +1901,7 @@ remembering.
   ([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)), and comparing a credential is something programs
   legitimately do.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0090](../decisions/0090.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator).</sub>
 
 <a id="security-secret-in-a-test-report"></a>
 

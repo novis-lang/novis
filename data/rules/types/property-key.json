@@ -2,8 +2,7 @@
   "title": "`property<T>` is a type whose values are `T`'s public property names, and `as` is its only source",
   "status": "shipped",
   "because": [
-    "0126",
-    "0090"
+    "0126"
   ],
   "seeAlso": [
     "types/property-key-variance",
