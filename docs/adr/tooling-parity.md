@@ -28,7 +28,7 @@ limited to what ships; this page also carries what is only planned, which that c
 | Psalm `--taint-analysis` | taint analysis | `tainted` and `secret` are type qualifiers, enforced as hard errors | [0024](../decisions/0024.md), [0033](../decisions/0033.md) | on disk |
 | PHP CS Fixer / PHP_CodeSniffer | layout and style | `nvs fmt`, canonical and unconfigurable — and the bug-adjacent rules are compile errors already | [0039](../decisions/0039.md); [0029](../decisions/0029.md), [0094](../decisions/0094.md) | errors on disk; `nvs fmt` M10 |
 | Rector | automated codebase rewrites | `nvs convert` for PHP→Novis; Novis→Novis declined, with a recorded reopen trigger | [0089](../decisions/0089.md); [0039](../decisions/0039.md) § 9 | M11 |
-| Xdebug — step debugging | breakpoints, stepping | `nvs dap`, on the safepoints codegen already emits | [0016](../decisions/0016.md) | M10 |
+| Xdebug — step debugging | breakpoints, stepping | `nvs dap`, on the safepoints codegen already emits | `rule:ide/the-debug-adapter-does-not-wait-for-an-editor` | M10 |
 | Xdebug — coverage, trace, profile | observing a run | `Core\Debug` over always-compiled probe sites; Clover/lcov/Callgrind out | [0018](../decisions/0018.md) | probes on disk (M3); surface M10 |
 | phpDocumentor / Doctum | API docs from source | none — the one tool category with no answer; see the gaps below | — | open |
 | Deptrac / phpat / PHPStan custom rules | project-specific structural rules | a `#[Test]` walking `Core\Ast` / `Core\Reflect` / `Core\Program` | [0019](../decisions/0019.md), [0079](../decisions/0079.md) | blocked; see the gaps below |

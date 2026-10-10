@@ -2,7 +2,6 @@
   "title": "An editor client lives under `editors/<editor>`, outside the Cargo workspace, and is created when its milestone starts rather than scaffolded ahead of it",
   "status": "designed",
   "because": [
-    "0016",
     "0040"
   ],
   "seeAlso": [

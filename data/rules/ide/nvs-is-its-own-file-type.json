@@ -2,7 +2,6 @@
   "title": "`.nvs` is registered as its own language in every editor, activates nothing on `.php`, and is never handed to a PHP plugin",
   "status": "designed",
   "because": [
-    "0016",
     "0040"
   ],
   "seeAlso": [
@@ -10,5 +9,8 @@
     "ide/phpstorm-bridges-to-the-same-server",
     "statements/nvs-is-the-only-open-tag"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "editors/vscode/test/contributions/contributions.test.ts",
+    "editors/vscode/test/host/colour.test.ts"
+  ]
 }

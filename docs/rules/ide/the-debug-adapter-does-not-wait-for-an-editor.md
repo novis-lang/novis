@@ -15,3 +15,7 @@ capability set, not the extension's.
 PhpStorm's `XDebugger` UI wired to a DAP backend stays deferred (`rule:ide/phpstorm-bridges-to-the-same-server`).
 The two clients are deliberately asymmetric here; a future PhpStorm-depth pass has to address or
 explicitly accept that.
+
+**Declined:**
+- **The adapter ships together with both editors' debugger UI.** PhpStorm's `XDebugger` wiring is the
+  larger job, and it would hold back an adapter that VS Code and a CLI-driven client can already use.

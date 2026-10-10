@@ -2,7 +2,6 @@
   "title": "PhpStorm drives the same `nvs lsp` and `nvs fmt` through JetBrains' LSP client, and builds no PSI tree, native refactoring or debugger UI until a later decision says so",
   "status": "designed",
   "because": [
-    "0016",
     "0040"
   ],
   "seeAlso": [

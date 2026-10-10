@@ -209,7 +209,7 @@ what is happening and "M7" does not.
 The two editor clients are not here yet. When they arrive they sit outside the Cargo workspace — the VS
 Code extension is TypeScript/Node tooling, the PhpStorm plugin is Kotlin/Gradle/IntelliJ Platform
 tooling — and each is a thin client over `nvs-lsp`/`nvs-fmt`, never a second implementation of language
-smarts or formatting ([ADR 0016](docs/decisions/0016.md)).
+smarts or formatting (`rule:ide/one-server-two-thin-clients`).
 
 [`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several decisions in `docs/decisions/`
 depend on how Cranelift, `corosensei` and Wasmtime behave rather than on Novis's own code, so a dependency
