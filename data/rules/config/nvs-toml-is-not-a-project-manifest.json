@@ -2,7 +2,6 @@
   "title": "`nvs.toml` is a deployment file, never a project manifest, and it is never found by walking up",
   "status": "shipped",
   "because": [
-    "0064",
     "0103",
     "0281"
   ],

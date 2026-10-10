@@ -853,7 +853,7 @@ multipart parsers, and 1000 is the number that shape's best-known fix chose.
 This also widens the attribution rule in the only direction it was missing: **temp files, file
 descriptors and disk bytes are charged to a request the same way memory is.**
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md).</sub>
 
 <a id="errors-path-component-refusals"></a>
 

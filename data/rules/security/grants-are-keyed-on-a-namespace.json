@@ -3,8 +3,7 @@
   "status": "designed",
   "because": [
     "0112",
-    "0081",
-    "0064"
+    "0081"
   ],
   "seeAlso": [
     "security/authority-is-the-enclosing-namespace",

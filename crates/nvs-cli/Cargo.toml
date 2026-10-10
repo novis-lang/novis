@@ -114,7 +114,8 @@ serde_json.workspace = true
 serde.workspace = true
 # ADR 0103 § 9's `nvs config dump` walks the merged table `nvs_config::Resolved`
 # hands back and serializes it, so this crate names the type it is made of. The
-# format decision itself is ADR 0064 § 1's and belongs to `nvs-config`.
+# format decision itself is `rule:config/the-file-is-nvs-toml-and-it-is-toml`'s
+# and belongs to `nvs-config`.
 toml.workspace = true
 # The cache's loader reads the payload as the relocatable object it is: sections to
 # place, symbols to resolve and relocations to apply. `read` only — nothing in

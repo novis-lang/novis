@@ -10,3 +10,10 @@ ordinary integer.
 Every size suffix names the same binary multiple and every duration suffix the same span of
 nanoseconds wherever the value is spelled, and one limit has one unit in every block that carries it —
 `[limits]`, `[limits.hard]`, `[app.limits]` and `[app.limits.hard]` agree on what `memory` measures.
+
+**Declined:**
+- **Bare integers of implied units (`memory = 134217728`).** It saves no parser, since
+  `Core\Config::set` needs the suffix parser anyway, and it leaves a file nobody can edit with
+  confidence.
+- **A magic word such as `off` for "no ceiling".** TOML has a boolean, and a word table is one more
+  grammar to specify (`rule:config/the-file-is-nvs-toml-and-it-is-toml`).

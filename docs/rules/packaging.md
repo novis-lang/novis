@@ -877,7 +877,7 @@ It is TOML with unknown fields refused ([`config/a-duplicate-key-is-an-error-and
 and its integration with the program is the generated file
 [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line) describes.
 
-<sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0081](../decisions/0081.md), [0064](../decisions/0064.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`packaging/a-fetched-package-is-an-autoload-line`](packaging.md#packaging-a-fetched-package-is-an-autoload-line), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0081](../decisions/0081.md), [0112](../decisions/0112.md).</sub>
 
 <a id="packaging-a-package-file-stays-under-its-declared-prefix"></a>
 
@@ -994,7 +994,7 @@ same canonicalise-and-prefix-check `spawn script` performs against its granted r
 **Not on disk.** No fetch path exists to refuse an archive, and the compiler has no file-to-package
 map against which to check a path.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0081](../decisions/0081.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-resolution-takes-the-highest-minimum"></a>
 
@@ -1729,7 +1729,7 @@ artifact cache. No named type (an enum, a `Core` value class, a union, a `resour
 export check. `nvs ext pin` prints an entry `nvs config check` accepts, for a file that loads
 (`crates/nvs-cli/tests/ext_command.rs`).
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0064](../decisions/0064.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="packaging-extension-calls-are-statically-typed"></a>
 

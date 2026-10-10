@@ -2,7 +2,6 @@
   "title": "An extension loads only from an `[[extension]]` entry in the root-owned `nvs.toml`, pinned by its `sha256`",
   "status": "designed",
   "because": [
-    "0064",
     "0246"
   ],
   "seeAlso": [

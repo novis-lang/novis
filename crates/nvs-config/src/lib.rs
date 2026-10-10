@@ -3,7 +3,7 @@
 //! What a directive *is* — three fields, one of which is reloadability — lives in
 //! [`directive`]'s own module doc, and what is behind it is `rule:config/three-changeability-classes`
 //! (the changeability class), `rule:config/reloadability-is-its-own-field` (the reloadability
-//! field) and 0064 (the file format).
+//! field) and `rule:config/the-file-is-nvs-toml-and-it-is-toml` (the file format).
 //! Nothing in this crate restates them.
 //!
 //! [`mod@file`] reads one file of it and [`mod@tree`] is what it reads into: every block an ADR

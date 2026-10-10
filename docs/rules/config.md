@@ -19,17 +19,43 @@ Pure Rust, no C, and no new dependency class: Cargo's own manifests are TOML.
 INI does not survive an argument. It has no specification — every parser
 disagrees on comment markers, quoting, nesting and what a duplicate key means — and it has one value
 type, string, which is the defect the language itself rejects. TOML has a boolean, an integer, an
-array and an array of tables, and an editor already validates it.
+array and an array of tables, and an editor already validates it. The configuration was never all
+strings: "no ceiling", a list of debug modes, a list of capability roots and an extension with its hash
+pin are a boolean, two arrays and a repeated record, and each would otherwise be a mini-grammar to
+specify, parse, fuzz and diagnose. With TOML the implementation carries no dialect parser, no comma or
+`PATH` splitter and no `on`/`off`/`yes`/`no` table, and a parse error names a line. The familiarity INI
+offers is thin: almost no directive shares a key name with `php.ini`, so no PHP file was ever
+copy-pastable, and the sectioned key/value shape that does transfer is TOML's too.
 
 `nvs.toml` names the **root of a tree**, not the whole configuration:
 [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults) says where that root is found
 and [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir) how it pulls in more. Every file in the tree is written
 in this syntax, and [`config/every-block-is-argued-where-it-is-added`](config.md#config-every-block-is-argued-where-it-is-added) lists the blocks.
 
-The `[limits]`/`[limits.hard]` layout is unchanged from the changeability model; only its spelling
-moved.
+The `[limits]`/`[limits.hard]` layout is the changeability model's
+([`config/three-changeability-classes`](config.md#config-three-changeability-classes)); this rule gives it only its syntax.
 
-<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md).</sub>
+- **Memory:** nothing on the request path. The parse runs at boot and on each reload, over files
+  measured in kilobytes, and never per request or from a request-serving core; what a live snapshot
+  holds is [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot)'s to state.
+
+**Declined:**
+- **INI.** No specification, one value type, four directives that would encode non-strings as strings,
+  a `:`-joined root list that cannot spell a Windows path, and a dialect Novis would own forever.
+- **YAML.** Indentation-significant, with a parser-CVE record and a value whose *type* depends on how it
+  was typed (`no` as `false`, a version number as a float), in the root-owned file that grants
+  capabilities.
+- **JSON or JSONC.** JSON has no comments, in a file whose main job is recording why an operator chose a
+  number; JSONC is one non-standard extension, which brings back the missing specification.
+- **KDL, RON or HCL.** An operator meets the format for the first time and the editor does not validate
+  it, and nothing any of them offers is reachable at this file's size.
+- **Dhall, or configuration written in Novis.** Either makes the configuration a program, reopening the
+  door [`security/closed-doors`](security.md#security-closed-doors) closed on `eval` in the one root-owned file read before any sandbox
+  exists.
+- **Accepting both `.ini` and `.toml`.** Two formats to specify, parse and test, and a deployment that
+  holds both with no answer for which wins; nothing in Novis gets a second syntax.
+
+<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0103](../decisions/0103.md).</sub>
 
 <a id="config-a-size-or-duration-is-a-quoted-string-with-its-suffix"></a>
 
@@ -50,7 +76,14 @@ Every size suffix names the same binary multiple and every duration suffix the s
 nanoseconds wherever the value is spelled, and one limit has one unit in every block that carries it —
 `[limits]`, `[limits.hard]`, `[app.limits]` and `[app.limits.hard]` agree on what `memory` measures.
 
-<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set). Decided in [0064](../decisions/0064.md).</sub>
+**Declined:**
+- **Bare integers of implied units (`memory = 134217728`).** It saves no parser, since
+  `Core\Config::set` needs the suffix parser anyway, and it leaves a file nobody can edit with
+  confidence.
+- **A magic word such as `off` for "no ceiling".** TOML has a boolean, and a word table is one more
+  grammar to specify ([`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml)).
+
+<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set).</sub>
 
 <a id="config-lists-are-arrays-and-repeated-records-are-arrays-of-tables"></a>
 
@@ -85,7 +118,10 @@ registry names the directive by its full dotted path either way. Neither spellin
 Across files the two shapes behave differently, which is
 [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends).
 
-<sub>See also [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0064](../decisions/0064.md).</sub>
+Array-of-tables syntax gets noisy past two levels of nesting, and a block layout that would need a
+third is flattened rather than nested deeper.
+
+<sub>See also [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir).</sub>
 
 <a id="config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one"></a>
 
@@ -109,7 +145,7 @@ is reported with both origins. The property protected is that no assignment is *
 inside one file the only way to hold it is to refuse, and an included file is refused inside exactly as
 the root is.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/the-file-is-nvs-toml-and-it-is-toml`](config.md#config-the-file-is-nvs-toml-and-it-is-toml), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0103](../decisions/0103.md).</sub>
 
 <a id="config-every-block-is-argued-where-it-is-added"></a>
 
@@ -148,7 +184,7 @@ that adds the block, so a reader of `nvs.toml` has one place to start:
 `[[schedule]]`, like `[[extension]]`, is an array of tables because it is a repeated record with
 several fields.
 
-<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0104](../decisions/0104.md), [0275](../decisions/0275.md).</sub>
+<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one). Decided in [0103](../decisions/0103.md), [0104](../decisions/0104.md), [0275](../decisions/0275.md).</sub>
 
 <a id="config-nvs-toml-is-not-a-project-manifest"></a>
 
@@ -172,7 +208,7 @@ folder's file is Novis's own default, one per data folder and not per project. W
 working directory safe to read there is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), the resolved
 absolute path announced at boot, and the installer storing an absolute `--config` for every service.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0103](../decisions/0103.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults"></a>
 
@@ -219,7 +255,7 @@ stores an absolute `--config` for a service ([`packaging/the-installer-is-a-sink
 is one narrow case — an interactive `nvs serve` in a directory the runtime account can write — stated
 rather than defended: an operator who wants it closed passes `--config`.
 
-<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md), [0064](../decisions/0064.md), [0093](../decisions/0093.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0103](../decisions/0103.md), [0093](../decisions/0093.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-no-configuration-file-is-a-complete-configuration"></a>
 
@@ -327,7 +363,7 @@ as in the root, its paths resolve against its own directory, and it must pass
 [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). What `optional` does and does not cover is
 [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory).
 
-<sub>See also [`config/an-include-cycle-is-refused-and-nesting-is-capped-at-eight`](config.md#config-an-include-cycle-is-refused-and-nesting-is-capped-at-eight), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0103](../decisions/0103.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/an-include-cycle-is-refused-and-nesting-is-capped-at-eight`](config.md#config-an-include-cycle-is-refused-and-nesting-is-capped-at-eight), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0103](../decisions/0103.md).</sub>
 
 <a id="config-an-include-cycle-is-refused-and-nesting-is-capped-at-eight"></a>
 
@@ -370,7 +406,7 @@ partly written block keeps every unwritten key's default independently.
 [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one) keeps its scope: the same key twice
 in *one* file is still refused.
 
-<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first). Decided in [0103](../decisions/0103.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first). Decided in [0103](../decisions/0103.md).</sub>
 
 <a id="config-a-value-array-replaces-and-a-table-appends"></a>
 
@@ -610,7 +646,7 @@ set may do and where the ceiling comes from all live in the configuration crate,
 reachable from the stdlib member at all, which is what makes the claim true by construction rather
 than by discipline.
 
-<sub>See also [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/a-size-or-duration-is-a-quoted-string-with-its-suffix`](config.md#config-a-size-or-duration-is-a-quoted-string-with-its-suffix), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/a-size-or-duration-is-a-quoted-string-with-its-suffix`](config.md#config-a-size-or-duration-is-a-quoted-string-with-its-suffix), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour).</sub>
 
 <a id="config-the-config-is-an-immutable-snapshot"></a>
 
@@ -707,7 +743,7 @@ what widening trades.
 - **A hardened mode that makes every limit narrowing-only again.** Two configuration semantics to
   implement, test and reason about, for what one ceiling per directive already says.
 
-<sub>See also [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling).</sub>
 
 <a id="config-a-directive-flag-is-a-closed-list-at-the-global-layer"></a>
 
@@ -740,7 +776,7 @@ shipped defaults
 So `nvs serve --mode=development` on a mixed host does not drag an application that pins `production`
 along with it, and `[mode] ceiling` still bounds what any of them may select.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0097](../decisions/0097.md), [0064](../decisions/0064.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0097](../decisions/0097.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-reloadability-is-its-own-field"></a>
 
@@ -882,7 +918,7 @@ The same property is what makes a request-local mode flip safe at all
 [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot) completes: requests share nothing *mutable*, and an
 overlay each request owns is not shared.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set).</sub>
 
 <a id="config-a-refused-set-returns-false"></a>
 
@@ -904,7 +940,7 @@ The accepted half is the other assertion: a set below the ceiling does not merel
 `get`, it **takes effect** — a raised `memory` moves the ceiling the runtime enforces for the rest of
 that request ([`errors/on-limit`](errors.md#errors-on-limit)).
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set).</sub>
 
 <a id="config-ini-set-is-core-config-set"></a>
 
@@ -934,7 +970,7 @@ the string with the parser the boot path uses
 `get` is `null`, `all` is empty, `set` is `false` and nothing throws
 ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).
 
-<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives).</sub>
 
 <a id="config-an-edit-reaches-the-next-request-without-a-restart"></a>
 
@@ -1530,7 +1566,7 @@ and why there is no `--run-now` flag. Durable, retried work is a different mecha
   or a `Core` member. `spawn script` is the one mechanism, and a second one would be a second
   isolation path ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
 
-<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends). Decided in [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends).</sub>
 
 <a id="config-cron-is-five-fields-and-nothing-more"></a>
 
@@ -1556,7 +1592,7 @@ re-reads the string, because two readers would be two dialects, and the two disa
 that booted and fires at the wrong minute, which nothing observes. When day-of-month and day-of-week
 both narrow, POSIX's own rule holds and the entry fires on either.
 
-<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once). Decided in [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once).</sub>
 
 <a id="config-scope-has-no-default"></a>
 

@@ -1,9 +1,7 @@
 {
   "title": "A size or a duration is a quoted string carrying its suffix, a count is an integer, and `false` removes a ceiling",
   "status": "shipped",
-  "because": [
-    "0064"
-  ],
+  "because": [],
   "seeAlso": [
     "config/one-parser-for-the-boot-path-and-config-set"
   ],

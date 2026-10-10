@@ -1,9 +1,7 @@
 {
   "title": "`[deferred]` carries two bounds: a `System` `max_concurrent` and a `Runtime` `deadline`",
   "status": "shipped",
-  "because": [
-    "0064"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/after-response-outlives-the-connection",
     "programs/memory-priority",

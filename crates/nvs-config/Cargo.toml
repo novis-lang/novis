@@ -14,8 +14,9 @@ repository.workspace = true
 # not run rustdoc over it. A crate that gains one deletes this table.
 doctest = false
 
-# `toml` + `serde` are ADR 0064 § 1's format decision, and both refusals § 3
-# makes are their default behaviour rather than machinery of ours. Both are pure
+# `toml` + `serde` are `rule:config/the-file-is-nvs-toml-and-it-is-toml`'s format
+# decision, and both refusals of
+# `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` are their default behaviour rather than machinery of ours. Both are pure
 # Rust, so `rule:packaging/a-c-dependency-answers-two-questions`'s two questions do not arise.
 #
 # `blake3` is the hash both cache keys in `src/cache.rs` are written in

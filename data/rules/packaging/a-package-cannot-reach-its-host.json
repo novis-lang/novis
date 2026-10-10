@@ -2,8 +2,7 @@
   "title": "A package ships no `nvs.toml`, and none of its `require` or `autoload` paths reaches outside its own directory",
   "status": "designed",
   "because": [
-    "0081",
-    "0064"
+    "0081"
   ],
   "seeAlso": [
     "packaging/a-package-is-its-digest",

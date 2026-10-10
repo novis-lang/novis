@@ -38,8 +38,8 @@ $ballast = [];
 Core\Config::restore("memory");
 echo "restored=", Core\Config::get("memory") ?? "unset", "\n";
 --FILE nvs.toml--
-# The grant this case raises itself above, and the ceiling it stays under. ADR
-# 0064 § 5 is the unit; `[limits] memory` is `Runtime`, so a request may move it
+# The grant this case raises itself above, and the ceiling it stays under.
+# `rule:config/a-size-or-duration-is-a-quoted-string-with-its-suffix` is the unit; `[limits] memory` is `Runtime`, so a request may move it
 # freely below `[limits.hard]`.
 [limits]
 memory = "16M"

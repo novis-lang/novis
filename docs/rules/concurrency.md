@@ -447,7 +447,7 @@ bounded like every other limit by the tree's remaining budget.
   requests. That is bounded, it is O(in-flight deferred trees) rather than O(requests served), and
   it is stated so an operator sizes it rather than discovers it.
 
-<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive). Decided in [0064](../decisions/0064.md).</sub>
+<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive).</sub>
 
 <a id="concurrency-a-full-deferred-executor-throws"></a>
 

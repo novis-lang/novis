@@ -111,7 +111,7 @@ profiler, debugger breakpoints and later deoptimisation. Retrofitting it would m
 it is not deferrable.
 
 **Server-level configuration, not per-project.** `nvs.toml` is root-owned, TOML
-([0064](../decisions/0064.md)), and per-app capability blocks live in the *root* config so an
+(`rule:config/the-file-is-nvs-toml-and-it-is-toml`), and per-app capability blocks live in the *root* config so an
 application can never grant itself rights. What a script may change about its own configuration at runtime
 is per-directive and is argued in `rule:config/three-changeability-classes`.
 

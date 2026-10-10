@@ -923,7 +923,7 @@ Both are rows in the `[limits]`/`[limits.hard]` pair that [`config/three-changea
 
 The split follows from what the two measure. Content parsed into memory deserves the tighter number, because it is resident and O(in-flight); content streamed to disk deserves a ceiling shaped like what uploads are, because a phone photo is 5–12M and an 8M refusal is advice rather than protection. One number governing both would have to be the larger, and would then license a quarter-gigabyte JSON body parsed wholly into memory on the strength of an argument made about files. [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire) is where the second cap bites.
 
-<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0105](../decisions/0105.md), [0064](../decisions/0064.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0105](../decisions/0105.md), [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-upload-total-is-enforced-on-the-wire"></a>
 
@@ -1657,7 +1657,7 @@ This costs nothing on the path that does not panic, and is one wrap per *task* r
 
 The default for `Core\Json` is **512**, the depth JSON decoders commonly default to, chosen as a convention rather than for any property of the number: a document a real program sends is far shallower. A document deeper than that is refused with the catchable failure above, at the level that crosses the limit.
 
-<sub>See also [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0106](../decisions/0106.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0106](../decisions/0106.md).</sub>
 
 <a id="http-server-time-is-bounded-inside-a-helper"></a>
 

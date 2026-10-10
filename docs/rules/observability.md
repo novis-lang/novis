@@ -291,7 +291,7 @@ protocol, metrics take a scrape or a push, a trace takes only a push, and `sampl
 one. Anything else is **refused at boot, where it is written** — a wrong value here produces
 silence, a collector nothing writes to, and there is no later moment at which that reports itself.
 
-<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not). Decided in [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not).</sub>
 
 <a id="observability-four-kinds-become-a-span"></a>
 

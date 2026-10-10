@@ -2,13 +2,14 @@
 //! its own fields, and an unknown key refused.
 //!
 //! This is the type [`crate::file::parse`] is generic over, and its standing where a bare
-//! `toml::Table` could is the whole of what makes [ADR 0064 § 3]'s unknown-key refusal real:
+//! `toml::Table` could is the whole of what makes
+//! `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s unknown-key refusal real:
 //! `deny_unknown_fields` sits on every struct here, so a typo'd `capabilties` fails at boot with
 //! the line under it instead of reading as "granted nothing". That refusal is `serde`'s, not ours —
 //! this module is the *roster*, and the roster is the security-relevant half.
 //!
-//! **Every field comes from the ADR that owns its block**, and [ADR 0064 § 2a] is the table saying
-//! which ADR that is. Nothing here invents a key, because a key invented in this file becomes a key
+//! **Every field comes from the rule that owns its block**, and
+//! `rule:config/every-block-is-argued-where-it-is-added` is the table saying which rule that is. Nothing here invents a key, because a key invented in this file becomes a key
 //! the operator may write and no other code reads. Where an ADR states a block but no field set,
 //! the gap is recorded in that struct's doc comment rather than filled in.
 //!
@@ -26,9 +27,6 @@
 //! Cost: one owned tree per configuration file, held for the length of the boot or reload that
 //! reads it and then dropped once the snapshot is built. Nothing here runs per request, and the
 //! `Option`-per-field shape is chosen for that reason — it would be the wrong trade on a hot path.
-//!
-//! [ADR 0064 § 2a]: ../../../docs/decisions/0064.md
-//! [ADR 0064 § 3]: ../../../docs/decisions/0064.md
 
 use std::collections::BTreeMap;
 
@@ -37,7 +35,7 @@ use serde::Deserialize;
 /// One directive's value, in the shapes the ADRs actually write.
 ///
 /// Several directives are spelled two ways on purpose and the second spelling is load-bearing:
-/// `[limits.hard] memory = false` removes a ceiling (`rule:config/three-changeability-classes`, and 0064 § 1 chose TOML partly
+/// `[limits.hard] memory = false` removes a ceiling (`rule:config/three-changeability-classes`, and `rule:config/the-file-is-nvs-toml-and-it-is-toml` chose TOML partly
 /// because "off" is a boolean there), `[metrics] exporter = false` disables an export,
 /// `[http.headers] frame_ancestors` is `"none"`, `"self"` or a list of origins. A field typed
 /// `String` would refuse the operator's own documented example, so those fields are typed here.

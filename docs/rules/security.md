@@ -575,7 +575,7 @@ A member that reaches nothing declares that by entering the table with no capabi
 being absent from it ([`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)), so the standard library's
 own surface is a closed claim rather than a list with an exception column.
 
-<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0118](../decisions/0118.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0118](../decisions/0118.md).</sub>
 
 <a id="security-authority-is-the-enclosing-namespace"></a>
 
@@ -623,7 +623,7 @@ every one of which may only tighten ([`security/no-runtime-grant`](security.md#s
 **Not on disk.** The tree reads the deployment's capability block; it has no per-namespace grant
 table, and the diagnostics this rule needs do not exist.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
 
 <a id="security-longest-prefix-wins"></a>
 

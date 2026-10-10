@@ -534,7 +534,8 @@ jiff = "0.2"
 # — `Core\Json::decode` builds an `NvsArray` straight from a visitor, so no
 # document is ever materialized twice. `serde` itself is the visitor trait it
 # is driven through. `derive` is on for exactly one consumer, `nvs-config`'s
-# block tree: ADR 0064 § 3's unknown-key refusal *is* `deny_unknown_fields`, an
+# block tree: `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s
+# unknown-key refusal *is* `deny_unknown_fields`, an
 # attribute on a struct rather than machinery we write, so the macro replaces
 # code here rather than adding any.
 # `raw_value` is what lets a `decimal` (`rule:types/decimal`) be written as an exact JSON
@@ -546,8 +547,10 @@ jiff = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value", "unbounded_depth"] }
 
-# --- configuration (ADR 0064 § 1: `nvs.toml` is TOML, read through `serde`) ---
-# Pure Rust, and both of ADR 0064 § 3's refusals are its default behaviour: it
+# --- configuration (`rule:config/the-file-is-nvs-toml-and-it-is-toml`) ---
+# Pure Rust, and both refusals of
+# `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` are its
+# default behaviour: it
 # rejects a duplicate key itself and `deny_unknown_fields` rejects an unknown
 # one, so neither is machinery `nvs-config` writes or can get wrong.
 toml = "0.9"

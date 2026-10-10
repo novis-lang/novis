@@ -2,8 +2,7 @@
   "title": "`[[include]]` takes a `path` or a `dir`, never both and never neither, and a `dir` is not a glob",
   "status": "shipped",
   "because": [
-    "0103",
-    "0064"
+    "0103"
   ],
   "seeAlso": [
     "config/an-include-cycle-is-refused-and-nesting-is-capped-at-eight",
