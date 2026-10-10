@@ -10,11 +10,11 @@ stages:
   - id: 2
     title: the readers
     status: done
-    context: [tools/nv/cmd/affected.ts, tools/nv/cmd/guard.ts, tools/nv/lib/playbook-fragments.ts, .github/workflows/ci.yml]
+    context: [tools/nv/cmd/affected.ts, tools/nv/cmd/guard.ts, .github/workflows/ci.yml]
   - id: 3
     title: the deletes
     status: open
-    context: [tools/nv/driver/handover.ts, tools/nv/lib/written.ts]
+    context: [docs/agent/goals/README.md, docs/agent/session-prompt.md, tools/nv/cmd/audit.ts]
   - id: 4
     title: the docs
     status: open
@@ -112,62 +112,53 @@ deleted, `bun nv links` is green, and so are `bun nv verify` and `looper lint`.
 
 ### State
 
-**Stages 1 and 2 are done.** Every reader of the old goal data that is not deleted in Stage 3 now reads
-looper's goal files through `tools/nv/lib/chain.ts`, which exports `goalPaths` for a command that needs
-every goal file, on the chain or off it.
+**Stages 1 and 2 are done, and Stage 3's code deletes have landed.** The check
+`no-import-of-the-driver` is green: `git grep` finds no file under `tools/` that names the driver or a
+deleted loop command.
 
-- `bun nv holes` reads the live goal's items and the cases its checks name from `docs/goals/<slug>.md`
-  (`cmd/holes.ts:279`), and `HOLES_READS` lists `docs/goals` (`crates/nvs-ir/tests/refusals.rs:92`).
-- `bun nv affected` takes the session base from `LOOPER_SESSION_BASE` (`cmd/affected.ts:54`). looper
-  sets it for a hook, check or verify step (`crates/looper-engine/src/driver.rs:535` in looper's tree),
-  but not in the agent's own environment, which gets only `LOOPER_WRITTEN` and `LOOPER_AGENT`
-  (`crates/looper-agent/src/claude.rs:138-140`). So in a session's own shell, `bun nv affected` measures
-  the uncommitted paths. A session commits only after it verifies, so nothing is missed in practice.
-- `bun nv guard`'s `goal-grep` rule is deleted. A goal file now holds prose and the handoff as well as the
-  checks, and the rule denied this session's own grep for the goal's headings. The `heavy-run` rule
-  denies `looper check` without `--name` in place of `bun nv loop --goal-only|--run`.
-- `bun nv owners` knows a goal by its file and counts the playbook's bullet files
-  (`cmd/owners.ts:142`, `:226`), and `tools/nv/test/registers-reads.test.ts` watches
-  `docs/agent/playbook/`. `bun nv audit checks` reads every goal file's checks (`cmd/audit.ts:99`).
-- `accept/sweep.ts` and `bun nv plan` name `docs/goals/` in their messages.
-- CI no longer runs `bun nv chain --check` or `bun nv playbook --check`.
+- `tools/nv/driver/`, its tests, the seven loop commands and their `main.ts` entries are gone, with
+  `lib/handoff.ts`, `test/driver-boundary.test.ts` and `accept/accept.ts`'s `featureMatches`, whose only
+  caller was `loop --list`. `test/surfaces.test.ts` covers `brief --where` and `guard --check` alone.
+- `schema/index.ts` registers ten types. The `chain`, `goal`, `handoff` and playbook schemas,
+  `data/goals/`, `data/playbook/` and their JSON Schemas under `data/schema/` are deleted, and so are
+  `renderers/goal-plan.ts`, `docs/agent/goal-plan.md` and `lib/playbook-fragments.ts`. A gap's `goal` is
+  now a plain slug (`schema/gap.ts:17`), and `bun nv owners` checks it against `docs/goals/`.
+  `test/no-hand-build.test.ts` reads every goal file's checks through `lib/chain.ts`.
+- Every bullet under `docs/agent/playbook/` ends on looper's `` `until: <kind> <arg>` `` trailer. None
+  used the `rule` kind. A trailer whose argument held backticks was cut to text without them, because
+  looper ends the trailer at the next backtick (`crates/looper-core/src/playbook.rs:98` in looper's tree).
+  The many bullets whose trailer says `gone` of a deleted file now hold their condition, so
+  `looper playbook retire` deletes them when it runs.
+- `lib/written.ts` writes only `LOOPER_WRITTEN`'s ledger.
+- `bun nv side --prepare` looks for the side goal at `docs/goals/<slug>.md` (`cmd/side.ts:88`).
+- The old driver's files under `.loop/` are deleted: `chain.json`, `run.json`, `session-start.json`,
+  `written.txt`, `pack-size.jsonl`, `progress/` and `logs/`. The rest stays, because a live tool or
+  looper writes it, or its writer is *not checked*: `dossier-*`, `optimization/`, `optimize-status.txt`,
+  `release-gate.json`, `state.sqlite` and `test.nvs`.
 
-**Two Stage 2 items moved to Stage 3, because each goes with what it serves.** `schema/index.ts:10-17`
-still registers the `chain`, `goal`, `handoff` and playbook record types: unregistering them while
-`data/` still holds their files makes `bun nv check` report each file as an orphan
-(`tools/nv/lib/index.ts:299`). The playbook trailers stay in nv's form until
-`tools/nv/lib/playbook-fragments.ts` is deleted, and its only users are `cmd/orient.ts`,
-`cmd/playbook.ts`, `cmd/session.ts` and `driver/test/playbook.test.ts`.
-
-**For the user: `.claude/settings.json` loses entries in Stage 3.** Once the seven loop commands are
-deleted, its `bun nv` allow entries for `chain`, `goal`, `loop`, `loop-stats`, `orient`, `playbook` and
-`session` name commands that no longer exist. The runbook's § 4 lists their lines. No session edits that
-file, so removing them is the user's change.
+**For the user: `.claude/settings.json` holds allow entries for deleted commands.** Its `bun nv` entries
+for `chain`, `goal`, `loop`, `loop-stats`, `orient`, `playbook` and `session` (lines 32-70 and 115-153)
+name commands that no longer exist. No session edits that file, so removing them is the user's change.
 
 ### Next
 
-**Stage 3: the deletes.** Files: `tools/nv/driver/`, `tools/nv/cmd/{loop,chain,goal,session,orient,loop-stats,playbook}.ts`,
-`tools/nv/main.ts`, `tools/nv/schema/index.ts`, `tools/nv/lib/playbook-fragments.ts`, `tools/nv/lib/handoff.ts`,
-`tools/nv/renderers/goal-plan.ts`, `tools/nv/lib/written.ts`.
+**Stage 3's last item, then the stage is done.** Files: `docs/agent/goals/` (`README.md` and
+`side/{compare-page,search-questions}.md`), `docs/agent/session-prompt.md`, `docs/agent/repair-prompt.md`,
+`AGENTS.md`, `tools/nv/cmd/audit.ts`.
 
-- [ ] **The driver and the seven loop commands**, with their entries at `tools/nv/main.ts:34-74` and
-  `tools/nv/driver/test/`.
-  `lib/handoff.ts` goes with `cmd/session.ts`, its only user. The check `no-import-of-the-driver` holds it.
-- [ ] **The record types and their data together**: `tools/nv/schema/index.ts:10-17` drops `chain`,
-  `goal`/`sideGoal`, `handoff`/`sideHandoff` and `playbookSection`/`playbookBullet` in the same commit
-  that deletes `data/chain.json`, `data/goals/` and `data/playbook/`. Their tests follow:
-  `tools/nv/test/index.test.ts:60-71`, `records.test.ts:4-10` and `:91`, `store.test.ts:60-63`,
-  `no-hand-build.test.ts:11`, `surfaces.test.ts:11`. `bun nv render` stops writing their JSON Schemas
-  under `data/schema/`.
-- [ ] **`renderers/goal-plan.ts`** and `docs/agent/goal-plan.md`, registered at `tools/nv/renderers/index.ts:15`;
-  `tools/nv/test/render.test.ts:90-98` tests it.
-- [ ] **The playbook trailers**, once `tools/nv/lib/playbook-fragments.ts:19` (`EXPIRY`) is deleted: each `[until: <kind> <arg>]`
-  under `docs/agent/playbook/` becomes `` `until: <kind> <arg>` ``, and a `rule <topic>/<slug>` becomes
-  `exists docs/rules/<topic>/<slug>.md`.
-- [ ] **`tools/nv/lib/written.ts:10`** stops writing `NOVIS_LOOP_WRITES`, and the old driver's files under
-  `.loop/` (`session-start.json`, `chain.json`, `run.json` and the rest the driver wrote) are deleted.
+- [x] **The driver and the seven loop commands**, with `lib/handoff.ts`.
+- [x] **The record types and their data together**, with their tests and JSON Schemas.
+- [x] **`renderers/goal-plan.ts`** and `docs/agent/goal-plan.md`.
+- [x] **The playbook trailers**, in looper's form.
+- [x] **`lib/written.ts`** writes looper's ledger alone, and the old driver's files under `.loop/` are deleted.
 - [ ] **`docs/agent/goals/` and the prompts** (`docs/agent/looper-cutover.md:176`), once AGENTS.md
-  holds their rules.
+  holds their rules. First compare each rule of `session-prompt.md` and `repair-prompt.md` with
+  AGENTS.md § *Session workflow* and § *The context budget*, and move into AGENTS.md what it lacks.
+  `docs/agent/goals/side/*.md` duplicate `docs/goals/compare-page.md` and `search-questions.md`; check
+  that nothing in them is missing there before deleting. `cmd/audit.ts:36` (`GOALS`), `:48`, `:57`,
+  `:218` and `:255` still name `docs/agent/goals/`: they recognise its old paths as history, so decide
+  whether each test stays as a legacy pattern or goes, with `test/audit.test.ts:27-176`.
+  `optimization-prompt.md` is not a loop prompt and stays.
 
 ### Backlog
 
@@ -176,3 +167,11 @@ file, so removing them is the user's change.
   `crates/nvs-stdlib/src/mail.rs:1148`, `crates/nvs-stdlib/src/storage.rs:597`,
   `crates/nvs-stdlib/tests/tier_boundary.rs:36`, `crates/nvs-types/tests/visibility.rs:14`,
   `crates/nvs-stdlib/tests/spec_registry_coverage.rs:39`) are rewritten with them.
+- Stage 4: the tool comments and messages that still name a deleted command:
+  `cmd/pack.ts:1-12` (says `orient` calls its `run*` functions), `cmd/brief.ts:21` and `:134`,
+  `cmd/plan.ts:9` and `:317-318`, `cmd/site.ts:56` and `:290`, `lib/wrap.ts:2`, `cmd/disk.ts:777`,
+  `accept/gates.ts:9`, `accept/sweep-lock.ts:18`, `accept/sweep.ts:3` and the `nv loop:` messages at
+  `:38-54`, `lib/proctree.ts:3`, `lib/progress.ts:6`, `proofs/run.ts:60`, `tools/git-hooks/commit-msg:11`
+  and `tools/leak-check.sh:3`. `cmd/plan.ts`'s `applyPlan` and `cmd/site.ts`'s `wrapGate` were
+  `bun nv session --wrap`'s, so check whether each still has a caller.
+- Stage 4: `docs/agent/playbook.md:5-6` still describes the `[until: …]` form and `cmd/playbook.ts`.
