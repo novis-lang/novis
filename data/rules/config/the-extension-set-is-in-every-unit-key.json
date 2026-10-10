@@ -2,8 +2,7 @@
   "title": "The extension set is folded into one `env_hash` that both compiled-unit cache keys carry, so an extension change is an ordinary cache miss",
   "status": "shipped",
   "because": [
-    "0078",
-    "0042"
+    "0078"
   ],
   "seeAlso": [
     "config/an-edit-reaches-the-next-request-without-a-restart",

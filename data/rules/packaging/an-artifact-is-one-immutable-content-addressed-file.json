@@ -2,7 +2,6 @@
   "title": "A compiled unit is one immutable file whose address is its content and its environment",
   "status": "shipped",
   "because": [
-    "0042",
     "0078"
   ],
   "seeAlso": [

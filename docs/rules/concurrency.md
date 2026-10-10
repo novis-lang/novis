@@ -972,7 +972,7 @@ The swap is a write to the compilation table and nothing else: a program already
 unit's pages, so the next resolve of that path hands the new unit to whoever asks next while the open
 connection never sees it.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0083](../decisions/0083.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0083](../decisions/0083.md).</sub>
 
 <a id="concurrency-a-drain-closes-a-connection-cleanly"></a>
 

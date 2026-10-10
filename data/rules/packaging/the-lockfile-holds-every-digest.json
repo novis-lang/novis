@@ -2,8 +2,7 @@
   "title": "`package.lock` records every package's digest, a mismatch is a hard error, and `--locked` fetches nothing the lock does not name",
   "status": "designed",
   "because": [
-    "0081",
-    "0042"
+    "0081"
   ],
   "seeAlso": [
     "packaging/a-package-is-its-digest",

@@ -368,7 +368,7 @@ before any request runs, so a deployment can refuse a pattern that can be made t
   among the ones found in production, and it leaves a backtracking pattern unrefusable until a request
   reaches it.
 
-<sub>See also [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour).</sub>
 
 <a id="expressions-intrinsic-list-is-closed"></a>
 
@@ -658,7 +658,7 @@ normally, and the enclosing statement's probe is unaffected either way.
   depend on runtime state, so an eager rule would either be wrong or need this same carve-out, stated
   less clearly.
 
-<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0042](../decisions/0042.md), [0189](../decisions/0189.md).</sub>
+<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0189](../decisions/0189.md).</sub>
 
 <a id="expressions-pipeline-substitution"></a>
 

@@ -618,7 +618,7 @@ identity is worse than no answer.
 - **Memory:** 32 bytes per program and one BLAKE3 combine per resolution, nothing per request
   ([`programs/memory-priority`](programs.md#programs-memory-priority)).
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).</sub>
 
 <a id="programs-bundle-trust-domain"></a>
 

@@ -1,9 +1,7 @@
 {
   "title": "A bundle's payload is source, as a flat file list with no archive and no compression",
   "status": "shipped",
-  "because": [
-    "0042"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/an-artifact-is-one-immutable-content-addressed-file",
     "packaging/a-bundled-require-resolves-at-build-time"

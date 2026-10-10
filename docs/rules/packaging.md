@@ -36,12 +36,28 @@ set is a codegen input like any other.
 Both digests are cryptographic on purpose. One `nvs serve` shares one `env_hash` across every tenant's
 source, so a key a tenant could collide on purpose would hand their artifact to another tenant's
 request, and [`packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock`](packaging.md#packaging-a-writer-publishes-by-one-atomic-rename-and-never-a-lock) is true only of a
-collision-resistant key. No shared index, no lock file and no manifest exist anywhere: every entry is
+collision-resistant key. What a non-cryptographic hash would save is small, and it is spent off the
+request path. No shared index, no lock file and no manifest exist anywhere: every entry is
 independently creatable, verifiable and discardable, so a bug or an attack against one entry has a
-blast radius of exactly one entry. The `[opcache]` directives that govern the store are
+blast radius of exactly one entry. The store is read and written by independent processes that share
+no memory and no lock and may never overlap in time, so a design that needs a live coordinator does
+not fit it. The `[opcache]` directives that govern the store are
 [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system)'s.
 
-<sub>See also [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header). Decided in [0042](../decisions/0042.md), [0078](../decisions/0078.md).</sub>
+The cost of an environment in the address is disk: a cache directory shared across a mixed fleet
+(several CPU generations, a compiler upgrade half rolled out) holds one copy of a unit per environment
+rather than one in total. Checking the environment after opening the file would change only when that
+storage is paid, not whether.
+
+**Declined:**
+- **One packed store — sqlite, or a hand-rolled B-tree — instead of a file per entry.** sqlite is the
+  kind of C dependency the pure-Rust policy keeps out, and a shared mutable index needs write
+  coordination across processes that never talk; a corrupt index takes out every entry at once.
+- **A shared manifest or LRU index beside per-entry files.** It is a second shared-mutable structure
+  every reader trusts and every writer keeps consistent, the shape the in-memory cache already rejects
+  for a per-path pointer ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)).
+
+<sub>See also [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header). Decided in [0078](../decisions/0078.md).</sub>
 
 <a id="packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header"></a>
 
@@ -75,7 +91,17 @@ process allocates are the ones the payload's undefined names refer to. A change 
 payload leaves undefined, or to what a reader must do with them, is a `format_version` bump: an older
 file becomes a plain miss rather than one relocated under yesterday's rules.
 
-<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`packaging/a-warm-hit-skips-codegen-not-the-front-end`](packaging.md#packaging-a-warm-hit-skips-codegen-not-the-front-end). Decided in [0042](../decisions/0042.md).</sub>
+**Declined:**
+- **Class descriptors carried in the payload, so a warm hit skips the front end too.** It serialises a
+  runtime type: a `nvs_runtime::ClassDesc` holds strings, codec field lists and pointers to other
+  descriptors, so every future field of it becomes a `format_version` bump and a second, write-only
+  spelling of a structure the compiler already builds from the IR. What it buys is only the front end,
+  which a miss pays anyway ([`packaging/a-warm-hit-skips-codegen-not-the-front-end`](packaging.md#packaging-a-warm-hit-skips-codegen-not-the-front-end)).
+- **A compressed payload.** Decompressing into a fresh buffer would come before every check and every
+  placement, spending CPU on each hit to save disk on a payload that is already small, and losing the
+  single pass the read path is built around.
+
+<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`packaging/a-warm-hit-skips-codegen-not-the-front-end`](packaging.md#packaging-a-warm-hit-skips-codegen-not-the-front-end).</sub>
 
 <a id="packaging-the-artifact-cache-is-read-not-mapped"></a>
 
@@ -97,7 +123,7 @@ What the entry contains, how it is verified before it becomes executable, and wh
 extension set ([`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key)) are unchanged by how its bytes
 arrive; only the read path is.
 
-<sub>See also [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0106](../decisions/0106.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0106](../decisions/0106.md).</sub>
 
 <a id="packaging-a-warm-hit-skips-codegen-not-the-front-end"></a>
 
@@ -120,7 +146,7 @@ format — with an IR class list versioned alongside the file, never a serialise
 A cold run pays its compile once per distinct (content, environment) pair, ever; every later run, in any
 process, is an `mmap`, a verify, a relocate and an `mprotect`.
 
-<sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable).</sub>
 
 <a id="packaging-an-artifact-is-verified-whole-before-a-page-is-executable"></a>
 
@@ -132,7 +158,9 @@ A reader `mmap`s the file read-only, never starting from an executable mapping. 
 `format_version` and `env_hash` against what this process expects, checks `payload_len` against the
 mapping's own length, and computes BLAKE3 over the mapped payload bytes against the header's checksum.
 Every mismatch is a cache miss ([`packaging/a-bad-cache-entry-is-a-miss-never-an-error`](packaging.md#packaging-a-bad-cache-entry-is-a-miss-never-an-error)), and not
-one byte of the payload is touched before the checksum matches.
+one byte of the payload is touched before the checksum matches. Mapping lets the page cache do the I/O
+once and the hash run over it with no copy into a buffer; replacing the mapping with a read is
+[`packaging/the-artifact-cache-is-read-not-mapped`](packaging.md#packaging-the-artifact-cache-is-read-not-mapped).
 
 Then **place, relocate, protect, bind.** The reader maps a second region of its own — private,
 anonymous, writable — and copies each allocatable section into it at the alignment that section runs
@@ -150,7 +178,7 @@ further away than a PC-relative call can reach gets an eight-byte cell holding i
 jump through it, so every displacement written names a target inside the reader's own mapping. A
 relocation that still does not fit is a miss, never a truncated address; so is an unresolvable symbol.
 
-<sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/a-bad-cache-entry-is-a-miss-never-an-error`](packaging.md#packaging-a-bad-cache-entry-is-a-miss-never-an-error), [`packaging/the-checksum-proves-integrity-and-ownership-proves-trust`](packaging.md#packaging-the-checksum-proves-integrity-and-ownership-proves-trust). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`](packaging.md#packaging-an-artifact-is-a-relocatable-object-behind-a-self-describing-header), [`packaging/a-bad-cache-entry-is-a-miss-never-an-error`](packaging.md#packaging-a-bad-cache-entry-is-a-miss-never-an-error), [`packaging/the-checksum-proves-integrity-and-ownership-proves-trust`](packaging.md#packaging-the-checksum-proves-integrity-and-ownership-proves-trust).</sub>
 
 <a id="packaging-the-checksum-proves-integrity-and-ownership-proves-trust"></a>
 
@@ -183,7 +211,7 @@ nothing of its own, because nobody chose it; an unusable data folder has its own
 Ownership that changes after the process started is not re-checked mid-run, consistent with every other
 `System`-class directive ([`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system)).
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0042](../decisions/0042.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="packaging-a-bad-cache-entry-is-a-miss-never-an-error"></a>
 
@@ -209,7 +237,7 @@ is not a silent miss is a cache directory another account can write, which
 [`packaging/the-checksum-proves-integrity-and-ownership-proves-trust`](packaging.md#packaging-the-checksum-proves-integrity-and-ownership-proves-trust) refuses out loud, because that
 is a breach of the boundary and not a bad entry.
 
-<sub>See also [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`errors/propagation`](errors.md#errors-propagation). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="packaging-a-writer-publishes-by-one-atomic-rename-and-never-a-lock"></a>
 
@@ -234,7 +262,7 @@ losing an un-synced entry means the next process recompiles it, which is a miss 
 sync on every write buys nothing. A failed write is likewise nobody's error: the caller drops it and the
 run continues on the compile it just did.
 
-<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
 <a id="packaging-eviction-rides-the-cold-miss-at-a-probability"></a>
 
@@ -258,7 +286,7 @@ The cache may transiently sit above its cap between the misses that happen to ro
 accepted trade, bounded by how unlikely a long silent stretch of pure hits is, and correctable at any
 time through [`packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`](packaging.md#packaging-nvs-cache-gc-and-clear-are-the-deterministic-escape).
 
-<sub>See also [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`](packaging.md#packaging-nvs-cache-gc-and-clear-are-the-deterministic-escape). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape`](packaging.md#packaging-nvs-cache-gc-and-clear-are-the-deterministic-escape).</sub>
 
 <a id="packaging-nvs-cache-gc-and-clear-are-the-deterministic-escape"></a>
 
@@ -275,7 +303,7 @@ Neither is ever needed for correctness. A content-addressed entry cannot be stal
 changed toolchain or a changed extension set is a different key — so the only thing either command
 changes is disk usage, and the next run of anything they removed pays one cold compile.
 
-<sub>See also [`packaging/eviction-rides-the-cold-miss-at-a-probability`](packaging.md#packaging-eviction-rides-the-cold-miss-at-a-probability). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/eviction-rides-the-cold-miss-at-a-probability`](packaging.md#packaging-eviction-rides-the-cold-miss-at-a-probability).</sub>
 
 <a id="packaging-autoload-probes-fold-into-the-cache-key"></a>
 
@@ -305,7 +333,7 @@ window for N listed directories — tens, not thousands — spent by the backgro
 compiled build and the wasm target the question does not arise; resolution happens once, at build
 time.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0218](../decisions/0218.md).</sub>
 
 <a id="packaging-a-wasm-module-cache-reuses-the-artifact-cache"></a>
 
@@ -331,7 +359,7 @@ entry wasmtime does not accept is a miss that is compiled and stored again
 wasmtime's hash is in the key beside the compiler build rather than replacing it, so a rebuilt
 `nvs` compiles its components again, and a changed set compiles none.
 
-<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component).</sub>
 
 <a id="packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host"></a>
 
@@ -400,7 +428,7 @@ CLI bundling; hiding it is not a requirement, and neither encryption nor obfusca
 - **Compressing the payload.** Source text is small enough that compression is not worth a new
   dependency.
 
-<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/a-bundled-require-resolves-at-build-time`](packaging.md#packaging-a-bundled-require-resolves-at-build-time). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/a-bundled-require-resolves-at-build-time`](packaging.md#packaging-a-bundled-require-resolves-at-build-time).</sub>
 
 <a id="packaging-a-bundled-require-resolves-at-build-time"></a>
 
@@ -820,7 +848,7 @@ what makes "the digest is the identity" a statement about code a human could rea
 subcommand, no `package.toml` or `package.lock` reader, and nothing in the tree digests a package
 archive.
 
-<sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/a-package-name-is-vendor-slash-name`](packaging.md#packaging-a-package-name-is-vendor-slash-name), [`packaging/a-package-cannot-reach-its-host`](packaging.md#packaging-a-package-cannot-reach-its-host), [`packaging/the-lockfile-holds-every-digest`](packaging.md#packaging-the-lockfile-holds-every-digest), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-package-toml-is-a-tool-input"></a>
 
@@ -1017,7 +1045,7 @@ The lock is for integrity, not for determinism: [`packaging/resolution-takes-the
 is deterministic on its own, and `nvs build --locked` on a clean machine with an empty cache produces
 byte-identical compiled units to the machine that wrote the lock, on all three platforms.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log), [`packaging/resolution-takes-the-highest-minimum`](packaging.md#packaging-resolution-takes-the-highest-minimum), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0081](../decisions/0081.md).</sub>
 
 <a id="packaging-a-git-dependency-is-root-only"></a>
 
@@ -1202,7 +1230,7 @@ switch.
   rewritten, for consumers who do not exist. An external tool built on `nvs-syntax` would earn a
   narrow exception, not a blanket promise.
 
-<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/the-version-contract-starts-at-0-1-0`](packaging.md#packaging-the-version-contract-starts-at-0-1-0), [`programs/bundle-trust-domain`](programs.md#programs-bundle-trust-domain), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host).</sub>
 
 <a id="packaging-below-1-0-the-breaking-slot-moves-left"></a>
 

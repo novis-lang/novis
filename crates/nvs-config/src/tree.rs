@@ -125,7 +125,8 @@ pub struct Config {
     pub trace: Option<Trace>,
     /// `[server]` and the `[[server.mount]]` array under it (`rule:http-server/a-request-resolves-in-five-steps` and `rule:http-server/the-server-block-is-boot-class`).
     pub server: Option<Server>,
-    /// `[cache]` — the artifact cache's directory (ADRs 0042, 0078 § 2).
+    /// `[cache]` — `Core\Cache`'s tiers. The artifact cache's directory is `[opcache]`'s
+    /// `file_cache_dir` (`rule:config/opcache-file-cache-directives-are-system`).
     pub cache: Option<Cache>,
     /// `[opcache]` — revalidation and the file cache (`rule:config/an-edit-reaches-the-next-request-without-a-restart`, `rule:config/opcache-file-cache-directives-are-system`).
     pub opcache: Option<Opcache>,

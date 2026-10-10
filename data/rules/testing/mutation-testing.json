@@ -2,8 +2,7 @@
   "title": "A mutation run asks whether any test would have noticed the code being wrong",
   "status": "designed",
   "because": [
-    "0079",
-    "0042"
+    "0079"
   ],
   "seeAlso": [
     "testing/debug-probes",

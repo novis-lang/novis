@@ -409,7 +409,7 @@ Running code chosen at run time is `spawn script`: in an isolate, spending the p
   survive. The restriction is hard to state precisely and harder to enforce, and what remains is
   strictly less capable than `spawn script`, which is already isolated.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0042](../decisions/0042.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing).</sub>
 
 <a id="security-a-path-is-not-a-url"></a>
 

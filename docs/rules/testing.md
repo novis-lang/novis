@@ -501,7 +501,7 @@ hundred mutants that is the difference between minutes and most of a day.
 
 The operator set is enumerated where it is implemented, so adding an operator changes no rule.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-runner-is-strict"></a>
 

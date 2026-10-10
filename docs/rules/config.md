@@ -478,7 +478,7 @@ checked as any file is, with the private data folder as its directory.
 
 Where the check runs is [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered).
 
-<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure). Decided in [0103](../decisions/0103.md), [0042](../decisions/0042.md), [0078](../decisions/0078.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure). Decided in [0103](../decisions/0103.md), [0078](../decisions/0078.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-ownership-check-runs-where-it-can-be-answered"></a>
 
@@ -988,7 +988,7 @@ switch does not reach a server that mounts one.
 - **Pushing an edit to every process of a fleet.** Sub-second propagation across processes or hosts
   is a distribution problem, not a concurrency one. A signal for it would feed the same pointer swap.
 
-<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0078](../decisions/0078.md), [0042](../decisions/0042.md), [0218](../decisions/0218.md).</sub>
+<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0078](../decisions/0078.md), [0218](../decisions/0218.md).</sub>
 
 <a id="config-a-request-keeps-the-unit-it-resolved"></a>
 
@@ -1939,7 +1939,7 @@ extension. Finer would need per-unit dependency tracking including negative depe
 subsystem for a modest win. The compile pool bounds how much of the resulting wave is in flight at
 once.
 
-<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md).</sub>
 
 <a id="config-opcache-revalidation-is-system-class"></a>
 
@@ -1999,7 +1999,7 @@ started is not re-checked mid-run, consistent with every other `System` directiv
 looks like on disk, how an entry is verified before it is mapped executable, and the refusal of a
 world-writable directory are the packaging chapter's; this rule is only the roster and its class.
 
-<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0175](../decisions/0175.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0175](../decisions/0175.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-telemetry-and-update-endpoints-are-configuration"></a>
 

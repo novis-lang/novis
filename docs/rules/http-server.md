@@ -1722,7 +1722,7 @@ This is a substitution rather than an addition, and it is stated only because th
 
 A full disk also stops compilation, which would convert a log problem into a total outage. **A write failure in the on-disk artifact cache falls back to compiling in memory** and reports once; the cache is an optimisation and is treated as one.
 
-<sub>See also [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0106](../decisions/0106.md), [0092](../decisions/0092.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0106](../decisions/0106.md), [0092](../decisions/0092.md).</sub>
 
 <a id="http-server-a-jit-page-is-never-writable-and-executable-at-once"></a>
 

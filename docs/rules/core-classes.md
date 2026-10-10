@@ -1776,7 +1776,7 @@ per field, and paid on the encoding side by a refcount pair per level of the doc
 member runs. Footprint is O(derived classes in compiled code), not O(objects) and not O(requests), and
 a program that neither carries the attribute nor writes a half pays nothing at all, including no pass.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0042](../decisions/0042.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-ldap-filter-is-a-value"></a>
 

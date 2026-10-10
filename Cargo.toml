@@ -91,8 +91,10 @@ cranelift = "0.135"
 cranelift-jit = "0.135"
 cranelift-module = "0.135"
 cranelift-native = "0.135"
-# The second `Module` behind the one lowering walk — ADR 0042 § 2's relocatable
-# object payload. Same version as its four siblings above, and it must stay so:
+# The second `Module` behind the one lowering walk — the relocatable
+# object payload of
+# `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`.
+# Same version as its four siblings above, and it must stay so:
 # they share `cranelift-codegen`'s types.
 cranelift-object = "0.135"
 # The reader for what that one writes, and a test dependency only: an object's
@@ -393,7 +395,7 @@ bitflags = "2"
 smallvec = { version = "1", features = ["union", "const_generics"] }
 indexmap = "2"
 rustc-hash = "2"
-# Two consumers, one crate: ADR 0042's on-disk artifact cache keys on it, and
+# Two consumers, one crate: the on-disk artifact cache keys on it, and
 # spec § 11's `Core\Digest::Blake3` computes it — the second is what finally put
 # it in `Cargo.lock`. `pure` and no default features on purpose: blake3 ships
 # hand-written assembly built through `cc` by default, and ground-rules.md
@@ -430,15 +432,16 @@ brainsort = "0.5"
 num-bigint = "0.5"
 num-integer = "0.1"
 
-# --- Memory-mapped files (ADR 0042 § 3's read path) ---
+# --- Memory-mapped files (the artifact cache's read path) ---
 # The cache verifies an artifact by hashing it where the page cache already put
-# it, rather than by reading it into a buffer first — that ADR's *Investigation*
-# weighs the two and picks this one. Pure Rust over the platform's own calls
+# it, rather than by reading it into a buffer first
+# (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`).
+# Pure Rust over the platform's own calls
 # (`libc`, `windows-sys`), no C and no build script, so ground-rules.md
 # § *Pure-Rust dependencies by default* has nothing to spend here.
 memmap2 = "0.9"
 
-# --- Instruction-cache maintenance for freshly written code (ADR 0042 § 3) ---
+# --- Instruction-cache maintenance for freshly written code ---
 # The aarch64 half of `nvs_codegen::make_executable`: invalidating the cache
 # lines under bytes that were data a moment ago, and serializing the fetch
 # pipeline on every core that might run them. `cranelift-jit` already runs this
