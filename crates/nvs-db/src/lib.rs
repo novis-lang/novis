@@ -5,13 +5,13 @@
 //! `rule:core-classes/db-drivers-are-an-enum`
 //! is this crate's charter and its decisions are what a reader most needs
 //! before writing a connection. **A codec is borrowed, a state
-//! machine is written** (§ 2): message framing, value encoding and
+//! machine is written** (`rule:core-classes/db-crate-boundary`): message framing, value encoding and
 //! authentication mechanisms are large, fiddly and the same for everyone, and
 //! that is exactly what the sans-IO crates are; *sequencing* — what to send
 //! next, what a park in the middle of a message means, when a connection is
 //! reusable — is where this project's own decisions live, and borrowing it is
 //! what would have dragged an async runtime in. There is no `Driver` trait
-//! (§ 5): the five are [`Connection`]'s variants and each entry point `match`es
+//! (`rule:core-classes/db-drivers-are-an-enum`): the five are [`Connection`]'s variants and each entry point `match`es
 //! once.
 //!
 //! # Where this sits
@@ -21,7 +21,7 @@
 //! and this crate holds no Novis-facing name at all — it does not build the
 //! faults it causes, because the message that names the *call* is only sayable
 //! where the call's spelling is known. `Cargo.toml` says the same thing to
-//! whoever is about to add a dependency; § 1 is the rule.
+//! whoever is about to add a dependency; `rule:core-classes/db-crate-boundary` is the rule.
 //!
 //! # A connection's busy state — `rule:core-classes/db-connection-busy-state`
 //!
@@ -143,7 +143,7 @@
 //! that answer it — so [`TdsConn`] holds a live wire. Its statement path is
 //! whole on top of *that*: `sp_prepexec` under § 1's cache, the row path over
 //! the same reassembly, and § 13's `sp_reset_connection`. [`sqlite`] is the one
-//! driver with no wire at all — `rusqlite` is the protocol, reached through § 3's
+//! driver with no wire at all — `rusqlite` is the protocol, reached through `rule:core-classes/db-crate-boundary`'s
 //! handoff to `nvs-host`'s blocking pool, which is why its rows come back
 //! materialized where every other driver's stream. PostgreSQL comes first
 //! throughout because its extended protocol pays nothing extra for a prepare and

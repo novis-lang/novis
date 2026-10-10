@@ -2,7 +2,7 @@
 //! of every message, the split a message longer than the negotiated packet size
 //! takes on the way out, and the reassembly it takes on the way back.
 //!
-//! [ADR 0132 § 5](/docs/decisions/0132.md)
+//! `rule:core-classes/db-drivers-are-an-enum`
 //! gives each driver its own state machine, its own error table and its own
 //! codec, and here the codec is *ours*: the borrowed half every other driver in
 //! this crate has does not exist for TDS. The only implementation in Rust is

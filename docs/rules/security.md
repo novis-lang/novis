@@ -2309,7 +2309,17 @@ own. The plaintext phase of a connection is only ever the upgrade request itself
 What does not generalise is what belongs to the socket rather than to the session — the deadline and
 the peer address — so there is still one clock, on the thing that waits.
 
-<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0180](../decisions/0180.md).</sub>
+The client's transport defaults to the plain TCP stream, so the bare type name the HTTP and mail
+clients use keeps its meaning with no second name to keep in step. Two shapes reach it: an in-band
+upgrade over the same socket (PostgreSQL's `SSLRequest`, MySQL and MariaDB's `CLIENT_SSL` flag), and
+SQL Server's handshake tunnelled inside TDS `PRELOGIN` packets, where the bytes the session produces
+are not the bytes on the socket.
+
+**Declined:**
+- **A second `rustls` session inside the database crate for TDS.** Two answers to the trust-anchor
+  question, one of which nobody would remember to update.
+
+<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0180](../decisions/0180.md).</sub>
 
 <a id="security-tls-trust-is-relaxed-only-under-a-host-grant"></a>
 

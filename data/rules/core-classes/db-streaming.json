@@ -2,7 +2,6 @@
   "title": "A streaming result holds its connection until it is drained, and a second statement on it throws",
   "status": "shipped",
   "because": [
-    "0132",
     "0187"
   ],
   "seeAlso": [

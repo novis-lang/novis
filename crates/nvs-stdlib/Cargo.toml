@@ -60,7 +60,7 @@ nvs-host.workspace = true
 # implementation of any of them here would be a second thing to get wrong, which
 # is the workspace row's own argument read in the other direction.
 tungstenite.workspace = true
-# ADR 0132 § 1: `Core\Db`'s registry rows, reference cards and helper bodies
+# `rule:core-classes/db-crate-boundary`: `Core\Db`'s registry rows, reference cards and helper bodies
 # belong here with every other class's, and the five drivers' wire code belongs
 # in one crate an audit can open on its own. So the edge runs this way and only
 # this way -- `nvs-db` naming `nvs-stdlib` would close a cycle, and its own

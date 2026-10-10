@@ -48,7 +48,7 @@
 //! a Novis one — that is the slice after this, on the boundary
 //! [`crate::PgColumn::decode`] already occupies for the other driver.
 //!
-//! [ADR 0132 § 2](/docs/decisions/0132.md)
+//! `rule:core-classes/db-crate-boundary`
 //! decides what is here and what is not. `mysql_common` frames every packet,
 //! keeps the sequence-id discipline, and owns each authentication plugin's
 //! challenge/response arithmetic — that is the borrowed codec. **The sequencing
@@ -2700,7 +2700,7 @@ fn text_command<S: Read + Write>(
 /// results is free and re-walking per column is what would cost.
 ///
 /// The values are `mysql_common`'s own [`MyValue`], which is
-/// [ADR 0132 § 2](/docs/decisions/0132.md)'s
+/// `rule:core-classes/db-crate-boundary`'s
 /// borrowed codec answering in its own vocabulary. [`scalar`] is what turns one
 /// into the Novis value `rule:core-classes/db-column-types`'s
 /// table names, against the column it belongs to — the boundary

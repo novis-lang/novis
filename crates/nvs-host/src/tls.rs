@@ -25,7 +25,7 @@
 //! wraps handshake records in TDS `PRELOGIN` packets — and the adapter that
 //! reconciles the two is an ordinary `Read`/`Write` in `nvs-db` rather than a
 //! second TLS client
-//! ([ADR 0132 § 3](/docs/decisions/0132.md)).
+//! (`rule:security/one-tls-client`).
 //! That is the whole reason to generalise rather than to let a driver build its
 //! own session: the anchors below, the protocol versions and the verifier are
 //! decided once, here, and a driver cannot widen any of them by construction.
@@ -212,7 +212,7 @@ impl<T: Read + Write> NvsTls<T> {
     /// keeps one TLS client and one answer to "whose certificates do you
     /// believe"; a second `rustls` session built inside a driver would be a
     /// second answer to a question this module has already decided at length
-    /// ([ADR 0132 § 3](/docs/decisions/0132.md)).
+    /// (`rule:security/one-tls-client`).
     ///
     /// # Errors
     ///

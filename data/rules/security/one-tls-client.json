@@ -2,7 +2,6 @@
   "title": "There is one TLS client in the tree, and a driver reaches it over a generic transport rather than building a second",
   "status": "shipped",
   "because": [
-    "0132",
     "0180"
   ],
   "seeAlso": [

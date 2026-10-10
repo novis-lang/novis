@@ -2,8 +2,7 @@
   "title": "A Unix-socket host is the string that deployment already holds, and MSSQL refuses one",
   "status": "shipped",
   "because": [
-    "0142",
-    "0132"
+    "0142"
   ],
   "seeAlso": [
     "core-classes/db-connection-is-named",

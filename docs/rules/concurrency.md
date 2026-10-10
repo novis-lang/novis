@@ -1885,7 +1885,7 @@ outranks footprint, and that trade is taken knowingly.
   suspend, and the colour reaches the language surface: a `Core` member that reads a socket would
   need a form ordinary code cannot call.
 
-<sub>See also [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled). Decided in [0132](../decisions/0132.md).</sub>
+<sub>See also [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled).</sub>
 
 <a id="concurrency-a-task-stack-is-reserved-wide-and-pooled"></a>
 

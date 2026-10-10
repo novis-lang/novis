@@ -946,7 +946,7 @@ brotli = { version = "9", default-features = false, features = ["std"] }
 # with the default set: a frame's checksum is verified rather than skipped.
 ruzstd = "0.9"
 
-# --- database wire (ADR 0132 § 2) ---
+# --- database wire (`rule:core-classes/db-crate-boundary`) ---
 # The rule that picked these: a codec is borrowed, a state machine is written.
 # Message framing, value encoding and authentication mechanisms are large,
 # fiddly and identical for everyone, and that is precisely what a sans-IO crate

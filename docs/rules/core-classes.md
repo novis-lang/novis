@@ -1122,7 +1122,7 @@ default that can be restored is an unsafe default a misconfigured deployment sti
 The five drivers are one enum — PostgreSQL, MySQL, MariaDB, SQL Server, SQLite — each variant owning
 its own state machine, error-code table and reset. `Core\Db`'s entry points `match` once.
 
-Three reasons, in priority order. **The set is closed**: a new backend is a decision record, not a
+Three reasons, in priority order. **The set is closed**: a new backend is a change to `Core`, not a
 plugin, and a sandboxed extension cannot host one anyway, since a pool is the thing a sandbox
 boundary cannot hold — open-set extensibility is the one property a trait buys and this design does
 not want it. **A trait wide enough for all five would be half unimplemented**: a prepare is a round trip on
@@ -1136,9 +1136,15 @@ Where a signature repeats five times, it repeats. What keeps the five honest is 
 assertion set run against five real servers. What is shared is the half with no driver in it — the
 placeholder rewriter, the statement cache, the pool, the Novis side of the type map, and error-kind
 normalisation, whose per-driver code tables are *data* each driver supplies rather than behaviour it
-overrides.
+overrides. A sixth backend is a variant, a state machine, an error table, a reset and a row in the
+matrix harness.
 
-<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path). Decided in [0132](../decisions/0132.md).</sub>
+**Declined:**
+- **A `dyn Driver` trait.** It is an allocation and an indirect call per connection operation, it
+  buys only the open set this design does not want, and it makes four drivers lie about the fifth's
+  differences.
+
+<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path).</sub>
 
 <a id="core-classes-db-unix-socket-path"></a>
 
@@ -1167,7 +1173,7 @@ takes — and answer a server the same way over either, which is what
 `a_driver_answers_the_same_over_either_transport` asserts. `crates/nvs-db/src/tds/mod.rs` refuses a
 path in `TdsTarget::resolve`, as `BlockError`'s `NoSocketTransport`.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md), [0132](../decisions/0132.md).</sub>
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md).</sub>
 
 <a id="core-classes-server-version-is-what-the-server-said"></a>
 
@@ -1223,9 +1229,16 @@ the only answer that is provable.
 
 An abandoned stream is not automatically poison: a driver that can cancel and drain deterministically
 returns to `Idle` and pools the connection, and one that cannot poisons it. That choice is per
-driver, in the driver.
+driver, in the driver. A poisoned connection costs one full handshake on the next acquire, on a path
+that only a deadline or a protocol error reaches.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0132](../decisions/0132.md).</sub>
+**Declined:**
+- **Busy state on the parking stream.** It would put protocol knowledge in a generic stream, and
+  SQLite, which owes the same `LogicError`, has no stream to put it on.
+- **Draining a poisoned wire and pooling it anyway.** It trusts framing that has already failed, to
+  save one handshake on a path that is rare by construction.
+
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum).</sub>
 
 <a id="core-classes-db-statement-members"></a>
 
@@ -1390,7 +1403,7 @@ cannot park. This rule is the member's contract — constant memory, the connect
 statement refused — and the read state each driver leaves between two steps is
 [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection), which is the mechanism under it.
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection). Decided in [0132](../decisions/0132.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection). Decided in [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-a-stream-parks-its-read-on-the-connection"></a>
 
@@ -1525,9 +1538,40 @@ The rule the driver table encodes: **a codec is borrowed, a state machine is wri
 framing, value encoding and authentication mechanisms are large, fiddly and identical for everyone,
 which is exactly what a sans-IO crate is. Sequencing — what to send next, what a park in the middle
 means, when the connection is reusable — is where this project's own decisions live, and borrowing it
-is what would have dragged an async runtime in. TDS has no such crate and is written by hand.
+is what would have dragged an async runtime in. TDS has no such crate and is written by hand,
+including its authentication and its tunnelled TLS: that is the price of SQL Server being in the
+matrix at all.
 
-<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../decisions/0132.md).</sub>
+| Driver | Borrowed codec | Written here |
+|---|---|---|
+| PostgreSQL | `postgres-protocol`, `postgres-types` | startup, SASL, the extended-query state machine, the reset |
+| MySQL | `mysql_common` | handshake and auth sequencing, `COM_STMT_*` sequencing, the `LOCAL INFILE` refusal |
+| MariaDB | `mysql_common`, with its own auth plugins and error table | the same, plus `RETURNING` |
+| SQL Server | none | all of TDS 7.4 |
+| SQLite | `rusqlite` | nothing on a wire |
+
+SQLite has no wire: it is a C library doing synchronous file I/O, and it cannot park, so each call
+goes to the host's blocking pool. A `Core` member either parks on readiness or hands the core to that
+pool, and there is no third option. `rusqlite` brings the tree's one accepted C dependency,
+`libsqlite3-sys`, recorded in the attribution ledger whose gate fails on any other C crate in the
+graph; MariaDB's extra auth plugins are a Rust implementation or a documented refusal, never a second
+C dependency.
+
+**Memory:** per open connection, a read buffer, a write buffer, the statement cache sized by
+`statement_cache`, and for a TLS connection the session state. That is O(in-flight connections),
+released when the connection is destroyed and bounded by the pool's `max` per core. Per process it
+adds nothing: the trust anchors are the same one set every TLS client in the tree uses.
+
+**Declined:**
+- **`sqlx`, `tokio-postgres`, `tiberius` or the sync `postgres` crate, with `tokio` behind a feature
+  flag.** Each needs an async runtime that spawns, which would be a second reactor on a runtime whose
+  design is that a core is never blocked and a task never migrates. The flag makes it worse, by
+  turning the runtime's presence into a build property.
+- **One crate per driver.** Five crates that all depend on the same shared half, are never used
+  independently, and bring back the feature matrix this rule refuses. The audit argument for one
+  separate crate does not extend to splitting it five ways.
+
+<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection).</sub>
 
 <a id="core-classes-schema-is-a-value"></a>
 

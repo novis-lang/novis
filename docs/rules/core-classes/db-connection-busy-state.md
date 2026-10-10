@@ -15,4 +15,11 @@ the only answer that is provable.
 
 An abandoned stream is not automatically poison: a driver that can cancel and drain deterministically
 returns to `Idle` and pools the connection, and one that cannot poisons it. That choice is per
-driver, in the driver.
+driver, in the driver. A poisoned connection costs one full handshake on the next acquire, on a path
+that only a deadline or a protocol error reaches.
+
+**Declined:**
+- **Busy state on the parking stream.** It would put protocol knowledge in a generic stream, and
+  SQLite, which owes the same `LogicError`, has no stream to put it on.
+- **Draining a poisoned wire and pooling it anyway.** It trusts framing that has already failed, to
+  save one handshake on a path that is rare by construction.

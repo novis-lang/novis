@@ -1,8 +1,8 @@
 //! PostgreSQL: opening a socket, upgrading it in band, authenticating, and
 //! running one statement at a time over the extended-query protocol.
 //!
-//! [ADR 0132 § 2](/docs/decisions/0132.md)'s
-//! rule decides what is here and what is not. `postgres-protocol` frames every
+//! `rule:core-classes/db-crate-boundary`
+//! decides what is here and what is not. `postgres-protocol` frames every
 //! message and owns the SCRAM mechanism itself — that is the borrowed codec, it
 //! is fuzzed, and writing a fifth SASL implementation by hand is exactly the
 //! trade this project already refused. **The sequencing is ours**: which
@@ -79,7 +79,7 @@
 //! is drained to that message and the connection goes back to [`State::Idle`],
 //! poolable. **Poison is only ever a wire that failed**: a read that errored,
 //! a frame that did not decode, a peer that closed. Those leave no boundary to
-//! find, and § 4 closes such a connection rather than resetting it.
+//! find, and `rule:core-classes/db-connection-busy-state` closes such a connection rather than resetting it.
 //!
 //! [`PgRows`] is the statement's borrow of the connection, and dropping it
 //! early is the ordinary abandonment case rather than an error: its `Drop`
@@ -3752,7 +3752,7 @@ pub(crate) fn second_statement(state: &Cell<State>) -> io::Error {
 ///
 /// The frame decoded, so the wire is arguably at a boundary — but a peer that
 /// sent this is not tracking the same sequence the driver is, and draining would
-/// mean trusting exactly the sequencing that has just proven wrong. § 4's answer
+/// mean trusting exactly the sequencing that has just proven wrong. `rule:core-classes/db-connection-busy-state`'s answer
 /// to a boundary that cannot be proven is poison, and a poisoned connection is
 /// closed rather than pooled.
 fn out_of_sequence(state: &Cell<State>) -> io::Error {

@@ -2,10 +2,10 @@
 //! blocking pool and the rows are in hand before the core is taken back.
 //!
 //! This is the one driver whose shape is not
-//! `rule:core-classes/db-crate-boundary`'s borrowed codec over § 3's parking stream. There is no wire: no
+//! `rule:core-classes/db-crate-boundary`'s borrowed codec over `nvs-host`'s parking stream. There is no wire: no
 //! framing to borrow, no handshake to write, no readiness a reactor could
 //! report. `rusqlite` *is* the protocol, and what this module adds around it is
-//! what every other driver gets from its own machinery — § 3's
+//! what every other driver gets from its own machinery — the blocking-pool
 //! handoff off the core, `rule:core-classes/db-statement-members`'s
 //! one-statement-at-a-time rule, § 8's normalised error kinds, and § 7's
 //! nesting with the § 13 reset that closes it.

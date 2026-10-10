@@ -1,6 +1,6 @@
 //! The drivers as an enum, and the busy state each one carries.
 //!
-//! [ADR 0132 § 5](/docs/decisions/0132.md)
+//! `rule:core-classes/db-drivers-are-an-enum`
 //! decides that this is an `enum` and not a `Driver` trait, for three reasons
 //! in this project's priority order: the set is **closed** (`rule:core-classes/db-one-api` makes
 //! a new backend an ADR rather than a plugin, and wasm extensions cannot host
@@ -24,7 +24,7 @@
 //! driver's module beside this one ([`crate::pg`] is one), so the enum
 //! stays readable as an enum while a protocol grows to the size a protocol is.
 //!
-//! What is *not* per driver is § 4's rule about when a connection may be
+//! What is *not* per driver is `rule:core-classes/db-connection-busy-state` about when a connection may be
 //! written to and when it may be pooled: that is one rule over [`State`], and
 //! it lives on that type rather than being restated once per driver. What each
 //! driver decides for itself is which state a given wire event leaves it in —
@@ -429,7 +429,7 @@ pub(crate) fn written_value<'a>(
 }
 
 /// Where a connection's wire is, between commands —
-/// [ADR 0132 § 4](/docs/decisions/0132.md).
+/// `rule:core-classes/db-connection-busy-state`.
 ///
 /// This is not on the stream and cannot be: `NvsStream`'s readiness
 /// registration is one task's and is invisible above `Read`/`Write`, a
@@ -964,15 +964,15 @@ pub struct MariaConn {
 /// `futures-io` with its TLS behind `tokio-rustls`.
 ///
 /// This is the largest single piece of new wire code the database goal buys,
-/// and § 3's handshake — TLS tunnelled inside TDS packets before the connection
+/// and its handshake — TLS tunnelled inside TDS packets before the connection
 /// becomes an ordinary TLS stream — is why `NvsTls` is generic over its
-/// transport.
+/// transport (`rule:security/one-tls-client`).
 #[derive(Debug)]
 pub struct TdsConn {
     /// The stream and the bytes read off it that are not yet a whole packet,
     /// once [`crate::tds::TdsConn::connect`] has upgraded it.
     ///
-    /// Its type is the one that says what § 3 costs on this protocol: a TLS
+    /// Its type is the one that says what the tunnelled handshake costs on this protocol: a TLS
     /// session over a [`Tunnel`](crate::tds::Tunnel) over the socket, where the
     /// other drivers' is a session over the socket itself. The tunnel is dead
     /// weight after the handshake — it passes bytes through once its end is
@@ -1092,7 +1092,7 @@ pub struct SqliteConn {
 
 /// One open connection to one database, whichever backend it is.
 ///
-/// [ADR 0132 § 5](/docs/decisions/0132.md):
+/// `rule:core-classes/db-drivers-are-an-enum`:
 /// each variant owns its own state machine, its own error-code table and its
 /// own reset, and `Core\Db`'s entry points `match` here exactly once.
 ///
@@ -1164,7 +1164,7 @@ impl Connection {
     ///
     /// Takes `&self` rather than `&mut self` because the state is a [`Cell`]:
     /// a driver sets it from inside a borrow of the connection it is reading
-    /// rows out of, which is the whole reason § 4 puts it in a cell.
+    /// rows out of, which is the whole reason `rule:core-classes/db-connection-busy-state` puts it in a cell.
     pub fn set_state(&self, state: State) {
         match self {
             Connection::Postgres(c) => c.state.set(state),
@@ -1406,7 +1406,7 @@ mod tests {
         assert_eq!(Driver::from_config_name(""), None);
     }
 
-    /// § 4's rule, asserted on both sides: `Idle` is the only state that
+    /// `rule:core-classes/db-connection-busy-state`, asserted on both sides: `Idle` is the only state that
     /// accepts a statement and the only one that may be pooled. Asserting it
     /// over the whole roster rather than on one state is what catches a state
     /// added later without a decision about either question.
