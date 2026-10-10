@@ -121,7 +121,7 @@ is legibility: the type is not on the declaration line, and finding it means rea
 - **A new keyword instead of `var`.** `var` was already a reserved token with no meaning in Novis, so
   reusing it needed no lexer change and collides with nothing.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0114](../decisions/0114.md), [0251](../decisions/0251.md), [0252](../decisions/0252.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0251](../decisions/0251.md), [0252](../decisions/0252.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-grammar"></a>
 
@@ -834,7 +834,7 @@ between two kinds.
 - **A callback's `$key` handed on as a position on a packed list.** The key's type would then depend
   on how the array happens to be stored, which is the integer-key and string-key split again.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0114](../decisions/0114.md), [0159](../decisions/0159.md), [0188](../decisions/0188.md), [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0159](../decisions/0159.md), [0188](../decisions/0188.md), [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
 
 <a id="types-array-combination"></a>
 

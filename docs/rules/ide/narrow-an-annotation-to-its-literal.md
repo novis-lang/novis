@@ -20,3 +20,8 @@ the far side of the boundary the first editor slice draws.
 
 A round trip asserts it: offered on a literal-initialized annotation, absent on a `Core\Json::decode`
 initializer, and the file it produces still checks clean.
+
+**Declined:**
+- **A hint-severity diagnostic saying an annotation could be narrower.** It makes the checker say
+  something new, and every deliberate `array<mixed>` would then need suppressing. That is every one
+  that holds input.

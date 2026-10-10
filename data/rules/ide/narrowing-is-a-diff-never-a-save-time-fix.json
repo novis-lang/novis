@@ -2,7 +2,6 @@
   "title": "The narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects, because it breaks writes it cannot see",
   "status": "designed",
   "because": [
-    "0114",
     "0188"
   ],
   "seeAlso": [

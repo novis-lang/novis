@@ -841,7 +841,7 @@ property hooks mean the pair of methods that action exists to save typing has no
 Code snippets are refused for a neighbouring reason — a snippet body is a second copy of a syntactic shape
 the grammar already owns, silently stale after a grammar change.
 
-<sub>See also [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`classes/property-observer`](classes.md#classes-property-observer), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0114](../decisions/0114.md).</sub>
+<sub>See also [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`classes/property-observer`](classes.md#classes-property-observer), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-no-refactoring-introduces-an-alias"></a>
 
@@ -890,7 +890,12 @@ the far side of the boundary the first editor slice draws.
 A round trip asserts it: offered on a literal-initialized annotation, absent on a `Core\Json::decode`
 initializer, and the file it produces still checks clean.
 
-<sub>See also [`ide/narrowest-means-narrowest-base-type`](ide.md#ide-narrowest-means-narrowest-base-type), [`ide/the-action-answers-from-the-literal-or-not-at-all`](ide.md#ide-the-action-answers-from-the-literal-or-not-at-all), [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/var-inference`](types.md#types-var-inference), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0114](../decisions/0114.md).</sub>
+**Declined:**
+- **A hint-severity diagnostic saying an annotation could be narrower.** It makes the checker say
+  something new, and every deliberate `array<mixed>` would then need suppressing. That is every one
+  that holds input.
+
+<sub>See also [`ide/narrowest-means-narrowest-base-type`](ide.md#ide-narrowest-means-narrowest-base-type), [`ide/the-action-answers-from-the-literal-or-not-at-all`](ide.md#ide-the-action-answers-from-the-literal-or-not-at-all), [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/var-inference`](types.md#types-var-inference), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree).</sub>
 
 <a id="ide-narrowest-means-narrowest-base-type"></a>
 
@@ -915,9 +920,14 @@ widens to its enum by the same call.
 
 The unit tests are the list: a homogeneous nest at three levels, a heterogeneous literal producing a
 canonical union, an integer literal widening to `int`, an enum case widening to its enum, `[]` yielding no
-offer, and a literal past depth 32 yielding no offer.
+offer, a `mixed` element yielding no offer, and a literal past depth 32 yielding no offer.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/arrays`](types.md#types-arrays). Decided in [0114](../decisions/0114.md).</sub>
+**Declined:**
+- **The true narrowest type, literals included.** `array<1|3>` is narrower and correct, and it refuses
+  the next write the developer makes. An action whose type its user must widen at once is worse than no
+  action.
+
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="ide-the-action-answers-from-the-literal-or-not-at-all"></a>
 
@@ -945,9 +955,11 @@ type the checker already holds. Nothing in this action is guessed.
 
 Narrowing from writes made *after* the declaration is not offered: it needs the join over every write
 reaching the declaration and a generator that picks between answers, which
-[`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined) refuses.
+[`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined) refuses. The cost half of that
+objection goes away if the reference index of [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index) comes
+to answer every write reaching a declaration; the choice half remains.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0114](../decisions/0114.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="ide-no-compile-path-calls-the-synthesis"></a>
 
@@ -977,7 +989,13 @@ approved by a person ([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-nar
 visible nowhere, which is how a program acquires a type nobody chose. A literal of one type has no such
 choice in it: the type is the one its elements state, so `var` takes it.
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/arrays`](types.md#types-arrays), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal). Decided in [0114](../decisions/0114.md), [0252](../decisions/0252.md).</sub>
+**Declined:**
+- **`check_array_literal` returning the synthesized type wherever it has no expectation.** It is one
+  line, and it is a language change: `echo` arguments and bare expression statements would retype, a
+  heterogeneous literal under `var` would take a union nobody wrote, and [`types/arrays`](types.md#types-arrays)' checked
+  literal would stop being checked.
+
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/arrays`](types.md#types-arrays), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal). Decided in [0252](../decisions/0252.md).</sub>
 
 <a id="ide-narrowing-is-a-diff-never-a-save-time-fix"></a>
 
@@ -1006,7 +1024,7 @@ generic helper path for the typed one, and its element writes become compile err
 throws. Nothing is spent per request, and no memory beyond one more interned descriptor where the program
 did not already have that type.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/conversion`](types.md#types-conversion), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0114](../decisions/0114.md), [0188](../decisions/0188.md).</sub>
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/conversion`](types.md#types-conversion), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0188](../decisions/0188.md).</sub>
 
 <a id="ide-highlighting-is-two-layers"></a>
 

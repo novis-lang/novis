@@ -176,7 +176,7 @@ naming: until a `callable` carried a signature, the type existed only at the wri
 framework storing callables in a variable could not use `all` at all. It can now, and it pays only
 for the signatures it declines to write.
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type). Decided in [0114](../decisions/0114.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type). Decided in [0136](../decisions/0136.md).</sub>
 
 <a id="concurrency-map-preserves-keys-and-order"></a>
 
