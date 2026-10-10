@@ -5,16 +5,15 @@
 //     bun nv disk --clean -n    say what --clean would delete; delete nothing
 //     bun nv disk --deep        also size the places outside this repository
 //
-// Nothing here runs on the session path. The loop driver runs `clean`, the whole of `--clean`, after
-// every session's acceptance check, which is the one moment it knows nothing is building. A person runs
-// the same `--clean` by hand, and it refuses while a driver holds `.loop/running`, because a person
-// cannot see whether a session is mid-build.
+// Nothing here runs on the session path. `bun nv sweep` runs `clean`, the whole of `--clean`, after its
+// acceptance sweep, which is a moment nothing is building. A person runs the same `--clean` by hand, and
+// runs it only when no session is building, since sweeping `target/` under a live build can break it.
 //
 // Cargo never garbage-collects `target/`. A crate's artifacts are named `<name>-<metadata-hash>`, and
 // the hash covers the dependency graph, so every `Cargo.toml` or `Cargo.lock` edit mints a fresh
 // generation for every crate downstream of it and orphans the previous one. `.loop/logs` and
 // `.agent-tmp` only grow unless something deletes from them. An unattended run that fills the disk dies
-// with the tree half-edited, so the driver checks free space before it starts (`MIN_FREE_GB`).
+// with the tree half-edited, so a run checks free space before it starts (`MIN_FREE_GB`).
 //
 // Age alone never condemns anything in `deps/`. Cargo never rewrites an artifact it has decided is
 // fresh, so a superseded generation and a live one can carry the same date. The live set is asked for
@@ -72,7 +71,7 @@ const TARGET = join(ROOT, "target");
 const PROOF_PROFILE = "proof";
 const LOGDIR = join(ROOT, ".loop", "logs");
 const SCRATCH = join(ROOT, ".agent-tmp");
-const RUNNING = join(ROOT, ".loop", "running");
+
 /** The live set the last sweep asked cargo for, and the `liveKey` it was asked under. */
 const LIVE_CACHE = join(CACHE, "nv-disk-live.json");
 
@@ -85,7 +84,7 @@ export const SCRATCH_DAYS = 2;
 export const WORKTREES = "worktrees";
 /** `target/*\/incremental`: cache generations kept per crate. */
 export const KEEP_INCREMENTAL = 2;
-/** Below this, the loop driver will not start a run. */
+/** Below this, a run does not start: `looper.toml`'s `min_free_gb` and `bun nv side --prepare`. */
 export const MIN_FREE_GB = 10;
 /** `target/`: nothing written more recently than this is swept, whatever cargo says. */
 export const GRACE_HOURS = 2;
@@ -724,8 +723,8 @@ export interface CleanOptions {
 
 /**
  * The whole of `--clean`, as the bytes freed per part. `target/deps` is null when cargo could not name
- * the live set, and `deps/` was then left alone. The command a person types and the sweep the driver
- * runs are this one function under the same policy.
+ * the live set, and `deps/` was then left alone. The command a person types and `bun nv sweep` run
+ * this one function under the same policy.
  */
 export async function clean(opts: CleanOptions = {}): Promise<Record<string, number | null>> {
   const dryRun = opts.dryRun ?? false;
@@ -761,7 +760,7 @@ export function total(freed: Record<string, number | null>): number {
   return Object.values(freed).reduce<number>((sum, n) => sum + (n ?? 0), 0);
 }
 
-/** One line per part of a `clean` result, printed alike by `--clean` and by the driver. */
+/** One line per part of a `clean` result, printed alike by `--clean` and by `bun nv sweep`. */
 export function freedLines(freed: Record<string, number | null>, verb = "freed"): string[] {
   return Object.entries(freed).map(([name, n]) =>
     n === null
@@ -774,7 +773,7 @@ export function freedLines(freed: Record<string, number | null>, verb = "freed")
 
 async function report(deep: boolean): Promise<void> {
   const drive = WINDOWS ? (/^[A-Za-z]:/.exec(ROOT)?.[0] ?? "/") : "/";
-  console.log(`free on ${drive}  ${fixed(freeGb(), 1)}G   (\`bun nv loop\` refuses to start a run below ${MIN_FREE_GB}G)`);
+  console.log(`free on ${drive}  ${fixed(freeGb(), 1)}G   (a loop run does not start below ${MIN_FREE_GB}G)`);
   console.log();
 
   const [target, logs, scratchDir] = await Promise.all([walk(TARGET), walk(LOGDIR), walk(SCRATCH)]);
@@ -968,15 +967,6 @@ export async function run(args: string[]): Promise<number> {
     return 0;
   }
 
-  // A driver is mid-run, so cargo may be writing target/ right now. Sweeping under a live build is the
-  // one way this could break something rather than merely cost a rebuild; the driver runs this same
-  // `clean` itself after every session, where it knows none is.
-  if (existsSync(RUNNING)) {
-    console.log("a loop driver holds .loop/running -- stop it first.");
-    console.log("Sweeping target/ under a running build is the one thing here that is not safe;");
-    console.log("the driver sweeps on its own after every session's acceptance check.");
-    return 2;
-  }
 
   const before = freeGb();
   const freed = await clean(opts);

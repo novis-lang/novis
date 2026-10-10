@@ -1,17 +1,16 @@
 // What the sweep after a session runs besides the acceptance sweep: the two goal-end gates and the disk.
-// `bun nv sweep` (`cmd/sweep.ts`) calls them, by hand, from a hook or in-process from the driver's turn.
+// `bun nv sweep` (`cmd/sweep.ts`) calls them, by hand or from a hook.
 //
 // **The goal-end gates** run on a sweep that would reach the goal, and a goal is not reached while either
 // is red. The rustdoc gate is `bun nv verify --doc`: a broken intra-doc link stops no build, so a goal in
 // progress may carry one, and what has to be clean is the tree a goal leaves behind. The owner gate is
 // `bun nv owners --closes <slug>`: a gap record still naming the goal is a tag, not a build, and the
 // floor's own check of it would only fire one goal late, once the goal has walked. Each writes its standing verdict to its file under `.loop/`, `{ when, failed, session }`,
-// which `nv orient` prints to the next session; a red gate holds the goal open without ending the run.
+// for the next session to read; a red gate holds the goal open without ending the run.
 //
 // **The disk.** A run refuses to start below `--min-free-gb`, since a run that fills the disk dies inside a
 // session with the tree half edited. `sweepDisk` is `nv disk --clean`'s sweep, run in-process after every
-// session's acceptance sweep: `nv disk --clean` itself refuses while `.loop/running` exists, and the sweep
-// after a session runs when nothing is building.
+// session's acceptance sweep, which runs when nothing is building.
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
