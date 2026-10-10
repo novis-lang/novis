@@ -1,12 +1,6 @@
 {
   "live": "looper-cutover",
   "goals": [
-    "looper-cutover",
-    "decision-records-retired",
-    "class-scoped-enums",
-    "nvs-code",
-    "env-context",
-    "pdf",
-    "spreadsheet"
+    "looper-cutover"
   ]
 }

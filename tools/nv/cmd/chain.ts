@@ -22,7 +22,8 @@
 //   - a side goal has no checks, which is one that has landed: its files are deleted, never kept;
 //   - prose names a goal by its number, which is a position and moves;
 //   - a Markdown file names a goal that is neither on the chain nor a side goal (`goneCitations`). A
-//     goal's own files under `docs/agent/goals/` and the frozen records under `docs/decisions/` are exempt;
+//     goal's own files, under `docs/agent/goals/` or looper's `docs/goals/`, and the frozen records under
+//     `docs/decisions/` are exempt;
 //   - a goal's `context` names a shape or a playbook bullet that is not there (`nv orient`'s
 //     `manifestFindings`, over every goal still to be reached and every side goal with checks).
 // A note is something a reader misses: a goal not yet reached with no `## Why here` or no
@@ -53,6 +54,8 @@ export const summary = "the loop's goal chain, over data/chain.json: nv chain --
 
 const GOALS = "docs/agent/goals";
 const README = `${GOALS}/README.md`;
+/** Looper's goal files, which hold the goals the cutover moved off this chain. */
+const LOOPER_GOALS = "docs/goals";
 
 /** A goal's own header, the one place a number still stands until the prose is renamed by slug. */
 const SHOWN_HEADER = /#\s*Loop goal \d+|#\s*Goal \d+ --|\*\*Goal \d+ —/g;
@@ -75,11 +78,12 @@ async function shownFiles(): Promise<string[]> {
 
 /**
  * Every goal a Markdown file names by a slug `known` does not hold, as `path:line  text`. A goal's own
- * files and the frozen decision records are exempt: the first are deleted with their goal, and the
- * second keep the citation they were written with.
+ * files, in either goal directory, and the frozen decision records are exempt: the first are deleted
+ * with their goal, and the second keep the citation they were written with.
  */
 export function goneCitations(path: string, text: string, known: Set<string>): string[] {
-  if (!path.endsWith(".md") || path.startsWith(`${GOALS}/`) || path.startsWith("docs/decisions/")) return [];
+  const exempt = [`${GOALS}/`, `${LOOPER_GOALS}/`, "docs/decisions/"];
+  if (!path.endsWith(".md") || exempt.some((d) => path.startsWith(d))) return [];
   const out: string[] = [];
   text.split("\n").forEach((line, i) => {
     for (const m of line.matchAll(SLUG_CITE)) if (!known.has(m[1]!)) out.push(`${path}:${i + 1}  ${m[0]}`);
