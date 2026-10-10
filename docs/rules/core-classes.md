@@ -814,7 +814,12 @@ What survives is the roster that names no type: `isEmail`, `isIp`, `isMac`, `isD
 `isPrintable`. None has an `as` equivalent, because none names a type
 ([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)).
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`types/conversion`](types.md#types-conversion). Decided in [0066](../decisions/0066.md), [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **Keeping `isInteger`, `isFloat` and `isBoolean`.** A validation class with `isEmail` and no
+  `isInteger` reads as a hole, but the hole is only apparent: the removed three name types and the
+  survivors name formats, and only a type has an `as`.
+
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`types/conversion`](types.md#types-conversion). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-secret-reveal"></a>
 

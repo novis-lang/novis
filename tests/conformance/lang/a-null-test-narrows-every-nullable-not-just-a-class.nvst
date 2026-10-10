@@ -2,7 +2,7 @@
 A `!= null` test narrows a `?T` local to whatever dropping `null` leaves — an array, a scalar, a class — and the narrowed local is readable, indexable, writable and iterable (`rule:expressions/nullable-conversion`, `rule:types/conversion` and `rule:types/arrays`)
 --FILE--
 <?nvs
-// ADR 0066: `null` is dropped on the branch the test proves, and what is
+// `null` is dropped on the branch the test proves, and what is
 // left is the whole residue. A `?array<T>` is the shape this case exists
 // for — it used to narrow nowhere at all, so every subscript on one was a
 // diagnostic however carefully it had been guarded.

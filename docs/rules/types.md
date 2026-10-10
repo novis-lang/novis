@@ -625,7 +625,7 @@ to the language.
   It is not visible in the parameter's declared type, and it is a second, weaker mechanism beside the
   type system.
 
-<sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing). Decided in [0066](../decisions/0066.md).</sub>
+<sub>See also [`types/constant-in-type-position`](types.md#types-constant-in-type-position), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/conversion`](types.md#types-conversion), [`types/narrowing`](types.md#types-narrowing).</sub>
 
 <a id="types-constant-in-type-position"></a>
 
@@ -960,7 +960,7 @@ It is its own **equality domain**: two keys are equal when they name the same pr
 ever equal to one, and ordering one is refused ([`types/ordering`](types.md#types-ordering)). `property` is a keyword only
 in type position — `$property`, a method named `property` and a class named `Property` are untouched.
 
-<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md).</sub>
+<sub>See also [`types/property-key-variance`](types.md#types-property-key-variance), [`types/property-key-access`](types.md#types-property-key-access), [`types/class-reference`](types.md#types-class-reference), [`types/conversion`](types.md#types-conversion). Decided in [0126](../decisions/0126.md), [0090](../decisions/0090.md).</sub>
 
 <a id="types-property-key-variance"></a>
 
@@ -1063,7 +1063,7 @@ every step out of it is an `as` a reviewer can see.
 - **`mixed` checked at its boundaries.** It would leave no way to say "this is untyped input"
   honestly, which is the one thing `mixed` is for.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0066](../decisions/0066.md), [0150](../decisions/0150.md), [0279](../decisions/0279.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0150](../decisions/0150.md), [0279](../decisions/0279.md).</sub>
 
 <a id="types-type-test"></a>
 
@@ -1220,7 +1220,7 @@ Narrowing never changes a binding's declared type ([`types/declaration`](types.m
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0066](../decisions/0066.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0270](../decisions/0270.md).</sub>
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md), [0270](../decisions/0270.md).</sub>
 
 <a id="types-conversion"></a>
 
@@ -1282,7 +1282,7 @@ reads the wrong value later.
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
   ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0054](../decisions/0054.md), [0066](../decisions/0066.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0144](../decisions/0144.md), [0237](../decisions/0237.md), [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
@@ -2011,7 +2011,7 @@ ever equal to one — `$cls == "Dog"` is exactly the string-as-a-class confusion
 and ordering one is refused with the other unordered types ([`types/ordering`](types.md#types-ordering)). A descriptor is
 immortal and process-wide, so holding one costs a word and frees nothing.
 
-<sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion). Decided in [0125](../decisions/0125.md), [0090](../decisions/0090.md), [0066](../decisions/0066.md), [0250](../decisions/0250.md).</sub>
+<sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion). Decided in [0125](../decisions/0125.md), [0090](../decisions/0090.md), [0250](../decisions/0250.md).</sub>
 
 <a id="types-class-reference-variance"></a>
 

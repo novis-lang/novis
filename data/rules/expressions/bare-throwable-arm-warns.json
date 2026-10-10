@@ -2,8 +2,7 @@
   "title": "An unbound `catch (Throwable)` arm that supplies a value is warned about",
   "status": "shipped",
   "because": [
-    "0119",
-    "0066"
+    "0119"
   ],
   "seeAlso": [
     "expressions/catch-arm-is-an-expression",

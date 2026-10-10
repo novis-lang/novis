@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0126",
-    "0090",
-    "0066"
+    "0090"
   ],
   "seeAlso": [
     "types/property-key-variance",

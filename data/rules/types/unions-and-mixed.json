@@ -2,7 +2,6 @@
   "title": "A union permits only what every member permits, and `mixed` is the one position checked nowhere",
   "status": "shipped",
   "because": [
-    "0066",
     "0150",
     "0279"
   ],

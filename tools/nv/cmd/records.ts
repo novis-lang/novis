@@ -35,7 +35,7 @@ const GOAL_FILE = "docs/goals/decision-records-retired.md";
 /** The test of `DECISION`, whose fixtures cite record numbers that need not be on disk. */
 const PROSE_TEST = "tools/nv/test/prose.test.ts";
 
-/** A link to a record, from a record (`(0066.md)`) or from a `docs/adr/` file (`(../decisions/0066.md)`). */
+/** A link to a record, from a record (`(NNNN.md)`) or from a `docs/adr/` file (`(../decisions/NNNN.md)`). */
 const RECORD_LINK = /\]\((?:\.\.\/decisions\/)?(\d{4})\.md(?:#[^)]*)?\)/g;
 /** A relative link that leaves the directory, whose target must be on disk. */
 const PARENT_LINK = /\]\((\.\.\/[^)#]+)(?:#[^)]*)?\)/g;

@@ -135,7 +135,11 @@ than this one.
 
 No warning code is allocated yet, and `nvs check` does not emit this today.
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns). Decided in [0066](../decisions/0066.md).</sub>
+**Declined:**
+- **Refusing a `?T` condition outright.** It is the strongest guard against the trap, but it changes
+  [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions) for every nullable value rather than for conversions.
+
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns).</sub>
 
 <a id="expressions-misread-grouping-warns"></a>
 
@@ -486,7 +490,27 @@ the throwing form — a value that gates access is converted with plain `as T`.
 There is one definition and no family that escapes it: every `as ?T` is the `as T` of the conversion
 table, with `null` where it throws ([`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability)).
 
-<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0066](../decisions/0066.md).</sub>
+The form exists because an absent page number or an unfilled filter is an ordinary outcome, not an
+error, and the only other way to reach it is to check and then convert. That parses the same bytes
+twice on the request path and needs two definitions of success to agree forever; one operator over
+one table is one parse and one definition. `?T` is already the one way to write a value that may be
+absent ([`classes/no-undefined-value`](classes.md#classes-no-undefined-value)), so the operator produces an existing type and adds no
+syntax: `as` already takes a type, and `?int` is one.
+
+**Declined:**
+- **Refusing a nullable operand.** It keeps "missing" and "invalid" apart in the syntax, but it does
+  not prevent the conflation: `($raw ?? '') as ?uint ?? 1` collapses the same two states. It would
+  only charge a line on the most common shape in the language.
+- **A `Core` member per scalar target, such as `Str::toIntOrNull` or `Int::tryParse`.** The name
+  shapes are banned ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)), and it needs one member per target type forever,
+  where an operator covers every type, including ones added later.
+- **A `Result` or `Either` return that says why a conversion failed.** There is no sum type, and
+  adding one to avoid a `null` test is a decision about the whole language.
+- **Rewriting PHP's `(int)$x` to `$x as ?int ?? 0`.** It would restore the silent zero that
+  [`types/no-legacy-cast`](types.md#types-no-legacy-cast) removes, and it is not even faithful: `(int)"12abc"` is `12` in PHP and
+  `null` here. A converter names both forms and lets the author choose.
+
+<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/try-parse`](expressions.md#expressions-try-parse).</sub>
 
 <a id="expressions-nullable-conversion-availability"></a>
 
@@ -510,13 +534,21 @@ Keep the last three rows straight: **a conversion that exists and failed is `nul
 does not exist is a diagnostic.** From `mixed` every conversion exists, so `$mixed as ?int` is `null`
 for a value holding an array, while a statically-known `array<int>` never compiles. A `?T` that can
 never be `null` is a lie in the type and forces a pointless check downstream, which is why the
-cannot-fail row is refused rather than allowed as a harmless spelling.
+cannot-fail row is refused rather than allowed as a harmless spelling. A conversion that does not
+exist stays a diagnostic because otherwise `as ?T` would be a universal escape hatch that erases
+genuine type errors.
 
 **The class row is absolute and admits no roster of blessed names.** `as ?T` spells a downcast in
 every language a reader arrives from, and it never spells a parse: text becomes a value through that
 class's own reader ([`expressions/try-parse`](expressions.md#expressions-try-parse)).
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0066](../decisions/0066.md).</sub>
+**Declined:**
+- **A roster of class targets that parse, such as `$s as ?Core\Uri`.** It inverts what `as?` means in
+  Swift and Kotlin, for a few memorized class names while every other class stays a diagnostic. It
+  also removes no spelling: `Core\Uri::parse($s)` exists either way, so the operator only moves the
+  parse onto the harder of the two to read.
+
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused).</sub>
 
 <a id="expressions-conversion-keeps-qualifiers"></a>
 
@@ -536,7 +568,7 @@ already launders, `as ?T` launders exactly as much and no more.
 does not already have, and laundering stays what it is elsewhere: the narrow, sink-named `Core`
 members that declare it.
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0066](../decisions/0066.md).</sub>
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability).</sub>
 
 <a id="expressions-try-parse"></a>
 
@@ -565,9 +597,22 @@ right control flow, and a second launderer to audit is not worth one saved `catc
 **No separate validity predicate stands beside a parser.** `isValid` members do not exist: a
 validity question and its parse answered by two pieces of code is exactly the shape behind
 CVE-2024-5458, where one validator accepted user-info that the parser read differently. Ask the
-parsed value instead — `Core\Uri::tryParse($s)?->scheme() != null` is the absolute-URI test.
+parsed value instead — `Core\Uri::tryParse($s)?->scheme() != null` is the absolute-URI test. A
+reader on the parsed value cannot disagree with the parse the way a separate predicate can.
 
-<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion). Decided in [0066](../decisions/0066.md), [0063](../decisions/0063.md).</sub>
+The ban on `try…` names ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) admits this one shape because nothing else
+reaches it. A `Core` member either throws or returns a `?T` that means absence, and a malformed
+string is neither an absence nor something a scalar operator can convert. `tryParse` is not the
+scalar `…OrNull` family readmitted: it exists only where `as ?T` does not reach, one member per class
+with a failable single-`string` parse.
+
+**Declined:**
+- **Making `parse` itself return `?T` and deleting the throwing form.** `?T` would then mean absence
+  in one member and failure in another. And the `ParseError` a parse throws lists every offending
+  field at once, each located by a dotted path, which a bare `null` discards: that costs little for a
+  `Uri` and everything for a CSV or a decoded object ([`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field)).
+
+<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="expressions-preparation-preserves-behaviour"></a>
 
@@ -806,7 +851,7 @@ The warning names the two honest spellings: name the class the site expects, or 
 it. It is a warning rather than an error because the hazard is a habit and not a type error, and
 `nvs check` is where habits are named.
 
-<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint). Decided in [0119](../decisions/0119.md), [0066](../decisions/0066.md).</sub>
+<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint). Decided in [0119](../decisions/0119.md).</sub>
 
 <a id="expressions-catch-lowers-to-block-form"></a>
 

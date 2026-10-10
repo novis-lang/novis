@@ -1,9 +1,7 @@
 {
   "title": "`as ?T` is refused where the conversion cannot fail, where none exists, and at every class target",
   "status": "shipped",
-  "because": [
-    "0066"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/nullable-conversion",
     "expressions/try-parse",

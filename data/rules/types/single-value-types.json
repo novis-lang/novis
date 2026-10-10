@@ -1,9 +1,7 @@
 {
   "title": "A `string` or `int` value in type position is a single-value type, and a union of them is a set of allowed values",
   "status": "shipped",
-  "because": [
-    "0066"
-  ],
+  "because": [],
   "seeAlso": [
     "types/constant-in-type-position",
     "types/enum-case-type",

@@ -1095,7 +1095,7 @@ whether the content is safe for a given sink, and a conversion that laundered he
 bypass of every rule below. All of it is decided while checking: no tag at run time, nothing on the
 request path.
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0066](../decisions/0066.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="security-sink-predicate"></a>
 
@@ -1652,7 +1652,7 @@ preserve `tainted`.
   answer, since a shape proof does not reduce confidentiality. It is held back for consistency between
   the two axes, and is the change to make if numeric credentials are seen leaking past a conversion.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/taint-propagation`](security.md#security-taint-propagation), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0066](../decisions/0066.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/taint-propagation`](security.md#security-taint-propagation), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers).</sub>
 
 <a id="security-secret-sinks-refuse"></a>
 
