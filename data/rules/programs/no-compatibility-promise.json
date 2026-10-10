@@ -2,7 +2,6 @@
   "title": "The PHP-shaped syntax is an on-ramp, and no document may promise compatibility",
   "status": "shipped",
   "because": [
-    "0080",
     "0152",
     "0274"
   ],

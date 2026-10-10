@@ -634,7 +634,7 @@ happens, so an invisible mutation is a security question and not a matter of tas
 - **The marker inferred at the call, with a warning where it is missing.** That is the compiler filling it
   in, which the paragraph above already rules out.
 
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0080](../decisions/0080.md).</sub>
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local).</sub>
 
 <a id="statements-an-inout-argument-is-a-local"></a>
 

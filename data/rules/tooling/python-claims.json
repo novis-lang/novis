@@ -2,8 +2,7 @@
   "title": "Against Python, Novis claims the tool that gets handed over; \"faster than Python\" and \"replaces Python\" are forbidden",
   "status": "shipped",
   "because": [
-    "0100",
-    "0080"
+    "0100"
   ],
   "seeAlso": [
     "programs/audience",

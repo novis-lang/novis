@@ -2,8 +2,7 @@
   "title": "`nvs new` writes an application that runs before it is edited",
   "status": "designed",
   "because": [
-    "0082",
-    "0080"
+    "0082"
   ],
   "seeAlso": [
     "programs/first-party-framework",

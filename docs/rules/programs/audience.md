@@ -22,3 +22,22 @@ not end where a typed, incompatible dialect of an existing language ended before
 compatibility it could not hold, and Novis depends on that compatibility at no point, ships the
 framework rather than waiting for an ecosystem to appear, and differentiates on properties an
 incumbent cannot acquire in a minor release.
+
+**No audience is deliberately second among web teams.** A PHP team modernising and a greenfield
+backend choosing between Go and Node are served by the same language and the same three claims. What
+the first is refused is a compatibility promise (`rule:programs/no-compatibility-promise`), and what
+the second is refused is a speed-only argument (`rule:programs/three-claims`). A language with no
+ecosystem is chosen for a service being built rather than one already running: that bounds *when* a
+team can pick Novis, not *which* teams it is for.
+
+**Declined:**
+- **PHP teams modernising as the audience.** The value on offer would depend on a migration Novis
+  cannot perform, since such a team cannot bring its framework, its packages or most of its code. That
+  is the position the incompatible typed dialect held, and lost.
+- **A narrow first segment, such as multi-tenant and regulated platforms, ranking every slice.** It
+  describes the qualifiers and the isolation as one vertical's requirement when they are the
+  language's ordinary behaviour, and tells every other team the language is not for them. That
+  segment is where the properties pay most, and it stays named as that.
+- **No named audience at all.** It ranks slices silently by what is interesting rather than by what
+  is blocking, and produces a language with no dependency story and no framework, the two things
+  every user meets first (`rule:programs/slice-ranking`).

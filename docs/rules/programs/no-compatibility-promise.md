@@ -37,3 +37,6 @@ whose file name mentions PHP keep their names.
 - **A compatibility package that carries PHP's semantics** — an integer-keyed array class, a loose
   comparison helper, byte-counting string functions. Each one is a difference in a result, not a
   missing destination, and a package for it lets a ported program stay on PHP's semantics forever.
+- **A clean-sheet syntax with no PHP shape.** It would remove the association and the temptation to
+  promise compatibility, and it would throw away a syntax that is good, implemented and familiar.
+  The harm is the promise, and this rule removes the promise while keeping the syntax.

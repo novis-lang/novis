@@ -36,7 +36,26 @@ compatibility it could not hold, and Novis depends on that compatibility at no p
 framework rather than waiting for an ecosystem to appear, and differentiates on properties an
 incumbent cannot acquire in a minor release.
 
-<sub>See also [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/slice-ranking`](programs.md#programs-slice-ranking), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0080](../decisions/0080.md), [0100](../decisions/0100.md).</sub>
+**No audience is deliberately second among web teams.** A PHP team modernising and a greenfield
+backend choosing between Go and Node are served by the same language and the same three claims. What
+the first is refused is a compatibility promise ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)), and what
+the second is refused is a speed-only argument ([`programs/three-claims`](programs.md#programs-three-claims)). A language with no
+ecosystem is chosen for a service being built rather than one already running: that bounds *when* a
+team can pick Novis, not *which* teams it is for.
+
+**Declined:**
+- **PHP teams modernising as the audience.** The value on offer would depend on a migration Novis
+  cannot perform, since such a team cannot bring its framework, its packages or most of its code. That
+  is the position the incompatible typed dialect held, and lost.
+- **A narrow first segment, such as multi-tenant and regulated platforms, ranking every slice.** It
+  describes the qualifiers and the isolation as one vertical's requirement when they are the
+  language's ordinary behaviour, and tells every other team the language is not for them. That
+  segment is where the properties pay most, and it stays named as that.
+- **No named audience at all.** It ranks slices silently by what is interesting rather than by what
+  is blocking, and produces a language with no dependency story and no framework, the two things
+  every user meets first ([`programs/slice-ranking`](programs.md#programs-slice-ranking)).
+
+<sub>See also [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/slice-ranking`](programs.md#programs-slice-ranking), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0100](../decisions/0100.md).</sub>
 
 <a id="programs-three-claims"></a>
 
@@ -52,6 +71,11 @@ Novis claims exactly three things about itself, and each is a property no incumb
 3. **Suspension has no colour** — any function may yield, so there is no `async` split through the
    library.
 
+The first claim is the strongest. In every incumbent language taint checking is an external scanner
+sold as its own product, because a type qualifier cannot be added to that language without breaking
+the programs it already runs; `secret` has the same shape. A competitor closes a gap in a type system
+with a minor release, and it cannot close this one.
+
 **"Faster than PHP" is retired as a headline claim.** It remains true, it remains measured, and it is
 the right thing to put in a benchmark table; as a *reason to adopt* it compares against a deployment
 nobody defends, and the margin over a modern one does not pay for a rewrite. Latency and throughput
@@ -60,7 +84,7 @@ project says about itself first. The landing page, the tutorial and the first ex
 isolate and a qualifier, never with a benchmark and never with a PHP comparison. A PHP comparison page
 may exist; it is not the front door.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0080](../decisions/0080.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="programs-no-compatibility-promise"></a>
 
@@ -107,8 +131,11 @@ whose file name mentions PHP keep their names.
 - **A compatibility package that carries PHP's semantics** — an integer-keyed array class, a loose
   comparison helper, byte-counting string functions. Each one is a difference in a result, not a
   missing destination, and a package for it lets a ported program stay on PHP's semantics forever.
+- **A clean-sheet syntax with no PHP shape.** It would remove the association and the temptation to
+  promise compatibility, and it would throw away a syntax that is good, implemented and familiar.
+  The harm is the promise, and this rule removes the promise while keeping the syntax.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0080](../decisions/0080.md), [0152](../decisions/0152.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0152](../decisions/0152.md), [0274](../decisions/0274.md).</sub>
 
 <a id="programs-slice-ranking"></a>
 
@@ -135,7 +162,7 @@ binds the plan, in this order:
   than an optimisation. The single-application case loses nothing by it, which is what makes this a
   tie-break rather than a priority.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0080](../decisions/0080.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="programs-memory-priority"></a>
 
@@ -813,4 +840,4 @@ The scaffold is a load-bearing artifact. It is the first experience, so it is he
 own standard: tested on Windows, Linux and macOS as a first-class CI job, and a change that breaks it
 is a regression.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience). Decided in [0082](../decisions/0082.md), [0080](../decisions/0080.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience). Decided in [0082](../decisions/0082.md).</sub>
