@@ -598,7 +598,7 @@ It is a separate feature needing its own definite-assignment analysis pointed at
 properties, and nothing asks for it. This is recorded so it is not reopened as a corollary of the `inout`
 spelling.
 
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0107](../decisions/0107.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0107](../decisions/0107.md).</sub>
 
 <a id="statements-ampersand-is-not-a-by-reference-marker"></a>
 

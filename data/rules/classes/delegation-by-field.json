@@ -2,8 +2,7 @@
   "title": "`implements I by $field` forwards every member `I` requires to that property",
   "status": "shipped",
   "because": [
-    "0043",
-    "0022"
+    "0043"
   ],
   "seeAlso": [
     "classes/no-traits",

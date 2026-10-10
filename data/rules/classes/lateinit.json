@@ -1,9 +1,7 @@
 {
   "title": "A `lateinit` property is assigned after the constructor rather than inside it",
   "status": "shipped",
-  "because": [
-    "0022"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/lateinit-restrictions",
     "classes/lateinit-read-before-write",

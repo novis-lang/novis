@@ -1,9 +1,7 @@
 {
   "title": "A constructor is an ordinary method named `constructor`, and `__construct` does not compile",
   "status": "shipped",
-  "because": [
-    "0022"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/no-leading-underscore-identifiers",
     "classes/definite-property-initialization",

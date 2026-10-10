@@ -2,8 +2,7 @@
   "title": "A constructor's `return` carries no value; a bare `return;` may still leave early",
   "status": "designed",
   "because": [
-    "0124",
-    "0022"
+    "0124"
   ],
   "seeAlso": [
     "classes/constructor-is-a-method-named-constructor",

@@ -167,7 +167,7 @@ mechanical rename for every converted class, which is the cheapest kind of break
   for the same reason `__construct` does, and `init` or `new` could collide with an ordinary method
   that has its own meaning.
 
-<sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods). Decided in [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/no-leading-underscore-identifiers`](classes.md#classes-no-leading-underscore-identifiers), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods).</sub>
 
 <a id="classes-promotion-is-constructor-only"></a>
 
@@ -188,7 +188,7 @@ inherited, initialized by the binding itself
 ([`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization)), namable by an `implements ... by $field` clause, and
 carrying whatever qualifiers its type does.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../decisions/0043.md), [0022](../decisions/0022.md), [0094](../decisions/0094.md).</sub>
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field). Decided in [0043](../decisions/0043.md), [0094](../decisions/0094.md).</sub>
 
 <a id="classes-constructor-compatibility"></a>
 
@@ -210,7 +210,7 @@ through a class reference is nobody's problem, and refusing it at its declaratio
 unrelated file's `new` the reason a class cannot be written. The cost is one hierarchy-wide question
 asked per dynamic `new` site; `new Dog()` pays nothing.
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0125](../decisions/0125.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0125](../decisions/0125.md).</sub>
 
 <a id="classes-definite-property-initialization"></a>
 
@@ -234,12 +234,26 @@ constructor that forgot it. One analysis over two binding kinds turns that into 
 cause.
 
 Two exemptions are declared rather than implicit: a `lateinit` property ([`classes/lateinit`](classes.md#classes-lateinit)), and
-a virtual property with a `get` hook and no backing slot, which has nothing to initialize. Neither
+a property with a hook. A virtual property with a `get` hook and no backing slot has nothing to
+initialize, and the check has no model of a `set` hook's body, so it cannot tell whether the hook
+commits a value; it never refuses a hook that does. Neither
 copy depth reopens the gap — `clone` starts from a live object and cannot produce a less initialized
 one, and the graph copy either copies a live source or refuses a payload missing a declared property
 ([`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format)).
 
-<sub>See also [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`types/declaration`](types.md#types-declaration). Decided in [0022](../decisions/0022.md), [0043](../decisions/0043.md), [0023](../decisions/0023.md).</sub>
+What it spends is strictness PHP does not have: PHP compiles a constructor that leaves a typed property
+unset on some path and fails only when that path is read, so PHP source with such a gap needs a fix,
+not just a recompile.
+
+**Declined:**
+- **A runtime-only throw with no compile-time check.** It finds the mistake at a read far from its
+  cause, and gives up the one analysis that already serves locals.
+- **A silent per-type default.** A plausible zero hides the missing assignment
+  ([`classes/no-undefined-value`](classes.md#classes-no-undefined-value)).
+- **An `undefined` value for the unassigned state.** It widens every declared type
+  ([`classes/no-undefined-value`](classes.md#classes-no-undefined-value)).
+
+<sub>See also [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`types/declaration`](types.md#types-declaration). Decided in [0043](../decisions/0043.md), [0023](../decisions/0023.md).</sub>
 
 <a id="classes-no-undefined-value"></a>
 
@@ -262,7 +276,7 @@ loud failure, because "forgot to initialize" then looks identical to "legitimate
 remains for the case static analysis cannot reach is a throw, never a value
 ([`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws)).
 
-<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed).</sub>
 
 <a id="classes-an-unwritten-property-read-throws"></a>
 
@@ -282,12 +296,14 @@ reflection builds no object without running its constructor
 ([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
 
 Internally the slot carries one non-user-observable "never written" marker, distinct from every legal
-value including `null`. It is not an entry in the type system and no expression produces one. It costs
-zero additional bytes per property: the tagged value representation already had a spare discriminant,
-and the compiled read goes by the payload — null in this state and in no other, because `lateinit` is
-restricted to a non-nullable class or interface type.
+value including `null`. It is not an entry in the type system and no expression produces one. The
+compiled read goes by the payload, which is null in this state and in no other, because `lateinit` is
+restricted to a non-nullable class or interface type: one compare on a pointer already loaded.
 
-<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/lateinit`](classes.md#classes-lateinit), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0022](../decisions/0022.md).</sub>
+- **Memory:** zero additional bytes per property. The marker is a spare discriminant of the tagged
+  value every property already has.
+
+<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/lateinit`](classes.md#classes-lateinit), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder).</sub>
 
 <a id="classes-lateinit"></a>
 
@@ -322,7 +338,7 @@ same rule.
   count that a freely reassignable property does not, and `lateinit readonly` is refused
   ([`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions)).
 
-<sub>See also [`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions), [`classes/lateinit-read-before-write`](classes.md#classes-lateinit-read-before-write), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions), [`classes/lateinit-read-before-write`](classes.md#classes-lateinit-read-before-write), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws).</sub>
 
 <a id="classes-lateinit-restrictions"></a>
 
@@ -344,7 +360,7 @@ opposite claims about one property rather than a composable pair.
 Each refusal is its own diagnostic, which is one more modifier and three more rejected combinations a
 developer has to learn are refused rather than silently allowed.
 
-<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`types/declaration`](types.md#types-declaration). Decided in [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`types/declaration`](types.md#types-declaration).</sub>
 
 <a id="classes-readonly-is-written-once"></a>
 
@@ -397,7 +413,7 @@ triggers it: it is a bonus, not a safety net to rely on.
   before which read it. The cases it would add are cross-method by nature, and the runtime throw
   already catches every one of them, so a second analysis would buy no safety.
 
-<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws).</sub>
 
 <a id="classes-no-dynamic-properties"></a>
 
@@ -444,7 +460,7 @@ including at depth. Everything else is refused, and the two shapes programs most
 named — a local, which is declared once and definitely assigned so there is no undefined state to
 return it to, and a temporary, which copy-on-write would separate into a slot nothing can write back.
 
-<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0028](../decisions/0028.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties), [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0028](../decisions/0028.md).</sub>
 
 <a id="classes-property-hooks"></a>
 
@@ -699,7 +715,7 @@ as it would be without the clause.
 It spends one pointer-sized property per delegated interface per instance, plus the delegate object,
 and that state is an ordinary property a reader can inspect.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0043](../decisions/0043.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/member-conflict-is-an-error`](classes.md#classes-member-conflict-is-an-error), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0043](../decisions/0043.md).</sub>
 
 <a id="classes-comparable"></a>
 
@@ -956,7 +972,7 @@ a declared `PropertyObserver` is told nothing about it
 No `__clone` runs, and no class can declare one. A class needing a duplicated nested collection
 exposes an explicit method and calls it, rather than overloading what `clone` means.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0023](../decisions/0023.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0023](../decisions/0023.md).</sub>
 
 <a id="classes-graph-copy"></a>
 
@@ -1082,7 +1098,7 @@ result, and nothing else can be. A bare `return;` remains legal as an early exit
 property is definitely assigned on that path — [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization) keeps
 checking it, unchanged. The fix is to drop the value.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0124](../decisions/0124.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0124](../decisions/0124.md).</sub>
 
 <a id="classes-a-readonly-property-declares-no-default"></a>
 

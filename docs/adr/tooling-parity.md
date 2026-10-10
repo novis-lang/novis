@@ -50,7 +50,7 @@ packages.
 
 PHPStan and Psalm exist because PHP's own compiler checks almost nothing. Novis's checker *is* the
 strict configuration: every binding typed with real generics ([0007](../decisions/0007.md)),
-definite property initialization ([0022](../decisions/0022.md)), `lateinit`
+definite property initialization (`rule:classes/definite-property-initialization`), `lateinit`
 read-before-write (`rule:classes/lateinit-read-before-write`), member existence and
 every-path-returns at compile time, literal regex/format/URI validation
 ([0057](../decisions/0057.md)), the route table checked while compiling

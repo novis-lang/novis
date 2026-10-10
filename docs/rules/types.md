@@ -39,7 +39,7 @@ or narrows is a diagnostic. There is no function-scope `static` and no global co
 a binding site at all ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)), and definite assignment
 holds with no exception: no binding is live on a call whose path never ran its initialiser.
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0251](../decisions/0251.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0251](../decisions/0251.md).</sub>
 
 <a id="types-var-inference"></a>
 
@@ -1655,7 +1655,7 @@ without declaring a class, and the carrier two anonymous functions use to share 
   run time, which [`classes/no-dynamic-properties`](classes.md#classes-no-dynamic-properties) closes. Every field is fixed where the
   anonymous object is written.
 
-<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/object-top`](types.md#types-object-top), [`types/implicit-capture`](types.md#types-implicit-capture). Decided in [0022](../decisions/0022.md), [0023](../decisions/0023.md).</sub>
+<sub>See also [`types/shape-type`](types.md#types-shape-type), [`types/object-top`](types.md#types-object-top), [`types/implicit-capture`](types.md#types-implicit-capture). Decided in [0023](../decisions/0023.md).</sub>
 
 <a id="types-shape-type"></a>
 
@@ -1759,7 +1759,7 @@ declared property observer behave here exactly as they do anywhere, because this
 and not a family of them — [`types/property-key-access`](types.md#types-property-key-access) and [`types/mixed-subscript`](types.md#types-mixed-subscript) are the
 same access one step along.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0022](../decisions/0022.md), [0126](../decisions/0126.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0007](../decisions/0007.md), [0126](../decisions/0126.md).</sub>
 
 <a id="types-class-reference"></a>
 

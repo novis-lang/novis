@@ -156,7 +156,7 @@ A test class's constructor therefore declares no parameters. One that does is re
 failing rather than pretended past: the runner constructs the class with no arguments, and a test
 method's own parameters are filled by [`testing/fixtures`](testing.md#testing-fixtures) and [`testing/data-rows`](testing.md#testing-data-rows) instead.
 
-<sub>See also [`testing/after-hook`](testing.md#testing-after-hook), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`testing/after-hook`](testing.md#testing-after-hook), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-after-hook"></a>
 

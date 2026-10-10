@@ -2,8 +2,7 @@
   "title": "There is no write-only `out` mode",
   "status": "shipped",
   "because": [
-    "0107",
-    "0022"
+    "0107"
   ],
   "seeAlso": [
     "statements/inout-is-the-by-reference-spelling"

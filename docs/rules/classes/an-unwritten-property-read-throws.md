@@ -10,7 +10,9 @@ reflection builds no object without running its constructor
 (`rule:security/reflection-enforces-visibility`).
 
 Internally the slot carries one non-user-observable "never written" marker, distinct from every legal
-value including `null`. It is not an entry in the type system and no expression produces one. It costs
-zero additional bytes per property: the tagged value representation already had a spare discriminant,
-and the compiled read goes by the payload — null in this state and in no other, because `lateinit` is
-restricted to a non-nullable class or interface type.
+value including `null`. It is not an entry in the type system and no expression produces one. The
+compiled read goes by the payload, which is null in this state and in no other, because `lateinit` is
+restricted to a non-nullable class or interface type: one compare on a pointer already loaded.
+
+- **Memory:** zero additional bytes per property. The marker is a spare discriminant of the tagged
+  value every property already has.

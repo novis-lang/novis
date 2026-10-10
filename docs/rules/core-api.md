@@ -896,7 +896,7 @@ this removes rather than relocates.
 `a_nullable_shape_field_omits_as_the_never_written_marker`, hold the pairing over every registered row.
 `Core\Uri::with` is the first member to spend it.
 
-<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0147](../decisions/0147.md), [0063](../decisions/0063.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0147](../decisions/0147.md), [0063](../decisions/0063.md), [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-a-nullable-field-omits-as-the-never-written-marker"></a>
 
@@ -926,7 +926,7 @@ The two guards in `crates/nvs-stdlib/src/registry.rs` —
 `a_nullable_shape_field_omits_as_the_never_written_marker` — assert exactly this pairing, one per
 spelling, over every registered row.
 
-<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-a-written-null-removes"></a>
 
@@ -979,7 +979,7 @@ that is a language-surface decision this one does not open. A native helper can 
 states by a test; a user's function body cannot be, and giving it a state it has no way to name would be
 exactly the observable marker this rule refuses.
 
-<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable). Decided in [0147](../decisions/0147.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable). Decided in [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-the-bag-abi-is-unchanged"></a>
 
@@ -1006,7 +1006,7 @@ every member registered today lowers to the same instructions and nothing needs 
 one instruction that materializes it, and `nvs_codegen`'s arm for that writes the tag byte over a
 zero payload. Every member registered before this lowers byte for byte as it did.
 
-<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/a-nullable-field-omits-as-the-never-written-marker`](core-api.md#core-api-a-nullable-field-omits-as-the-never-written-marker), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0147](../decisions/0147.md), [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-field-wise-precedence"></a>
 

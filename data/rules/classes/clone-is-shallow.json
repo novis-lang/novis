@@ -2,8 +2,7 @@
   "title": "`clone` copies an object's declared storage one level deep and shares every object it reaches",
   "status": "shipped",
   "because": [
-    "0023",
-    "0022"
+    "0023"
   ],
   "seeAlso": [
     "classes/two-copy-depths",

@@ -315,7 +315,7 @@ Running code chosen at run time is `spawn script`: in an isolate, spending the p
 `script.spawn` — which is what a template engine or a plugin loader actually needs, with a boundary
 `eval` never had.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0052](../decisions/0052.md), [0022](../decisions/0022.md), [0024](../decisions/0024.md), [0042](../decisions/0042.md), [0048](../decisions/0048.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0052](../decisions/0052.md), [0024](../decisions/0024.md), [0042](../decisions/0042.md), [0048](../decisions/0048.md).</sub>
 
 <a id="security-a-path-is-not-a-url"></a>
 
