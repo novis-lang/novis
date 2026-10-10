@@ -133,12 +133,12 @@ checks:
   - id: decision-records-retired-the-queued-goal-records-read-no-record
     stage: 3
     name: "the queued goals' records slice no record and name no record shape"
-    run: [git, grep, -n, -E, "\"adrs\": \\[$|\"A decision record\"|docs/decisions/", --, data/goals/class-scoped-enums.json, data/goals/pdf.json, data/goals/spreadsheet.json]
+    run: [git, grep, -n, -E, "adrs: \\[\"|A decision record", --, docs/goals/class-scoped-enums.md, docs/goals/pdf.md, docs/goals/spreadsheet.md]
     exit: nonzero
   - id: decision-records-retired-the-queued-goal-prose-writes-no-record
     stage: 3
     name: "the queued goals' prose cites no record and claims no record slot"
-    run: [git, grep, -n, -i, -E, "ADR [0-9]{4}|record slot|docs/adr/|docs/decisions/", --, docs/agent/goals/class-scoped-enums.md, docs/agent/goals/pdf.md, docs/agent/goals/spreadsheet.md]
+    run: [git, grep, -n, -i, -E, "ADR [0-9]{4}|record slot|docs/adr/|docs/decisions/", --, docs/goals/class-scoped-enums.md, docs/goals/pdf.md, docs/goals/spreadsheet.md]
     exit: nonzero
   - id: decision-records-retired-records-0002-to-0039-are-merged
     stage: 4
@@ -433,8 +433,8 @@ One file set: `docs/agent/conventions.md`, `tools/nv/cmd/records.ts`, `tools/nv/
 **Does:** Merges the records that the queued goals read, and rewrites those goals so that they write
 rule fragments.
 
-One file set: `docs/agent/goals/class-scoped-enums.md`, `pdf.md`, `spreadsheet.md`, their
-`data/goals/*.json` and `*.handoff.json`, and the rules the records below reach.
+One file set: `docs/goals/class-scoped-enums.md`, `pdf.md`, `spreadsheet.md`, and the rules the
+records below reach.
 
 - **The records first:** 0051, 0120, 0121, 0123, 0128, 0166, 0190, 0247. Every `[context] adrs` slice of
   the three goals names one of them. Each is merged the Stage 4 way. Content that a slice prints and that
