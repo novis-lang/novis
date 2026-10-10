@@ -1072,8 +1072,8 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
                 "this `errors` entry is not a `{status, type}`".to_owned(),
                 entry.span,
                 "not an anonymous object",
-                "§ 2 writes each entry as `{status: 404, type: Api\\NotFound::class}` — the two \
-                 halves of one error response",
+                "write each entry as `{status: 404, type: Api\\NotFound::class}`. The two \
+                 fields describe one error response",
                 env,
             );
             continue;
@@ -1090,7 +1090,7 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
                         format!("`{other}` is not part of an `errors` entry"),
                         other_span,
                         "no such field",
-                        "§ 2's entry carries a `status` and a `type` and nothing else",
+                        "an `errors` entry has a `status` and a `type` and nothing else",
                         env,
                     );
                 }
@@ -1125,8 +1125,8 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
                     "this `errors` entry declares no `status`".to_owned(),
                     entry.span,
                     "no `status`",
-                    "§ 2's entry pairs a status with the type returned at it — an entry naming \
-                     only one of the two describes no response",
+                    "an `errors` entry needs both a `status` and a `type`. An entry with only \
+                     one of them describes no response",
                     env,
                 );
                 None
@@ -1137,8 +1137,8 @@ fn check_api_errors(api: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Vec<Ap
                 "this `errors` entry declares no `type`".to_owned(),
                 entry.span,
                 "no `type`",
-                "§ 2's entry pairs a status with the type returned at it — an entry naming only \
-                 one of the two describes no response",
+                "an `errors` entry needs both a `status` and a `type`. An entry with only \
+                 one of them describes no response",
                 env,
             );
             continue;
@@ -1175,8 +1175,8 @@ fn check_error_type(
             "this `type` does not name a class".to_owned(),
             span,
             "not a `::class`",
-            "§ 2's `type` is the class the error response carries, written `Api\\NotFound::class` \
-             — a name resolves through `rule:programs/no-runtime-autoload`'s autoload map, which a string would not",
+            "`type` is the class of the error response. Write it as `Api\\NotFound::class`, \
+             not as a string",
             env,
         );
         return None;
@@ -1205,8 +1205,8 @@ fn check_error_type(
         format!("`{qname}` is not a class a handler could produce"),
         span,
         "abstract, an interface, or an enum",
-        "§ 2's `errors` may add a response the types cannot state, but not one whose type nothing \
-         could ever be — write the concrete class the handler answers this status with",
+        "write the concrete class that the handler returns with this status. No value can \
+         have an abstract class, an interface or an enum as its class",
         env,
     );
     None
@@ -1234,7 +1234,7 @@ fn check_api_example(
             "`example` is not an anonymous object".to_owned(),
             span,
             "not an anonymous object",
-            "§ 2's `example` is one instance of what the operation answers with, written \
+            "`example` is one value that the operation returns, written \
              `{field: value, …}`",
             env,
         );
@@ -1274,8 +1274,8 @@ fn check_api_example(
             format!("`{returns}` declares no `{name}`"),
             field_span,
             "no such field",
-            "§ 2's example is decoded by the codec the return type generates, so a key naming no \
-             property is a field that decode would reject",
+            "`example` is decoded as the return type. Every key must be a property of that \
+             class",
             env,
         );
     }
