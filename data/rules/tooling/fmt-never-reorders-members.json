@@ -1,9 +1,7 @@
 {
   "title": "`nvs fmt` never reorders class members, because declaration order is observable in what a program prints and sends",
   "status": "shipped",
-  "because": [
-    "0039"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/fmt-sorts-the-use-block",
     "core-classes/derive-field-list",

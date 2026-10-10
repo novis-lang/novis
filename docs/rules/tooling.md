@@ -575,7 +575,7 @@ Changing any of these rules later is a real diff across every already-formatted 
 change, so the rule set is stable once it ships. The formatter reads the lossless tree, never the strict
 parse that drops comments — a walk over the strict tree would delete every comment in the file.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree).</sub>
 
 <a id="tooling-fmt-base-style-is-per"></a>
 
@@ -605,7 +605,7 @@ accepts these in any order, which is exactly why the formatter must fix one — 
 `public static $x;` both compile and would otherwise never converge. A missing modifier is never
 supplied: a formatter that changes meaning is not a formatter ([`core-api/written-visibility`](core-api.md#core-api-written-visibility)).
 
-<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/lateinit`](classes.md#classes-lateinit). Decided in [0039](../decisions/0039.md), [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/lateinit`](classes.md#classes-lateinit). Decided in [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-never-reflows"></a>
 
@@ -635,7 +635,7 @@ existing parse tree rather than a width-fitting printer this project has no othe
 breaks a line at a place nobody would choose, and stays byte-for-byte deterministic as the parser
 evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)).
 
-<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0039](../decisions/0039.md), [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-a-list-is-one-line-or-one-item-per-line"></a>
 
@@ -794,7 +794,7 @@ This is the one rewrite, with [`tooling/fmt-trailing-commas`](tooling.md#tooling
 whitespace-only formatter was rejected because two semantically identical files would still differ
 byte-for-byte after formatting, which undercuts the point of having one canonical layout at all.
 
-<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent).</sub>
 
 <a id="tooling-fmt-trailing-commas"></a>
 
@@ -823,7 +823,7 @@ preserves; the comma follows from that decision mechanically. This removes the o
 leaves a genuinely free stylistic choice with no way to derive the right answer from context, and it is
 what makes adding an element to a multi-line list a one-line diff.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs). Decided in [0039](../decisions/0039.md), [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs). Decided in [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-sorts-the-use-block"></a>
 
@@ -840,7 +840,7 @@ form to order or to expand. This is the only reordering the formatter performs a
 keep the order their author wrote ([`tooling/fmt-never-reorders-members`](tooling.md#tooling-fmt-never-reorders-members)), because an import's
 position is not observable and a member's is.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reorders-members`](tooling.md#tooling-fmt-never-reorders-members), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-never-reorders-members`](tooling.md#tooling-fmt-never-reorders-members), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
 
 <a id="tooling-fmt-novis-constructs"></a>
 
@@ -879,7 +879,7 @@ Each construct with no PER precedent has one layout, chosen once:
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template). Decided in [0039](../decisions/0039.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md), [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template). Decided in [0169](../decisions/0169.md), [0173](../decisions/0173.md), [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
 
@@ -910,7 +910,7 @@ its case is a *rename*, which must reach every use site across the workspace, an
 single-file walk — that rename is an editor's workspace-wide code action. A duration unit and an open tag
 can be nothing else, which is why they and only they are here.
 
-<sub>See also [`types/duration`](types.md#types-duration), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`types/duration`](types.md#types-duration), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`core-api/casing-checks-the-leading-character`](core-api.md#core-api-casing-checks-the-leading-character), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="tooling-fmt-never-inserts-visibility"></a>
 
@@ -924,7 +924,7 @@ formatter that inserted `public` would make a file's *meaning* depend on whether
 over it, and would restore an implicit default for anyone who formats on save. A file that does not
 compile still does not compile after `nvs fmt`, and its author writes the level they mean.
 
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md), [0089](../decisions/0089.md), [0039](../decisions/0039.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md), [0089](../decisions/0089.md).</sub>
 
 <a id="tooling-fmt-never-reorders-members"></a>
 
@@ -945,7 +945,12 @@ A developer who wants the reordering can have it as a deliberate, diff-visible c
 is never something a formatter does on save. The `use` block ([`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block)) is
 the only reordering anywhere.
 
-<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`testing/bench-counters`](testing.md#testing-bench-counters), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/comparable`](classes.md#classes-comparable). Decided in [0039](../decisions/0039.md).</sub>
+**Declined:**
+- **A canonical member order**, as PHP-CS-Fixer's `ordered_class_elements` writes one. PER has no
+  member-ordering rule to defer to, so it would be a rule Novis invents, paid for in output bytes that
+  change at every site above.
+
+<sub>See also [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`testing/bench-counters`](testing.md#testing-bench-counters), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/comparable`](classes.md#classes-comparable).</sub>
 
 <a id="tooling-fmt-is-idempotent"></a>
 
@@ -968,7 +973,7 @@ layout. A formatter whose output depended only on the AST
 would have to choose every line break itself, which is exactly the width-fitting printer this design
 declines to build. What converges is one file, run twice — never two semantically identical files.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../decisions/0039.md), [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-is-never-a-diagnostic"></a>
 
@@ -994,7 +999,7 @@ Keeping the two contracts apart is what `--check` needs: it fails for exactly on
 never has to tell "laid out differently" from "semantically wrong". A separate `nvs fix` batch verb was
 declined for the same reason — a second rule table beside the formatter's, which no one has asked for.
 
-<sub>See also [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="tooling-fmt-check-writes-nothing"></a>
 
@@ -1014,7 +1019,7 @@ formatter is a fixed point ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt
 one thing only, since formatting and repair are never one command
 ([`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic)).
 
-<sub>See also [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent). Decided in [0039](../decisions/0039.md).</sub>
+<sub>See also [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent).</sub>
 
 <a id="tooling-doc-comment-is-three-slashes"></a>
 

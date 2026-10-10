@@ -2,7 +2,6 @@
   "title": "`nvs fmt` is a fixed point over the input bytes: byte-stable on every machine, and deliberately not source-independent",
   "status": "shipped",
   "because": [
-    "0039",
     "0267"
   ],
   "seeAlso": [
@@ -11,6 +10,7 @@
     "ide/one-server-two-thin-clients"
   ],
   "guardedBy": [
-    "crates/nvs-fmt/tests/corpus.rs"
+    "crates/nvs-fmt/tests/corpus.rs",
+    "crates/nvs-fmt/tests/fixtures.rs"
   ]
 }

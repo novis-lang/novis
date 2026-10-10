@@ -453,7 +453,7 @@ does `1h30m as int`; write `->toSeconds()`. `$n s` is not a duration; a computed
 renders `-1h30m` for a reader, and `parse` refuses that leading `-` **by name** rather than reading a
 positive value out of it.
 
-<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0070](../decisions/0070.md), [0046](../decisions/0046.md), [0057](../decisions/0057.md), [0062](../decisions/0062.md), [0039](../decisions/0039.md).</sub>
+<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0070](../decisions/0070.md), [0046](../decisions/0046.md), [0057](../decisions/0057.md), [0062](../decisions/0062.md).</sub>
 
 <a id="types-single-value-types"></a>
 

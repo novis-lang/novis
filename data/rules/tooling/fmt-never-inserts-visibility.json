@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0094",
-    "0089",
-    "0039"
+    "0089"
   ],
   "seeAlso": [
     "core-api/written-visibility",
