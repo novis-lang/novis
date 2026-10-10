@@ -6,7 +6,7 @@ context: [looper.toml, docs/agent/looper-cutover.md, tools/nv/main.ts, tools/nv/
 stages:
   - id: 1
     title: the first session under looper is the proof
-    status: open
+    status: done
   - id: 2
     title: the readers
     status: open
@@ -26,7 +26,7 @@ checks:
     run: [looper, doctor]
   - id: no-import-of-the-driver
     stage: 3
-    name: no file under `tools/` imports the driver or a deleted loop command
+    name: "no file under `tools/` imports the driver or a deleted loop command"
     run: [git, grep, -l, -E, "(driver/|cmd/(loop|chain|goal|session|orient|loop-stats|playbook))[a-z/-]*\\.ts", --, tools/]
     exit: nonzero
   - id: links
@@ -112,21 +112,22 @@ deleted, `bun nv links` is green, and so are `bun nv verify` and `looper lint`.
 
 ### State
 
-**Stage 1 is blocked on the user: both its checks need a change to `.claude/settings.json`.**
-`looper.toml`'s `[sync] skip` no longer lists that file. `bun nv verify` is green again: the handover's
-deletion of `data/chain.json` had turned `tools/nv/test/surfaces.test.ts`'s `loop --list` test red,
-and `crates/nvs-stdlib/tests/spec_registry_coverage.rs` panicked reading the file. That test now reads
-the chain from `docs/goals/README.md`'s front matter (`chain()`), and the `loop --list` test is gone.
+**Stage 1 is done.** The user's sync of `.claude/settings.json` landed, and `looper doctor` and
+`looper lint` both pass.
 
-- `looper doctor` fails on `.claude/settings.json:201`, `Bash(bunx tsc:*)`: `bunx` is not on PATH here,
-  and nothing in the tree runs it. `Bash(bun x tsc:*)` replaces it, and `looper sync` writes that entry.
-- `looper lint` and `looper sync --check` fail because the handover wrote only `Bash(looper:*)`,
-  `PowerShell(looper:*)` and the `looper guard` hook. Looper's template also wants its per-command
-  `looper` entries, `bun install`, `bun run`, `bun x tsc`, `cargo run`, `cargo tree` and
-  `cargo metadata`, for both shells.
+**Stage 2 has started: `tools/nv/lib/chain.ts` reads looper's goal files.** The chain is the `chain:`
+list of `docs/goals/README.md`, and its first slug is live. A goal's plan comes from its front matter
+through `planOf`: Novis's own fields come from `extra`, and each check's kind follows from its fields
+(`checkOf`). A side goal is a goal file off the chain. `bun nv pack` takes its default stage from the
+goal's first open stage (`liveStage`). Every command that imports `lib/chain.ts` now reads looper's
+files, so `bun nv plan --check` passes again. Its four Carried by cells and `Open now` were fixed to
+match.
 
-**The user's fix:** run `looper sync`, delete the `Bash(bunx tsc:*)` line, and commit
-`.claude/settings.json`. Then `looper doctor` and `looper lint` are expected to pass (*not checked*).
+The old driver's writes to its own data (`setLive`, `leaveGoal`, `goalFiles`, `oldLive`) moved to
+`tools/nv/driver/old-chain.ts`. Their only users are `cmd/loop.ts`, `cmd/goal.ts`,
+`driver/handover.ts` and the tests under `driver/test/`, and Stage 3 deletes all of them.
+`docs/agent/goal-plan.md` was re-rendered so `bun nv render --check` passes, and Stage 3 deletes it with
+its renderer.
 
 **For the user: `.claude/settings.json` loses entries in Stage 3.** Once the seven loop commands are
 deleted, its `bun nv` allow entries for `chain`, `goal`, `loop`, `loop-stats`, `orient`, `playbook` and
@@ -135,21 +136,31 @@ file, so removing them is the user's change.
 
 ### Next
 
-**Stage 1: the first session under looper is the proof** — one file set: `looper.toml`,
-`docs/agent/looper-cutover.md`.
+**Stage 2: the readers.** Files: `tools/nv/cmd/holes.ts`, `crates/nvs-ir/tests/refusals.rs`,
+`tools/nv/cmd/affected.ts`, `tools/nv/cmd/guard.ts`, `tools/nv/schema/index.ts`, `.github/workflows/ci.yml`.
 
-- [x] **The proof** — this session ran under looper, and `looper verify` is green.
-- [x] **The `[sync] skip` line** for `.claude/settings.json` is deleted from `looper.toml`.
-- [ ] **`looper doctor` and `looper lint`** — run both once the user's fix to `.claude/settings.json:201`
-  above lands. Then set
-  stage 1's status to `done`.
-
-**Then Stage 2: the readers** — `docs/agent/looper-cutover.md:117-149` names each one. Still open
-there: `crates/nvs-ir/tests/refusals.rs:95` (`HOLES_READS` lists `data/chain.json` and `data/goals`),
-`tools/nv/lib/chain.ts`, and the tests that read the chain.
+- [x] **`lib/chain.ts`** reads looper's goal files, and its consumers follow.
+- [ ] **`cmd/holes.ts:280`** names `data/goals/<slug>.json` as the live goal's path, and its head comment
+  at `:31` says the same. Both become `docs/goals/<slug>.md`.
+- [ ] **`crates/nvs-ir/tests/refusals.rs:95-96`**: `HOLES_READS` lists `data/chain.json` and
+  `data/goals`. It lists `docs/goals` instead.
+- [ ] **`cmd/affected.ts:57`** (`SESSION_BASE`, `.loop/session-start.json`) and `:119-130` take the
+  session base from looper's session base. `LOOPER_WRITTEN` says a loop session is running.
+- [ ] **`cmd/guard.ts:319`** (`GOAL_CHECKS`) and the `goal-grep` rule at `:371`, and the
+  `loop --goal-only|--run` refusal, move to `docs/goals/*.md` and looper's commands.
+- [ ] **`bun nv check`'s four schemas**: `schema/index.ts:10-17` registers `chain`, `goal`/`sideGoal`,
+  `handoff`/`sideHandoff` and the playbook records. They go with their data in Stage 3, so CI's
+  `bun nv check` (`ci.yml:915`) stops validating them.
+- [ ] **CI**: `ci.yml:939` (`bun nv chain --check`) and `:941` (`bun nv playbook --check`) are deleted,
+  because CI has no looper.
+- [ ] **`tools/nv/test/registers-reads.test.ts:11-16`** reads `data/playbook/`.
+- [ ] **The playbook trailers**, read at `tools/nv/lib/playbook-fragments.ts:19` (`EXPIRY`): every
+  bullet under `docs/agent/playbook/` still ends on nv's `[until: <kind> <arg>]`. Each one becomes
+  looper's `` `until: <kind> <arg>` `` once that reader stops reading the old form. A `rule <topic>/<slug>` trailer
+  becomes `exists docs/rules/<topic>/<slug>.md`.
 
 ### Backlog
 
-- Stage 2: the rest of the readers of the old goal data, and the playbook trailers.
-- Stage 3: the deletes.
+- Stage 3: the deletes, among them `tools/nv/driver/` with `old-chain.ts`, the seven loop commands, and
+  `renderers/goal-plan.ts` with `docs/agent/goal-plan.md`.
 - Stage 4: the docs.
