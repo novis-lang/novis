@@ -15,3 +15,6 @@ hand-written conflict check for a collision clap cannot express — is the rest 
 Fields that do not exist yet are not printed; the report grows a section as each thing it describes
 lands. **It reports no per-request state, ever** — that is `rule:testing/debug-probes`' territory and is
 flag-gated for reasons this command does not share.
+
+**Declined:**
+- **A separate `nvs licenses` command.** It splits one question across two commands.

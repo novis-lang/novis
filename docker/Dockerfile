@@ -69,8 +69,8 @@ FROM ${DISTROLESS_BASE} AS distroless
 ARG TARGETARCH
 
 COPY --chmod=0755 bin/${TARGETARCH}/nvs /usr/local/bin/nvs
-# ADR 0065 puts the licence and the third-party notices beside every distributed binary, and an
-# image is a distribution like the archives are.
+# The licence and the third-party notices go beside every distributed binary, and an image is a
+# distribution like the archives are.
 COPY bin/notices/ /usr/share/doc/novis/
 COPY --from=nvsdata --chown=nonroot:nonroot --chmod=0700 /.nvsdata /usr/local/bin/.nvsdata
 

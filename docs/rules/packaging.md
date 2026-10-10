@@ -537,7 +537,7 @@ the revision and its date when no `.git` is present, and every fact that cannot 
 `unknown` rather than failing the build. All of it reaches [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call)'s
 report, and the version, commit and date of it open [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build).
 
-<sub>See also [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build). Decided in [0065](../decisions/0065.md), [0151](../decisions/0151.md).</sub>
+<sub>See also [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call), [`packaging/the-banner-states-the-build`](packaging.md#packaging-the-banner-states-the-build). Decided in [0151](../decisions/0151.md).</sub>
 
 <a id="packaging-the-banner-states-the-build"></a>
 
@@ -641,7 +641,26 @@ Dev-dependencies are excluded — they are linked into nothing a user receives. 
 CI diffs it ([`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)), and the binary carries it
 ([`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary)).
 
-<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary). Decided in [0065](../decisions/0065.md).</sub>
+A hand-maintained notice is a second copy of a fact that goes stale without telling anyone, and the
+lockfile already holds the authoritative graph, so the notice is derived from it. A license outside
+`PREFERENCE` stopping the run is meant to be annoying: it is the moment that decision should be made.
+Over-including means a reader may find a component their own build does not contain, and the file
+says so.
+
+**Declined:**
+- **`cargo-about`.** It deduplicates by license identifier rather than by text, which loses each
+  component's own copyright line, the part MIT asks for. It would also add an installed tool and a
+  template file to CI.
+- **A Rust `xtask` crate.** Reading `cargo metadata` needs a JSON parser crate, which adds a dependency
+  to the one tool whose job is keeping the dependency set honest.
+- **SPDX identifiers only, with a pointer to a website.** MIT, BSD and Apache-2.0 each condition
+  redistribution on reproducing text, and a URL is not a reproduction: it is a promise to keep a
+  server running.
+- **Markdown for the notice.** A `.md` file either fences the license texts, putting stray fence lines
+  in the binary's output, or lets a renderer reflow them. Plain text is shown verbatim by GitHub and
+  printed verbatim by the binary, from one file.
+
+<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary).</sub>
 
 <a id="packaging-the-notice-is-embedded-in-the-binary"></a>
 
@@ -663,7 +682,7 @@ is changed alone.
 The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: memory footprint
 spent on a legal obligation, never touching a request path.
 
-<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call). Decided in [0065](../decisions/0065.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="packaging-the-cli-surface-is-novis-own"></a>
 
@@ -748,7 +767,10 @@ Fields that do not exist yet are not printed; the report grows a section as each
 lands. **It reports no per-request state, ever** — that is [`testing/debug-probes`](testing.md#testing-debug-probes)' territory and is
 flag-gated for reasons this command does not share.
 
-<sub>See also [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary), [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`testing/debug-probes`](testing.md#testing-debug-probes). Decided in [0065](../decisions/0065.md), [0151](../decisions/0151.md).</sub>
+**Declined:**
+- **A separate `nvs licenses` command.** It splits one question across two commands.
+
+<sub>See also [`packaging/the-notice-is-embedded-in-the-binary`](packaging.md#packaging-the-notice-is-embedded-in-the-binary), [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/the-cli-surface-is-novis-own`](packaging.md#packaging-the-cli-surface-is-novis-own), [`testing/debug-probes`](testing.md#testing-debug-probes). Decided in [0151](../decisions/0151.md).</sub>
 
 <a id="packaging-a-package-name-is-vendor-slash-name"></a>
 
@@ -1280,7 +1302,7 @@ forces the ladder is a design problem, not an update problem; the hold dates are
 - **Never breaking the surface at all.** A security fix can force a break, so the promise would be
   dishonest. Shipping the break is the last of seven steps, taken with the user.
 
-<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0065](../decisions/0065.md).</sub>
+<sub>See also [`packaging/who-can-see-it-decides-the-release-slot`](packaging.md#packaging-who-can-see-it-decides-the-release-slot), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`packaging/a-breaking-release-is-a-new-name`](packaging.md#packaging-a-breaking-release-is-a-new-name), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
 
 <a id="packaging-a-forced-break-is-announced-before-it-lands"></a>
 
@@ -1325,7 +1347,7 @@ commit.** CI fails otherwise, and correctly: the notice is a licence obligation,
 ([`testing/ci-lanes`](testing.md#testing-ci-lanes)); they are what make a hold, a vendored fork and this rule enforceable
 rather than aspirational.
 
-<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0065](../decisions/0065.md), [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`packaging/one-bump-one-commit`](packaging.md#packaging-one-bump-one-commit), [`packaging/the-sweep-is-fired-by-a-human`](packaging.md#packaging-the-sweep-is-fired-by-a-human), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0143](../decisions/0143.md).</sub>
 
 <a id="packaging-one-bump-one-commit"></a>
 

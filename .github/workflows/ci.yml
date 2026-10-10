@@ -811,7 +811,8 @@ jobs:
   # and only at distribution, unlike an unallowed licence, which fails loudly
   # the moment it enters the tree. Also fails on a licence the generator has no
   # policy for, so a new one is a decision someone makes rather than a line
-  # that appears in a generated file. See ADR 0065. The same graph also holds
+  # that appears in a generated file (`rule:testing/attribution-is-diffed-in-ci`).
+  # The same graph also holds
   # the default binary's C dependencies against their ledger, so one added
   # without answering `rule:packaging/a-c-dependency-answers-two-questions`
   # fails here.

@@ -127,5 +127,4 @@ bun nv gen-attribution --check   # what CI runs; fails if the notice is stale
 
 The generator fails closed: a licence it has no policy for, or one missing from
 [deny.toml](deny.toml)'s allow list, stops the build instead of quietly omitting a notice. `cargo deny`
-decides what may be *linked*; this decides what must be *shipped*
-([ADR 0065](docs/decisions/0065.md)).
+decides what may be *linked*; this decides what must be *shipped*.

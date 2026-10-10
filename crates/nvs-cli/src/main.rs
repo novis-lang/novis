@@ -868,7 +868,7 @@ enum Command {
     /// One call answers what this binary is and what is compiled into it,
     /// including the complete third-party attribution Novis's MIT license and
     /// its dependencies' licenses both require to be distributed with it.
-    // `docs/decisions/0065.md` is why this is one call rather than several.
+    // `rule:packaging/nvs-info-is-the-one-call` is why this is one call rather than several.
     Info {
         /// Also print every third-party license text in full.
         #[arg(long)]

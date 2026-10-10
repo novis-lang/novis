@@ -529,7 +529,8 @@ jobs:
             test -f "$archive" || { echo "::error::$archive is missing" >&2; exit 1; }
             mkdir -p "docker/bin/$theirs"
             tar -xzf "$archive" -C "docker/bin/$theirs" --strip-components=1
-            # The notices ADR 0065 makes every distribution carry. Both archives hold identical
+            # The notices every distribution carries
+            # (`rule:packaging/the-third-party-notice-is-generated-never-written-by-hand`). Both archives hold identical
             # copies, so they are moved aside into one directory and the last writer wins.
             for notice in LICENSE THIRD-PARTY-LICENSES.txt README.md CHANGELOG.md; do
               mv "docker/bin/$theirs/$notice" docker/bin/notices/
