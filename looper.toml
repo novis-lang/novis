@@ -1,5 +1,5 @@
-# looper's configuration for this repository. Each value is the runbook's, docs/agent/looper-cutover.md § 1,
-# or a call its goal file's Stage 2 lists; the key names are looper's own, from its docs/design.md.
+# looper's configuration for this repository. docs/agent/coordinator.md is what is specific to Novis, and
+# the key names are looper's own, from its docs/design.md.
 
 [project]
 name = "mwl"

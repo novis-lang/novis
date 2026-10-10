@@ -19,7 +19,7 @@
 // before the valgrind sweep and lets the two overlap deliberately -- that build is the longest pole of
 // an acceptance check, and cores handed to the sweep come straight out of it. The sweep's own scaling
 // flattens well before the box is full, so three quarters would buy little of a check the build already
-// dominates. `docs/agent/coordinator.md` holds the measurement.
+// dominates.
 //
 // The floor of two is for small boxes: a 4-core runner still halves its sweep, and only a genuinely
 // single-core machine runs anything serially.
