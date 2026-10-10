@@ -15,9 +15,8 @@ never about the `Future` trait; `rule:ide/one-grammar-one-tree`'s own bullet now
 
 Pulled ahead of M10 by `rule:ide/every-feature-is-staged-behind-its-dependency` so real-world
 testing in an editor starts the moment M4 makes Novis a usable CLI language, rather than after M5–M9.
-`rule:ide/one-grammar-one-tree` settles the four things that ADR left
-open or specified against a parser that turned out to be shaped differently; where the two disagree, 0099
-is the current rule and 0040's body has been folded to match.
+`rule:ide/one-grammar-one-tree` settles the four things the first editor catalog left
+open or specified against a parser that turned out to be shaped differently.
 
 **The tree.** `nvs-syntax` gains a **lossless parse result** — the same one grammar and the same AST, plus
 a `trivia` vector (every comment and whitespace run, by span) and a `SyntaxIndex` answering byte offset →

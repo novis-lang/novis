@@ -2,7 +2,6 @@
   "title": "The first `nvs lsp` answers six requests and two code actions, and nothing else until the workspace index exists",
   "status": "designed",
   "because": [
-    "0040",
     "0099"
   ],
   "seeAlso": [

@@ -14,3 +14,9 @@ so the server maps a cursor back to a syntax node even inside a malformed region
 position-mapping mechanism. The test is direct: an unclosed brace or a trailing `->` does not stop
 completion on the well-formed code around it. What this gives up is incremental reparse — every analysis
 reparses the document — and a latency bound keeps that a measured trade.
+
+**Declined:**
+- **Completion stops at a syntax error until it is fixed.** A document is invalid for most of the time
+  somebody is typing in it, so completion would rarely work when it is wanted.
+- **Recovery layered over an all-or-nothing parser afterwards.** A parser that gives up produces no tree
+  for anything downstream of the error to be layered on; the tree has to come from the parser itself.

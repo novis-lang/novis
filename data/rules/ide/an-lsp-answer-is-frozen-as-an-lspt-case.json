@@ -2,8 +2,7 @@
   "title": "An LSP answer is frozen as a `.lspt` case — a document, a `<|>` cursor, a request and its rendering — run by `nvs lsp-test` printing `N passed, M failed`",
   "status": "designed",
   "because": [
-    "0099",
-    "0040"
+    "0099"
   ],
   "seeAlso": [
     "testing/nvst-is-separate",

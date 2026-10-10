@@ -613,7 +613,7 @@ The NDJSON trace remains the format no third-party tool reads; this export close
 visualisation, and for nothing else. The exact CLI flag that selects it is left to the exporter's
 implementation, the same way the Clover and lcov shapes were.
 
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-surface`](testing.md#testing-debug-surface).</sub>
 
 <a id="observability-memory-is-three-numbers-on-core-budget"></a>
 

@@ -830,4 +830,4 @@ point of inserting text rather than deriving a path.
 This is a fix, not a generator. A generator's output has to be *right*, and a URL is not
 type-determined by anything; this output is a starting point, read as a diff before it is accepted.
 
-<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`routing/route-attribute`](routing.md#routing-route-attribute). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0040](../decisions/0040.md), [0108](../decisions/0108.md).</sub>
+<sub>See also [`routing/repeated-routes-share-a-name-when-they-share-a-path`](routing.md#routing-repeated-routes-share-a-name-when-they-share-a-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`routing/route-attribute`](routing.md#routing-route-attribute). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0108](../decisions/0108.md).</sub>

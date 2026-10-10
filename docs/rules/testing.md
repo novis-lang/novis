@@ -563,7 +563,7 @@ summary, since a summary of zeros is a report of a run that did not happen and a
 its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
 `--update` and a `.nvst` tree are each refused beside it rather than ignored.
 
-<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli). Decided in [0079](../decisions/0079.md), [0040](../decisions/0040.md), [0172](../decisions/0172.md).</sub>
+<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli). Decided in [0079](../decisions/0079.md), [0172](../decisions/0172.md).</sub>
 
 <a id="testing-coverage-report"></a>
 

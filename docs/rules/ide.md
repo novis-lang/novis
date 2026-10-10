@@ -31,7 +31,18 @@ The trade is named: without `rowan`'s red/green design there is no free incremen
 analysis reparses the document, and [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound) is what keeps that a
 measured claim. If it fails, the first move is item-level caching over the index, not a second tree.
 
-<sub>See also [`ide/tokens-plus-trivia-reproduce-the-file`](ide.md#ide-tokens-plus-trivia-reproduce-the-file), [`ide/recovery-is-explicit`](ide.md#ide-recovery-is-explicit), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md).</sub>
+What it spends is simplicity, and little: one lexer flag, two node kinds and an index. None of it is
+linked into what `nvs run` compiles, so it costs nothing on security or on the request path.
+
+**Declined:**
+- **A `rowan`-shaped red/green CST beside the AST.** `rowan` exists because a typed AST is lossy by
+  construction; this one is not once trivia is kept beside it, and a second tree is a second shape every
+  grammar change has to keep in step.
+- **A second, error-recovering parse entry point beside the strict one.** The strict parser is already
+  infallible, so a second entry point would add a thing to keep in step and recover nothing the first
+  does not.
+
+<sub>See also [`ide/tokens-plus-trivia-reproduce-the-file`](ide.md#ide-tokens-plus-trivia-reproduce-the-file), [`ide/recovery-is-explicit`](ide.md#ide-recovery-is-explicit), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error). Decided in [0099](../decisions/0099.md), [0137](../decisions/0137.md).</sub>
 
 <a id="ide-tokens-plus-trivia-reproduce-the-file"></a>
 
@@ -69,7 +80,7 @@ invented. Completion's whole behaviour hangs on that distinction — `$u->` with
 a property access whose name is missing, and that missing name is precisely the node member completion
 needs — and an empty span is a coincidence, not a contract.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-the-tree-survives-a-syntax-error"></a>
 
@@ -94,7 +105,13 @@ position-mapping mechanism. The test is direct: an unclosed brace or a trailing 
 completion on the well-formed code around it. What this gives up is incremental reparse — every analysis
 reparses the document — and a latency bound keeps that a measured trade.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+**Declined:**
+- **Completion stops at a syntax error until it is fixed.** A document is invalid for most of the time
+  somebody is typing in it, so completion would rarely work when it is wanted.
+- **Recovery layered over an all-or-nothing parser afterwards.** A parser that gives up produces no tree
+  for anything downstream of the error to be layered on; the tree has to come from the parser itself.
+
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-positions-have-one-home"></a>
 
@@ -131,7 +148,7 @@ The index is rebuilt per analysis. Making it incremental belongs with the rest o
 ancestor paths are what would make item-level caching expressible if [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound)
 ever fails.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-a-full-reanalysis-stays-under-a-bound"></a>
 
@@ -148,7 +165,7 @@ work — item-level caching over the `SyntaxIndex`, then a decision to revisit w
 never a smaller number in the test. Architecture assumptions are tested, not remembered, and this is the
 one thing M4B built nothing to protect.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-ast-json-schema-is-frozen"></a>
 
@@ -169,7 +186,7 @@ parse: a literal node whose static type carries `secret` emits the fixed placeho
 ([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)). Putting that in the JSON rather than in the
 panel is what stops `--json` and the webview from disagreeing about it.
 
-<sub>See also [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
 
 <a id="ide-one-crate-and-one-extension-grow-in-place"></a>
 
@@ -188,7 +205,12 @@ packages themselves. The cost is the ordinary one of any early-shipped surface: 
 extension have to be kept building and passing through the milestones between, even while nothing in
 those milestones depends on them.
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors). Decided in [0040](../decisions/0040.md).</sub>
+**Declined:**
+- **A throwaway first server and extension, discarded when the deep half lands.** It is two
+  implementations of one client-server pair for a stretch, and they drift
+  ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
+
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors).</sub>
 
 <a id="ide-the-server-is-synchronous"></a>
 
@@ -207,7 +229,7 @@ document store. A request that arrives while an older analysis is in flight canc
 is about a document version nobody is looking at any more; `$/cancelRequest` cancels an in-flight request
 the same way.
 
-<sub>See also [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`ide/stdout-belongs-to-the-protocol`](ide.md#ide-stdout-belongs-to-the-protocol), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`ide/stdout-belongs-to-the-protocol`](ide.md#ide-stdout-belongs-to-the-protocol), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-an-open-document-is-its-own-entry-point"></a>
 
@@ -417,7 +439,7 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 definition, so it would answer identically to `textDocument/definition`, and the crate names neither
 spelling of it.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -443,7 +465,16 @@ Not in the first server: format-on-save, because `nvs fmt` does not exist yet; r
 action beyond the two. Everything else waits for its dependency
 ([`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency)).
 
-<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+The first server and extension land as soon as a non-trivial CLI program runs correctly, not after the
+concurrency, configuration, HTTP and extension work. An editor exercising the language early surfaces
+rough edges in the type system, the stdlib's shape and the diagnostics' wording while they are still
+cheap to change.
+
+**Declined:**
+- **The editor client lands only with the full tooling milestone.** Real use in an editor would start
+  after the server, the stdlib and the extension system, when what it finds is expensive to change.
+
+<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-every-feature-is-staged-behind-its-dependency"></a>
 
@@ -473,7 +504,7 @@ offered only where the compiler already derives the value for another reason, ne
 scan or an annotation dialect. That closed rule is the whole answer to "framework support", and why no
 per-framework module enters `nvs-lsp`.
 
-<sub>See also [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md), [0108](../decisions/0108.md).</sub>
+<sub>See also [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0099](../decisions/0099.md), [0108](../decisions/0108.md).</sub>
 
 <a id="ide-diagnostics-are-phase-gated"></a>
 
@@ -590,7 +621,7 @@ them, and the server computes each from the expression under the cursor alone, w
 question. Neither is ever under `source.fixAll.nvs` or `quickfix`. Any further action the server
 computes for itself is still M10's.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md), [0259](../decisions/0259.md), [0267](../decisions/0267.md), [0275](../decisions/0275.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0099](../decisions/0099.md), [0201](../decisions/0201.md), [0259](../decisions/0259.md), [0267](../decisions/0267.md), [0275](../decisions/0275.md).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
@@ -628,7 +659,7 @@ an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-str
 under its own `refactor.rewrite.htmlTemplate` kind and never under `source.fixAll.nvs`, since it
 changes what the line prints.
 
-<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md), [0258](../decisions/0258.md), [0259](../decisions/0259.md).</sub>
+<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0099](../decisions/0099.md), [0258](../decisions/0258.md), [0259](../decisions/0259.md).</sub>
 
 <a id="ide-a-string-converts-to-an-html-template"></a>
 
@@ -821,7 +852,7 @@ resolved a clash with `use Foo as Bar` would be inventing a spelling the languag
 ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)), and a second name introduced by tooling is exactly as
 much a second name as one typed by hand.
 
-<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/var-inference`](types.md#types-var-inference), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/var-inference`](types.md#types-var-inference), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
 
 <a id="ide-narrow-an-annotation-to-its-literal"></a>
 
@@ -994,7 +1025,7 @@ rejects ([`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-
 ([`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers)). Its test is a `.lspt` case per token type, plus the
 extension-host run confirming the client's legend matches the server's.
 
-<sub>See also [`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar), [`types/object-top`](types.md#types-object-top), [`types/duration`](types.md#types-duration), [`types/decimal`](types.md#types-decimal), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar), [`types/object-top`](types.md#types-object-top), [`types/duration`](types.md#types-duration), [`types/decimal`](types.md#types-decimal), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-rejected-syntax-gets-no-colour"></a>
 
@@ -1513,7 +1544,7 @@ The runner is `nvs lsp-test <paths>`, walking directories for `*.lspt` and print
 — the line the loop's `nvs-suite` check kind already parses, so editor behaviour is gated with no change
 to the driver at all.
 
-<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/a-request-line-is-closed`](ide.md#ide-a-request-line-is-closed), [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`ide/lspt-coverage-is-inferred`](ide.md#ide-lspt-coverage-is-inferred), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/a-request-line-is-closed`](ide.md#ide-a-request-line-is-closed), [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`ide/lspt-coverage-is-inferred`](ide.md#ide-lspt-coverage-is-inferred), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-a-request-line-is-closed"></a>
 
@@ -1634,7 +1665,7 @@ The VS Code extension ([`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-
 ([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)) are the two clients, and a dependency-allowlist test on
 the extension is what enforces "holds no language logic" rather than review.
 
-<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0040](../decisions/0040.md), [0173](../decisions/0173.md).</sub>
+<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0173](../decisions/0173.md).</sub>
 
 <a id="ide-editor-clients-live-under-editors"></a>
 
@@ -1660,7 +1691,7 @@ A directory is created when its milestone starts, never scaffolded empty ahead o
 crate already follows. The VS Code package and the server crate that back it are then the only ones
 there will be ([`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place)).
 
-<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server).</sub>
 
 <a id="ide-vscode-is-the-reference-client"></a>
 
@@ -1685,7 +1716,7 @@ command. A `secret` value's bytes are concealed by default on ranges the server 
 Nothing in that list is language logic ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)). The concrete
 contribution roster — setting and command identifiers — is frozen elsewhere; this is the shape.
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-nvs-is-its-own-file-type"></a>
 
@@ -1708,7 +1739,7 @@ A Novis file is not a PHP file to the editor for the same reason it is not one t
 different enough that a PHP tool over the file would colour valid Novis as an error and valid PHP that
 Novis rejects as fine.
 
-<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
 
 <a id="ide-the-extension-claims-nvs-only"></a>
 
@@ -1923,7 +1954,14 @@ That is four pieces of UI infrastructure Novis neither builds nor maintains, whi
 priority applied directly. The extension's own code is the descriptor factory, the schema contribution,
 the test provider and the command that hands a file to a viewer.
 
-<sub>See also [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter). Decided in [0040](../decisions/0040.md).</sub>
+**Declined:**
+- **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the
+  speedscope format already exist and are maintained elsewhere; building equivalents is scope the
+  simplicity priority does not pay for.
+- **A hand-rolled status-bar item for server health.** `LanguageStatusItem` is the API VS Code provides
+  for exactly that.
+
+<sub>See also [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter).</sub>
 
 <a id="ide-a-file-shows-what-it-declares"></a>
 
@@ -1999,7 +2037,7 @@ parse a running Novis program calls; the editor panel is simpler and shells out 
 `nvs check` backs diagnostics. Both read the one tree there is ([`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree)), so the
 panel and the compiler cannot disagree about a file's shape.
 
-<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0099](../decisions/0099.md).</sub>
 
 <a id="ide-the-lockfile-is-committed-and-build-output-is-not"></a>
 
@@ -2053,7 +2091,7 @@ explicit decision if usage justifies it — kept open, not silently skipped, and
 - **VS Code only, with PhpStorm out of scope.** PhpStorm is the editor many PHP developers already work
   in, and leaving it out gives them no Novis support at all.
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors).</sub>
 
 <a id="ide-the-debug-adapter-does-not-wait-for-an-editor"></a>
 
@@ -2083,7 +2121,7 @@ explicitly accept that.
 - **The adapter ships together with both editors' debugger UI.** PhpStorm's `XDebugger` wiring is the
   larger job, and it would hold back an adapter that VS Code and a CLI-driven client can already use.
 
-<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`testing/debug-probes`](testing.md#testing-debug-probes), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`testing/debug-probes`](testing.md#testing-debug-probes), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter).</sub>
 
 <a id="ide-the-debugger-ui-is-as-deep-as-the-adapter"></a>
 
@@ -2270,7 +2308,7 @@ the file on disk, byte for byte.
 
 **Not on disk.** There is no language server in the tree.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
 
 <a id="ide-reveal-is-explicit-and-window-local"></a>
 
