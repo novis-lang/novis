@@ -95,7 +95,7 @@ An object becomes iterable by declaring one of the two interfaces at a concrete 
 interface that turns a subscript or a count into a method call
 ([`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces)).
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md), [0251](../decisions/0251.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0251](../decisions/0251.md), [0280](../decisions/0280.md).</sub>
 
 <a id="iteration-two-interfaces"></a>
 
@@ -125,7 +125,12 @@ Both members are declared without a body, and a class is held to every one of th
 **no key half** — nothing in `Iterator<T>` produces one — which is why a `foreach` over a cursor may
 bind a value and not a key ([`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects)).
 
-<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md).</sub>
+**Declined:**
+- **A single `next(): ?T`.** It makes `Iterator<?T>` impossible to express, and a sequence that
+  quietly ends at its first `null` element is the kind of wrong answer the type system exists to
+  prevent.
+
+<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements), [`iteration/cursor-out-of-range`](iteration.md#iteration-cursor-out-of-range), [`iteration/generators`](iteration.md#iteration-generators).</sub>
 
 <a id="iteration-concrete-generic-implements"></a>
 
@@ -143,7 +148,7 @@ declare a type variable of its own, there is no inference, no variance, and no t
 inside the class body. The door exists so a collection can be iterated
 ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)) without opening user-defined generics.
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects). Decided in [0053](../decisions/0053.md).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects).</sub>
 
 <a id="iteration-no-magic-collection-interfaces"></a>
 
@@ -161,7 +166,18 @@ is a second cost with no offsetting capability. Iteration is the one place a cap
 streaming a cursor without materialising it — and it has its own interfaces
 ([`iteration/two-interfaces`](iteration.md#iteration-two-interfaces)).
 
-<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces). Decided in [0053](../decisions/0053.md).</sub>
+`Countable` would have nothing to hook: it exists to make a global `count($x)` dispatch to a method,
+and there are no free functions ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)). Its equivalent would
+be an array function dispatching on an object argument, which is worse than the `->count()` it
+replaces.
+
+**Declined:**
+- **Keeping `ArrayAccess`.** It reads familiarly, but implicit property dispatch is already gone, and
+  keeping implicit subscript dispatch would leave the language inconsistent about the same question.
+  It would also make whether `$obj[$k]` gives a `tainted` value depend on an implementation the call
+  site cannot see ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)).
+
+<sub>See also [`iteration/foreach-subjects`](iteration.md#iteration-foreach-subjects), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces).</sub>
 
 <a id="iteration-cursor-out-of-range"></a>
 
@@ -185,7 +201,7 @@ type's null payload, and after the last it still holds the final element, which 
 A `foreach` advances and reads in lockstep, so it never stands outside the protocol. A generator's
 cursor is guarded at the same two points, and a generator that yields nothing makes them one point.
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generators`](iteration.md#iteration-generators).</sub>
 
 <a id="iteration-generators"></a>
 
@@ -207,7 +223,25 @@ of I/O rather than of ordinary control flow.
 A `finally` the generator is suspended inside still runs when the consumer abandons it, and
 definite assignment reasons across resumption edges exactly as it does across a linear body.
 
-<sub>See also [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement), [`iteration/one-way-only`](iteration.md#iteration-one-way-only), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0053](../decisions/0053.md).</sub>
+The lowering does not use the coroutine substrate, because a language feature must behave the same
+on every compile target, and a runtime facility such as stack switching is allowed to differ between
+them. A target without it would otherwise lose generators or need a second lowering, and the second
+lowering is this one.
+
+**Memory:** each live generator holds one state object with a field for every local live across a
+`yield`, for as long as the generator object lives.
+
+**Declined:**
+- **Generators on the coroutine substrate.** One suspension mechanism instead of two, and `yield`
+  from any call depth, but a stack per live generator and suspension no longer a property of I/O
+  alone, to buy yielding from a helper, which is rare and always rewritable as a loop
+  ([`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement)).
+- **No generators, with `Iterator` implemented by hand.** The smallest surface, but every lazy
+  pipeline in a program becomes an explicit state class holding exactly the state the compiler would
+  have generated correctly. The library's native iterators cover the common cases and cannot cover a
+  program's own transformation of one.
+
+<sub>See also [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement), [`iteration/one-way-only`](iteration.md#iteration-one-way-only), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate).</sub>
 
 <a id="iteration-one-way-only"></a>
 
@@ -227,7 +261,7 @@ coroutines already and they are not spelled `yield`.
 
 `yield` is a statement, so it produces no value to consume.
 
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement). Decided in [0053](../decisions/0053.md).</sub>
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement).</sub>
 
 <a id="iteration-yield-lexical-confinement"></a>
 
@@ -249,7 +283,7 @@ This is the price of the state-machine lowering ([`iteration/generators`](iterat
 split the body it compiles and nothing else, so a suspension point in a frame it did not generate has
 nowhere to be recorded.
 
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/one-way-only`](iteration.md#iteration-one-way-only). Decided in [0053](../decisions/0053.md).</sub>
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/one-way-only`](iteration.md#iteration-one-way-only).</sub>
 
 <a id="iteration-generator-stays-in-one-isolate"></a>
 
@@ -268,4 +302,4 @@ copy inside this one — has no meaning to give.
 
 Not yet enforced: nothing in the runtime's copy or spawn paths refuses a generator today.
 
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators). Decided in [0053](../decisions/0053.md).</sub>
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators).</sub>

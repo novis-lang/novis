@@ -1752,8 +1752,9 @@ fn resolve_method_rec(
         .find_map(|parent| resolve_method_rec(parent, name, table, graph, seen))
 }
 
-/// What a `foreach` over an instance of `qname` yields, and which of ADR
-/// 0053 § 1's two interfaces says so — `None` when `qname` reaches neither.
+/// What a `foreach` over an instance of `qname` yields, and which of
+/// `rule:iteration/two-interfaces`'s two interfaces says so — `None` when
+/// `qname` reaches neither.
 ///
 /// Walks `extends`/`implements` exactly as [`resolve_method`] does, looking
 /// at each declaration's own [`ClassSignature::implements`] for an entry

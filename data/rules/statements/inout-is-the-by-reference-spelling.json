@@ -2,8 +2,7 @@
   "title": "A by-reference binding is written `inout`, in the modifier slot before the type",
   "status": "shipped",
   "because": [
-    "0107",
-    "0053"
+    "0107"
   ],
   "seeAlso": [
     "statements/inout-is-written-at-the-call",

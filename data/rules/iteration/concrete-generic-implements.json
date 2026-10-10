@@ -1,9 +1,7 @@
 {
   "title": "A class implements a compiler-owned generic interface at a concrete type, and declares no type variable of its own",
   "status": "shipped",
-  "because": [
-    "0053"
-  ],
+  "because": [],
   "seeAlso": [
     "iteration/two-interfaces",
     "iteration/foreach-subjects"

@@ -549,7 +549,7 @@ one path that does not reach the write-back, so a caller sees no partial write. 
 is the other mechanism, pushing each assignment through to the array element as it happens. Neither is an
 alias. Which declarations may carry one is unchanged: an anonymous function may not, and a generator may not.
 
-<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0107](../decisions/0107.md), [0053](../decisions/0053.md).</sub>
+<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0107](../decisions/0107.md).</sub>
 
 <a id="statements-inout-is-written-at-the-call"></a>
 

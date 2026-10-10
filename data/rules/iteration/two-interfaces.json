@@ -1,9 +1,7 @@
 {
   "title": "Two interfaces carry every iteration, and a cursor is `advance()` then `current()`",
   "status": "shipped",
-  "because": [
-    "0053"
-  ],
+  "because": [],
   "seeAlso": [
     "iteration/foreach-subjects",
     "iteration/concrete-generic-implements",

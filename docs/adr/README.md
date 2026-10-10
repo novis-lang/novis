@@ -285,7 +285,7 @@ contract between the two ends of one call: `nvs_ir::lower::call` stages a cell a
 its address, and copies back when the call returns — sound precisely because the callee's frame dies first.
 Two declarations break that ordering, and both are refused where they are written rather than lowered. A
 **generator** inverts it outright: calling one runs none of the body, it allocates the state object and
-returns ([0053](../decisions/0053.md) § 4), so the staged cell is gone before the first
+returns (`rule:iteration/generators`), so the staged cell is gone before the first
 `advance()` while the parked frame would still be addressing it — `E0492`,
 `nvs_types::check::check_generator_by_ref_params`. A **closure** has no call site that could stage anything:
 § 2's by-value capture lets it outlive every frame in scope where it was written, so there is no frame whose

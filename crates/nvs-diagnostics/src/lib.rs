@@ -1593,8 +1593,9 @@ pub mod code {
          `foreach ($inner as int $v) { yield $v; }`.",
     );
     /// A concrete class that reaches an interface method nothing gives a
-    /// body — a dispatch to nothing. ADR 0053 § 1's `Iterator<T>` is the
-    /// shape that reaches it, its members being bodiless by design.
+    /// body — a dispatch to nothing. `rule:iteration/two-interfaces`'s
+    /// `Iterator<T>` is the shape that reaches it, its members being bodiless
+    /// by design.
     pub const E_INTERFACE_METHOD_MISSING: Code = Code::new("E0449").card(
         "This class does not have a method that one of its interfaces requires. Add the method to \
          the class, or give the method a default body in the interface.",
