@@ -6480,8 +6480,10 @@ mod tests {
     ///
     /// The other exception is the mirror image: a class with members and **no
     /// slots**, because its receiver's whole state is the *context*'s rather
-    /// than the object's. `Core\Socket` is the first — ADR 0083 § 1 gives a
-    /// connection isolate one peer and § 3 makes `current()` a handle onto it,
+    /// than the object's. `Core\Socket` is the first —
+    /// `rule:concurrency/a-connection-is-a-root-isolate` gives a connection
+    /// isolate one peer and `rule:concurrency/a-connection-is-a-loop` makes
+    /// `current()` a handle onto it,
     /// so the socket and the topic queue are `nvs_runtime::Ctx` fields that
     /// outlive every value a program makes from them. `Core\Response\Stream` is
     /// the second, over the same crate's writing half of a streaming response

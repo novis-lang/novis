@@ -185,7 +185,7 @@ hyper = { version = "1", default-features = false, features = [
     "client",
 ] }
 
-# --- RFC 6455, over the connection h1 handed back (ADR 0083 § 1) ---
+# --- RFC 6455, over the connection h1 handed back (`rule:concurrency/a-connection-is-a-root-isolate`) ---
 # The framing crate, and `rule:packaging/a-c-dependency-answers-two-questions`'s first question answers "yes" for exactly
 # the reason it does above: masking, fragmentation, control frames, UTF-8
 # validation and the close handshake are a wire protocol whose bugs are security

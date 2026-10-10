@@ -1,9 +1,7 @@
 {
   "title": "The server is a development server or a proxied production origin, and nothing a proxy does earlier is in it",
   "status": "shipped",
-  "because": [
-    "0083"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/a-path-is-never-derived-from-a-url",
     "errors/http-message-defects",

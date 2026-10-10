@@ -1,9 +1,7 @@
 {
   "title": "What a peer sent arrives `tainted`, and `Core\\Validate` is the only way to launder it",
   "status": "shipped",
-  "because": [
-    "0083"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/a-connection-is-a-loop",
     "core-classes/topic"

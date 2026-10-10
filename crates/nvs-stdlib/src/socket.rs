@@ -830,8 +830,9 @@ pub(crate) fn release_crossed(value: Value) {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Socket::upgrade(string $entry, mixed $args = null): void` — ADR
-    /// 0083 § 2's upgrade, prepared here and started by the connection.
+    /// `Core\Socket::upgrade(string $entry, mixed $args = null): void` —
+    /// `rule:concurrency/an-upgrade-is-spawn-shaped`'s upgrade, prepared here
+    /// and started by the connection.
     ///
     /// Three refusals in the order they cost the least, and each is a fact
     /// about a different thing. **No slot** is a request no connection offered

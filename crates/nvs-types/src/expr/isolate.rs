@@ -11,8 +11,8 @@
 //! itself, and the one thing it does not yet ask; [`check_spawn_script`] owns
 //! what each option is typed as.
 //!
-//! **The operand rule has a second site and no second implementation.** ADR
-//! 0083 § 2 opens a persistent connection with `spawn script`'s operand, so a `Core`
+//! **The operand rule has a second site and no second implementation.**
+//! `rule:concurrency/an-upgrade-is-spawn-shaped` opens a persistent connection with `spawn script`'s operand, so a `Core`
 //! row that marks a parameter
 //! [`CoreTy::Entry`](nvs_stdlib::registry::CoreTy::Entry) reaches
 //! [`entry_operand`] through [`check_core_isolate_call`] and gets the same
@@ -285,7 +285,8 @@ fn entry_operand(path: &Expr, ty: TypeId, form: &str, env: &mut Env<'_>) {
 
 /// A `Core` member that **opens an isolate** — one whose registry row marks a
 /// parameter [`CoreTy::Entry`](nvs_stdlib::registry::CoreTy::Entry), which is
-/// `rule:concurrency/an-upgrade-is-spawn-shaped`'s `Core\Socket::upgrade` and § 5's `Core\Sse` when it lands.
+/// `rule:concurrency/an-upgrade-is-spawn-shaped`'s `Core\Socket::upgrade` and
+/// `rule:concurrency/two-doors-one-isolate`'s `Core\Sse::upgrade`.
 ///
 /// The hook [`super::calls::infer_static_call`] reaches after the target has
 /// resolved, beside the other refusals over a `Core` call's own arguments.

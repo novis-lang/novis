@@ -775,7 +775,20 @@ a connection is a root, sees only what its arguments copied in, and ends when th
 timeout fires or a budget is exceeded. A fatal error inside one tears down the connection and nothing
 wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and the peer is told with a defined close code.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md).</sub>
+- **Memory:** each open connection holds an arena and a task stack for as long as the peer keeps it
+  open, idle or not. Memory scales with concurrent connections and not with the request rate, so a
+  connection-heavy deployment is sized for its connections, and ten thousand idle connections cost ten
+  thousand arenas.
+
+**Declined:**
+- **A connection as a suspended request.** A request's budget, teardown and observability all assume
+  it ends, and a request held open for hours would keep its session and cookies for the life of the
+  socket, which is what ending the upgrading request prevents.
+- **A dedicated connection worker pool outside the request path.** It is a second execution model,
+  with its own scheduling, isolation and security review, bought for connection counts the audience
+  does not have.
+
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite).</sub>
 
 <a id="concurrency-an-upgrade-is-spawn-shaped"></a>
 
@@ -800,7 +813,15 @@ side.
 Calling it is what performs the upgrade, and it answers `void`. Nothing in this language reads a
 handler's return value, so an upgrade handed back to the runtime would be handed to nobody.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md).</sub>
+**Declined:**
+- **A capturing closure as the target.** It would either capture the request's heap, or copy the
+  captures silently at the boundary, hiding the copy `args` keeps visible and turning a captured handle
+  into a run-time error instead of a compile error. A static method carries code and nothing else, and
+  its input arrives through the same `args` a file's does.
+- **Returning the upgrade to perform it.** That needs a value type a dispatcher interprets, which is a
+  second response model ([`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing)).
+
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>
 
 <a id="concurrency-an-upgrades-options-are-spawn-scripts"></a>
 
@@ -824,7 +845,7 @@ accepted and dropped. A narrowing that is silently ignored hands the connection 
 request meant to give up, and a refusal is the only spelling that lets a reader tell a narrowing that
 was applied from one that was not.
 
-<sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0083](../decisions/0083.md).</sub>
+<sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing).</sub>
 
 <a id="concurrency-a-connection-is-a-loop"></a>
 
@@ -849,7 +870,12 @@ recover.
 
 A `Core\Socket\Message` cannot be constructed, so the only way to hold one is to have received it.
 
-<sub>See also [`concurrency/receive-is-the-one-wait`](concurrency.md#concurrency-receive-is-the-one-wait), [`concurrency/a-peer-frame-is-tainted`](concurrency.md#concurrency-a-peer-frame-is-tainted), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md).</sub>
+**Declined:**
+- **A callback handler interface** (`onOpen`, `onMessage`, `onClose`). It is the shape a language
+  with coloured async settles on, and stackful coroutines exist so that control flow stays
+  straight-line.
+
+<sub>See also [`concurrency/receive-is-the-one-wait`](concurrency.md#concurrency-receive-is-the-one-wait), [`concurrency/a-peer-frame-is-tainted`](concurrency.md#concurrency-a-peer-frame-is-tainted), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite).</sub>
 
 <a id="concurrency-receive-is-the-one-wait"></a>
 
@@ -871,7 +897,7 @@ There is nothing for such a second member to drain in any case: the subscriber q
 connection, and `receive()` is the only thing that empties it. A queue that overflows closes *that*
 subscriber rather than blocking the publisher, and the overflow is asked before the wait.
 
-<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../decisions/0083.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic).</sub>
 
 <a id="concurrency-a-peer-frame-is-tainted"></a>
 
@@ -891,7 +917,7 @@ metric label does — a name derived from user input is how one tenant subscribe
 so a name is built from checked values or it does not compile — and a `secret` may never be passed
 through an upgrade's arguments or published to a topic.
 
-<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../decisions/0083.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic).</sub>
 
 <a id="concurrency-a-stream-that-outlives-its-request-is-a-connection"></a>
 
@@ -922,7 +948,7 @@ Choosing by protocol instead of by lifetime is the mistake the line exists to pr
 events over a request that ends is a streaming response and not a connection; a WebSocket is never
 anything but a connection.
 
-<sub>See also [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md), [0176](../decisions/0176.md), [0177](../decisions/0177.md).</sub>
+<sub>See also [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0176](../decisions/0176.md), [0177](../decisions/0177.md).</sub>
 
 <a id="concurrency-two-doors-one-isolate"></a>
 
@@ -949,7 +975,11 @@ Each member names the hand-over *it* is missing, and neither report stands for t
 carrying both would be a slot the connection has to ask the *kind* of before it could use it, which
 is a tag standing in for a distinction the types already make.
 
-<sub>See also [`concurrency/a-stream-that-outlives-its-request-is-a-connection`](concurrency.md#concurrency-a-stream-that-outlives-its-request-is-a-connection), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md).</sub>
+**Declined:**
+- **Event streams alone, with no WebSocket.** The isolate question has to be answered the moment any
+  stream outlives its request, and once it is answered a WebSocket costs only its framing.
+
+<sub>See also [`concurrency/a-stream-that-outlives-its-request-is-a-connection`](concurrency.md#concurrency-a-stream-that-outlives-its-request-is-a-connection), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>
 
 <a id="concurrency-connection-bounds-are-finite"></a>
 
@@ -1006,7 +1036,7 @@ request.
 An application that wants a longer-lived connection sends anything at all — a ping is a frame, and
 the loop never sees one.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0177](../decisions/0177.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0177](../decisions/0177.md), [0219](../decisions/0219.md).</sub>
 
 <a id="concurrency-a-connection-keeps-its-compiled-unit"></a>
 
@@ -1026,7 +1056,7 @@ The swap is a write to the compilation table and nothing else: a program already
 unit's pages, so the next resolve of that path hands the new unit to whoever asks next while the open
 connection never sees it.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0083](../decisions/0083.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly).</sub>
 
 <a id="concurrency-a-drain-closes-a-connection-cleanly"></a>
 
@@ -1072,7 +1102,7 @@ loop. The socket belongs to the isolate, so closing it from outside would be wri
 another task is parked on — and a dropped descriptor gives the peer a reset, which is exactly what a
 client cannot tell apart from a network failure.
 
-<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0083](../decisions/0083.md), [0186](../decisions/0186.md), [0205](../decisions/0205.md), [0206](../decisions/0206.md), [0209](../decisions/0209.md).</sub>
+<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0186](../decisions/0186.md), [0205](../decisions/0205.md), [0206](../decisions/0206.md), [0209](../decisions/0209.md).</sub>
 
 <a id="concurrency-enqueue-commits-with-your-write"></a>
 

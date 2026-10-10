@@ -1827,7 +1827,7 @@
         [
           "`Core\\Sse`, `Core\\Sse\\Message`",
           "server-sent events, as two doors onto one type (`rule:concurrency/two-doors-one-isolate`). On the class: `upgrade(entry, args)` opens the connection isolate that outlives the request, `stream()` writes an event stream that ends with it, and `current()` answers whichever handle is open. On the handle: `send(mixed $data, ?string $event, ?string $id)` — a `string` goes out raw and anything else is JSON-encoded — `retry(Duration $after)`, and `receive(): ?Core\\Sse\\Message`, which waits on this stream's own subscriptions and throws a `LogicError` on the request-scoped door, there being no isolate for a wait to park in. `$data` accepts `tainted`; `$event` and `$id` are **sinks**, and a `\\n`, `\\r` or NUL in either is refused, as is an empty `$data` and a `setStatus` on a path that opens a stream. `Message` is `topic(): string` and `value(): mixed`. There is no replay buffer: resumption is the client's `Last-Event-ID`, read off the request by the handler and passed through `args`",
-          "[0083](../decisions/0083.md), [0177](../decisions/0177.md)"
+          "`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`, [0177](../decisions/0177.md)"
         ],
         [
           "`Core\\Db`",
