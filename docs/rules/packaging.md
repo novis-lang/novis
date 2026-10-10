@@ -2390,4 +2390,4 @@ Unix-only — both behind `#[cfg]`, both pure Rust with no build script, and nei
 served request. `sd_notify` adds none of its own: it is a datagram of `NAME=value` lines to whatever
 `$NOTIFY_SOCKET` names, and it is written by hand.
 
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0093](../decisions/0093.md).</sub>

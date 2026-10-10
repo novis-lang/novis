@@ -2,7 +2,6 @@
   "title": "A refused `Core\\Config::set` returns `false` and leaves the value unchanged; it is never clamped",
   "status": "shipped",
   "because": [
-    "0005",
     "0064"
   ],
   "seeAlso": [

@@ -2,8 +2,7 @@
   "title": "Every `[[schedule]]` key is `System`, and not even `RuntimeTighten` reaches one",
   "status": "shipped",
   "because": [
-    "0073",
-    "0005"
+    "0073"
   ],
   "seeAlso": [
     "config/scheduled-work-is-a-config-block",

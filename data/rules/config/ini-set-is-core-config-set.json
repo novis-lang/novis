@@ -2,8 +2,7 @@
   "title": "`Core\\Config` reads and writes directives at run time, and the whole family crosses as strings",
   "status": "shipped",
   "because": [
-    "0064",
-    "0005"
+    "0064"
   ],
   "seeAlso": [
     "config/one-parser-for-the-boot-path-and-config-set",

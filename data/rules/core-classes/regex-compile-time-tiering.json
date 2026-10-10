@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0056",
-    "0057",
-    "0005"
+    "0057"
   ],
   "seeAlso": [
     "core-classes/regex-two-tiers",

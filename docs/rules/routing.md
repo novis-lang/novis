@@ -683,7 +683,7 @@ and a reload that moves `[[app]] origin` folds it into the rows again. Either wa
 asked of every row that changed, so a row that no longer resolves an origin is left out of the table
 and the reason is logged.
 
-<sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md), [0078](../decisions/0078.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`routing/an-absolute-link-takes-a-configured-origin`](routing.md#routing-an-absolute-link-takes-a-configured-origin), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0102](../decisions/0102.md), [0097](../decisions/0097.md), [0078](../decisions/0078.md), [0219](../decisions/0219.md).</sub>
 
 <a id="routing-table-is-opt-in"></a>
 

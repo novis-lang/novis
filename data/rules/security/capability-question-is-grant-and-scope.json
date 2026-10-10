@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0118",
-    "0078",
-    "0005"
+    "0078"
   ],
   "seeAlso": [
     "security/capability-check-at-the-door",

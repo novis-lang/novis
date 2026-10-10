@@ -397,7 +397,7 @@ arena at its peak for the length of its deferred work, so the worst case per cor
 × [limits.hard] memory` **on top of** in-flight requests. That is bounded, and it is O(in-flight
 deferred trees) rather than O(requests served).
 
-<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive). Decided in [0072](../decisions/0072.md), [0005](../decisions/0005.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive). Decided in [0072](../decisions/0072.md), [0064](../decisions/0064.md).</sub>
 
 <a id="concurrency-a-full-deferred-executor-throws"></a>
 
@@ -559,7 +559,7 @@ explicitly **not** O(requests served): an entry's lifetime is governed by TTL an
 how much traffic has passed through. That multiplication is the price of the isolation it buys, and
 it is recorded so it is a known number rather than a surprise in production.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0059](../decisions/0059.md), [0004](../decisions/0004.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0059](../decisions/0059.md), [0004](../decisions/0004.md).</sub>
 
 <a id="concurrency-a-cross-request-stores-bytes-are-its-own-balance"></a>
 
@@ -710,7 +710,7 @@ a connection is a root, sees only what its arguments copied in, and ends when th
 timeout fires or a budget is exceeded. A fatal error inside one tears down the connection and nothing
 wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and the peer is told with a defined close code.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0005](../decisions/0005.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0072](../decisions/0072.md).</sub>
 
 <a id="concurrency-an-upgrade-is-spawn-shaped"></a>
 
@@ -759,7 +759,7 @@ accepted and dropped. A narrowing that is silently ignored hands the connection 
 request meant to give up, and a refusal is the only spelling that lets a reader tell a narrowing that
 was applied from one that was not.
 
-<sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md).</sub>
 
 <a id="concurrency-a-connection-is-a-loop"></a>
 
@@ -1129,7 +1129,7 @@ The budget is what makes an overrun a bounded failure rather than a fatal
 capability door every other isolate goes through
 ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), with the job's own path as the scope.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../decisions/0084.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../decisions/0084.md).</sub>
 
 <a id="concurrency-claiming-is-one-statement"></a>
 
@@ -1243,7 +1243,7 @@ all is a failed attempt too rather than a second policy written beside the first
 throw, a refusal and a budget teardown, which is why a dead-letter row can hold any of the three
 without a second entry shape.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md).</sub>
 
 <a id="concurrency-cancel-is-a-race-it-can-lose"></a>
 

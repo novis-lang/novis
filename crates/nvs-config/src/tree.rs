@@ -79,9 +79,10 @@ pub struct Config {
     pub app: Vec<App>,
     /// `[limits]` and the `[limits.hard]` ceiling under it (`rule:config/three-changeability-classes`).
     pub limits: Option<Limits>,
-    /// `[mode]` — the default a request starts in and the ceiling it may select (ADRs 0005, 0091).
+    /// `[mode]` — the default a request starts in and the ceiling it may select
+    /// (`rule:config/ceilings-are-their-own-directives`, ADR 0091).
     pub mode: Option<Mode>,
-    /// `[capabilities]` — deny-by-default grants (ADRs 0005, 0006).
+    /// `[capabilities]` — deny-by-default grants (`rule:config/three-changeability-classes`, ADR 0006).
     pub capabilities: Option<Capabilities>,
     /// `[[extension]]` — a precompiled binary and its pin (`rule:packaging/extension-loading-is-root-controlled`).
     pub extension: Vec<Extension>,

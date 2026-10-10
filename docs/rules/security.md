@@ -76,7 +76,7 @@ isolate that asks for more than its share is refused at the call that asked, wit
 naming the directive, and never by a page fault at an address nobody chose
 ([`errors/on-limit`](errors.md#errors-on-limit)).
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0005](../decisions/0005.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0004](../decisions/0004.md).</sub>
 
 <a id="security-isolate-failure-is-a-value"></a>
 
@@ -406,7 +406,7 @@ reviews are expected to catch. This one puts it *in* the effect, where omitting 
 performing the effect. The friction is the point: the door is where the check, the path rule and the
 diagnostic already are.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0118](../decisions/0118.md), [0005](../decisions/0005.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
 
 <a id="security-capability-question-is-grant-and-scope"></a>
 
@@ -427,7 +427,7 @@ The decision procedure is pure â€” a snapshot, a capability, an argument, a bool
 context, throws nothing, and is therefore testable without a compiler in front of it. Holding a
 capability is not a promise about any one argument; the scope is asked every time.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0118](../decisions/0118.md), [0078](../decisions/0078.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0118](../decisions/0118.md), [0078](../decisions/0078.md).</sub>
 
 <a id="security-capability-declaration-is-one-table"></a>
 
@@ -696,7 +696,7 @@ in exchange for reintroducing the dynamic escape the language closed elsewhere â
 Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
 further one opened, and every claim above it would have to be qualified.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md).</sub>
 
 <a id="security-capability-costs-nothing-unasked"></a>
 
@@ -739,7 +739,7 @@ process's authority* to *arbitrary computation with no authority at all*.
 
 **Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md), [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md), [0112](../decisions/0112.md), [0055](../decisions/0055.md).</sub>
 
 <a id="security-process-exec-capability"></a>
 

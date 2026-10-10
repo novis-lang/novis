@@ -105,7 +105,7 @@ allowed to produce, which is a refusal in [`security/denial-is-a-runtime-error`]
 who ran a chattier child than it meant to can catch it and run a different one. `Core\IO::read` holds
 a file to the same directive out of the same pair of methods, so the two answer a program alike.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0044](../decisions/0044.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-process-options"></a>
 
@@ -136,7 +136,7 @@ coroutine into a `TimeoutError` naming the member. A handle whose timeout has pa
 error from every later member but `kill`. A timeout that is not a positive length of time is a
 `RuntimeError` before anything starts, as `Core\Net\Listener::accept`'s bound is.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md), [0033](../decisions/0033.md).</sub>
 
 <a id="core-classes-process-spawn"></a>
 
@@ -326,7 +326,7 @@ constant `crates/nvs-stdlib/src/regex.rs` states. `false` does not spell an unbo
 reads as that same constant, because a pattern allowed to backtrack forever is the hang this rule
 exists to stop.
 
-<sub>See also [`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../decisions/0056.md), [0005](../decisions/0005.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../decisions/0056.md), [0020](../decisions/0020.md).</sub>
 
 <a id="core-classes-regex-compile-time-tiering"></a>
 
@@ -353,7 +353,7 @@ rather than discovered.
 
 The third consequence is not built: there is no `[regex]` block, so `deny` cannot be written yet.
 
-<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0056](../decisions/0056.md), [0057](../decisions/0057.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0056](../decisions/0056.md), [0057](../decisions/0057.md).</sub>
 
 <a id="core-classes-regex-syntax"></a>
 
@@ -2336,7 +2336,7 @@ smaller of the call's and the key's value in the request's snapshot before the c
 (`tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`). The
 `Novis\Image` builder that would pass a program's own `{maxPixels}` is not written.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
 
 <a id="core-classes-image-correct-by-default"></a>
 

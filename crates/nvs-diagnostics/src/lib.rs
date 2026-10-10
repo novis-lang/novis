@@ -2272,8 +2272,8 @@ pub mod code {
     /// An `[[app]]` block asking for more than the host allows: a value in
     /// `[app.limits]` above the global `[limits.hard]`, or an `[app.limits.hard]`
     /// raising its own ceiling above it. `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` lets a block widen
-    /// `[app.limits]` and lower its own ceiling, but leaves the bound where ADR
-    /// 0005 put it — `[limits.hard]` is the host's answer and an application
+    /// `[app.limits]` and lower its own ceiling, but leaves the bound where
+    /// `rule:config/ceilings-are-their-own-directives` puts it — `[limits.hard]` is the host's answer and an application
     /// cannot exceed it. The refusal is at boot and the value is never clamped,
     /// exactly as a `Core\Config::set` above the ceiling is refused rather than
     /// reduced: a clamp would leave a block reading as though it got what it

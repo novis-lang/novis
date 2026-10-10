@@ -930,7 +930,7 @@ explicitly, the same way a path-rooted spawn grant is named.
 - **`[debug] mode` as a directive a request may set freely.** Observability of a request's own
   internals is not a request-local decision, for the reason above.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0005](../decisions/0005.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="testing-debug-probes"></a>
 

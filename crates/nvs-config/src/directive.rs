@@ -12,7 +12,8 @@
 //! **A row covers the keys beneath it.** [`lookup`] is longest-prefix on dot boundaries, so the one
 //! `limits` row answers for `limits.memory` and every other key in that block, while the more
 //! specific `limits.hard` row answers for `limits.hard.memory`. That is how the ADRs state the
-//! classes in the first place — "every `[[schedule]]` key" is `System` (0005), `[server] listen`
+//! classes in the first place — "every `[[schedule]]` key" is `System`
+//! (`rule:config/every-schedule-key-is-system`), `[server] listen`
 //! is `Boot` (0219 § 6) — so the registry holds one row per *stated* rule rather than a row per key invented
 //! to fill the table out. It is therefore **not** the list of legal keys: refusing an unknown key is
 //! `serde`'s `deny_unknown_fields` over the typed tree, which is `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s.

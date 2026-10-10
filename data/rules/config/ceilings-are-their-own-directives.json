@@ -2,7 +2,6 @@
   "title": "A ceiling is a `System` directive with the default's key name, and `false` removes it",
   "status": "shipped",
   "because": [
-    "0005",
     "0091",
     "0004"
   ],

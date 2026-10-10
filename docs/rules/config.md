@@ -50,7 +50,7 @@ Every size suffix names the same binary multiple and every duration suffix the s
 nanoseconds wherever the value is spelled, and one limit has one unit in every block that carries it —
 `[limits]`, `[limits.hard]`, `[app.limits]` and `[app.limits.hard]` agree on what `memory` measures.
 
-<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set). Decided in [0064](../decisions/0064.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set). Decided in [0064](../decisions/0064.md).</sub>
 
 <a id="config-lists-are-arrays-and-repeated-records-are-arrays-of-tables"></a>
 
@@ -257,7 +257,7 @@ each of which is the same TOML key as the `pool = false` beside it and cannot be
 a key of the same name, which is the one arrangement where uncommenting the key alone would be
 accepted into the wrong block.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0103](../decisions/0103.md), [0005](../decisions/0005.md), [0091](../decisions/0091.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0103](../decisions/0103.md), [0091](../decisions/0091.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-resolved-root-is-announced-and-stored"></a>
 
@@ -439,7 +439,7 @@ directives to the root, or letting an include only narrow, would each invert den
 file layer: the root would have to grant every right any environment needs so that each host could
 take some away.
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it). Decided in [0103](../decisions/0103.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it). Decided in [0103](../decisions/0103.md).</sub>
 
 <a id="config-ownership-is-the-trust-boundary"></a>
 
@@ -644,7 +644,7 @@ configuration path every two seconds on the checking thread. Two snapshots live 
 one per in-flight request still holding an older one — kilobytes each, bounded by concurrency, never
 by reloads performed.
 
-<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0103](../decisions/0103.md), [0219](../decisions/0219.md), [0271](../decisions/0271.md).</sub>
+<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0078](../decisions/0078.md), [0103](../decisions/0103.md), [0219](../decisions/0219.md), [0271](../decisions/0271.md).</sub>
 
 <a id="config-three-changeability-classes"></a>
 
@@ -672,9 +672,19 @@ entry ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-
 
 This is what lets the most common run-time set — raising `memory_limit` for one import — work, while
 [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives) keeps one request from becoming every co-resident
-request's outage.
+request's outage. One directive cannot answer both questions — what a script gets by default, and
+what the host tolerates from one request — and keeping them apart is what spares an operator from
+raising the global limit for everyone to let one import through. No runtime set crosses an isolation
+boundary ([`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local)), so **Security and request isolation** is not
+what widening trades.
 
-<sub>See also [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md), [0064](../decisions/0064.md).</sub>
+**Declined:**
+- **Narrowing only, for every limit.** The commonest run-time set raises a limit, so code that does it
+  would fail at run time with the out-of-memory error or timeout it was trying to prevent.
+- **A hardened mode that makes every limit narrowing-only again.** Two configuration semantics to
+  implement, test and reason about, for what one ceiling per directive already says.
+
+<sub>See also [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0078](../decisions/0078.md), [0064](../decisions/0064.md).</sub>
 
 <a id="config-a-directive-flag-is-a-closed-list-at-the-global-layer"></a>
 
@@ -754,7 +764,7 @@ when that block moves, so the next `fleet` fire takes its key in the new store. 
 **does not take effect**: the published snapshot carries the running value forward, and the reload
 names the key ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0005](../decisions/0005.md), [0154](../decisions/0154.md), [0175](../decisions/0175.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0078](../decisions/0078.md), [0154](../decisions/0154.md), [0175](../decisions/0175.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-ceilings-are-their-own-directives"></a>
 
@@ -775,22 +785,32 @@ memory     = "2G"
 cpu_time   = "60s"
 ```
 
-The shipped ceilings are generous on purpose: they are sized to stop a runaway, not to shape ordinary
-code. `[limits.hard] memory = false` removes the ceiling entirely, for a trusted single-tenant host —
-and `false` is the only spelling of "no ceiling" anywhere in the tree.
+A ceiling is sized to stop a runaway, not to shape ordinary code: a script that raises its own
+`memory` for an import is doing something the operator already allowed, and one that asks for more
+than the ceiling gets `false`. The shipped file writes no ceiling, so a host bounds a request only
+once its operator writes one ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).
+`[limits.hard] memory = false` removes a ceiling explicitly, for a trusted single-tenant host — and
+`false` is the only spelling of "no ceiling" anywhere in the tree.
 
-The enforceable per-request cap is therefore the **ceiling**, not the default: a process's worst case
-is in-flight requests times `[limits.hard] memory`, and sizing a deployment means sizing against that
-number. That is memory spent to buy simplicity, since ordinary code never has to know a ceiling
-exists, which is [`programs/memory-priority`](programs.md#programs-memory-priority)'s ordering working as written. An operator who cannot afford it lowers one number in one root-owned
-file.
+The enforceable per-request cap is therefore the **ceiling**, not the default, and sizing a
+deployment means sizing against that number. That is memory spent to buy simplicity, since ordinary
+code never has to know a ceiling exists, which is [`programs/memory-priority`](programs.md#programs-memory-priority)'s ordering working
+as written. An operator who cannot afford it lowers one number in one root-owned file.
+
+- **Memory:** a process's worst case is its in-flight requests times `[limits.hard] memory`, not
+  times the `[limits] memory` a request starts with.
 
 `[mode]` is the second, and last, block with this shape — a `Runtime` `default` beside a `System`
 `ceiling`, where the ceiling bounds how permissive a request may make itself
 ([`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode)). Two instances of the pattern is something a
 reader learns once; a third would need its own argument.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0005](../decisions/0005.md), [0091](../decisions/0091.md), [0004](../decisions/0004.md).</sub>
+**Declined:**
+- **No ceiling directives at all**, so that a request may raise any limit without bound. A process
+  serves many requests at once, so one script that removes its own memory limit would take the host
+  from every request beside it. The ceiling is what makes the freedom to widen affordable.
+
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0091](../decisions/0091.md), [0004](../decisions/0004.md).</sub>
 
 <a id="config-system-means-a-request-may-not-set-it"></a>
 
@@ -815,7 +835,7 @@ change needs a new snapshot or a restart is [`config/reloadability-is-its-own-fi
 held in a field of its own, and the registry's census test fails if either field is ever derived from
 the other. With that split, `System` means one thing again — a request may not set it.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md), [0175](../decisions/0175.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0078](../decisions/0078.md), [0175](../decisions/0175.md).</sub>
 
 <a id="config-a-runtime-set-is-request-local"></a>
 
@@ -839,7 +859,7 @@ The same property is what makes a request-local mode flip safe at all
 [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot) completes: requests share nothing *mutable*, and an
 overlay each request owns is not shared.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0005](../decisions/0005.md), [0078](../decisions/0078.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0078](../decisions/0078.md), [0064](../decisions/0064.md).</sub>
 
 <a id="config-a-refused-set-returns-false"></a>
 
@@ -861,7 +881,7 @@ The accepted half is the other assertion: a set below the ceiling does not merel
 `get`, it **takes effect** — a raised `memory` moves the ceiling the runtime enforces for the rest of
 that request ([`errors/on-limit`](errors.md#errors-on-limit)).
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0005](../decisions/0005.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set). Decided in [0064](../decisions/0064.md).</sub>
 
 <a id="config-ini-set-is-core-config-set"></a>
 
@@ -891,7 +911,7 @@ the string with the parser the boot path uses
 `get` is `null`, `all` is empty, `set` is `false` and nothing throws
 ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).
 
-<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0064](../decisions/0064.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0064](../decisions/0064.md).</sub>
 
 <a id="config-an-edit-reaches-the-next-request-without-a-restart"></a>
 
@@ -1105,7 +1125,7 @@ already an error, an unknown *value* silently meaning "some third thing" would b
 A `test` run selects development-mode defaults inside its own isolate; it is not a third value
 either.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0091](../decisions/0091.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0091](../decisions/0091.md).</sub>
 
 <a id="config-the-mode-flag-wins-over-the-file"></a>
 
@@ -1188,7 +1208,7 @@ already the default *and* the bound; the revalidation rate cap
 never gates a *behaviour* — no dev toolbar, no source-context injection, no watcher. A feature that
 should differ between modes gets a directive first and a row second, in that order.
 
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`errors/log-level`](errors.md#errors-log-level), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0092](../decisions/0092.md), [0020](../decisions/0020.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`errors/log-level`](errors.md#errors-log-level), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0092](../decisions/0092.md), [0020](../decisions/0020.md), [0097](../decisions/0097.md).</sub>
 
 <a id="config-a-startup-default-is-never-flipped"></a>
 
@@ -1257,7 +1277,7 @@ allowing it safe at all. An accepted flip re-derives the five mode rows into the
 nothing; without the exception it stomps a deliberate choice made three lines earlier. For a mixed
 host the `[[app]]` block is the primary answer and the in-code flip the escape hatch.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md).</sub>
 
 <a id="config-an-application-is-its-entry-file-path"></a>
 
@@ -1298,7 +1318,7 @@ would make a new script silently inherit the global defaults. Both keys are path
 accumulate across the tree like every other array of tables. An entry file matched by no block gets
 the global configuration, which is the ordinary case.
 
-<sub>See also [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0104](../decisions/0104.md), [0097](../decisions/0097.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0104](../decisions/0104.md), [0097](../decisions/0097.md).</sub>
 
 <a id="config-app-keys-are-canonicalized-before-matching"></a>
 
@@ -1396,7 +1416,7 @@ Everything an application sets for itself at runtime is unchanged and layers on 
 [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set) writes the per-request overlay over the effective per-app
 value, and its ceiling is still the global `[limits.hard]`.
 
-<sub>See also [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0104](../decisions/0104.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0104](../decisions/0104.md).</sub>
 
 <a id="config-a-mount-routes-and-an-app-block-sets-policy"></a>
 
@@ -1463,7 +1483,7 @@ an entry that never fires looks exactly like one whose interval has not come rou
 and why there is no `--run-now` flag. Durable, retried work is a different mechanism
 ([`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work)).
 
-<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends). Decided in [0073](../decisions/0073.md), [0064](../decisions/0064.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends). Decided in [0073](../decisions/0073.md), [0064](../decisions/0064.md), [0006](../decisions/0006.md).</sub>
 
 <a id="config-cron-is-five-fields-and-nothing-more"></a>
 
@@ -1538,7 +1558,7 @@ why not even `RuntimeTighten` applies. This is the same class and the same reaso
 `[queue]`, the durable job queue beside the schedule, is `System` throughout for the same reason: work
 a request could redirect is work a request could redirect into a database it was never granted.
 
-<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0073](../decisions/0073.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0073](../decisions/0073.md).</sub>
 
 <a id="config-a-schedule-entry-narrows-only"></a>
 
@@ -1567,7 +1587,7 @@ a list of names, asked beside the configuration rather than instead of it. A sec
 scopes would make an entry a second place a capability's scope is resolved, which is the thing
 [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door) keeps to one.
 
-<sub>See also [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0073](../decisions/0073.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0073](../decisions/0073.md).</sub>
 
 <a id="config-a-scheduled-run-is-a-root-isolate"></a>
 
@@ -1921,7 +1941,7 @@ wins, because the mode supplies a default and nothing more.
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
 
-<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0218](../decisions/0218.md).</sub>
+<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0091](../decisions/0091.md), [0218](../decisions/0218.md).</sub>
 
 <a id="config-opcache-file-cache-directives-are-system"></a>
 
@@ -1951,7 +1971,7 @@ started is not re-checked mid-run, consistent with every other `System` directiv
 looks like on disk, how an entry is verified before it is mapped executable, and the refusal of a
 world-writable directory are the packaging chapter's; this rule is only the roster and its class.
 
-<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0005](../decisions/0005.md), [0175](../decisions/0175.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0042](../decisions/0042.md), [0175](../decisions/0175.md), [0281](../decisions/0281.md).</sub>
 
 <a id="config-telemetry-and-update-endpoints-are-configuration"></a>
 

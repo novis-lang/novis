@@ -1,42 +1,25 @@
 <?nvs
-// The configuration snapshot, as a program: what an operator wrote in
-// `nvs.toml` read back through `Core\Config::get`, moved by
-// `Core\Config::set` inside this request, and stopped by the ceiling the
-// operator kept for themselves.
-//
-// ADR 0064 § 5 is the API — `get(string): ?string`, `set(string, string):
-// bool`, and `restore`/`all` beside them. ADR 0005 is the rule the two
-// middle lines exist for: a `Runtime` directive moves freely up to the
-// `[limits.hard]` ceiling, and a set above it **returns `false` and leaves
-// the value unchanged** rather than throwing. `m6.md`'s *Verify* says the
-// same in the other direction, so a version of this program wrapping the
-// third call in a `try` has found the rule and not a bug.
-//
-// The two numbers come from this repository's own `nvs.toml` — `[limits]
-// memory = "256M"` is the default and `[limits.hard] memory = "512M"` is
-// the ceiling — so `512M` is the last accepted value and `1G` is the first
-// refused one, named together the way a bound wants to be.
-//
-// The four lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`; the source is not.
+// This program reads a limit from `nvs.toml` and changes it for this request only.
+// `Core\Config::set` returns `true` for a value at or below the ceiling in `[limits.hard]`.
+// Above the ceiling, it returns `false` and the value does not change. It does not throw an error.
+// This project's `nvs.toml` sets `memory` to `256M` and its ceiling to `512M`.
 
-// The operator's default, before this request has touched anything.
+// This prints the value from `nvs.toml`, before this request changes it.
 echo 'memory=' . (Core\Config::get('memory') ?? 'unset') . "\n";
 
-// Up to the ceiling: accepted, and it takes effect.
+// `512M` is equal to the ceiling, so this set works and the new value is used.
 if (Core\Config::set('memory', '512M')) {
     echo 'set ok', "\n";
 } else {
     echo 'set failed', "\n";
 }
 
-// Past it: refused. No throw, no `catch`, just `false`.
+// `1G` is above the ceiling, so `set` returns `false`.
 if (Core\Config::set('memory', '1G')) {
     echo 'set accepted', "\n";
 } else {
     echo 'set refused', "\n";
 }
 
-// And the half a bare `false` would not prove: the refusal left the value
-// the accepted call put there, not the one it rejected and not the default.
+// The value is still the one from the set that worked, not `1G` and not `256M`.
 echo 'still=' . (Core\Config::get('memory') ?? 'unset') . "\n";

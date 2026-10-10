@@ -2,8 +2,7 @@
   "title": "An `[[app]]` block may widen a limit or grant a capability up to the global ceiling, and may only lower its own ceiling",
   "status": "shipped",
   "because": [
-    "0104",
-    "0005"
+    "0104"
   ],
   "seeAlso": [
     "config/every-matching-app-block-applies-least-specific-first",

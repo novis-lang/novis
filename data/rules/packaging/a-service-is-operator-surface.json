@@ -2,8 +2,7 @@
   "title": "There is no `Core\\Service`: only an operator installs a service, from the command line, and nothing about it is on the request path",
   "status": "shipped",
   "because": [
-    "0093",
-    "0005"
+    "0093"
   ],
   "seeAlso": [
     "security/no-runtime-grant",

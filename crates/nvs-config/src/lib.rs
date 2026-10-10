@@ -1,8 +1,9 @@
 //! Novis's configuration: the directive registry, and the `nvs.toml` tree that reads through it.
 //!
 //! What a directive *is* — three fields, one of which is reloadability — lives in
-//! [`directive`]'s own module doc, and the ADRs behind it are 0005 (the changeability class), 0078
-//! § 2 (the reloadability field) and 0064 (the file format). Nothing in this crate restates them.
+//! [`directive`]'s own module doc, and what is behind it is `rule:config/three-changeability-classes`
+//! (the changeability class), 0078 § 2 (the reloadability field) and 0064 (the file format).
+//! Nothing in this crate restates them.
 //!
 //! [`mod@file`] reads one file of it and [`mod@tree`] is what it reads into: every block an ADR
 //! states, with its own fields and an unknown key refused, which is `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s second refusal

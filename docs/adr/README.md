@@ -113,7 +113,7 @@ it is not deferrable.
 **Server-level configuration, not per-project.** `nvs.toml` is root-owned, TOML
 ([0064](../decisions/0064.md)), and per-app capability blocks live in the *root* config so an
 application can never grant itself rights. What a script may change about its own configuration at runtime
-is per-directive and is argued in [0005](../decisions/0005.md).
+is per-directive and is argued in `rule:config/three-changeability-classes`.
 
 **Pure-Rust dependencies by default.** A memory-safe runtime cannot contain arbitrary C. Deviations are
 explicit, argued and few — currently only SQLite (`rusqlite`), where no credible pure-Rust implementation

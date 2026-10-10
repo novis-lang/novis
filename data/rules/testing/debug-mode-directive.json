@@ -2,7 +2,6 @@
   "title": "`[debug] mode` is the ceiling as well as the default, and writing a trace or a profile is its own capability",
   "status": "shipped",
   "because": [
-    "0005",
     "0006"
   ],
   "seeAlso": [
