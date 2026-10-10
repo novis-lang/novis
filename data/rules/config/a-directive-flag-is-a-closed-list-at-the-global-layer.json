@@ -2,7 +2,6 @@
   "title": "A CLI flag that sets a directive is one of a closed list, wins over every file, and there is no `--set`",
   "status": "designed",
   "because": [
-    "0091",
     "0281"
   ],
   "seeAlso": [

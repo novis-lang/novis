@@ -2,7 +2,6 @@
   "title": "`[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says",
   "status": "designed",
   "because": [
-    "0091",
     "0092"
   ],
   "seeAlso": [

@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 // covers: Core\Env\Mode
-// § 4's flip is a `Core\Config::set` on `mode.default`, and this member reports
+// A flip is a `Core\Config::set` on `mode.default`, and this member reports
 // what the flip left in force. So the two are one fact reached two ways, and
 // this case asserts they **agree** at every step rather than asserting what
 // either one said: a `mode()` that had grown a reader of its own still looks
@@ -11,7 +11,7 @@
 
 echo "start=", Core\Config::get("mode.default") ?? "unset", " member=", (Core\Env::mode() == Core\Env\Mode::Production) ? "Production" : "Development", "\n";
 
-// § 5: the ceiling is `development`, so this flip is within it.
+// The ceiling is `development`, so this flip is within it.
 echo "flip=", Core\Config::set("mode.default", "development") ? "true" : "false", "\n";
 echo "now=", Core\Config::get("mode.default") ?? "unset", " member=", (Core\Env::mode() == Core\Env\Mode::Development) ? "Development" : "Production", "\n";
 
@@ -25,7 +25,7 @@ echo "now=", Core\Config::get("mode.default") ?? "unset", " member=", (Core\Env:
 echo "back=", Core\Config::set("mode.default", "production") ? "true" : "false", "\n";
 echo "now=", Core\Config::get("mode.default") ?? "unset", " member=", (Core\Env::mode() == Core\Env\Mode::Production) ? "Production" : "Development", "\n";
 --FILE nvs.toml--
-# § 5's third row: production by default, and a request may select development.
+# One host, mixed applications: production by default, and a request may select development.
 [mode]
 default = "production"
 ceiling = "development"

@@ -2,7 +2,6 @@
   "title": "A request resolves by longest mount match, prefix strip, static file, path dispatch, then the entry — and production runs only match, strip, entry",
   "status": "shipped",
   "because": [
-    "0091",
     "0197",
     "0219"
   ],

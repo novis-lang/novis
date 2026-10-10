@@ -84,8 +84,9 @@
 //! "which deployment am I" is the same question as "what is `OS`" — and not
 //! because of where the answer is kept. There is deliberately no `NVS_ENV` or
 //! `APP_ENV`: a mode that could be selected two ways would be `rule:core-api/shape-rules`'s R6
-//! twice over, and the one way is the file the ceiling in § 5 is also written
-//! in, which is what makes a flip checkable at all.
+//! twice over, and the one way is the file the mode's ceiling is also written
+//! in (`rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`), which
+//! is what makes a flip checkable at all.
 //!
 //! Where the value comes from is `nvs_config::Request::mode`, whose own doc
 //! owns the order — this module reads it and turns it into an ordinal, and
@@ -270,12 +271,12 @@ const MODE_MEMBER_DOC: MethodDoc = MethodDoc {
 /// every message quoting it cannot drift apart.
 pub(crate) const MODE_NAME: &str = r"Core\Env\Mode";
 
-/// `rule:config/a-mode-is-five-defaults`'s two run modes, valued by § 5's permissiveness order — the
+/// `rule:config/a-mode-is-five-defaults`'s two run modes, valued by the ceiling's permissiveness order — the
 /// same order `nvs_config::mode::rank` measures a flip against, so `Production`
 /// is 0 and there is nothing below it.
 ///
-/// Two cases and no third. A `Staging` would have to select a row of § 3's
-/// closed table that neither of these does; what a real staging host wants is
+/// Two cases and no third. A `Staging` would have to select a row of the
+/// closed mode table that neither of these does; what a real staging host wants is
 /// `Production` with the two or three directives it differs on written out,
 /// which is exactly what leaving them individually settable is for.
 pub(crate) const MODE: CoreEnum = CoreEnum {
@@ -320,8 +321,8 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 ///
 /// Written out rather than taken from `nvs_config::mode::rank`, on the rule
 /// [`crate::cli`]'s `depth_ordinal` states: the two rosters are declared in
-/// different crates for different readers, and a rank is § 5's *permissiveness
-/// order*, which is free to gain a value that is not a case here.
+/// different crates for different readers, and a rank is the ceiling's
+/// *permissiveness order*, which is free to gain a value that is not a case here.
 ///
 /// A name that is neither mode answers `Production`, the restrictive end. It is
 /// reachable only from a `mode.default` an operator misspelled in a root-owned

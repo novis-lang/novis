@@ -315,7 +315,7 @@ each of which is the same TOML key as the `pool = false` beside it and cannot be
 a key of the same name, which is the one arrangement where uncommenting the key alone would be
 accepted into the wrong block.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0091](../decisions/0091.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="config-the-resolved-root-is-announced-and-stored"></a>
 
@@ -822,7 +822,7 @@ shipped defaults
 So `nvs serve --mode=development` on a mixed host does not drag an application that pins `production`
 along with it, and `[mode] ceiling` still bounds what any of them may select.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0091](../decisions/0091.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="config-reloadability-is-its-own-field"></a>
 
@@ -915,7 +915,7 @@ reader learns once; a third would need its own argument.
   serves many requests at once, so one script that removes its own memory limit would take the host
   from every request beside it. The ceiling is what makes the freedom to widen affordable.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling). Decided in [0091](../decisions/0091.md).</sub>
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling).</sub>
 
 <a id="config-system-means-a-request-may-not-set-it"></a>
 
@@ -1222,15 +1222,21 @@ that forgets the line is safe, and a developer who wants the other one asks for 
 
 **The set is closed, and staging is not a third value.** A staging host runs `production` mode with
 different configuration — different credentials, a different log target, wider limits — which is what
-staging has always actually been. An open set of named environments buys per-name config files at the
-cost of the compiler no longer being able to enumerate what a name does, which is the property
-[`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults) exists to preserve; and since an unknown *key* in `nvs.toml` is
-already an error, an unknown *value* silently meaning "some third thing" would be the odd one out.
+staging has always actually been. A `test` run selects development-mode defaults inside its own
+isolate; it is not a third value either.
 
-A `test` run selects development-mode defaults inside its own isolate; it is not a third value
-either.
+**Declined:**
+- **An open set of named environments** (`staging`, `qa-eu-west`), each with an overlay file. It buys
+  per-name config files at the cost of the compiler no longer being able to enumerate what a name
+  does: "is this name production-like?" becomes each consumer's guess, which is `NODE_ENV`'s failure,
+  and enumerability is what [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults) exists to preserve. An unknown *key*
+  in `nvs.toml` is already an error, so an unknown *value* silently meaning "some third thing" would
+  be the odd one out.
+- **A `test` mode.** A `#[Test]` method already runs in its own isolate with its `echo` bound to a
+  captured sink ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)), so a third mode would be a second home for a
+  context the language already models.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0091](../decisions/0091.md).</sub>
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>
 
 <a id="config-the-mode-flag-wins-over-the-file"></a>
 
@@ -1250,15 +1256,18 @@ ordinary CLI precedence, the flag being the last word about the mode the server 
 replaces the **global** value; a matching `[[app]]` block still layers over it, so a flag never drags
 an application that pins its own mode along with it. The flag set is closed and there is no `--set`.
 
-This is a deliberate choice of ergonomics over one safety catch. Refusing a flag that contradicts the
-file would have caught a deploy script carrying a stale `--mode`; what covers that case instead is the
-banner and `Warn` record a development-mode server emits when it binds a public interface, so the
-payment for flag-over-file is visible rather than silent.
-
 The ceiling bounds a runtime flip, not the startup value: `nvs serve --mode=development` in a
 directory with no `nvs.toml` simply works, and the ceiling follows it.
 
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md).</sub>
+**Declined:**
+- **A `--mode` flag refused when it contradicts the file.** It would catch a deploy script carrying a
+  stale `--mode` at startup, but it trades away ordinary CLI precedence for one safety catch. What
+  covers that case instead is the banner and `Warn` record a development-mode server emits when it
+  binds a public interface
+  ([`http-server/a-development-server-on-a-public-interface-warns-and-serves`](http-server.md#http-server-a-development-server-on-a-public-interface-warns-and-serves)), so the payment
+  for flag-over-file is visible rather than silent.
+
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy).</sub>
 
 <a id="config-no-environment-variable-selects-the-mode"></a>
 
@@ -1280,7 +1289,13 @@ The operator's runtime switch is saving the root-owned file, which the running s
 publishes as a whole new snapshot with no restart ([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot))
 — strictly more capable than editing an environment variable, and root-owned.
 
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0091](../decisions/0091.md).</sub>
+**Declined:**
+- **An `NVS_MODE` environment variable.** It is the twelve-factor shape, with genuinely lower
+  friction on Kubernetes, where a variable in a manifest beats templating a config file. It would
+  contradict [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables) head-on and bring back the mechanism
+  behind each incident above; a reload of the root-owned file covers the operational need.
+
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot).</sub>
 
 <a id="config-a-mode-is-five-defaults"></a>
 
@@ -1308,12 +1323,20 @@ could already have set for itself. The table has one home in the tree, and a tes
 set — a sixth row cannot appear silently.
 
 What a mode deliberately does not govern: `[debug] mode`'s probe bits, whose configured value is
-already the default *and* the bound; the revalidation rate cap
-([`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class)); and **anything with no directive**. A mode
-never gates a *behaviour* — no dev toolbar, no source-context injection, no watcher. A feature that
-should differ between modes gets a directive first and a row second, in that order.
+already the default *and* the bound, so a mode that widened it would turn probes on for every
+request rather than make them available, spending request-path latency nobody asked for; the
+revalidation rate cap ([`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class)); and **anything with no
+directive**. A mode never gates a *behaviour* — no dev toolbar, no source-context injection, no
+watcher. A feature that should differ between modes gets a directive first and a row second, in that
+order.
 
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`errors/log-level`](errors.md#errors-log-level), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md), [0092](../decisions/0092.md).</sub>
+**Declined:**
+- **A mode with behaviours of its own** beyond the table: a dev toolbar, source maps in traces, a
+  filesystem watcher. It is the most capable shape, but every later feature would have to decide
+  whether it is mode-gated, different authors would decide it inconsistently, and the answer to
+  *what does development mode change?* would stop being a list.
+
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`errors/log-level`](errors.md#errors-log-level), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="config-a-startup-default-is-never-flipped"></a>
 
@@ -1354,7 +1377,7 @@ to decide whether a core's table is rebuilt.
   configuration becomes a file people copy without reading. The cost accepted is that every new
   directive has to say which table it belongs in.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0091](../decisions/0091.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-a-program-may-read-and-flip-its-mode"></a>
 
@@ -1384,11 +1407,31 @@ ceiling.
 
 **Every flip is request-local** ([`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local)), which is what makes
 allowing it safe at all. An accepted flip re-derives the five mode rows into the request's overlay,
-**except any the request has already set explicitly** — without the re-derivation the flip does
-nothing; without the exception it stomps a deliberate choice made three lines earlier. For a mixed
-host the `[[app]]` block is the primary answer and the in-code flip the escape hatch.
+**except any the request has already set explicitly or the file wrote** — without the re-derivation
+the flip does nothing; without the exception it stomps a deliberate choice made three lines earlier,
+or an operator's line written beside the mode. For a mixed host the `[[app]]` block is the primary
+answer, since it involves no application code and nothing the application can get wrong; the in-code
+flip is the escape hatch for when the application knows something the operator does not.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy). Decided in [0091](../decisions/0091.md).</sub>
+**What opening the ceiling costs.** On a host whose ceiling is `development`, any code path that
+reaches `Core\Config::set` can turn on inline dumps and detailed error responses for its own request,
+so an application bug that routes user input into a configuration set becomes an
+information-disclosure primitive on that host. Three things bound it: the ceiling is closed unless
+an operator writes one line, the flip is request-local so nothing reaches another request, and a
+detailed error page refuses a `secret` value like every other sink
+([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)). The mode resolves when a configuration is published, so the
+request path pays nothing for a request that does not flip.
+
+- **Memory:** an accepted flip holds one string pair in the request's overlay for `mode.default` and
+  one for each of the five rows it re-derives, until the request ends. A request that never flips
+  holds none.
+
+**Declined:**
+- **The mode as a `System` directive, unflippable from code.** It is the purest security answer, but
+  one host serving production and in-progress applications side by side is a real deployment, and
+  the ceiling keeps the whole security property for every host that has not deliberately opened it.
+
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy).</sub>
 
 <a id="config-an-application-is-its-entry-file-path"></a>
 
@@ -1588,7 +1631,7 @@ file, per-application mode works identically for `nvs serve` and `nvs run`, and 
 host is expressed with `[[app]]` blocks. `[mode] ceiling` still bounds what any `[[app]]` block may
 select, so nothing here widens what a mount could previously reach.
 
-<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount). Decided in [0091](../decisions/0091.md).</sub>
+<sub>See also [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/origin-is-a-block-key-and-there-is-no-app-table`](config.md#config-origin-is-a-block-key-and-there-is-no-app-table), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount).</sub>
 
 <a id="config-scheduled-work-is-a-config-block"></a>
 
@@ -2124,7 +2167,7 @@ wins, because the mode supplies a default and nothing more.
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
 
-<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0091](../decisions/0091.md), [0218](../decisions/0218.md).</sub>
+<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0218](../decisions/0218.md).</sub>
 
 <a id="config-opcache-file-cache-directives-are-system"></a>
 

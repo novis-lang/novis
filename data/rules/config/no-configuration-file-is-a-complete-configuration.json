@@ -2,7 +2,6 @@
   "title": "A host with no configuration file runs on the shipped defaults, which are a complete configuration and not an error",
   "status": "shipped",
   "because": [
-    "0091",
     "0281"
   ],
   "seeAlso": [

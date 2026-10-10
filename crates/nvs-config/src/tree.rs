@@ -78,7 +78,7 @@ pub struct Config {
     /// `[limits]` and the `[limits.hard]` ceiling under it (`rule:config/three-changeability-classes`).
     pub limits: Option<Limits>,
     /// `[mode]` — the default a request starts in and the ceiling it may select
-    /// (`rule:config/ceilings-are-their-own-directives`, ADR 0091).
+    /// (`rule:config/ceilings-are-their-own-directives`, `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`).
     pub mode: Option<Mode>,
     /// `[capabilities]` — deny-by-default grants (`rule:config/three-changeability-classes`, `rule:security/script-spawn-capability`).
     pub capabilities: Option<Capabilities>,

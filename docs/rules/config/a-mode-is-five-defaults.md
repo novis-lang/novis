@@ -18,7 +18,15 @@ could already have set for itself. The table has one home in the tree, and a tes
 set — a sixth row cannot appear silently.
 
 What a mode deliberately does not govern: `[debug] mode`'s probe bits, whose configured value is
-already the default *and* the bound; the revalidation rate cap
-(`rule:config/opcache-revalidation-is-system-class`); and **anything with no directive**. A mode
-never gates a *behaviour* — no dev toolbar, no source-context injection, no watcher. A feature that
-should differ between modes gets a directive first and a row second, in that order.
+already the default *and* the bound, so a mode that widened it would turn probes on for every
+request rather than make them available, spending request-path latency nobody asked for; the
+revalidation rate cap (`rule:config/opcache-revalidation-is-system-class`); and **anything with no
+directive**. A mode never gates a *behaviour* — no dev toolbar, no source-context injection, no
+watcher. A feature that should differ between modes gets a directive first and a row second, in that
+order.
+
+**Declined:**
+- **A mode with behaviours of its own** beyond the table: a dev toolbar, source maps in traces, a
+  filesystem watcher. It is the most capable shape, but every later feature would have to decide
+  whether it is mode-gated, different authors would decide it inconsistently, and the answer to
+  *what does development mode change?* would stop being a list.

@@ -526,7 +526,7 @@ fn every_derived_default_names_a_directive_the_registry_holds() {
 }
 
 /// `rule:config/a-program-may-read-and-flip-its-mode` and `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode` through the API a program actually holds: the flip is bounded by the ceiling, it
-/// carries § 3's rows with it, and it is request-local like every other `set`.
+/// carries the mode table's rows with it, and it is request-local like every other `set`.
 ///
 /// The last clause is the one a shared registry would get wrong, and it is asked here for the same
 /// reason `config_set_is_invisible_to_the_next_request_on_the_same_core` asks it of a limit: a mode

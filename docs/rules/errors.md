@@ -401,7 +401,7 @@ rides the normal [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw
   runs would end the whole request, where a catchable `ParseError` lets the caller recover, as PHP's
   does.
 
-<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0091](../decisions/0091.md).</sub>
+<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder).</sub>
 
 <a id="errors-diagnostic-record"></a>
 
@@ -615,7 +615,7 @@ dump is not a bug in the dump; it is that the dump writes to output, so a forgot
 production deployment are enough. Here the forgotten call writes a log line, and the spelling that would put it
 in a response does not exist outside a mode whose ceiling is closed by default.
 
-<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md), [0091](../decisions/0091.md).</sub>
+<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md).</sub>
 
 <a id="errors-log-write"></a>
 

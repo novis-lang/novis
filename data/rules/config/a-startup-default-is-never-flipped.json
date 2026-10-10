@@ -2,7 +2,6 @@
   "title": "A mode also selects three startup defaults, chosen when a configuration is published, never re-derived by a mode flip, and never flippable from code",
   "status": "shipped",
   "because": [
-    "0091",
     "0218",
     "0219"
   ],
