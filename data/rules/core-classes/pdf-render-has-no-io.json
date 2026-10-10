@@ -2,7 +2,6 @@
   "title": "PDF generation is a first-party extension that performs no I/O, and an unresolved asset throws",
   "status": "designed",
   "because": [
-    "0051",
     "0058",
     "0095"
   ],

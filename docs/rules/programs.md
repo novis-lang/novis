@@ -554,7 +554,7 @@ be stable for years; a framework's opinions need to move. Putting the whole fram
 would lock its cadence to the runtime's, and putting all of it in a package would push privileged
 operations across a boundary they cannot cross.
 
-<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new). Decided in [0082](../decisions/0082.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new). Decided in [0082](../decisions/0082.md).</sub>
 
 <a id="programs-framework-core-half"></a>
 
@@ -585,7 +585,7 @@ third-party framework can be written over this public surface, but it can comput
 and never declare it safe. A member added to this half later carries the test that placed it; one
 arriving with no test is a bug in the roster.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0082](../decisions/0082.md), [0051](../decisions/0051.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0082](../decisions/0082.md), [0024](../decisions/0024.md).</sub>
 
 <a id="programs-framework-web-package"></a>
 

@@ -2,8 +2,7 @@
   "title": "A PHP built-in is absent for one of four standing reasons",
   "status": "shipped",
   "because": [
-    "0063",
-    "0051"
+    "0063"
   ],
   "seeAlso": [
     "core-api/no-ambient-state",

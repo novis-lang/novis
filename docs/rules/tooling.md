@@ -339,7 +339,7 @@ the sink closes. Spinners and table rendering, which are pure text composition o
 than Tier 0 ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). And a TUI widget layer — panes, focus, event loops —
 which is an application framework, not a language surface.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md).</sub>
 
 <a id="tooling-the-tty-belongs-to-the-main-task"></a>
 

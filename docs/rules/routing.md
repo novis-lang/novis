@@ -771,7 +771,7 @@ OpenAPI 3.1 only, whose schema dialect is JSON Schema, so every declared type ma
 type system says something it cannot express. A handler answering HTML or a stream appears as an
 operation with an opaque response — honest, and not very useful.
 
-<sub>See also [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change). Decided in [0085](../decisions/0085.md), [0082](../decisions/0082.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`routing/api-diff-fails-a-breaking-change`](routing.md#routing-api-diff-fails-a-breaking-change). Decided in [0085](../decisions/0085.md), [0082](../decisions/0082.md).</sub>
 
 <a id="routing-api-diff-fails-a-breaking-change"></a>
 

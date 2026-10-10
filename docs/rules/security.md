@@ -292,7 +292,7 @@ The wasm component tier exists so this is unnecessary. Wrapping an existing C or
 stated purpose, and it delivers the same capability with a memory boundary, a capability grant, a CPU
 deadline and a memory cap — which is the whole of what an FFI gives up.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md).</sub>
 
 <a id="security-no-eval"></a>
 
@@ -856,7 +856,7 @@ The exception is the same one [`security/net-address-policy`](security.md#securi
 operator has already approved by writing it — and it is a property of the address, not of the client
 that dials it.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0055](../decisions/0055.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0055](../decisions/0055.md).</sub>
 
 <a id="security-tainted-qualifier"></a>
 
@@ -2322,7 +2322,7 @@ successful login at a time ([`security/needs-rehash-answers-weaker`](security.md
 kilobytes transiently per verification of a legacy row, on the calling task — bounded by in-flight
 logins, and shrinking as the table converges.
 
-<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws). Decided in [0129](../decisions/0129.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws). Decided in [0129](../decisions/0129.md).</sub>
 
 <a id="security-needs-rehash-answers-weaker"></a>
 

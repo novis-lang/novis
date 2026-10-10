@@ -327,7 +327,7 @@ wearing a decimal API, which is `Core\BigInt`.
 `decimal` is not an enum backing type ([`enums/one-backing-type`](enums.md#enums-one-backing-type)), and array keys are unaffected —
 every key is a `string` already ([`types/arrays`](types.md#types-arrays)).
 
-<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0051](../decisions/0051.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion). Decided in [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0004](../decisions/0004.md).</sub>
 
 <a id="types-ordering"></a>
 

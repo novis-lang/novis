@@ -753,7 +753,7 @@ registry whose maintainers do not depend on it does not stay good.
 
 Names are first-come, and the squatting policy is the registry operator's own operational document.
 
-<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0081](../decisions/0081.md), [0062](../decisions/0062.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`programs/path-case`](programs.md#programs-path-case), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0081](../decisions/0081.md), [0062](../decisions/0062.md).</sub>
 
 <a id="packaging-a-package-is-its-digest"></a>
 
@@ -1398,7 +1398,7 @@ Which tier a candidate lands at is decided by [`core-api/tier-placement`](core-a
 and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Those tests decide the partition, and no
 other runtime's packaging is a reason to place a candidate.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md).</sub>
 
 <a id="packaging-the-first-party-components-are-built-in"></a>
 
@@ -1985,7 +1985,7 @@ a comparator, because sorting ten thousand strings through a per-comparison boun
 130,000 crossings; the image component crosses once per terminal
 ([`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline)).
 
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0003](../decisions/0003.md).</sub>
 
 <a id="packaging-a-c-dependency-answers-two-questions"></a>
 
@@ -2012,7 +2012,11 @@ The test is enforced rather than remembered: `bun nv gen-attribution --check-c-d
 default binary's C dependencies from the resolved graph and fails CI on any without a recorded answer
 ([`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci)).
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand). Decided in [0051](../decisions/0051.md).</sub>
+**Declined:**
+- **Each C dependency argued on its own merits.** A growing list of individually reasoned exceptions is
+  how a pure-Rust default stops being one.
+
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
 
 <a id="packaging-pdf-decoding-ships-in-the-image-package"></a>
 
@@ -2321,7 +2325,7 @@ Socket activation — a privileged port with an empty capability set — is defe
 it changes how `nvs serve` acquires its listener, which makes it a server change the unit generator
 would simply follow.
 
-<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../decisions/0093.md), [0097](../decisions/0097.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0093](../decisions/0093.md), [0097](../decisions/0097.md).</sub>
 
 <a id="packaging-a-bundle-may-not-install-itself"></a>
 

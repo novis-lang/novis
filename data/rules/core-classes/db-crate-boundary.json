@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0132",
-    "0067",
-    "0051"
+    "0067"
   ],
   "seeAlso": [
     "core-classes/db-drivers-are-an-enum",

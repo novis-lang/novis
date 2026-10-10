@@ -227,7 +227,7 @@ coroutines already and they are not spelled `yield`.
 
 `yield` is a statement, so it produces no value to consume.
 
-<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement). Decided in [0053](../decisions/0053.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`iteration/generators`](iteration.md#iteration-generators), [`iteration/yield-lexical-confinement`](iteration.md#iteration-yield-lexical-confinement). Decided in [0053](../decisions/0053.md).</sub>
 
 <a id="iteration-yield-lexical-confinement"></a>
 

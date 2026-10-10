@@ -15,7 +15,7 @@ homepage.workspace = true
 doctest = false
 
 [dependencies]
-# The h1 framing, and the one dependency in this tree ADR 0051 § 4's first
+# The h1 framing, and the one dependency in this tree `rule:packaging/a-c-dependency-answers-two-questions`'s first
 # question answers "yes" to. The workspace `Cargo.toml`'s comment above it is
 # where that is argued, including why `default-features = false` is what keeps
 # `tokio` out of the graph rather than a tidiness choice.

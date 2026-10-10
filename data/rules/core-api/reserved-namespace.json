@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0011",
-    "0015",
-    "0051"
+    "0015"
   ],
   "seeAlso": [
     "core-api/core-means-always-present",

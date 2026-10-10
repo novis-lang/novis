@@ -117,7 +117,7 @@ is per-directive and is argued in [0005](../decisions/0005.md).
 
 **Pure-Rust dependencies by default.** A memory-safe runtime cannot contain arbitrary C. Deviations are
 explicit, argued and few — currently only SQLite (`rusqlite`), where no credible pure-Rust implementation
-exists. The admission test is [0051](../decisions/0051.md) § 4's.
+exists. The admission test is `rule:packaging/a-c-dependency-answers-two-questions`.
 
 **Domain logic is an existing first-class Rust crate; compiler passes and scheduler primitives are ours.**
 The neighbouring question to the one above — not *what may we depend on*, but *what may we write ourselves*.

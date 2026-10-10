@@ -614,7 +614,7 @@ added to the list in a commit that says why.
 The acceptance property is **mutation XSS**: sanitizing an answer again changes nothing, which is what
 says the approved document is the one a browser will build.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0051](../decisions/0051.md), [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0122](../decisions/0122.md).</sub>
 
 <a id="core-classes-html-parsing"></a>
 
@@ -881,7 +881,7 @@ It is **not** built on the shared cache, which is deliberately lossy — right f
 for a message a subscriber is waiting on. Cross-machine fan-out is not the runtime's: a fleet bridges
 topics to a broker in application code.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0023](../decisions/0023.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0051](../decisions/0051.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0023](../decisions/0023.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0076](../decisions/0076.md).</sub>
 
 <a id="core-classes-db-one-api"></a>
 
@@ -910,7 +910,7 @@ one injection into a compromise; `LOAD DATA LOCAL INFILE`; `PDO::quote` and
 `lastInsertId` state; `PDO::ATTR_*`; and `PDO::inTransaction`. Query builders, ORMs and migration
 tooling are not `Core` at all.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0051](../decisions/0051.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-db-connection-is-named"></a>
 
@@ -1331,7 +1331,7 @@ which is exactly what a sans-IO crate is. Sequencing — what to send next, what
 means, when the connection is reusable — is where this project's own decisions live, and borrowing it
 is what would have dragged an async runtime in. TDS has no such crate and is written by hand.
 
-<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-schema-is-a-value"></a>
 
@@ -1482,7 +1482,7 @@ anyway, and the introspector must exist for the diff regardless — so a parser 
 worse implementation of a job already done. Offline `.sql` input, if it is ever wanted, is a separate
 tool with its own decision.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-classes-schema-plan"></a>
 
@@ -2274,7 +2274,7 @@ encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.r
 through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
 APNG is neither decoded as an animation nor encoded.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap). Decided in [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap).</sub>
 
 <a id="core-classes-image-pixel-cap"></a>
 
@@ -2544,7 +2544,7 @@ the guest.
   disjoint CSS subsets, and the popular ones fetch whatever the HTML names, which is the category's
   vulnerability class. One first-party no-I/O way to do the job prevents both.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0051](../decisions/0051.md), [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
 
 <a id="core-classes-pdf-one-engine"></a>
 
@@ -2596,7 +2596,7 @@ paged-media engine may replace the assembled one wholesale, and it must still me
 - **A first-party imperative PDF API.** The first-party answer to drawing at a coordinate is HTML, CSS
   and SVG; a third-party package may carry one.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0051](../decisions/0051.md), [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
 
 <a id="core-classes-pdf-css-subset"></a>
 
@@ -2698,7 +2698,7 @@ refuses to encode it (`extensions/image/src/encode.rs`).
 - **pdfium or MuPDF compiled to wasm.** pdfium is a large C++ build no other component needs a
   toolchain for, and MuPDF is AGPL and outside `deny.toml`, while a pure-Rust interpreter exists.
 
-<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals). Decided in [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals).</sub>
 
 <a id="core-classes-pdf-decode-refusals"></a>
 
@@ -2784,7 +2784,7 @@ surfaced as data and nothing resolved.
 - **Exposing the crates' surfaces directly.** That is three disjoint APIs for one job inside a single
   component.
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0051](../decisions/0051.md), [0055](../decisions/0055.md).</sub>
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0055](../decisions/0055.md).</sub>
 
 <a id="core-classes-spreadsheet-formula-is-a-value"></a>
 
@@ -2875,7 +2875,7 @@ API tells the two apart, so the gap is visible.
 - **Evaluating formulas on read.** Recalculating on open turns reading an attacker's upload into
   running the attacker's program ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)).
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset). Decided in [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset).</sub>
 
 <a id="core-classes-spreadsheet-output-is-inert"></a>
 

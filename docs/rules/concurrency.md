@@ -1739,7 +1739,7 @@ runtime brings its own scheduler ([`concurrency/the-parking-contract`](concurren
 attacker-controlled reaches a registration, which carries a descriptor and an interest set and no
 parsed input at all.
 
-<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
 
 <a id="concurrency-a-stream-is-an-ordinary-io-stream"></a>
 

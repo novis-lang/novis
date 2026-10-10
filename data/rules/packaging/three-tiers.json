@@ -2,8 +2,7 @@
   "title": "Library and extension code sits at one of three tiers: built-in, sandboxed component, or statically linked native",
   "status": "designed",
   "because": [
-    "0003",
-    "0051"
+    "0003"
   ],
   "seeAlso": [
     "core-api/five-placements",

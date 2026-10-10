@@ -25,7 +25,7 @@ an optional subsystem was not built or installed. That would make the reserved n
 Attempting either — a loaded extension declaring a class under `Core\` or `Novis\` — is a load-time
 diagnostic naming the class, not a silently missing symbol.
 
-<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements). Decided in [0051](../decisions/0051.md), [0011](../decisions/0011.md), [0003](../decisions/0003.md).</sub>
+<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements). Decided in [0011](../decisions/0011.md), [0003](../decisions/0003.md).</sub>
 
 <a id="core-api-tier-placement"></a>
 
@@ -34,13 +34,16 @@ diagnostic naming the class, not a silently missing symbol.
 `rule:core-api/tier-placement`
 
 A candidate for the standard library is placed by six tests, applied in order, rather than by where another
-library happened to put it:
+library happened to put it. PHP's extension list tracks how its C modules were built and loaded —
+separate shared objects, load order, per-module globals — and adopting it would import its duplications
+with it: two MySQL APIs, four XML APIs, SHA-256 in two extensions, and `iconv` beside `mbstring`.
 
 1. **Does it need runtime privilege?** Direct heap access, the request lifecycle, the compiler's own
    tables, or state that outlives a request. This disqualifies every stateful client — a connection pool, a
    broker consumer, a bound directory session, a cached WSDL — because a sandboxed guest is re-instantiated
    per request and loses it every time.
-2. **Is it an injection sink or a launderer?** A launderer is always Core, because only a `Core` member
+2. **Is it an injection sink or a launderer?** SQL text, HTML output, headers, filesystem paths, argv,
+   logs ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)). A launderer is always Core, because only a `Core` member
    whose contract names a sink may remove a qualifier ([`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared)).
 3. **Does it wait on the outside world?** Sockets, files, child processes, timers. This forces a capability
    grant and, with test 1, usually forces a natively linked subsystem.
@@ -57,7 +60,20 @@ authority". Coroutine suspension is not a constraint: a host import can suspend 
 I/O-bearing component is possible in principle, and the database and cache clients are native because of
 connection lifetime rather than because of blocking.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0051](../decisions/0051.md), [0003](../decisions/0003.md), [0082](../decisions/0082.md), [0145](../decisions/0145.md), [0024](../decisions/0024.md).</sub>
+The cost the tests accept is a default binary whose unsandboxed dependency set is larger than a minimal
+runtime's: the database drivers, the HTTP client and the crypto primitives are all in it. Each is audited under `deny.toml`, and each is there because test 1 or test 2 put it there.
+
+**Declined:**
+- **PHP's extension list, one for one.** It imports every duplication above, and its partition encodes
+  C build constraints Novis does not have.
+- **Everything in Core, with no tiers for first-party code.** Image and archive decoders, the code that
+  turns an upload into code execution, would run in-process with every in-flight request, and the
+  unsandboxed dependency set would have no bound.
+- **A minimal core with everything else a package.** A launderer or an injection sink cannot be
+  third-party ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), and leaving HTTP, JSON, crypto and dates to
+  an ecosystem produces several incompatible implementations of each.
+
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0003](../decisions/0003.md), [0082](../decisions/0082.md), [0145](../decisions/0145.md), [0024](../decisions/0024.md).</sub>
 
 <a id="core-api-five-placements"></a>
 
@@ -81,7 +97,7 @@ that look alike are Native and Ext, and the line between them is test 1 — a co
 across requests cannot be sandboxed, because handing it a host-owned handle is writing it natively with
 extra steps.
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0051](../decisions/0051.md), [0003](../decisions/0003.md), [0081](../decisions/0081.md).</sub>
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0003](../decisions/0003.md), [0081](../decisions/0081.md).</sub>
 
 <a id="core-api-tier-roster"></a>
 
@@ -98,6 +114,31 @@ Native and feature-gated, which is how the metrics class and the shared cache ti
 is the general rule rather than a special case, and it is what keeps the `Core` name unconditional
 ([`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present)) while the thing it talks to is optional.
 
+The placements the tests produce, outside the `Core` classes the spec lists:
+
+- **Core despite a sandbox case.** `Core\Zip` and `Core\Compress` parse hostile bytes (test 5), but an
+  archive's real defects are `../` and absolute-path entries, symlink entries and decompression bombs.
+  Those are policy, and policy must be non-optional: a sandboxed decoder gets the memory cap and not the
+  traversal rules. `Core\Os` is `posix` minus `fork`, and `Core\Signal` is the graceful-shutdown part of
+  `pcntl` and nothing else ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
+- **Native, by test 1 or test 3.** `Core\Db` and the shared-cache backend behind `Core\Cache` hold
+  connections across requests; `Core\Ldap` holds a bound directory session, and its escaper is in `Core`
+  by test 2. `Core\Crypto` (AEAD only, TLS over `rustls`), `Core\Http\Client`, `Core\Net`, `Core\Mail`'s
+  transport, `Core\Storage`'s backends and `Core\Process` wait on the outside world, the network ones
+  over the runtime's own reactor rather than a second event loop. A MongoDB client would be Native or
+  nothing, and is unscheduled: its query surface shares nothing with `Core\Db`'s, so it would be a
+  second database API rather than another driver.
+- **Ext, first-party: four components, and the whole list.** Image decoding, which carries the EXIF
+  reader because the decoder already holds the file; intl, with its CLDR data and a batch-shaped API
+  ([`core-classes/intl-batch-shape`](core-classes.md#core-classes-intl-batch-shape)); PDF generation ([`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)); and
+  spreadsheets ([`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io)). Tier 1 exists for the third-party channel
+  ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)), not as a queue of first-party work.
+- **Ext when demand appears, and not before.** `bz2`, `xsl`, `yaml`, `msgpack`, `cbor` and
+  `protobuf` are pure codecs over hostile bytes, so the tier is settled and only the schedule is open.
+  Nothing in Novis depends on them. Vendor-C database drivers (`oci8`, `odbc`, `pdo_dblib`,
+  `pdo_firebird`) stay Tier 2, built from source by the operator who needs one, and `Core\Db`'s driver
+  interface keeps that possible.
+
 **Designed, not shipped.** Every class the roster places at Tier 0 is registered in
 `crates/nvs-stdlib/src/registry.rs`: the four `spec-*-outstanding.txt` ratchets under
 `crates/nvs-stdlib/tests/` are the gates that say so, each holds no keys, and each only shrinks. What
@@ -105,7 +146,33 @@ the roster places at Tier 0 and nothing provides is the four first-party sandbox
 tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
 registered.
 
-<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0051](../decisions/0051.md), [0067](../decisions/0067.md), [0076](../decisions/0076.md), [0086](../decisions/0086.md), [0122](../decisions/0122.md).</sub>
+**Declined**, each named so it is not re-proposed:
+- **The procedural `mysqli`, `pgsql` and `sqlite3` APIs.** One database API ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)).
+- **`filter`.** Its input half goes with the superglobals
+  ([`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)), and its sanitizing filters are half-escaping; only
+  the validators survive, as `Core\Validate`.
+- **`gettext` and `setlocale`.** Both mutate process-wide C state ([`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state)).
+- **`pcntl`'s `fork`.** Forking a threaded process is a correctness hazard, and `spawn worker` and
+  coroutines serve its uses.
+- **`phar`.** Replaced by [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host)
+  and closed with its stream wrapper in [`security/closed-doors`](security.md#security-closed-doors).
+- **`imap`, `calendar`, and `gmp` as such.** `Core\BigInt` replaces `gmp` over `num-bigint`, not the
+  LGPL C library ([`types/decimal`](types.md#types-decimal)).
+- **`imagick`, `memcached`, `dba`, `tidy`, `amqp` and `kafka`, by test 6.** The image component,
+  `Core\Cache`, SQLite, `Core\Html`'s sanitizer and `Core\Queue` already do each job. Repairing markup
+  is the wrong direction ([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)), and `Core\Queue`'s transactional
+  enqueue is stronger than a broker's ([`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write)).
+- **`soap`, `ftp` and `ssh2`, by test 1 and a thin audience.** `Core\Xml` with `Core\Http\Client`
+  covers SOAP; `Core\Storage` and the outbound address policy cover FTP; `Core\Process` runs a real
+  `ssh` binary, so SSH credential handling is not owned here.
+- **`snmp` and `enchant`.** Outside [`programs/audience`](programs.md#programs-audience); metrics come from `Core\Metrics`, and a
+  third-party component can carry spelling dictionaries.
+- **Ports of what the runtime already is.** `opcache`
+  ([`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file)), `xdebug`
+  ([`testing/debug-probes`](testing.md#testing-debug-probes)), `swoole`, `parallel`, `event`, `pthreads`, `apcu`
+  ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)) and `mysqlnd`.
+
+<sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present). Decided in [0067](../decisions/0067.md), [0076](../decisions/0076.md), [0086](../decisions/0086.md), [0122](../decisions/0122.md).</sub>
 
 <a id="core-api-reserved-namespace"></a>
 
@@ -128,7 +195,7 @@ assignability checks a user-declared static call takes, with no second code path
 The array domain class is spelled `Core\Arr` rather than `Core\Array`, because `array` is a type atom
 ([`types/grammar`](types.md#types-grammar)) and a class of that name would collide with it exactly where a type is expected.
 
-<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/no-class-alias`](classes.md#classes-no-class-alias), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0011](../decisions/0011.md), [0015](../decisions/0015.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/no-class-alias`](classes.md#classes-no-class-alias), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0011](../decisions/0011.md), [0015](../decisions/0015.md).</sub>
 
 <a id="core-api-a-domain-class-is-a-singular-noun"></a>
 
@@ -189,7 +256,7 @@ knows; and there is no ambient state for a member to read ([`core-api/no-ambient
 What this costs is familiarity. A developer who knows `sort($a)`, `strtotime` and `ob_start` finds none of
 them under that name, and ports each call by finding the `Core` member that does the job.
 
-<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0135](../decisions/0135.md), [0147](../decisions/0147.md).</sub>
+<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0063](../decisions/0063.md), [0011](../decisions/0011.md), [0135](../decisions/0135.md), [0147](../decisions/0147.md).</sub>
 
 <a id="core-api-subject-first"></a>
 
@@ -266,7 +333,7 @@ predicts its own return type, or an enum-typed option on the member that already
 ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)). Where two members genuinely take different things and answer different
 things, that is not a second spelling ([`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing)).
 
-<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-members-are-full-words"></a>
 
@@ -547,7 +614,7 @@ The cost is stated rather than hidden: every date formatting call names a zone, 
 typing than an ambient default zone for the common case. What it buys is that a member's answer is a function of its arguments,
 which is also what makes a call reviewable and a compile-time fold possible.
 
-<sub>See also [`core-api/removals`](core-api.md#core-api-removals), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-api/removals`](core-api.md#core-api-removals), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-failure-throws"></a>
 
@@ -593,7 +660,7 @@ nothing to reach. The one genuinely reachable two-spellings case is a compile er
 member written as a static call is refused, because such a member's receiver travels in argument slot 0 and
 would otherwise pass the same arity check the instance call passes.
 
-<sub>See also [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md), [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0063](../decisions/0063.md), [0122](../decisions/0122.md).</sub>
 
 <a id="core-api-no-methods-on-scalars-or-arrays"></a>
 
@@ -668,7 +735,7 @@ The cost lands on programs that genuinely handle non-UTF-8 text: they hold `byte
 ([`types/bytes`](types.md#types-bytes)) until they have decided what the encoding is, and the decision is written where it is
 made instead of defaulted per call.
 
-<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="core-api-one-range-convention"></a>
 
@@ -1289,7 +1356,7 @@ strings in the binary — per process, not per request, on the order of a few hu
 member — which is the cheap side of the trade and strippable behind a build feature if a deployment ever
 cares.
 
-<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0011](../decisions/0011.md), [0051](../decisions/0051.md), [0063](../decisions/0063.md), [0203](../decisions/0203.md), [0214](../decisions/0214.md).</sub>
+<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0011](../decisions/0011.md), [0063](../decisions/0063.md), [0203](../decisions/0203.md), [0214](../decisions/0214.md).</sub>
 
 <a id="core-api-removals"></a>
 
@@ -1315,4 +1382,4 @@ A PHP built-in that has no successor here is absent for one of four standing rea
 No list maps a PHP name to its outcome ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)): the four reasons are
 how a request for a missing built-in is judged, and the `Core` library states what Novis has.
 
-<sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/array-combination`](types.md#types-array-combination). Decided in [0063](../decisions/0063.md), [0051](../decisions/0051.md).</sub>
+<sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/array-combination`](types.md#types-array-combination). Decided in [0063](../decisions/0063.md).</sub>

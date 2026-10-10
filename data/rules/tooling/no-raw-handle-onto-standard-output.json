@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0086",
-    "0063",
-    "0051"
+    "0063"
   ],
   "seeAlso": [
     "tooling/terminal-output-is-a-sink",

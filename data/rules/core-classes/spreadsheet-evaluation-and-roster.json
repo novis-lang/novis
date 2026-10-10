@@ -1,9 +1,7 @@
 {
   "title": "The roster is read-wide and write-narrow, a macro is never written, and evaluation is an explicit call",
   "status": "designed",
-  "because": [
-    "0051"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/spreadsheet-formula-is-a-value",
     "core-classes/spreadsheet-output-is-inert",

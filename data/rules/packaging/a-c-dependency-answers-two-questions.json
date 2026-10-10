@@ -1,9 +1,7 @@
 {
   "title": "A C dependency is admitted under ordinary audit only if attacker-controlled data never reaches it; otherwise it needs an exceptional verification record or is confined to wasm",
   "status": "shipped",
-  "because": [
-    "0051"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/tier-placement",
     "testing/attribution-is-diffed-in-ci",

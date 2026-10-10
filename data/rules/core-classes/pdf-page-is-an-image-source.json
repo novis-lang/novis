@@ -1,9 +1,7 @@
 {
   "title": "A PDF page is a decode-only format of the image component: one page per `open`, priced by the pixel cap",
   "status": "designed",
-  "because": [
-    "0051"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/image-pixel-cap",
     "core-classes/image-format-roster",
