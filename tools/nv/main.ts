@@ -9,8 +9,8 @@
 // instrumented `nvs` that no run records writes its counters under `.agent-tmp/`.
 //
 // A command's own tests are under `test/`, and `test/surfaces.test.ts` runs the ones a session or the
-// hook reaches by name against this tree: `brief --where`, `guard --check`, `orient --traps`, `loop
-// --list` with its filters and `loop-stats --guard`'s count.
+// hook reaches by name against this tree: `brief --where`, `guard --check`, `orient --traps` and
+// `loop-stats --guard`'s count.
 
 import { DISCARD_PROFILE } from "./lib/paths.ts";
 import { ENV as READS_ENV, install } from "./lib/reads.ts";

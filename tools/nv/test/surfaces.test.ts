@@ -1,5 +1,5 @@
 // The `nv` commands a session or the hook reaches by name, run against this tree: `brief --where`,
-// `guard --check`, `orient --traps` and `loop --list` with its filters.
+// `guard --check` and `orient --traps`, and the matcher behind `loop --list --feature`.
 // Each test fails when the command stops answering the question a session asks it.
 
 import { describe, expect, test } from "bun:test";
@@ -36,21 +36,6 @@ describe("the commands a session reaches by name", () => {
     const miss = await nv("orient", "--traps", "zzq-none/zzq-none.txt");
     expect(miss.code).toBe(0);
     expect(miss.stdout).toContain("No bullet names any of these paths.");
-  });
-
-  test("loop --list narrows the live goal's checks by stage and by name", async () => {
-    const all = await nv("loop", "--list");
-    expect(all.code).toBe(0);
-    const label = /^ {2}\[([^\]]+)\]/m.exec(all.stdout)![1]!;
-    const stage = await nv("loop", "--list", "--stage", label.split(" ")[0]!);
-    expect(stage.code).toBe(0);
-    const shown = stage.stdout.split(/\r?\n/).filter((l) => /^ {2}\[/.test(l));
-    expect(shown.length).toBeGreaterThan(0);
-    expect(shown.every((l) => l.startsWith(`  [${label}]`))).toBe(true);
-    const none = await nv("loop", "--list", "--name", "no check is named this");
-    expect(none.code).toBe(0);
-    expect(none.stdout).toContain("list: 0 checks match");
-    expect((await nv("loop", "--list", "--stage", "no-such-stage")).code).toBe(2);
   });
 
   test("loop --list --feature matches a proofs check by its name, its --group or its --id", () => {

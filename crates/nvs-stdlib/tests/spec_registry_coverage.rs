@@ -56,7 +56,7 @@
 //! # An outstanding key names its owner, in a column
 //!
 //! Every key in every one of these files carries `# <owner>` after it: the goal
-//! from [the goals directory](/docs/agent/goals/) that will strike the line, or
+//! from [the goals directory](/docs/goals/) that will strike the line, or
 //! a milestone ahead of the program whose own plan carries the work.
 //! [`every_outstanding_key_names_an_owner`] is what makes that a field rather
 //! than a note — it reads the chain and the plan's table and fails on an owner
@@ -382,41 +382,45 @@ fn outstanding_file(name: &str) -> Ratchet {
     Ratchet { path, keys, owners }
 }
 
-/// The chain — `data/chain.json`'s `goals`, the list of goal slugs in the order
-/// the loop walks them — read for the one thing an owner column is checked
-/// against: which goals it still holds. The **slug** is what an owner column
-/// names, because a goal's position moves whenever anything is inserted in front of it.
-fn chain_goals() -> BTreeSet<String> {
-    let path = nvs_repo::path("data/chain.json");
+/// The chain: the `chain: [...]` line of `docs/goals/README.md`'s front matter,
+/// the goal slugs in the order the loop walks them. The **slug** is what an
+/// owner column names, because a goal's position moves whenever anything is
+/// inserted in front of it.
+fn chain() -> Vec<String> {
+    let path = nvs_repo::path("docs/goals/README.md");
     let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-    let chain: serde_json::Value =
-        serde_json::from_str(&text).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-    let goals = chain["goals"]
-        .as_array()
-        .unwrap_or_else(|| panic!("{}: `goals` is not a list", path.display()));
-    goals
-        .iter()
-        .map(|g| {
-            g.as_str()
-                .unwrap_or_else(|| panic!("{}: a goal that is not a slug: {g}", path.display()))
-                .to_owned()
-        })
+    let line = text
+        .lines()
+        .skip(1)
+        .take_while(|l| *l != "---")
+        .find_map(|l| l.strip_prefix("chain:"))
+        .unwrap_or_else(|| panic!("{}: the front matter has no `chain:` line", path.display()));
+    let list = line
+        .trim()
+        .strip_prefix('[')
+        .and_then(|l| l.strip_suffix(']'))
+        .unwrap_or_else(|| panic!("{}: `chain:` is not a `[...]` list", path.display()));
+    list.split(',')
+        .map(str::trim)
+        .filter(|g| !g.is_empty())
+        .map(str::to_owned)
         .collect()
 }
 
-/// The chain's `live` — the goal the loop works on now, which
-/// `rule:tooling/the-chain-names-its-live-goal` keeps on the `goals` list. A
-/// test that needs a slug the chain is sure to hold reads it here, because any
-/// fixed slug is one a later cleanup can delete.
+/// The goals the chain still holds, which is the one thing an owner column is
+/// checked against.
+fn chain_goals() -> BTreeSet<String> {
+    chain().into_iter().collect()
+}
+
+/// The live goal, the chain's first slug. A test that needs a slug the chain is
+/// sure to hold reads it here, because any fixed slug is one a later cleanup
+/// can delete.
 fn chain_live() -> String {
-    let path = nvs_repo::path("data/chain.json");
-    let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-    let chain: serde_json::Value =
-        serde_json::from_str(&text).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
-    chain["live"]
-        .as_str()
-        .unwrap_or_else(|| panic!("{}: `live` is not a slug", path.display()))
-        .to_owned()
+    chain()
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| panic!("docs/goals/README.md: the chain is empty"))
 }
 
 /// The first milestone a key may be deferred to.
@@ -527,12 +531,12 @@ fn owner_problem(
         return None;
     }
     Some(format!(
-        "names goal `{owner}`, which is no goal in data/chain.json"
+        "names goal `{owner}`, which is not on the chain in docs/goals/README.md"
     ))
 }
 
 /// Every key in every [`RATCHETS`] file names an owner a reader can act on: a
-/// goal [docs/agent/goals/](/docs/agent/goals/) still holds, named by its slug,
+/// goal the chain in [docs/goals/](/docs/goals/) still holds, named by its slug,
 /// or a milestone ahead of the program.
 ///
 /// [`owner_problem`] owns which two those are, and the module doc owns why the
@@ -543,7 +547,7 @@ fn every_outstanding_key_names_an_owner() {
     let plan = plan_milestones();
     assert!(
         !goals.is_empty(),
-        "data/chain.json yielded no goal — the chain's shape has changed under this walk, and \
+        "docs/goals/README.md yielded no goal — the chain's shape has changed under this walk, and \
          every owner below is being checked against nothing"
     );
     assert!(
@@ -567,7 +571,7 @@ fn every_outstanding_key_names_an_owner() {
     assert!(
         wrong.is_empty(),
         "{} outstanding key(s) name an owner nobody can act on:\n  {}\n\
-         Write `# <goal-slug>` after the key, taking the slug from docs/agent/goals/, or \
+         Write `# <goal-slug>` after the key, taking the slug from docs/goals/, or \
          `# M<n>` naming a milestone the plan's table still carries. An owner that went \
          green without striking its key is struck, not renamed.",
         wrong.len(),
@@ -614,11 +618,6 @@ fn an_owner_that_is_not_a_live_chain_entry_fails() {
     let unplanned = "M99".to_owned();
     let finished = "M9".to_owned();
 
-    assert!(
-        goals.contains(live.as_str()),
-        "the chain's live goal `{live}` is not on its own `goals` list, so data/chain.json is \
-         broken"
-    );
     assert!(
         !goals.contains(orphan.as_str()),
         "goal `{orphan}` is on the chain now, so it is no longer an orphan — pick a slug no goal \
