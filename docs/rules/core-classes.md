@@ -467,8 +467,11 @@ other fragment, and `Markup` keeps its one slot.
 - **An explicit escape call at every interpolation site, with no default.** It leaves security to a
   person remembering every time, and an omitted call is exactly the bug this rule closes; escaping
   unless the source opts out with a literal is strictly safer.
+- **`Markup . string` escapes and lifts the other operand.** `.` produces a `string`, so composing a
+  carrier through it loses exactly what the carrier carries, and an operator that escaped silently
+  would bring back the invisible second transform [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier) removes.
 
-<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0133](../decisions/0133.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
 
 <a id="core-classes-html-template"></a>
 
@@ -611,7 +614,7 @@ replacement character. Escaping `<`, `>`, `&` and quotes does nothing about disp
 that rule a bidi payload would survive the auto-escape sink intact. A balanced control is legitimate
 mixed-direction text and passes through.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0133](../decisions/0133.md).</sub>
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize).</sub>
 
 <a id="core-classes-html-to-source"></a>
 
@@ -631,12 +634,15 @@ nobody wrote.
 
 Its legitimate callers are the ones that need the bytes and not the guarantee — caching a rendered
 fragment, storing one in a column, writing one to a file, handing one to a sink that is not this one.
+Storing or logging escaped HTML as text therefore costs a call and a written reason at each site. That
+is a real restriction, and the case it slows down is usually the bug: escaped markup kept in a
+database is a classic one.
 
 The name is deliberate. `to…` is the conversion verb, `source` is spelled out, and it is neither
 `raw` — which in every template language means the opposite direction — nor `unescape`, which is
 reserved for the operation that actually inverts `escape` and which this is not.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0133](../decisions/0133.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="core-classes-html-sanitize"></a>
 
@@ -669,7 +675,7 @@ added to the list in a commit that says why.
 The acceptance property is **mutation XSS**: sanitizing an answer again changes nothing, which is what
 says the approved document is the one a browser will build.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
 <a id="core-classes-html-parsing"></a>
 

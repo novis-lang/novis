@@ -1,5 +1,5 @@
 --TEST--
-`Core\Html::escape` writes all five of `&<"'` as character references and answers a `Core\Html\Markup` for a `tainted` argument — `rule:core-classes/html-escape-answers-markup`, ADR 0133 §§ 1, 2
+`Core\Html::escape` writes all five of `&<"'` as character references and answers a `Core\Html\Markup` for a `tainted` argument — `rule:core-classes/html-escape-answers-markup`
 --FILE--
 <?nvs
 // `rule:security/launderers-are-sink-named` writes this member out as *the* worked example of a launderer:
@@ -11,8 +11,8 @@
 // idempotent, so the answer has to be a value the sink can tell from text.
 tainted string $t = "<a href='x' title=\"y\">Tom & Jerry</a>";
 
-// Declaring `string` here is the reject case now, and deliberately so — ADR
-// 0133 § 2's "the eager-escape habit stops compiling". A contagious row's
+// Declaring `string` here is the reject case now, and deliberately so —
+// `rule:core-classes/html-escape-answers-markup`. A contagious row's
 // answer still carries the qualifier and cannot be bound to a plain type
 // either (tests/conformance/core/a-launder-row-hands-a-tainted-value-to-the-sink-it-names.nvst).
 Core\Html\Markup $safe = Core\Html::escape($t);

@@ -1496,7 +1496,7 @@ Which return type a launderer takes is a predicate rather than a per-member choi
 ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)). Where no built-in launderer fits, the way out is
 [`security/assert-trusted`](security.md#security-assert-trusted) — written, greppable, and carrying a reason — and never a silent cast.
 
-<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0248](../decisions/0248.md).</sub>
+<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0248](../decisions/0248.md).</sub>
 
 <a id="security-launderer-answers-a-carrier"></a>
 
@@ -1520,7 +1520,34 @@ visible in the source.
 A launderer written for a *new* sink is measured against the two conditions, not against today's
 table, and a sink that acquires an automatic launder reclassifies its own member the day it does.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md).</sub>
+**Why a `string` is the wrong answer at such a sink.** A `string` carries one bit where the domain has
+three states: untrusted, plain text nobody has escaped, and already escaped for this sink. The second
+and third are the same type, so an escaped value concatenated into tainted text is re-poisoned,
+correctly, and the sink then escapes it a second time: `&` becomes `&amp;amp;` with no diagnostic
+anywhere. With a carrier the three states are three types — `tainted string`, `string` and
+`Core\Html\Markup` — and no operator moves a value backwards between them, so every ordering of a
+concatenation is either correct or refused. Neither condition alone is a hazard: a non-idempotent
+transform at a sink that never launders on its own takes a visible second call to break, and a
+terminal escape is idempotent because its substitute contains no escape byte.
+
+A registry guard holds it: the whole roster of launderers is listed with whether each answers a
+carrier, so a launderer added in any class fails the guard until somebody places it against the
+predicate.
+
+**Memory:** nothing a program did not already spend. The sink's escape-and-lift makes a `Markup`
+anyway, so a carrier answer removes the second escape rather than adding a wrapper.
+
+**Declined:**
+- **The HTML sink detects already-escaped text and skips it.** `&amp;` in the input is text that said
+  `&amp;`, and it must come back as `&amp;amp;`; a sink that guesses is one an attacker can aim
+  ([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)).
+- **A third qualifier, `escaped string`.** New grammar, a new keyword and a third axis in the checker,
+  to say what a carrier class already says for free.
+- **A carrier for every non-idempotent launderer**, such as a URI component, a database identifier and
+  a regex pattern type. It forces a builder API onto four classes whose values are normally assembled
+  by concatenation, against a hazard that takes a visible second call to reach.
+
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source).</sub>
 
 <a id="security-capture-answers-the-carrier"></a>
 
@@ -1541,7 +1568,7 @@ This is the third instance of one rule rather than three members that each argue
 two being a laundering escape and an approved URL — and stating it once is what keeps a future
 capturing member from answering the wrong type ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)).
 
-<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0133](../decisions/0133.md).</sub>
+<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member).</sub>
 
 <a id="security-route-capture-is-laundered-by-its-type"></a>
 
