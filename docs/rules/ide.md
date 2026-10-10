@@ -3,7 +3,7 @@
 
 # The editor
 
-*58 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
+*57 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -1853,11 +1853,11 @@ whose language stays the editor's own. The manifest test proves no TOML file typ
 
 <a id="ide-language-configuration-is-content"></a>
 
-## `language-configuration.json` carries comments, pairs, indentation, folding and a `wordPattern` that includes `$`  *(designed — not yet in the compiler)*
+## `language-configuration.json` carries comments, pairs, indentation, folding and a `wordPattern` that includes `$`
 
 `rule:ide/language-configuration-is-content`
 
-`language-configuration.json` is content, not a checkbox: comments (`//`, `#`, `/* */`), brackets,
+`language-configuration.json` is content, not a checkbox: comments (`//` for the line toggle, `/* */` for the block), brackets,
 auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `///` run
 ([`ide/doc-comment-authoring-is-the-editors-own`](ide.md#ide-doc-comment-authoring-is-the-editors-own)), and folding markers.
 
@@ -1870,7 +1870,7 @@ The second is that **`wordPattern` must include `$`**. Without it, double-clicki
 `total`, every rename-adjacent interaction is off by one character, and word-based completion suggests
 the wrong token.
 
-<sub>See also [`ide/doc-comment-authoring-is-the-editors-own`](ide.md#ide-doc-comment-authoring-is-the-editors-own), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers). Decided in [0149](../decisions/0149.md).</sub>
+<sub>See also [`ide/doc-comment-authoring-is-the-editors-own`](ide.md#ide-doc-comment-authoring-is-the-editors-own), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers).</sub>
 
 <a id="ide-doc-comment-authoring-is-the-editors-own"></a>
 
@@ -1899,7 +1899,29 @@ inside a doc comment is the first thing here that would have to answer it.
 Each client owns its own copy ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)): these are editing affordances,
 not server answers, so the PhpStorm plugin writes both again or goes without.
 
-<sub>See also [`ide/language-configuration-is-content`](ide.md#ide-language-configuration-is-content), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0149](../decisions/0149.md).</sub>
+No rule guesses where a doc comment ends. The continuation over-runs by one line until the author deletes
+it, the familiar nuisance of every `///` language, and a heuristic would guess wrong in the other
+direction. Nothing checks what the paste provider writes, but prefixing lines with a marker cannot
+produce anything that is not a comment, so the worst case is a badly worded one.
+
+- **Memory:** none. Both affordances run in the editor and touch no compile and no request.
+
+**Declined:**
+- **A `///`-delimited block** — `///` alone opening, an un-prefixed body, `///` alone closing. Its
+  terminator is a bare `///` line, which is what a code sample of a documented member contains, so ending
+  it safely needs a lexer that tracks Markdown fences. It makes the body's indentation content (four
+  spaces is a CommonMark code block) while [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes) forbids re-aligning a comment, and
+  an unterminated one turns the rest of the file into prose.
+- **`/** */`, the PHPDoc shape.** [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes) declines it, and a block
+  comment ends at the first `*/`, so a glob or a regex in the Markdown body would end the comment.
+- **A command and a keybinding** for the paste. They add a frozen id and a key to learn for what the
+  paste widget already offers.
+- **A snippet that expands to a doc comment.** A snippet body is a second copy of a syntactic shape
+  ([`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined)).
+- **`nvs fmt` inserting the prefix.** [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes) leaves every comment byte-for-byte
+  untouched, and a formatter cannot know which un-prefixed lines were meant as documentation.
+
+<sub>See also [`ide/language-configuration-is-content`](ide.md#ide-language-configuration-is-content), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="ide-contributions-are-frozen-and-only-ever-added"></a>
 
