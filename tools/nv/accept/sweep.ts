@@ -27,7 +27,7 @@ export interface Current {
 /**
  * The goal this process works on, its plan and the chain's length, or null once the reason it has none is
  * printed. It is the side goal `SIDE_ENV` names, with `sidePlan`'s plan, or else the live goal, with
- * `goalPlan`'s: the goal's own record.
+ * `goalPlan`'s: the goal file's front matter.
  */
 export function livePlan(): { live: Current; goal: Goal; total: number } | null {
   const goals = chainGoals();
@@ -35,23 +35,23 @@ export function livePlan(): { live: Current; goal: Goal; total: number } | null 
   if (side !== null) {
     const goal = sidePlan(side);
     if (goal === null) {
-      console.error(`nv loop: the side goal \`${side}\` has no record at data/goals/side/${side}.json`);
+      console.error(`nv loop: the side goal \`${side}\` has no goal file at docs/goals/${side}.md`);
       return null;
     }
     return { live: { slug: side, num: null }, goal, total: goals.length };
   }
   if (process.env[SIDE_ENV]) {
-    console.error(`nv loop: ${SIDE_ENV} names \`${process.env[SIDE_ENV]}\`, and there is no docs/agent/goals/side/<slug>.md by that name`);
+    console.error(`nv loop: ${SIDE_ENV} names \`${process.env[SIDE_ENV]}\`, and there is no docs/goals/<slug>.md by that name`);
     return null;
   }
   const live = liveGoal(goals);
   if (live === null) {
-    console.error("nv loop: data/chain.json names no live goal on the chain, so there is no plan to read");
+    console.error("nv loop: the chain in docs/goals/README.md names no live goal, so there is no plan to read");
     return null;
   }
   const goal = goalPlan(live.slug);
   if (goal === null) {
-    console.error(`nv loop: the live goal \`${live.slug}\` has no record at data/goals/${live.slug}.json`);
+    console.error(`nv loop: the live goal \`${live.slug}\` has no goal file at docs/goals/${live.slug}.md`);
     return null;
   }
   return { live, goal, total: goals.length };

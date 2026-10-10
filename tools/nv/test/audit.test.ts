@@ -24,8 +24,8 @@ const OLD = ["doss", "ier"].join("");
 
 describe("nv audit goals", () => {
   test("a goal file named by position is an offender, a slug-named one is not", () => {
-    const paths = ["docs/agent/goals/12-parses.md", "docs/agent/goals/side/restart-free.md", "docs/agent/goals/parses.md", "data/goals/3-x.json", "docs/decisions/0001.md"];
-    expect(numberedGoalFiles(paths)).toEqual(["docs/agent/goals/12-parses.md", "data/goals/3-x.json"]);
+    const paths = ["docs/agent/goals/12-parses.md", "docs/agent/goals/side/restart-free.md", "docs/agent/goals/parses.md", "docs/goals/3-x.md", "docs/decisions/0001.md"];
+    expect(numberedGoalFiles(paths)).toEqual(["docs/agent/goals/12-parses.md", "docs/goals/3-x.md"]);
   });
 
   test("the driver's copies, the handoff and a goal's toml or handoff are copies", () => {

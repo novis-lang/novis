@@ -96,8 +96,8 @@ function chainSlugs(root: string): string[] {
   return Array.isArray(list) ? list.filter((s): s is string => typeof s === "string") : [];
 }
 
-/** slug -> its goal file, `<slug>.md` in the goals directory. */
-function goalPaths(root: string): Map<string, string> {
+/** slug -> its goal file, `<slug>.md` in the goals directory, for every goal on the chain or off it. */
+export function goalPaths(root: string = ROOT): Map<string, string> {
   const out = new Map<string, string>();
   const dir = join(root, GOALS);
   if (!existsSync(dir)) return out;

@@ -4,8 +4,8 @@
 //
 //   goals   no tracked goal file is named `N-<slug>`, and no copy of a goal's files is tracked: the
 //           driver's `docs/agent/loop-goal.*`, `docs/agent/handoff.md`, and a goal's `.toml` or
-//           `.handoff.md` beside its prose. The goal's record under `data/goals/` is its one home.
-//   checks  no check a goal record or the driver's toml holds runs Python, and the old name of the
+//           `.handoff.md` beside its prose. The goal's file under `docs/goals/` is its one home.
+//   checks  no check a goal file or the driver's toml holds runs Python, and the old name of the
 //           feature proofs is in no check's name or `argv`, no directive line and no tracked file
 //           under `tools/`, by path or by text.
 //   eol     every tracked text file is LF in the index.
@@ -24,11 +24,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseToml } from "smol-toml";
-import { liveGoal } from "../lib/chain.ts";
+import { goalPaths, goalPlan, liveGoal } from "../lib/chain.ts";
 import { indexEol, tracked } from "../lib/git.ts";
 import { OLD, ROOT } from "../lib/paths.ts";
-import { load } from "../lib/store.ts";
-import { goal, sideGoal } from "../schema/goal.ts";
 
 export const summary = "what the cutover must leave behind: nv audit [goals | checks | eol | ci | python]";
 
@@ -47,7 +45,7 @@ export interface Finding {
 
 /** Tracked goal files whose name starts with a position. */
 export function numberedGoalFiles(paths: string[]): string[] {
-  return paths.filter((p) => (p.startsWith(GOALS) || p.startsWith("data/goals/")) && /^\d+-/.test(p.slice(p.lastIndexOf("/") + 1)));
+  return paths.filter((p) => (p.startsWith(GOALS) || p.startsWith("docs/goals/")) && /^\d+-/.test(p.slice(p.lastIndexOf("/") + 1)));
 }
 
 /** Tracked copies of what a goal's record now holds. */
@@ -97,13 +95,11 @@ export function crlfFiles(rows: { path: string; eol: string }[]): string[] {
   return rows.filter((r) => r.eol === "crlf" || r.eol === "mixed").map((r) => `${r.path}: ${r.eol}`);
 }
 
-/** Every check a goal or side goal record holds, and every one the driver's toml holds while it is on disk. */
+/** Every check a goal file holds, on the chain or off it, and every one the driver's toml holds while it is on disk. */
 export function allChecks(root: string = ROOT): CheckLine[] {
   const out: CheckLine[] = [];
-  for (const type of [goal, sideGoal]) {
-    for (const g of load(type, root)) {
-      for (const c of g.value.checks) out.push({ where: g.path, name: c.name ?? c.id, argv: [...(c.argv ?? []), ...(c.args ?? [])] });
-    }
+  for (const [slug, path] of goalPaths(root)) {
+    for (const c of goalPlan(slug, root)?.checks ?? []) out.push({ where: path, name: c.name ?? c.id, argv: [...(c.argv ?? []), ...(c.args ?? [])] });
   }
   const toml = join(root, DRIVER_TOML);
   if (existsSync(toml)) {

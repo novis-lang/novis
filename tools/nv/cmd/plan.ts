@@ -392,7 +392,7 @@ function check(): number {
       (none.length > 0 ? `, ${none.length} in none (goals ${none.join(", ")})` : "") +
       (live ? `; live at goal \`${live.slug}\`` : "; nothing live"));
   } else {
-    console.log("  chain: data/chain.json lists no goals, so no milestone's state is checked against it");
+    console.log("  chain: docs/goals/README.md lists no goals, so no milestone's state is checked against it");
   }
 
   // The table is the records and the chain written out for a reader, so every cell of every row is
