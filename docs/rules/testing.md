@@ -958,7 +958,7 @@ A second completeness test covers the other half: nothing in the standard librar
 system except through a door. Neither test subsumes the other — one catches a member that goes
 through a door undeclared, the other a member that reaches the OS with no door at all.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract).</sub>
 
 <a id="testing-attribution-is-diffed-in-ci"></a>
 

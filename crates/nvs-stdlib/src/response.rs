@@ -1015,8 +1015,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// Whether `media_type` is something a `Content-Type` header can carry — ADR
-/// 0088 § 1's sink, checked at the member rather than only at the connection.
+/// Whether `media_type` is something a `Content-Type` header can carry — the
+/// sink `rule:security/sink-predicate` makes of a header value, checked at the
+/// member rather than only at the connection.
 ///
 /// RFC 9110's field-value rule, narrowed: a media type is `token/token` with
 /// optional parameters, all of it printable ASCII, so a byte outside
@@ -1736,9 +1737,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::bytes(bytes $body, string $contentType): void` — ADR
-    /// 0088 § 4's fourth row, and the only body member that is *told* its
-    /// media type.
+    /// `Core\Response::bytes(bytes $body, string $contentType): void` — the
+    /// bytes member of `rule:security/response-body-is-one-typed-member`, and
+    /// the only body member that is *told* its media type.
     ///
     /// The type is checked before anything is written, which is the opposite
     /// order from `text`'s and for the same reason `json`'s is: a refusal that

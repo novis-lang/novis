@@ -92,7 +92,8 @@ unicode-width.workspace = true
 uuid.workspace = true
 
 # ADR 0086 § 3's terminal profile: how wide the controlling terminal is has no
-# `std` spelling on either platform, and ADR 0118 § 2 forbids `nvs-stdlib` from
+# `std` spelling on either platform, and `rule:security/capability-check-at-the-door`
+# forbids `nvs-stdlib` from
 # reaching the operating system itself — so the calls live in `src/terminal.rs`
 # and `Core\Cli` reads what they answered.
 [target.'cfg(unix)'.dependencies]

@@ -1977,8 +1977,8 @@ pub const CLASSES: &[CoreClass] = &[
     // `PART_CONTENT` docs own why a walk over a *part* needs one where a walk
     // over a body does not.
     crate::request::PART_CONTENT,
-    // § 15's fourth request-facing class, and the first one that *writes*: ADR
-    // 0088 § 4's five body members, of which `text` is registered. Beside
+    // § 15's fourth request-facing class, and the first one that *writes*: the
+    // typed body members of `rule:security/response-body-is-one-typed-member`. Beside
     // `Core\Server` because the two are the same request's two halves, and
     // [`crate::response`]'s module doc owns what a written body is — the bytes
     // are `echo`'s output and the member adds the `Content-Type`.
@@ -2628,9 +2628,10 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // declaration, and `rule:security/capability-check-at-the-door` is why the two are separate.
     (crate::io::NAME, "open", Some(nvs_config::Cap::FsWrite)),
     // The one member of this class that opens nothing and resolves no name:
-    // standard input is a descriptor the process was started holding, so ADR
-    // 0118 § 1 has no door to put a check at — the same reading as the handle
-    // members below, one step earlier, since here there was never even a path.
+    // standard input is a descriptor the process was started holding, so
+    // `rule:security/capability-check-at-the-door` has no door to put a check
+    // at — the same reading as the handle members below, one step earlier,
+    // since here there was never even a path.
     // A grant would be a boolean over an authority the invoker already
     // exercised by running the program with its input attached.
     (crate::io::NAME, "stdin", None),

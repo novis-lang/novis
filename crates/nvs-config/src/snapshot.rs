@@ -262,8 +262,6 @@ impl Snapshot {
         // `rule:security/path-scope-canonicalise-then-prefix`'s grant side, canonicalized once and here rather than per check, for the
         // reason an `[[app]]` key is canonicalized at this same point: a root still spelled the way
         // the operator typed it is a comparison against the wrong thing.
-        //
-        // [ADR 0118]: ../../../docs/decisions/0118.md
         if let Some(capabilities) = self.config.capabilities.as_mut() {
             capabilities.canonicalize(files);
         }

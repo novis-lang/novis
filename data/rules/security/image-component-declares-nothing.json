@@ -1,9 +1,7 @@
 {
   "title": "The image component declares no qualifier deviation and requests no capability",
   "status": "designed",
-  "because": [
-    "0118"
-  ],
+  "because": [],
   "seeAlso": [
     "security/extension-contagion",
     "security/capability-declaration-is-one-table",

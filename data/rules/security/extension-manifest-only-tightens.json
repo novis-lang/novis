@@ -1,9 +1,7 @@
 {
   "title": "Everything an extension manifest may declare is a restriction, so a hostile manifest cannot make a calling program less safe",
   "status": "designed",
-  "because": [
-    "0088"
-  ],
+  "because": [],
   "seeAlso": [
     "security/extension-contagion",
     "security/extension-declares-sink-or-source",

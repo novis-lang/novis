@@ -23,7 +23,7 @@ nvs-stdlib.workspace = true
 # `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint.workspace = true
 rustc-hash.workspace = true
-# ADR 0118 § 3 puts the capability enum and the grant walk in `nvs-config`, and
+# The capability enum and the grant walk live in `nvs-config`, and
 # `rule:core-classes/db-compile-time-query-checking` has `nvs check` ask one of its questions: `Env::grants` carries
 # the compiling machine's `[capabilities]` block, and `intrinsics.rs` reads a
 # literal `Core\Db::open` host against it through the same

@@ -2,8 +2,7 @@
   "title": "The sink in force picks the rendering, and no call site may name one",
   "status": "designed",
   "because": [
-    "0092",
-    "0088"
+    "0092"
   ],
   "seeAlso": [
     "errors/diagnostic-record",

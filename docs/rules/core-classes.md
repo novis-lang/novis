@@ -27,7 +27,7 @@ supplied wants [`core-classes/script-args`](core-classes.md#core-classes-script-
 Inside a request the array is empty: the launcher writes the command line, and only the CLI entry
 point writes one.
 
-<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0086](../decisions/0086.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0086](../decisions/0086.md).</sub>
 
 <a id="core-classes-script-args"></a>
 
@@ -86,7 +86,7 @@ no string position to escape into.
   convenience handed out for the one operation this class makes inconvenient on purpose. Spawning
   `sh -c` or `cmd.exe /c` through the argv API is one line longer and visibly the caller's own risk.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn).</sub>
 
 <a id="core-classes-process-run"></a>
 
@@ -468,7 +468,7 @@ other fragment, and `Markup` keeps its one slot.
   person remembering every time, and an omitted call is exactly the bug this rule closes; escaping
   unless the source opts out with a literal is strictly safer.
 
-<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0133](../decisions/0133.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0133](../decisions/0133.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
 
 <a id="core-classes-html-template"></a>
 
@@ -1082,7 +1082,7 @@ at run time does not run until the operator adds a `db.open` grant.
   can get into that zone's DNS, which is what the pinned address of
   [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address) exists to bound.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults). Decided in [0118](../decisions/0118.md), [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults). Decided in [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-safe-connection-defaults"></a>
 

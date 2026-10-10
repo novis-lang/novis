@@ -2,7 +2,6 @@
   "title": "A response body is written by one typed member, and mixing `echo` with one of them does not compile",
   "status": "shipped",
   "because": [
-    "0088",
     "0177"
   ],
   "seeAlso": [

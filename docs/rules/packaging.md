@@ -2279,7 +2279,7 @@ uninstall` removes it.
   the *subcommand* is what is constrained. That constraint alone keeps `--fault-inject` and a
   crash-looping `nvs test` out of an argv a privileged account runs at every boot.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0088](../decisions/0088.md), [0103](../decisions/0103.md), [0204](../decisions/0204.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0103](../decisions/0103.md), [0204](../decisions/0204.md), [0281](../decisions/0281.md).</sub>
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 

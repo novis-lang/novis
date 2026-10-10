@@ -1,4 +1,4 @@
-# ADR 0118 § 2: `spawn script` goes through a door that asks for `script.spawn`
+# `spawn script` goes through a door that asks for `script.spawn`
 # first, and deny-by-default means a fixture with no configuration cannot spawn
 # at all. Named with `--config`, so the fixtures this directory holds for `nvs
 # check` are untouched by it.

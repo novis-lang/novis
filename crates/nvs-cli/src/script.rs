@@ -1818,8 +1818,8 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
 
 /// A context granting `script.spawn` for everything, and nothing else.
 ///
-/// Every test in this binary that runs a fixture which spawns needs one: ADR
-/// 0118 § 1 denies by default, so a bare `Ctx` refuses at
+/// Every test in this binary that runs a fixture which spawns needs one:
+/// `rule:security/script-spawn-capability` denies by default, so a bare `Ctx` refuses at
 /// [`nvs_runtime::script::resolve`]'s door and the test then asserts the denial
 /// instead of whatever it was about. It lives here, beside the resolver, so
 /// that the grant has one spelling in this crate rather than one per test

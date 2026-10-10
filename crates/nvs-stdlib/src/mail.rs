@@ -21,9 +21,8 @@
 //! subject is RFC 2047 encoded the moment it holds anything a header
 //! line cannot carry, so a control byte becomes *content* rather than structure. That is what the
 //! spec row's "structured headers" buys, and it is why `$subject` and `$text` accept a `tainted`
-//! argument freely: they are data in exactly [ADR
-//! 0088](/docs/decisions/0088.md) § 7's sense,
-//! and mailing what a user typed is the point.
+//! argument freely: they are data in exactly `rule:security/log-is-not-a-sink`'s sense, and
+//! mailing what a user typed is the point.
 //!
 //! # The endpoint is a name, not a host — `rule:core-classes/db-capabilities`'s shape
 //!

@@ -16,7 +16,7 @@
 [[app]]
 entry = "queue-sqlite.nvs"
 
-# A job is a file a `spawn script` isolate runs, and ADR 0118 § 1 denies that by default — so a
+# A job is a file a `spawn script` isolate runs, and `script.spawn` is denied by default — so a
 # worker started by the block below is refused every job it claims without this grant, and reports
 # the refusal as a failed attempt rather than as a configuration mistake. It is `true` for the
 # reason the repository's own tree gives it: a queue subject is a path the *program* wrote, and
