@@ -2,7 +2,6 @@
   "title": "A missed fire is never caught up, `timezone` defaults to UTC, and a DST gap or repeat fires exactly once",
   "status": "shipped",
   "because": [
-    "0073",
     "0063"
   ],
   "seeAlso": [

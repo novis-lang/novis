@@ -68,7 +68,7 @@ nvs-server.workspace = true
 # with that loader.
 nvs-ext = { workspace = true, features = ["engine", "pack"] }
 wasmtime.workspace = true
-# The clock `nvs serve` hands ADR 0073 § 5's ticker. `nvs_server::tick_on_this_core`
+# The clock `nvs serve` hands the schedule ticker. `nvs_server::tick_on_this_core`
 # takes one rather than reading the wall clock itself, so the instant a fire is
 # judged against arrives from the caller — and here the caller is the process,
 # whose clock is the system's.

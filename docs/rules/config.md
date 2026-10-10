@@ -1479,11 +1479,35 @@ path outside them — including one reaching out through `..` — is a boot erro
 the set of files a deployment can execute is one list. Nothing is deferred to the first fire, because
 an entry that never fires looks exactly like one whose interval has not come round.
 
+The block is an array-of-tables because an entry is a repeated record with several fields, the shape
+[`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables) gives every such list and
+`[[extension]]` already uses. Keeping the schedule in the root-owned file means a job's existence, its
+cadence, its limits and its concurrency policy are reviewed in the same change and deployed by the
+same mechanism as the rest of the deployment. The price is that `nvs check` cannot see it: nothing
+links an entry to a compiled program, so a renamed script is a boot error rather than a compile
+error, and boot-time path checking is what closes most of that gap.
+
 `nvs run jobs/report.nvs` runs the identical file by hand — the whole debugging and backfill story,
 and why there is no `--run-now` flag. Durable, retried work is a different mechanism
 ([`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work)).
 
-<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends). Decided in [0073](../decisions/0073.md), [0064](../decisions/0064.md).</sub>
+**Declined:**
+- **A runtime `Core\Schedule::register(cron, callable)`.** It would be process-global state
+  established by whichever request ran first, invisible to `nvs check`, and unreachable from a host
+  that has not served a request yet — the objections [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload) makes
+  against a runtime autoloader.
+- **A `#[Schedule("0 3 * * *")]` attribute discovered at compile time**, the way routes are
+  ([`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered)). A schedule is deployment state, not source
+  state: one tree is deployed to staging and production with different cadences, limits and scopes,
+  so a config file would override the attribute and the attribute would be a second, weaker copy.
+- **Leaving it to system cron.** The schedule would live outside the application, fleet-once would be
+  a `flock` guard reinvented per job, and a cron-invoked `nvs run` gets no limits, no capability
+  narrowing and nowhere to report a failure but a mail spool.
+- **An entry that fires something other than a script**, such as an HTTP request to the server itself
+  or a `Core` member. `spawn script` is the one mechanism, and a second one would be a second
+  isolation path ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
+
+<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-value-array-replaces-and-a-table-appends`](config.md#config-a-value-array-replaces-and-a-table-appends). Decided in [0064](../decisions/0064.md).</sub>
 
 <a id="config-cron-is-five-fields-and-nothing-more"></a>
 
@@ -1509,7 +1533,7 @@ re-reads the string, because two readers would be two dialects, and the two disa
 that booted and fires at the wrong minute, which nothing observes. When day-of-month and day-of-week
 both narrow, POSIX's own rule holds and the entry fires on either.
 
-<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once). Decided in [0073](../decisions/0073.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once). Decided in [0064](../decisions/0064.md).</sub>
 
 <a id="config-scope-has-no-default"></a>
 
@@ -1536,7 +1560,7 @@ consequences.
 alternative — degrading to one run per host with a warning — is the exact failure the key exists to
 prevent, and a warning at boot is read once and then never again.
 
-<sub>See also [`config/a-fleet-entry-fires-at-most-once-under-a-lease`](config.md#config-a-fleet-entry-fires-at-most-once-under-a-lease), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0073](../decisions/0073.md).</sub>
+<sub>See also [`config/a-fleet-entry-fires-at-most-once-under-a-lease`](config.md#config-a-fleet-entry-fires-at-most-once-under-a-lease), [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers).</sub>
 
 <a id="config-every-schedule-key-is-system"></a>
 
@@ -1558,7 +1582,7 @@ why not even `RuntimeTighten` applies. This is the same class and the same reaso
 `[queue]`, the durable job queue beside the schedule, is `System` throughout for the same reason: work
 a request could redirect is work a request could redirect into a database it was never granted.
 
-<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0073](../decisions/0073.md).</sub>
+<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class).</sub>
 
 <a id="config-a-schedule-entry-narrows-only"></a>
 
@@ -1587,7 +1611,7 @@ a list of names, asked beside the configuration rather than instead of it. A sec
 scopes would make an entry a second place a capability's scope is resolved, which is the thing
 [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door) keeps to one.
 
-<sub>See also [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives). Decided in [0073](../decisions/0073.md).</sub>
+<sub>See also [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives).</sub>
 
 <a id="config-a-scheduled-run-is-a-root-isolate"></a>
 
@@ -1625,7 +1649,7 @@ schedule is a property of a running deployment, not of executing a file. The scr
 fire, so an edited one is picked up at the next fire exactly as a request picks up an edited entry. A
 queued job is the same root shape ([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)).
 
-<sub>See also [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`config/a-schedule-entry-narrows-only`](config.md#config-a-schedule-entry-narrows-only). Decided in [0073](../decisions/0073.md), [0271](../decisions/0271.md).</sub>
+<sub>See also [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`config/a-schedule-entry-narrows-only`](config.md#config-a-schedule-entry-narrows-only). Decided in [0271](../decisions/0271.md).</sub>
 
 <a id="config-a-fleet-entry-fires-at-most-once-under-a-lease"></a>
 
@@ -1659,7 +1683,7 @@ A tree with no shared store, and one whose store will not answer, leave every `f
 **unarmed** and named in a note. Firing it on each host's own clock would be the precise failure
 the scope exists to prevent, so the safe half is to run none of them and say so.
 
-<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0073](../decisions/0073.md), [0059](../decisions/0059.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0059](../decisions/0059.md), [0219](../decisions/0219.md).</sub>
 
 <a id="config-overlap-is-skip-queue-or-kill"></a>
 
@@ -1685,7 +1709,7 @@ A word that is none of the three refuses the boot; the key has a default, and a 
 asked for and will not get is refused rather than corrected. A dropped or held fire rearms like any
 other, so a job that runs long falls behind by intervals rather than by copies.
 
-<sub>See also [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code). Decided in [0073](../decisions/0073.md).</sub>
+<sub>See also [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once), [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code).</sub>
 
 <a id="config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once"></a>
 
@@ -1699,8 +1723,9 @@ the whole implementation of three rules.
 **A missed fire is never caught up.** A host that was down, a process that restarted, a machine that
 was suspended, a clock that jumped forward — in each case the missed interval is skipped and logged,
 and the next scheduled instant fires normally. Catch-up needs a durable record of what has and has not
-run, which is a queue, which this is deliberately not
-([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) draws the same boundary for deferred work).
+run, which is a queue with a scheduler bolted to it, and the applications that need one already run
+one ([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) draws the same boundary for deferred
+work). A missed nightly report stays missed until the next night or until someone runs it by hand.
 A wall-clock step forwards costs the intervals it stepped over rather than firing them in a burst.
 
 **`timezone` defaults to `"UTC"`.** There is no ambient timezone anywhere in Novis, so an absent key
@@ -1712,7 +1737,7 @@ at the first valid instant after the gap. One landing in a fall-back *repeat* fi
 occurrence. Both are decided in the single place a civil minute becomes an instant, and both are what
 make "runs once a day" true, which is what the operator wrote down.
 
-<sub>See also [`config/overlap-is-skip-queue-or-kill`](config.md#config-overlap-is-skip-queue-or-kill), [`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection). Decided in [0073](../decisions/0073.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`config/overlap-is-skip-queue-or-kill`](config.md#config-overlap-is-skip-queue-or-kill), [`config/cron-is-five-fields-and-nothing-more`](config.md#config-cron-is-five-fields-and-nothing-more), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="config-cache-shared-is-the-grant-over-the-configured-store"></a>
 

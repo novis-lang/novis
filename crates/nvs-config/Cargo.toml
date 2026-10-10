@@ -28,9 +28,10 @@ doctest = false
 # failure the module doc there already names for the target's grammar. The edge
 # runs downward — `nvs-render` depends on no `nvs-*` crate at all.
 #
-# `jiff` is the workspace's clock, and `src/schedule.rs` reaches it for ADR 0073 § 6: a
-# `[[schedule]]` entry's next fire is a civil minute in a named IANA zone, and the two
-# DST rules that section pins are that crate's own disambiguation. It is here rather
+# `jiff` is the workspace's clock, and `src/schedule.rs` reaches it for
+# `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`: a `[[schedule]]`
+# entry's next fire is a civil minute in a named IANA zone, and the two DST rules that
+# rule pins are that crate's own disambiguation. It is here rather
 # than in the scheduler because the expression is already read here, at boot — one
 # reader, which is that module's doc comment's argument.
 [dependencies]

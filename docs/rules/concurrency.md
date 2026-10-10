@@ -620,7 +620,7 @@ The test is what a program relies on, not where bytes live
 not one: a per-core metrics registry outlives requests and passes, because no program can read a
 metric at all and its values are approximate aggregates merged arithmetically at scrape.
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0059](../decisions/0059.md), [0075](../decisions/0075.md), [0073](../decisions/0073.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0059](../decisions/0059.md), [0075](../decisions/0075.md), [0181](../decisions/0181.md).</sub>
 
 <a id="concurrency-a-secret-is-cached-only-sealed"></a>
 
@@ -1160,7 +1160,7 @@ becomes claimable again. That is what makes delivery at-least-once
 ([`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once)) and what makes bounded retries a rule rather than
 advice.
 
-<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once). Decided in [0084](../decisions/0084.md), [0073](../decisions/0073.md), [0067](../decisions/0067.md), [0170](../decisions/0170.md).</sub>
+<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once). Decided in [0084](../decisions/0084.md), [0067](../decisions/0067.md), [0170](../decisions/0170.md).</sub>
 
 <a id="concurrency-a-job-between-attempts-is-pending"></a>
 
@@ -1496,7 +1496,7 @@ of course `push`, and that is the intended way to enqueue a nightly batch's wort
 decides when the batch is created and the queue decides how each piece of it is run, retried and
 recorded.
 
-<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md), [0073](../decisions/0073.md).</sub>
+<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md).</sub>
 
 <a id="concurrency-no-broker-and-no-driver-interface"></a>
 

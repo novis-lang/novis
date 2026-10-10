@@ -2,7 +2,6 @@
   "title": "`cron` is five-field POSIX plus five named shorthands, parsed at boot with the line named",
   "status": "shipped",
   "because": [
-    "0073",
     "0064"
   ],
   "seeAlso": [

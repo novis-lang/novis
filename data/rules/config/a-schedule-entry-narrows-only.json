@@ -1,9 +1,7 @@
 {
   "title": "An entry's `limits` and `grants` narrow the deployment's, and can never widen them",
   "status": "shipped",
-  "because": [
-    "0073"
-  ],
+  "because": [],
   "seeAlso": [
     "config/a-scheduled-run-is-a-root-isolate",
     "security/no-runtime-grant",
