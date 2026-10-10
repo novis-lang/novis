@@ -1,9 +1,7 @@
 {
   "title": "An attribute is an anonymous object on a declaration, and nothing is ever declared or instantiated for it",
   "status": "shipped",
-  "because": [
-    "0046"
-  ],
+  "because": [],
   "seeAlso": [
     "attributes/attach-sites-and-forms",
     "attributes/payload-is-a-compile-time-constant",

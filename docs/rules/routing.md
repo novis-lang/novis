@@ -333,7 +333,7 @@ is written on each line rather than inherited from the first: the attributes are
 payload objects, and an inheritance rule would make their order matter, which the route table's precedence
 rules exist to avoid.
 
-<sub>See also [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md).</sub>
+<sub>See also [`routing/a-shared-name-is-one-endpoint-everywhere`](routing.md#routing-a-shared-name-is-one-endpoint-everywhere), [`routing/no-wildcard-verb`](routing.md#routing-no-wildcard-verb), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`routing/route-attribute`](routing.md#routing-route-attribute), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered). Decided in [0110](../decisions/0110.md), [0077](../decisions/0077.md).</sub>
 
 <a id="routing-a-shared-name-is-one-endpoint-everywhere"></a>
 

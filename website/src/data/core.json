@@ -3124,9 +3124,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "`get<T>`, `all<T>` — structural, not a `Reflect` walk",
-      "adrs": [
-        "0046"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [

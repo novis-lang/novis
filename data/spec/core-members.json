@@ -1744,7 +1744,7 @@
         [
           "`Core\\Attributes`",
           "`get<T>`, `all<T>` — structural, not a `Reflect` walk",
-          "[0046](../decisions/0046.md)"
+          "`rule:attributes/structural-retrieval`"
         ],
         [
           "`Core\\Program`",

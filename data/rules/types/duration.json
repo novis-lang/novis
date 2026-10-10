@@ -1,9 +1,7 @@
 {
   "title": "`1h30m` is a `Core\\Time\\Duration` constant, in one grammar shared by source, `parse` and `nvs.toml`",
   "status": "shipped",
-  "because": [
-    "0046"
-  ],
+  "because": [],
   "seeAlso": [
     "types/numeric-literal-placement",
     "types/integer-literals"

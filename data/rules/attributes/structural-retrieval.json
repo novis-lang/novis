@@ -1,9 +1,7 @@
 {
   "title": "A retrieval matches a payload by the shape it satisfies, never by the name it was attached under",
   "status": "shipped",
-  "because": [
-    "0046"
-  ],
+  "because": [],
   "seeAlso": [
     "attributes/retrieval-folds-while-checking",
     "attributes/call-site-type-argument",

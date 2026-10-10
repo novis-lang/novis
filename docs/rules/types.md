@@ -564,7 +564,7 @@ the same as a computed `Duration::nanoseconds($n)`.
 - **A relative-time string such as `"+2 weeks"` on `DateTime`.** It duplicates `startOf`, `plus` and
   `next`, it is a mode string, and it hides whether a calendar or an exact offset was meant.
 
-<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals). Decided in [0046](../decisions/0046.md).</sub>
+<sub>See also [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/integer-literals`](types.md#types-integer-literals).</sub>
 
 <a id="types-single-value-types"></a>
 
@@ -654,7 +654,7 @@ using one this way is a diagnostic naming the eligible types. An enum case is no
 for the opposite reason: it carries its enum's nominal type and stays a narrowed view of it
 ([`types/enum-case-type`](types.md#types-enum-case-type)).
 
-<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type). Decided in [0046](../decisions/0046.md).</sub>
+<sub>See also [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type).</sub>
 
 <a id="types-enum-case-type"></a>
 

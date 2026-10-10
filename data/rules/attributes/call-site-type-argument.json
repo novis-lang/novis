@@ -2,7 +2,6 @@
   "title": "An explicit `<T>` at a call site is written for compiler-owned members only",
   "status": "shipped",
   "because": [
-    "0046",
     "0071"
   ],
   "seeAlso": [

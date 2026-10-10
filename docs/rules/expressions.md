@@ -364,7 +364,7 @@ before any request runs, so a deployment can refuse a pattern that can be made t
   among the ones found in production, and it leaves a backtracking pattern unrefusable until a request
   reaches it.
 
-<sub>See also [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0046](../decisions/0046.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="expressions-intrinsic-list-is-closed"></a>
 

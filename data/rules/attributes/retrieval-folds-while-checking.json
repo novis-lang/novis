@@ -1,9 +1,7 @@
 {
   "title": "A retrieval is answered while checking and replaced by its answer, so ambiguity is a compile error",
   "status": "shipped",
-  "because": [
-    "0046"
-  ],
+  "because": [],
   "seeAlso": [
     "attributes/structural-retrieval",
     "attributes/payload-is-a-compile-time-constant",
