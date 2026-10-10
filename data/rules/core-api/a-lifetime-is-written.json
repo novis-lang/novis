@@ -1,13 +1,14 @@
 {
   "title": "A signature's lifetime is a required key and `null` is the forever spelling",
-  "status": "designed",
-  "because": [
-    "0146"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "core-api/signing-is-over-a-payload",
     "core-api/a-written-null-removes",
     "core-api/omission-is-not-a-written-null"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/core/signature-a-lifetime-is-written-and-omitting-it-does-not-compile.nvst",
+    "tests/conformance/core/uri-sign-writes-a-lifetime-and-an-expired-link-is-the-one-named-refusal.nvst"
+  ]
 }

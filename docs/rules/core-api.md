@@ -3,7 +3,7 @@
 
 # The Core API
 
-*5 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 56 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-api-core-means-always-present"></a>
 
@@ -1247,7 +1247,7 @@ one.
 
 <a id="core-api-a-lifetime-is-written"></a>
 
-## A signature's lifetime is a required key and `null` is the forever spelling  *(designed — not yet in the compiler)*
+## A signature's lifetime is a required key and `null` is the forever spelling
 
 `rule:core-api/a-lifetime-is-written`
 
@@ -1256,21 +1256,23 @@ A signature's lifetime is a **required key holding a nullable value**: both a wr
 
 An omission is not a default. A permanent signed link is a permanent bearer credential — written into
 browser history, `Referer` headers, proxy logs and chat unfurls, and it never stops being one — so
-"forever" should be something a person typed rather than something a missing key chose. Making expiry
-mandatory would be the other answer, and it is rejected here as belonging to a specific token format rather
-than to the general operation.
+"forever" should be something a person typed rather than something a missing key chose.
 
 This is the one place a required key deliberately holds a nullable value, and it reads differently from
 [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes): there `null` clears an optional field, here it selects the
 unbounded lifetime on a field that must be written either way.
 
-**Designed, not shipped.**
+**Declined:**
+- **Mandatory expiry.** It is JWT's rule ([`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory)), and its reasoning is
+  about what a JWT is for; the signed cookie carries no lifetime at all. A mandatory lifetime also meets a
+  page left open all day by pushing applications toward a long `until` written once and never revisited,
+  which is the worse outcome. A written `null` gets the deliberation without that workaround.
 
-<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null). Decided in [0146](../decisions/0146.md).</sub>
+<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/a-written-null-removes`](core-api.md#core-api-a-written-null-removes), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null).</sub>
 
 <a id="core-api-signing-is-over-a-payload"></a>
 
-## A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines  *(designed — not yet in the compiler)*
+## A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines
 
 `rule:core-api/signing-is-over-a-payload`
 
@@ -1291,16 +1293,38 @@ Every component present is covered, so appending any parameter invalidates the s
 option naming which parameters are signed, because that option is where every framework's bypass has lived.
 The fragment is never signed, since it is not sent to the server.
 
-**Two doors of the three are on disk.** `Core\Signature` signs and verifies a payload map, and
+**There are three doors onto the one construction.** `Core\Signature` signs and verifies a payload map;
 `$uri->sign`/`$uri->verifySignature` sign the form `$uri->compareTo` normalizes, reserving the `_sig`
-query parameter for the token. `Core\Router`'s pair — the one that signs a route's name and parameters,
-so a signature survives a remount — is not registered yet.
+query parameter for the token; and `Core\Router`'s pair signs a route's name and parameters, so a
+signature survives a remount ([`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url)). Signing a URI that already carries
+`_sig` replaces it rather than nesting, `_sig` is left out of its own input, and a URL carrying two of
+them fails rather than picking one.
 
-<sub>See also [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing). Decided in [0146](../decisions/0146.md).</sub>
+A signed **relative** reference leaves scheme, host and port uncovered, so its token is valid on any
+origin: right for a link into your own application, wrong for anything else. An absolute one is built
+from a configured origin, never from a request's `Host`.
+
+A signed URL authenticates its parameters, not its caller. A link embedded in a page is a credential
+its reader holds: it stops them editing `{id}`, which closes the insecure-direct-object-reference
+class, and it does not stop them calling the endpoint, which is access control's job.
+
+**Memory:** one signature computation per signing call, and one per key tried per verification until
+one authenticates, all inside the call and held nowhere between calls. A program that signs nothing
+pays nothing. A token is about `4/3 × (payload + 40)` characters, which is the number to hold against
+the path length at which proxies and browsers begin to disagree.
+
+**Declined:**
+- **Signing the URL's rendered text.** It is one line and what every framework does, but rendering
+  deliberately does not normalize, so two references that are the same URI would produce two
+  signatures, and the mismatch would appear only for inputs nobody tested.
+- **An option naming which parameters are signed.** It is the configuration point every published
+  bypass has gone through, and signing everything present needs no such point.
+
+<sub>See also [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing).</sub>
 
 <a id="core-api-one-refusal-except-expiry"></a>
 
-## Every way of failing a signature check is one refusal, and expiry is the single distinguishable one  *(designed — not yet in the compiler)*
+## Every way of failing a signature check is one refusal, and expiry is the single distinguishable one
 
 `rule:core-api/one-refusal-except-expiry`
 
@@ -1317,9 +1341,12 @@ without a disclosure, which is why the ordering is a rule rather than an impleme
 Verification answers nothing and throws, because there are no claims to return and a `bool` is a value a
 caller can drop on the floor ([`core-api/failure-throws`](core-api.md#core-api-failure-throws)).
 
-**Designed, not shipped.**
+**Declined:**
+- **A verification that answers a `bool`.** It is what an application wanting its own error page
+  reaches for, and it is unnecessary: both errors are catchable, and the distinction an application
+  needs is exactly the one they draw.
 
-<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0146](../decisions/0146.md).</sub>
+<sub>See also [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="core-api-each-door-takes-a-different-thing"></a>
 
@@ -1341,7 +1368,22 @@ A program that assembles a URL by hand, signs the text and hand-rolls the parame
 URL member badly rather than reached it twice, which is the difference between a second door and a second
 API.
 
-<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0146](../decisions/0146.md).</sub>
+Signing and sealing are two operations for the same reason. The signed cookie is authenticated
+encryption, so its payload is **hidden**; a signed URL's payload must be **visible**, because the
+parameters in the link are the point of it. One member with a flag would mean either readable cookies
+or opaque URLs, so neither class loses a member to the other.
+
+**Declined:**
+- **The payload signer alone, with no doors.** It is the smallest surface, but the join from "I have a
+  URL" to "I have a canonical payload of it" is the step that goes wrong, and leaving it to every caller
+  leaves the bug class in place ([`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload)).
+- **The URL member alone, with no general signer.** Signing would then depend on the thing being a URL,
+  which a cross-service token is not, and a program that uses neither `Core\Router` nor `Core\Uri` would
+  have no way to sign at all.
+- **Extending the signed cookie to cover URLs.** It keeps the roster one shorter, but its payload is
+  encrypted and a URL's must not be.
+
+<sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers).</sub>
 
 <a id="core-api-two-cache-tiers"></a>
 

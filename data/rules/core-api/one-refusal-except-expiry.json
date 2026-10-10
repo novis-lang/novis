@@ -1,15 +1,18 @@
 {
   "title": "Every way of failing a signature check is one refusal, and expiry is the single distinguishable one",
-  "status": "designed",
-  "because": [
-    "0146"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "core-api/signing-is-over-a-payload",
     "core-api/failure-throws",
     "errors/ambiguous-input-refused"
   ],
   "guardedBy": [
-    "crates/nvs-stdlib/src/signed_cookie.rs"
+    "crates/nvs-stdlib/src/signed_cookie.rs",
+    "tests/conformance/core/signature-verify-refuses-every-forgery-with-one-message.nvst",
+    "tests/conformance/core/signature-an-expired-signature-is-the-one-distinguishable-refusal.nvst",
+    "tests/conformance/core/router-signed-route-refuses-every-forgery-with-one-sentence.nvst",
+    "tests/conformance/core/router-signed-route-tells-an-expired-link-apart-and-nothing-else.nvst",
+    "tests/conformance/core/uri-sign-writes-a-lifetime-and-an-expired-link-is-the-one-named-refusal.nvst"
   ]
 }

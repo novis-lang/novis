@@ -11,3 +11,18 @@ the same thing are one member with a flag, whatever they are named — that is t
 A program that assembles a URL by hand, signs the text and hand-rolls the parameter walk has written the
 URL member badly rather than reached it twice, which is the difference between a second door and a second
 API.
+
+Signing and sealing are two operations for the same reason. The signed cookie is authenticated
+encryption, so its payload is **hidden**; a signed URL's payload must be **visible**, because the
+parameters in the link are the point of it. One member with a flag would mean either readable cookies
+or opaque URLs, so neither class loses a member to the other.
+
+**Declined:**
+- **The payload signer alone, with no doors.** It is the smallest surface, but the join from "I have a
+  URL" to "I have a canonical payload of it" is the step that goes wrong, and leaving it to every caller
+  leaves the bug class in place (`rule:core-api/signing-is-over-a-payload`).
+- **The URL member alone, with no general signer.** Signing would then depend on the thing being a URL,
+  which a cross-service token is not, and a program that uses neither `Core\Router` nor `Core\Uri` would
+  have no way to sign at all.
+- **Extending the signed cookie to cover URLs.** It keeps the roster one shorter, but its payload is
+  encrypted and a URL's must not be.

@@ -1,13 +1,15 @@
 {
   "title": "`Core\\Signature` signs a canonicalized payload, and the lifetime rides inside the signed bytes",
-  "status": "designed",
-  "because": [
-    "0146"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "core-classes/router-signed-url",
     "core-classes/uri-removable-components",
     "core-classes/secret-reveal"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/core/signature-a-round-trip-hands-back-the-payload-in-canonical-order.nvst",
+    "tests/conformance/core/signature-verify-does-not-launder-where-signed-cookie-open-does.nvst",
+    "crates/nvs-stdlib/src/signature.rs"
+  ]
 }

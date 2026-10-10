@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*28 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*26 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -2310,11 +2310,11 @@ own output for every algorithm here, derived from labels so a rerun writes the s
 
 <a id="core-classes-signature"></a>
 
-## `Core\Signature` signs a canonicalized payload, and the lifetime rides inside the signed bytes  *(designed — not yet in the compiler)*
+## `Core\Signature` signs a canonicalized payload, and the lifetime rides inside the signed bytes
 
 `rule:core-classes/signature`
 
-`Core\Signature::sign` takes a map and an options bag carrying a key ring and an optional expiry, and
+`Core\Signature::sign` takes a map and an options bag carrying a key ring and a written lifetime, and
 answers a token; `verify` takes a token and a key ring and answers the payload or throws.
 
 **The input is a map, never text.** `sign` canonicalizes the payload itself — keys sorted, each value
@@ -2324,27 +2324,25 @@ beside them, so a holder cannot edit it and there is no second parameter to keep
 is URL-safe by construction — unpadded URL-safe base64 — so every octet is a legal cookie octet and a
 legal query-string value and nothing downstream escapes it again. The key ring is newest-first:
 signing uses the head, verifying tries the ring in order, rotating is prepending and retiring is
-dropping the tail. One rotation vocabulary in the language, not two.
+dropping the tail. It is the signed cookie's ring and shape, so there is one rotation vocabulary in
+the language, not two.
 
 **A verified payload is `tainted`.** A token minted by one service and read by another is not the
 signed-cookie case, where the plaintext was the application's own when it went in; "we authored this
 payload" is not a property the checker can see, so it is not one the return type may assume.
 
-**Not shipped.** There is no `Core\Signature` in `crates/nvs-stdlib/src/`; the nearest landed member
-is `signed_cookie.rs`, whose key-ring shape this one adopts.
-
-<sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0146](../decisions/0146.md).</sub>
+<sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="core-classes-router-signed-url"></a>
 
-## `Core\Router` signs a route name and its parameters, so a signature survives a remount  *(designed — not yet in the compiler)*
+## `Core\Router` signs a route name and its parameters, so a signature survives a remount
 
 `rule:core-classes/router-signed-url`
 
-`Core\Router` keeps its own signing pair — one that mints a signed URL from a route name and its
-typed parameters, and one that verifies against the match the server already made. Parsing a built
-URL and signing it would reach most of this, and convenience alone would not justify two more
-members.
+`Core\Router` keeps its own signing pair — `urlSigned`, which mints a signed URL from a route name and
+its typed parameters, and `signedRoute`, which verifies against the match the server already made and
+answers that `Router\Match` or throws. Parsing a built URL and signing it would reach most of this, and
+convenience alone would not justify two more members.
 
 **One property does.** A compiled route table may be served at one mount prefix or another, so a
 signed *path* stops verifying the moment a mount moves. Signing the route **name** and its parameters
@@ -2354,10 +2352,7 @@ survives a remount, and verification reads the existing match rather than re-par
 signature for you, because the program that renders the refusal is the program that should decide
 when to ask.
 
-**Not shipped.** `crates/nvs-stdlib/src/router.rs` carries neither member, and
-[`core-classes/signature`](core-classes.md#core-classes-signature) — the payload half both would sign — is not built either.
-
-<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0146](../decisions/0146.md).</sub>
+<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature).</sub>
 
 <a id="core-classes-uri-removable-components"></a>
 
@@ -2389,7 +2384,7 @@ query string gains no second canonicalization. The name a parameter is reached b
 so an array value is what writes brackets — which is what makes the pair a round trip rather than
 two members that each invented a spelling.
 
-<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0147](../decisions/0147.md), [0146](../decisions/0146.md).</sub>
+<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0147](../decisions/0147.md).</sub>
 
 <a id="core-classes-output-that-scales-with-its-input-bounds-the-input"></a>
 

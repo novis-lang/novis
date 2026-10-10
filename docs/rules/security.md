@@ -2402,7 +2402,7 @@ stateless over the key it is handed.
   framework, and every entry is a permanent compatibility obligation
   ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
 
-<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0146](../decisions/0146.md), [0179](../decisions/0179.md).</sub>
+<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0179](../decisions/0179.md).</sub>
 
 <a id="security-protocol-admission-test"></a>
 
@@ -2466,7 +2466,7 @@ answer to a different question and is why the two are not one rule.
 Expiry being unrepresentably absent is what makes a leaked token bounded rather than permanent, which
 is the failure the historical implementations kept shipping ([`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key)).
 
-<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time). Decided in [0146](../decisions/0146.md).</sub>
+<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time).</sub>
 
 <a id="security-verification-throws-and-compares-in-constant-time"></a>
 
