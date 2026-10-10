@@ -4,8 +4,7 @@
   "because": [
     "0135",
     "0063",
-    "0067",
-    "0024"
+    "0067"
   ],
   "seeAlso": [
     "core-api/shape-parameter",

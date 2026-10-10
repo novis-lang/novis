@@ -73,7 +73,7 @@ runtime's: the database drivers, the HTTP client and the crypto primitives are a
   third-party ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), and leaving HTTP, JSON, crypto and dates to
   an ecosystem produces several incompatible implementations of each.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0082](../decisions/0082.md), [0145](../decisions/0145.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0082](../decisions/0082.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-api-five-placements"></a>
 
@@ -577,7 +577,7 @@ What this buys is that a reviewer reads authority off the call site: whether an 
 attacker-controlled data is a property of the member being called, visible in its entry, and a member with
 no answer fails the build rather than being assumed neutral.
 
-<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0063](../decisions/0063.md), [0024](../decisions/0024.md), [0055](../decisions/0055.md), [0135](../decisions/0135.md).</sub>
+<sub>See also [`core-api/shape-flattens-at-the-abi`](core-api.md#core-api-shape-flattens-at-the-abi), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0063](../decisions/0063.md), [0055](../decisions/0055.md), [0135](../decisions/0135.md).</sub>
 
 <a id="core-api-nothing-mutates"></a>
 
@@ -1124,7 +1124,7 @@ for this to matter is a member that wanted an enum.
 A qualifier classification lands on the **field**, not the parameter
 ([`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared)), so a shape's fields are walked rather than exempted.
 
-<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0135](../decisions/0135.md), [0063](../decisions/0063.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter), [`core-api/the-bag-abi-is-unchanged`](core-api.md#core-api-the-bag-abi-is-unchanged), [`core-api/qualifier-behaviour-is-declared`](core-api.md#core-api-qualifier-behaviour-is-declared), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0135](../decisions/0135.md), [0063](../decisions/0063.md), [0067](../decisions/0067.md).</sub>
 
 <a id="core-api-shape-reuses-the-option-diagnostics"></a>
 
@@ -1297,7 +1297,7 @@ footprint, and a configured size cap is the instrument for that — `[cache.loca
 `[cache.process] max_size` per process; a boolean grant is not one, and adding it would price a tier as an
 authority question every deployment then has to answer.
 
-<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0059](../decisions/0059.md), [0024](../decisions/0024.md), [0142](../decisions/0142.md), [0118](../decisions/0118.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0059](../decisions/0059.md), [0142](../decisions/0142.md), [0118](../decisions/0118.md), [0181](../decisions/0181.md).</sub>
 
 <a id="core-api-one-temporary-directory-member"></a>
 

@@ -27,3 +27,8 @@ initializer, and two computed carriers.
 never writes (`rule:core-classes/html-later`). It carries a per-request token no author text and no
 escaped visitor string can contain, so it composes with `+`, `Core\Html::join` and a partial like any
 other fragment, and `Markup` keeps its one slot.
+
+**Declined:**
+- **An explicit escape call at every interpolation site, with no default.** It leaves security to a
+  person remembering every time, and an omitted call is exactly the bug this rule closes; escaping
+  unless the source opts out with a literal is strictly safer.

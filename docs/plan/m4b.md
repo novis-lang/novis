@@ -76,7 +76,7 @@ rejects may be coloured as valid** (`===`, legacy casts, `|>`, the alternative c
 **semantic tokens** colour what a regex structurally cannot know: `defaultLibrary` on a `Core` class,
 enum members, type aliases, and two modifiers of Novis's own — **`tainted` and `secret`** — so a qualified
 value is visibly qualified at every use site, which is the cheapest teaching surface
-[0024](../decisions/0024.md) and
+`rule:security/tainted-qualifier` and
 `rule:security/secret-qualifier` have. **Novis ships no colours** — colour is
 the user's theme's — so both layers ship *names*, every one of them from the standard TextMate vocabulary
 or LSP's standard legend, because a theme styles only names it recognises and an invented scope renders as

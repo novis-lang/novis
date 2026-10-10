@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0067",
-    "0007",
-    "0024"
+    "0007"
   ],
   "seeAlso": [
     "core-classes/db-one-api",

@@ -102,7 +102,7 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     // `parse(tainted string $s): static` required, `tryParse(tainted string
     // $s): ?static` carried as a default. The text at every binding site
     // arrived from outside the process, so the contract says `tainted` rather
-    // than letting each implementor discover it (0024 § 1); the object it
+    // than letting each implementor discover it (`rule:security/tainted-sources`); the object it
     // answers carries no taint, because taint is a property of `string` and
     // `bytes` and not of a class (`rule:security/tainted-qualifier`).
     let parses = interner.class(QName::parse(PARSES));

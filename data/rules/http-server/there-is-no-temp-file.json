@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0105",
-    "0097",
-    "0024"
+    "0097"
   ],
   "seeAlso": [
     "http-server/a-part-is-consumed-in-one-of-three-ways",

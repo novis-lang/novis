@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0105",
-    "0063",
-    "0024"
+    "0063"
   ],
   "seeAlso": [
     "core-classes/temporary-dir-sweep",

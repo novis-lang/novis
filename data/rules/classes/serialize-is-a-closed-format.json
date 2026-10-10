@@ -2,7 +2,6 @@
   "title": "`Core\\Serialize::decode` accepts only bytes this build's `encode` produced, and refuses everything else outright",
   "status": "shipped",
   "because": [
-    "0024",
     "0063"
   ],
   "seeAlso": [

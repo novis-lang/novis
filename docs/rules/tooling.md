@@ -135,7 +135,7 @@ and no numeric or machine-learning stack and no route to one ([`security/no-ffi`
 No check enforces a forbidden phrasing and none should; the rule exists so a reviewer has something
 to point at.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler). Decided in [0100](../decisions/0100.md), [0080](../decisions/0080.md), [0044](../decisions/0044.md), [0024](../decisions/0024.md), [0048](../decisions/0048.md), [0052](../decisions/0052.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler). Decided in [0100](../decisions/0100.md), [0080](../decisions/0080.md), [0044](../decisions/0044.md), [0048](../decisions/0048.md), [0052](../decisions/0052.md).</sub>
 
 <a id="tooling-echo-always-has-a-sink"></a>
 
@@ -175,7 +175,7 @@ HTML, so no call site names a format. It also gives `Core\Out::capture` its answ
 than an `echo` the HTML sink would escape into corruption
 ([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0092](../decisions/0092.md), [0177](../decisions/0177.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0092](../decisions/0092.md), [0177](../decisions/0177.md).</sub>
 
 <a id="tooling-terminal-output-is-a-sink"></a>
 
@@ -203,7 +203,7 @@ is the sink's named launderer, performing exactly this table, for the program th
 neutralized form as a value. A `secret` value is refused outright with no carrier bypass
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), because substitution does nothing for confidentiality.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md), [0087](../decisions/0087.md).</sub>
 
 <a id="tooling-text-is-the-one-raw-path"></a>
 
@@ -423,7 +423,7 @@ controlling terminal, not standard input** — `/dev/tty`, `CONIN$` — so `cat 
 still ask a question; without that, piping and prompting are mutually exclusive, which is the defect
 in every hand-rolled version.
 
-<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/no-ffi`](security.md#security-no-ffi), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0052](../decisions/0052.md).</sub>
+<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/no-ffi`](security.md#security-no-ffi), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0086](../decisions/0086.md), [0052](../decisions/0052.md).</sub>
 
 <a id="tooling-a-prompt-never-blocks"></a>
 
@@ -532,7 +532,7 @@ set of allowed values by its word ([`routing/a-capture-narrows-to-a-closed-set`]
 — no new laundering rule exists for the command line. An `#[Option]` written outside a `#[Command]`
 method supplies nothing, because there is no table for it to be a row of.
 
-<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0077](../decisions/0077.md).</sub>
 
 <a id="tooling-command-run-dispatches-and-help-is-generated"></a>
 

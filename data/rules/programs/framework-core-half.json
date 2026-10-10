@@ -2,8 +2,7 @@
   "title": "The privileged half of the framework is `Core`, compiled into the binary",
   "status": "shipped",
   "because": [
-    "0082",
-    "0024"
+    "0082"
   ],
   "seeAlso": [
     "programs/first-party-framework",

@@ -44,7 +44,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
 
 - **Qualifier bypass** — a `tainted` value reaching a sink unlaundered, a `secret` reaching output, a log,
   a dump, a `Throwable` or serialization, or a sink that should refuse and doesn't
-  ([0024](docs/decisions/0024.md),
+  (`rule:security/sink-predicate`,
   `rule:security/secret-sinks-refuse`,
   [0088](docs/decisions/0088.md)).
 - **Request or isolate boundary escape** — one request reading, corrupting or influencing another;

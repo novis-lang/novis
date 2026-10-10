@@ -1,5 +1,5 @@
 --TEST--
-`Core\Html::escape` writes all five of `&<"'` as character references and answers a `Core\Html\Markup` for a `tainted` argument — ADR 0024 §§ 3, 5, ADR 0133 §§ 1, 2
+`Core\Html::escape` writes all five of `&<"'` as character references and answers a `Core\Html\Markup` for a `tainted` argument — `rule:core-classes/html-escape-answers-markup`, ADR 0133 §§ 1, 2
 --FILE--
 <?nvs
 // `rule:security/launderers-are-sink-named` writes this member out as *the* worked example of a launderer:

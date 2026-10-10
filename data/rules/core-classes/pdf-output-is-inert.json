@@ -2,7 +2,6 @@
   "title": "The writer emits nothing a reader would execute, and equal input gives byte-equal output",
   "status": "designed",
   "because": [
-    "0024",
     "0079"
   ],
   "seeAlso": [

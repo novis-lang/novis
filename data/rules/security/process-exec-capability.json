@@ -4,8 +4,7 @@
   "because": [
     "0044",
     "0118",
-    "0112",
-    "0024"
+    "0112"
   ],
   "seeAlso": [
     "security/capability-check-at-the-door",

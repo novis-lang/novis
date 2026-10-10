@@ -74,7 +74,7 @@ What this costs is the one case where a shell genuinely was the feature — a pi
 redirect. Those are written in Novis, or by spawning the shell explicitly and owning the quoting at
 that call site.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn). Decided in [0044](../decisions/0044.md), [0024](../decisions/0024.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn). Decided in [0044](../decisions/0044.md), [0118](../decisions/0118.md).</sub>
 
 <a id="core-classes-process-run"></a>
 
@@ -235,7 +235,7 @@ It is general on purpose: a request body, a decompressed archive, an outbound re
 upload part all reach disk through this one implementation, so the partial-write cleanup lives in one
 place rather than in every call site that hand-wrote the loop.
 
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0105](../decisions/0105.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0105](../decisions/0105.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-temporary-dir-sweep"></a>
 
@@ -412,7 +412,12 @@ never writes ([`core-classes/html-later`](core-classes.md#core-classes-html-late
 escaped visitor string can contain, so it composes with `+`, `Core\Html::join` and a partial like any
 other fragment, and `Markup` keeps its one slot.
 
-<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
+**Declined:**
+- **An explicit escape call at every interpolation site, with no default.** It leaves security to a
+  person remembering every time, and an omitted call is exactly the bug this rule closes; escaping
+  unless the source opts out with a literal is strictly safer.
+
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
 
 <a id="core-classes-html-template"></a>
 
@@ -555,7 +560,7 @@ replacement character. Escaping `<`, `>`, `&` and quotes does nothing about disp
 that rule a bidi payload would survive the auto-escape sink intact. A balanced control is legitimate
 mixed-direction text and passes through.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0133](../decisions/0133.md), [0087](../decisions/0087.md).</sub>
 
 <a id="core-classes-html-to-source"></a>
 
@@ -580,7 +585,7 @@ The name is deliberate. `to…` is the conversion verb, `source` is spelled out,
 `raw` — which in every template language means the opposite direction — nor `unescape`, which is
 reserved for the operation that actually inverts `escape` and which this is not.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0133](../decisions/0133.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-html-sanitize"></a>
 
@@ -613,7 +618,7 @@ added to the list in a commit that says why.
 The acceptance property is **mutation XSS**: sanitizing an answer again changes nothing, which is what
 says the approved document is the one a browser will build.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0122](../decisions/0122.md).</sub>
 
 <a id="core-classes-html-parsing"></a>
 
@@ -782,7 +787,7 @@ safe to keep comes out", and each such function's author carries responsibility 
 
 `reveal` removes `secret` and nothing else: a value that was also `tainted` stays `tainted`.
 
-<sub>See also [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra). Decided in [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra).</sub>
 
 <a id="core-classes-reflect"></a>
 
@@ -929,7 +934,16 @@ one injection into a compromise; `LOAD DATA LOCAL INFILE`; `PDO::quote` and
 `lastInsertId` state; `PDO::ATTR_*`; and `PDO::inTransaction`. Query builders, ORMs and migration
 tooling are not `Core` at all.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
+A dynamic identifier, a table or column name SQL cannot bind, goes through `Core\Db::quoteIdentifier`
+or an allowlist check.
+
+**Declined:**
+- **A query text that must be a literal in the source.** It would block legitimate dynamic assembly,
+  such as pagination or an allowlisted sort column, to buy a guarantee the untainted rule does not
+  need. If real programs show untainted text too easy to build without validation, this is the
+  stricter mode to reconsider.
+
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-db-connection-is-named"></a>
 
@@ -982,7 +996,7 @@ hostname is safe to send credentials to, since a malicious server can answer any
 `LOCAL INFILE` request. `Core\Taint::assertTrusted` is the only way through. `database` and `user`
 accept `tainted` freely, and `password` is `secret tainted string`.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults). Decided in [0067](../decisions/0067.md), [0058](../decisions/0058.md), [0024](../decisions/0024.md), [0118](../decisions/0118.md), [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults). Decided in [0067](../decisions/0067.md), [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-safe-connection-defaults"></a>
 
@@ -1164,7 +1178,7 @@ type, so a `mixed` that turned out to be a list would reshape the query instead 
 `NOT IN`, the rewriter cannot tell which it is in, and picking one silently is worse than making the
 caller branch. Expansion changes the statement's arity, so the statement cache keys on it.
 
-<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members). Decided in [0067](../decisions/0067.md), [0007](../decisions/0007.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members). Decided in [0067](../decisions/0067.md), [0007](../decisions/0007.md).</sub>
 
 <a id="core-classes-db-compile-time-query-checking"></a>
 
@@ -1214,7 +1228,7 @@ language's own `as`, so `Core\Db` never grows a second stringification table. Ev
 yields is `tainted` where its type can carry it, which closes stored injection by the same mechanism
 as reflected. The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed).
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0054](../decisions/0054.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0145](../decisions/0145.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0054](../decisions/0054.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0145](../decisions/0145.md).</sub>
 
 <a id="core-classes-db-streaming"></a>
 
@@ -1412,7 +1426,7 @@ to mean a construct that is in the vocabulary — SQLite's `CREATE UNIQUE INDEX`
 a constraint, SQL Server's filtered index for a nullable unique key — and the introspector reads that
 spelling back as the construct it stands for.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-a-unique-key-reads-nulls-as-distinct"></a>
 
@@ -1833,7 +1847,7 @@ transactional enqueue — the property the whole design rests on — requires it
 database is permitted and silently gives up that property, which is why the documentation says so at
 the point the option is offered.
 
-<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0153](../decisions/0153.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0153](../decisions/0153.md), [0187](../decisions/0187.md).</sub>
 
 <a id="core-classes-session-is-started-explicitly"></a>
 
@@ -1912,7 +1926,7 @@ nature and the store's protocol is length-prefixed, so a key cannot reshape a co
 TTL. The in-process tier is an existing crate; the shared tier is a small script of our own, an
 algorithm over our own state.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md).</sub>
 
 <a id="core-classes-ratelimit-unreachable-store-throws"></a>
 
@@ -2668,7 +2682,7 @@ and compared byte for byte.
 
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source). Decided in [0024](../decisions/0024.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="core-classes-pdf-page-is-an-image-source"></a>
 
@@ -2834,7 +2848,7 @@ rather than the builder's state.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
 
 <a id="core-classes-spreadsheet-bulk-boundary"></a>
 

@@ -67,7 +67,7 @@ on the artifact-cache path ([0042](../decisions/0042.md)). That is the same trad
 pure-Rust-dependency rule below already makes — the `unsafe` lives in a fuzzed crate with a user base rather
 than in ours, where `unsafe_code = "forbid"` and a stable-pinned toolchain (so no `std::simd`) bar it
 anyway. When a byte-scanning leaf turns out to be hot — UTF-8 validation, grapheme scanning,
-[0024](../decisions/0024.md)'s HTML auto-escape — reach for such a crate, never for
+the HTML auto-escape (`rule:core-classes/html-auto-escape`) — reach for such a crate, never for
 `core::arch` intrinsics. Cranelift, meanwhile, has no autovectorizer: its vector instructions exist to lower
 wasm's fixed 128-bit SIMD, not to be discovered from scalar loops, so JIT-compiled Novis is scalar by design.
 Little is lost — a request's hot path is refcounting, ordered-hash lookups and tagged dispatch, not the

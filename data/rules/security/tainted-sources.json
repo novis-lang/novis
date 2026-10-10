@@ -2,7 +2,6 @@
   "title": "Every accessor that hands a program bytes from outside answers the `tainted` form, and the list of them is enumerable",
   "status": "shipped",
   "because": [
-    "0024",
     "0058",
     "0067",
     "0279",

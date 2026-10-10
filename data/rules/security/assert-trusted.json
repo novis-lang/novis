@@ -2,7 +2,6 @@
   "title": "`Core\\Taint::assertTrusted` is the one generic way out, and it carries a written reason at the call site",
   "status": "shipped",
   "because": [
-    "0024",
     "0088",
     "0076"
   ],

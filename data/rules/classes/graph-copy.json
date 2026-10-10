@@ -2,8 +2,7 @@
   "title": "The graph copy is one recursive, cycle-safe walk with two carriers, and it refuses what has no meaning on the other side",
   "status": "shipped",
   "because": [
-    "0006",
-    "0024"
+    "0006"
   ],
   "seeAlso": [
     "classes/two-copy-depths",

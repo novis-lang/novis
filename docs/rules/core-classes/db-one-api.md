@@ -18,3 +18,12 @@ one injection into a compromise; `LOAD DATA LOCAL INFILE`; `PDO::quote` and
 `mysqli_real_escape_string`; by-reference parameter or column binding; connection-level
 `lastInsertId` state; `PDO::ATTR_*`; and `PDO::inTransaction`. Query builders, ORMs and migration
 tooling are not `Core` at all.
+
+A dynamic identifier, a table or column name SQL cannot bind, goes through `Core\Db::quoteIdentifier`
+or an allowlist check.
+
+**Declined:**
+- **A query text that must be a literal in the source.** It would block legitimate dynamic assembly,
+  such as pagination or an allowlisted sort column, to buy a guarantee the untainted rule does not
+  need. If real programs show untainted text too easy to build without validation, this is the
+  stricter mode to reconsider.

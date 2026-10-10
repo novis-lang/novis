@@ -1,5 +1,5 @@
 --TEST--
-`as Core\Html\Markup` lifts a string literal into the carrier the HTML sink writes raw — ADR 0024 §§ 3 and 5
+`as Core\Html\Markup` lifts a string literal into the carrier the HTML sink writes raw — `rule:core-classes/html-auto-escape`
 --FILE--
 <?nvs
 // § 5: a `Markup` is the sink's only raw-write bypass, and `as` on a string

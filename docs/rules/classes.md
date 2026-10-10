@@ -1034,7 +1034,7 @@ One walk serves both carriers — arena-to-arena at the isolate boundary, and by
 `Core\Serialize` — so a rule added to it reaches both or neither. Two implementations that agree today
 is the failure that costs.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-values`](types.md#types-callable-values), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0006](../decisions/0006.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/serialize-is-a-closed-format`](classes.md#classes-serialize-is-a-closed-format), [`classes/clone-is-shallow`](classes.md#classes-clone-is-shallow), [`types/callable-values`](types.md#types-callable-values), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0006](../decisions/0006.md).</sub>
 
 <a id="classes-serialize-is-a-closed-format"></a>
 
@@ -1072,7 +1072,7 @@ loosening of this format.
 - **`decode` passing taint on to its result.** The danger is the reconstructed graph itself, not a
   string that later reaches an output sink, so `decode` is a sink rather than contagious.
 
-<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`classes/graph-copy`](classes.md#classes-graph-copy), [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0063](../decisions/0063.md).</sub>
 
 <a id="classes-an-encoder-ends-a-cycle-by-identity"></a>
 

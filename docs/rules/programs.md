@@ -641,7 +641,7 @@ third-party framework can be written over this public surface, but it can comput
 and never declare it safe. A member added to this half later carries the test that placed it; one
 arriving with no test is a bug in the roster.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0082](../decisions/0082.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0082](../decisions/0082.md).</sub>
 
 <a id="programs-framework-web-package"></a>
 

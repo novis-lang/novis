@@ -482,7 +482,7 @@ already launders, `as ?T` launders exactly as much and no more.
 does not already have, and laundering stays what it is elsewhere: the narrow, sink-named `Core`
 members that declare it.
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0066](../decisions/0066.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0066](../decisions/0066.md).</sub>
 
 <a id="expressions-try-parse"></a>
 
