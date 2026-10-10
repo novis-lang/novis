@@ -3,8 +3,8 @@
 // runs every audit.
 //
 //   goals   no tracked goal file is named `N-<slug>`, and no copy of a goal's files is tracked: the
-//           driver's `docs/agent/loop-goal.*`, `docs/agent/handoff.md`, and a goal's `.toml` or
-//           `.handoff.md` beside its prose. The goal's file under `docs/goals/` is its one home.
+//           driver's `docs/agent/loop-goal.*`, `docs/agent/handoff.md`, and any file under the old
+//           driver's `docs/agent/goals/`. The goal's file under `docs/goals/` is its one home.
 //   checks  no check a goal file or the driver's toml holds runs Python, and the old name of the
 //           feature proofs is in no check's name or `argv`, no directive line and no tracked file
 //           under `tools/`, by path or by text.
@@ -33,7 +33,7 @@ export const summary = "what the cutover must leave behind: nv audit [goals | ch
 const OLD_RE = new RegExp(OLD, "i");
 const DIRECTIVE_RE = new RegExp(`^\\s*(?://|#)\\s*${OLD}\\s*:`, "im");
 
-const GOALS = "docs/agent/goals/";
+const OLD_GOALS = "docs/agent/goals/";
 const DRIVER_TOML = "docs/agent/loop-goal.toml";
 
 /** What one audit found: the line it prints when it passes, and each offender when it does not. */
@@ -45,17 +45,12 @@ export interface Finding {
 
 /** Tracked goal files whose name starts with a position. */
 export function numberedGoalFiles(paths: string[]): string[] {
-  return paths.filter((p) => (p.startsWith(GOALS) || p.startsWith("docs/goals/")) && /^\d+-/.test(p.slice(p.lastIndexOf("/") + 1)));
+  return paths.filter((p) => p.startsWith("docs/goals/") && /^\d+-/.test(p.slice(p.lastIndexOf("/") + 1)));
 }
 
-/** Tracked copies of what a goal's record now holds. */
+/** Tracked copies of what a goal file now holds: the driver's files, and anything under its goals directory. */
 export function goalCopies(paths: string[]): string[] {
-  return paths.filter(
-    (p) =>
-      p.startsWith("docs/agent/loop-goal.") ||
-      p === "docs/agent/handoff.md" ||
-      (p.startsWith(GOALS) && (p.endsWith(".toml") || p.endsWith(".handoff.md"))),
-  );
+  return paths.filter((p) => p.startsWith("docs/agent/loop-goal.") || p === "docs/agent/handoff.md" || p.startsWith(OLD_GOALS));
 }
 
 export interface CheckLine {
@@ -252,7 +247,7 @@ export function docNamingPython(path: string, text: string, re: RegExp): string 
 export function currentDocs(paths: string[], live: string | null): string[] {
   return paths.filter((p) => {
     if (!p.endsWith(".md") || p.startsWith(SCRATCH) || HISTORY.some((h) => p === h || (h.endsWith("/") && p.startsWith(h)))) return false;
-    return p !== `docs/agent/goals/${live}.md`;
+    return p !== `docs/goals/${live}.md`;
   });
 }
 
