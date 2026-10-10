@@ -763,7 +763,7 @@ talks to the store ([`core-api/session-roster`](core-api.md#core-api-session-ros
   stay valid until its own expiry, and the record's size limit would be a cookie header's.
   `Core\SignedCookie` remains for an application that wants exactly this.
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary). Decided in [0124](../decisions/0124.md).</sub>
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary).</sub>
 
 <a id="http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot"></a>
 

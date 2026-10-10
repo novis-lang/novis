@@ -771,7 +771,14 @@ loop wholly inside the block keeps both.
 Whether an override was a bug (usually) or intent is the author's call, so the diagnostic names both
 rewrites and picks neither.
 
-<sub>See also [`statements/a-body-never-falls-off-its-end`](statements.md#statements-a-body-never-falls-off-its-end). Decided in [0124](../decisions/0124.md).</sub>
+**Memory:** none. The check runs in the front end and adds no run-time state.
+
+**Declined:**
+- **A run-time deprecation warning, with the spelling still allowed.** The line can be refused where it
+  is written, and a warning would only permit for a while code that is refused afterwards
+  ([`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators)).
+
+<sub>See also [`statements/a-body-never-falls-off-its-end`](statements.md#statements-a-body-never-falls-off-its-end).</sub>
 
 <a id="statements-let-and-is-are-reserved"></a>
 
@@ -799,4 +806,8 @@ The diagnostics name the living spellings: `var` declares an inferred local
 ([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)). Like every reserved word, both match in lower case only
 ([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)).
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`types/type-test`](types.md#types-type-test), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0124](../decisions/0124.md), [0192](../decisions/0192.md).</sub>
+**Declined:**
+- **Reserving `is` alone and leaving `let` free.** Reserving the second word costs the same as the
+  first, and freeing it again stays possible where taking it back is not.
+
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`types/type-test`](types.md#types-type-test), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0192](../decisions/0192.md).</sub>

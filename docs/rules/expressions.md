@@ -1050,4 +1050,4 @@ The pipeline operator is unaffected: its `$_` is a parse-time substitution, not 
 ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the hole diagnostic
 ([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once)) already teaches the difference.
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once). Decided in [0124](../decisions/0124.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once).</sub>

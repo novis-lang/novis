@@ -2936,4 +2936,4 @@ nothing, such as a signed cookie carrying the record itself, cannot answer it an
 session store ([`core-api/session-roster`](core-api.md#core-api-session-roster)). The acceptance test presents a fabricated id and
 asserts that a fresh one comes back.
 
-<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster). Decided in [0124](../decisions/0124.md).</sub>
+<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster).</sub>

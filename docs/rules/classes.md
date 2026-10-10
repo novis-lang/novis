@@ -1177,7 +1177,9 @@ result, and nothing else can be. A bare `return;` remains legal as an early exit
 property is definitely assigned on that path — [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization) keeps
 checking it, unchanged. The fix is to drop the value.
 
-<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization). Decided in [0124](../decisions/0124.md).</sub>
+**Memory:** none. The check runs in the front end and adds no run-time state.
+
+<sub>See also [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization).</sub>
 
 <a id="classes-a-readonly-property-declares-no-default"></a>
 
@@ -1195,4 +1197,6 @@ assignment would make a property spell what `const` spells — two names for one
 
 The fix is to move the default into the constructor, or make it a `const`.
 
-<sub>See also [`types/class-constant`](types.md#types-class-constant), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/promotion-is-constructor-only`](classes.md#classes-promotion-is-constructor-only), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0124](../decisions/0124.md).</sub>
+**Memory:** none. The check runs in the front end and adds no run-time state.
+
+<sub>See also [`types/class-constant`](types.md#types-class-constant), [`classes/lateinit`](classes.md#classes-lateinit), [`classes/promotion-is-constructor-only`](classes.md#classes-promotion-is-constructor-only), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name).</sub>

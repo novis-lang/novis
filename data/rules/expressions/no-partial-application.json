@@ -1,9 +1,7 @@
 {
   "title": "Partial function application is not adopted; an anonymous function already spells it",
   "status": "shipped",
-  "because": [
-    "0124"
-  ],
+  "because": [],
   "seeAlso": [
     "types/anonymous-function",
     "types/callable-values",

@@ -1424,7 +1424,7 @@ rather than each growing a refusal of its own — the sealed pair answers it bef
 takes no argument: a flag to keep the old entry would choose between a fixation window and a lost session,
 and only one of those is correct.
 
-<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0124](../decisions/0124.md).</sub>
+<sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
 <a id="core-api-reference-card"></a>
 
