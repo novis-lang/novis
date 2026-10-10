@@ -148,6 +148,15 @@ escape, the developer calls an escaper, so the result is `your-code` and not `no
   `one-setting` where the peer's documentation names the setting that would show it, and the
   measured `null` stays in the evidence. Go compiles its program into the image, so it runs nothing
   and is `no`.
+- `deploy` serves a copy whose program reads 200 part files, each printing its version, so a reply
+  shows every part's version. The driver writes the parts, and Novis's entry too, because `require`
+  takes only a path written as literal text. Two seconds into 20 seconds of steady load, it replaces
+  the parts one at a time with a 10 ms pause, then runs the peer's documented deploy step: PHP's
+  `php-fpm reload`, and a restart for Bun and Go. Go compiles its parts into the image, so it only
+  restarts, and its reply is not checked for a version. The row's own requests run the whole time
+  and count replies that mix the two versions. No failed request, no mixed reply and the new
+  version within 20 seconds of the deploy step is `built-in` with no step, or `one-setting` naming
+  the step. Anything else is `no`.
 - `config` changes one response header in the peer's own config file, inside the container. A bind
   mount shows every file as world-writable, and Novis refuses such a config file, so Novis edits the
   `nvs.toml` its data folder holds. The change applied with no command is `built-in`, after the

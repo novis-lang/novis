@@ -14,12 +14,19 @@ import {
   coresResult,
   crashResult,
   csrfResult,
+  DEPLOY_EXT,
+  DEPLOY_PARTS,
+  DEPLOY_WAYS,
+  deployEntry,
+  deployParts,
+  deployResult,
   ESCAPE_TERM,
   escapeResult,
   headersResult,
   htmlEntities,
   isolationResult,
   liveEditResult,
+  mixedVersions,
   PEERS,
   type PeerResult,
   phpChildren,
@@ -147,14 +154,16 @@ describe("the feature scenarios", () => {
     const files: Record<string, string> = { nvs: "main.nvs", php: "index.php", bun: "server.ts", go: "main.go" };
     for (const s of SCENARIOS) {
       for (const peer of PEERS) {
-        // A row that serves a case serves every peer's program, fixed or not.
-        expect(existsSync(join(COMPARE_DIR, s.tree, s.case, files[peer.id]!))).toBe(s.tree === "cases" || s.fixed?.[peer.id] === undefined);
+        // A row that serves a case serves every peer's program, fixed or not. A generated one is written by the row.
+        const file = files[peer.id]!;
+        const there = existsSync(join(COMPARE_DIR, s.tree, s.case, file)) || s.generate?.()[file] !== undefined;
+        expect(there).toBe(s.tree === "cases" || s.fixed?.[peer.id] === undefined);
       }
     }
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "isolation", "runaway", "crash", "escape", "taint", "secret", "csrf", "headers", "waiting", "parallel", "live-edit", "config"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "isolation", "runaway", "crash", "escape", "taint", "secret", "csrf", "headers", "waiting", "parallel", "live-edit", "deploy", "config"]);
   });
 
   test("every row either probes a stack or times a case, never both, and a timed row names a case", () => {
@@ -208,6 +217,34 @@ describe("the feature scenarios", () => {
     expect(liveEditResult(1.5, "bun --hot")).toEqual({ result: "built-in", evidence: { seconds_to_new_answer: 1.5, restarts: 0 } });
     expect(liveEditResult(null, "bun --hot")).toEqual({ result: "one-setting", setting: "bun --hot", evidence: { seconds_to_new_answer: null, restarts: 0 } });
     expect(liveEditResult(null, undefined).result).toBe("no");
+  });
+
+  test("the deploy tree has 200 parts per program, and Novis's entry requires each one by its literal path", () => {
+    for (const ext of Object.values(DEPLOY_EXT)) expect(Object.keys(deployParts("2", ext)).length).toBe(DEPLOY_PARTS);
+    expect(deployParts("2", "nvs")["parts/p199.nvs"]).toBe('<?nvs\necho "2";\n');
+    const generated = SCENARIOS.find((s) => s.id === "deploy")!.generate!();
+    expect(Object.keys(generated).length).toBe(3 * DEPLOY_PARTS + 1);
+    const requires = deployEntry().split("\n").filter((l) => l.startsWith("require "));
+    expect(requires.length).toBe(DEPLOY_PARTS);
+    expect(requires[0]).toBe("require 'parts/p000.nvs';");
+  });
+
+  test("a deploy is built in with no command, one-setting naming its command, and no on a failure, a mixed reply or no new version", () => {
+    const load = { requests: 900, failed: 0, failures: null, p99_ms: 3 };
+    const clean = { replies: 40, failed: 0, mixed: 0, copy_seconds: 2.5, seconds: 1.2 };
+    const restart = DEPLOY_WAYS.bun!;
+    expect(deployResult(load, clean, undefined, false)).toEqual({
+      result: "built-in",
+      evidence: { requests: 940, failed_requests: 0, failures: null, mixed_replies: 0, seconds_to_copy: 2.5, seconds_to_new_answer: 1.2, command: null, restarts: 0, version_checked: true },
+    });
+    expect(deployResult(load, clean, restart, false)).toMatchObject({ result: "one-setting", setting: "a restart", evidence: { restarts: 1 } });
+    expect(deployResult({ ...load, failed: 3, failures: "502 x3" }, clean, restart, false).result).toBe("no");
+    expect(deployResult(load, { ...clean, failed: 1 }, undefined, false).evidence.failed_requests).toBe(1);
+    expect(deployResult(load, { ...clean, mixed: 2 }, undefined, false).result).toBe("no");
+    expect(deployResult(load, { ...clean, seconds: null }, undefined, false).result).toBe("no");
+    expect(deployResult(load, clean, DEPLOY_WAYS.go!, true).evidence.version_checked).toBe(false);
+    expect(mixedVersions("1121\n")).toBe(true);
+    expect(mixedVersions("2222\n")).toBe(false);
   });
 
   test("a config change is built in without a command, one-setting after a reload, and no otherwise", () => {

@@ -74,6 +74,8 @@ export interface Peer {
   settings(ctx: PeerCtx): Record<string, string | number | boolean>;
   /** Run before the stack comes up, for a setting that has to be rendered into a file. */
   prepare?(ctx: PeerCtx): void;
+  /** The program is compiled into the image from the committed tree, so a row's copy is never served. */
+  compiled?: boolean;
 }
 
 /** The FPM pool, sized by concurrency as `benches/proxied/php/pool.conf.in` explains. */
@@ -120,6 +122,7 @@ export const PEERS: Peer[] = [
     image: "golang:1.27.2-alpine, run on alpine:3.23.0",
     env: () => ({}),
     settings: (ctx) => ({ server: "net/http", GOMAXPROCS: ctx.cpus }),
+    compiled: true,
   },
 ];
 
@@ -298,12 +301,16 @@ export interface Probe {
   check(file: string): { code: number; output: string };
   /** A command run in the backend container, as an operator would run it there. */
   exec(command: string[]): { code: number; output: string };
+  /** Restarts the backend container, as a deploy that needs a new process does. */
+  restart(): { code: number; output: string };
   /** The backend's last log lines. */
   logs(): string;
   /** `oha` against `path` from inside the stack for `seconds`, at the row's connections, while the row sends its own requests. */
   steady(path: string, seconds: number): Promise<Steady>;
   /** The peer's `id` in `PEERS`. */
   peer: string;
+  /** The peer's program is compiled into its image, so `dir` is not what it serves. */
+  compiled: boolean;
   /** The host folder the stack serves, which a row that edits the program writes to. */
   dir: string;
 }
@@ -336,6 +343,8 @@ export interface Scenario {
   serves?: boolean;
   /** Serve a fresh copy of the folder under `generated/`, for a row that edits the program. */
   copy?: boolean;
+  /** Files written into the copy before the stack comes up, by path in it, for a row whose tree is generated. */
+  generate?(): Record<string, string>;
   /** The backend container's memory cap, for a row whose program allocates without end. */
   memory?: string;
   /** The backend's cpus, for a row that needs more than the run's budget. */
@@ -567,6 +576,123 @@ export const LIVE_EDIT_SETTING: Record<string, string> = { php: "opcache.validat
 export const LIVE_EDIT_FROM = "version 1";
 export const LIVE_EDIT_TO = "version 2";
 
+/** The files of the deploy row's tree, and the pause between two of them while the copy replaces it. */
+export const DEPLOY_PARTS = 200;
+export const DEPLOY_PAUSE_MS = 10;
+
+/** How long the deploy row's steady load runs, and how long after the load starts the copy begins. */
+export const DEPLOY_LOAD_SECONDS = 20;
+export const DEPLOY_START_MS = 2_000;
+
+/**
+ * How a peer's documentation deploys a new version once the files are in place: a command run in the
+ * container, or a restart of it. A peer with no entry runs no command.
+ */
+export interface DeployWay {
+  name: string;
+  run: string[] | "restart";
+}
+
+export const DEPLOY_WAYS: Record<string, DeployWay> = {
+  php: { name: "php-fpm reload", run: ["sh", "-c", "kill -USR2 1"] },
+  bun: { name: "a restart", run: "restart" },
+  go: { name: "a new image and a restart", run: "restart" },
+};
+
+/** The extension of the parts each peer's program reads. Go's parts are compiled into its image. */
+export const DEPLOY_EXT: Record<string, string> = { nvs: "nvs", php: "php", bun: "ts" };
+
+/** One part's text at `version`, in the language of `ext`. */
+const PART_TEXT: Record<string, (version: string) => string> = {
+  nvs: (v) => `<?nvs\necho "${v}";\n`,
+  php: (v) => `<?php echo "${v}";\n`,
+  ts: (v) => `export const version = "${v}";\n`,
+};
+
+/** The part files one peer's program reads, by path in the row's folder, at `version`. */
+export function deployParts(version: string, ext: string): Record<string, string> {
+  const files: Record<string, string> = {};
+  for (let i = 0; i < DEPLOY_PARTS; i++) files[`parts/p${String(i).padStart(3, "0")}.${ext}`] = PART_TEXT[ext]!(version);
+  return files;
+}
+
+/** Novis's entry: `require` takes a path written as literal text, so it names each part on its own line. */
+export function deployEntry(): string {
+  const lines = ["<?nvs", "// Prints the version of each of the 200 parts. The driver writes this file and the parts."];
+  for (let i = 0; i < DEPLOY_PARTS; i++) lines.push(`require 'parts/p${String(i).padStart(3, "0")}.nvs';`);
+  lines.push('echo "\\n";', "");
+  return lines.join("\n");
+}
+
+/**
+ * What the deploy row's own requests saw while the copy went in: failures, replies with both versions, the
+ * seconds the copy took, and the seconds from the copy and its command to the first reply of the new version.
+ */
+export interface DeploySample {
+  replies: number;
+  failed: number;
+  mixed: number;
+  copy_seconds: number;
+  seconds: number | null;
+}
+
+/** When the copy and the peer's command finished, which the sampler times the new version from. */
+interface Deploying {
+  appliedAt: number | null;
+}
+
+/** A body of part versions has both `1` and `2` in it. */
+export const mixedVersions = (body: string) => body.includes("1") && body.includes("2");
+
+/**
+ * A deploy with no failed request and no reply that mixes the two versions is built in when it needed no
+ * command, and `one-setting` naming the command or restart it needed. A failed request, a mixed reply or a
+ * new version that never showed is `no`. A `compiled` peer's reply cannot show the copy, so its new version
+ * is its first reply after the restart.
+ */
+export function deployResult(load: Steady, sample: DeploySample, way: DeployWay | undefined, compiled: boolean): RowResult {
+  const failed = load.failed + sample.failed;
+  const evidence = {
+    requests: load.requests + sample.replies,
+    failed_requests: failed,
+    failures: load.failures,
+    mixed_replies: sample.mixed,
+    seconds_to_copy: sample.copy_seconds,
+    seconds_to_new_answer: sample.seconds,
+    command: way?.name ?? null,
+    restarts: way?.run === "restart" ? 1 : 0,
+    version_checked: !compiled,
+  };
+  if (failed > 0 || sample.mixed > 0 || sample.seconds === null) return { result: "no", evidence };
+  return way === undefined ? { result: "built-in", evidence } : { result: "one-setting", setting: way.name, evidence };
+}
+
+/**
+ * Sends `/` one request after another until `done` holds for a reply after the deploy was applied, or
+ * `CHANGE_WAIT_MS` after that, counting failed replies and mixed ones. An exception and any status but `200`
+ * are failures. The copy time is the row's to fill in.
+ */
+async function sampleUntil(p: Probe, deploying: Deploying, done: (body: string) => boolean): Promise<Omit<DeploySample, "copy_seconds">> {
+  const sample: Omit<DeploySample, "copy_seconds"> = { replies: 0, failed: 0, mixed: 0, seconds: null };
+  while (deploying.appliedAt === null || performance.now() - deploying.appliedAt < CHANGE_WAIT_MS) {
+    try {
+      const r = await p.get("/", 5_000);
+      sample.replies++;
+      const applied = deploying.appliedAt;
+      if (r.status !== 200) sample.failed++;
+      else if (mixedVersions(r.body)) sample.mixed++;
+      else if (applied !== null && done(r.body)) {
+        sample.seconds = Number(((performance.now() - applied) / 1000).toFixed(1));
+        return sample;
+      }
+    } catch {
+      sample.failed++;
+    }
+    await Bun.sleep(20);
+  }
+  return sample;
+}
+
 /**
  * A changed config file that applies on its own is built in. One that applies after a reload command is
  * `one-setting`, naming the command. One that applies only after a restart is `no`.
@@ -794,6 +920,38 @@ export const SCENARIOS: Scenario[] = [
         writeFileSync(file, readFileSync(file, "utf8").replace(LIVE_EDIT_FROM, LIVE_EDIT_TO));
       }
       return liveEditResult(await secondsUntil(p, (r) => r.status === 200 && r.body.includes(LIVE_EDIT_TO)), LIVE_EDIT_SETTING[p.peer]);
+    },
+  },
+  {
+    id: "deploy",
+    tree: "scenarios",
+    case: "deploy",
+    copy: true,
+    generate: () => Object.assign({ "main.nvs": deployEntry() }, ...Object.values(DEPLOY_EXT).map((ext) => deployParts("1", ext))),
+    probe: async (p) => {
+      const way = DEPLOY_WAYS[p.peer];
+      const first = ok(await p.get("/"), "the first version").body.trim();
+      if (first !== "1".repeat(DEPLOY_PARTS)) throw new Fail(`the first version: body ${pyRepr(first.slice(0, 200))}`);
+      const load = p.steady("/", DEPLOY_LOAD_SECONDS);
+      await Bun.sleep(DEPLOY_START_MS);
+      const fresh = "2".repeat(DEPLOY_PARTS);
+      const deploying: Deploying = { appliedAt: null };
+      const sample = sampleUntil(p, deploying, (body) => p.compiled || body.trim() === fresh);
+      const copyStart = performance.now();
+      if (!p.compiled) {
+        for (const [name, text] of Object.entries(deployParts("2", DEPLOY_EXT[p.peer]!))) {
+          writeFileSync(join(p.dir, name), text);
+          await Bun.sleep(DEPLOY_PAUSE_MS);
+        }
+      }
+      const copySeconds = Number(((performance.now() - copyStart) / 1000).toFixed(1));
+      if (way !== undefined) {
+        const done = way.run === "restart" ? p.restart() : p.exec(way.run);
+        if (done.code !== 0) throw new Fail(`${way.name}: ${done.output}`);
+      }
+      deploying.appliedAt = performance.now();
+      const seen = await sample;
+      return deployResult(await load, { ...seen, copy_seconds: copySeconds }, way, p.compiled);
     },
   },
   {
@@ -1076,9 +1234,13 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
       pass: async (cpus) => (await onePass(peer, c, { ...ctx, cpus, concurrency: c.concurrency, tree: "cases" }, loadOf)).result!,
     });
   }
-  if (s.copy === true) {
+  if (s.copy === true && peer.compiled !== true) {
     rmSync(join(GENERATED, s.case), { recursive: true, force: true });
     cpSync(join(COMPARE_DIR, s.tree, s.case), join(GENERATED, s.case), { recursive: true });
+    for (const [path, text] of Object.entries(s.generate?.() ?? {})) {
+      mkdirSync(dirname(join(GENERATED, s.case, path)), { recursive: true });
+      writeFileSync(join(GENERATED, s.case, path), text);
+    }
     ctx = { ...ctx, tree: "generated" };
   }
   const env = stackEnv(peer, ctx);
@@ -1088,9 +1250,14 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
     if (s.serves !== false) up(stack, env, "app", "nginx");
     return await s.probe!({
       peer: peer.id,
+      compiled: peer.compiled === true,
       dir: join(COMPARE_DIR, ctx.tree, ctx.case),
       exec: (command) => {
         const done = compose(stack, ["exec", "-T", "app", ...command], env, true);
+        return { code: done.code, output: done.stdout + done.stderr };
+      },
+      restart: () => {
+        const done = compose(stack, ["restart", "app"], env, true);
         return { code: done.code, output: done.stdout + done.stderr };
       },
       get: (path, timeoutMs) => replyOf(peer, path, "GET", {}, timeoutMs),
