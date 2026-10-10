@@ -2,7 +2,6 @@
   "title": "`nvs meta --json` prints the whole `Core` registry as one JSON document, and a field with nothing written is an absent key rather than an empty one",
   "status": "shipped",
   "because": [
-    "0117",
     "0167"
   ],
   "seeAlso": [

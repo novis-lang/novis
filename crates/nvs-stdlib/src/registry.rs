@@ -1074,15 +1074,15 @@ pub enum Const {
 /// `rule:core-api/reference-card`'s five fields, as plain static data next to the row they describe,
 /// so the one artifact that provably matches the shipped behaviour is also
 /// the one that documents it. Every field is inline markdown, one or two
-/// sentences; long-form prose stays in the website's pages by the same
-/// ADR's *Alternatives rejected*. **An empty string or an empty slice means
+/// sentences; long-form prose stays in the website's pages, and that rule's
+/// *Declined* list says why. **An empty string or an empty slice means
 /// "not written yet"**, never "there is nothing to say": `nvs meta --json`
 /// omits such a field, and a consumer falls back to the spec for it
-/// (§ 3's field-wise precedence).
+/// (`rule:core-api/field-wise-precedence`).
 ///
 /// Spends memory per process, never per request — static strings in
-/// `.rodata`, a few hundred bytes per documented member, which the ADR's
-/// *Consequences* prices for the whole registry.
+/// `.rodata`, a few hundred bytes per documented member, as that rule's
+/// *Memory* line prices it.
 #[derive(Clone, Copy, Debug)]
 pub struct MethodDoc {
     /// What the member does, in one or two sentences.

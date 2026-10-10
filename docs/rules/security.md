@@ -617,7 +617,7 @@ is empty on the overwhelming majority of rows documents nothing while being main
 The locality it gives up is bought back mechanically: a test fails on an entry naming a class or
 member that does not exist, and another fails on a member that owes an entry and has none.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0117](../decisions/0117.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed).</sub>
 
 <a id="security-capability-roster-is-closed"></a>
 

@@ -1332,7 +1332,7 @@ The fourth arm answers a coding agent rather than a reader ([`tooling/an-agent-a
 and it is on this diagram for the reason the others are: it renders at the call and holds nothing, so
 the binary that compiles a program is the binary that documents it.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md), [0167](../decisions/0167.md).</sub>
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0167](../decisions/0167.md).</sub>
 
 <a id="tooling-meta-json"></a>
 
@@ -1360,7 +1360,7 @@ succeed by printing nothing. A consumer ignores fields it does not know, so a fi
 renamed or moved; a consumer on a toolchain without the subcommand treats it as "no registry docs yet",
 never as an error. `docs/novis.md` and the website's core data are both built from this command alone.
 
-<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers). Decided in [0117](../decisions/0117.md), [0167](../decisions/0167.md).</sub>
+<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers). Decided in [0167](../decisions/0167.md).</sub>
 
 <a id="tooling-meta-json-takes-a-program"></a>
 
@@ -1392,7 +1392,7 @@ itself writes is listed; an interface reached through the parent is on the paren
 The no-argument form must emit byte-identical output before and after the argument exists: the seam is
 one input added to one document, never a fork.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md), [0233](../decisions/0233.md).</sub>
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0233](../decisions/0233.md).</sub>
 
 <a id="tooling-an-agent-asks-the-binary"></a>
 

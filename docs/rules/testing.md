@@ -867,7 +867,7 @@ policy nothing can check. A single feature excused from a single proof is a skip
 **the reason as its value**, so "this cannot be measured" and "nobody wrote one" never look the same
 in the audit.
 
-<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0117](../decisions/0117.md), [0216](../decisions/0216.md), [0272](../decisions/0272.md).</sub>
+<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0216](../decisions/0216.md), [0272](../decisions/0272.md).</sub>
 
 <a id="testing-roster-is-derived"></a>
 
@@ -887,7 +887,7 @@ owes them on the next sweep. Nobody edits a list, so no list is ever stale — a
 wrong within a day of an unattended run, and it under-reports silently, which is the failure mode
 that looks like success.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md), [0117](../decisions/0117.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md).</sub>
 
 <a id="testing-proof-attribution"></a>
 

@@ -879,7 +879,7 @@ labels a slot that already exists, never adds one.
   grammar and checker rules for named arguments already exist for user-declared methods
   ([`types/arrays`](types.md#types-arrays)), so all it bought was an asymmetry between the two.
 
-<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`types/arrays`](types.md#types-arrays). Decided in [0117](../decisions/0117.md).</sub>
+<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="core-api-options-bag"></a>
 
@@ -1087,6 +1087,10 @@ falls back to the spec-derived default. For a member not yet implemented, the sp
 consumer that finds the two disagreeing about something both state — a parameter documented in one and not
 declared in the other, a signature that has drifted — warns rather than silently choosing.
 
+The spec stays authoritative for the **surface**: every member, implemented or not, its signature as
+designed, its types and the reasoning behind its design. What it stops being, for an implemented member, is
+the place the card's wording is edited ([`core-api/reference-card`](core-api.md#core-api-reference-card)).
+
 Precedence is **field by field** rather than source by source, and that is what made the move incremental:
 the seam shipped empty, every member documented afterwards upgraded on its own, and no consumer was ever
 blocked on an unfilled field. It is also what keeps a consumer correct against a toolchain older than the
@@ -1095,7 +1099,7 @@ backfill.
 The warnings are the drift detector. Nothing else notices that a member's spec entry and its implementation
 have diverged, because the two are read by different tools for different reasons.
 
-<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0117](../decisions/0117.md).</sub>
+<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/tier-roster`](core-api.md#core-api-tier-roster).</sub>
 
 <a id="core-api-shape-parameter"></a>
 
@@ -1455,13 +1459,25 @@ nothing about it is copied into Rust by hand.
 written to `AGENTS.md` § *Text an end user reads*. A card added or changed is written that way. An older
 card in another voice is rewritten when its class is next touched, and no session sweeps every card.
 
-Extended prose is deliberately excluded. Long-form text inside Rust string literals is the worst reading
-surface available, so anything beyond the reference card stays in the website's pages. The cost is static
-strings in the binary — per process, not per request, on the order of a few hundred bytes per documented
-member — which is the cheap side of the trade and strippable behind a build feature if a deployment ever
-cares.
+Extended prose — long descriptions, examples, tips — stays in the website's pages, and only the card
+moves into Rust.
 
-<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0117](../decisions/0117.md), [0203](../decisions/0203.md), [0214](../decisions/0214.md).</sub>
+- **Memory:** per process, never per request: static strings in read-only data, on the order of a few
+  hundred bytes per documented member and a few tens per enum case or constant. That is the cheap side
+  of the trade, and a build feature can strip it if a deployment ever cares.
+
+**Declined:**
+- **The spec as the documentation's only home.** It keeps the documentation far from the code it
+  describes, and the registry has to carry every parameter's name anyway
+  ([`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name)), so the names would live in two places.
+- **Extended prose in Rust too.** Long markdown inside string literals, with its escaping and review
+  noise, is worse to edit than a markdown page. The card is the part worth keeping beside the code.
+- **Doc comments extracted through rustdoc's JSON output.** That format is unstable outside nightly, and
+  a registry row is a struct literal rather than an item, so a doc comment does not attach to it.
+- **A sidecar documentation file in the crate.** It is a second home beside the declaration, the same
+  problem at a shorter distance.
+
+<sub>See also [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`core-api/shape-parameter`](core-api.md#core-api-shape-parameter). Decided in [0203](../decisions/0203.md), [0214](../decisions/0214.md).</sub>
 
 <a id="core-api-removals"></a>
 

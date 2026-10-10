@@ -34,7 +34,7 @@
 //! meets — and a documented row's `short`/`return` strings and
 //! `params`/`shape`/`errors`/`cases` arrays appear **only when non-empty** — a
 //! class with no constants has no `constants` key either, and a member that
-//! throws nothing has no `errors`. That is § 3's field-wise precedence made
+//! throws nothing has no `errors`. That is `rule:core-api/field-wise-precedence` made
 //! mechanical: the registry spells "not written yet" as the empty value, and a
 //! consumer must be able to tell that apart from "written, and empty" without
 //! learning the convention — an absent key is the one spelling that needs no
@@ -170,7 +170,7 @@ pub(crate) fn program_document(entry: &Path) -> Result<Value, ExitCode> {
     Ok(document)
 }
 
-/// The whole document — § 2's outermost object.
+/// The whole document — `rule:tooling/meta-json`'s outermost object.
 ///
 /// Separate from [`run`] so the tests below can assert on it without
 /// capturing standard output, and reachable from [`crate::agent`], which
@@ -1242,7 +1242,7 @@ mod tests {
         cases: &[],
     };
 
-    /// § 2's shape, key for key, from a card that fills every field.
+    /// `rule:tooling/meta-json`'s shape, key for key, from a card that fills every field.
     #[test]
     fn a_full_card_emits_every_field_of_the_contract() {
         assert_eq!(
@@ -1264,7 +1264,7 @@ mod tests {
         assert_eq!(doc_json(&EMPTY), json!({}));
     }
 
-    /// § 2's enum shape, key for key.
+    /// `rule:tooling/meta-json`'s enum shape, key for key.
     #[test]
     fn a_full_enum_card_emits_every_field_of_the_contract() {
         assert_eq!(
