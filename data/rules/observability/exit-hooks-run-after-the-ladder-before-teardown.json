@@ -2,7 +2,6 @@
   "title": "Exit hooks run after every `finally` and after the failure hooks, and before native teardown, with the heap alive and output where it was",
   "status": "shipped",
   "because": [
-    "0127",
     "0131"
   ],
   "seeAlso": [

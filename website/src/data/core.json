@@ -34623,7 +34623,6 @@
       "summary": "",
       "surface": "`onExit(callable(Script\\ExitReport): mixed $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw, `finish`); each receives a readonly `Script\\ExitReport` — `reason: Script\\ExitReason` (`Normal`, `ExitCall`, `UncaughtThrow`, `Finish`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. Replaces `register_shutdown_function`'s non-fatal uses. `finish(): void` ends the script where it is called and does not return: every `finally` between the call and the root runs, then that queue drains with `reason: Finish` at status `0`, which is the ending `exit` is not. The value it raises is a second, parentless root of the exception tree, so no `catch` arm admits it and an arm naming that class is refused at compile time",
       "adrs": [
-        "0127",
         "0178"
       ],
       "enums": [],

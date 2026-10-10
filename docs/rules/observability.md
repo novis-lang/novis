@@ -817,8 +817,8 @@ its default is unwritten.
 `Core\Script::onExit(callable $hook): void` registers a hook that runs as the **last user code of
 the script**. Registration is request-local and runs nothing; hooks run FIFO in registration order,
 and a hook that registers another hook adds it to the tail of the same drain. There is no cap beyond
-the request's own memory budget: a registration is an ordinary value on the request heap, and the
-hooks and their captures stay live until the end of the script — per request, O(registrations).
+the request's own memory budget: a registration is an ordinary value on the request heap, so it is
+attributable and capped like any other.
 
 Each hook receives one readonly `Script\ExitReport`, or may declare no parameter at all:
 
@@ -850,7 +850,23 @@ Which endings drain the queue is [`observability/three-endings-fire-the-exit-que
 never do are [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook). This is the
 one hook for work that must run at every ending that is not a fatal.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals). Decided in [0127](../decisions/0127.md).</sub>
+**Memory:** per request, O(registrations). Each hook and everything it captures stays live until the
+end of the script, so a large capture registered early is held for the whole request. A script that
+registers no hook pays nothing.
+
+**Declined:**
+- **Firing on a `FATAL` too, as PHP's shutdown functions do.** Arbitrary user code after a limit
+  breach is how a cap stops being one
+  ([`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook)).
+- **A bare `array<string>` report, the shape `Core\Fatal::onLimit` takes.** That shape is priced for
+  a handler on a reserved slice after a memory `FATAL`, where a typed object is unaffordable. Here the
+  ordinary budget applies, and an `array<string>` cannot carry the live `Throwable`.
+- **A root `try/finally` and no hook at all.** It never sees `exit`
+  ([`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue)).
+- **Letting a hook set the status or swallow the error.** That rebuilds `set_exception_handler`
+  ([`observability/a-hook-observes-and-never-steers`](observability.md#observability-a-hook-observes-and-never-steers)).
+
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/removals`](core-api.md#core-api-removals).</sub>
 
 <a id="observability-three-endings-fire-the-exit-queue"></a>
 
@@ -885,7 +901,7 @@ taxes every entry file for the coverage it does give.
 `ExitReason` is a closed public enum. A future termination kind that should fire the queue is a new
 case on this queue, decided on its own; a second queue is the wrong answer.
 
-<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`observability/exit-hooks-run-after-the-ladder-before-teardown`](observability.md#observability-exit-hooks-run-after-the-ladder-before-teardown). Decided in [0127](../decisions/0127.md), [0178](../decisions/0178.md).</sub>
+<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`observability/exit-hooks-run-after-the-ladder-before-teardown`](observability.md#observability-exit-hooks-run-after-the-ladder-before-teardown). Decided in [0178](../decisions/0178.md).</sub>
 
 <a id="observability-exit-hooks-run-after-the-ladder-before-teardown"></a>
 
@@ -911,7 +927,7 @@ before the deferred work, for the same reason. The four mechanisms route by one 
 is scoped cleanup, `afterResponse` is post-response work, `Core\Fatal` observes a failure the request
 cannot survive, `onExit` is the end of the script.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0127](../decisions/0127.md), [0131](../decisions/0131.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0131](../decisions/0131.md).</sub>
 
 <a id="observability-a-fatal-and-a-cancellation-run-no-exit-hook"></a>
 
@@ -936,7 +952,7 @@ failing or already gone. Process death is the same answer for free.
 The firing set is therefore narrower than "every ending". Someone who assumed "no matter what" learns the two
 exceptions, and gets `Core\Fatal::onLimit` for the one that matters.
 
-<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code). Decided in [0127](../decisions/0127.md).</sub>
+<sub>See also [`observability/three-endings-fire-the-exit-queue`](observability.md#observability-three-endings-fire-the-exit-queue), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code).</sub>
 
 <a id="observability-a-hook-observes-and-never-steers"></a>
 
@@ -956,4 +972,4 @@ register another hook; it joins the tail of the same drain.
 Only one thing stops the drain early: a limit breach inside a hook is a `FATAL`, and
 [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook) takes over from there.
 
-<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`errors/log-write`](errors.md#errors-log-write). Decided in [0127](../decisions/0127.md).</sub>
+<sub>See also [`observability/script-on-exit`](observability.md#observability-script-on-exit), [`observability/a-fatal-and-a-cancellation-run-no-exit-hook`](observability.md#observability-a-fatal-and-a-cancellation-run-no-exit-hook), [`errors/log-write`](errors.md#errors-log-write).</sub>

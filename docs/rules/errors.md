@@ -294,7 +294,7 @@ the ladder — it runs at every non-fatal ending including successful ones, need
 observes the ending rather than reporting a failure. A handler faulting here changes nothing about
 it.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script). Decided in [0127](../decisions/0127.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script).</sub>
 
 <a id="errors-handler-script"></a>
 
