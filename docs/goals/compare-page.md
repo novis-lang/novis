@@ -19,7 +19,7 @@ stages:
         rules: [security/isolate-shares-nothing]
   - id: 5
     title: the feature scenarios
-    status: open
+    status: done
     extra:
       context:
         rules: [config/an-edit-reaches-the-next-request-without-a-restart, config/a-request-keeps-the-unit-it-resolved, core-classes/html-auto-escape]
@@ -284,39 +284,30 @@ File set: `benches/compare.json`, `website/src/data/compare.json`.
 
 ### State
 
-**Side goal `compare-page`, stage 5 in progress: 14 of 15 rows run.** `bun nv bench-compare --scenarios --smoke` exits 0 in Docker and prints a line per row from `SCENARIOS`. `--row <id>` runs one row. Each row maps what a peer did to a `Verdict` through a pure function, unit-tested in `tools/nv/test/bench-compare.test.ts`. A row either has a `probe` (a `Probe` against one stack: `get` with an optional timeout, `send`, `running`, `check`, `exec`, `restart`, `logs`, `steady` — `oha -z` started without waiting, parsed by `steadyResult` — `peer`, `dir`, `compiled`) or is `timed` (a `Timer` whose `pass(cpus)` is one fresh `onePass` of the case named by `case`, with the run's `--requests` and `--reps`). A row may give a peer a `fixed` result, so that peer runs nothing; `serves: false` brings no stack up; `copy: true` serves a copy under `generated/` (never for Go, whose `compiled` peer serves the image's build of the committed tree), and `generate()` writes files into that copy; `memory` caps the backend container (`BACKEND_MEMORY`, memory and swap, `0` elsewhere); `cpus` overrides the run's backend budget. A Novis row that needs a setting writes it with a `TableEdit` (`tableEditCommand`: a `sed` over one table of the data folder's `nvs.toml`) and waits for `configuration reloaded`; the unit test checks the shipped file's shape without a host `sed`, which the driver's PATH lacks. `benches/compare/README.md` § *The feature scenarios* is why.
+**Side goal `compare-page`: stage 5 is done, and all 15 rows run.** `bun nv bench-compare --scenarios --smoke` exits 0 in Docker, and `every-scenario-runs` is green (`looper check`). `--row <id>` runs one row. Each row maps what a peer did to a `Verdict` through a pure function, unit-tested in `tools/nv/test/bench-compare.test.ts`. `benches/compare/README.md` § *The feature scenarios* is how each row is built and why. `--scenarios` still refuses `--record` (`tools/nv/cmd/bench-compare.ts:1426`), so no row result is recorded yet.
 
-Results so far:
+Results as last measured (smoke unless named):
 
-- `cores` **is a surprise, and a measurement fault, not a Novis fact.** At `--requests 20000 --reps 1`: Novis 27061 to 35913 (1.33x, `no`), PHP 10025 to 34309 (3.42x, built-in), Bun 32883 to 35160 (1.07x, `no`), Go 14703 to 15484 (1.05x, `no`). Every four-cpu figure sits near 35k, which is nginx's and `oha`'s ceiling at four cpus each, so the row measures the front and not the backends. At `--smoke`'s 300 requests all four read `no`. Reported, not adjusted; see Next.
-- `waiting` (smoke, 300 in flight): Novis built-in 59.8 KiB per request, PHP one-setting (`pm.max_children`) 3232.5 KiB, Bun built-in 34.7 KiB, Go built-in 32.8 KiB. No failed request.
+- `cores` times html-page, not hello: at hello every four-cpu figure sat near 35k, the front's ceiling (nginx and `oha` at four cpus each). At `--requests 20000 --reps 1`: Novis 6286 to 19257 (3.06x, built-in), PHP 4330 to 18998 (4.39x, built-in), Go 3335 to 11805 (3.54x, built-in), Bun 17074 to 30710 (1.8x, `no`). Bun's four-cpu figure is still near the front's ceiling, so its `no` may measure the front. Reported as measured.
+- `upgrade`: Novis `no` (8169 `502`s across its restart), PHP one-setting (`php-fpm reload` re-executes the new binary, no failed request), Bun `no` (1486 `502`s), Go `no` (512 `502`s). This matches the standing decision that Novis needs a restart.
+- `runaway` **is a surprise, and looks like a Novis fault.** With `[limits] memory = "16M"` and `cpu_time = "1s"` applied, neither `/loop` nor `/alloc` (`benches/compare/scenarios/runaway/main.nvs`) was answered in 55 s, and other requests timed out. At `"64M"`, `/loop` stopped with `500` in 1.3 s, but `/alloc` got `503` (6 requests admitted). So the hang follows `/alloc` running: an array grown by `Core\Str::repeat` is not stopped by the memory limit. Not checked: whether the cap is never charged or the stop never lands.
+- `parallel` **is a surprise, and follows a runtime rule.** Novis 1.97x (one-setting, `[capabilities.script] spawn`), Bun 3.87x, Go 3.9x, PHP 1.01x. `WorkerCores::pick` (`crates/nvs-host/src/worker.rs:627`) never places a child on its parent's core, so the fourth part queues. Not checked: that `nvs serve` started four workers.
+- `waiting`, `isolation`, `crash`, `escape`, `taint`, `secret`, `csrf`, `headers`, `live-edit`, `deploy` and `config` are as the README describes and the last sweep printed. The documentation links in `taint` and `secret`'s fixed results are not checked.
 
-- `runaway` **is a surprise, and looks like a Novis fault.** Smoke, 512 MiB container with no swap, Novis `[limits] memory = "16M"`, `cpu_time = "1s"` (the `configuration reloaded` line names both as applied): Novis `no`. Neither `/loop` nor `/alloc` was answered in 55 s, the load's last 16 requests timed out, and the container still ran. PHP built-in (loop stopped at 38.9 s, p99 65.8 ms, no failure). Bun `no` (the loop blocks its one process). Go `no` (`/alloc` OOM-kills the container, 406 `502`s). At `memory = "64M"` Novis stopped `/loop` with `500` in 1.3 s, but admitted only 6 requests ("the memory budget affords 6 requests"), so `/alloc` got `503` and 140 load requests failed. So the hang follows `/alloc` actually running: an array growing by `Core\Str::repeat("x", 1048576)` (`benches/compare/scenarios/runaway/main.nvs`) is not stopped by `[limits] memory`, and it stalls the other requests too. Not checked: whether the cap is never charged or the stop never lands. Reported, not adjusted; see Next.
-- `isolation`: Novis built-in, PHP built-in, Bun no, Go no (19 of 20 requests saw another's value).
-- `crash`: all four built-in. PHP answers the throw with `200`, and Go with `502`.
-- `escape`: Novis and Go built-in, PHP and Bun your-code.
-- `taint`: Novis built-in (`nvs check` fails with E0401), the other three no.
-- `secret`: Novis built-in (E0790), the other three no.
-- `csrf`: Novis built-in (`403`), the other three your-code (`200`).
-- `headers`: Novis built-in, the other three your-code.
-- `parallel` **is a surprise, and follows a runtime rule.** Smoke, four backend cpus, 200M loop turns a part, fastest of 3: Novis `no` (0.657 s for one part, 1.337 s for four, 1.97x; it was also 2.0x at 20M turns, so not start-up cost), PHP `no` (1.01x, parts in a row), Bun built-in (3.87x, `Worker`), Go built-in (3.9x, goroutines). Novis also needs `[capabilities.script] spawn = true`, so its best case is `one-setting`, not the tie the standing decisions expected. Why 2x: `WorkerCores::pick` (`crates/nvs-host/src/worker.rs:627`) never places a child on its parent's core and never grows past the registered serving cores, so on four cores three children get a core each and the fourth queues behind one, while the parent's core sits parked. Not checked: that `nvs serve` started exactly four workers in the container. Reported, not adjusted.
-- `live-edit`: Novis built-in (1 s), PHP one-setting (`opcache.validate_timestamps=1`), Bun one-setting (`bun --hot`), Go no.
-- `deploy` (smoke, two runs alike): Novis built-in (no failed request, no mixed reply, new version 2.8 s after a 3.2 s copy), PHP `no` (3 `502`s and one failed sample around `php-fpm reload`, new version 2.5 s after it), Bun `no` (1223 `502`s across the restart), Go `no` (507 `502`s across the restart; its version is not checked, since the parts are compiled into the image). No peer mixed versions.
-- `config`: Novis built-in (2.8 s, no command), PHP one-setting (`php-fpm reload`, 0.5 s after USR2), Bun and Go your-code.
-
-The documentation links in `taint` and `secret`'s fixed results are not checked: no session has opened them. The `every-scenario-runs` check stays red until all 15 row ids are printed. It now fails on `upgrade:`, the last row not written, not a regression.
+Both surprises are questions for the user, since the standing decisions keep the runtime unchanged except for a security fix.
 
 ### Next
 
-**Stage 5: `upgrade`, and the three surprises.** File set `benches/compare/scenarios/`, `tools/nv/cmd/bench-compare.ts`. Goal prose § *Stage 5* is what each row runs; rule `testing/userland-benchmarks`.
+**Stage 6: the record the page reads, then the page.** File set `tools/nv/cmd/bench-compare.ts`, `tools/nv/cmd/render.ts`, `website/`. Goal prose § *Stage 6*; rule `testing/userland-benchmarks`.
 
-- [ ] **`upgrade`**: the runtime binary replaced under load; failed requests. Novis needs a restart too, and the row shows it. A row after `config` (`tools/nv/cmd/bench-compare.ts:958`); `deploy`'s `p.restart()` (`tools/nv/cmd/bench-compare.ts:1259`), `p.steady` and `deployResult`'s evidence shape are the parts to reuse. It closes `every-scenario-runs`.
-- [ ] **`parallel`'s Novis 2x, for the user.** The row is `tools/nv/cmd/bench-compare.ts:898`, the placement `crates/nvs-host/src/worker.rs:627`. Whether the parent's parked core should take a child is a runtime decision; the standing decisions keep the runtime unchanged, so ask before touching it.
-- [ ] **`runaway`'s Novis hang, for the user.** The row is `tools/nv/cmd/bench-compare.ts:817`. Reproduce it outside Docker with `[limits] memory = "16M"` and the `/alloc` loop of `benches/compare/scenarios/runaway/main.nvs`, then say whether it is a runtime fault. The standing decisions allow a security fix. Fixing it is a decision for the user, since it touches the runtime.
-- [ ] **`cores`' front ceiling**: nginx and `oha` have four cpus each (`benches/compare/compose.common.yaml:18`, `:43`, `benches/compare/nginx/http.conf:8`). Give them enough room for the four-cpu pass, or time a heavier case, so the figure measures the backend. Re-run `--row cores --requests 20000` and report the result as measured.
+- [ ] **Row results in the record**: `buildRecord` (`tools/nv/cmd/bench-compare.ts:1102`) takes the rows under a `scenarios` key, and `--scenarios --record` stops being refused (`tools/nv/cmd/bench-compare.ts:1426`). Unit-test the shape.
+- [ ] **The render step**: a renderer in `WEBSITE_RENDERERS` (`tools/nv/renderers/index.ts:16`) copies `benches/compare.json` to `website/src/data/compare.json`, and `website/src/lib/compare.ts` reads it.
+- [ ] **The page**: `website/src/content/docs/in-depth/compare.mdx` with its components under `website/src/components/compare/`, and a sidebar entry in `website/astro.config.ts:403`. The text follows AGENTS.md § *Text an end user reads*. It closes `page-exists`.
 
 ### Backlog
 
-- `--scenarios` refuses `--record` for now. Stage 7's record needs the rows under a `scenarios` key in `buildRecord`.
-- Stage 6: `website/src/content/docs/in-depth/compare.mdx`, goal prose § *Stage 6*.
-- `wait`: Novis reached 0.39x of best at 1000 connections on one CPU, with no `503`. The page reports it as measured, since the standing decisions keep the runtime unchanged. Why it is slower is not checked.
+- `runaway`'s Novis hang, for the user: reproduce it outside Docker with `[limits] memory = "16M"` and the `/alloc` loop, then say whether it is a runtime fault. A fix touches the runtime (`tools/nv/cmd/bench-compare.ts:817` is the row).
+- `parallel`'s Novis 2x, for the user: whether the parent's parked core should take a child is a runtime decision (`crates/nvs-host/src/worker.rs:627`).
+- `cores`' Bun figure near the front's ceiling: give nginx and `oha` more cpus (`benches/compare/compose.common.yaml:18`, `benches/compare/nginx/http.conf:8`) if the page needs Bun's figure to measure Bun.
+- `wait`: Novis reached 0.39x of best at 1000 connections on one CPU, with no `503`. The page reports it as measured. Why it is slower is not checked.
+- Stage 7: the full run recorded into `benches/compare.json`, goal prose § *Stage 7*.
