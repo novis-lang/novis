@@ -101,7 +101,7 @@ pub struct Config {
     pub log: Option<Log>,
     /// `[errors]` — what a use of deprecated code does while it runs (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`).
     pub errors: Option<Errors>,
-    /// `[http.*]` — the sub-blocks `rule:errors/compile-failure` and ADR 0074 own.
+    /// `[http.*]` — the sub-blocks `rule:errors/compile-failure` and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` own.
     pub http: Option<Http>,
     /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`), and the `pool = false`
     /// § 13 lets an operator write beside them rather than inside one.

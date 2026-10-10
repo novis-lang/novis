@@ -795,7 +795,7 @@ recover.
 
 A `Core\Socket\Message` cannot be constructed, so the only way to hold one is to have received it.
 
-<sub>See also [`concurrency/receive-is-the-one-wait`](concurrency.md#concurrency-receive-is-the-one-wait), [`concurrency/a-peer-frame-is-tainted`](concurrency.md#concurrency-a-peer-frame-is-tainted), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`concurrency/receive-is-the-one-wait`](concurrency.md#concurrency-receive-is-the-one-wait), [`concurrency/a-peer-frame-is-tainted`](concurrency.md#concurrency-a-peer-frame-is-tainted), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md).</sub>
 
 <a id="concurrency-receive-is-the-one-wait"></a>
 
@@ -952,7 +952,7 @@ request.
 An application that wants a longer-lived connection sends anything at all — a ping is a frame, and
 the loop never sees one.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md), [0177](../decisions/0177.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0177](../decisions/0177.md), [0219](../decisions/0219.md).</sub>
 
 <a id="concurrency-a-connection-keeps-its-compiled-unit"></a>
 
@@ -1235,7 +1235,7 @@ queue silently loses work and a depth nobody reads is the same as no record at a
 An attempt ceiling of zero is refused at the call rather than accepted: it asks for a job dead-lettered
 by the enqueue that created it, and attempts are finite, not optional.
 
-<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md), [0074](../decisions/0074.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md), [0187](../decisions/0187.md).</sub>
 
 <a id="concurrency-a-budget-overrun-is-a-failed-attempt"></a>
 

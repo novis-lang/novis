@@ -15,3 +15,8 @@ response may load. The XSS half of what a CSP buys is closed structurally by
 A header the response already wrote is left alone
 (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`), and HSTS is the one
 member of the set with a condition of its own (`rule:http-server/hsts-follows-the-effective-scheme`).
+
+**Declined:**
+- **A full default `Content-Security-Policy`.** A wrong CSP breaks the page with no diagnostic,
+  which is how CSP gets disabled for good after one incident. Framing is the safe subset, and it is
+  the one shipped; a further default waits for a shape that is safe for every application.

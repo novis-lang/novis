@@ -1980,7 +1980,7 @@ more machinery with no named use case yet.
 - **Backing it with `Core\Db`.** It puts a write on the hot path of every protected endpoint, on the
   database that is usually the scarcest resource in the deployment.
 
-<sub>See also [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0063](../decisions/0063.md), [0074](../decisions/0074.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0063](../decisions/0063.md), [0077](../decisions/0077.md).</sub>
 
 <a id="core-classes-ratelimit-gcra"></a>
 

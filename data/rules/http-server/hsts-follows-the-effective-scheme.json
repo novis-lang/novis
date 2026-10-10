@@ -2,7 +2,6 @@
   "title": "HSTS is emitted when the effective scheme is `https` and not otherwise, and `hsts_subdomains` defaults to `false`",
   "status": "shipped",
   "because": [
-    "0074",
     "0097"
   ],
   "seeAlso": [

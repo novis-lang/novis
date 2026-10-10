@@ -10,10 +10,9 @@
 // returns a URL pinned to that address. A second lookup cannot give a
 // different address. The operator sets that policy, not the calling code.
 //
-// [ADR 0074](/docs/decisions/0074.md) §§ 5-7 is
-// the last line. There is **no spelling for an unbounded wait**: `deadline`
-// is the whole budget, covering every attempt and every redirect hop, so a
-// deadline this short is the one thing a caller can reliably prove.
+// The last line runs out of time. A call cannot wait forever. `deadline` is
+// the whole time limit, for every attempt and every redirect hop. A deadline
+// this short always ends the call.
 //
 // The origin the first two lines talk to is the harness's, not this file's:
 // `bun nv origin`, which the driver holds up around the acceptance sweep and

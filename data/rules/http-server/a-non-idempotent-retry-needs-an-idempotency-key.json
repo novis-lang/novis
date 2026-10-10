@@ -2,7 +2,6 @@
   "title": "A `POST` or `PATCH` is not retried without `retryIdempotencyKey`, and at an ordinary call site the missing key is a compile-time diagnostic",
   "status": "shipped",
   "because": [
-    "0074",
     "0180"
   ],
   "seeAlso": [

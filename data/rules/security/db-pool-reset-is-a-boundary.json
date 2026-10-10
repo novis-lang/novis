@@ -2,8 +2,7 @@
   "title": "A pooled database connection is proven clean before it is reused, and a failed reset destroys it",
   "status": "shipped",
   "because": [
-    "0067",
-    "0074"
+    "0067"
   ],
   "seeAlso": [
     "security/no-cross-request-state",

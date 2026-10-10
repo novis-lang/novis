@@ -811,7 +811,7 @@ body flows straight into program logic. An upstream emitting genuinely ambiguous
 whose answers cannot be reasoned about, so a throw at the call site is the honest outcome — and an
 opt-out would be copy-pasted into the calls that did not need it.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0095](../decisions/0095.md), [0097](../decisions/0097.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0095](../decisions/0095.md), [0097](../decisions/0097.md).</sub>
 
 <a id="errors-cookie-name-bytes"></a>
 

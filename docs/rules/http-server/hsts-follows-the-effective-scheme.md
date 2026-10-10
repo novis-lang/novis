@@ -7,6 +7,10 @@ sent — the safe direction for a header that cannot be revoked from a client. `
 plain HTTP is unaffected.
 
 The max-age is `[http.headers] hsts`, shipped as `365d`, and `false` disables it.
-`hsts_subdomains` defaults to `false`: `includeSubDomains` is the HSTS setting that has actually
-taken deployments down — a sibling subdomain on plain HTTP becomes unreachable, for a year, with
-no way back — and whether every subdomain is TLS-only is knowledge the runtime does not have.
+`hsts_subdomains` defaults to `false`.
+
+**Declined:**
+- **`hsts_subdomains = true` by default.** `includeSubDomains` is the HSTS setting that has
+  actually taken deployments down: a sibling subdomain on plain HTTP becomes unreachable for the
+  max-age, with no way to revoke it from the client, and whether every subdomain is TLS-only is
+  knowledge the runtime does not have.

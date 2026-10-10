@@ -2,8 +2,7 @@
   "title": "Four waits bound a connection, all finite with nothing configured and all idle rather than total",
   "status": "shipped",
   "because": [
-    "0097",
-    "0074"
+    "0097"
   ],
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",

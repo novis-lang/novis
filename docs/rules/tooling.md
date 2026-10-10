@@ -452,7 +452,7 @@ five prompts already meet, so a sixth inherits it. A scripted line wins over a t
 and a queue with nothing left is the unattended run above, so scripting too few answers is assertable
 rather than a hang.
 
-<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../decisions/0086.md), [0074](../decisions/0074.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../decisions/0086.md), [0079](../decisions/0079.md).</sub>
 
 <a id="tooling-the-terminal-is-restored-on-every-exit-path"></a>
 

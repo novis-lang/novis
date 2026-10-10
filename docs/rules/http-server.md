@@ -17,7 +17,7 @@ Everything a proxy does earlier and better is absent by name, and the list is cl
 
 The parsing half is not delegated. Request smuggling is a proxy/origin parser differential, so an origin that always has a proxy in front is precisely where a lenient parser is dangerous: [`errors/http-message-defects`](errors.md#errors-http-message-defects) stands whole.
 
-<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`security/one-tls-client`](security.md#security-one-tls-client), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0097](../decisions/0097.md), [0083](../decisions/0083.md), [0074](../decisions/0074.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`security/one-tls-client`](security.md#security-one-tls-client), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0097](../decisions/0097.md), [0083](../decisions/0083.md), [0095](../decisions/0095.md).</sub>
 
 <a id="http-server-the-server-block-is-boot-class"></a>
 
@@ -206,7 +206,17 @@ limiting — stays the proxy's. Two things do not: how a message is parsed, whic
 [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)'s, and how long a connection may idle, which this rule
 covers as it covers a client call.
 
-<sub>See also [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written), [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named), [`http-server/cookies-are-secure-httponly-and-lax`](http-server.md#http-server-cookies-are-secure-httponly-and-lax), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0074](../decisions/0074.md).</sub>
+The cost is that a secure default breaks something on somebody's first deployment: a site that
+framed itself, a cookie a script needed to read, an origin that was allowed only because there was
+no policy. Each becomes one deliberate line of configuration, and that is the trade.
+
+**Declined:**
+- **Shipping no defaults and documenting the headers.** Documentation-shaped security produces the
+  adoption it produces: a minority of production sites send `nosniff`, fewer send a framing policy,
+  and cookies without `HttpOnly` or `SameSite` are routine, because adding them never reaches the
+  top of a backlog. A class of bug is removed here rather than described.
+
+<sub>See also [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written), [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named), [`http-server/cookies-are-secure-httponly-and-lax`](http-server.md#http-server-cookies-are-secure-httponly-and-lax), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers).</sub>
 
 <a id="http-server-the-accept-fan-out-is-one-worker-per-core"></a>
 
@@ -266,7 +276,7 @@ This is the division of labour with the proxy in one sentence: **a proxy owns si
 
 `keepalive_timeout` must exceed the proxy's upstream keep-alive. If the origin closes an idle connection the proxy still believes is live, the proxy writes into a closing socket and the client sees an intermittent 502. nginx's upstream default is 60s; 75s is deliberately above it, and a deployment that raises the proxy's must raise this one. None of the four notices a worker that is alive and never returns; that is the watchdog's job, named in [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class).
 
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0097](../decisions/0097.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-the-accept-loop-backs-off"></a>
 
@@ -360,7 +370,7 @@ It does **not** feed redirects: `Core\Response::redirect` emits `Location` as gi
 
 There is **no `X-Forwarded-Host` and no absolute-URL generation from `Host`**. `Core\Router::url` answers with a path ([`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching)), so Novis never needs to know its own external origin, and deriving one from a header is host-header injection. An external origin, where an application needs one, is configuration: [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot).
 
-<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/host-matching-is-on-the-host-part-only`](http-server.md#http-server-host-matching-is-on-the-host-part-only), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0097](../decisions/0097.md), [0074](../decisions/0074.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/host-matching-is-on-the-host-part-only`](http-server.md#http-server-host-matching-is-on-the-host-part-only), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0097](../decisions/0097.md), [0077](../decisions/0077.md).</sub>
 
 <a id="http-server-host-matching-is-on-the-host-part-only"></a>
 
@@ -428,7 +438,7 @@ That is the one point in a request's life at which the server genuinely has no r
 
 A plain `OPTIONS` — missing either header — is not a preflight and is **passed through** rather than answered. An application that wants to answer one has `Core\Router::methodsFor` for the `Allow:` header, and which convention to adopt stays its choice rather than the server's.
 
-<sub>See also [`http-server/head-runs-as-get`](http-server.md#http-server-head-runs-as-get), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named). Decided in [0097](../decisions/0097.md), [0074](../decisions/0074.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`http-server/head-runs-as-get`](http-server.md#http-server-head-runs-as-get), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named). Decided in [0097](../decisions/0097.md), [0102](../decisions/0102.md).</sub>
 
 <a id="http-server-the-body-is-read-on-demand-under-two-caps"></a>
 
@@ -486,7 +496,7 @@ Freshness is `Cache-Control: no-cache` with a strong `ETag` over `(size, mtime_n
 
 **A `.nvs` file is never served as source**, under any dispatch, from any mount.
 
-<sub>See also [`http-server/a-request-resolves-in-five-steps`](http-server.md#http-server-a-request-resolves-in-five-steps), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0097](../decisions/0097.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/a-request-resolves-in-five-steps`](http-server.md#http-server-a-request-resolves-in-five-steps), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-health-path-is-off-and-checks-nothing"></a>
 
@@ -554,7 +564,12 @@ A header the response already wrote is left alone
 ([`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins)), and HSTS is the one
 member of the set with a condition of its own ([`http-server/hsts-follows-the-effective-scheme`](http-server.md#http-server-hsts-follows-the-effective-scheme)).
 
-<sub>See also [`http-server/hsts-follows-the-effective-scheme`](http-server.md#http-server-hsts-follows-the-effective-scheme), [`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0074](../decisions/0074.md).</sub>
+**Declined:**
+- **A full default `Content-Security-Policy`.** A wrong CSP breaks the page with no diagnostic,
+  which is how CSP gets disabled for good after one incident. Framing is the safe subset, and it is
+  the one shipped; a further default waits for a shape that is safe for every application.
+
+<sub>See also [`http-server/hsts-follows-the-effective-scheme`](http-server.md#http-server-hsts-follows-the-effective-scheme), [`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
 <a id="http-server-hsts-follows-the-effective-scheme"></a>
 
@@ -571,11 +586,15 @@ sent — the safe direction for a header that cannot be revoked from a client. `
 plain HTTP is unaffected.
 
 The max-age is `[http.headers] hsts`, shipped as `365d`, and `false` disables it.
-`hsts_subdomains` defaults to `false`: `includeSubDomains` is the HSTS setting that has actually
-taken deployments down — a sibling subdomain on plain HTTP becomes unreachable, for a year, with
-no way back — and whether every subdomain is TLS-only is knowledge the runtime does not have.
+`hsts_subdomains` defaults to `false`.
 
-<sub>See also [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written), [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns). Decided in [0074](../decisions/0074.md), [0097](../decisions/0097.md).</sub>
+**Declined:**
+- **`hsts_subdomains = true` by default.** `includeSubDomains` is the HSTS setting that has
+  actually taken deployments down: a sibling subdomain on plain HTTP becomes unreachable for the
+  max-age, with no way to revoke it from the client, and whether every subdomain is TLS-only is
+  knowledge the runtime does not have.
+
+<sub>See also [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written), [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns). Decided in [0097](../decisions/0097.md).</sub>
 
 <a id="http-server-cors-is-closed-until-origins-are-named"></a>
 
@@ -598,7 +617,7 @@ A plain `OPTIONS` and a cross-origin `GET` are not preflights and are handed to 
 route that needs its own policy sets it for itself, request-locally
 ([`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins)).
 
-<sub>See also [`http-server/a-wildcard-origin-with-credentials-is-refused`](http-server.md#http-server-a-wildcard-origin-with-credentials-is-refused), [`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins). Decided in [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/a-wildcard-origin-with-credentials-is-refused`](http-server.md#http-server-a-wildcard-origin-with-credentials-is-refused), [`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins).</sub>
 
 <a id="http-server-a-wildcard-origin-with-credentials-is-refused"></a>
 
@@ -620,7 +639,11 @@ The two mechanisms are held to one implementation of each condition: the guard a
 and `Core\Config::set` *agree* over a table of moves into and out of each pair, rather than
 asserting what either answered on its own.
 
-<sub>See also [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named), [`http-server/cookies-are-secure-httponly-and-lax`](http-server.md#http-server-cookies-are-secure-httponly-and-lax), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false). Decided in [0074](../decisions/0074.md).</sub>
+**Declined:**
+- **A warning instead of the refusal.** The configuration has no correct meaning to warn about, and
+  a boot warning is read once.
+
+<sub>See also [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named), [`http-server/cookies-are-secure-httponly-and-lax`](http-server.md#http-server-cookies-are-secure-httponly-and-lax), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false).</sub>
 
 <a id="http-server-cookies-are-secure-httponly-and-lax"></a>
 
@@ -644,7 +667,7 @@ A cookie's *name* is not this rule's business: [`errors/cookie-name-bytes`](erro
 matches byte for byte with no substitution, and `__Host-` and `__Secure-` semantics are enforced
 on read and on write. The two rules meet at the same header and are otherwise independent.
 
-<sub>See also [`http-server/a-wildcard-origin-with-credentials-is-refused`](http-server.md#http-server-a-wildcard-origin-with-credentials-is-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`core-api/shape-rules`](core-api.md#core-api-shape-rules). Decided in [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/a-wildcard-origin-with-credentials-is-refused`](http-server.md#http-server-a-wildcard-origin-with-credentials-is-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`core-api/shape-rules`](core-api.md#core-api-shape-rules).</sub>
 
 <a id="http-server-policy-headers-are-runtime-class-and-setheader-wins"></a>
 
@@ -661,17 +684,23 @@ overrides a policy-owned header on **one** response with no configuration involv
 header the response already carries is left alone when the policy set is filled in.
 
 This costs nothing in security because the alternative buys nothing. A request can already write
-any response header it likes through `setHeader` — that is what a response object is — so making
-the policy narrowing-only would forbid the legitimate case (one API route with an open CORS policy
-beside an application that has none; one embeddable widget route that permits framing) while
-stopping nothing. `RuntimeTighten` is for grants, where "may drop rights, never add them" is the
-whole mechanism; a response header is not a grant.
+any response header it likes through `setHeader` — that is what a response object is. A
+compromised handler can therefore turn its own response's protections off, and could before any
+of these blocks existed. Per-request override is what keeps the policy usable: an API route with
+its own CORS policy and an embeddable route that permits framing are both ordinary, and neither
+needs a second configuration mechanism.
 
-A policy-owned header replaced through `setHeader` is **not** logged. It is ordinary output the
-request wrote deliberately, and a line per response on any route that customises one is noise
-that trains people to ignore the log.
+A policy-owned header replaced through `setHeader` is **not** logged.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written). Decided in [0074](../decisions/0074.md).</sub>
+**Declined:**
+- **`RuntimeTighten` policy blocks.** Narrowing-only would forbid the legitimate case (one API
+  route with an open CORS policy beside an application that has none) while stopping nothing.
+  `RuntimeTighten` is for grants, where "may drop rights, never add them" is the whole mechanism
+  ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)); a response header is not a grant.
+- **Logging an override.** The header is ordinary output the request wrote deliberately, and a
+  line per response on any route that customises one is noise that trains people to ignore the log.
+
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written).</sub>
 
 <a id="http-server-a-session-store-answers-four-operations"></a>
 
@@ -749,7 +778,7 @@ A block that names `shared` but a tree with no `[cache.shared]` is the same shap
 `start` reaches the one store that block names, and says which block is missing when there is
 none, rather than opening a store of its own.
 
-<sub>See also [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly). Decided in [0139](../decisions/0139.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly). Decided in [0139](../decisions/0139.md).</sub>
 
 <a id="http-server-a-session-is-loaded-once-and-written-whole"></a>
 
@@ -937,16 +966,24 @@ something a program can express, the same way a shell string is not something `C
 express ([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)): the guarantee comes from the absence of a
 spelling, not from a check.
 
+A finite default times out a call somebody expected to take five minutes. A long poll or a large
+upload names its own `deadline`, which is one field, and having to name it is the point: the
+number that bounds a slow dependency is written down where an operator can change it.
+
 The bag is a closed set of keys, and the three retry keys — `retryAttempts`, `retryBackoff`,
-`retryIdempotencyKey` — are flat rather than a nested `retry` shape, because a bag flattens to one
-ABI argument per option and a bag nested inside one has nothing to flatten into
-([`core-api/shape-rules`](core-api.md#core-api-shape-rules) R2). The prefix keeps the grouping legible at a call site.
+`retryIdempotencyKey` — are flat. The prefix keeps the grouping legible at a call site
+(`{retryAttempts: 3, retryIdempotencyKey: $key}`).
 
 Expiry throws `TimeoutError`, never a falsy return ([`core-api/failure-throws`](core-api.md#core-api-failure-throws)), and the
 deadline it reports is the one that covers the whole call
 ([`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call)).
 
-<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`types/duration`](types.md#types-duration), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0074](../decisions/0074.md).</sub>
+**Declined:**
+- **A nested `retry` shape.** A bag flattens to one ABI argument per option, and a bag nested
+  inside one has nothing to flatten into; it would need a runtime shape value on the common path,
+  which [`core-api/shape-rules`](core-api.md#core-api-shape-rules) R2 exists to avoid.
+
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`types/duration`](types.md#types-duration), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only).</sub>
 
 <a id="http-server-an-outbound-request-carries-one-body"></a>
 
@@ -986,8 +1023,7 @@ file part is re-read per attempt.
 `rule:http-server/one-deadline-covers-the-whole-call`
 
 `deadline` covers the **whole call**: the connection, every redirect hop, every retry attempt and
-every backoff between them. A single stated number is what a caller can reason about; the
-per-attempt timeout most clients offer is the one that turns "5 seconds" into fifteen.
+every backoff between them. A single stated number is what a caller can reason about.
 
 Two consequences are rules of their own. The deadline is never extended: when it would expire
 during a backoff, the call throws immediately rather than sleeping and then failing, and a
@@ -999,7 +1035,11 @@ The redirect chain and every retry attempt share this one bound with the pinning
 under: a hop is re-checked and re-pinned, a retry reuses the pinned address, and neither buys
 itself more time ([`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned)).
 
-<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0074](../decisions/0074.md).</sub>
+**Declined:**
+- **A per-attempt timeout.** It is what most HTTP clients offer, and three attempts at a "5-second
+  timeout" is a fifteen-second call made by a caller who reasoned about five.
+
+<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned).</sub>
 
 <a id="http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime"></a>
 
@@ -1041,13 +1081,13 @@ one answer and re-requesting would hand it the prefix of another.
 `retryAttempts` absent means one attempt. Present, it is the **total** number of attempts
 including the first, and must be at least 1. `retryBackoff` is the base delay, shipped `100ms`,
 growing exponentially per attempt with **full jitter** — the actual wait is uniformly random in
-`[0, base × 2^n]`. Jitter is not optional and not configurable: unjittered retries from many
-hosts synchronise into a burst against a service that is already failing, which is the failure
-mode retry is supposed to relieve.
+`[0, base × 2^n]`. Jitter is not optional and not configurable.
 
 What is retried is a closed set: a connection failure, a timeout, and status `429`, `502`, `503`
-and `504`. Nothing else — a `400` or a `403` is an answer, and retrying it is a load generator; a
-`500` is usually a real application error and is deliberately not on the list. A `Retry-After`
+and `504`. Nothing else — a `400` or a `403` is an answer, and retrying it is a load generator. The
+set is a judgement baked into `Core`: a service that signals overload with a `500` is not retried,
+and widening the set for a real service that signals overload outside it is a one-line change with
+a stated reason. A `Retry-After`
 header on a `429` or `503` replaces the computed backoff in either of its forms, delay-seconds or
 an HTTP-date, clamped to the remaining deadline — and a date already past keeps the jittered
 backoff rather than becoming a zero wait, so the clients one date was handed to do not retry in
@@ -1058,7 +1098,19 @@ and reuses the `Core\Http\Target` the launderer pinned, so a retry performs no s
 ([`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned)). A `POST` or `PATCH` is not
 retried at all without a key ([`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key)).
 
-<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait). Decided in [0074](../decisions/0074.md), [0180](../decisions/0180.md).</sub>
+**Declined:**
+- **Configurable jitter, including off.** Unjittered retries from many hosts synchronise into a
+  burst against a service that is already failing, which is the failure retry is meant to relieve.
+  It is the one setting whose wrong value harms somebody else, and nobody has a reason to turn it
+  off.
+- **Retrying every `5xx`.** A `500` is usually a real application error, and retrying it multiplies
+  load on a service that is already broken.
+- **Circuit breaking**, refusing calls to an endpoint that has been failing. It needs per-endpoint
+  state shared across a core, which is [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)'s
+  territory, and its interaction with [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)'s approximate
+  member is argued once for both.
+
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait). Decided in [0180](../decisions/0180.md).</sub>
 
 <a id="http-server-a-non-idempotent-retry-needs-an-idempotency-key"></a>
 
@@ -1080,10 +1132,15 @@ Where the verb is genuinely dynamic — `Client::request($method, $url)` — the
 moves to the call and **throws before the first attempt** rather than before the second, so a test
 run finds it rather than production finding it on the one retry that matters. A key supplied for
 a verb that does not need one is accepted and sent; some servers want it regardless, and refusing
-it would buy nothing. A key is never generated automatically: one minted per call is a different
-key on the next request, which makes the header present and useless.
+it would buy nothing.
 
-<sub>See also [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0074](../decisions/0074.md), [0180](../decisions/0180.md).</sub>
+**Declined:**
+- **A runtime warning for the missing key.** The failure it prevents is a double charge, and the
+  constant options bag already makes the compile-time check free at an ordinary call site.
+- **A key generated automatically when none is given.** One minted per call is a different key on
+  the next request, which makes the header present and useless, and that is worse than absent.
+
+<sub>See also [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0180](../decisions/0180.md).</sub>
 
 <a id="http-server-allow-url-pins-the-address"></a>
 
@@ -1121,7 +1178,7 @@ questions at the member that connects, so there is one implementation of the pol
 and it lives in the capability rather than the client
 ([`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability)).
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0074](../decisions/0074.md), [0180](../decisions/0180.md), [0183](../decisions/0183.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0180](../decisions/0180.md), [0183](../decisions/0183.md).</sub>
 
 <a id="http-server-an-outbound-call-tries-every-approved-address"></a>
 
@@ -1198,7 +1255,7 @@ re-checks; a retry attempt does neither.
 Both the redirect chain and every retry attempt are covered by one `deadline`
 ([`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call)).
 
-<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/net-address-policy`](security.md#security-net-address-policy). Decided in [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/net-address-policy`](security.md#security-net-address-policy).</sub>
 
 <a id="http-server-an-https-redirect-never-becomes-plaintext"></a>
 

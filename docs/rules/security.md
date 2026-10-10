@@ -1508,7 +1508,7 @@ the same compiled unit the command line runs, so nothing distinguishes the two u
 There the default decides instead of the refusal — `echo` alone means `text/html`, and a typed member
 written beside it wins the content type it declared last.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0088](../decisions/0088.md), [0074](../decisions/0074.md), [0177](../decisions/0177.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0088](../decisions/0088.md), [0177](../decisions/0177.md).</sub>
 
 <a id="security-db-pool-reset-is-a-boundary"></a>
 
@@ -1530,7 +1530,7 @@ users never share a connection. It is additionally scoped to the configuration g
 from: a reload can publish the same block name under a different user, and a pool keyed on the name
 alone would hand the new generation's request a connection authenticated as the old one's.
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/one-tls-client`](security.md#security-one-tls-client), [`security/net-address-policy`](security.md#security-net-address-policy), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named). Decided in [0067](../decisions/0067.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/one-tls-client`](security.md#security-one-tls-client), [`security/net-address-policy`](security.md#security-net-address-policy), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named). Decided in [0067](../decisions/0067.md).</sub>
 
 <a id="security-ldap-pool-is-bound-as-its-block"></a>
 
@@ -2426,7 +2426,7 @@ Enforcing only when a session cookie is present was rejected within this rule. I
 since forgery can only target cookie-authenticated requests, but it makes protection depend on what
 the client sent rather than on what the code says, which is harder to reason about and harder to test.
 
-<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md).</sub>
 
 <a id="security-access-is-checked-for-presence-not-meaning"></a>
 
