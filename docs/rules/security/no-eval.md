@@ -12,3 +12,8 @@ back an inert tree with no path into execution (`rule:security/reflection-needs-
 Running code chosen at run time is `spawn script`: in an isolate, spending the parent's budget, under
 `script.spawn` — which is what a template engine or a plugin loader actually needs, with a boundary
 `eval` never had.
+
+**Declined:**
+- **An `eval` restricted to code with no `require` and no closures**, so the static analyses
+  survive. The restriction is hard to state precisely and harder to enforce, and what remains is
+  strictly less capable than `spawn script`, which is already isolated.

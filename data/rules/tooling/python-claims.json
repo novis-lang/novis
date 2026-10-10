@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0100",
-    "0080",
-    "0052"
+    "0080"
   ],
   "seeAlso": [
     "programs/audience",

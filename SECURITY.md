@@ -63,7 +63,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
   ([`rule:programs/memory-priority`](docs/rules/programs.md#programs-memory-priority),
   `rule:errors/escalation-ladder`).
 - **A closed door found open** — any route to FFI or native loading, stream wrappers and scheme dispatch,
-  cross-request state, or `eval` ([0052](docs/decisions/0052.md)).
+  cross-request state, or `eval` (`rule:security/closed-doors`).
 - **Unsafe protocol or platform defaults** — request smuggling, header or cookie parsing flaws, CSRF/CORS
   defaults that fail open, session-record forgery, a shell string accepted by `Core\Process` or argv
   quoting that recombines, an outbound request that ignores address pinning

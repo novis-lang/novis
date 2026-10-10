@@ -2,7 +2,6 @@
   "title": "Reflection and AST parsing are capability-free, because neither reaches the world outside the process",
   "status": "shipped",
   "because": [
-    "0052",
     "0118"
   ],
   "seeAlso": [

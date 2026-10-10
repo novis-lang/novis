@@ -2,7 +2,6 @@
   "title": "Four doors are closed by construction, and no configuration reopens any of them",
   "status": "shipped",
   "because": [
-    "0052",
     "0059"
   ],
   "seeAlso": [

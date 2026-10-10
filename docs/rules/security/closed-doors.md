@@ -4,6 +4,12 @@ cross-request state (`rule:security/no-cross-request-state`) and `eval`
 (`rule:security/no-eval`). Each closes a vulnerability class outright rather than defending against
 it.
 
+None of the four has a correct tier: each is unsafe in-process, unavailable in a sandbox, and unsafe
+as a build-time option, so asking which tier it belongs at is a category error. Each also has a real
+constituency in PHP, and none is closed for being unused; each trades away something ranked above
+it. They are written down as rules because a mechanism closed only by not having been built yet is
+an absence, and an absence gets filled by whoever needs it next.
+
 **Nothing here is revisitable by configuration.** There is deliberately no directive for any of the
 four, because an option that is off by default is still a mechanism that exists, and every safety
 claim downstream would have to be qualified with "unless it is enabled." That is the difference

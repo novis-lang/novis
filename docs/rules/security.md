@@ -79,7 +79,7 @@ compilation at all.
 - **Persistent isolates reused across requests.** Warm state is attractive, and it contradicts
   shared-nothing directly ([`security/no-cross-request-state`](security.md#security-no-cross-request-state)).
 
-<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0116](../decisions/0116.md), [0052](../decisions/0052.md).</sub>
+<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0116](../decisions/0116.md).</sub>
 
 <a id="security-isolate-values-cross-by-copy"></a>
 
@@ -320,7 +320,13 @@ operator's ceiling. The rule is about **userland calls whose effect outlives or 
 own request**. The replacement is a per-core or real shared cache, where the sharing is explicit,
 bounded, and visible in the grants.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0052](../decisions/0052.md), [0059](../decisions/0059.md).</sub>
+**Declined:**
+- **A read-only shared segment for caches, with writes going through a coordinator.** Read-only is
+  not the property that matters: any shared mapping lets one request's failure leave another
+  request's view inconsistent, and the value it holds still crosses the boundary
+  [`classes/two-copy-depths`](classes.md#classes-two-copy-depths) governs.
+
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0059](../decisions/0059.md).</sub>
 
 <a id="security-closed-doors"></a>
 
@@ -334,6 +340,12 @@ cross-request state ([`security/no-cross-request-state`](security.md#security-no
 ([`security/no-eval`](security.md#security-no-eval)). Each closes a vulnerability class outright rather than defending against
 it.
 
+None of the four has a correct tier: each is unsafe in-process, unavailable in a sandbox, and unsafe
+as a build-time option, so asking which tier it belongs at is a category error. Each also has a real
+constituency in PHP, and none is closed for being unused; each trades away something ranked above
+it. They are written down as rules because a mechanism closed only by not having been built yet is
+an absence, and an absence gets filled by whoever needs it next.
+
 **Nothing here is revisitable by configuration.** There is deliberately no directive for any of the
 four, because an option that is off by default is still a mechanism that exists, and every safety
 claim downstream would have to be qualified with "unless it is enabled." That is the difference
@@ -344,7 +356,7 @@ whole purpose is process-global state or in-process native binding — and cross
 shared-memory latency is not available at any price. That spends latency to buy isolation, which is
 the ordering [`programs/memory-priority`](programs.md#programs-memory-priority) mandates.
 
-<sub>See also [`security/no-ffi`](security.md#security-no-ffi), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/no-eval`](security.md#security-no-eval). Decided in [0052](../decisions/0052.md), [0059](../decisions/0059.md).</sub>
+<sub>See also [`security/no-ffi`](security.md#security-no-ffi), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/no-eval`](security.md#security-no-eval). Decided in [0059](../decisions/0059.md).</sub>
 
 <a id="security-no-ffi"></a>
 
@@ -365,7 +377,11 @@ The wasm component tier exists so this is unnecessary. Wrapping an existing C or
 stated purpose, and it delivers the same capability with a memory boundary, a capability grant, a CPU
 deadline and a memory cap — which is the whole of what an FFI gives up.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../decisions/0052.md).</sub>
+**Declined:**
+- **An FFI behind a capability grant.** Every other grant restricts what code may do, and the grants
+  are enforced by memory safety, so a capability that removes memory safety cannot be enforced by it.
+
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens).</sub>
 
 <a id="security-no-eval"></a>
 
@@ -388,7 +404,12 @@ Running code chosen at run time is `spawn script`: in an isolate, spending the p
 `script.spawn` — which is what a template engine or a plugin loader actually needs, with a boundary
 `eval` never had.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0052](../decisions/0052.md), [0042](../decisions/0042.md).</sub>
+**Declined:**
+- **An `eval` restricted to code with no `require` and no closures**, so the static analyses
+  survive. The restriction is hard to state precisely and harder to enforce, and what remains is
+  strictly less capable than `spawn script`, which is already isolated.
+
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0042](../decisions/0042.md).</sub>
 
 <a id="security-a-path-is-not-a-url"></a>
 
@@ -411,7 +432,12 @@ resolved statically. What is refused is specifically **dispatch on the textual c
 which is also what makes [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix) a total rule rather than
 one with a scheme-shaped hole in it.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0052](../decisions/0052.md).</sub>
+**Declined:**
+- **A built-in allow-list of schemes, `file://` alone, with no registration.** Close to harmless and
+  easier to migrate to, but it keeps a scheme-parsing step in every path-handling member forever to
+  support one scheme that is also the default: surface with no capability behind it.
+
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
 <a id="security-reflection-enforces-visibility"></a>
 
@@ -456,7 +482,7 @@ need a grant precisely because it would then be an effect. The two rules hold ea
 is free to be open because there is nothing behind it
 ([`security/no-eval`](security.md#security-no-eval), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
 
-<sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility). Decided in [0052](../decisions/0052.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="security-capability-check-at-the-door"></a>
 
@@ -769,7 +795,7 @@ in exchange for reintroducing the dynamic escape the language closed elsewhere �
 Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
 further one opened, and every claim above it would have to be qualified.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0052](../decisions/0052.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md).</sub>
 
 <a id="security-capability-costs-nothing-unasked"></a>
 

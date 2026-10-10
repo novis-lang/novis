@@ -40,7 +40,7 @@ limited to what ships; this page also carries what is only planned, which that c
 
 [0079](../decisions/0079.md)'s *Context* is the argument in full: PHPUnit's own
 mechanism cannot port — mock generation is `eval` on generated source, and
-[0052](../decisions/0052.md) closed `eval` — and everything it fakes at run time with reflection,
+Novis has no `eval` (`rule:security/no-eval`) — and everything it fakes at run time with reflection,
 the compiler does at compile time with types. That one ADR absorbs the whole testing column above:
 the framework, the parallel runner, the doubles, the data providers, the snapshots, the property
 testing, the benchmark harness and the mutation tester are sections of it, not ports of the

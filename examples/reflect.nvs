@@ -18,9 +18,8 @@
 // third is refused.
 //
 // **A parsed AST is inert typed data**, with no path back into execution.
-// `Core\Ast::parse` is a reader, not an `eval` behind a longer name; ADR
-// 0052 keeps that door shut and this is the member that would otherwise
-// have propped it open.
+// `Core\Ast::parse` reads source code and does not run it. Novis has no
+// `eval`, and this function does not add one.
 //
 // The five lines this prints are frozen by an exact check in a goal record
 // under `data/goals/`; the source is not.
