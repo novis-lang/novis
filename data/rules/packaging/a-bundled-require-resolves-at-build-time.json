@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0048",
-    "0021",
-    "0025"
+    "0021"
   ],
   "seeAlso": [
     "statements/require-is-the-only-inclusion-construct",

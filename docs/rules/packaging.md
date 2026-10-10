@@ -408,7 +408,7 @@ diagnostic an ordinary run would give.
 This rule is the home for every closed-world target, and any other inherits it rather than restating
 it.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../decisions/0048.md), [0021](../decisions/0021.md), [0025](../decisions/0025.md).</sub>
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts). Decided in [0048](../decisions/0048.md), [0021](../decisions/0021.md).</sub>
 
 <a id="packaging-a-bundle-is-found-by-its-footer-before-argv-is-read"></a>
 
