@@ -2,7 +2,6 @@
   "title": "The address policy lives in the capability, so every client obeys it and none of them may hold its own",
   "status": "shipped",
   "because": [
-    "0058",
     "0118"
   ],
   "seeAlso": [

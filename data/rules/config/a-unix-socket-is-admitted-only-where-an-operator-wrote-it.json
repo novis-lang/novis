@@ -2,8 +2,7 @@
   "title": "A Unix socket is admitted in `[cache.shared] url` and `[db.<name>] host`, and refused from any program-supplied endpoint",
   "status": "designed",
   "because": [
-    "0142",
-    "0058"
+    "0142"
   ],
   "seeAlso": [
     "config/cache-shared-is-the-grant-over-the-configured-store",

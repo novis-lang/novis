@@ -2,8 +2,7 @@
   "title": "One `deadline` covers the whole call: the connection, every redirect hop, every retry attempt and every backoff between them",
   "status": "shipped",
   "because": [
-    "0074",
-    "0058"
+    "0074"
   ],
   "seeAlso": [
     "http-server/no-spelling-for-an-unbounded-wait",

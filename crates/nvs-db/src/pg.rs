@@ -160,8 +160,8 @@ const READ_CHUNK: usize = 16 * 1024;
 /// than the driver's.
 ///
 /// The address and the name are two fields on purpose, and it is the same
-/// split `nvs_host::tls` makes: `addr` is [ADR
-/// 0058](/docs/decisions/0058.md)'s pinned address,
+/// split `nvs_host::tls` makes: `addr` is the address
+/// `rule:http-server/allow-url-pins-the-address` pins,
 /// already resolved by whoever checked the capability, and `host` is the name
 /// the certificate must be valid for. A driver that re-resolved the name would
 /// be connecting somewhere nobody approved.

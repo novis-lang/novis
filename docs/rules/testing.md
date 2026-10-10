@@ -370,7 +370,7 @@ isolate rather than a child â€” leftover work is read off the test's own task â€
 the test that asked for it has joined. It serves under the **default** policy rather than the tree's:
 reading a deployment's configuration would make the test's subject the deployment.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0074](../decisions/0074.md), [0058](../decisions/0058.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0074](../decisions/0074.md).</sub>
 
 <a id="testing-an-outbound-call-is-answered-from-a-table"></a>
 

@@ -1224,7 +1224,7 @@ The fragment is never signed, since it is not sent to the server.
 query parameter for the token. `Core\Router`'s pair — the one that signs a route's name and parameters,
 so a signature survives a remount — is not registered yet.
 
-<sub>See also [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing). Decided in [0146](../decisions/0146.md), [0058](../decisions/0058.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`core-api/a-lifetime-is-written`](core-api.md#core-api-a-lifetime-is-written), [`core-api/one-refusal-except-expiry`](core-api.md#core-api-one-refusal-except-expiry), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing). Decided in [0146](../decisions/0146.md), [0097](../decisions/0097.md).</sub>
 
 <a id="core-api-one-refusal-except-expiry"></a>
 

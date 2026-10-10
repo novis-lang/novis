@@ -887,6 +887,13 @@ asked of a resolved address and a name would except whatever it resolved to afte
 because an operator writing a whole `/8` hands back most of the table without naming a host; and not
 `true`, which is the one place a capability's `true` does not mean everything.
 
+Link-local is the range whose omission is catastrophic rather than regrettable: `169.254.169.254` is the
+cloud instance-metadata endpoint, and reaching it turns a feature that fetches a URL into credential
+theft. The exception and the connect grant are independent and both required — `net.internal` reaches
+nothing `net.connect` has not granted by name — so an exception is a second thing an operator writes, not
+a way around the first. A deployment that calls internal services has to say so, and that is the point:
+the difference between an intended internal call and a forged one is whether somebody wrote it down.
+
 The one class of address it does not govern is an endpoint an operator wrote into root-owned
 configuration and granted by name — that address is not attacker-influenceable, and applying the
 policy there would deny every ordinary deployment. A program-supplied target stays governed in full.
@@ -902,7 +909,15 @@ asked at the connect. What the table does **not** govern is a *bind*, whose term
 [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect) is that grant and says why it carries
 no policy of its own.
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0162](../decisions/0162.md), [0182](../decisions/0182.md).</sub>
+**Declined:**
+- **No exception syntax at all**, so a private range is never reachable from a program-supplied
+  address. Service-to-service calls are the normal case in any non-trivial deployment, and a rule that
+  has to be worked around is worse than one that has to be written down.
+- **The policy applied to an operator-written endpoint too.** A database or a shared store lives at a
+  private address, a container network or loopback, so every ordinary deployment would be denied
+  ([`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)).
+
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0162](../decisions/0162.md), [0182](../decisions/0182.md).</sub>
 
 <a id="security-net-listen-is-a-separate-grant-from-net-connect"></a>
 
@@ -957,7 +972,7 @@ The exception is the same one [`security/net-address-policy`](security.md#securi
 operator has already approved by writing it — and it is a property of the address, not of the client
 that dials it.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="security-tainted-qualifier"></a>
 
@@ -1037,7 +1052,7 @@ is `?tainted bytes`. The list of sources being **enumerable** is what lets the q
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0058](../decisions/0058.md), [0067](../decisions/0067.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0067](../decisions/0067.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="security-taint-propagation"></a>
 
@@ -1214,7 +1229,26 @@ Refusing at the call site is only half of it: the address is judged again at run
 capability's own policy ([`security/net-address-policy`](security.md#security-net-address-policy)), because a hardcoded hostname can still
 resolve into a private range.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0058](../decisions/0058.md), [0088](../decisions/0088.md).</sub>
+Request forgery is an injection, but it is the one that cannot be settled at compile time alone: a
+well-formed URL is harmless or not according to the address it resolves to, which is known only at
+connect time and can differ between two resolutions of one name. Nor can it be settled at run time
+alone, since nothing in the source would show a developer which URL is attacker-influenced. So it gets
+both layers. Fetching a URL somebody supplied is a legitimate feature — webhooks, previews, imports — and
+stays two lines, the second of which is the launderer that records the decision.
+
+**Declined:**
+- **The run-time policy alone, with no `tainted` refusal.** The developer gets no signal at `nvs check`
+  and the failure appears in production, and this class alone would lose the compile-time audit every
+  other injection has.
+- **The compile-time refusal alone, with a launderer checking the URL's shape.** `http://169.254.169.254/`
+  is well-formed, so the attack passes straight through.
+- **A launderer answering a plain `string`.** It reopens the gap between the check and the connection
+  ([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)).
+- **Leaving it to the application, with documentation.** Every application re-implements it, most
+  incompletely, and a language that makes SQL and HTML injection compile errors would be treating this one
+  as a matter of care.
+
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0088](../decisions/0088.md).</sub>
 
 <a id="security-metric-label-refuses-tainted"></a>
 
@@ -2062,7 +2096,7 @@ own. The plaintext phase of a connection is only ever the upgrade request itself
 What does not generalise is what belongs to the socket rather than to the session — the deadline and
 the peer address — so there is still one clock, on the thing that waits.
 
-<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0058](../decisions/0058.md), [0180](../decisions/0180.md).</sub>
+<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0180](../decisions/0180.md).</sub>
 
 <a id="security-tls-trust-is-relaxed-only-under-a-host-grant"></a>
 

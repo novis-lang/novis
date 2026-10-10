@@ -2,7 +2,6 @@
   "title": "Redirects are not followed by default; when enabled every hop is re-checked and re-pinned, a denied hop fails the request, and a retry never re-resolves",
   "status": "shipped",
   "because": [
-    "0058",
     "0074"
   ],
   "seeAlso": [

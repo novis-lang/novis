@@ -1772,7 +1772,7 @@ may reach.
 The grant is asked at the door and after the directive is read — a deployment that configured no
 store hears that first, because there is no tier for a grant to be about yet.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it). Decided in [0142](../decisions/0142.md), [0058](../decisions/0058.md), [0059](../decisions/0059.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it). Decided in [0142](../decisions/0142.md), [0059](../decisions/0059.md).</sub>
 
 <a id="config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it"></a>
 
@@ -1801,7 +1801,7 @@ sockets on a host is open, distribution-specific and grows when anything is inst
 must enumerate what to refuse is wrong on the machine nobody tested. The grant a program-supplied
 path would need is [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster).
 
-<sub>See also [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0142](../decisions/0142.md), [0058](../decisions/0058.md).</sub>
+<sub>See also [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`](config.md#config-unix-scheme-in-a-url-and-a-bare-path-in-a-host), [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0142](../decisions/0142.md).</sub>
 
 <a id="config-unix-scheme-in-a-url-and-a-bare-path-in-a-host"></a>
 

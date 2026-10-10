@@ -68,7 +68,7 @@ isolation*, with each rule's ADR behind it. Anything that defeats one of these i
   defaults that fail open, session-record forgery, a shell string accepted by `Core\Process` or argv
   quoting that recombines, an outbound request that ignores address pinning
   ([`rule:core-classes/process-is-argv-only`](docs/rules/core-classes.md#core-classes-process-is-argv-only),
-  [0058](docs/decisions/0058.md),
+  [`rule:http-server/allow-url-pins-the-address`](docs/rules/http-server.md#http-server-allow-url-pins-the-address),
   [0074](docs/decisions/0074.md),
   [0139](docs/decisions/0139.md)).
 - **Supply chain** — anything that makes a build produce something other than these sources.
