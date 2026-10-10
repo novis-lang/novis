@@ -54,6 +54,8 @@ export interface PeerCtx {
   tree: string;
   case: string;
   commit: string;
+  /** The backend container's memory cap, such as `512m`. Unset is no cap. */
+  memory?: string | undefined;
 }
 
 export interface Peer {
@@ -127,6 +129,7 @@ export function stackEnv(peer: Peer, ctx: PeerCtx): Record<string, string> {
     TREE: ctx.tree,
     CASE: ctx.case,
     BACKEND_CPUS: String(ctx.cpus),
+    BACKEND_MEMORY: ctx.memory ?? "0",
     NGINX_CONF: peer.nginx,
     NGINX_PORT: String(peer.port),
     ...peer.env(ctx),
@@ -285,7 +288,8 @@ export interface Reply {
 
 /** What a row's probe can do against one peer's running stack. */
 export interface Probe {
-  get(path: string): Promise<Reply>;
+  /** One `GET`, given up after `timeoutMs`, which is 30 seconds unless the row names its own. */
+  get(path: string, timeoutMs?: number): Promise<Reply>;
   /** One request with its own method and headers, for a row that is about more than a `GET`. */
   send(method: string, path: string, headers: Record<string, string>): Promise<Reply>;
   /** Whether the backend container is still running. No stack sets a restart policy, so a crash stays down. */
@@ -294,10 +298,22 @@ export interface Probe {
   check(file: string): { code: number; output: string };
   /** A command run in the backend container, as an operator would run it there. */
   exec(command: string[]): { code: number; output: string };
+  /** The backend's last log lines. */
+  logs(): string;
+  /** `oha` against `path` from inside the stack for `seconds`, at the row's connections, while the row sends its own requests. */
+  steady(path: string, seconds: number): Promise<Steady>;
   /** The peer's `id` in `PEERS`. */
   peer: string;
   /** The host folder the stack serves, which a row that edits the program writes to. */
   dir: string;
+}
+
+/** What steady load did: the requests answered, the ones that failed or timed out and how, and the slowest 1% in ms. */
+export interface Steady {
+  requests: number;
+  failed: number;
+  failures: string | null;
+  p99_ms: number | null;
 }
 
 /** What a row that times a case can do against one peer. */
@@ -320,6 +336,8 @@ export interface Scenario {
   serves?: boolean;
   /** Serve a fresh copy of the folder under `generated/`, for a row that edits the program. */
   copy?: boolean;
+  /** The backend container's memory cap, for a row whose program allocates without end. */
+  memory?: string;
   /** The result of a peer that has nothing to run for this row, with the documentation that says so. */
   fixed?: Record<string, RowResult>;
   /** A row about requests: sent to one stack the driver brings up. */
@@ -374,6 +392,81 @@ export const ISOLATION_REQUESTS = 20;
 export function isolationResult(bodies: string[]): RowResult {
   const leaked = bodies.filter((b) => !b.startsWith("0 ")).length;
   return { result: leaked === 0 ? "built-in" : "no", evidence: { requests: bodies.length, saw_another_request: leaked } };
+}
+
+/** How long the runaway row's steady load runs, and how long after the load starts the runaway requests are sent. */
+export const RUNAWAY_LOAD_SECONDS = 15;
+export const RUNAWAY_START_MS = 3_000;
+
+/** How long a runaway request may take to be stopped: under nginx's 60-second read timeout, so a reply is the backend's. */
+export const RUNAWAY_WAIT_MS = 55_000;
+
+/** The backend container's memory cap in the runaway row, so an allocation without end stops there and not at the host. */
+export const RUNAWAY_MEMORY = "512m";
+
+/** The statuses nginx gives when the backend did not answer: a reply with one of them is not the backend stopping the request. */
+const NGINX_STATUSES = new Set([502, 504]);
+
+/** A runaway request's reply: its status and the seconds it took, or `null` for both when it was never answered. */
+export interface Stopped {
+  status: number | null;
+  seconds: number | null;
+}
+
+/**
+ * Built in when the steady load saw no failed request, both runaway requests were stopped by the backend,
+ * and the backend still runs. `one-setting` where the peer needs a setting for it. Anything else is `no`.
+ */
+export function runawayResult(load: Steady, loop: Stopped, alloc: Stopped, running: boolean, setting: string | undefined): RowResult {
+  const stopped = (s: Stopped) => s.status !== null && !NGINX_STATUSES.has(s.status);
+  const evidence = {
+    requests: load.requests,
+    failed_requests: load.failed,
+    failures: load.failures,
+    p99_ms: load.p99_ms,
+    loop_status: loop.status,
+    loop_seconds: loop.seconds,
+    alloc_status: alloc.status,
+    alloc_seconds: alloc.seconds,
+    backend_running: running,
+  };
+  if (load.failed > 0 || !running || !stopped(loop) || !stopped(alloc)) return { result: "no", evidence };
+  return setting === undefined ? { result: "built-in", evidence } : { result: "one-setting", setting, evidence };
+}
+
+/**
+ * The limits a peer needs set before it stops a runaway request, where its defaults set none: the command
+ * that sets them inside the container, and the setting's name in the row. Novis's `[limits]` keys are
+ * commented out in its data folder's `nvs.toml`, so the edit uncomments them inside that table. `nvs serve`
+ * admits only as many requests as the container's memory affords at `memory` each, so the value leaves
+ * room for the row's load and its two runaways: at `64M` a 512 MiB container admits six.
+ */
+export const RUNAWAY_LIMITS: Record<string, { edit: string[]; name: string }> = {
+  nvs: {
+    edit: ["sed", "-i", '/^\\[limits\\]$/,/^\\[/{s|^#memory = .*|memory = "16M"|;s|^#cpu_time = .*|cpu_time = "1s"|}', "/usr/local/bin/.nvsdata/nvs.toml"],
+    name: "[limits]",
+  },
+};
+
+/** Sends one runaway request and waits up to `RUNAWAY_WAIT_MS` for its reply. */
+async function stoppedAt(p: Probe, path: string): Promise<Stopped> {
+  const start = performance.now();
+  try {
+    const reply = await p.get(path, RUNAWAY_WAIT_MS);
+    return { status: reply.status, seconds: Number(((performance.now() - start) / 1000).toFixed(1)) };
+  } catch {
+    return { status: null, seconds: null };
+  }
+}
+
+/** Polls the backend's log until it carries `line`: the seconds it took, or `null` after `CHANGE_WAIT_MS`. */
+async function logUntil(p: Probe, line: string): Promise<number | null> {
+  const start = performance.now();
+  while (performance.now() - start < CHANGE_WAIT_MS) {
+    if (p.logs().includes(line)) return Number(((performance.now() - start) / 1000).toFixed(1));
+    await Bun.sleep(250);
+  }
+  return null;
 }
 
 /** The request after a crash must be answered by a backend that is still up. */
@@ -523,6 +616,27 @@ export const SCENARIOS: Scenario[] = [
       const bodies: string[] = [];
       for (let v = 1; v <= ISOLATION_REQUESTS; v++) bodies.push(ok(await p.get(`/?v=${v}`), `?v=${v}`).body);
       return isolationResult(bodies);
+    },
+  },
+  {
+    id: "runaway",
+    tree: "scenarios",
+    case: "runaway",
+    memory: RUNAWAY_MEMORY,
+    probe: async (p) => {
+      const limits = RUNAWAY_LIMITS[p.peer];
+      if (limits !== undefined) {
+        const wrote = p.exec(limits.edit);
+        if (wrote.code !== 0) throw new Fail(`${limits.edit.join(" ")}: ${wrote.output}`);
+        if ((await logUntil(p, "configuration reloaded")) === null) throw new Fail(`${limits.name} was written, and the configuration was not reloaded`);
+      }
+      ok(await p.get("/"), "the first request");
+      const load = p.steady("/", RUNAWAY_LOAD_SECONDS);
+      await Bun.sleep(RUNAWAY_START_MS);
+      const runaways = Promise.all([stoppedAt(p, "/loop"), stoppedAt(p, "/alloc")]);
+      const steady = await load;
+      const [loop, alloc] = await runaways;
+      return runawayResult(steady, loop, alloc, p.running(), limits?.name);
     },
   },
   {
@@ -819,18 +933,53 @@ async function onePass(peer: Peer, c: Case, ctx: PeerCtx, load: Load | null): Pr
 }
 
 /** One request from the host through nginx, for a scenario's probe. */
-async function replyOf(peer: Peer, path: string, method = "GET", extra: Record<string, string> = {}): Promise<Reply> {
+async function replyOf(peer: Peer, path: string, method = "GET", extra: Record<string, string> = {}, timeoutMs = 30_000): Promise<Reply> {
   const res = await fetch(`https://127.0.0.1:${peer.port}${path}`, {
     method,
     headers: { "Accept-Encoding": "identity", ...extra },
     tls: { rejectUnauthorized: false },
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const headers: Record<string, string> = {};
   res.headers.forEach((value, name) => {
     headers[name.toLowerCase()] = value;
   });
   return { status: res.status, headers, body: await res.text() };
+}
+
+/**
+ * One `oha` run for `seconds` from inside the stack's network, started without waiting for it, so the row
+ * sends its own requests while it runs. A request unanswered after five seconds counts as failed.
+ */
+async function steadyOf(stack: string, env: Record<string, string>, path: string, seconds: number): Promise<Steady> {
+  const args = ["run", "--rm", "--no-deps", "oha", "-z", `${seconds}s`, "-c", String(SCENARIO_CONCURRENCY), "-t", "5s"];
+  const proc = Bun.spawn(["docker", "compose", "-f", stack, ...args, "--no-tui", "--output-format", "json", "--insecure", `https://nginx${path}`], {
+    env: { ...process.env, ...env },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+  if (code !== 0) throw new Error(`oha failed against ${path} (${code}): ${err.trim()}`);
+  return steadyResult(JSON.parse(out));
+}
+
+/** `oha`'s name for a request still open when `-z` ends. The run cut it, so it is not a failure. */
+const DEADLINE = "aborted due to deadline";
+
+/** The figures `oha`'s JSON gives for a steady run. Every status but `200` and every error but `DEADLINE` failed. */
+export function steadyResult(json: { statusCodeDistribution?: Record<string, number>; errorDistribution?: Record<string, number>; metrics?: { latency_ms?: { p99?: number } } }): Steady {
+  const failures = [
+    ...Object.entries(json.statusCodeDistribution ?? {}).filter(([status]) => status !== "200"),
+    ...Object.entries(json.errorDistribution ?? {}).filter(([error]) => error !== DEADLINE),
+  ];
+  const answered = Object.values(json.statusCodeDistribution ?? {}).reduce((a, b) => a + b, 0);
+  const p99 = json.metrics?.latency_ms?.p99;
+  return {
+    requests: answered,
+    failed: failures.reduce((n, [, count]) => n + count, 0),
+    failures: failures.map(([what, count]) => `${what} x${count}`).join("; ") || null,
+    p99_ms: p99 === undefined ? null : Number(p99.toFixed(1)),
+  };
 }
 
 /**
@@ -867,7 +1016,9 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
         const done = compose(stack, ["exec", "-T", "app", ...command], env, true);
         return { code: done.code, output: done.stdout + done.stderr };
       },
-      get: (path) => replyOf(peer, path),
+      get: (path, timeoutMs) => replyOf(peer, path, "GET", {}, timeoutMs),
+      logs: () => logsOf(stack, "app", env),
+      steady: (path, seconds) => steadyOf(stack, env, path, seconds),
       send: (method, path, headers) => replyOf(peer, path, method, headers),
       running: () => {
         const ps = compose(stack, ["ps", "--status", "running", "--services"], env, true);
@@ -967,7 +1118,7 @@ async function scenarios(o: Options, cpus: number, commit: string, load: Load): 
     const byPeer = new Map<string, RowResult>();
     for (const peer of PEERS) {
       console.log(`  ${s.id}: ${peer.label} ...`);
-      byPeer.set(peer.id, await scenarioPass(peer, s, { cpus, concurrency: SCENARIO_CONCURRENCY, tree: s.tree, case: s.case, commit }, load));
+      byPeer.set(peer.id, await scenarioPass(peer, s, { cpus, concurrency: SCENARIO_CONCURRENCY, tree: s.tree, case: s.case, commit, memory: s.memory }, load));
     }
     console.log(rowLine(s.id, byPeer));
     for (const peer of PEERS) {

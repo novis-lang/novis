@@ -11,6 +11,10 @@ services:
 
     cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
 
+    # The `runaway` row's cap, as `compose.nvs.yaml` says.
+    mem_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
+    memswap_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
+
     working_dir: /app
     volumes:
       - ./${TREE:?the driver sets TREE}/${CASE:?the driver sets CASE}:/app:ro

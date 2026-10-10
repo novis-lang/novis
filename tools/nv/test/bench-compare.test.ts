@@ -23,10 +23,13 @@ import {
   PEERS,
   type PeerResult,
   phpChildren,
+  RUNAWAY_LIMITS,
   rowLine,
   type RowResult,
+  runawayResult,
   SCENARIOS,
   stackEnv,
+  steadyResult,
   waitingResult,
 } from "../cmd/bench-compare.ts";
 
@@ -60,7 +63,8 @@ describe("the peer table", () => {
 
   test("a stack's environment carries the case, the budget, the nginx config and the port", () => {
     const go = PEERS.find((p) => p.id === "go")!;
-    expect(stackEnv(go, ctx)).toEqual({ TREE: "cases", CASE: "hello", BACKEND_CPUS: "4", NGINX_CONF: "http.conf", NGINX_PORT: String(go.port) });
+    expect(stackEnv(go, ctx)).toEqual({ TREE: "cases", CASE: "hello", BACKEND_CPUS: "4", BACKEND_MEMORY: "0", NGINX_CONF: "http.conf", NGINX_PORT: String(go.port) });
+    expect(stackEnv(go, { ...ctx, memory: "512m" }).BACKEND_MEMORY).toBe("512m");
     const nvs = PEERS.find((p) => p.id === "nvs")!;
     expect(stackEnv(nvs, ctx).NVS_BUILD_COMMIT).toBe("abc1234");
   });
@@ -145,7 +149,7 @@ describe("the feature scenarios", () => {
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "isolation", "crash", "escape", "taint", "secret", "csrf", "headers", "waiting", "live-edit", "config"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "isolation", "runaway", "crash", "escape", "taint", "secret", "csrf", "headers", "waiting", "live-edit", "config"]);
   });
 
   test("every row either probes a stack or times a case, never both, and a timed row names a case", () => {
@@ -234,6 +238,43 @@ describe("the feature scenarios", () => {
     expect(isolationResult(["0 1", "0 2", "0 3"])).toEqual({ result: "built-in", evidence: { requests: 3, saw_another_request: 0 } });
     expect(isolationResult(["0 1", "1 2", "2 3"])).toEqual({ result: "no", evidence: { requests: 3, saw_another_request: 2 } });
     expect(isolationResult(["10 11"]).result).toBe("no");
+  });
+
+  test("a runaway is stopped when the backend answers both, the load saw no failure, and the backend still runs", () => {
+    const load = { requests: 900, failed: 0, failures: null, p99_ms: 12.5 };
+    const stopped = { status: 500, seconds: 1.2 };
+    expect(runawayResult(load, stopped, stopped, true, undefined).result).toBe("built-in");
+    expect(runawayResult(load, { status: 200, seconds: 30.4 }, stopped, true, "[limits]")).toEqual({
+      result: "one-setting",
+      setting: "[limits]",
+      evidence: { requests: 900, failed_requests: 0, failures: null, p99_ms: 12.5, loop_status: 200, loop_seconds: 30.4, alloc_status: 500, alloc_seconds: 1.2, backend_running: true },
+    });
+    expect(runawayResult(load, { status: null, seconds: null }, stopped, true, undefined).result).toBe("no");
+    expect(runawayResult(load, stopped, { status: 502, seconds: 3 }, true, undefined).result).toBe("no");
+    expect(runawayResult({ ...load, failed: 1 }, stopped, stopped, true, "[limits]").result).toBe("no");
+    expect(runawayResult(load, stopped, stopped, false, undefined).result).toBe("no");
+  });
+
+  test("steady load fails on every status but 200 and every error but the run's own deadline", () => {
+    expect(steadyResult({ statusCodeDistribution: { "200": 90 }, errorDistribution: { "aborted due to deadline": 8 }, metrics: { latency_ms: { p99: 3.14 } } })).toEqual({
+      requests: 90,
+      failed: 0,
+      failures: null,
+      p99_ms: 3.1,
+    });
+    expect(steadyResult({ statusCodeDistribution: { "200": 90, "503": 4 }, errorDistribution: { timeout: 2 } })).toEqual({
+      requests: 94,
+      failed: 6,
+      failures: "503 x4; timeout x2",
+      p99_ms: null,
+    });
+  });
+
+  test("the runaway limits are uncommented inside the `[limits]` table and nowhere else", () => {
+    const shipped = readFileSync(join(import.meta.dir, "..", "..", "..", "crates", "nvs-config", "src", "default.toml"), "utf8");
+    const out = Bun.spawnSync(["sed", RUNAWAY_LIMITS.nvs!.edit[2]!], { stdin: Buffer.from(shipped) }).stdout.toString();
+    const changed = out.split("\n").filter((line, i) => line !== shipped.split("\n")[i]);
+    expect(changed).toEqual(['memory = "16M"', 'cpu_time = "1s"']);
   });
 
   test("a crash is survived when the next request is answered and the backend is still up", () => {

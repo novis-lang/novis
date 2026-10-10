@@ -15,6 +15,10 @@ services:
 
     cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
 
+    # The `runaway` row's cap, as `compose.nvs.yaml` says.
+    mem_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
+    memswap_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}
+
     # The Go runtime reads the host's core count, not the container's quota, so the budget is set here.
     environment:
       GOMAXPROCS: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
