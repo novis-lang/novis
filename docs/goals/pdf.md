@@ -33,8 +33,8 @@ stages:
     status: open
     extra:
       context:
-        adrs: ["0247 §4"]
-        rules: [core-classes/pdf-output-is-inert, core-classes/html-parsing, packaging/a-wasm-module-cache-reuses-the-artifact-cache]
+        adrs: []
+        rules: [core-classes/pdf-output-is-inert, core-classes/html-parsing, packaging/a-wasm-module-cache-reuses-the-artifact-cache, packaging/the-first-party-components-are-built-in, packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci]
         shapes: ["A `.nvst` test case"]
   - id: 6
     title: the cascade
@@ -276,7 +276,7 @@ extra:
     wsl:
       targetDir: /var/tmp/nvs-target-wsl
   context:
-    adrs: ["0121 §2", "0121 §4", "0247 §1"]
+    adrs: ["0121 §2", "0121 §4"]
     milestones: [M17]
     plan: [Open now, Blocking]
     playbook: ["Tooling > the end", "Tooling > one call reads", "Tooling > a commit message", "Tooling > a [context]*", "Tooling > another agent", "Tooling > a crate added to a built-in component", "Running things > a new dependency owes three things", "Running things > target/release/nvs.exe is"]
@@ -429,7 +429,8 @@ One file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packagi
   `Novis\Pdf`, the new `Novis\Image` members (barcodes, SVG output, `open`'s `page` and `dpi`), the
   documented CSS subset as a table, the `Page` value and its marks, the table rules, the standards,
   the reader and `merge`, encryption, the error kinds, the tradeoffs, and the user's calls as decided.
-  It amends ADRs 0121, 0128 and 0247 in its front matter, and records the headless-browser backend,
+  It amends ADRs 0121 and 0128 in its front matter and
+  `rule:packaging/the-first-party-components-are-built-in`'s count, and records the headless-browser backend,
   form filling, signatures, PDF417 and Aztec as declined.
 - **The fragments.** It rewrites the seven `pdf-*` fragments to the new decisions, and creates at
   least these, under the ids the Stage 2 check reads: `core-classes/pdf-css-subset-table` (the
@@ -755,13 +756,13 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ADRs 0121 and 0128 and M17 Parts 1 and 2 planned this work unscheduled; this goal schedules it and changes several of their decisions. The user made fifteen calls when the goal was written, under one rule of theirs: every common case is in, an easy edge case is in, a hard edge case almost nobody needs is out. The goal file's § *Standing decisions* holds them with the writer's own calls beside them. No session re-decides one.
 
-Facts about the tree as the goal was written. `Novis\` is reserved for built-in components (ADR 0247), so `Novis\Pdf` is the third built-in and the record amends 0247's count. `Svg` and `Pdf` are only enum cases in the image component: `sniff` rejects both (`extensions/image/src/decode.rs:60`), and the WIT's `page` and `dpi` are dropped by the guest mapping (`extensions/image/src/lib.rs:446`) and absent from `Image::open` (`extensions/image/nvs/Image.nvs:61`). OFL-1.1, the Liberation fonts' licence, is in neither `deny.toml:38` nor `tools/nv/cmd/gen-attribution.ts:66`. No `cargo deny` runs over an extension's own `wasm32-wasip2` graph. `html5ever` is the patched copy at `vendor/html5ever` (`Cargo.toml:1151`), which an `extensions/pdf` workspace must point at itself. pdfium-in-wasm needs Emscripten, so `hayro` (0.8 when the goal was written) has no fallback.
+Facts about the tree as the goal was written. `Novis\` is reserved for built-in components (`rule:packaging/the-first-party-components-are-built-in`), so `Novis\Pdf` is the third built-in and the record amends that rule's count. `Svg` and `Pdf` are only enum cases in the image component: `sniff` rejects both (`extensions/image/src/decode.rs:60`), and the WIT's `page` and `dpi` are dropped by the guest mapping (`extensions/image/src/lib.rs:446`) and absent from `Image::open` (`extensions/image/nvs/Image.nvs:61`). OFL-1.1, the Liberation fonts' licence, is in neither `deny.toml:38` nor `tools/nv/cmd/gen-attribution.ts:66`. No `cargo deny` runs over an extension's own `wasm32-wasip2` graph. `html5ever` is the patched copy at `vendor/html5ever` (`Cargo.toml:1151`), which an `extensions/pdf` workspace must point at itself. pdfium-in-wasm needs Emscripten, so `hayro` (0.8 when the goal was written) has no fallback.
 
 ### Next
 
 **Stage 2: the record, its fragments, `wit/pdf.wit` and the font licence**, one file set: `docs/decisions/`, `docs/rules/core-classes/`, `docs/rules/packaging/`, `wit/pdf.wit`, `wit/image.wit`.
 
-- [ ] **The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Novis\Pdf` class, member and options shape, the new `Novis\Image` members, the CSS subset as `extensions/pdf/subset.json`'s table, `Page` and `data-mark`, the eight table rules, the standards and Factur-X, the reader, `merge` and encryption, the error kinds, the tradeoffs, and the user's calls as decided. Its front matter amends ADRs 0121, 0128 and 0247; it records the headless-browser backend, form filling, signatures, PDF417 and Aztec as declined. `docs/decisions/0281.md:1`
+- [ ] **The record** — one new record, its number checked against `docs/decisions/` right before it is written: every `Novis\Pdf` class, member and options shape, the new `Novis\Image` members, the CSS subset as `extensions/pdf/subset.json`'s table, `Page` and `data-mark`, the eight table rules, the standards and Factur-X, the reader, `merge` and encryption, the error kinds, the tradeoffs, and the user's calls as decided. Its front matter amends ADRs 0121 and 0128 and `rule:packaging/the-first-party-components-are-built-in`; it records the headless-browser backend, form filling, signatures, PDF417 and Aztec as declined. `docs/decisions/0281.md:1`
 - [ ] **The fragments** — the seven `pdf-*` fragments rewritten to the new decisions (the builder, the browser backend and the `data:` refusal gone; Factur-X the one attachment; reading and merging in `Novis\Pdf`), and the seven new ids the Stage 2 checks read, listed in the goal's Stage 2. Then `docs/plan/m17.md` Parts 1 and 2 through a `## milestone: M17` wrap section. `docs/rules/core-classes/pdf-one-engine.md:1`
 - [ ] **`wit/pdf.wit`** batch-shaped like `wit/intl.wit`, with the second pass for header and footer markup in it from the first write, and its two tests in `crates/nvs-stdlib/tests/ext_world.rs`; `wit/image.wit` gains the barcode export. `wit/pdf.wit:1`
 - [ ] **The proofs checks the record makes possible** — one `bun nv proofs --verify --group '<class>'` check per class the record names, `Novis\Pdf` and the new `Novis\Image` members both, in Stage 16 of `data/goals/pdf.json`. `docs/goals/pdf.md:1`

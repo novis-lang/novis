@@ -14,3 +14,7 @@ library's own. The build runs on Linux, and under WSL on Windows, and refuses a 
 differs from its pin. `--check` holds the committed bytes to their digest, and CI's `webp-lib` job
 runs `--verify`, which rebuilds and compares (`tools/nv/test/webp-lib.test.ts`). The image crate
 does not link the library yet.
+
+**Declined:**
+- **libwebp compiled from source on every clean build.** Every contributor and every CI leg would need
+  wasi-sdk before `cargo build` works.

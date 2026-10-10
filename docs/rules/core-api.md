@@ -25,7 +25,7 @@ an optional subsystem was not built or installed. That would make the reserved n
 Attempting either — a loaded extension declaring a class under `Core\` or `Novis\` — is a load-time
 diagnostic naming the class, not a silently missing symbol.
 
-<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements). Decided in [0051](../decisions/0051.md), [0011](../decisions/0011.md), [0003](../decisions/0003.md), [0247](../decisions/0247.md).</sub>
+<sub>See also [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/five-placements`](core-api.md#core-api-five-placements). Decided in [0051](../decisions/0051.md), [0011](../decisions/0011.md), [0003](../decisions/0003.md).</sub>
 
 <a id="core-api-tier-placement"></a>
 

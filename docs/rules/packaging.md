@@ -1398,7 +1398,7 @@ Which tier a candidate lands at is decided by [`core-api/tier-placement`](core-a
 and the resulting roster is [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Those tests decide the partition, and no
 other runtime's packaging is a reason to place a candidate.
 
-<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md), [0247](../decisions/0247.md).</sub>
+<sub>See also [`core-api/five-placements`](core-api.md#core-api-five-placements), [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost). Decided in [0003](../decisions/0003.md), [0051](../decisions/0051.md).</sub>
 
 <a id="packaging-the-first-party-components-are-built-in"></a>
 
@@ -1421,12 +1421,21 @@ reserved for Tier 0 ([`core-api/core-means-always-present`](core-api.md#core-api
 Nothing is paid until a program calls one. The embedded bytes are compiled on a component's first use
 in a process and stored in the artifact cache like any other module
 ([`packaging/a-wasm-module-cache-reuses-the-artifact-cache`](packaging.md#packaging-a-wasm-module-cache-reuses-the-artifact-cache)). What it spends is the binary's size:
-mostly CLDR data and the codecs, on disk and in the page cache.
+mostly CLDR data and the codecs, on disk and in the page cache. The intl component is ICU4X with every
+CLDR locale compiled in, and its classes are [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster). Should that growth make
+the single-file executable impractical for CLI programs, the answer is a smaller locale set, never an
+optional component.
+
+- **Memory:** nothing until a program calls a component. Then the compiled module is held once per
+  process and shared by every core, and each calling request has its own instance under its own cap.
 
 A build script compiles their Rust crates, under `extensions/` and outside the workspace, for
 `wasm32-wasip2`, and packs each with the packer `nvs ext build` uses
-([`packaging/nvs-ext-is-the-authoring-tool`](packaging.md#packaging-nvs-ext-is-the-authoring-tool)). `rust-toolchain.toml` lists the target. The one C
-library is prebuilt ([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](packaging.md#packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci)).
+([`packaging/nvs-ext-is-the-authoring-tool`](packaging.md#packaging-nvs-ext-is-the-authoring-tool)). `rust-toolchain.toml` lists the target, so no contributor installs it by hand. Because the
+crates are outside the workspace, the ordinary `cargo build` never resolves them for the host target.
+A clean build compiles both for wasm, ICU4X's compiled data among them, and an incremental build reuses
+their target directory. The one C library is prebuilt
+([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](packaging.md#packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci)).
 
 **Partly on disk.** The image crate is `extensions/image/`, excluded from the workspace, and builds for
 `wasm32-wasip2` with `simd128` on. Its implemented exports are `info`, `run` and `variants`; the others return `runtime`.
@@ -1444,7 +1453,16 @@ embedded the same way as `nvs_ext::builtin::INTL` with its digest folded in besi
 manifest class is `Novis\Intl\Icu`, of whose exports `collateOrder` and `sortKeys` are implemented and
 the others return `runtime`; its Novis half is `Novis\Intl\Collator` (`crates/nvs-ext/tests/intl.rs`).
 
-<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0247](../decisions/0247.md).</sub>
+**Declined:**
+- **Embedded, but removable by a setting or a Cargo feature.** Whether `Novis\Image` exists would
+  depend on configuration again, the failure [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present) prevents.
+- **Installed beside the binary, with an `[[extension]]` entry per deployment.** That is one
+  configuration step for two features every web application uses, and a program could not know
+  whether either exists without asking its deployment.
+- **Both finished `.nvsx` files committed.** Tens of megabytes of binary in git on every CLDR or codec
+  update.
+
+<sub>See also [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present), [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster).</sub>
 
 <a id="packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci"></a>
 
@@ -1469,7 +1487,11 @@ differs from its pin. `--check` holds the committed bytes to their digest, and C
 runs `--verify`, which rebuilds and compares (`tools/nv/test/webp-lib.test.ts`). The image crate
 does not link the library yet.
 
-<sub>See also [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in). Decided in [0247](../decisions/0247.md).</sub>
+**Declined:**
+- **libwebp compiled from source on every clean build.** Every contributor and every CI leg would need
+  wasi-sdk before `cargo build` works.
+
+<sub>See also [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in).</sub>
 
 <a id="packaging-an-nvsx-is-one-file-carrying-its-manifest"></a>
 
