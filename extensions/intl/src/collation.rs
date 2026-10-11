@@ -1,4 +1,4 @@
-//! Collation: `collate-order` and `sort-keys` over `icu_collator` (ADR 0277 § 3,
+//! Collation: `collate-order` and `sort-keys` over `icu_collator` (`rule:core-classes/intl-roster`,
 //! `rule:core-classes/intl-batch-shape`).
 //!
 //! One collator is built per call from the locale and the options, and every string of the batch

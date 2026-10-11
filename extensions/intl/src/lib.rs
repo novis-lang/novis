@@ -1,5 +1,5 @@
 //! The intl component: `nvs:intl/icu` from `wit/intl.wit`, built into every `nvs` binary
-//! (`rule:packaging/the-first-party-components-are-built-in`, ADR 0277).
+//! (`rule:packaging/the-first-party-components-are-built-in`, `rule:core-classes/intl-roster`).
 //!
 //! The crate has two halves, as the image component's does. The core is plain Rust over ICU4X
 //! that builds for the host too, so its tests run under an ordinary `cargo test` in this

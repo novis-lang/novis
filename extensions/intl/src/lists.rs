@@ -1,4 +1,4 @@
-//! Lists: `format-lists` over `icu_list`'s `ListFormatter` (ADR 0277 § 1 and § 9,
+//! Lists: `format-lists` over `icu_list`'s `ListFormatter` (`rule:core-classes/intl-roster`,
 //! `rule:core-classes/intl-batch-shape`).
 //!
 //! A list is joined with the locale's words for its [`ListType`]: `And` ("a, b, and c"), `Or`

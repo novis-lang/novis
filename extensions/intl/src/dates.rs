@@ -1,5 +1,5 @@
 //! Dates and times: `format-date-times`, `format-dates` and `format-times` over `icu_datetime`
-//! (ADR 0277 § 6 and § 9, `rule:core-classes/intl-batch-shape`).
+//! (`rule:core-classes/intl-host-converts-time`, `rule:core-classes/intl-batch-shape`).
 //!
 //! The guest carries no time-zone database. The host places a `Core\Time\DateTime` in its zone
 //! and sends the local ISO fields, the UTC offset in seconds and the IANA zone id; the guest

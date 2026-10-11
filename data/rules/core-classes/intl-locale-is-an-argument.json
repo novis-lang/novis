@@ -1,13 +1,15 @@
 {
   "title": "A `Novis\\Intl` locale is always an argument: a malformed tag throws, and an unknown one falls back along CLDR's chain",
   "status": "designed",
-  "because": [
-    "0277"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/no-ambient-state",
     "core-classes/intl-roster",
     "security/no-cross-request-state"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/intl.rs",
+    "tests/conformance/novis/intl-a-malformed-locale-tag-throws.nvst",
+    "tests/conformance/novis/intl-negotiates-a-locale-from-accept-language.nvst"
+  ]
 }

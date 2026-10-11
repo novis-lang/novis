@@ -851,7 +851,8 @@ fn every_image_builder_member_maps_to_an_export_a_plan_step_or_novis_source() {
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));
 }
 
-/// The exports of the intl component's `icu`, ADR 0277 § 9's thirteen.
+/// The exports of the intl component's `icu`, one per static method of `Novis\Intl\Icu`
+/// (`rule:core-classes/intl-roster`).
 const ICU_EXPORTS: &[&str] = &[
     "collate-order",
     "sort-keys",
