@@ -32,7 +32,7 @@ the pre-check by design — an object's allocation is sized by its class, so no 
 unbounded — and they stay bounded by the published flag.
 
 The check is one thread-local load and one compare per growing allocation, in front of a heap round
-trip that costs far more; a request with no memory ceiling arms zero and stops at the first compare.
+trip that costs far more; a request whose `memory` is `false` arms zero and stops at the first compare.
 
 **Declined:**
 - **A status return on the primitives that carry no `ctx`.** It would put a new argument and a new

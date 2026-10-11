@@ -194,7 +194,9 @@ takes a later field without changing the signature of a handler already written.
 
 **Memory:** the memory reserve is a ceiling, not an allocation. Ordinary execution runs under
 `[limits] memory` less the reserve, which is 1 MiB by default and never more than a quarter of the
-ceiling. A request with no memory ceiling reserves nothing.
+ceiling. Every configured run has a memory ceiling, 128 MiB where none is written
+([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)), so the reserve is carved by
+default; a request whose `memory` is `false` reserves nothing.
 
 A ceiling is enforced where the resource is spent, not where a program happens to look, so a loop
 that allocates nothing and calls nothing is still stopped. The watchdog thread, which already wakes on
@@ -260,7 +262,7 @@ the pre-check by design — an object's allocation is sized by its class, so no 
 unbounded — and they stay bounded by the published flag.
 
 The check is one thread-local load and one compare per growing allocation, in front of a heap round
-trip that costs far more; a request with no memory ceiling arms zero and stops at the first compare.
+trip that costs far more; a request whose `memory` is `false` arms zero and stops at the first compare.
 
 **Declined:**
 - **A status return on the primitives that carry no `ctx`.** It would put a new argument and a new

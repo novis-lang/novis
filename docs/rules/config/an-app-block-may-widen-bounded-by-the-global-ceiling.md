@@ -16,7 +16,9 @@ than clamped. A block is bounded only by a ceiling the host actually wrote.
 
 Everything an application sets for itself at runtime is unchanged and layers on top:
 `rule:config/ini-set-is-core-config-set` writes the per-request overlay over the effective per-app
-value, and its ceiling is still the global `[limits.hard]`.
+value, and its ceiling is still `[limits.hard]`. Where no ceiling is written for a key, the ceiling
+is the per-app value the request started with
+(`rule:config/no-configuration-file-is-a-complete-configuration`).
 
 A capability grant is therefore something a reader looks for in more than one place: the global
 `[capabilities]` block and every `[[app]]` block whose `root` covers the code in question. `nvs config

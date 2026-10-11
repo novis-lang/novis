@@ -16,6 +16,10 @@ does not, and for directives that only ever narrow, such as `open_basedir`. The 
 one question only — *who may set it*. What applying a change requires is a second field on the same
 entry (`rule:config/reloadability-is-its-own-field`).
 
+The ceiling is `[limits.hard]`, and a key it does not write is the value the run started with, so a
+`Runtime` limit widens only where the operator wrote a ceiling above its start
+(`rule:config/no-configuration-file-is-a-complete-configuration`).
+
 This is what lets the most common run-time set — raising `memory_limit` for one import — work, while
 `rule:config/ceilings-are-their-own-directives` keeps one request from becoming every co-resident
 request's outage. One directive cannot answer both questions — what a script gets by default, and

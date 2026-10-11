@@ -11,8 +11,9 @@ waits or ends. **A child that never waits is bounded the way its request is**: b
 `[limits] cpu_time`, which the watchdog raises on the request tree's safepoint word and every child
 polls. A group gets no stop of its own, because it would bound a child more tightly than its request
 and cost every group a word the watchdog has to find. There is no default deadline: a call naming
-none is bounded by its request's `wall_time` and `cpu_time`, and both are uncapped unless the
-deployment writes them.
+none is bounded by its request's `wall_time` and `cpu_time`. `wall_time` is uncapped unless the
+deployment writes it, and `cpu_time` is 30 seconds for server work where it is not written
+(`rule:config/no-configuration-file-is-a-complete-configuration`).
 
 These two are the whole vocabulary, and an optional argument is an options field, never a wrapper
 function (`rule:core-api/options-bag`).

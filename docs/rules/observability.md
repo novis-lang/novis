@@ -707,7 +707,7 @@ call site would parse — so the question the trio exists to answer stays one ex
 if (Core\Budget::memoryPeak() * 10 > Core\Budget::memoryLimit() * 9) { … }
 ```
 
-An uncapped request — `[limits.hard] memory = false`, which
+An uncapped request — `[limits] memory = false`, which
 [`config/three-changeability-classes`](config.md#config-three-changeability-classes) permits — answers `0` from `memoryLimit`, the same reading
 of zero as "no ceiling" the runtime's own limit check already uses, rather than a second spelling for
 it.
@@ -795,8 +795,9 @@ the request, naming the peak, the ceiling and the route.
 
 **Unwritten is off, and off is silent** — a deployment gets no high-water log it did not ask for. A
 written `0` is a threshold every request passes, not a second spelling of off. A request with no
-ceiling at all (`[limits.hard] memory = false`) has no threshold either, because there is nothing for
-a fraction to be a fraction of. A value outside `0.0..=1.0` is refused at boot, where it is written,
+ceiling at all (`[limits] memory = false`) has no threshold either, because there is nothing for a
+fraction to be a fraction of. An unwritten `memory` is a ceiling of 128 MiB
+([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)), so the fraction applies to it. A value outside `0.0..=1.0` is refused at boot, where it is written,
 by the same typed-value path that refuses a malformed size.
 
 **A fraction rather than a size**, so it keeps meaning the same thing under an `[app.limits]` block

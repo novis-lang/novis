@@ -13,8 +13,9 @@ cpu_time   = "60s"
 
 A ceiling is sized to stop a runaway, not to shape ordinary code: a script that raises its own
 `memory` for an import is doing something the operator already allowed, and one that asks for more
-than the ceiling gets `false`. The shipped file writes no ceiling, so a host bounds a request only
-once its operator writes one (`rule:config/no-configuration-file-is-a-complete-configuration`).
+than the ceiling gets `false`. A `[limits.hard]` key the file does not write is the `[limits]` value
+the run started with, written or default, so a request may raise a limit only once its operator
+writes a ceiling above the start (`rule:config/no-configuration-file-is-a-complete-configuration`).
 `[limits.hard] memory = false` removes a ceiling explicitly, for a trusted single-tenant host — and
 `false` is the only spelling of "no ceiling" anywhere in the tree.
 

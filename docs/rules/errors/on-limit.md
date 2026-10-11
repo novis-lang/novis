@@ -18,7 +18,9 @@ takes a later field without changing the signature of a handler already written.
 
 **Memory:** the memory reserve is a ceiling, not an allocation. Ordinary execution runs under
 `[limits] memory` less the reserve, which is 1 MiB by default and never more than a quarter of the
-ceiling. A request with no memory ceiling reserves nothing.
+ceiling. Every configured run has a memory ceiling, 128 MiB where none is written
+(`rule:config/no-configuration-file-is-a-complete-configuration`), so the reserve is carved by
+default; a request whose `memory` is `false` reserves nothing.
 
 A ceiling is enforced where the resource is spent, not where a program happens to look, so a loop
 that allocates nothing and calls nothing is still stopped. The watchdog thread, which already wakes on

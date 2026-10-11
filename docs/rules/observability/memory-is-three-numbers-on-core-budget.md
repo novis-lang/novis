@@ -22,7 +22,7 @@ call site would parse — so the question the trio exists to answer stays one ex
 if (Core\Budget::memoryPeak() * 10 > Core\Budget::memoryLimit() * 9) { … }
 ```
 
-An uncapped request — `[limits.hard] memory = false`, which
+An uncapped request — `[limits] memory = false`, which
 `rule:config/three-changeability-classes` permits — answers `0` from `memoryLimit`, the same reading
 of zero as "no ceiling" the runtime's own limit check already uses, rather than a second spelling for
 it.
