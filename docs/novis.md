@@ -31736,15 +31736,12 @@ does neither. A mode switch made while the server runs changes neither key, and 
 change either. `workers` is how many cores accept; every core holds its own handle on every
 listener. `max_in_flight` answers a fixed `503` with `Retry-After` before any program runs.
 
-The server also checks its memory before it starts a request. It takes the memory of the machine,
-or of the container, and keeps `128M` for itself. A new request starts only when the memory that
-the running requests use now, plus the memory limit of one request, fits in the rest. That limit is
-`[limits.hard] memory`, else `[limits] memory`, else `128M`. It is the most memory one request may
-use. The server does not count it as the memory each request uses. With `memory = false`, a request
-starts while the running requests use less than the rest. When no request is running, a request
-always starts. A request that cannot start gets the status `503`. If the running requests together
-grow past the rest, the server stops the request that grew, with an error that says the server's
-memory is full.
+The server also runs no more requests at the same time than its memory can hold. It takes the
+memory of the machine, or of the container, and keeps `128M` for itself. It divides the rest by the
+memory limit of one request. That limit is `[limits.hard] memory`, else `[limits] memory`, else
+`128M`. With the defaults, 2 GB of memory runs about 15 requests at the same time, 8 GB runs 63 and
+32 GB runs 255. When this number is lower than `max_in_flight`, it is the limit, and the server
+writes both numbers to its log when it starts. `memory = false` leaves `max_in_flight` alone.
 
 The four waits are idle waits, never a total, and none can be turned off. `[server.connection]`
 bounds a connection that was upgraded out of a request — a WebSocket, or an event stream — with
