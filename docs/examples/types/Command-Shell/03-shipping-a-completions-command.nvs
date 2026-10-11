@@ -11,12 +11,12 @@ class Tool {
 
     #[Core\Command(name: "completions", about: "Write a completion script for your shell")]
     public static function completions(string $shell): uint {
-        ?Core\Cli\Shell $which = match ($shell) {
-            "bash" => Core\Cli\Shell::Bash,
-            "zsh" => Core\Cli\Shell::Zsh,
-            "fish" => Core\Cli\Shell::Fish,
-            "pwsh" => Core\Cli\Shell::Pwsh,
-            "powershell" => Core\Cli\Shell::Pwsh,
+        ?Core\Command::Shell $which = match ($shell) {
+            "bash" => Core\Command::Shell::Bash,
+            "zsh" => Core\Command::Shell::Zsh,
+            "fish" => Core\Command::Shell::Fish,
+            "pwsh" => Core\Command::Shell::Pwsh,
+            "powershell" => Core\Command::Shell::Pwsh,
             default => null,
         };
 

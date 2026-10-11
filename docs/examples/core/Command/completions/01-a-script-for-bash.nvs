@@ -18,4 +18,4 @@ class Tool {
 
 // Both commands and both spellings of the option are in the script below, and
 // none of them is written here. They come from the declarations above.
-echo Core\Command::completions(Core\Cli\Shell::Bash);
+echo Core\Command::completions(Core\Command::Shell::Bash);

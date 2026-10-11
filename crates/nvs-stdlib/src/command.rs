@@ -379,7 +379,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Command::completions(Cli\Shell $shell): string` — § 6's second
+    /// `Core\Command::completions(Command::Shell $shell): string` — § 6's second
     /// generated artefact, over the same table [`nvs_core_command_help`]
     /// renders.
     ///
@@ -936,7 +936,7 @@ enum Shell {
     Pwsh,
 }
 
-/// The [`Shell`] a `Core\Cli\Shell` case arrived as.
+/// The [`Shell`] a `Core\Command::Shell` case arrived as.
 ///
 /// # Errors
 ///
@@ -951,7 +951,7 @@ fn shell_of(value: &Value) -> Result<Shell, Fault> {
         Some(2) => Ok(Shell::Fish),
         Some(3) => Ok(Shell::Pwsh),
         _ => Err(Fault::fatal(format!(
-            "Core\\Command::completions expected a `Core\\Cli\\Shell` case, got tag {} value {:?}",
+            "Core\\Command::completions expected a `Core\\Command::Shell` case, got tag {} value {:?}",
             value.tag_byte(),
             value.as_int()
         ))),

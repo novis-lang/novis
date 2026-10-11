@@ -4,9 +4,9 @@ handler's `void` is `0`, and `exit` still works from inside one
 (`rule:statements/exit-is-the-only-termination-keyword`). A command line the table cannot fill is a
 usage error — the usage line and a non-zero status — not a crash.
 
-`Core\Command::help(?string $name): Cli\Text` and `Core\Command::completions(Cli\Shell $shell): string`
+`Core\Command::help(?string $name): Cli\Text` and `Core\Command::completions(Command::Shell $shell): string`
 are generated from the same table, for `bash`, `zsh`, `fish` and `pwsh` — the four cases of
-`Cli\Shell`, and nothing else. Two artefacts read one table, so neither can disagree with the program.
+`Command::Shell`, and nothing else. Two artefacts read one table, so neither can disagree with the program.
 
 This is the **one deliberate divergence** from the route table: `rule:routing/matching-is-not-dispatching`
 stops at matching because a web framework must own the pipeline — middleware, controllers, response

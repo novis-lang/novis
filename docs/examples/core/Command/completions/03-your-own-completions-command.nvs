@@ -10,8 +10,8 @@ class Tool {
     }
 
     #[Core\Command(name: "completions", about: "Write the completion script for a shell")]
-    public static function completions(Core\Cli\Shell $shell): uint {
-        // The word after `completions` becomes the case of `Core\Cli\Shell`
+    public static function completions(Core\Command::Shell $shell): uint {
+        // The word after `completions` becomes the case of `Core\Command::Shell`
         // it names. A word that names no case is a usage error.
         echo Core\Command::completions($shell);
         return 0;
@@ -20,4 +20,4 @@ class Tool {
 
 // This is what `tool completions fish` prints. The `completions` command is in
 // the script too, because it is a command like any other.
-Tool::completions(Core\Cli\Shell::Fish);
+Tool::completions(Core\Command::Shell::Fish);

@@ -33,14 +33,14 @@
 //! [`TEXT_CONCAT_SYMBOL`] through it — and a `#[cfg(test)]` item is not there
 //! for a documentation build to resolve.
 //!
-//! # Why `Core\Cli\Shell` is here, taken by nothing in this file
+//! # Why `Core\Command::Shell` is here, taken by nothing in this file
 //!
 //! [`SHELL`] is the third enum and no member of `Core\Cli` reads it: `rule:tooling/commands-are-compiled`
 //! 's `Core\Command::completions` is the one thing that does, and
 //! [`crate::command`] is where that member lives. [`crate::registry::ENUMS`]
 //! asks for one line per enum *declared beside the member that takes it*, and
 //! this is the exception the rule is worth making: the name is
-//! `Core\Cli\Shell`, so the `Cli` namespace is the roster a reader looks in,
+//! `Core\Command::Shell`, so the `Cli` namespace is the roster a reader looks in,
 //! and a second home for one case of it is how two rosters start disagreeing.
 //! [`crate::router::METHOD`] sits the same way for the same reason — a
 //! namespace prefix is not a module boundary.
@@ -1020,10 +1020,10 @@ const COLOR_DEPTH_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Core\Cli\Shell`'s fully-qualified name — see [`STREAM_NAME`].
-pub(crate) const SHELL_NAME: &str = r"Core\Cli\Shell";
+/// `Core\Command::Shell`'s fully-qualified name — see [`STREAM_NAME`].
+pub(crate) const SHELL_NAME: &str = r"Core\Command::Shell";
 
-/// `rule:tooling/commands-are-compiled`'s `Cli\Shell` — the shell `Core\Command::completions` writes a
+/// `rule:tooling/commands-are-compiled`'s `Command::Shell` — the shell `Core\Command::completions` writes a
 /// script for, and a closed roster like [`crate::router::METHOD`]: `rule:tooling/command-run-dispatches-and-help-is-generated` names
 /// `bash`, `zsh`, `fish` and `pwsh` and nothing else.
 ///
@@ -5163,9 +5163,9 @@ mod tests {
     /// Both halves, because each fails on its own: a fifth case added ahead of
     /// the generator that would write its script fails the roster, and a
     /// declaration nobody registered compiles, documents itself, and then
-    /// resolves nowhere — `Core\Cli\Shell::Bash` would be a name error with a
+    /// resolves nowhere — `Core\Command::Shell::Bash` would be a name error with a
     /// card on disk describing it.
-    // covers: Core\Cli\Shell
+    // covers: Core\Command::Shell
     #[test]
     fn the_shell_roster_is_the_four_adr_0086_names_and_is_registered() {
         let names: Vec<&str> = SHELL.cases.iter().map(|(name, _)| *name).collect();

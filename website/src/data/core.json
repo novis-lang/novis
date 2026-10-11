@@ -5640,7 +5640,7 @@
       "name": "Core\\Cli",
       "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
       "summary": "",
-      "surface": "the terminal surface, owned by `rule:tooling/terminal-output-is-a-sink` — `arguments(): array<tainted string>`, `write`, `escape`, `isTty(Cli::Stream)`, `width`, `height`, `colorDepth`, `displayWidth`; the prompts `ask`, `confirm`, `select<T>`, `multiSelect<T>` and `secret(): secret tainted string`; and the scoped regions `live<T>` and `progress<T>`. Its value types are `Cli\\Text` — built by `plain`/`styled`, composed with `+`, and read back by `text(): string` — `Cli\\Style` and `Cli\\Color`, its enums `Cli::Stream`, `Cli::ColorDepth` and `Cli\\Shell`. Replaces `$argv`, `$argc`, `readline`, `mb_strwidth`, `posix_isatty`. **Terminal output is a `tainted` sink** that substitutes every control byte with a visible glyph; `Cli\\Text` is the only thing that writes raw. The byte-and-line side of standard input is `Core\\IO` (§ 14), not here; process exit is the `exit` keyword (`rule:statements/nvs-is-the-only-open-tag`).",
+      "surface": "the terminal surface, owned by `rule:tooling/terminal-output-is-a-sink` — `arguments(): array<tainted string>`, `write`, `escape`, `isTty(Cli::Stream)`, `width`, `height`, `colorDepth`, `displayWidth`; the prompts `ask`, `confirm`, `select<T>`, `multiSelect<T>` and `secret(): secret tainted string`; and the scoped regions `live<T>` and `progress<T>`. Its value types are `Cli\\Text` — built by `plain`/`styled`, composed with `+`, and read back by `text(): string` — `Cli\\Style` and `Cli\\Color`, its enums `Cli::Stream`, `Cli::ColorDepth` and `Command::Shell`. Replaces `$argv`, `$argc`, `readline`, `mb_strwidth`, `posix_isatty`. **Terminal output is a `tainted` sink** that substitutes every control byte with a visible glyph; `Cli\\Text` is the only thing that writes raw. The byte-and-line side of standard input is `Core\\IO` (§ 14), not here; process exit is the `exit` keyword (`rule:statements/nvs-is-the-only-open-tag`).",
       "enums": [],
       "constants": [],
       "members": [
@@ -6309,7 +6309,7 @@
       "slug": "cli",
       "url": "/reference/core/cli/",
       "summaryHtml": "",
-      "surfaceHtml": "the terminal surface, owned by <code>rule:tooling/terminal-output-is-a-sink</code> — <code>arguments(): array&lt;tainted string&gt;</code>, <code>write</code>, <code>escape</code>, <code>isTty(Cli::Stream)</code>, <code>width</code>, <code>height</code>, <code>colorDepth</code>, <code>displayWidth</code>; the prompts <code>ask</code>, <code>confirm</code>, <code>select&lt;T&gt;</code>, <code>multiSelect&lt;T&gt;</code> and <code>secret(): secret tainted string</code>; and the scoped regions <code>live&lt;T&gt;</code> and <code>progress&lt;T&gt;</code>. Its value types are <code>Cli\\Text</code> — built by <code>plain</code>/<code>styled</code>, composed with <code>+</code>, and read back by <code>text(): string</code> — <code>Cli\\Style</code> and <code>Cli\\Color</code>, its enums <code>Cli::Stream</code>, <code>Cli::ColorDepth</code> and <code>Cli\\Shell</code>. Replaces <code>$argv</code>, <code>$argc</code>, <code>readline</code>, <code>mb_strwidth</code>, <code>posix_isatty</code>. <strong>Terminal output is a <code>tainted</code> sink</strong> that substitutes every control byte with a visible glyph; <code>Cli\\Text</code> is the only thing that writes raw. The byte-and-line side of standard input is <code>Core\\IO</code> (§ 14), not here; process exit is the <code>exit</code> keyword (<code>rule:statements/nvs-is-the-only-open-tag</code>)."
+      "surfaceHtml": "the terminal surface, owned by <code>rule:tooling/terminal-output-is-a-sink</code> — <code>arguments(): array&lt;tainted string&gt;</code>, <code>write</code>, <code>escape</code>, <code>isTty(Cli::Stream)</code>, <code>width</code>, <code>height</code>, <code>colorDepth</code>, <code>displayWidth</code>; the prompts <code>ask</code>, <code>confirm</code>, <code>select&lt;T&gt;</code>, <code>multiSelect&lt;T&gt;</code> and <code>secret(): secret tainted string</code>; and the scoped regions <code>live&lt;T&gt;</code> and <code>progress&lt;T&gt;</code>. Its value types are <code>Cli\\Text</code> — built by <code>plain</code>/<code>styled</code>, composed with <code>+</code>, and read back by <code>text(): string</code> — <code>Cli\\Style</code> and <code>Cli\\Color</code>, its enums <code>Cli::Stream</code>, <code>Cli::ColorDepth</code> and <code>Command::Shell</code>. Replaces <code>$argv</code>, <code>$argc</code>, <code>readline</code>, <code>mb_strwidth</code>, <code>posix_isatty</code>. <strong>Terminal output is a <code>tainted</code> sink</strong> that substitutes every control byte with a visible glyph; <code>Cli\\Text</code> is the only thing that writes raw. The byte-and-line side of standard input is <code>Core\\IO</code> (§ 14), not here; process exit is the <code>exit</code> keyword (<code>rule:statements/nvs-is-the-only-open-tag</code>)."
     },
     {
       "id": "Cli.Color",
@@ -6798,7 +6798,7 @@
       "name": "Core\\Command",
       "section": "13. Compiler-facing surfaces",
       "summary": "",
-      "surface": "`run(): uint`, `help(?string): Cli\\Text` and `completions(Cli\\Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\\Router` it dispatches, because a CLI has one entry point and no middleware question",
+      "surface": "`run(): uint`, `help(?string): Cli\\Text` and `completions(Command::Shell): string`, over a table built while compiling from `#[Command]`/`#[Option]`/`#[Argument]`. A duplicate command name, two options sharing a spelling and an `#[Option]` on a parameter with no conversion from `string` are compile errors. Unlike `Core\\Router` it dispatches, because a CLI has one entry point and no middleware question",
       "enums": [],
       "constants": [],
       "members": [
@@ -6881,12 +6881,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "completions(Core\\Cli\\Shell $shell): string",
+          "signature": "completions(Core\\Command::Shell $shell): string",
           "params": [
             {
               "kind": "param",
               "name": "shell",
-              "type": "Core\\Cli\\Shell",
+              "type": "Core\\Command::Shell",
               "default": null,
               "optional": false,
               "variadic": false
@@ -6925,7 +6925,7 @@
       "slug": "command",
       "url": "/reference/core/command/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>run(): uint</code>, <code>help(?string): Cli\\Text</code> and <code>completions(Cli\\Shell): string</code>, over a table built while compiling from <code>#[Command]</code>/<code>#[Option]</code>/<code>#[Argument]</code>. A duplicate command name, two options sharing a spelling and an <code>#[Option]</code> on a parameter with no conversion from <code>string</code> are compile errors. Unlike <code>Core\\Router</code> it dispatches, because a CLI has one entry point and no middleware question"
+      "surfaceHtml": "<code>run(): uint</code>, <code>help(?string): Cli\\Text</code> and <code>completions(Command::Shell): string</code>, over a table built while compiling from <code>#[Command]</code>/<code>#[Option]</code>/<code>#[Argument]</code>. A duplicate command name, two options sharing a spelling and an <code>#[Option]</code> on a parameter with no conversion from <code>string</code> are compile errors. Unlike <code>Core\\Router</code> it dispatches, because a CLI has one entry point and no middleware question"
     },
     {
       "id": "Compress",

@@ -20,4 +20,4 @@ class Tool {
 
 // The script uses the program's name. For a file run from the command line,
 // that is the file name, so this example's file name appears in the output.
-echo Core\Command::completions(Core\Cli\Shell::Bash);
+echo Core\Command::completions(Core\Command::Shell::Bash);

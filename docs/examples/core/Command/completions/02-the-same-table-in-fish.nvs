@@ -19,4 +19,4 @@ class Tool {
 
 // `fish` takes one `complete` line per command and per option spelling. The
 // text after `-d` is what `about:` said.
-echo Core\Command::completions(Core\Cli\Shell::Fish);
+echo Core\Command::completions(Core\Command::Shell::Fish);

@@ -24,10 +24,10 @@ class Tool {
 
 class Bench {
     public static function run(uint $rounds): int {
-        array<Core\Cli\Shell> $shells = [
-            Core\Cli\Shell::Bash,
-            Core\Cli\Shell::Zsh,
-            Core\Cli\Shell::Fish,
+        array<Core\Command::Shell> $shells = [
+            Core\Command::Shell::Bash,
+            Core\Command::Shell::Zsh,
+            Core\Command::Shell::Fish,
         ];
         int $total = 0;
         uint $i = 0;

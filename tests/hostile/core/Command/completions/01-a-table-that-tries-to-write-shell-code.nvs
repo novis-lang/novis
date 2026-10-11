@@ -50,33 +50,33 @@ class Tool
 
 // 1. The `bash` script. It must be written, and every name above must be
 //    inside it as text.
-string $bash = Core\Command::completions(Core\Cli\Shell::Bash);
+string $bash = Core\Command::completions(Core\Command::Shell::Bash);
 echo 'step 1 wrote ', Core\Str::length($bash), " characters\n";
 
 // 2. The `zsh` script, whose command list ends each entry at a colon.
-string $zsh = Core\Command::completions(Core\Cli\Shell::Zsh);
+string $zsh = Core\Command::completions(Core\Command::Shell::Zsh);
 echo 'step 2 wrote ', Core\Str::length($zsh), " characters\n";
 
 // 3. The `fish` script, which is one line per command and per option spelling.
-string $fish = Core\Command::completions(Core\Cli\Shell::Fish);
+string $fish = Core\Command::completions(Core\Command::Shell::Fish);
 echo 'step 3 wrote ', Core\Str::length($fish), " characters\n";
 
 // 4. The PowerShell script, whose quoting is not the one the other three use.
-string $pwsh = Core\Command::completions(Core\Cli\Shell::Pwsh);
+string $pwsh = Core\Command::completions(Core\Command::Shell::Pwsh);
 echo 'step 4 wrote ', Core\Str::length($pwsh), " characters\n";
 
 // 5. Fifty thousand scripts in a row. Each one is finished with before the next
 //    is written, so nothing may be kept behind.
 uint $written = 0;
 while ($written < 50000) {
-    string $one = Core\Command::completions(Core\Cli\Shell::Bash);
+    string $one = Core\Command::completions(Core\Command::Shell::Bash);
     $written = $written + 1;
 }
 echo 'step 5 wrote ', $written, " scripts\n";
 
 // 6. The four scripts are written again at the end. A generator that had kept
 //    anything from the rounds above would give a different length here.
-echo 'step 6 wrote ', Core\Str::length(Core\Command::completions(Core\Cli\Shell::Bash)),
-     ' ', Core\Str::length(Core\Command::completions(Core\Cli\Shell::Zsh)),
-     ' ', Core\Str::length(Core\Command::completions(Core\Cli\Shell::Fish)),
-     ' ', Core\Str::length(Core\Command::completions(Core\Cli\Shell::Pwsh)), "\n";
+echo 'step 6 wrote ', Core\Str::length(Core\Command::completions(Core\Command::Shell::Bash)),
+     ' ', Core\Str::length(Core\Command::completions(Core\Command::Shell::Zsh)),
+     ' ', Core\Str::length(Core\Command::completions(Core\Command::Shell::Fish)),
+     ' ', Core\Str::length(Core\Command::completions(Core\Command::Shell::Pwsh)), "\n";

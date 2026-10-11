@@ -18341,7 +18341,7 @@ Keywords: help, run, completions
 |---|---|
 | [`Core\Command::help`](#core-core-command-help) | `help(?string $name): Core\Cli\Text` |
 | [`Core\Command::run`](#core-core-command-run) | `run(): uint` |
-| [`Core\Command::completions`](#core-core-command-completions) | `completions(Core\Cli\Shell $shell): string` |
+| [`Core\Command::completions`](#core-core-command-completions) | `completions(Core\Command::Shell $shell): string` |
 
 <a id="core-core-command-help"></a>
 #### `Core\Command::help`
@@ -18377,14 +18377,14 @@ Matches this process's own command line against the table `#[Command]` built whi
 #### `Core\Command::completions`
 
 ```nvs skip
-Core\Command::completions(Core\Cli\Shell $shell): string
+Core\Command::completions(Core\Command::Shell $shell): string
 ```
 
 A completion script for this program, in the named shell's own syntax, generated from the same table `help` reads: every command it declares, and every option each one takes.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$shell` | `Core\Cli\Shell` | Which shell to write the script for. |
+| `$shell` | `Core\Command::Shell` | Which shell to write the script for. |
 
 **Returns** `string` — The script as plain text, ending with a newline — something to redirect into the shell's completion directory rather than something to print at a terminal.
 
@@ -29489,16 +29489,16 @@ How much colour standard output can show. The cases ascend, so a sink degrading 
 | `Core\Cli::ColorDepth::TrueColor` | 24-bit colour, reported by `COLORTERM=truecolor` and by a Windows console that accepted virtual terminal processing. |
 
 <a id="enum-core-cli-shell"></a>
-#### `Core\Cli\Shell`
+#### `Core\Command::Shell`
 
 Which shell `Core\Command::completions` writes a completion script for. Four cases and no catch-all: a script is generated in the named shell's own syntax, so a case with no generator behind it would complete nothing.
 
 | Case | Meaning |
 |---|---|
-| `Core\Cli\Shell::Bash` | GNU Bash, whose script registers a function with `complete -F`. |
-| `Core\Cli\Shell::Zsh` | Z shell, whose script is a `#compdef` function driving `_arguments`. |
-| `Core\Cli\Shell::Fish` | fish, whose script is one `complete -c` line per command and per option. |
-| `Core\Cli\Shell::Pwsh` | PowerShell — 7 and Windows PowerShell alike, whose script calls `Register-ArgumentCompleter`. |
+| `Core\Command::Shell::Bash` | GNU Bash, whose script registers a function with `complete -F`. |
+| `Core\Command::Shell::Zsh` | Z shell, whose script is a `#compdef` function driving `_arguments`. |
+| `Core\Command::Shell::Fish` | fish, whose script is one `complete -c` line per command and per option. |
+| `Core\Command::Shell::Pwsh` | PowerShell — 7 and Windows PowerShell alike, whose script calls `Register-ArgumentCompleter`. |
 
 <a id="enum-core-reflect-typekind"></a>
 #### `Core\Reflect\TypeKind`
