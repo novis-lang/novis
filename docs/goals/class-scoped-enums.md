@@ -6,7 +6,7 @@ context: [crates/nvs-syntax/src/parser/decl.rs, crates/nvs-syntax/src/parser/ty.
 stages:
   - id: 2
     title: the fragments
-    status: open
+    status: done
     extra:
       context:
         rules: [types/grammar, types/enum-case-type, enums/reflection, ide/the-stub-tree-is-where-core-is-declared, statements/nothing-gets-a-second-name, classes/a-type-is-declared-at-file-scope]
@@ -17,14 +17,14 @@ stages:
     extra:
       context:
         playbook: ["Writing Novis > a new exprkind variant", "Tooling > a node added to nvs_syntax::walk"]
-        rules: [types/grammar]
+        rules: [enums/class-scoped-enum, types/grammar]
         shapes: [A diagnostic]
   - id: 4
     title: names and the checker
     status: open
     extra:
       context:
-        rules: [types/enum-case-type, statements/nothing-gets-a-second-name]
+        rules: [enums/class-scoped-enum, types/enum-case-type, statements/nothing-gets-a-second-name]
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 5
     title: "lowering, the runtime name, reflection and `nvs meta`"
@@ -32,7 +32,7 @@ stages:
     extra:
       context:
         playbook: ["Tooling > nvs-ir cannot name"]
-        rules: [enums/reflection, enums/representation, routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name]
+        rules: [enums/class-scoped-enum, enums/reflection, enums/representation, routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name]
         shapes: ["A `.nvst` test case"]
   - id: 6
     title: the editor and the formatter
@@ -40,7 +40,7 @@ stages:
     extra:
       context:
         playbook: ["Writing a test case > a go-to-definition", "Tooling > a node added to nvs_syntax::walk"]
-        rules: [tooling/fmt-novis-constructs, tooling/fmt-never-reorders-members]
+        rules: [enums/class-scoped-enum, tooling/fmt-novis-constructs, tooling/fmt-never-reorders-members]
         shapes: []
   - id: 7
     title: "every `Core` enum moves to the class that uses it"
@@ -48,21 +48,21 @@ stages:
     extra:
       context:
         playbook: ["Writing Novis > the enum a core member returns", "Writing Novis > widening a member's declared type"]
-        rules: [core-api/no-mode-strings, core-api/reference-card]
+        rules: [enums/an-enum-lives-in-the-class-that-uses-it, core-api/no-mode-strings, core-api/reference-card]
         shapes: ["A `.nvst` test case"]
   - id: 8
     title: "the built-in components' enums move too"
     status: open
     extra:
       context:
-        rules: []
+        rules: [enums/an-enum-lives-in-the-class-that-uses-it]
         shapes: []
   - id: 9
     title: "the class body is where a program's enum goes"
     status: open
     extra:
       context:
-        rules: []
+        rules: [enums/an-enum-lives-in-the-class-that-uses-it]
         shapes: []
   - id: 10
     title: the feature proofs
@@ -526,7 +526,7 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums` — an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries.
+**Goal `class-scoped-enums` — an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stage 2 is done: the rules are written, and no code has changed yet.** `rule:enums/class-scoped-enum` (the member, its refusals and codes, the name `Shop\Order::Status`) and `rule:enums/an-enum-lives-in-the-class-that-uses-it` (the placement rule and both rename tables) exist as `designed`, with an empty `guardedBy`. The stage that writes each guard test adds it to `data/rules/enums/<slug>.json` and flips `status` to `shipped` once the whole rule holds. The five Stage 0 fragments for Stage 2 are rewritten, and Stages 3 to 9 carry the new rules in their `context.rules`. `bun nv links` reports one missing link, `AGENTS.md:403 -> docs/decisions/README.md`, from the stale second half of `AGENTS.md`. This goal did not cause it.
 
 The user asked for it on 2026-10-08, settled the member's rules (no modifier, not inherited, no `self::`/`static::` spelling, one name per owner, class and interface bodies only), made it the default for programs, and asked for `Core` and the built-in components to follow the same rule because there is no release yet. The goal file's § *Standing decisions* holds those calls, the writer's own calls, and the full rename table. No session re-decides one.
 
@@ -534,14 +534,14 @@ Facts about the tree as the goal was written. `class Order { enum Status { Open,
 
 ### Next
 
-**Stage 2: the fragments**, one file set: `docs/rules/enums/`, `docs/rules/types/`, `docs/rules/statements/`, `docs/rules/ide/`, `docs/rules/classes/`.
+**Stage 3: the parser**, one file set: `crates/nvs-syntax/src/parser/decl.rs`, `parser/ty.rs`, `ast.rs`, `walk.rs`, `casing.rs`, `parser/tests/decl.rs`.
 
-- [ ] **The fragments**, written first: the declaration sites, `Owner::Name` and `Owner::Name::Case` from anywhere and the bare name inside the owner, the refusals with their codes, no member import, the name a program sees (`Shop\Order::Status`), the placement rule, the `Core` and built-in rename tables, each with its reasons, a `**Memory:**` bullet where it spends memory, and a `**Declined:**` list, and the tradeoffs. It creates `enums/class-scoped-enum` and `enums/an-enum-lives-in-the-class-that-uses-it`; it rewrites `types/class-scoped-alias` § *A name is one thing*, `statements/an-enum-name-is-a-type-everywhere`, `enums/reflection` and `ide/the-stub-tree-is-where-core-is-declared`, and `rule:classes/a-type-is-declared-at-file-scope` so a class body is the one place besides file scope an enum may be declared. `docs/rules/enums/reflection.md:1`
-- [ ] **The stage contexts** — add `enums/class-scoped-enum` to the `context.rules` of Stages 3 to 6 and `enums/an-enum-lives-in-the-class-that-uses-it` to Stages 7 to 9 in `data/goals/class-scoped-enums.json`, now that both exist. `docs/goals/class-scoped-enums.md:1`
+- [ ] **The member arm** (`rule:enums/class-scoped-enum`): `ClassMemberKind::Enum(EnumDecl)` in `crates/nvs-syntax/src/ast.rs:1767`, parsed in `crates/nvs-syntax/src/parser/decl.rs:1042` beside the alias arm, reusing `finish_enum_decl` (`crates/nvs-syntax/src/parser/decl.rs:1510`). A modifier run is `E0133`, generalising `crates/nvs-syntax/src/parser/decl.rs:768`. An enum in an enum body is one `E0220` (`crates/nvs-syntax/src/parser/decl.rs:1587`). A class or interface in a class body is one `E0233`.
+- [ ] **The two-`::` type atom** (`rule:types/enum-case-type`): `crates/nvs-syntax/src/parser/ty.rs:566` takes a second segment. Add a parser test pinning `A::B::C` in value position as nested `ClassConstAccess`.
+- [ ] **The walker node and casing**: `crates/nvs-syntax/src/walk.rs:935` emits an `EnumDecl` node with its cases. `casing.rs` checks the member's name and cases. The test names are the Stage 3 check's.
 
 ### Backlog
 
-- Stage 3: the parser — the member arm, the two-`::` type atom, one diagnostic for a class in a class body and an enum in an enum body, the walker node.
 - Stages 4 to 6: names and the checker, lowering and the runtime name, the editor and the formatter.
 - Stages 7 and 8: every `Core` enum, then every built-in component enum, moved to its class by the goal's rename table.
 - Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs and the Stage 0 search.
