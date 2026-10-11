@@ -1073,7 +1073,8 @@ enum AgentCommand {
     },
     /// Install this surface into the project in the working directory: an
     /// `AGENTS.md` stanza, and the files the coding agent you run needs beside
-    /// it. Each file names the four commands above and the `nvs check` loop.
+    /// it. Each file names the four commands above, the `nvs code` commands and
+    /// the `nvs check` loop.
     ///
     /// The agent is found from the environment it runs commands in. Codex,
     /// Cursor and OpenCode read `AGENTS.md`, so they need no other file. Claude
