@@ -10,7 +10,7 @@ class Bench {
         // Both print each line of input back as soon as they read it.
         string $path = "/bin/sh";
         array<string> $arguments = ["-c", "exec cat"];
-        if (Core\Env::OS == "Windows") {
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
             $path = "C:\\Windows\\System32\\cmd.exe";
             $arguments = ["/v:on", "/c", "for /l %i in (0,0,1) do @(set /p line=& <nul set /p =!line!)"];
         }

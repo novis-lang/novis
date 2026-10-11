@@ -15,7 +15,7 @@ A program that keeps every part `Core\Process\Handle::readStdout` returns is sto
 
 string $path = "/usr/bin/yes";
 array<string> $arguments = ["a line that repeats and repeats"];
-if (Core\Env::OS == "Windows") {
+if (Core\Env::OS == Core\Env::Platform::Windows) {
     $path = "C:\\Windows\\System32\\cmd.exe";
     $arguments = ["/c", "for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe"];
 }

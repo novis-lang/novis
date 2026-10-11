@@ -3156,6 +3156,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::log::LEVEL,
     crate::env::MODE,
     crate::env::CONTEXT,
+    crate::env::PLATFORM,
     crate::router::METHOD,
     crate::router::AUDIENCE,
     // The one enum whose case values are not numbered from zero: they are the
@@ -6180,11 +6181,43 @@ mod tests {
                         // `every_built_constant_names_a_member_of_its_own_class`
                         // is where it is asked.
                         | (CoreTy::Instance(_), Const::Built { .. })
+                ) || matches!(
+                    (&declared.ty, &declared.value),
+                    // Which case the value names is
+                    // `an_enum_typed_constant_names_a_case_of_its_own_enum`'s
+                    // question; this one asks only that it is the same enum.
+                    (CoreTy::Enum(typed), Const::EnumCase(valued, _)) if typed == valued
                 );
                 assert!(
                     agrees,
                     "{}::{} is typed {:?} and valued {:?}",
                     class.name, declared.name, declared.ty, declared.value
+                );
+            }
+        }
+    }
+
+    /// An enum-typed constant names a case its enum registers. The checker
+    /// folds the case to its integer, and a case the enum does not have would
+    /// panic there on the first program that names the constant.
+    #[test]
+    fn an_enum_typed_constant_names_a_case_of_its_own_enum() {
+        for class in CLASSES {
+            for declared in class.constants {
+                let Const::EnumCase(name, case) = declared.value else {
+                    continue;
+                };
+                let found = core_enum(name).unwrap_or_else(|| {
+                    panic!(
+                        "{}::{} names unregistered enum {name}",
+                        class.name, declared.name
+                    )
+                });
+                assert!(
+                    found.cases.iter().any(|(candidate, _)| *candidate == case),
+                    "{}::{} names {name}::{case}, which {name} does not register",
+                    class.name,
+                    declared.name
                 );
             }
         }

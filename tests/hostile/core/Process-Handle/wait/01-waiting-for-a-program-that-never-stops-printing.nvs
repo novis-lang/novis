@@ -8,7 +8,7 @@ class Attack
     // Starts a shell command: `/bin/sh` on Linux and macOS, `cmd.exe` on Windows.
     public static function shell(string $unix, string $windows): Core\Process\Handle
     {
-        if (Core\Env::OS == 'Windows') {
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
             return Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ['/c', $windows]);
         }
         return Core\Process::spawn('/bin/sh', ['-c', $unix]);

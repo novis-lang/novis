@@ -11,7 +11,7 @@ class Bench
         // `/bin/sh` runs `cat` on Linux and macOS, and `cmd.exe` runs `findstr` on Windows. Both read the input and throw it away.
         string $path = "/bin/sh";
         array<string> $arguments = ["-c", "exec cat >/dev/null"];
-        if (Core\Env::OS == "Windows") {
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
             $path = "C:\\Windows\\System32\\cmd.exe";
             $arguments = ["/c", "findstr /v zzzz >nul"];
         }

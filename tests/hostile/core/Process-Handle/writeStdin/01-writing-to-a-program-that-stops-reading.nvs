@@ -10,7 +10,7 @@ class Attack
     // A program that reads its input and throws it away. On Windows, `cmd.exe` runs `findstr`.
     public static function discarding(): Core\Process\Handle
     {
-        if (Core\Env::OS == 'Windows') {
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
             return Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ['/c', 'findstr /v zzzz >nul']);
         }
         return Core\Process::spawn('/bin/sh', ['-c', 'exec cat >/dev/null']);
@@ -19,7 +19,7 @@ class Attack
     // A program that never reads its input, and ends after about one second.
     public static function notReading(): Core\Process\Handle
     {
-        if (Core\Env::OS == 'Windows') {
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
             return Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ['/c', 'ping -n 2 127.0.0.1 >nul']);
         }
         return Core\Process::spawn('/bin/sh', ['-c', 'exec sleep 1']);

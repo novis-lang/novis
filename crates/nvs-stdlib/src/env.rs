@@ -183,11 +183,10 @@ const CONSTANTS: &[CoreConst] = &[
     },
     CoreConst {
         name: "OS",
-        ty: CoreTy::Str,
-        value: Const::Str(OS),
-        desc: "The operating system **family**: `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, \
-               or `Unknown` for anything else. The value is always one of these six, so a \
-               program can compare against it.",
+        ty: CoreTy::Enum(PLATFORM_NAME),
+        value: Const::EnumCase(PLATFORM_NAME, OS),
+        desc: "The operating system family, as a `Core\\Env::Platform` case. Compare it with a \
+               case, such as `Core\\Env::OS == Core\\Env::Platform::Windows`.",
     },
     CoreConst {
         name: "VERSION",
@@ -202,13 +201,14 @@ const CONSTANTS: &[CoreConst] = &[
 /// [`CONSTANTS`]' `EOL` — `PHP_EOL`'s own value.
 const EOL: &str = if cfg!(windows) { "\r\n" } else { "\n" };
 
-/// [`CONSTANTS`]' `OS`, as `PHP_OS_FAMILY` spells a family.
+/// [`CONSTANTS`]' `OS`: the name of this build's [`PLATFORM`] case, one per
+/// `PHP_OS_FAMILY` family.
 ///
 /// The mapping from Rust's own `target_os`, which is finer: `macos` and `ios`
 /// are one Darwin, the four BSDs are one `BSD`, and `android` is a Linux
 /// because its kernel is the thing a program branching on this is asking
 /// about. Anything not named is `Unknown` rather than its `target_os`, so the
-/// set a program compares against stays closed.
+/// enum stays closed at six cases.
 const OS: &str = if cfg!(windows) {
     "Windows"
 } else if cfg!(any(target_os = "macos", target_os = "ios")) {
@@ -349,6 +349,58 @@ pub(crate) const CONTEXT: CoreEnum = CoreEnum {
         ("Connection", 6),
     ],
     doc: Some(&CONTEXT_DOC),
+};
+
+/// `Core\Env::Platform`'s fully-qualified name, written once so the registry
+/// row, the `OS` constant and every message quoting it cannot drift apart.
+pub(crate) const PLATFORM_NAME: &str = r"Core\Env::Platform";
+
+/// `Core\Env::OS`'s operating system families. The constant is folded to the
+/// case's integer where a program names it, so comparing it is an integer
+/// compare and a misspelled family does not compile.
+pub(crate) const PLATFORM: CoreEnum = CoreEnum {
+    name: PLATFORM_NAME,
+    cases: &[
+        ("Windows", 0),
+        ("Darwin", 1),
+        ("Linux", 2),
+        ("BSD", 3),
+        ("Solaris", 4),
+        ("Unknown", 5),
+    ],
+    doc: Some(&PLATFORM_DOC),
+};
+
+/// [`PLATFORM`]'s reference card — `rule:core-api/reference-card`.
+const PLATFORM_DOC: EnumDoc = EnumDoc {
+    short: "The operating system family the program runs on. `Core\\Env::OS` is one of these \
+            six cases.",
+    cases: &[
+        CaseDoc {
+            name: "Windows",
+            desc: "Microsoft Windows.",
+        },
+        CaseDoc {
+            name: "Darwin",
+            desc: "macOS and iOS.",
+        },
+        CaseDoc {
+            name: "Linux",
+            desc: "Linux, and Android.",
+        },
+        CaseDoc {
+            name: "BSD",
+            desc: "FreeBSD, OpenBSD, NetBSD and DragonFly BSD.",
+        },
+        CaseDoc {
+            name: "Solaris",
+            desc: "Solaris and illumos.",
+        },
+        CaseDoc {
+            name: "Unknown",
+            desc: "Any other operating system.",
+        },
+    ],
 };
 
 /// [`CONTEXT`]'s reference card — `rule:core-api/reference-card`.
@@ -738,6 +790,33 @@ mod tests {
             .map(|(name, kind)| (*name, i64::from(*kind as u8)))
             .collect();
         assert_eq!(cases, expected);
+    }
+
+    /// `Core\Env::OS` is the `Core\Env::Platform` case of the platform this
+    /// test was built for, written out per `cfg` so a wrong mapping fails on
+    /// the platform it is wrong for.
+    #[test]
+    fn the_os_constant_is_the_platform_case_of_this_build() {
+        use crate::registry::{Const, CoreTy};
+        let expected = if cfg!(windows) {
+            "Windows"
+        } else if cfg!(target_os = "macos") {
+            "Darwin"
+        } else if cfg!(target_os = "linux") {
+            "Linux"
+        } else {
+            return;
+        };
+        let os = super::CONSTANTS
+            .iter()
+            .find(|found| found.name == "OS")
+            .expect("Core\\Env registers OS");
+        assert!(matches!(os.ty, CoreTy::Enum(super::PLATFORM_NAME)));
+        assert!(
+            matches!(os.value, Const::EnumCase(super::PLATFORM_NAME, case) if case == expected),
+            "OS is {:?}, want {expected}",
+            os.value
+        );
     }
 
     /// A context nobody built for anything else is a command.

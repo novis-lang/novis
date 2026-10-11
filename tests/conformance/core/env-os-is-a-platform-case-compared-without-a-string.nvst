@@ -1,0 +1,31 @@
+--TEST--
+`Core\Env::OS` is a `Core\Env::Platform` case: it equals exactly one of the six cases, it is never equal to a string, and a `match` over the six cases needs no default arm — `rule:core-classes/env-context`
+--FILE--
+<?nvs
+array<Core\Env::Platform> $platforms = [
+    Core\Env::Platform::Windows,
+    Core\Env::Platform::Darwin,
+    Core\Env::Platform::Linux,
+    Core\Env::Platform::BSD,
+    Core\Env::Platform::Solaris,
+    Core\Env::Platform::Unknown,
+];
+int $equal = 0;
+foreach ($platforms as Core\Env::Platform $platform) {
+    if ($platform == Core\Env::OS) {
+        $equal = $equal + 1;
+    }
+}
+echo "cases equal to OS: ", $equal as string, "\n";
+
+Core\Env::Platform $os = Core\Env::OS;
+string $family = match ($os) {
+    Core\Env::Platform::Windows => "windows",
+    Core\Env::Platform::Darwin, Core\Env::Platform::Linux, Core\Env::Platform::BSD,
+        Core\Env::Platform::Solaris => "unix",
+    Core\Env::Platform::Unknown => "unknown",
+};
+echo "the family is named: ", Core\Str::isEmpty($family) ? "no" : "yes", "\n";
+--EXPECT--
+cases equal to OS: 1
+the family is named: yes

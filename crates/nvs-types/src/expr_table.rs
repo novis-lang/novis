@@ -996,6 +996,11 @@ pub enum ExprInfo {
         name: String,
         /// The constant's value, in its declared type.
         value: ConstArg,
+        /// The backing of the enum the constant is declared as, or `None`
+        /// for a constant of any other type. An enum-typed constant's value
+        /// is its case's integer, and this is what tells `nvs-ir` to emit that
+        /// integer as the enum rather than as an `int`.
+        enum_backing: Option<crate::enums::EnumBacking>,
     },
     /// `static::NAME` — a class-constant read whose class is the one the call
     /// was made on, which is not known until the call runs

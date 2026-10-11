@@ -419,9 +419,21 @@ impl<'a> Lowering<'a> {
                 // a constant whichever side of the call it was written on. The
                 // class and the name the entry carries beside it are the
                 // editor's question, not this one's.
-                Some(ExprInfo::ClassConst { value, .. }) => {
+                // An enum-typed constant's value is its case's integer, and
+                // the position is what emits that integer as the enum.
+                Some(ExprInfo::ClassConst {
+                    value,
+                    enum_backing,
+                    ..
+                }) => {
                     let value = value.clone();
-                    self.emit_const_arg(&value, None, env, *cur)
+                    let position = enum_backing.map(|backing| {
+                        Ty::Enum(match backing {
+                            nvs_types::EnumBacking::Int => EnumRepr::Int,
+                            nvs_types::EnumBacking::Uint => EnumRepr::Uint,
+                        })
+                    });
+                    self.emit_const_arg(&value, position, env, *cur)
                 }
                 // `static::NAME` — `rule:statements/static-is-a-member-modifier`'s
                 // late-bound read, and the one constant that is not inlined.

@@ -9,7 +9,7 @@ A child `Core\Process::spawn` started is stopped when the program ends, and one 
 // throw is, after everything the program printed, and the run exits with 1.
 
 string $path = "/bin/cat";
-if (Core\Env::OS == "Windows") {
+if (Core\Env::OS == Core\Env::Platform::Windows) {
     $path = "C:\\Windows\\System32\\sort.exe";
 }
 Core\Process\Handle $child = Core\Process::spawn($path, []);

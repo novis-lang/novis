@@ -1,5 +1,5 @@
 --TEST--
-`Core\Env::EOL`, `::OS` and `::VERSION` each answer one fact about the machine, so a case asserts the shape every platform's answer has to have rather than the answer one platform gives — `EOL` ends in a line feed and is one or two characters, `OS` is a member of `PHP_OS_FAMILY`'s closed set, and `VERSION` is three dot-separated pieces — spec § 15, `rule:core-api/shape-rules` R6
+`Core\Env::EOL`, `::OS` and `::VERSION` each answer one fact about the machine, so a case asserts the shape every platform's answer has to have rather than the answer one platform gives — `EOL` ends in a line feed and is one or two characters, `OS` is one of `Core\Env::Platform`'s six cases, and `VERSION` is three dot-separated pieces — spec § 15, `rule:core-api/shape-rules` R6
 --FILE--
 <?nvs
 // A constant is folded at the site that names it, so this case cannot print any
@@ -25,12 +25,19 @@ if (Core\Str::endsWith(Core\Env::EOL, "\n") && $eol >= 1 && $eol <= 2) {
 array<string> $split = Core\Str::lines("one\r\ntwo\nthree");
 echo "lines across both terminators: ", Core\Arr::count($split) as string, "\n";
 
-// `OS` is a family from a closed roster, not `uname`'s free text. Counted over
-// the whole roster rather than compared against one name, so the assertion says
-// the same thing on every platform this suite runs on.
-array<string> $families = ["Windows", "Darwin", "Linux", "BSD", "Solaris", "Unknown"];
+// `OS` is a case of the closed `Core\Env::Platform` enum, not `uname`'s free
+// text. Counted over every case rather than compared against one, so the
+// assertion says the same thing on every platform this suite runs on.
+array<Core\Env::Platform> $families = [
+    Core\Env::Platform::Windows,
+    Core\Env::Platform::Darwin,
+    Core\Env::Platform::Linux,
+    Core\Env::Platform::BSD,
+    Core\Env::Platform::Solaris,
+    Core\Env::Platform::Unknown,
+];
 int $named = 0;
-foreach ($families as string $family) {
+foreach ($families as Core\Env::Platform $family) {
     if ($family == Core\Env::OS) {
         $named = $named + 1;
     }

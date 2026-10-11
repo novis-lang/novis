@@ -9,7 +9,7 @@ class Bench {
         // `/bin/sh` on Linux and macOS, and `cmd.exe` on Windows. Each program prints one line and ends.
         string $path = "/bin/sh";
         array<array<string>> $lists = [["-c", "echo done"], ["-c", "echo a longer line"]];
-        if (Core\Env::OS == "Windows") {
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
             $path = "C:\\Windows\\System32\\cmd.exe";
             $lists = [["/c", "echo done"], ["/c", "echo a longer line"]];
         }

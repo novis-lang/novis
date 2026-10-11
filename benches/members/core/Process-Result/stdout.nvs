@@ -9,7 +9,7 @@ class Bench {
     public static function run(uint $rounds): uint {
         // Two programs run once, before the loop: `/bin/sh` on Linux and macOS, `cmd.exe` on Windows.
         array<Core\Process\Result> $results = [];
-        if (Core\Env::OS == "Windows") {
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
             $results[] = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo done"]);
             $results[] = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo a longer line"]);
         } else {

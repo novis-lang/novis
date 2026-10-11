@@ -187,12 +187,14 @@ pub(crate) fn infer_class_const(
             let constant = span_text(env.src, name).to_owned();
             match crate::core_lib::constant(&qname, &constant, env.interner) {
                 Some((ty, value)) => {
+                    let enum_backing = enum_backing(ty, env);
                     env.exprs.record(
                         expr.span,
                         ExprInfo::ClassConst {
                             class: qname.clone(),
                             name: constant.clone(),
                             value,
+                            enum_backing,
                         },
                     );
                     ty
@@ -250,12 +252,14 @@ pub(crate) fn infer_class_const(
                             }
                         }
                         Some(value) => {
+                            let enum_backing = enum_backing(sig.ty, env);
                             env.exprs.record(
                                 expr.span,
                                 ExprInfo::ClassConst {
                                     class: owner,
                                     name: constant.clone(),
                                     value,
+                                    enum_backing,
                                 },
                             );
                         }
@@ -332,9 +336,19 @@ fn method_reference(
             class: qname.clone(),
             name: method.clone(),
             value: crate::ConstArg::Str(method),
+            enum_backing: None,
         },
     );
     env.interner.string()
+}
+
+/// The backing of the enum `ty` is, or `None` when `ty` is not an enum —
+/// [`ExprInfo::ClassConst`]'s `enum_backing` for a constant declared as one.
+fn enum_backing(ty: TypeId, env: &Env<'_>) -> Option<crate::enums::EnumBacking> {
+    match env.interner.get(ty) {
+        Ty::Enum(_, backing) => Some(*backing),
+        _ => None,
+    }
 }
 
 /// The `E0792` half of the arm above, which owns why the read and not the

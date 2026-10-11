@@ -10,7 +10,7 @@ class Attack
     // On Windows, `cmd.exe` writes its own file in a loop. An `echo` loop there is too slow.
     public static function endless(): Core\Process\Handle
     {
-        if (Core\Env::OS == 'Windows') {
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
             return Core\Process::spawn(
                 "C:\\Windows\\System32\\cmd.exe",
                 ['/c', 'for /l %i in (0,0,1) do @type C:\\Windows\\System32\\cmd.exe 1>&2'],
@@ -22,7 +22,7 @@ class Attack
     // A program that writes one word to its error output and ends at once.
     public static function short(): Core\Process\Handle
     {
-        if (Core\Env::OS == 'Windows') {
+        if (Core\Env::OS == Core\Env::Platform::Windows) {
             return Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ['/c', 'echo short 1>&2']);
         }
         return Core\Process::spawn('/bin/sh', ['-c', 'echo short >&2']);
