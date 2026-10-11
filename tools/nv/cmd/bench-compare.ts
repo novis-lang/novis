@@ -528,10 +528,18 @@ export function headersResult(headers: Record<string, string>): RowResult {
 /** The term the escape row prints. A body that carries it raw would run it in a browser. */
 export const ESCAPE_TERM = "<script>alert(1)</script>";
 
-/** Printed the documented way, the term arrives escaped, or the developer calls an escaper. */
-export function escapeResult(body: string): RowResult {
-  const raw = body.includes("<script>");
-  return { result: raw ? "your-code" : "built-in", evidence: { raw_script_in_body: raw } };
+/**
+ * `template` is the body the documented template wrote, `direct` the one the plainest write to the
+ * response wrote. Built in only when both arrive escaped, so no way to print the term skips the
+ * escape. Otherwise the developer has to choose the safe way or call an escaper, which is `your-code`.
+ */
+export function escapeResult(template: string, direct: string): RowResult {
+  const rawTemplate = template.includes("<script>");
+  const rawDirect = direct.includes("<script>");
+  return {
+    result: rawTemplate || rawDirect ? "your-code" : "built-in",
+    evidence: { raw_script_from_template: rawTemplate, raw_script_from_direct_write: rawDirect },
+  };
 }
 
 /** The `Origin` the csrf row's cross-site request names. */
@@ -848,40 +856,13 @@ function ok(reply: Reply, what: string): Reply {
 /** The rows, in the order the page shows them. `benches/compare/README.md` § *The feature scenarios* is why each is built so. */
 export const SCENARIOS: Scenario[] = [
   {
-    id: "cores",
-    tree: "cases",
-    case: "html-page",
-    timed: async (t) => coresResult(await t.pass(1), await t.pass(4), CORES_IN_CODE[t.peer]),
-  },
-  {
-    id: "crash",
-    tree: "scenarios",
-    case: "crash",
-    probe: async (p) => {
-      const crash = await p.get("/crash");
-      const next = await p.get("/");
-      return crashResult(crash.status, next.status, p.running());
-    },
-  },
-  {
-    id: "loop",
-    tree: "scenarios",
-    case: "runaway",
-    memory: RUNAWAY_MEMORY,
-    probe: (p) => runawayProbe(p, "/loop"),
-  },
-  {
-    id: "memory",
-    tree: "scenarios",
-    case: "runaway",
-    memory: RUNAWAY_MEMORY,
-    probe: (p) => runawayProbe(p, "/alloc"),
-  },
-  {
     id: "escape",
     tree: "scenarios",
     case: "escape",
-    probe: async (p) => escapeResult(ok(await p.get(`/?q=${encodeURIComponent(ESCAPE_TERM)}`), "the term").body),
+    probe: async (p) => {
+      const q = `?q=${encodeURIComponent(ESCAPE_TERM)}`;
+      return escapeResult(ok(await p.get(`/${q}`), "the template").body, ok(await p.get(`/direct${q}`), "the direct write").body);
+    },
   },
   {
     id: "taint",
@@ -914,36 +895,6 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: "csrf",
-    tree: "scenarios",
-    case: "csrf",
-    probe: async (p) => csrfResult(await p.send("POST", "/change", {}), await p.send("POST", "/change", { Origin: OTHER_ORIGIN })),
-  },
-  {
-    id: "headers",
-    tree: "cases",
-    case: "hello",
-    probe: async (p) => headersResult(ok(await p.get("/"), "hello").headers),
-  },
-  {
-    id: "waiting",
-    tree: "cases",
-    case: "wait",
-    timed: async (t) => waitingResult(await t.pass(1), Math.min(t.requests, t.concurrency), WAITING_SETTING[t.peer]),
-  },
-  {
-    id: "parallel",
-    tree: "scenarios",
-    case: "parallel",
-    cpus: PARALLEL_PARTS,
-    probe: async (p) => {
-      const grant = PARALLEL_GRANT[p.peer];
-      if (grant !== undefined) await applyTableEdit(p, grant);
-      const one = await fastest(p, 1);
-      return parallelResult(one, await fastest(p, PARALLEL_PARTS), PARALLEL_WAY[p.peer], grant?.name);
-    },
-  },
-  {
     id: "live-edit",
     tree: "scenarios",
     case: "live-edit",
@@ -957,6 +908,23 @@ export const SCENARIOS: Scenario[] = [
         writeFileSync(file, readFileSync(file, "utf8").replace(LIVE_EDIT_FROM, LIVE_EDIT_TO));
       }
       return liveEditResult(await secondsUntil(p, (r) => r.status === 200 && r.body.includes(LIVE_EDIT_TO)), LIVE_EDIT_SETTING[p.peer]);
+    },
+  },
+  {
+    id: "config",
+    tree: "cases",
+    case: "hello",
+    fixed: { bun: headersInCode, go: headersInCode },
+    probe: async (p) => {
+      const change = CONFIG_CHANGES[p.peer]!;
+      if (change.applied(ok(await p.get("/"), "hello"))) throw new Fail("the header already has the value the change sets");
+      const wrote = p.exec(change.edit);
+      if (wrote.code !== 0) throw new Fail(`${change.edit.join(" ")}: ${wrote.output}`);
+      const without = await secondsUntil(p, change.applied);
+      if (without !== null || change.reload === undefined) return configResult(without, null, undefined);
+      const reloaded = p.exec(change.reload.command);
+      if (reloaded.code !== 0) throw new Fail(`${change.reload.name}: ${reloaded.output}`);
+      return configResult(null, await secondsUntil(p, change.applied), change.reload.name);
     },
   },
   {
@@ -992,20 +960,63 @@ export const SCENARIOS: Scenario[] = [
     },
   },
   {
-    id: "config",
+    id: "cores",
+    tree: "cases",
+    case: "html-page",
+    timed: async (t) => coresResult(await t.pass(1), await t.pass(4), CORES_IN_CODE[t.peer]),
+  },
+  {
+    id: "crash",
+    tree: "scenarios",
+    case: "crash",
+    probe: async (p) => {
+      const crash = await p.get("/crash");
+      const next = await p.get("/");
+      return crashResult(crash.status, next.status, p.running());
+    },
+  },
+  {
+    id: "loop",
+    tree: "scenarios",
+    case: "runaway",
+    memory: RUNAWAY_MEMORY,
+    probe: (p) => runawayProbe(p, "/loop"),
+  },
+  {
+    id: "memory",
+    tree: "scenarios",
+    case: "runaway",
+    memory: RUNAWAY_MEMORY,
+    probe: (p) => runawayProbe(p, "/alloc"),
+  },
+  {
+    id: "csrf",
+    tree: "scenarios",
+    case: "csrf",
+    probe: async (p) => csrfResult(await p.send("POST", "/change", {}), await p.send("POST", "/change", { Origin: OTHER_ORIGIN })),
+  },
+  {
+    id: "headers",
     tree: "cases",
     case: "hello",
-    fixed: { bun: headersInCode, go: headersInCode },
+    probe: async (p) => headersResult(ok(await p.get("/"), "hello").headers),
+  },
+  {
+    id: "waiting",
+    tree: "cases",
+    case: "wait",
+    timed: async (t) => waitingResult(await t.pass(1), Math.min(t.requests, t.concurrency), WAITING_SETTING[t.peer]),
+  },
+  {
+    id: "parallel",
+    tree: "scenarios",
+    case: "parallel",
+    cpus: PARALLEL_PARTS,
     probe: async (p) => {
-      const change = CONFIG_CHANGES[p.peer]!;
-      if (change.applied(ok(await p.get("/"), "hello"))) throw new Fail("the header already has the value the change sets");
-      const wrote = p.exec(change.edit);
-      if (wrote.code !== 0) throw new Fail(`${change.edit.join(" ")}: ${wrote.output}`);
-      const without = await secondsUntil(p, change.applied);
-      if (without !== null || change.reload === undefined) return configResult(without, null, undefined);
-      const reloaded = p.exec(change.reload.command);
-      if (reloaded.code !== 0) throw new Fail(`${change.reload.name}: ${reloaded.output}`);
-      return configResult(null, await secondsUntil(p, change.applied), change.reload.name);
+      const grant = PARALLEL_GRANT[p.peer];
+      if (grant !== undefined) await applyTableEdit(p, grant);
+      const one = await fastest(p, 1);
+      return parallelResult(one, await fastest(p, PARALLEL_PARTS), PARALLEL_WAY[p.peer], grant?.name);
     },
   },
   {

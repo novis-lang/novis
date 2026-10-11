@@ -168,7 +168,7 @@ describe("the feature scenarios", () => {
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "crash", "loop", "memory", "escape", "taint", "secret", "csrf", "headers", "waiting", "parallel", "live-edit", "deploy", "config", "upgrade"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["escape", "taint", "secret", "live-edit", "config", "deploy", "cores", "crash", "loop", "memory", "csrf", "headers", "waiting", "parallel", "upgrade"]);
   });
 
   test("every row either probes a stack or times a case, never both, and a timed row names a case", () => {
@@ -375,9 +375,12 @@ describe("the feature scenarios", () => {
     expect(headersResult({ ...all, "x-content-type-options": "sniff" }).result).toBe("your-code");
   });
 
-  test("the term printed raw needs the developer's escaper", () => {
-    expect(escapeResult(`<h1>Results for ${ESCAPE_TERM}</h1>`).result).toBe("your-code");
-    expect(escapeResult("<h1>Results for &lt;script&gt;alert(1)&lt;/script&gt;</h1>")).toEqual({ result: "built-in", evidence: { raw_script_in_body: false } });
+  test("the escape is built in only when the template and the direct write both escape the term", () => {
+    const raw = `<h1>Results for ${ESCAPE_TERM}</h1>`;
+    const escaped = "<h1>Results for &lt;script&gt;alert(1)&lt;/script&gt;</h1>";
+    expect(escapeResult(escaped, escaped)).toEqual({ result: "built-in", evidence: { raw_script_from_template: false, raw_script_from_direct_write: false } });
+    expect(escapeResult(escaped, raw)).toEqual({ result: "your-code", evidence: { raw_script_from_template: false, raw_script_from_direct_write: true } });
+    expect(escapeResult(raw, raw).result).toBe("your-code");
   });
 
   test("a row's line names each peer's result in the table's order, with a setting where there is one", () => {
@@ -460,7 +463,7 @@ describe("the record shape", () => {
     ]));
     expect(rows.date).toBe("2026-10-10T08:00:00");
     expect(rows.commit).toBe("def5678");
-    expect(Object.keys(rows.rows)).toEqual(["loop", "config"]);
+    expect(Object.keys(rows.rows)).toEqual(["config", "loop"]);
     expect(Object.keys(rows.rows.config!.peers)).toEqual(["nvs", "php"]);
     expect(rows.rows.config!.peers.php).toEqual(setting);
     expect(rows.rows.loop!.folder).toBe("benches/compare/scenarios/runaway");

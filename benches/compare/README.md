@@ -88,9 +88,13 @@ request that proved it. A row whose Novis result is worse than the goal's facts 
 never adjusted.
 
 **Each peer is written the way its own documentation shows.** The programs are what a developer meets
-first, not the most careful version a peer allows. `escape` prints the term with PHP's `<?=`, a Bun
-template literal, Go's `html/template` and a Novis html template. Where the documented way does not
-escape, the developer calls an escaper, so the result is `your-code` and not `no`.
+first, not the most careful version a peer allows. `escape` prints the term twice. On `/` it uses
+PHP's `<?=`, a Bun template literal, Go's `html/template` and a Novis html template. On `/direct` it
+uses the plainest write to the response: PHP's `echo`, a Bun string joined with `+`, Go's
+`fmt.Fprintf` and a Novis `echo` of strings. The row is `built-in` only when both arrive escaped,
+because a safe way that sits beside an unsafe one is a choice the developer has to get right.
+Otherwise the developer chooses the safe way or calls an escaper, so the result is `your-code` and
+not `no`.
 
 - `cores` and `waiting` send no requests of their own. Each times a case the way a full run does, on
   a fresh stack per pass, with the run's `--requests` and `--reps`.
