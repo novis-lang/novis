@@ -353,7 +353,11 @@ anonymous function is written in,
 as a written class name would: a static method reached that way reads that class as `static`, whichever
 subclass the enclosing method was called on. An instance method reached that way is called on the
 anonymous function's `$this`, which the call captures, and reads `$this`'s class as `static` as it
-does everywhere.
+does everywhere. For `parent::m()` the class the call is made on is still the one the function is
+written in: the parent is only where the method is looked up. PHP forwards the enclosing method's
+called class into the anonymous function instead, so there a static method reached this way sees the
+subclass. `self::` already means the written class for constants, `::class` and `self::m(...)`, and
+this reading stores nothing new.
 
 A site that sets the called class leaves no late binding to reach an override, so a call from one to an
 `abstract static` method is refused where it is written (`E0835`) unless the class it names, or a class
@@ -377,7 +381,9 @@ written with it.
   the called class's constant table, which is the size its declarations wrote, and builds the name as
   a fresh string released when the read returns. A `string` constant costs one allocation per read,
   charged to the isolate, as `static::class` does: the process-wide table's strings are not shared
-  across isolates. `self::NAME` and `Class::NAME` still inline and cost nothing at run time.
+  across isolates. `self::NAME` and `Class::NAME` still inline and cost nothing at run time. A
+  `self::m()` or `parent::m()` call inside an anonymous function sets a class fixed at the call site
+  and costs nothing, and only one that reaches an instance method captures `$this`.
 
 **Declined:**
 - **Refusing `static::NAME`.** It would be sound, but it drops a meaning PHP programs rely on: a
@@ -388,10 +394,16 @@ written with it.
 - **Reading an `array` constant late.** The table stores a folded scalar, so an array would have to be
   rebuilt from its constant form on every read, a second constant builder beside the compiler's.
   `self::` still inlines it.
+- **Carrying the enclosing method's called class into an anonymous function.** It is PHP's meaning
+  and would admit `static::` there too, but the function object has no slot that holds a class, so it
+  is a change to the layout of every anonymous function. It is the better answer if that slot is ever
+  added.
+- **Refusing `self::m()` and `parent::m()` inside an anonymous function, as `static::` is.** Every
+  anonymous function that calls a private static helper would have to name its class in full.
 - **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
   self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0231](../decisions/0231.md).</sub>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-no-function-static-and-no-global"></a>
 
