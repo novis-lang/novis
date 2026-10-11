@@ -1297,7 +1297,8 @@ struct Detect {
 /// `AGENTS.md`.
 ///
 /// An agent that reads `AGENTS.md` itself has no pointer, and an agent whose
-/// tool runs no plain command after an edit has no hook. ADR 0260 has the
+/// tool runs no plain command after an edit has no hook.
+/// `rule:tooling/an-adapter-carries-protocol-and-never-language` names the
 /// sources for every row.
 #[derive(Debug)]
 struct Agent {
