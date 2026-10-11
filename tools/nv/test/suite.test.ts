@@ -30,7 +30,7 @@ describe("bun nv suite", () => {
     const got = await suiteOver([TREE, "--case", CASES[0]!, "--min-passing", "2"], {});
     expect(got.check).toMatchObject({ kind: "nvs-suite", args: ["test", TREE], cases: [CASES[0]], minPassing: 2 });
     expect(got.code).toBe(0);
-    expect(got.lines).toEqual([`GREEN nvs test ${TREE} [nv suite]`]);
+    expect(got.lines).toEqual([`(pass) ${CASES[0]}`, `GREEN nvs test ${TREE} [nv suite]`]);
   });
 
   test("nv suite fails on a named case that is not on disk", async () => {

@@ -10,7 +10,8 @@
 // plan (`PlanSweep.discard`).
 //
 // The `nvs` is the covws build the runner makes, or the one `NVS_BIN` names. Exits 0 green, 1 red, 2 on
-// a usage error.
+// a usage error. A green run prints `(pass) <path>` for each `--case`, the line looper credits a goal
+// check's `tests:` entry from.
 
 import type { Check, Verdict } from "../accept/accept.ts";
 import { PlanSweep } from "../accept/runner.ts";
@@ -79,7 +80,10 @@ export async function suite(args: string[], seams: SuiteSeams = { judge: sweepJu
   const v = await seams.judge(got.check, got.full);
   if (v.fail !== "") seams.say(`RED ${v.fail}`);
   else if (v.short !== "") seams.say(`SHORT ${v.short}`);
-  else seams.say(`GREEN ${got.check.name} [nv suite]`);
+  else {
+    for (const kase of got.check.cases ?? []) seams.say(`(pass) ${kase}`);
+    seams.say(`GREEN ${got.check.name} [nv suite]`);
+  }
   return v.fail === "" && v.short === "" ? 0 : 1;
 }
 
