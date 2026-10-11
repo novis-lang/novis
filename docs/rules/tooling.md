@@ -1691,11 +1691,27 @@ and writing nothing, one that does not, unless `--force`. Every unit is judged b
 puts one line on standard error while a re-run would change a unit in the working directory, so the
 agent reading the primer learns of it with nobody in between.
 
+The fingerprint is what tells an upgrade from an edit, which from the text alone look the same. The
+stanza opens on its marker, and an adapter carries it on the line under its front matter as an HTML
+comment, never a front-matter key a harness might reject. BLAKE3 is fixed by its specification and
+already in the binary for the code cache, so the fingerprint is the same on every platform and from
+every build. A unit an `init` before fingerprints wrote carries the old marker or none; its text is
+known, so its fingerprint is a constant in the binary and the old text itself is not kept. An edited
+unit gets no note from the primer: it is the project's own text. A marker somebody rewrites by hand so
+that text and fingerprint agree reads as untouched and is updated; that is somebody imitating `init`,
+and it is accepted.
+
 That is what keeps the adapter list open. Another harness is another short pointer file, adding one
 decides nothing and reopens nothing, and none of them can disagree with the language, because none of
 them says anything about it.
 
-<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0256](../decisions/0256.md), [0260](../decisions/0260.md).</sub>
+**Declined:**
+- **A version number in the marker.** It says which binary wrote the unit, not whether somebody edited
+  it since, which is the one thing a re-run has to know.
+- **Keeping every old text in the binary.** It grows with every release; a fingerprint per old text is
+  eight characters, and only the text written before fingerprints needs one.
+
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0260](../decisions/0260.md).</sub>
 
 <a id="tooling-bench-engine-list-is-data"></a>
 
