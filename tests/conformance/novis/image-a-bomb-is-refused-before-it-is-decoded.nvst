@@ -3,7 +3,7 @@ An image whose header declares more pixels than the cap throws `RuntimeError` be
 --FILE--
 <?nvs
 use Novis\Image\Codec;
-use Novis\Image\Output;
+use Novis\Image\Image;
 
 // This PNG header says the image is 16384 by 16384 pixels.
 // The file is 62 bytes long, so it has almost no pixel data.
@@ -22,7 +22,7 @@ bytes $small = Core\Encoding::fromHex(
 try {
     Codec::run(
         {data: $bomb, autoOrient: true, toSrgb: true},
-        {steps: [], overlays: [], output: Output::Raw}
+        {steps: [], overlays: [], output: Image::Output::Raw}
     );
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
@@ -33,7 +33,7 @@ uint $higher = 1000000000;
 try {
     Codec::run(
         {data: $bomb, autoOrient: true, toSrgb: true, maxPixels: $higher},
-        {steps: [], overlays: [], output: Output::Raw}
+        {steps: [], overlays: [], output: Image::Output::Raw}
     );
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
@@ -44,7 +44,7 @@ uint $five = 5;
 try {
     Codec::run(
         {data: $small, autoOrient: true, toSrgb: true, maxPixels: $five},
-        {steps: [], overlays: [], output: Output::Size}
+        {steps: [], overlays: [], output: Image::Output::Size}
     );
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
@@ -54,7 +54,7 @@ try {
 uint $six = 6;
 bytes $size = Codec::run(
     {data: $small, autoOrient: true, toSrgb: true, maxPixels: $six},
-    {steps: [], overlays: [], output: Output::Size}
+    {steps: [], overlays: [], output: Image::Output::Size}
 );
 echo Core\Encoding::toHex($size), "\n";
 --EXPECT--

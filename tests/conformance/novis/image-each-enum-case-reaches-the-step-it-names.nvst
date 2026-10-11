@@ -2,14 +2,9 @@
 Each case of `Novis\Image`'s six enums is accepted by the step that takes it, and the cases that should give a different picture do: rule:core-classes/image-pipeline
 --FILE--
 <?nvs
-// covers: Novis\Image\Fit, Novis\Image\Gravity, Novis\Image\Filter, Novis\Image\Axis, Novis\Image\Format, Novis\Image\Blend
-use Novis\Image\Axis;
-use Novis\Image\Blend;
+// covers: Novis\Image\Image::Fit, Novis\Image\Image::Gravity, Novis\Image\Image::Filter, Novis\Image\Image::Axis, Novis\Image\Format, Novis\Image\Image::Blend
 use Novis\Image\Color;
-use Novis\Image\Filter;
-use Novis\Image\Fit;
 use Novis\Image\Format;
-use Novis\Image\Gravity;
 use Novis\Image\Image;
 
 class Look {
@@ -25,8 +20,8 @@ class Look {
 }
 
 Image $wide = Image::create(40, 20, Color::hex("#000"));
-array<Fit> $fits = [Fit::Cover, Fit::Contain, Fit::Fill, Fit::Inside, Fit::Outside];
-foreach ($fits as Fit $fit) {
+array<Image::Fit> $fits = [Image::Fit::Cover, Image::Fit::Contain, Image::Fit::Fill, Image::Fit::Inside, Image::Fit::Outside];
+foreach ($fits as Image::Fit $fit) {
     echo Look::size($wide->resize({ width: 10, height: 10, fit: $fit, upscale: true })), "\n";
 }
 
@@ -36,34 +31,34 @@ Image $row = Image::fromRaw({
     height: 1,
     pixels: Core\Encoding::fromHex("ff0000ffff0000ff0000ffff0000ffff"),
 });
-array<Gravity> $sides = [Gravity::West, Gravity::East];
-foreach ($sides as Gravity $gravity) {
-    echo Look::first($row->resize({ width: 1, height: 1, fit: Fit::Cover, gravity: $gravity, filter: Filter::Nearest })), "\n";
+array<Image::Gravity> $sides = [Image::Gravity::West, Image::Gravity::East];
+foreach ($sides as Image::Gravity $gravity) {
+    echo Look::first($row->resize({ width: 1, height: 1, fit: Image::Fit::Cover, gravity: $gravity, filter: Image::Filter::Nearest })), "\n";
 }
-array<Gravity> $others = [Gravity::Center, Gravity::North, Gravity::NorthEast, Gravity::SouthEast, Gravity::South, Gravity::SouthWest, Gravity::NorthWest];
+array<Image::Gravity> $others = [Image::Gravity::Center, Image::Gravity::North, Image::Gravity::NorthEast, Image::Gravity::SouthEast, Image::Gravity::South, Image::Gravity::SouthWest, Image::Gravity::NorthWest];
 array<string> $cropped = [];
-foreach ($others as Gravity $g) {
-    $cropped[] = Look::size($row->resize({ width: 2, height: 1, fit: Fit::Cover, gravity: $g }));
+foreach ($others as Image::Gravity $g) {
+    $cropped[] = Look::size($row->resize({ width: 2, height: 1, fit: Image::Fit::Cover, gravity: $g }));
 }
 echo Core\Str::join($cropped, " "), "\n";
 
-array<Filter> $filters = [Filter::Nearest, Filter::Bilinear, Filter::CatmullRom, Filter::Mitchell, Filter::Lanczos3];
+array<Image::Filter> $filters = [Image::Filter::Nearest, Image::Filter::Bilinear, Image::Filter::CatmullRom, Image::Filter::Mitchell, Image::Filter::Lanczos3];
 array<string> $grown = [];
-foreach ($filters as Filter $filter) {
-    $grown[] = Look::size($row->resize({ width: 8, height: 2, fit: Fit::Fill, filter: $filter, upscale: true }));
+foreach ($filters as Image::Filter $filter) {
+    $grown[] = Look::size($row->resize({ width: 8, height: 2, fit: Image::Fit::Fill, filter: $filter, upscale: true }));
 }
 echo Core\Str::join($grown, " "), "\n";
 
-echo Look::first($row->flip(Axis::Horizontal)), "\n";
-echo Look::first($row->flip(Axis::Vertical)), "\n";
+echo Look::first($row->flip(Image::Axis::Horizontal)), "\n";
+echo Look::first($row->flip(Image::Axis::Vertical)), "\n";
 
 array<Format> $formats = [Format::Jpeg, Format::Png, Format::Webp, Format::Gif, Format::Avif, Format::Jxl, Format::Svg, Format::Pdf];
 foreach ($formats as Format $format) {
     echo Image::mime($format), " ", Image::extension($format), "\n";
 }
 
-array<Blend> $blends = [Blend::Normal, Blend::Multiply, Blend::Screen, Blend::Overlay, Blend::Darken, Blend::Lighten];
-echo Core\Arr::count($blends), " ", $blends[1] == Blend::Multiply ? "same" : "differ", " ", $blends[0] == $blends[5] ? "same" : "differ", "\n";
+array<Image::Blend> $blends = [Image::Blend::Normal, Image::Blend::Multiply, Image::Blend::Screen, Image::Blend::Overlay, Image::Blend::Darken, Image::Blend::Lighten];
+echo Core\Arr::count($blends), " ", $blends[1] == Image::Blend::Multiply ? "same" : "differ", " ", $blends[0] == $blends[5] ? "same" : "differ", "\n";
 --EXPECT--
 10x10
 10x10

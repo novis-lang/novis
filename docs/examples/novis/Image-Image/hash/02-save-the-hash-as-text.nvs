@@ -1,7 +1,6 @@
 <?nvs
 // Shows how a blog saves the hash of each uploaded photo as text, and finds a copy later.
 use Novis\Image\Format;
-use Novis\Image\HashKind;
 use Novis\Image\Image;
 
 Image $photo = Image::fromRaw({
@@ -16,12 +15,12 @@ Image $photo = Image::fromRaw({
 })->resize({ width: 64, height: 64 });
 
 // `Core\Encoding::toHex` turns the hash into text you can save in a database column.
-string $saved = Core\Encoding::toHex(Image::hash($photo->encode(), HashKind::Perceptual));
+string $saved = Core\Encoding::toHex(Image::hash($photo->encode(), Image::HashKind::Perceptual));
 echo "saved: ", $saved, "\n";
 
 // Later, the same photo is uploaded again as a JPEG file at half the size.
 bytes $upload = $photo->resize({ width: 32, height: 32 })->format(Format::Jpeg)->encode();
-bytes $hash = Image::hash($upload, HashKind::Perceptual);
+bytes $hash = Image::hash($upload, Image::HashKind::Perceptual);
 
 // The distance is small, so this prints "already on the blog".
 uint $distance = Image::hashDistance(Core\Encoding::fromHex($saved), $hash);

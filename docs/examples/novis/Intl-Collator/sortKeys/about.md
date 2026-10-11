@@ -7,7 +7,7 @@ byte by byte, for example with `Core\Bytes::compare`. The result is the same ord
 You can store a key in a database column and sort rows by that column. The database then sorts in
 the order of the language, and it does not need to know the language rules.
 
-The options are the same as for `Collator::sort`. With `strength: Strength::Primary`, `"Apple"` and
+The options are the same as for `Collator::sort`. With `strength: Collator::Strength::Primary`, `"Apple"` and
 `"apple"` have the same key.
 
 `Collator::sortKeys` throws a `LogicError` when the locale tag is not valid.

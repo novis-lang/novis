@@ -70,7 +70,7 @@
       "name": "qr",
       "params": [
         {"name": "data", "type": "string"},
-        {"name": "options", "type": "{size: ?uint, margin: ?uint, level: ?QrLevel, format: ?Format}"}
+        {"name": "options", "type": "{size: ?uint, margin: ?uint, level: ?Level, format: ?Format}"}
       ],
       "returns": "bytes",
       "help": "Returns a text as an encoded QR code image. Data too long for the level, or a size too small for the code, throws a `LogicError`."
@@ -78,16 +78,16 @@
   ],
   "enums": [
     {"name": "Format", "cases": ["Jpeg", "Png", "Webp", "Gif", "Avif", "Jxl", "Svg", "Pdf"], "help": "An image file format. `Image::format` sets the format that `encode` writes."},
-    {"name": "Gravity", "cases": ["Center", "North", "NorthEast", "East", "SouthEast", "South", "SouthWest", "West", "NorthWest"], "help": "A position in an image, as a direction from the center. `resize` uses it to choose which part of the image it keeps."},
-    {"name": "Fit", "cases": ["Cover", "Contain", "Fill", "Inside", "Outside"], "help": "How `resize` fits an image into the width and height you give."},
-    {"name": "Filter", "cases": ["Nearest", "Bilinear", "CatmullRom", "Mitchell", "Lanczos3"], "help": "The filter `resize` uses to calculate the new pixels. The default is `Lanczos3`."},
-    {"name": "Axis", "cases": ["Horizontal", "Vertical"], "help": "The direction `flip` mirrors an image in."},
-    {"name": "Blend", "cases": ["Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten"], "help": "How the pixels of one image are mixed with the pixels of the image below it."},
-    {"name": "Align", "cases": ["Left", "Center", "Right"], "help": "How the lines of a text are aligned."},
-    {"name": "Output", "cases": ["Encoded", "Raw", "Size"], "help": "What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone."},
-    {"name": "HashKind", "cases": ["Perceptual", "Difference", "Average"], "help": "The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Difference` hash is 16 bytes and an `Average` hash is 32 bytes."},
-    {"name": "PlaceholderKind", "cases": ["BlurHash", "ThumbHash"], "help": "The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 characters. A `ThumbHash` is base64 text and also keeps transparency."},
-    {"name": "QrLevel", "cases": ["Low", "Medium", "Quartile", "High"], "help": "How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 percent. A higher level makes a bigger code for the same data."}
+    {"name": "Gravity", "owner": "Image", "cases": ["Center", "North", "NorthEast", "East", "SouthEast", "South", "SouthWest", "West", "NorthWest"], "help": "A position in an image, as a direction from the center. `resize` uses it to choose which part of the image it keeps."},
+    {"name": "Fit", "owner": "Image", "cases": ["Cover", "Contain", "Fill", "Inside", "Outside"], "help": "How `resize` fits an image into the width and height you give."},
+    {"name": "Filter", "owner": "Image", "cases": ["Nearest", "Bilinear", "CatmullRom", "Mitchell", "Lanczos3"], "help": "The filter `resize` uses to calculate the new pixels. The default is `Lanczos3`."},
+    {"name": "Axis", "owner": "Image", "cases": ["Horizontal", "Vertical"], "help": "The direction `flip` mirrors an image in."},
+    {"name": "Blend", "owner": "Image", "cases": ["Normal", "Multiply", "Screen", "Overlay", "Darken", "Lighten"], "help": "How the pixels of one image are mixed with the pixels of the image below it."},
+    {"name": "Align", "owner": "Image", "cases": ["Left", "Center", "Right"], "help": "How the lines of a text are aligned."},
+    {"name": "Output", "owner": "Image", "cases": ["Encoded", "Raw", "Size"], "help": "What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone."},
+    {"name": "HashKind", "owner": "Image", "cases": ["Perceptual", "Difference", "Average"], "help": "The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Difference` hash is 16 bytes and an `Average` hash is 32 bytes."},
+    {"name": "PlaceholderKind", "owner": "Image", "cases": ["BlurHash", "ThumbHash"], "help": "The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 characters. A `ThumbHash` is base64 text and also keeps transparency."},
+    {"name": "Level", "owner": "QrCode", "cases": ["Low", "Medium", "Quartile", "High"], "help": "How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 percent. A higher level makes a bigger code for the same data."}
   ],
   "unions": [
     {"name": "Source", "cases": [

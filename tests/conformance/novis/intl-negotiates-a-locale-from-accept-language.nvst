@@ -3,7 +3,6 @@ An `Accept-Language` value picks the offered locale by weight and CLDR fallback,
 --FILE--
 <?nvs
 use Novis\Intl\Locale;
-use Novis\Intl\Service;
 
 // The range with the highest weight that matches an offered locale wins.
 var $offered = ["en", "de", "pt-BR"];
@@ -21,8 +20,8 @@ foreach ($headers as string $header) {
 }
 
 // `Locale::resolve` shows which locale's data a tag uses. "und" is the general rules.
-echo Core\Str::join(Locale::resolve(["de-AT", "de-CH", "zz"], Service::Numbers), " | "), "\n";
-echo Core\Str::join(Locale::resolve(["de-AT", "zz"], Service::Lists), " | "), "\n";
+echo Core\Str::join(Locale::resolve(["de-AT", "de-CH", "zz"], Locale::Service::Numbers), " | "), "\n";
+echo Core\Str::join(Locale::resolve(["de-AT", "zz"], Locale::Service::Lists), " | "), "\n";
 
 // A malformed offered tag is a bug in the program, so it throws.
 try {

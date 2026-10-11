@@ -1,7 +1,6 @@
 <?nvs
 // Attack: a request builds very long lists of flips, and flips images that are not images.
 // Each attempt should throw an error or return an image, and the server keeps running.
-use Novis\Image\Axis;
 use Novis\Image\Color;
 use Novis\Image\Image;
 
@@ -12,7 +11,7 @@ try {
     Image $flipped = $small;
     uint $i = 0;
     while ($i < 10000) {
-        $flipped = $flipped->flip($i % 2 == 0 ? Axis::Horizontal : Axis::Vertical);
+        $flipped = $flipped->flip($i % 2 == 0 ? Image::Axis::Horizontal : Image::Axis::Vertical);
         $i = $i + 1;
     }
     var $last = $flipped->raw();
@@ -23,7 +22,7 @@ try {
 
 // 2. A flip of bytes that are not an image.
 try {
-    Image::open('not an image' as bytes)->flip(Axis::Vertical)->raw();
+    Image::open('not an image' as bytes)->flip(Image::Axis::Vertical)->raw();
     echo "step 2 ran\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";
@@ -31,7 +30,7 @@ try {
 
 // 3. A flip of an image with a width of zero.
 try {
-    Image::create(0, 8)->flip(Axis::Horizontal)->raw();
+    Image::create(0, 8)->flip(Image::Axis::Horizontal)->raw();
     echo "step 3 ran\n";
 } catch (Throwable $e) {
     echo "step 3 stopped\n";

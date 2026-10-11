@@ -4,7 +4,6 @@ use Novis\Image\Codec;
 use Novis\Image\Color;
 use Novis\Image\Format;
 use Novis\Image\Image;
-use Novis\Image\Output;
 
 bytes $photo = Image::create(1600, 1200, Color::hex("#336699"))->format(Format::Jpeg)->encode();
 
@@ -14,9 +13,9 @@ uint $small = 100;
 
 // The photo is decoded once. Each plan then runs on its own copy.
 array<bytes> $files = Codec::variants({data: $photo, autoOrient: true, toSrgb: true}, [
-    {steps: [{resize: {width: $large}}], overlays: [], output: Output::Encoded},
-    {steps: [{resize: {width: $medium}}], overlays: [], output: Output::Encoded},
-    {steps: [{resize: {width: $small}}], overlays: [], output: Output::Encoded},
+    {steps: [{resize: {width: $large}}], overlays: [], output: Image::Output::Encoded},
+    {steps: [{resize: {width: $medium}}], overlays: [], output: Image::Output::Encoded},
+    {steps: [{resize: {width: $small}}], overlays: [], output: Image::Output::Encoded},
 ]);
 
 // This prints 800x600, 400x300 and 100x75.

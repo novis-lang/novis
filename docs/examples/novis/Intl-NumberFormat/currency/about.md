@@ -6,8 +6,8 @@ locale decides where the symbol goes and which separators are used. In English, 
 `€1,234.50`. In German, it is `1.234,50 €`.
 
 Each amount is rounded to the digits the currency uses: 2 for euros and dollars, none for yen. The
-`display` option chooses how the currency is shown. `CurrencyDisplay::Symbol` is the default and
-writes `€`. `CurrencyDisplay::Narrow` writes the shortest symbol. `CurrencyDisplay::Name` writes the
+`display` option chooses how the currency is shown. `NumberFormat::CurrencyDisplay::Symbol` is the default and
+writes `€`. `NumberFormat::CurrencyDisplay::Narrow` writes the shortest symbol. `NumberFormat::CurrencyDisplay::Name` writes the
 name, such as `2.00 euros`.
 
 `NumberFormat::currency` throws a `LogicError` when the currency code does not have three letters, or

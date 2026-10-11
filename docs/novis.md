@@ -28510,13 +28510,13 @@ Keywords: render
 
 | Member | Signature |
 |---|---|
-| [`Novis\Image\QrCode::render`](#core-novis-image-qrcode-render) | `render(string $data, ?{size?: uint, margin?: uint, level?: QrLevel, format?: Format} $options = null): bytes` |
+| [`Novis\Image\QrCode::render`](#core-novis-image-qrcode-render) | `render(string $data, ?{size?: uint, margin?: uint, level?: Level, format?: Format} $options = null): bytes` |
 
 <a id="core-novis-image-qrcode-render"></a>
 #### `Novis\Image\QrCode::render`
 
 ```nvs skip
-Novis\Image\QrCode::render(string $data, ?{size?: uint, margin?: uint, level?: QrLevel, format?: Format} $options = null): bytes
+Novis\Image\QrCode::render(string $data, ?{size?: uint, margin?: uint, level?: Level, format?: Format} $options = null): bytes
 ```
 
 `QrCode::render` returns `data` as a square QR code image. By default it is a PNG of 256 by 256 pixels.
@@ -28538,7 +28538,7 @@ Keywords: info, run, variants, compare, hash, placeholder, palette, qr
 | [`Novis\Image\Codec::hash`](#core-novis-image-codec-hash) | `hash(bytes $data, HashKind $kind): bytes` |
 | [`Novis\Image\Codec::placeholder`](#core-novis-image-codec-placeholder) | `placeholder(bytes $data, PlaceholderKind $kind): string` |
 | [`Novis\Image\Codec::palette`](#core-novis-image-codec-palette) | `palette(bytes $data, uint $count): array<{r: uint, g: uint, b: uint, alpha: float}>` |
-| [`Novis\Image\Codec::qr`](#core-novis-image-codec-qr) | `qr(string $data, {size: ?uint, margin: ?uint, level: ?QrLevel, format: ?Format} $options): bytes` |
+| [`Novis\Image\Codec::qr`](#core-novis-image-codec-qr) | `qr(string $data, {size: ?uint, margin: ?uint, level: ?Level, format: ?Format} $options): bytes` |
 
 <a id="core-novis-image-codec-info"></a>
 #### `Novis\Image\Codec::info`
@@ -28656,7 +28656,7 @@ Decodes an encoded image and returns at most `count` of its main colours, the mo
 #### `Novis\Image\Codec::qr`
 
 ```nvs skip
-Novis\Image\Codec::qr(string $data, {size: ?uint, margin: ?uint, level: ?QrLevel, format: ?Format} $options): bytes
+Novis\Image\Codec::qr(string $data, {size: ?uint, margin: ?uint, level: ?Level, format: ?Format} $options): bytes
 ```
 
 Returns a text as an encoded QR code image. Data too long for the level, or a size too small for the code, throws a `LogicError`.
@@ -28664,7 +28664,7 @@ Returns a text as an encoded QR code image. Data too long for the level, or a si
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$data` | `string` |  |
-| `$options` | `{size: ?uint, margin: ?uint, level: ?QrLevel, format: ?Format}` |  |
+| `$options` | `{size: ?uint, margin: ?uint, level: ?Level, format: ?Format}` |  |
 
 **Returns** `bytes`
 
@@ -28756,17 +28756,17 @@ Keywords: join
 
 | Member | Signature |
 |---|---|
-| [`Novis\Intl\ListFormat::join`](#core-novis-intl-listformat-join) | `join(array<array<string>> $lists, string $locale, ?{type?: ListType, width?: Width} $options = null): array<string>` |
+| [`Novis\Intl\ListFormat::join`](#core-novis-intl-listformat-join) | `join(array<array<string>> $lists, string $locale, ?{type?: Type, width?: Width} $options = null): array<string>` |
 
 <a id="core-novis-intl-listformat-join"></a>
 #### `Novis\Intl\ListFormat::join`
 
 ```nvs skip
-Novis\Intl\ListFormat::join(array<array<string>> $lists, string $locale, ?{type?: ListType, width?: Width} $options = null): array<string>
+Novis\Intl\ListFormat::join(array<array<string>> $lists, string $locale, ?{type?: Type, width?: Width} $options = null): array<string>
 ```
 
 `ListFormat::join` returns each list as one string, joined with "and" by default.
-`ListType::Or` joins with "or". An empty list gives `""`.
+`Type::Or` joins with "or". An empty list gives `""`.
 
 **Returns** `array<string>`
 
@@ -28905,13 +28905,13 @@ Keywords: format
 
 | Member | Signature |
 |---|---|
-| [`Novis\Intl\RelativeTime::format`](#core-novis-intl-relativetime-format) | `format(array<{count: int, unit: TimeUnit}> $items, string $locale, ?{width?: Width, numeric?: Numeric} $options = null): array<string>` |
+| [`Novis\Intl\RelativeTime::format`](#core-novis-intl-relativetime-format) | `format(array<{count: int, unit: Unit}> $items, string $locale, ?{width?: Width, numeric?: Numeric} $options = null): array<string>` |
 
 <a id="core-novis-intl-relativetime-format"></a>
 #### `Novis\Intl\RelativeTime::format`
 
 ```nvs skip
-Novis\Intl\RelativeTime::format(array<{count: int, unit: TimeUnit}> $items, string $locale, ?{width?: Width, numeric?: Numeric} $options = null): array<string>
+Novis\Intl\RelativeTime::format(array<{count: int, unit: Unit}> $items, string $locale, ?{width?: Width, numeric?: Numeric} $options = null): array<string>
 ```
 
 `RelativeTime::format` returns each item as text. A negative `count` is in the past.
@@ -28962,13 +28962,13 @@ Keywords: collateOrder, sortKeys, formatNumbers, pluralCategories, formatDateTim
 |---|---|
 | [`Novis\Intl\Icu::collateOrder`](#core-novis-intl-icu-collateorder) | `collateOrder(array<string> $strings, string $locale, {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool} $options): array<uint>` |
 | [`Novis\Intl\Icu::sortKeys`](#core-novis-intl-icu-sortkeys) | `sortKeys(array<string> $strings, string $locale, {strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool} $options): array<bytes>` |
-| [`Novis\Intl\Icu::formatNumbers`](#core-novis-intl-icu-formatnumbers) | `formatNumbers(array<string> $numbers, string $locale, {style: NumberStyle, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay} $options): array<string>` |
-| [`Novis\Intl\Icu::pluralCategories`](#core-novis-intl-icu-pluralcategories) | `pluralCategories(array<string> $numbers, string $locale, PluralKind $kind): array<PluralCategory>` |
+| [`Novis\Intl\Icu::formatNumbers`](#core-novis-intl-icu-formatnumbers) | `formatNumbers(array<string> $numbers, string $locale, {style: Style, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay} $options): array<string>` |
+| [`Novis\Intl\Icu::pluralCategories`](#core-novis-intl-icu-pluralcategories) | `pluralCategories(array<string> $numbers, string $locale, Kind $kind): array<Category>` |
 | [`Novis\Intl\Icu::formatDateTimes`](#core-novis-intl-icu-formatdatetimes) | `formatDateTimes(array<{year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string}> $values, string $locale, {length?: Length, seconds?: bool, zone?: ZoneStyle} $options): array<string>` |
 | [`Novis\Intl\Icu::formatDates`](#core-novis-intl-icu-formatdates) | `formatDates(array<Core\Time\Date> $values, string $locale, Length $length): array<string>` |
 | [`Novis\Intl\Icu::formatTimes`](#core-novis-intl-icu-formattimes) | `formatTimes(array<Core\Time\TimeOfDay> $values, string $locale, {seconds?: bool} $options): array<string>` |
-| [`Novis\Intl\Icu::formatRelative`](#core-novis-intl-icu-formatrelative) | `formatRelative(array<{count: int, unit: TimeUnit}> $items, string $locale, {width?: Width, numeric?: Numeric} $options): array<string>` |
-| [`Novis\Intl\Icu::formatLists`](#core-novis-intl-icu-formatlists) | `formatLists(array<array<string>> $lists, string $locale, {type?: ListType, width?: Width} $options): array<string>` |
+| [`Novis\Intl\Icu::formatRelative`](#core-novis-intl-icu-formatrelative) | `formatRelative(array<{count: int, unit: Unit}> $items, string $locale, {width?: Width, numeric?: Numeric} $options): array<string>` |
+| [`Novis\Intl\Icu::formatLists`](#core-novis-intl-icu-formatlists) | `formatLists(array<array<string>> $lists, string $locale, {type?: Type, width?: Width} $options): array<string>` |
 | [`Novis\Intl\Icu::wordSegments`](#core-novis-intl-icu-wordsegments) | `wordSegments(array<string> $strings, string $locale): array<array<{text: string, wordLike: bool}>>` |
 | [`Novis\Intl\Icu::sentenceSegments`](#core-novis-intl-icu-sentencesegments) | `sentenceSegments(array<string> $strings, string $locale): array<array<string>>` |
 | [`Novis\Intl\Icu::resolveLocales`](#core-novis-intl-icu-resolvelocales) | `resolveLocales(array<string> $tags, Service $service): array<string>` |
@@ -29012,7 +29012,7 @@ Returns one sort key for each string. Two keys compare byte by byte in the same 
 #### `Novis\Intl\Icu::formatNumbers`
 
 ```nvs skip
-Novis\Intl\Icu::formatNumbers(array<string> $numbers, string $locale, {style: NumberStyle, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay} $options): array<string>
+Novis\Intl\Icu::formatNumbers(array<string> $numbers, string $locale, {style: Style, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay} $options): array<string>
 ```
 
 Formats numbers, each given as its decimal text, in the style and locale you give.
@@ -29021,7 +29021,7 @@ Formats numbers, each given as its decimal text, in the style and locale you giv
 |---|---|---|
 | `$numbers` | `array<string>` |  |
 | `$locale` | `string` |  |
-| `$options` | `{style: NumberStyle, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay}` |  |
+| `$options` | `{style: Style, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay}` |  |
 
 **Returns** `array<string>`
 
@@ -29029,7 +29029,7 @@ Formats numbers, each given as its decimal text, in the style and locale you giv
 #### `Novis\Intl\Icu::pluralCategories`
 
 ```nvs skip
-Novis\Intl\Icu::pluralCategories(array<string> $numbers, string $locale, PluralKind $kind): array<PluralCategory>
+Novis\Intl\Icu::pluralCategories(array<string> $numbers, string $locale, Kind $kind): array<Category>
 ```
 
 Returns the plural category of each number, each given as its decimal text, in the locale.
@@ -29038,9 +29038,9 @@ Returns the plural category of each number, each given as its decimal text, in t
 |---|---|---|
 | `$numbers` | `array<string>` |  |
 | `$locale` | `string` |  |
-| `$kind` | `PluralKind` |  |
+| `$kind` | `Kind` |  |
 
-**Returns** `array<PluralCategory>`
+**Returns** `array<Category>`
 
 <a id="core-novis-intl-icu-formatdatetimes"></a>
 #### `Novis\Intl\Icu::formatDateTimes`
@@ -29097,14 +29097,14 @@ Formats times of day in the locale.
 #### `Novis\Intl\Icu::formatRelative`
 
 ```nvs skip
-Novis\Intl\Icu::formatRelative(array<{count: int, unit: TimeUnit}> $items, string $locale, {width?: Width, numeric?: Numeric} $options): array<string>
+Novis\Intl\Icu::formatRelative(array<{count: int, unit: Unit}> $items, string $locale, {width?: Width, numeric?: Numeric} $options): array<string>
 ```
 
 Formats amounts of time before or after now, such as "in 3 days". A negative count is in the past.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$items` | `array<{count: int, unit: TimeUnit}>` |  |
+| `$items` | `array<{count: int, unit: Unit}>` |  |
 | `$locale` | `string` |  |
 | `$options` | `{width?: Width, numeric?: Numeric}` |  |
 
@@ -29114,7 +29114,7 @@ Formats amounts of time before or after now, such as "in 3 days". A negative cou
 #### `Novis\Intl\Icu::formatLists`
 
 ```nvs skip
-Novis\Intl\Icu::formatLists(array<array<string>> $lists, string $locale, {type?: ListType, width?: Width} $options): array<string>
+Novis\Intl\Icu::formatLists(array<array<string>> $lists, string $locale, {type?: Type, width?: Width} $options): array<string>
 ```
 
 Joins the items of each list with the words of the locale, such as "a, b and c".
@@ -29123,7 +29123,7 @@ Joins the items of each list with the words of the locale, such as "a, b and c".
 |---|---|---|
 | `$lists` | `array<array<string>>` |  |
 | `$locale` | `string` |  |
-| `$options` | `{type?: ListType, width?: Width}` |  |
+| `$options` | `{type?: Type, width?: Width}` |  |
 
 **Returns** `array<string>`
 
@@ -29735,160 +29735,160 @@ An image file format. `Image::format` sets the format that `encode` writes.
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-image-gravity"></a>
-#### `Novis\Image\Gravity`
+<a id="enum-novis-image-image-gravity"></a>
+#### `Novis\Image\Image::Gravity`
 
 A position in an image, as a direction from the center. `resize` uses it to choose which part of the image it keeps.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-image-fit"></a>
-#### `Novis\Image\Fit`
+<a id="enum-novis-image-image-fit"></a>
+#### `Novis\Image\Image::Fit`
 
 How `resize` fits an image into the width and height you give.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-image-filter"></a>
-#### `Novis\Image\Filter`
+<a id="enum-novis-image-image-filter"></a>
+#### `Novis\Image\Image::Filter`
 
 The filter `resize` uses to calculate the new pixels. The default is `Lanczos3`.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-image-axis"></a>
-#### `Novis\Image\Axis`
+<a id="enum-novis-image-image-axis"></a>
+#### `Novis\Image\Image::Axis`
 
 The direction `flip` mirrors an image in.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-image-blend"></a>
-#### `Novis\Image\Blend`
+<a id="enum-novis-image-image-blend"></a>
+#### `Novis\Image\Image::Blend`
 
 How the pixels of one image are mixed with the pixels of the image below it.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-image-align"></a>
-#### `Novis\Image\Align`
+<a id="enum-novis-image-image-align"></a>
+#### `Novis\Image\Image::Align`
 
 How the lines of a text are aligned.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-image-output"></a>
-#### `Novis\Image\Output`
+<a id="enum-novis-image-image-output"></a>
+#### `Novis\Image\Image::Output`
 
 What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-image-hashkind"></a>
-#### `Novis\Image\HashKind`
+<a id="enum-novis-image-image-hashkind"></a>
+#### `Novis\Image\Image::HashKind`
 
 The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Difference` hash is 16 bytes and an `Average` hash is 32 bytes.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-image-placeholderkind"></a>
-#### `Novis\Image\PlaceholderKind`
+<a id="enum-novis-image-image-placeholderkind"></a>
+#### `Novis\Image\Image::PlaceholderKind`
 
 The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 characters. A `ThumbHash` is base64 text and also keeps transparency.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-image-qrlevel"></a>
-#### `Novis\Image\QrLevel`
+<a id="enum-novis-image-qrcode-level"></a>
+#### `Novis\Image\QrCode::Level`
 
 How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 percent. A higher level makes a bigger code for the same data.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-strength"></a>
-#### `Novis\Intl\Strength`
+<a id="enum-novis-intl-collator-strength"></a>
+#### `Novis\Intl\Collator::Strength`
 
 Which differences between two strings change their order. `Primary` compares letters only. `Secondary` also compares accents, and `Tertiary`, the default, also compares upper and lower case.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-casefirst"></a>
-#### `Novis\Intl\CaseFirst`
+<a id="enum-novis-intl-collator-casefirst"></a>
+#### `Novis\Intl\Collator::CaseFirst`
 
 Whether uppercase or lowercase letters sort first. `Off`, the default, uses the order of the locale.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-numberstyle"></a>
-#### `Novis\Intl\NumberStyle`
+<a id="enum-novis-intl-numberformat-style"></a>
+#### `Novis\Intl\NumberFormat::Style`
 
 How `Icu::formatNumbers` writes a number. Each `NumberFormat` method uses one style.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-currencydisplay"></a>
-#### `Novis\Intl\CurrencyDisplay`
+<a id="enum-novis-intl-numberformat-currencydisplay"></a>
+#### `Novis\Intl\NumberFormat::CurrencyDisplay`
 
 How a currency is written: as its symbol, such as "US$", as its short symbol, such as "$", or as its name. The default is `Symbol`.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-compactdisplay"></a>
-#### `Novis\Intl\CompactDisplay`
+<a id="enum-novis-intl-numberformat-compactdisplay"></a>
+#### `Novis\Intl\NumberFormat::CompactDisplay`
 
 How a compact number is written: "1.2K" is `Short`, the default, and "1.2 thousand" is `Long`.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-pluralkind"></a>
-#### `Novis\Intl\PluralKind`
+<a id="enum-novis-intl-pluralrules-kind"></a>
+#### `Novis\Intl\PluralRules::Kind`
 
 Which plural rules `Icu::pluralCategories` uses: the rules for counting, such as "3 items", or the rules for places, such as "3rd".
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-pluralcategory"></a>
-#### `Novis\Intl\PluralCategory`
+<a id="enum-novis-intl-pluralrules-category"></a>
+#### `Novis\Intl\PluralRules::Category`
 
 A plural category of the locale. `PluralRules` returns these as `Core\Cldr::PluralCategory`.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-length"></a>
-#### `Novis\Intl\Length`
+<a id="enum-novis-intl-dateformat-length"></a>
+#### `Novis\Intl\DateFormat::Length`
 
 How long a formatted date is. The default is `Medium`.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-zonestyle"></a>
-#### `Novis\Intl\ZoneStyle`
+<a id="enum-novis-intl-dateformat-zonestyle"></a>
+#### `Novis\Intl\DateFormat::ZoneStyle`
 
 How a formatted date and time shows its time zone: not at all, as its UTC offset, as a place, or as the name of the zone. The default is `None`.
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-timeunit"></a>
-#### `Novis\Intl\TimeUnit`
+<a id="enum-novis-intl-relativetime-unit"></a>
+#### `Novis\Intl\RelativeTime::Unit`
 
 The unit of an amount of time in `RelativeTime::format`.
 
@@ -29903,24 +29903,24 @@ How many words a formatted text uses. `Wide`, the default, writes words in full.
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-numeric"></a>
-#### `Novis\Intl\Numeric`
+<a id="enum-novis-intl-relativetime-numeric"></a>
+#### `Novis\Intl\RelativeTime::Numeric`
 
 Whether a relative time is always written with a number. `Always`, the default, writes "in 1 day". `Auto` writes "tomorrow".
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-listtype"></a>
-#### `Novis\Intl\ListType`
+<a id="enum-novis-intl-listformat-type"></a>
+#### `Novis\Intl\ListFormat::Type`
 
 The words that join a list: "a, b and c" is `And`, the default, "a, b or c" is `Or`, and `Unit` joins amounts such as "3 feet, 7 inches".
 
 | Case | Meaning |
 |---|---|
 
-<a id="enum-novis-intl-service"></a>
-#### `Novis\Intl\Service`
+<a id="enum-novis-intl-locale-service"></a>
+#### `Novis\Intl\Locale::Service`
 
 The data `Icu::resolveLocales` checks: the rules for sorting, numbers, plurals, dates, relative times, lists or splitting text.
 
@@ -32848,7 +32848,7 @@ and no heading has that name. It searches for the operation instead of the spell
 $ nvs agent find length
 Core\Str::length(string $s): uint
 Core\Bytes::length(bytes $b): uint
-Novis\Intl\Length  enum
+Novis\Intl\DateFormat::Length  enum
 ```
 
 Two functions and an enum, and the card says which function is meant:

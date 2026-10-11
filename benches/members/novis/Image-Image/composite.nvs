@@ -4,7 +4,6 @@
 // bench: complexity constant
 use Novis\Image\Image;
 use Novis\Image\Color;
-use Novis\Image\Gravity;
 
 class Bench {
     public static function run(uint $rounds): uint {

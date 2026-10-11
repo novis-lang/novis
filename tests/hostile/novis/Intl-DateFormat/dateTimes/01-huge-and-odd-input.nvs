@@ -3,8 +3,6 @@
 // calendars and broken locale tags. Each call should return a list or throw an error.
 // hostile: timeout-ms 20000
 use Novis\Intl\DateFormat;
-use Novis\Intl\Length;
-use Novis\Intl\ZoneStyle;
 
 var $zone = Core\Time\Zone::of('Europe/Vienna');
 
@@ -21,7 +19,7 @@ try {
     for (uint $i = 0; $i < 20000; $i++) {
         $values[] = Core\Time::at(2026, 1 + $i % 12, 1 + $i % 28, $zone, { hour: $i % 24, minute: $i % 60 });
     }
-    array<string> $lines = DateFormat::dateTimes($values, 'de', { length: Length::Long, seconds: true, zone: ZoneStyle::Generic });
+    array<string> $lines = DateFormat::dateTimes($values, 'de', { length: DateFormat::Length::Long, seconds: true, zone: DateFormat::ZoneStyle::Generic });
     echo 'step 2 ran ', Core\Arr::count($lines), "\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";
@@ -31,7 +29,7 @@ try {
 try {
     var $early = Core\Time::at(1, 1, 1, Core\Time\Zone::of('UTC'));
     var $late = Core\Time::at(9999, 12, 31, Core\Time\Zone::of('Pacific/Kiritimati'), { hour: 23, minute: 59 });
-    echo 'step 3 ran ', Core\Arr::count(DateFormat::dateTimes([$early, $late], 'en', { zone: ZoneStyle::Offset })), "\n";
+    echo 'step 3 ran ', Core\Arr::count(DateFormat::dateTimes([$early, $late], 'en', { zone: DateFormat::ZoneStyle::Offset })), "\n";
 } catch (Throwable $e) {
     echo "step 3 stopped\n";
 }

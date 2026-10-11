@@ -3,15 +3,14 @@
 use Novis\Image\Codec;
 use Novis\Image\Color;
 use Novis\Image\Image;
-use Novis\Image\Output;
 
 bytes $png = Image::create(500, 500, Color::hex("#336699"))->encode();
 uint $width = 50;
 
 // The first plan returns a PNG file. The second returns only the size of a 50 pixel wide copy.
 array<bytes> $results = Codec::variants({data: $png, autoOrient: true, toSrgb: true}, [
-    {steps: [], overlays: [], output: Output::Encoded},
-    {steps: [{resize: {width: $width}}], overlays: [], output: Output::Size},
+    {steps: [], overlays: [], output: Image::Output::Encoded},
+    {steps: [{resize: {width: $width}}], overlays: [], output: Image::Output::Size},
 ]);
 
 // This prints png and then 50x50.

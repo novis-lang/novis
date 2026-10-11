@@ -1,16 +1,15 @@
 <?nvs
-// Shows how to read the pixels that `Codec::run` returns with `Output::Raw`.
+// Shows how to read the pixels that `Codec::run` returns with `Image::Output::Raw`.
 use Novis\Image\Codec;
 use Novis\Image\Color;
 use Novis\Image\Image;
-use Novis\Image\Output;
 
 bytes $png = Image::create(2, 2, Color::hex("#ff8000"))->encode();
 
 // The result is 16 bytes of size, then four bytes for each pixel: red, green, blue and alpha.
 bytes $result = Codec::run(
     {data: $png, autoOrient: true, toSrgb: true},
-    {steps: [{grayscale: true}], overlays: [], output: Output::Raw}
+    {steps: [{grayscale: true}], overlays: [], output: Image::Output::Raw}
 );
 
 // This prints 32, because 16 + 2 * 2 * 4 is 32.

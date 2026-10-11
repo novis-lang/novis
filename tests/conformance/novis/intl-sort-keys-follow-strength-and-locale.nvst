@@ -3,14 +3,13 @@
 --FILE--
 <?nvs
 use Novis\Intl\Collator;
-use Novis\Intl\Strength;
 
 // One key for each string, and none for an empty list.
 echo Core\Arr::count(Collator::sortKeys(["a", "b", "c"], "en")), " ", Core\Arr::count(Collator::sortKeys([], "en")), "\n";
 
 // Case counts by default, and does not count at `Primary` strength.
 array<bytes> $keys = Collator::sortKeys(["Apple", "apple"], "en");
-array<bytes> $loose = Collator::sortKeys(["Apple", "apple"], "en", {strength: Strength::Primary});
+array<bytes> $loose = Collator::sortKeys(["Apple", "apple"], "en", {strength: Collator::Strength::Primary});
 echo Core\Bytes::compare($keys[0], $keys[1]) == 0 ? "same" : "different", "\n";
 echo Core\Bytes::compare($loose[0], $loose[1]) == 0 ? "same" : "different", "\n";
 

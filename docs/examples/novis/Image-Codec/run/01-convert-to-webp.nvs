@@ -4,7 +4,6 @@ use Novis\Image\Codec;
 use Novis\Image\Color;
 use Novis\Image\Format;
 use Novis\Image\Image;
-use Novis\Image\Output;
 
 bytes $png = Image::create(300, 200, Color::hex("#336699"))->encode();
 
@@ -14,7 +13,7 @@ bytes $webp = Codec::run(
     {
         steps: [{format: {format: Format::Webp, quality: null, progressive: null, lossless: null, effort: null}}],
         overlays: [],
-        output: Output::Encoded,
+        output: Image::Output::Encoded,
     }
 );
 

@@ -5,11 +5,11 @@ Writes dates with their time of day the way a language and region write them, su
 string for each value, in the same order. Each value is written as the clock shows it in its own time
 zone. Two values for the same moment in Vienna and in New York give two different times of day.
 
-The options change what is shown. `length` is `Length::Short`, `Length::Medium` or `Length::Long`,
-and the default is `Length::Medium`. In English, `Length::Short` gives "3/1/26, 9:30 PM" and
-`Length::Long` gives "March 1, 2026 at 9:30 PM". Set `seconds` to `true` to show the seconds. `zone`
-adds the time zone: `ZoneStyle::Offset` adds "GMT+1", `ZoneStyle::Location` adds "Austria Time", and
-`ZoneStyle::Generic` adds "Central European Time". The default is `ZoneStyle::None`, which adds
+The options change what is shown. `length` is `DateFormat::Length::Short`, `DateFormat::Length::Medium` or `DateFormat::Length::Long`,
+and the default is `DateFormat::Length::Medium`. In English, `DateFormat::Length::Short` gives "3/1/26, 9:30 PM" and
+`DateFormat::Length::Long` gives "March 1, 2026 at 9:30 PM". Set `seconds` to `true` to show the seconds. `zone`
+adds the time zone: `DateFormat::ZoneStyle::Offset` adds "GMT+1", `DateFormat::ZoneStyle::Location` adds "Austria Time", and
+`DateFormat::ZoneStyle::Generic` adds "Central European Time". The default is `DateFormat::ZoneStyle::None`, which adds
 nothing.
 
 `DateFormat::dateTimes` throws a `LogicError` when the locale tag is not valid.

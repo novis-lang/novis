@@ -1,6 +1,6 @@
 Returns a short text that a web page can draw as a blurred preview of an image.
 
-`Codec::placeholder` takes an encoded image and a `PlaceholderKind`. It returns the placeholder as a
+`Codec::placeholder` takes an encoded image and an `Image::PlaceholderKind`. It returns the placeholder as a
 string. A `BlurHash` is 28 characters. A `ThumbHash` is base64 text and also keeps transparency. The
 average colour of the preview is the average colour of the image.
 

@@ -1,7 +1,6 @@
 <?nvs
 // Attack: a request builds very long pipelines and pipelines with a broken step in the middle.
 // Each attempt should throw an error or write a file, and the server keeps running.
-use Novis\Image\Axis;
 use Novis\Image\Color;
 use Novis\Image\Format;
 use Novis\Image\Image;
@@ -13,7 +12,7 @@ try {
     Image $image = $small;
     uint $i = 0;
     while ($i < 10000) {
-        $image = $image->flip($i % 2 == 0 ? Axis::Horizontal : Axis::Vertical);
+        $image = $image->flip($i % 2 == 0 ? Image::Axis::Horizontal : Image::Axis::Vertical);
         $i = $i + 1;
     }
     $image->encode();

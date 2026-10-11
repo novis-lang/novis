@@ -3,14 +3,13 @@
 use Novis\Image\Image;
 use Novis\Image\Color;
 use Novis\Image\Format;
-use Novis\Image\Fit;
 
 Image $photo = Image::create(640, 480, Color::hex("#336699"));
 
 // Both entries resize to a 300 by 300 square. Each one has its own format.
 array<bytes> $files = $photo->variants([
-    {width: 300, height: 300, fit: Fit::Cover, format: Format::Webp, quality: 80},
-    {width: 300, height: 300, fit: Fit::Cover, format: Format::Jpeg, quality: 85},
+    {width: 300, height: 300, fit: Image::Fit::Cover, format: Format::Webp, quality: 80},
+    {width: 300, height: 300, fit: Image::Fit::Cover, format: Format::Jpeg, quality: 85},
 ]);
 
 // This prints image/webp 300x300 and image/jpeg 300x300.

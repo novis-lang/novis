@@ -2,7 +2,6 @@
 // Attack: a request formats money with broken currency codes, huge amounts and very large lists.
 // Each call should return a list or throw an error, and the server keeps running.
 // hostile: timeout-ms 20000
-use Novis\Intl\CurrencyDisplay;
 use Novis\Intl\NumberFormat;
 
 // 1. An empty list.
@@ -16,7 +15,7 @@ try {
 array<string> $codes = ['', 'EURO', '€€€', 'eur', 'ZZZ', "E\0R", Core\Str::repeat('A', 100000)];
 foreach ($codes as string $code) {
     try {
-        NumberFormat::currency([1], $code, 'en', { display: CurrencyDisplay::Name });
+        NumberFormat::currency([1], $code, 'en', { display: NumberFormat::CurrencyDisplay::Name });
         echo "step 2 ran\n";
     } catch (Throwable $e) {
         echo "step 2 stopped\n";

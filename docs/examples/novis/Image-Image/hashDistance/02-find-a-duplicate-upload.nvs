@@ -1,6 +1,5 @@
 <?nvs
 // Shows how a shop checks whether a new product photo is already in its catalogue.
-use Novis\Image\HashKind;
 use Novis\Image\Image;
 
 // A pattern of 4 by 4 grey pixels, made 64 by 64 pixels wide, is the saved photo.
@@ -14,7 +13,7 @@ Image $photo = Image::fromRaw({
         "404040ffb0b0b0ff808080ff000000ff"
     ),
 })->resize({ width: 64, height: 64 });
-bytes $saved = Image::hash($photo->encode(), HashKind::Perceptual);
+bytes $saved = Image::hash($photo->encode(), Image::HashKind::Perceptual);
 
 // The first upload is the same photo at a smaller size. The second is a grey image.
 array<bytes> $uploads = [
@@ -25,6 +24,6 @@ array<bytes> $uploads = [
 // A distance of 10 or less out of 64 bits counts as the same photo.
 // This prints "duplicate" and then "new photo".
 foreach ($uploads as bytes $upload) {
-    uint $distance = Image::hashDistance($saved, Image::hash($upload, HashKind::Perceptual));
+    uint $distance = Image::hashDistance($saved, Image::hash($upload, Image::HashKind::Perceptual));
     echo $distance <= 10 ? "duplicate" : "new photo", "\n";
 }

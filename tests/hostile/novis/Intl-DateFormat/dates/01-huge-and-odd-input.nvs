@@ -3,7 +3,6 @@
 // and broken locale tags. Each call should return a list or throw an error.
 // hostile: timeout-ms 20000
 use Novis\Intl\DateFormat;
-use Novis\Intl\Length;
 
 // 1. An empty list.
 try {
@@ -18,7 +17,7 @@ try {
     for (uint $i = 0; $i < 20000; $i++) {
         $dates[] = Core\Time\Date::at($i % 2 == 0 ? 1900 : 2100, 1 + $i % 12, 1 + $i % 28);
     }
-    echo 'step 2 ran ', Core\Arr::count(DateFormat::dates($dates, 'fr', { length: Length::Long })), "\n";
+    echo 'step 2 ran ', Core\Arr::count(DateFormat::dates($dates, 'fr', { length: DateFormat::Length::Long })), "\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";
 }
@@ -26,7 +25,7 @@ try {
 // 3. The first and the last year a date can have, in a calendar that counts years differently.
 try {
     array<Core\Time\Date> $edges = [Core\Time\Date::at(1, 1, 1), Core\Time\Date::at(9999, 12, 31)];
-    echo 'step 3 ran ', Core\Arr::count(DateFormat::dates($edges, 'ja-u-ca-japanese', { length: Length::Long })), "\n";
+    echo 'step 3 ran ', Core\Arr::count(DateFormat::dates($edges, 'ja-u-ca-japanese', { length: DateFormat::Length::Long })), "\n";
 } catch (Throwable $e) {
     echo "step 3 stopped\n";
 }

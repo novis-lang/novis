@@ -19,7 +19,7 @@ echo $again->pixels == $raw->pixels ? "same pixels" : "different pixels", "\n";
 
 // `flip` changes the image. The original pixels stay the same.
 var $flipped = Image::fromRaw({width: 2, height: 1, pixels: Core\Encoding::fromHex("ff0000ff0000ffff")})
-    ->flip(Novis\Image\Axis::Horizontal)
+    ->flip(Novis\Image\Image::Axis::Horizontal)
     ->raw();
 echo Core\Encoding::toHex($flipped->pixels), "\n";
 --EXPECT--

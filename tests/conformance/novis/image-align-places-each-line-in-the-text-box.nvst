@@ -1,9 +1,8 @@
 --TEST--
-`Novis\Image\Align` places each wrapped line of `Image::text` at the left, middle or right of a box as wide as the longest line, and `Image::measureText` returns the same box for every case — rule:core-classes/image-one-entry-point-per-job
+`Novis\Image\Image::Align` places each wrapped line of `Image::text` at the left, middle or right of a box as wide as the longest line, and `Image::measureText` returns the same box for every case — rule:core-classes/image-one-entry-point-per-job
 --FILE--
 <?nvs
-// covers: Novis\Image\Align
-use Novis\Image\Align;
+// covers: Novis\Image\Image::Align
 use Novis\Image\Color;
 use Novis\Image\Font;
 use Novis\Image\Image;
@@ -25,7 +24,7 @@ Font $font = Font::fromBytes(Core\Encoding::fromHex(
 
 class Row {
     // One character per pixel of row 15, the second line: `#` dark, `.` white.
-    public static function draw(Font $font, Align $align): string {
+    public static function draw(Font $font, Image::Align $align): string {
         var $raw = Image::create(24, 20, Color::hex("#ffffff"))
             ->text("Shop Hi", $font, {size: 10.0, color: Color::hex("#000000"), x: 0, y: 0, maxWidth: 24, align: $align})
             ->raw();
@@ -40,8 +39,8 @@ class Row {
     }
 }
 
-array<Align> $aligns = [Align::Left, Align::Center, Align::Right];
-foreach ($aligns as Align $align) {
+array<Image::Align> $aligns = [Image::Align::Left, Image::Align::Center, Image::Align::Right];
+foreach ($aligns as Image::Align $align) {
     var $box = Image::measureText("Shop Hi", $font, {size: 10.0, maxWidth: 24, align: $align});
     echo $box->width, "x", $box->height, " ", Row::draw($font, $align), "\n";
 }

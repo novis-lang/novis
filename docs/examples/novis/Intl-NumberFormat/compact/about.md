@@ -4,8 +4,8 @@ Writes large numbers in a short form, the way a language and region write them.
 English, `1234` is `1.2K` and `1500000` is `1.5M`. A number under one thousand is written as it is.
 Each language has its own short forms, so the locale decides the result.
 
-The `display` option chooses the form. `CompactDisplay::Short` is the default and writes `1.2K`.
-`CompactDisplay::Long` writes the word, such as `1.2 thousand`.
+The `display` option chooses the form. `NumberFormat::CompactDisplay::Short` is the default and writes `1.2K`.
+`NumberFormat::CompactDisplay::Long` writes the word, such as `1.2 thousand`.
 
 `NumberFormat::compact` throws a `RuntimeError` when a float is not finite. It throws a `LogicError`
 when the locale tag is not valid.

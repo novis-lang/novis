@@ -3,9 +3,7 @@
 --FILE--
 <?nvs
 // covers: Novis\Image\Image::composite
-use Novis\Image\Blend;
 use Novis\Image\Color;
-use Novis\Image\Gravity;
 use Novis\Image\Image;
 
 class Look {
@@ -23,7 +21,7 @@ Image $blue = Image::create(2, 2, Color::hex("#0000ff"));
 Image $centred = $red->composite($blue);
 echo Look::at($centred, 0, 0), " ", Look::at($centred, 1, 1), " ", Look::at($centred, 3, 3), "\n";
 
-Image $corner = $red->composite($blue, {gravity: Gravity::SouthEast});
+Image $corner = $red->composite($blue, {gravity: Image::Gravity::SouthEast});
 echo Look::at($corner, 1, 1), " ", Look::at($corner, 3, 3), "\n";
 
 // At -1, -1 only one pixel of the overlay is inside the image.
@@ -39,7 +37,7 @@ echo Look::at($half, 0, 0), "\n";
 
 Image $grey = Image::create(1, 1, Color::hex("#808080"));
 Image $dot = Image::create(1, 1, Color::hex("#ff0000"));
-echo Look::at($grey->composite($dot, {blend: Blend::Multiply}), 0, 0), "\n";
+echo Look::at($grey->composite($dot, {blend: Image::Blend::Multiply}), 0, 0), "\n";
 
 // An overlay that has an overlay of its own keeps it.
 Image $badge = Image::create(2, 2, Color::hex("#00ff00"))->composite(Image::create(1, 1, Color::hex("#ffffff")), {x: 0, y: 0});

@@ -2,33 +2,30 @@
 A relative time is in the past for a negative count and in the future for a positive one, and a list is joined with the locale's words: rule:core-classes/intl-batch-shape rule:core-classes/intl-roster
 --FILE--
 <?nvs
-// covers: Novis\Intl\TimeUnit, Novis\Intl\Width, Novis\Intl\Numeric, Novis\Intl\ListType
+// covers: Novis\Intl\RelativeTime::Unit, Novis\Intl\Width, Novis\Intl\RelativeTime::Numeric, Novis\Intl\ListFormat::Type
 use Novis\Intl\ListFormat;
-use Novis\Intl\ListType;
-use Novis\Intl\Numeric;
 use Novis\Intl\RelativeTime;
-use Novis\Intl\TimeUnit;
 use Novis\Intl\Width;
 
 // A negative count is in the past, and a positive count is in the future.
 var $items = [
-    {count: -3, unit: TimeUnit::Day},
-    {count: 2, unit: TimeUnit::Hour},
-    {count: -1, unit: TimeUnit::Day},
-    {count: 1, unit: TimeUnit::Year},
+    {count: -3, unit: RelativeTime::Unit::Day},
+    {count: 2, unit: RelativeTime::Unit::Hour},
+    {count: -1, unit: RelativeTime::Unit::Day},
+    {count: 1, unit: RelativeTime::Unit::Year},
 ];
 echo Core\Str::join(RelativeTime::format($items, "en"), " | "), "\n";
 
-// `Numeric::Auto` uses a word such as "yesterday" where the language has one.
-echo Core\Str::join(RelativeTime::format($items, "en", {numeric: Numeric::Auto}), " | "), "\n";
-echo Core\Str::join(RelativeTime::format($items, "de", {numeric: Numeric::Auto}), " | "), "\n";
+// `RelativeTime::Numeric::Auto` uses a word such as "yesterday" where the language has one.
+echo Core\Str::join(RelativeTime::format($items, "en", {numeric: RelativeTime::Numeric::Auto}), " | "), "\n";
+echo Core\Str::join(RelativeTime::format($items, "de", {numeric: RelativeTime::Numeric::Auto}), " | "), "\n";
 echo Core\Str::join(RelativeTime::format($items, "en", {width: Width::Short}), " | "), "\n";
 
 // Each list is joined with the words of the locale.
 var $lists = [["Shop", "Blog", "Wiki"], ["Shop", "Blog"], ["Shop"]];
 echo Core\Str::join(ListFormat::join($lists, "en"), " | "), "\n";
 echo Core\Str::join(ListFormat::join($lists, "de"), " | "), "\n";
-echo Core\Str::join(ListFormat::join($lists, "fr", {type: ListType::Or}), " | "), "\n";
+echo Core\Str::join(ListFormat::join($lists, "fr", {type: ListFormat::Type::Or}), " | "), "\n";
 
 // An empty list gives an empty string.
 array<array<string>> $empty = [[]];

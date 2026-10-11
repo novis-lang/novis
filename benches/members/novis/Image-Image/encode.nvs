@@ -5,7 +5,6 @@
 use Novis\Image\Image;
 use Novis\Image\Color;
 use Novis\Image\Format;
-use Novis\Image\Axis;
 
 class Bench {
     public static function run(uint $rounds): uint {
@@ -13,7 +12,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            Axis $axis = ($total + $i) % 2 == 0 ? Axis::Horizontal : Axis::Vertical;
+            Image::Axis $axis = ($total + $i) % 2 == 0 ? Image::Axis::Horizontal : Image::Axis::Vertical;
             $total = $total + Core\Bytes::length(Image::open($png)->flip($axis)->encode()) % 5;
             $i = $i + 1;
         }

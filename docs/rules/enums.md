@@ -214,6 +214,10 @@ The built-in components follow the same rule. In `Novis\Image`, every enum but `
 `NumberFormat::CurrencyDisplay`, `NumberFormat::CompactDisplay`, `PluralRules::Kind`,
 `PluralRules::Category`, `DateFormat::Length`, `DateFormat::ZoneStyle`, `RelativeTime::Unit`,
 `RelativeTime::Numeric`, `ListFormat::Type` and `Locale::Service`. `Width` is shared and stays.
+A manifest names an enum's owner with its `owner` key, and the owner is the manifest's class or a
+class of the component's Novis source. `crates/nvs-ext/tests/manifest.rs` decides here: a source
+class uses an enum when its code names it, and the manifest's own class is not counted, because its
+signatures name every enum the source classes pass through to it.
 
 A published program — an example, an attack, a bench, a website snippet, a reference chapter's
 listing, a template `nvs new` writes — places its enums the same way. An enum two classes share stays

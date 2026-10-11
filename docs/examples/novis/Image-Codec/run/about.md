@@ -6,8 +6,8 @@ Runs one image pipeline on a source and returns the result: the encoded file, th
 shape with exactly one key, which names the operation, for example `{resize: {width: $width}}`. The
 steps run in the order of the list.
 
-`output` chooses what `run` returns. `Output::Encoded` returns the file. `Output::Raw` returns 16 bytes
-of size and then the pixels, four bytes for each pixel. `Output::Size` returns only the 16 bytes of
+`output` chooses what `run` returns. `Image::Output::Encoded` returns the file. `Image::Output::Raw` returns 16 bytes
+of size and then the pixels, four bytes for each pixel. `Image::Output::Size` returns only the 16 bytes of
 size: the width and then the height, each as a 64-bit number.
 
 `Codec::run` throws a `ParseError` when the source is not an image, and an error when a step cannot run

@@ -2,22 +2,19 @@
 `Novis\Image\Image::hash` gives a resized copy a hash near its source and a mirror a hash farther from it, `hashDistance` of a hash with itself is 0, and two hashes of different lengths throw a `LogicError` — rule:core-classes/image-one-entry-point-per-job
 --FILE--
 <?nvs
-// covers: Novis\Image\Image::hash, Novis\Image\Image::hashDistance, Novis\Image\HashKind, Novis\Image\Codec::hash
+// covers: Novis\Image\Image::hash, Novis\Image\Image::hashDistance, Novis\Image\Image::HashKind, Novis\Image\Codec::hash
 use Novis\Image\Image;
 use Novis\Image\Color;
-use Novis\Image\HashKind;
-use Novis\Image\Gravity;
-use Novis\Image\Axis;
 
 // A white picture with a blue block in the top left corner.
 var $block = Image::create(100, 60, Color::hex("#2050c0"));
-var $picture = Image::create(240, 180, Color::hex("#ffffff"))->composite($block, {gravity: Gravity::NorthWest});
+var $picture = Image::create(240, 180, Color::hex("#ffffff"))->composite($block, {gravity: Image::Gravity::NorthWest});
 var $source = $picture->encode();
 var $copy = $picture->resize({width: 120})->encode();
-var $mirror = $picture->flip(Axis::Horizontal)->encode();
+var $mirror = $picture->flip(Image::Axis::Horizontal)->encode();
 
-array<HashKind> $kinds = [HashKind::Perceptual, HashKind::Difference, HashKind::Average];
-foreach ($kinds as HashKind $kind) {
+array<Image::HashKind> $kinds = [Image::HashKind::Perceptual, Image::HashKind::Difference, Image::HashKind::Average];
+foreach ($kinds as Image::HashKind $kind) {
     bytes $hash = Image::hash($source, $kind);
     uint $bits = Core\Bytes::length($hash) * 8;
     uint $near = Image::hashDistance($hash, Image::hash($copy, $kind));
@@ -29,7 +26,7 @@ foreach ($kinds as HashKind $kind) {
 
 // A `Perceptual` hash is 8 bytes and an `Average` hash is 32 bytes.
 try {
-    Image::hashDistance(Image::hash($source, HashKind::Perceptual), Image::hash($source, HashKind::Average));
+    Image::hashDistance(Image::hash($source, Image::HashKind::Perceptual), Image::hash($source, Image::HashKind::Average));
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }

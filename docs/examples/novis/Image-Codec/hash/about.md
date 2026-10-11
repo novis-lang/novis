@@ -1,6 +1,6 @@
 Returns a short hash of an encoded image. Two similar images have hashes that differ in few bits.
 
-`Codec::hash` takes an encoded image and a `HashKind`. It returns the hash as bytes. Each kind has
+`Codec::hash` takes an encoded image and an `Image::HashKind`. It returns the hash as bytes. Each kind has
 its own fixed length: a `Perceptual` hash is 8 bytes, a `Difference` hash is 16 bytes and an
 `Average` hash is 32 bytes. A resized copy of an image has a hash close to the hash of the original.
 

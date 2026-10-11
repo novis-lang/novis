@@ -2,11 +2,9 @@
 // Shows how a larger `sigma` changes pixels further away from an edge.
 use Novis\Image\Image;
 use Novis\Image\Color;
-use Novis\Image\Fit;
-use Novis\Image\Gravity;
 
 Image $edge = Image::create(20, 10, Color::rgba(80, 80, 80))
-    ->resize({width: 20, height: 20, fit: Fit::Contain, gravity: Gravity::North})
+    ->resize({width: 20, height: 20, fit: Image::Fit::Contain, gravity: Image::Gravity::North})
     ->flatten(Color::rgba(180, 180, 180));
 
 // Row 6 is four rows above the edge. This prints its red value.

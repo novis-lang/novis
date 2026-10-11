@@ -1,7 +1,6 @@
 <?nvs
 // Shows how to make keys that are the same for upper and lower case.
 use Novis\Intl\Collator;
-use Novis\Intl\Strength;
 
 array<string> $tags = ["Apple", "apple"];
 
@@ -9,6 +8,6 @@ array<string> $tags = ["Apple", "apple"];
 array<bytes> $keys = Collator::sortKeys($tags, "en");
 echo Core\Bytes::compare($keys[0], $keys[1]) == 0 ? "same" : "different", "\n";
 
-// With `Strength::Primary`, case does not count. This prints same.
-array<bytes> $loose = Collator::sortKeys($tags, "en", {strength: Strength::Primary});
+// With `Collator::Strength::Primary`, case does not count. This prints same.
+array<bytes> $loose = Collator::sortKeys($tags, "en", {strength: Collator::Strength::Primary});
 echo Core\Bytes::compare($loose[0], $loose[1]) == 0 ? "same" : "different", "\n";

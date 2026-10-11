@@ -6,8 +6,8 @@ namespace Novis\Intl;
 final class ListFormat
 {
     /// `ListFormat::join` returns each list as one string, joined with "and" by default.
-    /// `ListType::Or` joins with "or". An empty list gives `""`.
-    public static function join(array<array<string>> $lists, string $locale, ?{type?: ListType, width?: Width} $options = null): array<string>
+    /// `Type::Or` joins with "or". An empty list gives `""`.
+    public static function join(array<array<string>> $lists, string $locale, ?{type?: Type, width?: Width} $options = null): array<string>
     {
         return Icu::formatLists($lists, $locale, $options ?? {});
     }

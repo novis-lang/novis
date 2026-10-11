@@ -3,7 +3,6 @@
 // should return a list or throw an error, and the server keeps running.
 // hostile: timeout-ms 20000
 use Novis\Intl\ListFormat;
-use Novis\Intl\ListType;
 
 // 1. No lists, and a list with no items.
 try {
@@ -18,7 +17,7 @@ try {
     for (int $i = 0; $i < 20000; $i++) {
         $items[] = 'item';
     }
-    echo 'step 2 ran ', Core\Str::length(ListFormat::join([$items], 'fr', { type: ListType::Or })[0]), "\n";
+    echo 'step 2 ran ', Core\Str::length(ListFormat::join([$items], 'fr', { type: ListFormat::Type::Or })[0]), "\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";
 }

@@ -3,7 +3,6 @@
 // bench: iterations 1000
 // bench: complexity constant
 use Novis\Intl\Locale;
-use Novis\Intl\Service;
 
 class Bench {
     public static function run(uint $rounds): uint {
@@ -11,7 +10,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            array<string> $used = Locale::resolve($batches[$total % 2], Service::Dates);
+            array<string> $used = Locale::resolve($batches[$total % 2], Locale::Service::Dates);
             $total = $total + Core\Str::length($used[0]) % 7 + 1;
             $i = $i + 1;
         }

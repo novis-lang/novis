@@ -14,7 +14,7 @@ final class NumberFormat
     public static function decimal(array<int|float|decimal> $numbers, string $locale, ?DigitOptions $options = null): array<string>
     {
         return Icu::formatNumbers(NumberFormat::texts($numbers), $locale, {
-            style: NumberStyle::Decimal,
+            style: Style::Decimal,
             minFractionDigits: $options?->minFractionDigits ?? null,
             maxFractionDigits: $options?->maxFractionDigits ?? null,
             grouping: $options?->grouping ?? null,
@@ -29,7 +29,7 @@ final class NumberFormat
     public static function percent(array<int|float|decimal> $numbers, string $locale, ?DigitOptions $options = null): array<string>
     {
         return Icu::formatNumbers(NumberFormat::texts($numbers), $locale, {
-            style: NumberStyle::Percent,
+            style: Style::Percent,
             minFractionDigits: $options?->minFractionDigits ?? null,
             maxFractionDigits: $options?->maxFractionDigits ?? null,
             grouping: $options?->grouping ?? null,
@@ -44,7 +44,7 @@ final class NumberFormat
     public static function currency(array<int|float|decimal> $amounts, string $currency, string $locale, ?{display?: CurrencyDisplay} $options = null): array<string>
     {
         return Icu::formatNumbers(NumberFormat::texts($amounts), $locale, {
-            style: NumberStyle::Currency,
+            style: Style::Currency,
             minFractionDigits: null,
             maxFractionDigits: null,
             grouping: null,
@@ -59,7 +59,7 @@ final class NumberFormat
     public static function compact(array<int|float|decimal> $numbers, string $locale, ?{display?: CompactDisplay} $options = null): array<string>
     {
         return Icu::formatNumbers(NumberFormat::texts($numbers), $locale, {
-            style: NumberStyle::Compact,
+            style: Style::Compact,
             minFractionDigits: null,
             maxFractionDigits: null,
             grouping: null,

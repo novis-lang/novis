@@ -296,11 +296,13 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         member(&document, r"Novis\Image\Image", "resize")["kind"],
         "instance"
     );
-    let fit = core_enum(&document, r"Novis\Image\Fit");
+    let fit = core_enum(&document, r"Novis\Image\Image::Fit");
     assert_eq!(fit["cases"][0]["name"], "Cover");
-    for name in ["Format", "Gravity", "Filter", "Axis", "Blend"] {
-        core_enum(&document, &format!(r"Novis\Image\{name}"));
+    core_enum(&document, r"Novis\Image\Format");
+    for name in ["Gravity", "Filter", "Axis", "Blend"] {
+        core_enum(&document, &format!(r"Novis\Image\Image::{name}"));
     }
+    core_enum(&document, r"Novis\Image\QrCode::Level");
 }
 
 /// A built-in member's card is its source's `///` run or its manifest's
@@ -329,7 +331,7 @@ fn a_built_in_member_carries_its_card() {
             "Reads the format, the size and the orientation of an encoded image from its header. No pixel is decoded."
         )
     );
-    assert!(short(core_enum(&document, r"Novis\Image\Fit")).is_some());
+    assert!(short(core_enum(&document, r"Novis\Image\Image::Fit")).is_some());
     let class = |name: &str| {
         document["classes"]
             .as_array()

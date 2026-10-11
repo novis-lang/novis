@@ -2,7 +2,6 @@
 // Attack: a request asks `resize` for images far larger than any server can hold.
 // Each attempt should throw an error before the pixels are made, and the server keeps running.
 use Novis\Image\Color;
-use Novis\Image\Fit;
 use Novis\Image\Image;
 
 Image $small = Image::create(4, 4, Color::hex('#ff0000'));
@@ -17,7 +16,7 @@ try {
 
 // 2. A box of the largest whole numbers, stretched to fill it.
 try {
-    $small->resize({ width: 18446744073709551615, height: 18446744073709551615, fit: Fit::Fill, upscale: true })->raw();
+    $small->resize({ width: 18446744073709551615, height: 18446744073709551615, fit: Image::Fit::Fill, upscale: true })->raw();
     echo "step 2 ran\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";
@@ -39,7 +38,7 @@ try {
         $growing = $growing->resize({ width: 64, upscale: true })->resize({ width: 4 });
         $i = $i + 1;
     }
-    var $last = $growing->resize({ width: 100000, height: 100000, fit: Fit::Fill, upscale: true })->raw();
+    var $last = $growing->resize({ width: 100000, height: 100000, fit: Image::Fit::Fill, upscale: true })->raw();
     echo 'step 4 ran ', $last->width, "\n";
 } catch (Throwable $e) {
     echo "step 4 stopped\n";

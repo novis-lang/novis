@@ -3,7 +3,6 @@
 // Each call should return a list or throw an error, and the server keeps running.
 // hostile: timeout-ms 20000
 use Novis\Intl\Collator;
-use Novis\Intl\Strength;
 
 // 1. An empty list.
 try {
@@ -41,7 +40,7 @@ try {
 
 // 5. A locale tag with a broken extension, and every option at once.
 try {
-    Collator::sort(['b', 'a'], 'de-u-co-', { strength: Strength::Identical, numeric: true, ignorePunctuation: true });
+    Collator::sort(['b', 'a'], 'de-u-co-', { strength: Collator::Strength::Identical, numeric: true, ignorePunctuation: true });
     echo "step 5 ran\n";
 } catch (Throwable $e) {
     echo "step 5 stopped\n";

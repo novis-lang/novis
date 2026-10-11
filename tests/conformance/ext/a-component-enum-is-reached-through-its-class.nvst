@@ -1,0 +1,40 @@
+--TEST--
+A built-in component's enum one class uses is declared in that class: `Novis\Image\QrCode::Level` is a type and `QrCode::Level::High` a value, through the full name and through an imported owner, and the manifest's own class takes it by that name — `rule:enums/an-enum-lives-in-the-class-that-uses-it`
+--FILE--
+<?nvs
+// covers: Novis\Image\QrCode::Level, Novis\Image\Image::Fit, Novis\Intl\ListFormat::Type
+use Novis\Image\Codec;
+use Novis\Image\Image;
+use Novis\Image\QrCode;
+use Novis\Intl\ListFormat;
+
+final class Pick {
+    // The owned enum types a parameter and a return.
+    public static function stronger(QrCode::Level $level): Novis\Image\QrCode::Level {
+        return $level == QrCode::Level::Low ? Novis\Image\QrCode::Level::High : $level;
+    }
+}
+
+Novis\Image\QrCode::Level $level = Pick::stronger(QrCode::Level::Low);
+echo match ($level) {
+    QrCode::Level::High => "high",
+    default => "lower",
+}, "\n";
+
+// The class that wraps the component and the component's own class take the same enum.
+var $wrapped = Codec::info(QrCode::render("Shop", {level: $level}));
+var $direct = Codec::info(Codec::qr("Shop", {size: null, margin: null, level: $level, format: null}));
+echo $wrapped->width, "x", $wrapped->height, " ", $direct->width, "x", $direct->height, "\n";
+
+// A case is its integer, and the integer converts back to the case.
+echo Image::Fit::Contain as int, "\n";
+echo ((1 as ?Image::Fit) == Novis\Image\Image::Fit::Contain) as string, "\n";
+
+// An owner whose enum was renamed takes the new name: `ListFormat::Type`.
+echo Core\Str::join(ListFormat::join([["Shop", "Blog"]], "en", {type: ListFormat::Type::Or}), ""), "\n";
+--EXPECT--
+high
+256x256 256x256
+1
+1
+Shop or Blog

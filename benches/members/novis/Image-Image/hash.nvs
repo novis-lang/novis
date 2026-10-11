@@ -2,7 +2,6 @@
 // Hashes a small encoded image, as a program does when it checks an upload for copies.
 // bench: iterations 256
 // bench: complexity constant
-use Novis\Image\HashKind;
 use Novis\Image\Image;
 use Novis\Image\Color;
 
@@ -13,9 +12,9 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Each round makes all three kinds of hash, so every round does the same work.
-            $total = $total + Core\Bytes::length(Image::hash($photo, HashKind::Perceptual));
-            $total = $total + Core\Bytes::length(Image::hash($photo, HashKind::Difference));
-            $total = $total + Core\Bytes::length(Image::hash($photo, HashKind::Average));
+            $total = $total + Core\Bytes::length(Image::hash($photo, Image::HashKind::Perceptual));
+            $total = $total + Core\Bytes::length(Image::hash($photo, Image::HashKind::Difference));
+            $total = $total + Core\Bytes::length(Image::hash($photo, Image::HashKind::Average));
             $i = $i + 1;
         }
         return $total;

@@ -5,7 +5,7 @@ as `"de"` or `"sv-SE"`. In German, `ä` sorts next to `a`. In Swedish, `ä` sort
 strings keep the order they had in the list.
 
 The options change how strings compare. `strength` sets which differences count: with
-`Strength::Primary`, case and accents do not count. `caseFirst` puts upper case or lower case first.
+`Collator::Strength::Primary`, case and accents do not count. `caseFirst` puts upper case or lower case first.
 `numeric` sorts digits by their value, so `"9"` comes before `"10"`. `ignorePunctuation` skips spaces
 and punctuation.
 

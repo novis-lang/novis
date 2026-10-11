@@ -16,7 +16,7 @@ describe("the roster's paths for a built-in component's class", () => {
     expect(path("Novis\\Image\\Color::hex")).toBe("novis/Image-Color/hex");
     expect(path("Novis\\Image\\Codec::info")).toBe("novis/Image-Codec/info");
     expect(path("Core\\Str::length")).toBe("core/Str/length");
-    expect(entries.find((e) => e.id === "Novis\\Image\\Fit")?.path).toBe("types/Novis-Image-Fit");
+    expect(entries.find((e) => e.id === "Novis\\Image\\Image::Fit")?.path).toBe("types/Novis-Image-Image-Fit");
     expect(entries.filter((e) => e.kind === "member" && e.id.startsWith("Novis\\")).every((e) => e.path.startsWith("novis/"))).toBe(true);
   }, 120_000);
 });

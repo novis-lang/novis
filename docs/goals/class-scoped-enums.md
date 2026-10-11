@@ -52,7 +52,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 8
     title: "the built-in components' enums move too"
-    status: open
+    status: done
     extra:
       context:
         rules: [enums/an-enum-lives-in-the-class-that-uses-it]
@@ -525,34 +525,30 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 7 are done. Every `Core` enum is at its place, the last two being `Core\Db\DbError::Kind` and `Core\Ldap\LdapError::Kind`. Stage 8, the built-in components, is next.**
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 8 are done. Every `Core` and built-in component enum is at its place. Stage 9, the published programs, is next.**
 
-- `CoreEnum::name` is `Core\Arr::Order` for an owned enum, and `CoreEnum::owner()` and `short_name()` read it. The checker finds a `Core` owner's enum through `lower::owned_enum` (`crates/nvs-types/src/lower.rs:521`), because `Core` declares nothing in the symbol table.
-- `crates/nvs-stdlib/tests/enum_owners.rs` decides placement. Its `NOT_YET_MOVED` list is gone, and its `walk` now reads a settings shape's fields too. That walk showed `Core\Db\Driver` shared by `Db` and `Db\Connection`, and `Core\Db\Isolation` shared by `Db\Connection` and `Db\Transaction`. Both stay, and the fragment's and this goal's tables say so.
-- An error class has no `CLASSES` row, so `enum_owners.rs` reads its use from a table, `ERROR_PROPERTIES`, of `(error class, property, enum)`. A fourth test holds each row against `nvs_hir::errors::own_properties` and `ENUMS`, through a new `nvs-hir` dev-dependency of `nvs-stdlib`. An error-class owner resolves through `lower::owned_enum` like a registry class: the Db and Ldap conformance cases pass.
-- An error class has no class stub, so `crates/nvs-lsp/src/stubs.rs`'s `error_class_stub` writes one with only its declaration line and its enums.
-- `docs/spec/01-core-library.md`'s Db enum block still said `ColumnType` and `Tls` after their slices. It now writes `Column::Type`, `Db::Tls` and `DbError::Kind`.
-- A slice is mechanical. Rename the relative form (`Mime\Type` → `Mime::Type`), which also covers `Core\…` and the doubled-backslash Rust and JSON strings, across every tracked file but `docs/rules/enums*`, `docs/goals/`, `docs/agent/playbook*` and `enum_owners.rs`. A reject case's `--> case.nvs:L:C` columns move by the one character `::` adds over `\`, and only the conformance run shows it. Then `git mv` the proof directory to `docs/examples/types/<classTail>/` (`tools/nv/proofs/roster.ts:79`) and add one sentence to its `about.md` naming the declaring class. Then `cargo build` and `bun nv site --stamp syntax/values/enums.mdx --nvs target/debug/nvs.exe`: the stamp needs the new binary. `bun nv proofs --verify --no-perf --nvs target/debug/nvs.exe --group 'Core\Mime'` checks a touched class's examples.
-- A small bun script under `.agent-tmp/` does the rename: for each tracked file outside the exclusions, replace `(?<![A-Za-z0-9_])Ns\\{1,2}Name(?![A-Za-z0-9_])` with the new form. `git ls-files` needs a large `maxBuffer` in `execFileSync`. A text may also name the enum without `Core\` (`Script\ExitReason` in a rule fragment and in `docs/spec/01-core-library.md`), so a second pass renames that form, then `bun nv rules --render` and `bun nv render` rewrite the generated copies.
-- A program that imported the old name (`use Core\Queue\State;`) is refused after the rename, because a member is not imported. Drop that `use`, import the owner, and write `Queue::State::Pending` where the code wrote `State::Pending`. `nvs.toml`'s `[[app]] root` lines name proof directories and move with a `git mv`.
-- Read the owner's real name from the registry before renaming: the goal's own table once said `Core\DateTime::Weekday`, and the class is `Core\Time\DateTime`. The fragment's table (`docs/rules/enums/an-enum-lives-in-the-class-that-uses-it.md:19`) was right.
-- Several slices in one session share `docs/novis.md`, `docs/spec/01-core-library.md`, `website/src/data/core.json` and `enum_owners.rs`. Do the slices in order, and after each one's conformance cases pass, `git add -A -- . ':!website/site.lock.json' ':!website/src/content/docs/syntax/values/enums.mdx'` and `git write-tree`. At commit time `git read-tree <tree>` then `git commit -F` for each slice, and the last slice commits everything with the stamp.
-- `tests/hostile/core/IO/write/01-bad-paths-escapes-and-large-content.nvs` fails under the debug binary on Windows: step 2 writes one of its "not a file" paths. The file names no enum and `io.rs` changed only in spelling. Which path is written, and whether HEAD fails too, is not checked.
-- `nvs agent show` matches the exact symbol first, so an enum may share a word with a method of its owner (`Core\Xml\Node::Kind` and `kind`, `Core\Env::Mode` and `mode`).
-- Under the debug binary `tests/hostile/core/Response/redirect/01-addresses-that-try-to-split-the-response.nvs` runs about 13 seconds alone and timed out at 10 in a parallel `proofs --verify`. Its change was the spelling only. Whether it was as slow before is not checked.
-- The website's `website/src/data/core.json` is stale for reasons this goal did not cause. The `lang:enums/core-enums` bench is marked perf-stale.
+- A manifest enum names its owner with an `owner` key, relative to the component's namespace (`crates/nvs-ext/src/manifest.rs`, `Enum::owner`). `Manifest::enum_name` gives the full name, `Novis\Image\QrCode::Level`, and `nvs_types::ext_lib::enum_name`, `nvs meta` and the enum table all read it. A signature still writes the enum by its short `name`, so a manifest's type names stay unique across owners.
+- The owner is the manifest's class or a class of the component's source, found by its path (`Image.nvs` declares `Image`). `Manifest::check_owners` is that check. `Manifest::parse` has no source, so the loader's `check` and `pack` run it.
+- `nvs_hir::owned_enum` (`crates/nvs-hir/src/resolve.rs:312`) also accepts an extension class under the member key. That one change resolves both `Image::Fit::Cover` from outside and a bare `Fit` inside `Image.nvs`.
+- `crates/nvs-ext/tests/manifest.rs`'s `every_component_enum_one_class_uses_is_owned_by_it` decides placement for components. It reads each `extensions/*/nvs/*.nvs` with comments and strings removed, and does not count the manifest's own class. It agreed with the goal's table before any rename.
+- Six enums lost their owner's word: `QrCode::Level`, `NumberFormat::Style`, `PluralRules::Kind`, `PluralRules::Category`, `RelativeTime::Unit` and `ListFormat::Type`. The WIT names in `extensions/*/src/lib.rs` keep the old words, because a case crosses by its position and the loader compares cases only.
+- `docs/novis.md` is written by `bun nv reference --no-examples`, not by `bun nv render`.
+- `website/src/data/core.json` still names the old component enums. It was already stale for reasons this goal did not cause.
+- `tests/hostile/core/IO/write/01-bad-paths-escapes-and-large-content.nvs` fails under the debug binary on Windows, and `tests/hostile/core/Response/redirect/01-addresses-that-try-to-split-the-response.nvs` runs about 13 seconds under it. Neither names an enum. Whether HEAD behaves the same is not checked.
+- `nvs agent show` matches the exact symbol first, so an enum may share a word with a method of its owner (`Core\Xml\Node::Kind` and `kind`).
 
 Both rules stay `designed`. `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
 
 ### Next
 
-**Stage 8, the manifest learns an enum's owner** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file set is `crates/nvs-ext/src/manifest.rs`, `crates/nvs-types/src/ext_lib.rs` and the two `extensions/*/manifest.json`.
+**Stage 9, the class body is where a program's enum goes** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file set is `docs/reference/lang/55-enums.md`, `website/src/content/docs/syntax/values/enums.mdx` and the published programs `git grep -l -E "^enum [A-Z]"` lists under `docs/examples`, `tests/hostile`, `benches/members`, `website/snippets`, `examples`, `crates/nvs-cli` and `editors` (110 files).
 
-- [ ] Decide what an owner is first. A manifest declares one class, `Novis\Image\Codec` (`extensions/image/manifest.json:4`) or `Novis\Intl\Icu` (`extensions/intl/manifest.json:4`), and its enums (`extensions/image/manifest.json:79`, `extensions/intl/manifest.json:136`). The owners the table names (`Image`, `QrCode`, `Collator`, …) are Novis source under `extensions/*/nvs/`, not manifest classes. The check `an_enum_owner_the_manifest_does_not_declare_is_refused` reads "declare" narrowly. Not checked: whether a `.nvs` class counts as declared by the manifest.
-- [ ] Give `Enum` an optional `owner` (`crates/nvs-ext/src/manifest.rs:228`), and key an owned enum under `Owner::Name` in `declared_name` (`crates/nvs-types/src/ext_lib.rs:130`). Pin it with the three `manifest` tests the Stage 8 check names.
-- [ ] Then the `Novis\Image` renames, one slice, with the same rename script shape as Stage 7. The enums' users are in `extensions/image/nvs/Image.nvs:1` and `extensions/image/nvs/QrCode.nvs:1`.
+- [ ] The reference chapter first: `docs/reference/lang/55-enums.md:8` (`# Declaring an enum`) shows the class-scoped form first and the file-scope form as the shared case. Then `docs/reference/lang/50-classes.md`'s *Nested classes* names the enum as the one exception.
+- [ ] The website pages `website/src/content/docs/syntax/values/enums.mdx:17` and `website/snippets/guides/tour/06-enums-and-match.nvs:3`, then `bun nv site --stamp syntax/values/enums.mdx --nvs target/debug/nvs.exe`.
+- [ ] The published programs, one tree per slice, starting at `examples/enums.nvs:2`. Each enum one class uses moves into it, and a shared one stays with one line saying so. `bun nv proofs --verify --only lang:enums/...` (the Stage 9 check) runs them.
 
 ### Backlog
 
 - A bare `Status::` in **type** position inside the owner does not complete the cases. Value position works through `owned_named` (`crates/nvs-lsp/src/completion.rs`).
-- Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs (this goal's file).
+- `nvsx.toml`'s `[[enums]]` table has no `owner` key yet (`crates/nvs-cli/src/ext/nvsx_toml.rs:216`), so a third-party extension cannot own an enum. Owner: `rule:enums/an-enum-lives-in-the-class-that-uses-it`.
+- Stage 10: the feature proofs (this goal's file).

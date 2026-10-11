@@ -2,9 +2,7 @@
 `Novis\Intl\NumberFormat` writes decimals, percentages, money and compact numbers by the locale's rules, and a float that is not finite throws: rule:core-classes/intl-batch-shape
 --FILE--
 <?nvs
-// covers: Novis\Intl\CurrencyDisplay, Novis\Intl\CompactDisplay
-use Novis\Intl\CompactDisplay;
-use Novis\Intl\CurrencyDisplay;
+// covers: Novis\Intl\NumberFormat::CurrencyDisplay, Novis\Intl\NumberFormat::CompactDisplay
 use Novis\Intl\NumberFormat;
 
 // English groups digits with a comma. German uses a period, and a comma before the fraction.
@@ -24,11 +22,11 @@ echo Core\Str::join(NumberFormat::percent([0.25, 1, -0.125], "en"), " | "), "\n"
 // `currency` rounds to the digits the currency uses: 2 for dollars, none for yen.
 echo Core\Str::join(NumberFormat::currency([1234.5, 3], "USD", "en"), " | "), "\n";
 echo Core\Str::join(NumberFormat::currency([1234.5], "JPY", "en"), " | "), "\n";
-echo Core\Str::join(NumberFormat::currency([2], "USD", "en", {display: CurrencyDisplay::Name}), " | "), "\n";
+echo Core\Str::join(NumberFormat::currency([2], "USD", "en", {display: NumberFormat::CurrencyDisplay::Name}), " | "), "\n";
 
 // `compact` writes large numbers in a short form.
 echo Core\Str::join(NumberFormat::compact([1234, 1500000, 999], "en"), " | "), "\n";
-echo Core\Str::join(NumberFormat::compact([1234], "en", {display: CompactDisplay::Long}), " | "), "\n";
+echo Core\Str::join(NumberFormat::compact([1234], "en", {display: NumberFormat::CompactDisplay::Long}), " | "), "\n";
 
 // A float that is not finite throws a `RuntimeError`.
 try {

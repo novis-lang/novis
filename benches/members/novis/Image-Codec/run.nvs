@@ -5,7 +5,6 @@
 use Novis\Image\Codec;
 use Novis\Image\Color;
 use Novis\Image\Image;
-use Novis\Image\Output;
 
 class Bench {
     public static function run(uint $rounds): uint {
@@ -16,7 +15,7 @@ class Bench {
             uint $width = 1 + $total % 8;
             bytes $size = Codec::run(
                 {data: $png, autoOrient: true, toSrgb: true},
-                {steps: [{resize: {width: $width}}], overlays: [], output: Output::Size}
+                {steps: [{resize: {width: $width}}], overlays: [], output: Image::Output::Size}
             );
             array<mixed> $numbers = Core\Bytes::unpack($size, "JJ");
             $total = $total + ($numbers[0] as uint);

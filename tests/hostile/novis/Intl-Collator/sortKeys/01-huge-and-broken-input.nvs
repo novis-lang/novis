@@ -3,7 +3,6 @@
 // Each call should return keys or throw an error, and the server keeps running.
 // hostile: timeout-ms 20000
 use Novis\Intl\Collator;
-use Novis\Intl\Strength;
 
 // 1. An empty list and an empty string.
 try {
@@ -26,7 +25,7 @@ try {
 // 3. One string of one hundred thousand characters, with the longest keys.
 try {
     array<string> $long = [Core\Str::repeat('éA', 50000)];
-    echo 'step 3 ran ', Core\Arr::count(Collator::sortKeys($long, 'fr', { strength: Strength::Identical })), "\n";
+    echo 'step 3 ran ', Core\Arr::count(Collator::sortKeys($long, 'fr', { strength: Collator::Strength::Identical })), "\n";
 } catch (Throwable $e) {
     echo "step 3 stopped\n";
 }

@@ -6,9 +6,9 @@ locale decides the words and the commas. In English, the list `["Shop", "Blog", 
 Blog, and Wiki". In German, it gives "Shop, Blog und Wiki". A list with one item gives that item, and
 an empty list gives `""`.
 
-The options change the joining word. `type: ListType::Or` joins with "or", as in "Shop, Blog, or
-Wiki". `type: ListType::Unit` joins measurements, such as "3 kg, 200 g", with no "and". The default is
-`ListType::And`. `width: Width::Short` and `Width::Narrow` use shorter forms where the language has
+The options change the joining word. `type: ListFormat::Type::Or` joins with "or", as in "Shop, Blog, or
+Wiki". `type: ListFormat::Type::Unit` joins measurements, such as "3 kg, 200 g", with no "and". The default is
+`ListFormat::Type::And`. `width: Width::Short` and `Width::Narrow` use shorter forms where the language has
 them. In English, `Width::Short` gives "Shop, Blog, & Wiki".
 
 `ListFormat::join` throws a `LogicError` when the locale tag is not valid.
