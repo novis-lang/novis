@@ -1,0 +1,18 @@
+--TEST--
+an enum a class declares is one of the class's members, so the outline nests it under the class with its cases under it, in the order they were written, `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+namespace Shop;
+class Order {
+    enum Status { Draft, Paid }
+    public Status $status = Status::Draft;
+}
+--REQUEST--
+documentSymbol
+--EXPECT--
+Shop namespace
+Order class
+  Status enum
+    Draft enumMember
+    Paid enumMember
+  $status property

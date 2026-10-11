@@ -117,8 +117,8 @@ use nvs_types::{ExprInfo, ResolvedCall, TypeInterner};
 use crate::card::{core_member_hover, core_type_hover, namespace_card};
 use crate::completion_files::CompletionFiles;
 use crate::definition::{
-    Target, attribute_at, clause_at, import_at, payload_path, site, target_of, type_name_at,
-    written_class_name_at,
+    Target, attribute_at, clause_at, import_at, payload_path, site, target_of, type_member_at,
+    type_name_at, written_class_name_at,
 };
 use crate::document::Analysed;
 use crate::position::range_at;
@@ -146,6 +146,7 @@ pub fn at(
         .or_else(|| written_class_name(analysed, offset))
         .or_else(|| path_argument(analysed, offset))
         .or_else(|| file_value(analysed, files, offset))
+        .or_else(|| name(analysed, type_member_at(analysed, offset)?, offset))
         .or_else(|| name(analysed, type_name_at(analysed, offset)?, offset))
         .or_else(|| answer_in(analysed, &nodes, offset))
         .or_else(|| answer_in(analysed, &payload_path(analysed, offset), offset))
@@ -421,6 +422,7 @@ fn answer_in(analysed: &Analysed, nodes: &[Span], offset: BytePos) -> Option<(St
                 written(analysed, &target, *node, offset, receiver)
                     .or_else(|| core(analysed, &target))
                     .or_else(|| extension(analysed, &target))
+                    .or_else(|| owned_enum(analysed, &target))
                     .or_else(|| run(analysed, &target))
                     .or_else(|| enclosing_run(analysed, &target))
             })
@@ -555,8 +557,26 @@ fn name(
 ) -> Option<(String, Span)> {
     let value = written(analysed, &target, span, offset, false)
         .or_else(|| core(analysed, &target))
+        .or_else(|| owned_enum(analysed, &target))
         .or_else(|| run(analysed, &target))?;
     Some((value, span))
+}
+
+/// An enum a class or interface body declares, as a line naming it with its
+/// owner and then its `///` run, and `None` for every other target.
+///
+/// The owner is part of the enum's name (`rule:enums/class-scoped-enum`), and
+/// a bare `Status` inside the class does not show it, so the line does.
+fn owned_enum(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
+    let Target::Type(class) = target else {
+        return None;
+    };
+    class.as_member()?;
+    let line = format!("```nvs\nenum {class}\n```");
+    Some(match run(analysed, target) {
+        Some(doc) => format!("{line}\n\n{doc}"),
+        None => line,
+    })
 }
 
 /// The answer for a cursor on the **written** name inside `node` rather than

@@ -203,23 +203,36 @@ fn members(
     members
         .iter()
         .filter_map(|member| {
-            let (name, kind) = match &member.kind {
-                ClassMemberKind::Property(property) => (property.name, SymbolKind::PROPERTY),
-                ClassMemberKind::Const(declared) => (declared.name, SymbolKind::CONSTANT),
-                ClassMemberKind::Method(method) => (method.name, SymbolKind::METHOD),
+            let (name, kind, children) = match &member.kind {
+                ClassMemberKind::Property(property) => {
+                    (property.name, SymbolKind::PROPERTY, Vec::new())
+                }
+                ClassMemberKind::Const(declared) => {
+                    (declared.name, SymbolKind::CONSTANT, Vec::new())
+                }
+                ClassMemberKind::Method(method) => (method.name, SymbolKind::METHOD, Vec::new()),
                 // A `type` alias a body owns takes the kind the file-scope
                 // form takes, for the reason given where that one is built:
                 // LSP names none for an alias, and an outline that left the
                 // member out would leave `Owner::Name` unreachable from the
                 // file's own shape.
-                ClassMemberKind::TypeAlias(alias) => (alias.name.span, SymbolKind::TYPE_PARAMETER),
+                ClassMemberKind::TypeAlias(alias) => {
+                    (alias.name.span, SymbolKind::TYPE_PARAMETER, Vec::new())
+                }
+                // An enum a body owns is outlined as a file-scope one is, its
+                // cases nested under it (`rule:enums/class-scoped-enum`).
+                ClassMemberKind::Enum(decl) => (
+                    decl.name.span,
+                    SymbolKind::ENUM,
+                    enum_body(decl, file, encoding),
+                ),
                 // `Error` is recovery, and the wildcard is what
                 // `ClassMemberKind` being `#[non_exhaustive]` asks for: a
                 // member shape this crate has not heard of shows nothing
                 // rather than stopping the outline.
                 _ => return None,
             };
-            symbol(file, encoding, name, member.span, kind, Vec::new())
+            symbol(file, encoding, name, member.span, kind, children)
         })
         .collect()
 }

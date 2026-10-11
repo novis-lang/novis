@@ -1,0 +1,16 @@
+--TEST--
+inside its class an owned enum is written by its bare name, so a bare `Status::` in a method body offers its cases, `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+class Order {
+    enum Status { Draft = 1, Paid = 2 }
+
+    public function first(): int {
+        return Status::<|>
+    }
+}
+--REQUEST--
+completion
+--EXPECT--
+Draft = 1 enumMember
+Paid = 2 enumMember

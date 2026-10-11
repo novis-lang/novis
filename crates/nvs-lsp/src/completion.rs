@@ -335,8 +335,8 @@ use serde_json::{Value, json};
 
 use crate::completion_files::{self, CompletionFiles};
 use crate::definition::{
-    ClassBound, declared_type, imports_of, namespace_at, resolved_name, supertype_names, text_of,
-    written_class_name,
+    ClassBound, class_at, declared_type, imports_of, namespace_at, owned_enum_decl, resolved_name,
+    supertype_names, text_of, written_class_name,
 };
 use crate::document::Analysed;
 use crate::index::{DeclKind, Declaration, SymbolIndex};
@@ -2557,7 +2557,23 @@ fn named_class(analysed: &Analysed, access: IndexNode, receiver: Span) -> Option
         .text()
         .get(receiver.range())?;
     class_word(analysed, text, receiver.start)
+        .or_else(|| owned_named(analysed, text, receiver.start))
         .or_else(|| resolved_name(analysed, text, receiver.start))
+}
+
+/// The enum a class body declares that `text`, written at `at`, names:
+/// `Owner::Name` from anywhere, or a bare `Name` inside its owner
+/// (`rule:enums/class-scoped-enum`).
+fn owned_named(analysed: &Analysed, text: &str, at: BytePos) -> Option<QName> {
+    let symbols = &analysed.module.symbols;
+    match text.rsplit_once("::") {
+        Some((owner, name)) => {
+            let owner =
+                class_word(analysed, owner, at).or_else(|| resolved_name(analysed, owner, at))?;
+            nvs_hir::owned_enum(&owner, name, symbols)
+        }
+        None => nvs_hir::owned_enum_in_scope(text, class_at(analysed, at).as_ref(), symbols),
+    }
 }
 
 /// The class `word` names where it is one of [`CLASS_WORDS`] written at `at`:
@@ -2652,7 +2668,7 @@ fn type_members_of(cursor: &Cursor<'_>, owner: &QName) -> Vec<CompletionItem> {
 /// spelled once.
 fn declared_type_members(cursor: &Cursor<'_>, owner: &QName) -> Vec<CompletionItem> {
     let Some((stmt, file)) = declared_type(cursor.analysed, owner) else {
-        return Vec::new();
+        return owned_cases(cursor, owner, Reach::Static);
     };
     let (members, cases): (&[ClassMember], &[EnumCase]) = match &stmt.kind {
         StmtKind::ClassDecl(decl) => (&decl.members, &[]),
@@ -2670,7 +2686,7 @@ fn declared_type_members(cursor: &Cursor<'_>, owner: &QName) -> Vec<CompletionIt
                 CompletionItemKind::TYPE_PARAMETER,
                 text_of(file, alias.ty.span).to_owned(),
             )),
-            ClassMemberKind::Const(_) => {
+            ClassMemberKind::Const(_) | ClassMemberKind::Enum(_) => {
                 declared_member(cursor, file, &owner, member, Reach::Static)
             }
             _ => None,
@@ -2729,33 +2745,13 @@ fn recorded_ty(info: &ExprInfo) -> Option<TypeId> {
 /// them.
 fn declared_members(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<CompletionItem> {
     let Some((stmt, file)) = declared_type(cursor.analysed, class) else {
-        return Vec::new();
+        return owned_cases(cursor, class, reach);
     };
     let owner = class.to_string();
     let members: &[ClassMember] = match &stmt.kind {
         StmtKind::ClassDecl(decl) => &decl.members,
         StmtKind::InterfaceDecl(decl) => &decl.members,
-        // An enum declares its cases and nothing else
-        // (`rule:enums/no-class-machinery`), and a case is reached off the
-        // enum's own name — so one of its values reaches nothing at all.
-        StmtKind::EnumDecl(decl) => {
-            return match reach {
-                Reach::Static => decl
-                    .cases
-                    .iter()
-                    .map(|case| {
-                        let name = text_of(file, case.name.span).to_owned();
-                        tagged(
-                            cursor,
-                            class,
-                            Member::Case(name),
-                            enum_case(file, &owner, case),
-                        )
-                    })
-                    .collect(),
-                Reach::Instance => Vec::new(),
-            };
-        }
+        StmtKind::EnumDecl(decl) => return enum_cases(cursor, class, file, &decl.cases, reach),
         // A type alias has a body of no members.
         _ => return Vec::new(),
     };
@@ -2778,6 +2774,46 @@ fn declared_members(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<Com
                 _ => return Some(item),
             };
             Some(tagged(cursor, class, key, item))
+        })
+        .collect()
+}
+
+/// The cases of the enum a class body declares under the key `class`, and
+/// nothing for a key no body declares (`rule:enums/class-scoped-enum`).
+fn owned_cases(cursor: &Cursor<'_>, class: &QName, reach: Reach) -> Vec<CompletionItem> {
+    let Some((_, decl)) = owned_enum_decl(cursor.analysed, class) else {
+        return Vec::new();
+    };
+    let file = cursor.analysed.map.file(decl.name.span.file);
+    enum_cases(cursor, class, file, &decl.cases, reach)
+}
+
+/// The rows an enum's name offers after `::`.
+///
+/// An enum declares its cases and nothing else
+/// (`rule:enums/no-class-machinery`), and a case is reached off the enum's own
+/// name, so one of its values reaches nothing at all.
+fn enum_cases(
+    cursor: &Cursor<'_>,
+    class: &QName,
+    file: &SourceFile,
+    cases: &[EnumCase],
+    reach: Reach,
+) -> Vec<CompletionItem> {
+    if reach == Reach::Instance {
+        return Vec::new();
+    }
+    let owner = class.to_string();
+    cases
+        .iter()
+        .map(|case| {
+            let name = text_of(file, case.name.span).to_owned();
+            tagged(
+                cursor,
+                class,
+                Member::Case(name),
+                enum_case(file, &owner, case),
+            )
         })
         .collect()
 }
@@ -2856,6 +2892,13 @@ fn declared_member(
                 .as_ref()
                 .map(|ty| text_of(file, ty.span).to_owned()),
         )),
+        // An owned enum is reached after `Owner::`, in a type and in front of
+        // its own `::` in a value (`rule:enums/class-scoped-enum`).
+        ClassMemberKind::Enum(decl) if statics => {
+            let name = text_of(file, decl.name.span).to_owned();
+            let symbol = format!("{owner}::{name}");
+            Some(named_type(name, CompletionItemKind::ENUM, symbol))
+        }
         _ => None,
     }
 }

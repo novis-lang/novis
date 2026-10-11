@@ -518,7 +518,7 @@ fn sources() -> Vec<Source> {
 ///
 /// An extension class's members are read from its manifest, the one the
 /// checker seeded the class's signatures from (`Analysed::extensions`).
-const SOURCED: [(&str, &str); 38] = [
+const SOURCED: [(&str, &str); 40] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -551,6 +551,8 @@ const SOURCED: [(&str, &str); 38] = [
     ("declared_members", "declared_type("),
     ("declared_member", "Modifier::Static"),
     ("enum_case", "case.value"),
+    ("enum_cases", "Member::Case("),
+    ("owned_cases", "owned_enum_decl("),
     ("core_members", "&CoreClass"),
     ("core_member", "&CoreMethod"),
     ("core_constant", "&CoreConst"),

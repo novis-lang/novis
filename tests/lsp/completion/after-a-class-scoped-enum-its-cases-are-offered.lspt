@@ -1,0 +1,15 @@
+--TEST--
+an owned enum written through its class before `::` offers the cases it declares, each with its value, as a file-scope enum's name does, `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+class Order {
+    enum Status { Draft = 1, Paid = 2 }
+}
+
+var $s = Order::Status::<|>
+if (true) {
+--REQUEST--
+completion
+--EXPECT--
+Draft = 1 enumMember
+Paid = 2 enumMember

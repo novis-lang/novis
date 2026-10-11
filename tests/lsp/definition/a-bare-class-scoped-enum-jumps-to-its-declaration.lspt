@@ -1,0 +1,13 @@
+--TEST--
+inside its class an owned enum is written by its bare name, and a cursor on that name in a property's type jumps to the enum inside the class body, `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+namespace Shop;
+class Order {
+    enum Status { Draft, Paid }
+    public Sta<|>tus $status = Status::Draft;
+}
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:10

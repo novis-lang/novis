@@ -106,9 +106,9 @@ use lsp_types::{Position, Range};
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    AttributeGroup, ClassMember, ClassMemberKind, DocComment, EnumCase, Expr, ExprKind, FnBody,
-    ForInit, MethodMember, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind,
-    TestOperand, Type, TypeAtom, TypeKind,
+    AttributeGroup, ClassMember, ClassMemberKind, DocComment, EnumCase, EnumDecl, Expr, ExprKind,
+    FnBody, ForInit, MethodMember, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt,
+    StmtKind, TestOperand, Type, TypeAtom, TypeKind,
 };
 use nvs_types::{ExprInfo, ResolvedCall, Ty, TypeId, TypeInterner};
 use rustc_hash::FxHashMap;
@@ -448,22 +448,35 @@ pub(crate) fn site_of<'a>(
     let symbol = analysed.module.symbols.get(class)?;
     let file = analysed.map.file(symbol.decl_span.file);
     let stmt = declared_type(analysed, class).map(|(stmt, _)| stmt);
+    let owned = match stmt {
+        Some(_) => None,
+        None => owned_enum_decl(analysed, class),
+    };
     let Some((name, kind)) = member else {
+        let doc = match (stmt, owned) {
+            (Some(stmt), _) => doc_of(stmt),
+            (None, Some((member, _))) => member.doc.as_ref(),
+            (None, None) => None,
+        };
         return Some(Site {
             span: symbol.decl_span,
-            doc: stmt.and_then(doc_of),
+            doc,
         });
     };
-    let stmt = stmt?;
+    let (cases, members) = match (stmt, owned) {
+        (Some(stmt), _) => body_of(stmt)?,
+        (None, Some((_, decl))) => (decl.cases.as_slice(), decl.members.as_slice()),
+        (None, None) => return None,
+    };
     // A case is declared in its own list and not among the members, so it is
     // the one member name reached without [`declared_member`].
-    if let Some(case) = declared_case(stmt, file, name, kind) {
+    if let Some(case) = declared_case(cases, file, name, kind) {
         return Some(Site {
             span: case.name.span,
             doc: case.doc.as_ref(),
         });
     }
-    let member = declared_member(stmt, file, name, kind)?;
+    let member = declared_member(members, file, name, kind)?;
     Some(Site {
         span: member_name(member)?,
         doc: member.doc.as_ref(),
@@ -487,6 +500,38 @@ pub(crate) fn declared_type<'a>(
         .find(|loaded| loaded.id == symbol.decl_span.file)
         .and_then(|loaded| declaration(&loaded.stmts, symbol.decl_span))?;
     Some((stmt, analysed.map.file(symbol.decl_span.file)))
+}
+
+/// The enum a class or interface body declares under the key `class`, and the
+/// member it is written as, or nothing for a key no body declares.
+///
+/// An owned enum is no statement, so [`declared_type`] does not find it, and
+/// its `///` run is on the member and not on the [`EnumDecl`]
+/// (`rule:enums/class-scoped-enum`). The owner's declaration is found first,
+/// and the enum among its members by the name span the symbol recorded.
+pub(crate) fn owned_enum_decl<'a>(
+    analysed: &'a Analysed,
+    class: &QName,
+) -> Option<(&'a ClassMember, &'a EnumDecl)> {
+    let (owner, _) = class.as_member()?;
+    let symbol = analysed.module.symbols.get(class)?;
+    let (stmt, _) = declared_type(analysed, &owner)?;
+    let (_, members) = body_of(stmt)?;
+    members.iter().find_map(|member| match &member.kind {
+        ClassMemberKind::Enum(decl) if decl.name.span == symbol.decl_span => Some((member, decl)),
+        _ => None,
+    })
+}
+
+/// The cases and the members a declaration's body writes, and nothing for a
+/// declaration with no body. Only an enum has cases.
+fn body_of(stmt: &Stmt) -> Option<(&[EnumCase], &[ClassMember])> {
+    match &stmt.kind {
+        StmtKind::ClassDecl(decl) => Some((&[], &decl.members)),
+        StmtKind::InterfaceDecl(decl) => Some((&[], &decl.members)),
+        StmtKind::EnumDecl(decl) => Some((&decl.cases, &decl.members)),
+        _ => None,
+    }
 }
 
 /// The statement declaring the name written at `name`.
@@ -524,23 +569,16 @@ fn doc_of(stmt: &Stmt) -> Option<&DocComment> {
     }
 }
 
-/// The member of `stmt` written as `name`, of the kind `kind` selects.
+/// The member of `members` written as `name`, of the kind `kind` selects.
 ///
-/// A type alias has no body and an enum's cases are not what a call, a property
-/// access or a constant read resolves to, so both answer nothing here rather
-/// than being searched.
+/// An enum's cases are not what a call, a property access or a constant read
+/// resolves to, so they are not searched here.
 fn declared_member<'a>(
-    stmt: &'a Stmt,
+    members: &'a [ClassMember],
     file: &SourceFile,
     name: &str,
     kind: MemberKind,
 ) -> Option<&'a ClassMember> {
-    let members = match &stmt.kind {
-        StmtKind::ClassDecl(decl) => &decl.members,
-        StmtKind::InterfaceDecl(decl) => &decl.members,
-        StmtKind::EnumDecl(decl) => &decl.members,
-        _ => return None,
-    };
     members.iter().find(|member| match (&member.kind, kind) {
         (ClassMemberKind::Method(method), MemberKind::Method) => text_of(file, method.name) == name,
         (ClassMemberKind::Property(property), MemberKind::Property) => {
@@ -556,26 +594,23 @@ fn declared_member<'a>(
     })
 }
 
-/// The case of `stmt` written as `name`, and nothing for any other kind of
-/// name or any declaration that is not an enum.
+/// The case of `cases` written as `name`, and nothing for any other kind of
+/// name.
 ///
 /// `rule:enums/no-class-machinery` makes a case an integer constant declared on
 /// its enum, so a read of one arrives here as a [`Target::Constant`] like a
 /// class constant does — and is then looked for in the list an enum keeps its
 /// cases in, which is not the member list every other declaration uses.
 fn declared_case<'a>(
-    stmt: &'a Stmt,
+    cases: &'a [EnumCase],
     file: &SourceFile,
     name: &str,
     kind: MemberKind,
 ) -> Option<&'a EnumCase> {
-    let StmtKind::EnumDecl(decl) = &stmt.kind else {
-        return None;
-    };
     if !matches!(kind, MemberKind::Constant) {
         return None;
     }
-    decl.cases
+    cases
         .iter()
         .find(|case| text_of(file, case.name.span) == name)
 }
@@ -993,6 +1028,8 @@ pub(crate) fn type_member_at(analysed: &Analysed, offset: BytePos) -> Option<(Ta
     let name = text_of(file, *member);
     let target = if analysed.module.aliases.get_member(owner, name).is_some() {
         Target::TypeAlias { class: owner, name }
+    } else if let Some(owned) = nvs_hir::owned_enum(owner, name, &analysed.module.symbols) {
+        Target::Type(Cow::Owned(owned))
     } else {
         Target::Constant { class: owner, name }
     };
@@ -1138,7 +1175,16 @@ pub(crate) fn type_name_at(analysed: &Analysed, offset: BytePos) -> Option<(Targ
         return None;
     }
     let file = analysed.map.file(analysed.entry);
-    let resolved = resolved_name(analysed, text_of(file, name.span), name.span.start)?;
+    let text = text_of(file, name.span);
+    // A bare name inside a class's body is that class's own enum first
+    // (`rule:enums/class-scoped-enum`).
+    let owned = class_at(analysed, name.span.start).and_then(|owner| {
+        nvs_hir::owned_enum_in_scope(text, Some(&owner), &analysed.module.symbols)
+    });
+    let resolved = match owned {
+        Some(owned) => owned,
+        None => resolved_name(analysed, text, name.span.start)?,
+    };
     let target = match analysed.module.symbols.get(&resolved) {
         Some(symbol) => Target::Type(Cow::Borrowed(&symbol.qname)),
         None => Target::Type(Cow::Owned(resolved)),
@@ -1197,6 +1243,39 @@ pub(crate) fn namespace_at(analysed: &Analysed, offset: BytePos) -> Vec<String> 
         }
     }
     current
+}
+
+/// The class or interface whose declaration `offset` is written inside, by its
+/// fully-qualified name, and nothing outside every one of them.
+///
+/// Walked off the entry document's statements, as [`namespace_at`] is. A
+/// bracketed namespace body is descended into, because its declarations are
+/// written one level in.
+pub(crate) fn class_at(analysed: &Analysed, offset: BytePos) -> Option<QName> {
+    let loaded = analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)?;
+    let file = analysed.map.file(analysed.entry);
+    let name = class_name_at(&loaded.stmts, offset)?;
+    Some(QName::join(
+        &namespace_at(analysed, offset),
+        text_of(file, name),
+    ))
+}
+
+/// The name span of the class or interface in `stmts` whose span covers
+/// `offset`.
+fn class_name_at(stmts: &[Stmt], offset: BytePos) -> Option<Span> {
+    let stmt = stmts
+        .iter()
+        .find(|stmt| stmt.span.start <= offset && offset < stmt.span.end)?;
+    match &stmt.kind {
+        StmtKind::ClassDecl(decl) => Some(decl.name.span),
+        StmtKind::InterfaceDecl(decl) => Some(decl.name.span),
+        StmtKind::NamespaceDecl(decl) => class_name_at(&decl.body.as_ref()?.stmts, offset),
+        _ => None,
+    }
 }
 
 /// The entry document's own imports, in the shape `nvs_hir::resolve_ref` reads.
