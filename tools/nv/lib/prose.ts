@@ -9,11 +9,11 @@ export interface Heading {
   line: number;
 }
 
-export type CitationKind = "rule" | "decision" | "link";
+export type CitationKind = "rule" | "link";
 
 export interface Citation {
   kind: CitationKind;
-  /** A rule id (`types/conversion`), a four-digit decision number, or a link's target as written. */
+  /** A rule id (`types/conversion`), or a link's target as written. */
   target: string;
   /** 1-based. */
   line: number;
@@ -25,11 +25,6 @@ export const NUMBER_CITE = /(?<![`\w])[Gg]oals?\s+\d+/g;
 const FENCE_OPEN =/^ {0,3}(`{3,}|~{3,})/;
 const HEADING = /^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$/;
 const RULE = /rule:([a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*)/g;
-/**
- * A decision record named as `ADR NNNN`, `decisions/NNNN.md` or a bare `NNNN §`. A record number leads
- * with a zero, so a bare section cite needs one, and an RFC's `3986 §` is not a record.
- */
-export const DECISION = /(?:\bADRs? (\d{4})\b|decisions\/(\d{4})\.md|(?<![\w.])(0\d{3}) §)/g;
 const LINK = /\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 const CODE_SPAN = /(`+)[\s\S]*?\1/g;
 
@@ -96,10 +91,9 @@ export function section(text: string, select: string): string | null {
 }
 
 /**
- * Every citation and link outside a fence: `rule:<topic>/<slug>`, a decision named as `ADR NNNN`,
- * `decisions/NNNN.md` or `0NNN §`, and a Markdown link's target. A rule or a decision is read inside
- * an inline code span too, because that is how this tree writes them; a link inside a code span is
- * an example of a link, and is skipped. One citation per line per kind and target.
+ * Every citation and link outside a fence: `rule:<topic>/<slug>` and a Markdown link's target. A rule
+ * is read inside an inline code span too, because that is how this tree writes them; a link inside a
+ * code span is an example of a link, and is skipped. One citation per line per kind and target.
  */
 export function citations(text: string): Citation[] {
   const all = lines(text);
@@ -115,10 +109,6 @@ export function citations(text: string): Citation[] {
       out.push({ kind, target, line: i + 1 });
     };
     for (const m of line.matchAll(RULE)) if (m[1]) add("rule", m[1]);
-    for (const m of line.matchAll(DECISION)) {
-      const n = m[1] ?? m[2] ?? m[3];
-      if (n) add("decision", n);
-    }
     for (const m of line.replace(CODE_SPAN, (span) => " ".repeat(span.length)).matchAll(LINK)) {
       if (m[1]) add("link", m[1]);
     }

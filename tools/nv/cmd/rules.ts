@@ -1,7 +1,7 @@
 // `bun nv rules`: the rulebook. It loads it, validates it, renders it and resolves citations against it.
 //
 //     bun nv rules                     validate, and report what is wrong
-//     bun nv rules --check             the CI shape: quiet on success, exit 1 on a finding
+//     bun nv rules --check             the CI shape: one line on success, exit 1 on a finding
 //     bun nv rules --render            write docs/rules/*.md and the generated artifacts
 //     bun nv rules --render --check    exit 1 if any generated file is stale, write nothing
 //     bun nv rules --list              every rule id, one per line
@@ -19,7 +19,13 @@
 //
 // `docs/rules/<topic>.md` and `docs/ground-rules.md` are rendered from the two and never edited. A
 // file that teaches the citation syntax rather than using it carries the marker `rules-py:examples`,
-// and its `rule:` tokens are then examples rather than citations. This file carries it.
+// and its `rule:` tokens are then examples rather than citations. This file carries it. A citation in a
+// goal's front matter is a check's expectation of a rule the goal will write, and is not resolved.
+//
+// There are no decision records: a rule holds its reasons and its Declined list. Every run fails while
+// a record directory exists, and on each line of a tracked text file outside `vendor/` that cites a
+// record by its number, its path or a bare section mark; a clean run says so in one line. A file that
+// shows those forms, as a test of this check does, carries the marker `nv-rules:record-examples`.
 //
 // A generated file is written with LF endings. `--render --check` compares text, so a checkout with
 // CRLF endings is not stale.
@@ -28,6 +34,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { dirname, join } from "node:path";
 import { FileMemo } from "../lib/filememo.ts";
 import { ROOT, rel } from "../lib/paths.ts";
+import { failLine, run as runProgram } from "../lib/proc.ts";
 import { ArgError, comparePaths, parseArgs, pyRepr, splitlines } from "../lib/py.ts";
 import { load, pathOf, type Loaded } from "../lib/store.ts";
 import { rule as ruleRecord } from "../schema/rule.ts";
@@ -63,6 +70,39 @@ const CITATION_GLOBS: [string, string[] | null][] = [
 
 /** A file that explains the citation format rather than using it carries this marker. */
 const EXAMPLES_ONLY = "rules-py:examples";
+
+/** The directories a decision record lived in. */
+export const RECORD_DIRS = ["docs/decisions", "data/decisions", "docs/adr"];
+/**
+ * A decision record cited by its number, by its path, by a bare section mark or by the old record
+ * directory. A record number leads with a zero, so an RFC's section mark is not one.
+ */
+export const RECORD_CITE = /\bADRs? \d{4}\b|decisions\/\d{4}|(?<![\w.])0\d{3} §|docs\/adr\//;
+/** The same forms, wider, for `git grep` to pick the files `RECORD_CITE` then reads. */
+const RECORD_GREP = "ADRs? [0-9]{4}|decisions/[0-9]{4}|0[0-9]{3} §|docs/adr[/]";
+/** A file that shows the record forms rather than using them carries this marker. */
+const RECORD_EXAMPLES = "nv-rules:record-examples";
+
+/** What `--check` says about decision records: a finding for each directory present and each citing line. */
+export function recordFindings(present: string[], files: Iterable<[string, string]>): Finding[] {
+  const out: Finding[] = present.map((dir) => ({ where: dir, what: "is a decision record directory" }));
+  for (const [path, text] of files) {
+    if (text.includes(RECORD_EXAMPLES)) continue;
+    splitlines(text).forEach((line, i) => {
+      if (RECORD_CITE.test(line)) out.push({ where: `${path}:${i + 1}`, what: "cites a decision record" });
+    });
+  }
+  return out;
+}
+
+/** `recordFindings` over this tree: the record directories on disk and every tracked text file. */
+async function recordGuard(): Promise<Finding[]> {
+  const present = RECORD_DIRS.filter((dir) => existsSync(join(ROOT, dir)));
+  const grep = await runProgram(["git", "grep", "-l", "-z", "-I", "-E", RECORD_GREP, "--", ".", ":!vendor"], { cwd: ROOT });
+  if (grep.code > 1) throw new Error(failLine(grep.stderr, grep.code, "git grep"));
+  const paths = grep.stdout.split("\0").filter((p) => p !== "");
+  return recordFindings(present, paths.map((p): [string, string] => [p, readText(join(ROOT, p))]));
+}
 
 interface Rule {
   id: string;
@@ -352,7 +392,8 @@ function* citations(): Generator<[string, number, string]> {
       const found = memo.get(path, text, () => {
         const out: [number, string][] = [];
         const lines = splitlines(text);
-        for (let i = 0; i < lines.length; i++) for (const m of lines[i]!.matchAll(CITATION)) out.push([i + 1, m[1]!]);
+        const start = path.startsWith("docs/goals/") && lines[0] === "---" ? lines.indexOf("---", 1) + 1 : 0;
+        for (let i = start; i < lines.length; i++) for (const m of lines[i]!.matchAll(CITATION)) out.push([i + 1, m[1]!]);
         return out;
       });
       for (const [line, id] of found) yield [path, line, id];
@@ -446,7 +487,7 @@ export async function run(args: string[]): Promise<number> {
     return 0;
   }
 
-  const findings = [...book.validate(), ...book.checkCitations()];
+  const findings = [...book.validate(), ...book.checkCitations(), ...(await recordGuard())];
 
   if (flags.has("--render")) {
     const stale: string[] = [];
@@ -471,6 +512,7 @@ export async function run(args: string[]): Promise<number> {
     return 1;
   }
 
+  console.log("no decision record and no citation of one");
   if (!flags.has("--check")) {
     if (book.topics.length === 0) console.log("the rulebook does not exist yet -- migration unit B1 creates it");
     else console.log(`clean: ${book.topics.length} topics, ${book.topics.reduce((n, t) => n + t.rules.length, 0)} rules`);

@@ -6,8 +6,8 @@ Do not read it, do not use it in your daily workflow. Its a reminder note for hu
 Novis has no answer to phpDocumentor/Doctum: nothing renders API docs from a user's own program.
 The compiler already holds every signature and doc comment (Part B of docs/novis.md is generated
 from the same registry), so an `nvs doc` is cheap the day someone wants it. Decision:
-recorded here only — no milestone owns it, and it gets an ADR when it is scheduled.
-docs/adr/tooling-parity.md carries the tool-by-tool context.
+recorded here only — no milestone owns it, and it becomes a goal when it is scheduled.
+The deleted tooling-parity record carries the tool-by-tool context, and `git log` keeps it.
 
 
 ## nvs fix — the reopen trigger for Novis-to-Novis rewrites

@@ -4,7 +4,7 @@ import { citations, headings, section } from "../lib/prose.ts";
 const DOC = [
   "# Title", //                                       1
   "",
-  "See `rule:types/conversion` and ADR 0004.", //      3
+  "See `rule:types/conversion` and `rule:types/conversion` again.", // 3
   "",
   "## 4 Four", //                                      5
   "",
@@ -14,7 +14,7 @@ const DOC = [
   "````", //                                           10 closes the fence
   "",
   "### 4.1 Nested", //                                 12
-  "A [link](../x.md) and `[not](y.md)`; 0007 § 3 and decisions/0010.md.",
+  "A [link](../x.md) and `[not](y.md)`.",
   "~~~",
   "## inside tilde",
   "~~~",
@@ -45,15 +45,8 @@ describe("prose", () => {
   test("citations are read outside fences, links outside code spans", () => {
     expect(citations(DOC)).toEqual([
       { kind: "rule", target: "types/conversion", line: 3 },
-      { kind: "decision", target: "0004", line: 3 },
-      { kind: "decision", target: "0007", line: 13 },
-      { kind: "decision", target: "0010", line: 13 },
       { kind: "link", target: "../x.md", line: 13 },
     ]);
-  });
-
-  test("a bare section cite is a record only when its number leads with a zero", () => {
-    expect(citations("RFC 3986 § 3 and 0199 § 1\n")).toEqual([{ kind: "decision", target: "0199", line: 1 }]);
   });
 
   test("CRLF text reads the same as LF", () => {

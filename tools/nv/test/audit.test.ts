@@ -1,3 +1,4 @@
+// The deleted-home cases below name decision record paths, so this file carries `nv-rules:record-examples`.
 import { describe, expect, test } from "bun:test";
 import {
   checksSayingOld,
