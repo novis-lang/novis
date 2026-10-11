@@ -1817,11 +1817,13 @@ impl nvs_server::Fires for Scheduled {
         // the rate is read off the host's snapshot of the publish the run is
         // made under, since `[trace]` is process-wide, so a reload that changes
         // it reaches the next fire.
-        Some(Isolate::new(program, args, Output::Capture).recording(
-            nvs_runtime::TraceContext::rooted(nvs_config::export::head_sample(
-                &published.host().config,
-            )),
-        ))
+        Some(
+            Isolate::new(program, args, Output::Capture)
+                .running_as(nvs_runtime::RunKind::Schedule)
+                .recording(nvs_runtime::TraceContext::rooted(
+                    nvs_config::export::head_sample(&published.host().config),
+                )),
+        )
     }
 
     fn ran(&self, entry: &nvs_server::Armed, done: &nvs_host::Completion) {

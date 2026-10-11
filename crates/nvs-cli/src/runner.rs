@@ -1325,6 +1325,7 @@ fn run_the_test(
         nvs_runtime::Value::null(),
         nvs_host::Output::Inherit,
     )
+    .running_as(nvs_runtime::RunKind::Test)
     .run(ctx)
     {
         Ok(completion) => completion,

@@ -120,6 +120,10 @@ pub struct Isolate {
     /// [`Isolate::recording`], and `None` for every isolate whose trace is the
     /// carrier's above or the eager root `Ctx::new` drew.
     recording: Option<nvs_runtime::TraceContext>,
+    /// The kind of run its context is stored as — [`Isolate::running_as`], and
+    /// `None` for every isolate whose context keeps the kind its constructor
+    /// gave it.
+    kind: Option<nvs_runtime::RunKind>,
     /// The origin the door that accepted this request resolved for it —
     /// [`Isolate::at_origin`], and `None` for every isolate whose context takes
     /// its parent's answer.
@@ -202,6 +206,7 @@ impl Isolate {
             entry: Form::Path,
             inbound: None,
             recording: None,
+            kind: None,
             origin: None,
             peer: None,
             event_stream: None,
@@ -342,6 +347,19 @@ impl Isolate {
     #[must_use]
     pub fn recording(mut self, trace: nvs_runtime::TraceContext) -> Self {
         self.recording = Some(trace);
+        self
+    }
+
+    /// Runs this isolate as the given kind of run, for a host that starts it
+    /// as a job, a scheduled fire or a test rather than as a `spawn script`
+    /// child.
+    ///
+    /// Stored on the child's context before its program runs. A request or a
+    /// connection is still read as one, whatever is stored here
+    /// (`nvs_runtime::Ctx::run_kind`).
+    #[must_use]
+    pub fn running_as(mut self, kind: nvs_runtime::RunKind) -> Self {
+        self.kind = Some(kind);
         self
     }
 
@@ -584,6 +602,7 @@ impl Isolate {
             entry,
             inbound,
             recording,
+            kind,
             origin,
             peer,
             event_stream,
@@ -698,6 +717,12 @@ impl Isolate {
         // is the one that takes it.
         if let Some(trace) = recording {
             isolate_ctx.set_trace_context(trace);
+        }
+        // The kind of run a host started this as, on the same context and at
+        // the same point: [`Isolate::running_as`] is the only writer, and a
+        // request or a connection attached below is read as one regardless.
+        if let Some(kind) = kind {
+            isolate_ctx.set_run_kind(kind);
         }
         if let Some(inbound) = inbound {
             isolate_ctx.set_inbound(inbound);
@@ -3017,6 +3042,60 @@ mod tests {
                     done.trace.len()
                 );
             }
+        }
+    }
+
+    /// A program that records the kind of run its context reads as.
+    fn reading_the_kind(seen: &Rc<Cell<Option<nvs_runtime::RunKind>>>) -> Program {
+        let seen = Rc::clone(seen);
+        Box::new(move |child: &mut Ctx, _args| {
+            seen.set(Some(child.run_kind()));
+            Value::null()
+        })
+    }
+
+    /// `running_as` is stored on the child's context before its program runs,
+    /// and an isolate built without it is a `spawn script` child.
+    #[test]
+    fn an_isolate_built_with_a_kind_runs_as_that_kind() {
+        use nvs_runtime::RunKind;
+        for kind in [RunKind::Job, RunKind::Schedule, RunKind::Test] {
+            let seen = Rc::new(Cell::new(None));
+            let mut ctx = parent();
+            let done = run(
+                Isolate::new(reading_the_kind(&seen), Value::null(), Output::Capture)
+                    .running_as(kind),
+                &mut ctx,
+            )
+            .expect("the argument crosses");
+            assert!(done.ok);
+            assert_eq!(seen.get(), Some(kind));
+        }
+        let seen = Rc::new(Cell::new(None));
+        let mut ctx = parent();
+        run(
+            Isolate::new(reading_the_kind(&seen), Value::null(), Output::Capture),
+            &mut ctx,
+        )
+        .expect("the argument crosses");
+        assert_eq!(seen.get(), Some(RunKind::Isolate));
+    }
+
+    /// The request decides it, so a host that also stored another kind cannot
+    /// make the isolate answering it read as that kind.
+    #[test]
+    fn an_isolate_answering_a_request_runs_as_a_request() {
+        use nvs_runtime::RunKind;
+        for stored in [None, Some(RunKind::Job)] {
+            let seen = Rc::new(Cell::new(None));
+            let mut ctx = parent();
+            let mut isolate = Isolate::new(reading_the_kind(&seen), Value::null(), Output::Capture)
+                .answering(Inbound::new("GET", "/", ""));
+            if let Some(kind) = stored {
+                isolate = isolate.running_as(kind);
+            }
+            run(isolate, &mut ctx).expect("the argument crosses");
+            assert_eq!(seen.get(), Some(RunKind::Request), "stored {stored:?}");
         }
     }
 }

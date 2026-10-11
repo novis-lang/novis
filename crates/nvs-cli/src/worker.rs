@@ -1459,6 +1459,7 @@ fn run(ctx: &mut nvs_runtime::Ctx, job: &Job) -> Option<nvs_host::Failure> {
         .and_then(nvs_stdlib::queue::payload)
         .unwrap_or_else(nvs_runtime::Value::null);
     match nvs_host::Isolate::new(program, args, nvs_host::Output::Capture)
+        .running_as(nvs_runtime::RunKind::Job)
         .narrowed_by(narrowing)
         .run(ctx)
     {
