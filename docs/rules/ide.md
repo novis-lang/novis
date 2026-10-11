@@ -2466,10 +2466,38 @@ run and the status item says that file is being held, and why. There is no setti
 Copies live under `server/` in the extension's global storage, which is on the machine the code is on
 ([`ide/the-extension-is-a-workspace-extension`](ide.md#ide-the-extension-is-a-workspace-extension)); a copy of an earlier build of the same binary is
 deleted when a new one is made, a copy of some other binary once it is a week old, and a file another
-window is running is left for the next sweep. It spends disk and no memory: one file the size of `nvs`
-for each binary in use.
+window is running is left for the next sweep, and so is any file this module did not write.
 
-<sub>See also [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one), [`ide/the-extension-is-a-workspace-extension`](ide.md#ide-the-extension-is-a-workspace-extension). Decided in [0195](../decisions/0195.md).</sub>
+A copy is the same program in the two places `nvs` reads its own file. A bundle's payload is read from
+the end of the running executable, which a byte copy keeps. The compile cache's build stamp hashes the
+executable's path, length and modification time, so a copy keys apart from its binary: one cold compile
+for each new build, and the same key on every later run of that copy. A new build costs one copy and two
+hashes of `nvs`, once per window; every other spawn costs two `stat`s, and nothing is on a request path.
+For the moment two servers answer, a request may be answered by both.
+
+**Memory:** nothing beyond a second server process for the moment of a switch. It spends disk instead:
+one file the size of `nvs` for each binary in use, under the extension's storage.
+
+**Declined:**
+- **Copying on Windows only.** The lock is not only Windows', the stale server is every platform's, and
+  a branch taken on one platform is one the other platforms' test runs never execute.
+- **Copying only for the server.** A program in an `nvs run` Task runs as long as the server does, and
+  "the editor never holds the binary" is a rule a user can rely on where "only sometimes" is not.
+- **Renaming the old binary aside when updating.** Windows allows renaming a running executable, but it
+  does nothing for a `nvs.path` pointed into `target/`, where the linker writes the file.
+- **`nvs lsp` copying and re-executing itself.** The editor tracks the process it spawned, so the parent
+  stays alive, and the parent is the file that is held.
+- **A command that stops the server.** It needs the user to remember the cause, which is what keeps not
+  happening.
+- **Stopping the old server before starting the new one.** It costs a gap in diagnostics and completion
+  on every rebuild.
+- **Keeping the old server when the new build fails.** Its answers would come from a program that is no
+  longer on disk.
+- **Naming the copy for a hash of its content.** That needs the binary hashed before there is a name to
+  look for; the stamp gives the name for one `stat`, and the hash still decides whether the file is used.
+- **A setting to turn it off.** The fallback is automatic, and a setting is kept forever.
+
+<sub>See also [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one), [`ide/the-extension-is-a-workspace-extension`](ide.md#ide-the-extension-is-a-workspace-extension).</sub>
 
 <a id="ide-dependencies-are-allowlisted"></a>
 
