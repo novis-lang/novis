@@ -1,9 +1,7 @@
 {
   "title": "A doc comment is exactly `///`; `////` and longer runs are ordinary comments, and `#` never is one",
   "status": "shipped",
-  "because": [
-    "0213"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/doc-comment-attaches-to-the-next-declaration",
     "tooling/doc-comment-tags-are-see-and-example",

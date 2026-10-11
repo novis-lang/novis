@@ -548,8 +548,10 @@ must begin with `$`, so `{Money::format($c)}` is text exactly as it is in a doub
 every other `{` is text, so a `<style>` block's braces need no escape; `\{` writes a plain brace.
 A brace directly before a class path — `{Page::TITLE}`, `{Money::format($c)}` — is the one text a
 page prints that was almost never meant, so it is warned about where it is written, `W1012`, with the
-help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a double-quoted string says
-nothing.
+help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a `$name` inside them still
+interpolates. It is a warning and not a refusal because the program is correct; only its page prints
+the wrong string. A double-quoted string says nothing: its grammar is PHP's own, and a string is not
+a page.
 The second is the output tag a page already uses: `<?= expr ?>` opens a hole that takes **any**
 expression and closes on the first `?>` outside a nested string or template, so a constant, a static
 call and a nested template reach the page without a local — `<?= App::VERSION ?>`,
@@ -583,7 +585,8 @@ a run of writes — segment, escaped hole, segment — with no carrier materiali
 consumed at one sink is unobservable. In value position it is one `Markup` holding the joined bytes.
 A hole whose value is a constant is still escaped on every execution, as every hole is. Scanning
 for `<?=` is one three-byte test beside the two-byte test for `{$`, in the template body only, and a
-tag hole reaches the parser as the same part a brace hole does.
+tag hole reaches the parser as the same part a brace hole does. `W1012` adds one byte test per `{`
+in a template's text, at compile time only.
 
 `Core\Html::join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator): Core\Html\Markup`
 concatenates a list of fragments; every element is already a carrier, so it neither trusts nor escapes
@@ -623,8 +626,12 @@ write into: ``html`<a href="{$url}">` `` lets a `javascript:` URL through exactl
 - **A second brace opener, `{= … }`, `{> … }` or `{{ … }}`.** Each collides with a template language
   a page may embed: `{{` is Vue, Twig and Handlebars, `{>` is a Handlebars partial and `{=` is
   Mustache's delimiter tag. Each would force `\{` escapes into client-side templates.
+- **Refusing `{Class::…}` in a template.** It would grow the hole grammar by a negative, a brace that
+  is text unless it looks like this, and the program it refuses is correct.
+- **`W1012` inside a double-quoted string.** Every PHP programmer already knows that limit of the
+  string grammar, and the defect the warning exists for is a wrong string reaching a page.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration`](types.md#types-duration), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0213](../decisions/0213.md).</sub>
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration`](types.md#types-duration), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar).</sub>
 
 <a id="core-classes-html-later"></a>
 

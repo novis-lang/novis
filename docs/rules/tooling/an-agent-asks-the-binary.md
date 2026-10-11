@@ -8,7 +8,9 @@ describe a version that is not installed.
 
 A keyword is grammar and no member is named for it, so the registry alone leaves `autoload`, `require`
 and `match` unfindable, and an agent told that an empty `find` means "no such name" concludes the
-language lacks them. The chapters are therefore on the same index under the same two verbs, and not
+language lacks them. Every syntactic form the language has is therefore a heading `find` reaches,
+and an empty `find` says that a keyword may sit under a heading that does not name it. The chapters
+are on the same index under the same two verbs, and not
 behind a fifth command: `nvs agent init`'s pointers name these four, and a verb added later is one no
 agent learns of until every installed pointer has been rewritten to name it.
 
@@ -57,3 +59,6 @@ prose around them. A primer read once and a lookup of a few hundred tokens each 
   has no cursor, and most harnesses do not speak the protocol.
 - **An embedded form, `nvs agent init --embed`, writing the primer to disk** for a sandbox that cannot
   run the binary per session. Nothing has asked for it, and it is stale the moment it exists.
+- **A heading for every lexer keyword.** The keyword table carries every spelling Novis refuses too,
+  `and`, `goto` and `global` among them, and a heading per refused word is the wrong shape. The guard
+  is a fixed list of the syntactic forms Novis has.

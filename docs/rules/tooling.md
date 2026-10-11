@@ -1145,10 +1145,13 @@ to HTML crosses the bidi boundary the lexer already checks for every comment spa
 **Declined:**
 - **`/** */` as the doc comment.** It is the form every PHPDoc tutorial teaches and every editor
   autocompletes tags into, and a habit is harder to refuse than a grammar.
+- **Refusing a `/** … */` block above a declaration.** It would refuse a comment, which no other rule
+  does, and would turn every converted PHP file into a page of errors before a single `///` was
+  written.
 - **An attribute, `#[Doc("…")]`.** Its payload is a compile-time constant expression, which makes
   several paragraphs of Markdown hard to write and harder to read in place.
 
-<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0213](../decisions/0213.md).</sub>
+<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case).</sub>
 
 <a id="tooling-doc-comment-attaches-to-the-next-declaration"></a>
 
@@ -1422,7 +1425,9 @@ describe a version that is not installed.
 
 A keyword is grammar and no member is named for it, so the registry alone leaves `autoload`, `require`
 and `match` unfindable, and an agent told that an empty `find` means "no such name" concludes the
-language lacks them. The chapters are therefore on the same index under the same two verbs, and not
+language lacks them. Every syntactic form the language has is therefore a heading `find` reaches,
+and an empty `find` says that a keyword may sit under a heading that does not name it. The chapters
+are on the same index under the same two verbs, and not
 behind a fifth command: `nvs agent init`'s pointers name these four, and a verb added later is one no
 agent learns of until every installed pointer has been rewritten to name it.
 
@@ -1471,6 +1476,9 @@ prose around them. A primer read once and a lookup of a few hundred tokens each 
   has no cursor, and most harnesses do not speak the protocol.
 - **An embedded form, `nvs agent init --embed`, writing the primer to disk** for a sandbox that cannot
   run the binary per session. Nothing has asked for it, and it is stale the moment it exists.
+- **A heading for every lexer keyword.** The keyword table carries every spelling Novis refuses too,
+  `and`, `goto` and `global` among them, and a heading per refused word is the wrong shape. The guard
+  is a fixed list of the syntactic forms Novis has.
 
 <sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`tooling/an-adapter-carries-protocol-and-never-language`](tooling.md#tooling-an-adapter-carries-protocol-and-never-language), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document).</sub>
 

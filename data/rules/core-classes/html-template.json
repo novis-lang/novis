@@ -1,9 +1,7 @@
 {
   "title": "``html`…` `` is a `Core\\Html\\Markup` whose segments are trusted and whose holes are escaped",
   "status": "shipped",
-  "because": [
-    "0213"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/html-auto-escape",
     "core-classes/html-escape-answers-markup",
