@@ -810,11 +810,17 @@ Both shapes answer the same node family, the one [`core-classes/html-parsing`](c
 produce, so a program that outgrows the tree does not learn a second vocabulary. The split is stated
 once, in `crates/nvs-stdlib/src/xml.rs`'s module doc, and no member card re-argues it.
 
-What it spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): the tree is proportional to the document,
-attributed to the request that parsed it and released with its arena; reading through the stream holds
-one window, and writing through it holds the document being built and no tree of nodes at all.
+**Memory:** the tree is proportional to the document, attributed to the request that parsed it and
+released with its arena; reading through the stream holds one window, and writing through it holds the
+document being built and no tree of nodes at all.
 
-<sub>See also [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/xml-refuses-by-construction`](core-classes.md#core-classes-xml-refuses-by-construction), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0168](../decisions/0168.md).</sub>
+**Declined:**
+- **A tree only.** It cannot serve a document larger than the request's memory ceiling, which is a real
+  workload.
+- **A stream only.** Every program that wants random access would write its own tree, once per program
+  and unreviewed, and the node family would stop being shared with `Core\Html`.
+
+<sub>See also [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/xml-refuses-by-construction`](core-classes.md#core-classes-xml-refuses-by-construction), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation).</sub>
 
 <a id="core-classes-xml-refuses-by-construction"></a>
 
@@ -856,7 +862,24 @@ back. Both refusals are `ParseError` throws naming what was written, per
 [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused); `Core\Html`'s WHATWG entry is the door for input that is
 HTML-shaped rather than well-formed, and it never fails ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)).
 
-<sub>See also [`core-classes/xml-tree-and-stream`](core-classes.md#core-classes-xml-tree-and-stream), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0168](../decisions/0168.md).</sub>
+The cost is real: a document carrying any `<!DOCTYPE …>`, `<!DOCTYPE html>` included, does not parse.
+SOAP envelopes, XHTML documents and generator output that writes a doctype out of habit are in that
+population, and their authors strip the declaration first. `Core\Html` takes the HTML-shaped half, so
+what is left is XML naming a DTD it does not need. What it buys is the XXE class closed for every
+program with no setting to get wrong, closed so that reopening it means writing a resolver rather than
+flipping a default.
+
+**Declined:**
+- **An internal subset expanded under [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound)'s ratio and ceiling.** It
+  buys back only documents that declare their own entities, which writing the characters out serves.
+  It turns an absent class of bug into a bounded one, and a bound is a number someone will want
+  configurable. And a ratio measures the bytes an expansion produces, not whatever a resolver was
+  pointed at.
+- **A mode flag on the parser**, such as `allowDtd: true` or an HTML mode. The flag's default becomes
+  the real security boundary while the signature says nothing about it, which is the `LIBXML_*` matrix
+  again.
+
+<sub>See also [`core-classes/xml-tree-and-stream`](core-classes.md#core-classes-xml-tree-and-stream), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="core-classes-validate-has-no-type-predicates"></a>
 

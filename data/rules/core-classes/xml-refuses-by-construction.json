@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Xml` refuses a document type declaration whole and resolves no entity, so XXE and billion-laughs are absent rather than bounded",
   "status": "shipped",
-  "because": [
-    "0168"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/xml-tree-and-stream",
     "core-classes/decompression-bound",

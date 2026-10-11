@@ -31,3 +31,20 @@ A program that needs to fetch something fetches it with `Core\Http\Client` and p
 back. Both refusals are `ParseError` throws naming what was written, per
 `rule:errors/ambiguous-input-refused`; `Core\Html`'s WHATWG entry is the door for input that is
 HTML-shaped rather than well-formed, and it never fails (`rule:core-classes/html-parsing`).
+
+The cost is real: a document carrying any `<!DOCTYPE …>`, `<!DOCTYPE html>` included, does not parse.
+SOAP envelopes, XHTML documents and generator output that writes a doctype out of habit are in that
+population, and their authors strip the declaration first. `Core\Html` takes the HTML-shaped half, so
+what is left is XML naming a DTD it does not need. What it buys is the XXE class closed for every
+program with no setting to get wrong, closed so that reopening it means writing a resolver rather than
+flipping a default.
+
+**Declined:**
+- **An internal subset expanded under `rule:core-classes/decompression-bound`'s ratio and ceiling.** It
+  buys back only documents that declare their own entities, which writing the characters out serves.
+  It turns an absent class of bug into a bounded one, and a bound is a number someone will want
+  configurable. And a ratio measures the bytes an expansion produces, not whatever a resolver was
+  pointed at.
+- **A mode flag on the parser**, such as `allowDtd: true` or an HTML mode. The flag's default becomes
+  the real security boundary while the signature says nothing about it, which is the `LIBXML_*` matrix
+  again.
