@@ -375,7 +375,9 @@ impl AliasResolver {
             // An alias or an owned enum takes part. Two of the same kind
             // otherwise are the symbol table's or `crate::members`'s to report.
             let reported_here = |k: &str| k == ALIAS || k == ENUM;
-            if !(reported_here(kind) || reported_here(first_kind)) || (*kind == ENUM && *first_kind == ENUM) {
+            if !(reported_here(kind) || reported_here(first_kind))
+                || (*kind == ENUM && *first_kind == ENUM)
+            {
                 continue;
             }
             self.collisions.push(

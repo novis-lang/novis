@@ -546,7 +546,11 @@ impl<'src, 'd> Parser<'src, 'd> {
         let colons = self.bump().span;
         let member = self.expect(TokenKind::Ident, "a member name");
         let owner_text = self.file.span_text(owner).unwrap_or_default().to_owned();
-        let short = owner_text.rsplit('\\').next().unwrap_or_default().to_owned();
+        let short = owner_text
+            .rsplit('\\')
+            .next()
+            .unwrap_or_default()
+            .to_owned();
         let member_text = self.file.span_text(member).unwrap_or_default().to_owned();
         self.diags.report(
             Diagnostic::error(

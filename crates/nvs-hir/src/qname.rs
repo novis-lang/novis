@@ -106,7 +106,9 @@ impl QName {
     #[must_use]
     pub fn member(owner: &Self, name: &str) -> Self {
         let mut segments = owner.segments.clone();
-        let last = segments.last_mut().expect("a QName always has at least one segment");
+        let last = segments
+            .last_mut()
+            .expect("a QName always has at least one segment");
         last.push_str("::");
         last.push_str(name);
         Self { segments }
@@ -119,7 +121,9 @@ impl QName {
         let last = self.short_name();
         let at = last.find("::")?;
         let mut segments = self.segments.clone();
-        let owner_short = segments.last_mut().expect("a QName always has at least one segment");
+        let owner_short = segments
+            .last_mut()
+            .expect("a QName always has at least one segment");
         owner_short.truncate(at);
         Some((Self { segments }, &last[at + 2..]))
     }
