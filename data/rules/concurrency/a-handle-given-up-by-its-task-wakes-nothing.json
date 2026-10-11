@@ -1,9 +1,7 @@
 {
   "title": "A wake handle dropped unused wakes its task, unless that task is the one dropping it",
   "status": "shipped",
-  "because": [
-    "0229"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/one-permission-per-drive",
     "concurrency/a-wake-never-moves-a-task",

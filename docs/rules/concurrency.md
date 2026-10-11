@@ -2019,7 +2019,7 @@ connection, and gives it back unused when the drive returns.
 - **A fresh permission per park.** Each one is issued and collected once per readiness edge, which
   is a delivered poke per wait for a wake nobody asked for.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing). Decided in [0229](../decisions/0229.md).</sub>
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing).</sub>
 
 <a id="concurrency-a-wake-never-moves-a-task"></a>
 
@@ -2067,7 +2067,28 @@ This is what lets a wait take a handle for itself and let it go when the wait en
 a drain wake held across one sleep, or the permission a drive gives back when it returns
 ([`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive)). A wake that is **asked for** is queued whoever asks.
 
-<sub>See also [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract). Decided in [0229](../decisions/0229.md).</sub>
+The drop checks both halves: the thread dropping the handle is the core that issued it, and the task
+running there is the one the handle names. A task id is issued per scheduler and names a different
+task on every core, so the task half alone is not enough. A reactor that is borrowed, gone or another
+core's fails the check, and that drop delivers the wake as before. A registration made against a
+drain that has already begun fires its wake before it returns, on the task's own stack, and a
+stream's drain cut raises its flag the same way. Both are asked for, so both still leave a wake
+queued for the task's next wait.
+
+- **Memory:** nothing. The drop gains one branch, and no allocation is added per request, per task or
+  per wait.
+
+**Declined:**
+- **Registering once, outside the loop that waits.** It fixes the one caller and leaves every later
+  caller one loop away from a core kept busy by its own wakes.
+- **A `cancel` the caller must choose to call.** Every site that gives up its own handle would have
+  to remember it, and a registration on the drain holds its handle inside a closure that only a drop
+  can reach.
+- **Collecting every wake a task delivers to itself, the asked-for one too.** It would change what a
+  registration against a drain that has already begun leaves behind, and the idle cost needs none of
+  that changed.
+
+<sub>See also [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract).</sub>
 
 <a id="concurrency-a-cancelled-drive-never-parks-again"></a>
 
