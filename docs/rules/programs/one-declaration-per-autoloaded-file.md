@@ -9,6 +9,13 @@ program's contents depend on resolution order: a non-reproducible build and an u
 declaring a namespace other than its map path does the same thing another way: its name would exist
 only when something probed or `implementing` scanned that path.
 
+The name compared is the full one the probe or the scan derived, against the declaration's name under
+the namespace in force where it stands. A short-name difference names the file; a namespace
+difference names what the file declares and the name the map finds it as.
+
 Files reached by `require` are unaffected and may declare anything. The cost is that a helper enum or
 `type` alias used by one class needs its own file, which PSR-4 already imposes as a convention and
 Novis makes a diagnostic.
+
+**Declined:**
+- **The scan skipping a file whose namespace is wrong.** The mistake would stay invisible.

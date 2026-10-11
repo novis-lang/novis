@@ -1,9 +1,7 @@
 {
   "title": "`autoload` maps a prefix to roots, resolved relative to the file that declares it",
   "status": "shipped",
-  "because": [
-    "0215"
-  ],
+  "because": [],
   "seeAlso": [
     "programs/no-runtime-autoload",
     "programs/one-declaration-per-autoloaded-file",
@@ -18,6 +16,9 @@
     "tests/conformance/lang/an-autoload-inside-an-autoloaded-file-is-a-compile-error.nvst",
     "tests/conformance/lang/a-directory-segment-names-the-prefix-after-a-directory.nvst",
     "tests/conformance/lang/an-autoload-prefix-that-can-never-match-does-not-compile.nvst",
-    "crates/nvs-hir/src/autoload.rs"
+    "crates/nvs-hir/src/autoload.rs",
+    "crates/nvs-hir/src/requires.rs",
+    "docs/examples/lang/programs/autoload-find-a-class-by-its-namespace/04-share-one-start-file-between-modules.nvs",
+    "tests/hostile/lang/programs/autoload-find-a-class-by-its-namespace/02-build-a-namespace-from-a-folder-name.nvs"
   ]
 }

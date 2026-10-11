@@ -459,8 +459,16 @@ the disk spells it — `autoload 'App\{..}' from '../src';` in `Blog/public/inde
 segment at most. This is how many modules share one entry file byte for byte while each maps only its
 own root.
 
+The braced segment is resolved while the map is built, so the map, `implementing<T>()` and
+`--autoload-map` see only the result. It produces a namespace segment held to the same test as any
+other, never a path, so it opens no traversal. Where a program writes it, the program's meaning
+depends on a directory's name: renaming the directory renames the namespace, and every class under it
+then fails `E_AUTOLOAD_FILE_SHAPE` ([`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file)). The compile
+cache keys a unit on its entry's path, so identical entry files in two directories never share a unit.
+
 A root that does not exist is allowed, because a deployment leaves a module out by not shipping its
-directory, and `nvs check --autoload-map` lists it under `missing`.
+directory, and `nvs check --autoload-map` lists it under a counted `missing` section, canonical as far
+as the disk allows so it prints beside the others.
 
 `discover` takes a glob containing exactly one `*` occupying a whole path segment. Every directory it
 matches becomes a root and the matched segment becomes that root's prefix. A matched directory whose
@@ -490,7 +498,7 @@ not build if `Shop` is not deployed, where PHP fails only if the line is reached
 interfaces the framework owns, rather than on each other's concrete classes, are unaffected.
 
 - **Memory:** the effective map is O(prefixes) per host, a few hundred bytes, and nothing of it is held
-  per request.
+  per request. A braced segment costs one canonicalization while compiling and nothing at run time.
 
 **Declined:**
 - **A manifest file found by walking up from the entry file.** It lands inside or beside a document
@@ -506,8 +514,16 @@ interfaces the framework owns, rather than on each other's concrete classes, are
   project tree.
 - **A generated classmap.** A build step producing a file that goes stale is strictly worse than
   resolving from the source the compiler already reads.
+- **A PSR-4 wildcard, `'App\*' from '../../*/src'`, to share one entry file.** It maps every module
+  into every program, so each module's `#[Route]` table and `implementing<T>()` hold every other
+  module's classes, and two modules that both declare `/` collide. It would also need roots that
+  resolve by name without being enumerated, and still a way to name the current module.
+- **`discover` taking a prefix.** It maps every directory the glob matches, which is the same problem.
+- **`*` instead of `{..}` inside a prefix.** A reader coming from PSR-4 reads `*` as a wildcard, and
+  that is the meaning the braced segment does not have.
+- **A missing root as an error.** A deployment leaves a module out by leaving its directory out.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case). Decided in [0215](../decisions/0215.md).</sub>
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case).</sub>
 
 <a id="programs-one-declaration-per-autoloaded-file"></a>
 
@@ -526,11 +542,18 @@ program's contents depend on resolution order: a non-reproducible build and an u
 declaring a namespace other than its map path does the same thing another way: its name would exist
 only when something probed or `implementing` scanned that path.
 
+The name compared is the full one the probe or the scan derived, against the declaration's name under
+the namespace in force where it stands. A short-name difference names the file; a namespace
+difference names what the file declares and the name the map finds it as.
+
 Files reached by `require` are unaffected and may declare anything. The cost is that a helper enum or
 `type` alias used by one class needs its own file, which PSR-4 already imposes as a convention and
 Novis makes a diagnostic.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0215](../decisions/0215.md).</sub>
+**Declined:**
+- **The scan skipping a file whose namespace is wrong.** The mistake would stay invisible.
+
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).</sub>
 
 <a id="programs-path-case"></a>
 
