@@ -86,6 +86,9 @@ describe("nv audit python", () => {
       "the checks in docs/agent/loop-goal.toml",
       "`loop-goal.md` § *Standing decisions*",
       "re-render `../docs/decisions.toml`",
+      "see docs/decisions/README.md",
+      "`data/decisions/0001.json`",
+      "[the record](docs/adr/tooling-parity.md)",
       "`tools/nv/cmd/rules.ts` reads docs/rules/_index.json",
       "edit `tools/data/help-backlog.toml`",
       `under \`docs/agent/goals/${OLD}/\``,
@@ -104,7 +107,7 @@ describe("nv audit python", () => {
       "data/goals/parses.handoff.json",
       "docs/agent/goals/side/restart-free.handoff.md is not written",
       "the playbook bullet a-loop-goal-toml-check-naming-a-test",
-      "docs/decisions/README.md",
+      "docs/decisions.md",
       "npm run sync:render",
       "`.loop/accept-green.json` remembers",
       "tools/nv/cmd/rules.ts:_index.json",
@@ -157,11 +160,10 @@ describe("nv audit python", () => {
     expect(docNamingPython("docs/y.md", "bun nv session --wrap\n", re)).toBeNull();
   });
 
-  test("history and the prose of the live goal are not read", () => {
+  test("the changelog and the prose of the live goal are not read", () => {
     const paths = [
       "AGENTS.md",
       "CHANGELOG.md",
-      "docs/decisions/README.md",
       "docs/goals/webcrypto.md",
       "docs/goals/tooling-overhaul.md",
       "docs/goals/restart-free.md",

@@ -77,8 +77,6 @@ const HEADING_RE = /^(#{1,6}) (.*)$/gm;
 const CODE_DECL_RE = /Code::new\("(E\d{4})"\)/g;
 /** One diagnostic code cited in prose or in a table cell. */
 const CODE_CITED_RE = /\bE\d{4}\b/g;
-/** A parenthesised decision citation inside a registry card, which names a file the reference's readers do not have. */
-const ADR_PAREN_RE = /\s*\(ADR \d{4}(?: §+ [\p{L}\p{N}_.\-]+)?\)/gu;
 /** A parenthesised rule citation and the spaces before it: a backticked `rule:` token inside brackets, as
  * `nvs agent show` strips it (`without_rule_citations` in `crates/nvs-cli/src/agent.rs`). It names a file of
  * this repository, which the reference's reader does not have. A citation written into a sentence stays. */
@@ -226,9 +224,6 @@ const code = (text: string) => `\`${text}\``;
 /** A `|` escaped, so a cell holding one does not split the table row. */
 const esc = (text: string) => text.replaceAll("|", "\\|");
 
-/** A card's prose with its parenthesised decision citations removed; an inline one stays. */
-const card = (text: string) => text.replace(ADR_PAREN_RE, "");
-
 // ------------------------------------------------------------------ Part B: the Core library
 
 function memberHeading(className: string, member: Json): string {
@@ -256,7 +251,7 @@ function renderMember(className: string, member: Json, lines: string[]): void {
   const heading = memberHeading(className, member);
   lines.push(anchor(anchorId("core", heading)), `#### \`${heading}\``, "", "```nvs skip", spelledSignature(className, member), "```", "");
   const doc = member.doc ?? {};
-  if (doc.short) lines.push(card(doc.short), "");
+  if (doc.short) lines.push(doc.short, "");
   const docsByName = new Map<string, Json>((doc.params ?? []).map((p: Json) => [p.name, p]));
   const params: Json[] = member.params ?? [];
   const options: Json[] = member.options ?? [];
@@ -269,9 +264,9 @@ function renderMember(className: string, member: Json, lines: string[]): void {
       const q = qualifier(p.qualifier);
       if (q) extras.push(q);
       const pdoc = docsByName.get(p.name) ?? {};
-      let desc = card(pdoc.desc ?? "");
+      let desc: string = pdoc.desc ?? "";
       const shape: Json[] = pdoc.shape ?? [];
-      if (shape.length > 0) desc += ` Keys: ${shape.map((k) => `\`${k.key}\` (${k.type}) ${card(k.desc)}`).join("; ")}`;
+      if (shape.length > 0) desc += ` Keys: ${shape.map((k) => `\`${k.key}\` (${k.type}) ${k.desc}`).join("; ")}`;
       const meta = extras.length > 0 ? ` (${extras.join(", ")})` : "";
       lines.push(`| \`${name}\` | \`${esc(p.type)}\`${meta} | ${esc(desc)} |`);
     }
@@ -279,14 +274,14 @@ function renderMember(className: string, member: Json, lines: string[]): void {
       const extras = [`default ${code(o.default)}`];
       const q = qualifier(o.qualifier);
       if (q) extras.push(q);
-      const desc = card(docsByName.get(o.name)?.desc ?? "");
+      const desc: string = docsByName.get(o.name)?.desc ?? "";
       lines.push(`| \`{${o.name}: …}\` | \`${esc(o.type)}\` (${extras.join(", ")}) | ${esc(desc)} |`);
     }
     lines.push("");
   }
-  const ret = card(doc.return ?? "");
+  const ret: string = doc.return ?? "";
   if (member.kind !== "constructor") lines.push(`**Returns** \`${member.returns}\`${ret ? ` — ${ret}` : ""}`, "");
-  if (doc.errors?.length) lines.push(`**Throws** ${doc.errors.map((e: Json) => `\`${e.error}\` — ${card(e.desc)}`).join("; ")}`, "");
+  if (doc.errors?.length) lines.push(`**Throws** ${doc.errors.map((e: Json) => `\`${e.error}\` — ${e.desc}`).join("; ")}`, "");
 }
 
 function renderClass(cls: Json, lines: string[], index: string[]): void {
@@ -314,7 +309,7 @@ function renderClass(cls: Json, lines: string[], index: string[]): void {
   for (const k of cls.constants ?? []) {
     // The binary answers the platform it was built on; the reference is read everywhere.
     const value = PLATFORM_VALUES[`${name}::${k.name}`] ?? k.value;
-    lines.push(`| \`${name}::${k.name}\` | \`${k.type}\` = \`${esc(value)}\` — ${esc(card(k.doc ?? ""))} |`);
+    lines.push(`| \`${name}::${k.name}\` | \`${k.type}\` = \`${esc(value)}\` — ${esc(k.doc ?? "")} |`);
   }
   lines.push("");
   if (ctor) renderMember(name, { ...ctor, name: "constructor" }, lines);
@@ -332,9 +327,9 @@ function renderEnums(enums: Json[], lines: string[]): void {
   for (const e of enums) {
     const doc = e.doc ?? {};
     lines.push(anchor(anchorId("enum", e.name)), `#### \`${e.name}\``, "");
-    if (doc.short) lines.push(card(doc.short), "");
+    if (doc.short) lines.push(doc.short, "");
     lines.push("| Case | Meaning |", "|---|---|");
-    for (const c of doc.cases ?? []) lines.push(`| \`${e.name}::${c.name}\` | ${esc(card(c.desc))} |`);
+    for (const c of doc.cases ?? []) lines.push(`| \`${e.name}::${c.name}\` | ${esc(c.desc)} |`);
     lines.push("");
   }
 }
@@ -437,7 +432,7 @@ function build(reg: Json): string {
       used.add(name);
       return table(reg);
     });
-    // A chapter's `<!-- src: ... -->` lines say which decision owns a paragraph, and a `<!-- primer -->`
+    // A chapter's `<!-- src: ... -->` lines say which rule owns a paragraph, and a `<!-- primer -->`
     // marker selects what `nvs agent primer` lifts; neither says anything to this file's reader.
     return out.replace(SRC_RE, "").replace(PRIMER_RE, "");
   };

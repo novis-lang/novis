@@ -12,10 +12,10 @@
 //           website's own sync scripts are gone, because `bun nv render --website` writes their data.
 //   python  no `.py` file is tracked but the Python twins under `benches/userland/`, which are a bench
 //           engine's workload rather than a tool. No document that describes the present names a Python
-//           tool, as a `tools/<x>.py` path or as a tool's bare `<x>.py`, or cites a home the cutover
-//           deleted (`LEGACY`), as a link, in backticks or as plain text; and no record under `data/`
-//           does either. What describes the past is not read: decision records, `CHANGELOG.md` and the
-//           live goal's prose.
+//           tool, as a `tools/<x>.py` path or as a tool's bare `<x>.py`, or cites a deleted home
+//           (`LEGACY`), as a link, in backticks or as plain text; and no record under `data/` does
+//           either. Every tracked Markdown file is read but `CHANGELOG.md`, which `git log` writes, and
+//           the live goal's prose, which names what it deletes.
 //
 // A passing audit prints its `audit:` lines. A failing one prints a count and every offender under it,
 // and exits 1. An unknown audit name exits 2.
@@ -172,8 +172,8 @@ async function auditCi(): Promise<Finding[]> {
 
 /** The Python column of the cross-language bench: `bun nv bench` runs these as a peer engine's workload. */
 const PY_WORKLOAD = "benches/userland/";
-/** Documents that are history: frozen records, and a changelog written from `git log`. */
-const HISTORY = ["docs/decisions/", "CHANGELOG.md"];
+/** The changelog, which is written from `git log` and so describes the past. */
+const CHANGELOG = "CHANGELOG.md";
 /** Scratch, never a document. */
 const SCRATCH = ".agent-tmp/";
 
@@ -189,15 +189,19 @@ export function strayPython(paths: string[]): string[] {
 export const RENAMED_TOOLS = [OLD, "check-links", "guard-read"];
 
 /**
- * The homes the cutover deleted, each as a pattern over a citation of it: the old driver's copies of the live
- * goal, the handoff file, the decision and rule indexes, the TOML data under `tools/data/`, the generated
- * goals' directory and a goal file named by its position, the website's sync scripts and their npm
- * names, and the Python driver's memo. Each is gone, so a line naming one describes the past.
+ * The deleted homes, each as a pattern over a citation of it: the old driver's copies of the live goal,
+ * the handoff file, the decision and rule indexes, the decision records' three directories, the TOML
+ * data under `tools/data/`, the generated goals' directory and a goal file named by its position, the
+ * website's sync scripts and their npm names, and the Python driver's memo. Each is gone, so a line
+ * naming one describes the past.
  */
 export const LEGACY: RegExp[] = [
   /\bloop-goal\.(?:md|toml)\b/,
   /(?<![\w.-])handoff\.md\b/,
   /\bdocs\/decisions\.toml\b/,
+  /\bdocs\/decisions\//,
+  /\bdata\/decisions\//,
+  /\bdocs\/adr\//,
   /\bdocs\/rules\/_index\.json\b/,
   /\btools\/data\/[\w-]+\.toml\b/,
   new RegExp(`\\bdocs/agent/goals/(?:${OLD}/|\\d+-[a-z])`),
@@ -231,12 +235,12 @@ export function docNamingPython(path: string, text: string, re: RegExp): string 
 }
 
 /**
- * The tracked Markdown a reader follows today: everything but history and the live goal's prose, which
- * names the tools it deletes.
+ * The tracked Markdown a reader follows today: everything but the changelog and the live goal's prose,
+ * which names the tools it deletes.
  */
 export function currentDocs(paths: string[], live: string | null): string[] {
   return paths.filter((p) => {
-    if (!p.endsWith(".md") || p.startsWith(SCRATCH) || HISTORY.some((h) => p === h || (h.endsWith("/") && p.startsWith(h)))) return false;
+    if (!p.endsWith(".md") || p.startsWith(SCRATCH) || p === CHANGELOG) return false;
     return p !== `docs/goals/${live}.md`;
   });
 }

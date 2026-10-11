@@ -56,7 +56,6 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   pack: () => import("./cmd/pack.ts"),
   proofs: () => import("./cmd/proofs.ts"),
   query: () => import("./cmd/query.ts"),
-  records: () => import("./cmd/records.ts"),
   reference: () => import("./cmd/reference.ts"),
   release: () => import("./cmd/release.ts"),
   relink: () => import("./cmd/relink.ts"),
