@@ -281,6 +281,41 @@ fn a_str_member_allocates_its_result_once() {
     }
 }
 
+/// `Core\Str::format` writes its result into the `string` it returns. A
+/// `string` argument is borrowed and an integer is written on the stack, so
+/// the result is the only allocation. The argument list is built outside the
+/// window, as the call site builds it before the call.
+// covers: Core\Str::format
+#[cfg(debug_assertions)]
+#[test]
+fn str_format_allocates_its_result_once() {
+    use nvs_runtime::Value;
+    use nvs_stdlib::str::nvs_core_str_format;
+
+    let mut list = nvs_runtime::NvsArray::new();
+    list.append(arg("Teapot 7 & lid"));
+    list.append(Value::int(12));
+    list.append(Value::int(7));
+    list.append(Value::int(255));
+    let args = [arg("%s costs %d.%02d (%x)"), Value::array(list)];
+
+    let (spent, answer) = allocations_of(nvs_core_str_format, &args);
+    assert_eq!(
+        answer.as_text(),
+        Some("Teapot 7 & lid costs 12.07 (ff)"),
+        "`Core\\Str::format` returned the wrong text, so the count below measured the wrong thing"
+    );
+    assert_eq!(
+        spent, 1,
+        "`Core\\Str::format` made {spent} allocations for one call, and it owes exactly one: \
+         the result. See `crates/nvs-stdlib/src/format.rs`'s `format`."
+    );
+    release(answer);
+    for value in args {
+        release(value);
+    }
+}
+
 /// Hands back the one reference this test owns in `value`.
 #[cfg(debug_assertions)]
 fn release(value: nvs_runtime::Value) {

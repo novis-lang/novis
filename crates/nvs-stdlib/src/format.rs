@@ -64,7 +64,7 @@
 //! `rule:types/string-is-utf8` owns that unit; restating it per member is what
 //! would let two members drift apart.
 
-use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Fault, NvsStr, StrWriter, Tag, ThrownClass, Value};
 
 use crate::granularity::DEFAULT;
 
@@ -80,9 +80,28 @@ use crate::granularity::DEFAULT;
 /// program's own grammar and the arguments its own call, never input — which
 /// is the side `Core\Time::parse` puts a bad *pattern* on, as against the
 /// `ParseError` it keeps for text.
-pub(crate) fn format(template: &str, arguments: &[Value]) -> Result<String, Fault> {
-    let mut out = String::with_capacity(template.len());
-    let mut used = vec![false; arguments.len()];
+///
+/// # Allocation
+///
+/// One per call: the result, written straight into the `string` the member
+/// returns. A `string` argument is borrowed, an integer is written on the
+/// stack, and only a float conversion builds a `String` of its own. The
+/// capacity is the template plus each `string` argument's length and 20 bytes
+/// for any other argument, so most calls never grow. A `%.Ns` over a long
+/// argument spends that argument's length once, for the duration of the call.
+/// On an error, the allocation already made is freed with the result.
+pub(crate) fn format(template: &str, arguments: &[Value]) -> Result<NvsStr, Fault> {
+    let capacity = arguments.iter().fold(template.len(), |sum, argument| {
+        sum.saturating_add(argument.as_str_bytes().map_or(20, <[u8]>::len))
+    });
+    let mut outcome = Ok(());
+    let built = NvsStr::build(capacity, |out| outcome = render(template, arguments, out));
+    outcome.map(|()| built)
+}
+
+/// [`format`]'s rendering loop, writing into the result's allocation.
+fn render(template: &str, arguments: &[Value], out: &mut StrWriter<'_>) -> Result<(), Fault> {
+    let mut read = Read::new(arguments.len());
     let mut next = 0usize;
     for piece in Pieces::new(template) {
         match piece.map_err(|why| Fault::thrown_as(ThrownClass::Logic, why.message))? {
@@ -92,17 +111,117 @@ pub(crate) fn format(template: &str, arguments: &[Value]) -> Result<String, Faul
                 let argument = arguments.get(index).ok_or_else(|| {
                     Fault::thrown_as(ThrownClass::Logic, reads_missing(index, arguments.len()))
                 })?;
-                used[index] = true;
+                read.mark(index);
                 spec.afford()?;
                 let body = spec.convert(argument)?;
-                spec.pad_into(&body, &mut out);
+                spec.pad_into(spec.truncated(body.as_str()), out);
             }
         }
     }
-    if let Some(unused) = used.iter().position(|seen| !seen) {
+    if let Some(unused) = read.first_unread() {
         return Err(Fault::thrown_as(ThrownClass::Logic, never_read(unused)));
     }
-    Ok(out)
+    Ok(())
+}
+
+/// Which arguments a placeholder has read: one bit per argument, and a list
+/// only for a call with more than 64 of them.
+struct Read {
+    bits: u64,
+    wide: Vec<bool>,
+    count: usize,
+}
+
+impl Read {
+    fn new(count: usize) -> Self {
+        let wide = match count > 64 {
+            true => vec![false; count],
+            false => Vec::new(),
+        };
+        Self {
+            bits: 0,
+            wide,
+            count,
+        }
+    }
+
+    /// Records `index` as read. The caller has already checked it against
+    /// the argument count, so a narrow call's index is below 64.
+    fn mark(&mut self, index: usize) {
+        match self.wide.get_mut(index) {
+            Some(seen) => *seen = true,
+            None => self.bits |= 1 << index,
+        }
+    }
+
+    /// The first argument no placeholder read.
+    fn first_unread(&self) -> Option<usize> {
+        if !self.wide.is_empty() {
+            return self.wide.iter().position(|seen| !seen);
+        }
+        let all = match self.count {
+            64 => u64::MAX,
+            count => (1 << count) - 1,
+        };
+        let unread = all & !self.bits;
+        (unread != 0).then(|| unread.trailing_zeros() as usize)
+    }
+}
+
+/// One placeholder's argument as text, before truncation and padding.
+enum Body<'a> {
+    /// The argument is a `string`, used as it is.
+    Borrowed(&'a str),
+    /// An integer, written on the stack.
+    Digits(Digits),
+    /// A float conversion, or a `%s` of a value that is not a string or an
+    /// integer.
+    Owned(String),
+}
+
+impl Body<'_> {
+    fn as_str(&self) -> &str {
+        match self {
+            Self::Borrowed(text) => text,
+            Self::Digits(digits) => digits.as_str(),
+            Self::Owned(text) => text,
+        }
+    }
+}
+
+/// An integer's text in a buffer on the stack. The widest integer rendering
+/// is a `%b` of `u64::MAX` with a `+` in front, 65 bytes, so it always fits.
+struct Digits {
+    bytes: [u8; 72],
+    len: usize,
+}
+
+impl Digits {
+    fn of(arguments: std::fmt::Arguments<'_>) -> Self {
+        let mut digits = Self {
+            bytes: [0; 72],
+            len: 0,
+        };
+        // Every caller writes one integer, which always fits, so this
+        // write cannot fail.
+        let _ = std::fmt::Write::write_fmt(&mut digits, arguments);
+        digits
+    }
+
+    fn as_str(&self) -> &str {
+        // Integer formatting writes ASCII only, so this is always valid.
+        std::str::from_utf8(&self.bytes[..self.len]).unwrap_or_default()
+    }
+}
+
+impl std::fmt::Write for Digits {
+    fn write_str(&mut self, piece: &str) -> std::fmt::Result {
+        let end = self.len + piece.len();
+        let room = self.bytes.get_mut(self.len..end).ok_or(std::fmt::Error)?;
+        room.copy_from_slice(piece.as_bytes());
+        self.len = end;
+        Ok(())
+    }
 }
 
 /// One placeholder as the *checker* sees it: which argument it reads and what
@@ -119,6 +238,9 @@ pub struct Placeholder {
     pub index: usize,
     /// The conversion character, already one of the closed list.
     pub conversion: char,
+    /// Whether the placeholder is the conversion alone, with no argument
+    /// number, flag, width or precision: `%d`, never `%1$d`, `%+d` or `%5d`.
+    pub plain: bool,
     /// Where in the template this one was written, so a refusal about it can
     /// underline it rather than the literal that carried it.
     pub written: Written,
@@ -175,6 +297,12 @@ pub fn placeholders(template: &str) -> Result<Vec<Placeholder>, Malformed> {
             found.push(Placeholder {
                 index: spec.index(&mut next),
                 conversion: spec.conversion,
+                plain: spec.argnum.is_none()
+                    && !spec.left
+                    && !spec.plus
+                    && spec.pad == ' '
+                    && spec.width == 0
+                    && spec.precision.is_none(),
                 written,
             });
         }
@@ -452,58 +580,63 @@ impl Spec {
         nvs_runtime::affordable(bytes, "Core\\Str::format()").map(drop)
     }
 
-    /// This placeholder's argument rendered, before any padding.
-    fn convert(&self, argument: &Value) -> Result<String, Fault> {
+    /// This placeholder's argument rendered, before truncation and padding.
+    fn convert<'a>(&self, argument: &'a Value) -> Result<Body<'a>, Fault> {
         match self.conversion {
-            's' => {
-                let rendered = rendered(argument)?;
-                Ok(match self.precision {
-                    Some(precision) if precision < DEFAULT.length(&rendered) => {
-                        rendered[..DEFAULT.byte_of_index(&rendered, precision)].to_owned()
-                    }
-                    _ => rendered,
-                })
+            's' => text_of(argument),
+            'd' => {
+                let value = integer(argument, 'd')?;
+                Ok(Body::Digits(match self.plus && value >= 0 {
+                    true => Digits::of(format_args!("+{value}")),
+                    false => Digits::of(format_args!("{value}")),
+                }))
             }
-            'd' => Ok(self.signed(integer(argument, 'd')?)),
             // PHP's `%u` prints the two's-complement reading of a negative
             // `int`, which is the whole point of having it beside `%d`.
             #[expect(
                 clippy::cast_sign_loss,
                 reason = "the reinterpretation is what `%u` asks for"
             )]
-            'u' => Ok((integer(argument, 'u')? as u64).to_string()),
+            'u' => Ok(Body::Digits(Digits::of(format_args!(
+                "{}",
+                integer(argument, 'u')? as u64
+            )))),
             #[expect(
                 clippy::cast_sign_loss,
                 reason = "a base conversion is over the bit pattern, as PHP's is"
             )]
             'x' | 'X' | 'o' | 'b' => {
                 let bits = integer(argument, self.conversion)? as u64;
-                Ok(match self.conversion {
-                    'x' => format!("{bits:x}"),
-                    'X' => format!("{bits:X}"),
-                    'o' => format!("{bits:o}"),
-                    _ => format!("{bits:b}"),
-                })
+                Ok(Body::Digits(match self.conversion {
+                    'x' => Digits::of(format_args!("{bits:x}")),
+                    'X' => Digits::of(format_args!("{bits:X}")),
+                    'o' => Digits::of(format_args!("{bits:o}")),
+                    _ => Digits::of(format_args!("{bits:b}")),
+                }))
             }
-            'f' => {
-                Ok(self.signed_text(fixed(floating(argument, 'f')?, self.precision.unwrap_or(6))))
-            }
-            'e' => Ok(self.signed_text(scientific(
+            'f' => Ok(Body::Owned(self.signed_text(fixed(
+                floating(argument, 'f')?,
+                self.precision.unwrap_or(6),
+            )))),
+            'e' => Ok(Body::Owned(self.signed_text(scientific(
                 floating(argument, 'e')?,
                 self.precision.unwrap_or(6),
-            ))),
-            _ => Ok(self.signed_text(shortest(
+            )))),
+            _ => Ok(Body::Owned(self.signed_text(shortest(
                 floating(argument, 'g')?,
                 self.precision.unwrap_or(6),
-            ))),
+            )))),
         }
     }
 
-    /// One integer with the `+` flag applied.
-    fn signed(&self, value: i64) -> String {
-        match self.plus && value >= 0 {
-            true => format!("+{value}"),
-            false => value.to_string(),
+    /// `body` cut to a `%s` precision, or `body` unchanged for every other
+    /// placeholder.
+    fn truncated<'b>(&self, body: &'b str) -> &'b str {
+        match self.precision {
+            Some(precision) if self.conversion == 's' && precision < DEFAULT.length(body) => {
+                &body[..DEFAULT.byte_of_index(body, precision)]
+            }
+            _ => body,
         }
     }
 
@@ -521,7 +654,13 @@ impl Spec {
     /// Zero padding goes *after* the sign — `%08.3f` of `-3.14159` is
     /// `-003.142`, not `00-3.142` — which is the one place the pad character
     /// changes where the padding lands.
-    fn pad_into(&self, body: &str, out: &mut String) {
+    ///
+    /// A placeholder with no width writes `body` without measuring it.
+    fn pad_into(&self, body: &str, out: &mut StrWriter<'_>) {
+        if self.width == 0 {
+            out.push_str(body);
+            return;
+        }
         let length = DEFAULT.length(body);
         let Some(short) = self.width.checked_sub(length).filter(|short| *short > 0) else {
             out.push_str(body);
@@ -529,7 +668,7 @@ impl Spec {
         };
         if self.left {
             out.push_str(body);
-            out.extend(std::iter::repeat_n(self.pad, short));
+            self.pad_run(short, out);
             return;
         }
         let sign = match self.pad == '0' && body.starts_with(['-', '+']) {
@@ -537,9 +676,41 @@ impl Spec {
             false => 0,
         };
         out.push_str(&body[..sign]);
-        out.extend(std::iter::repeat_n(self.pad, short));
+        self.pad_run(short, out);
         out.push_str(&body[sign..]);
     }
+
+    /// `count` pad characters, appended to `out`.
+    fn pad_run(&self, count: usize, out: &mut StrWriter<'_>) {
+        let mut encoded = [0u8; 4];
+        let pad = self.pad.encode_utf8(&mut encoded);
+        for _ in 0..count {
+            out.push_str(pad);
+        }
+    }
+}
+
+/// One `%s` argument's text. A `string` is used as it is, an `int` or a
+/// `uint` is written on the stack, and every other value goes through
+/// [`rendered`]. Each fast arm gives the same text `rendered` gives.
+fn text_of(argument: &Value) -> Result<Body<'_>, Fault> {
+    if let Some(text) = argument.as_text() {
+        return Ok(Body::Borrowed(text));
+    }
+    match argument.tag() {
+        Some(Tag::Int) => {
+            if let Some(value) = argument.as_int() {
+                return Ok(Body::Digits(Digits::of(format_args!("{value}"))));
+            }
+        }
+        Some(Tag::Uint) => {
+            if let Some(value) = argument.as_uint() {
+                return Ok(Body::Digits(Digits::of(format_args!("{value}"))));
+            }
+        }
+        _ => {}
+    }
+    rendered(argument).map(Body::Owned)
 }
 
 /// One `%s` argument's text — `rule:types/conversion`'s rows, reached through the one implementation of them.
@@ -786,7 +957,11 @@ mod tests {
     fn same(template: &str, arguments: Vec<Value>, expected: &str) {
         let answer = format(template, &arguments);
         released(arguments);
-        assert_eq!(answer.expect("no failure"), expected, "for `{template}`");
+        assert_eq!(
+            answer.expect("no failure").as_bytes(),
+            expected.as_bytes(),
+            "for `{template}`"
+        );
     }
 
     #[test]

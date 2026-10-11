@@ -3939,7 +3939,11 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
 
-        let mut collected = Vec::new();
+        // Up to eight arguments are read into an array on the stack, so a
+        // usual call allocates nothing here. A ninth moves them to a `Vec`.
+        let mut inline = [Value::null(); 8];
+        let mut spilled: Vec<Value> = Vec::new();
+        let mut count = 0usize;
         let mut from = 0usize;
         loop {
             #[expect(
@@ -3959,10 +3963,23 @@ nvs_runtime::nvs_helper! {
                 (slot, value)
             };
             from = slot + 1;
-            collected.push(value);
+            match inline.get_mut(count) {
+                Some(entry) if spilled.is_empty() => *entry = value,
+                _ => {
+                    if spilled.is_empty() {
+                        spilled.extend_from_slice(&inline);
+                    }
+                    spilled.push(value);
+                }
+            }
+            count += 1;
         }
+        let collected = match spilled.is_empty() {
+            true => &inline[..count],
+            false => &spilled[..],
+        };
 
-        produced(&crate::format::format(template, &collected)?)
+        crate::format::format(template, collected).map(Value::str)
     }
 }
 

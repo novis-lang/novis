@@ -57,11 +57,32 @@ macro_rules! expect_tag {
     };
 }
 
+/// `magnitude` in decimal, after a `-` when `negative`, written straight into
+/// the string it returns. One allocation per call: the digits are built on the
+/// stack, and `u64::MAX` has 20 of them.
+fn decimal_digits(negative: bool, mut magnitude: u64) -> NvsStr {
+    let mut digits = [0u8; 20];
+    let mut at = digits.len();
+    loop {
+        at -= 1;
+        digits[at] = b'0' + (magnitude % 10) as u8;
+        magnitude /= 10;
+        if magnitude == 0 {
+            break;
+        }
+    }
+    let sign: &[u8] = if negative { b"-" } else { b"" };
+    NvsStr::build(sign.len() + digits.len() - at, |out| {
+        out.push(sign);
+        out.push(&digits[at..]);
+    })
+}
+
 crate::nvs_helper! {
     /// `nvs_ir::Helper::IntToString`.
     fn nvs_int_to_string(_ctx, args: [1]) {
         let value = expect_tag!("nvs_int_to_string", args[0], as_int, Tag::Int);
-        Ok(Value::str(NvsStr::new(value.to_string().as_bytes())))
+        Ok(Value::str(decimal_digits(value < 0, value.unsigned_abs())))
     }
 }
 
@@ -69,7 +90,7 @@ crate::nvs_helper! {
     /// `nvs_ir::Helper::UintToString`.
     fn nvs_uint_to_string(_ctx, args: [1]) {
         let value = expect_tag!("nvs_uint_to_string", args[0], as_uint, Tag::Uint);
-        Ok(Value::str(NvsStr::new(value.to_string().as_bytes())))
+        Ok(Value::str(decimal_digits(false, value)))
     }
 }
 
