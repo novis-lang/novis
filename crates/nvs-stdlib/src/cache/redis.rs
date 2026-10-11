@@ -1287,7 +1287,7 @@ mod tests {
     const REDIS: u16 = 16379;
 
     /// Two clients onto that store and a key no other run holds, or [`None`]
-    /// when nothing is listening there.
+    /// when no store answers there.
     ///
     /// The two lease cases below are the only ones in this module that are not
     /// written against a fake, and they cannot be: a set-if-absent and an expiry
@@ -1300,6 +1300,11 @@ mod tests {
     /// rule the `.nvst` cases over this tier already carry in their `--SKIPIF--`
     /// section: what cannot be reached cannot be asserted, and the skip says so
     /// on stderr rather than quietly.
+    ///
+    /// The probe is the first round trip, the `DEL` of the case's key, and not
+    /// the connect. A container engine that has stopped can keep the port
+    /// published with nothing behind it, so the connect succeeds and every read
+    /// times out. That store cannot be reached either, and the case skips.
     ///
     /// The key carries this process's id so two runs at once are two leases, and
     /// it is deleted on the way in because a run that was killed mid-case leaves
@@ -1315,7 +1320,8 @@ mod tests {
             Dial::configured(Target::Tcp(address), None, None),
             Duration::from_secs(5),
         );
-        if let Err(why) = first.ensure() {
+        let key = format!("nvs:test:lease:{}:{label}", std::process::id()).into_bytes();
+        if let Err(why) = first.ensure().and_then(|()| first.del(&key)) {
             eprintln!(
                 "the {label} lease case asserted nothing: no store at {address} ({why}). \
                  `docker compose -f tests/db/compose.yaml up -d --wait redis` starts the one \
@@ -1330,8 +1336,6 @@ mod tests {
         second
             .ensure()
             .expect("a second connection to a store that has already answered one");
-        let key = format!("nvs:test:lease:{}:{label}", std::process::id()).into_bytes();
-        first.del(&key).expect("a key an earlier run may have left");
         Some((first, second, key))
     }
 
