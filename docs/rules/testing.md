@@ -749,7 +749,6 @@ the same files by hand would.
   hold no `require` walks nothing first.
 - **One program per call.** A second path beside a program is refused with a sentence about the
   count: `nvs test .` over the root is how a project with tests in two places runs them together.
-
 - **Name order, not test order.** The order the files are required in decides nothing a reader can
   see: classes are reported in name order and methods in declaration order, whatever brought them in.
 - **A file is a program, a directory of files is a program, and a directory holding both `.nvs` and
@@ -762,7 +761,30 @@ the same files by hand would.
   requires the bootstrap is analysed through that bootstrap's map
   ([`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map)).
 
-<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`programs/autoload`](programs.md#programs-autoload), [`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map). Decided in [0208](../decisions/0208.md).</sub>
+A new test file is in the suite the moment it exists, and nothing is added to the language, the
+configuration or the command line for it. The cost is one directory walk per invocation before the
+compile, and a compile that requires as many files as a hand-written entry naming each one would.
+Nothing is on a request path of the runtime.
+
+**Memory:** the written entry is one string, held for the run.
+
+**Declined:**
+- **A glob in a literal `require`**, `require 'tests/*Test.nvs';`. A `require` site is one call to
+  one file's script frame, and a site that expands to many files reaches into the type checker and
+  the compiler for a feature the tests never execute.
+- **A `[test]` block naming a bootstrap and directories.** The configuration is per server and an
+  application's tests are per application, the editor reads no `--config`, and a suite would need a
+  setting before its first run.
+- **A `--bootstrap` flag beside the directory.** Every run would spell it, and the editor cannot
+  see it.
+- **Running each `.nvs` file under the directory as its own program.** A test file that requires
+  nothing resolves nothing, and a report per file has no summary.
+- **Requiring the bootstrap from every test file.** It is one line per file across the suite, the
+  same list an entry naming every file is.
+- **Reading the directory as a program only when it holds no `index.nvs`.** It is a convention on a
+  name the runner would have to explain, for a case the mixed-directory refusal already covers.
+
+<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`programs/autoload`](programs.md#programs-autoload), [`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map).</sub>
 
 <a id="testing-one-slice-is-one-feature"></a>
 

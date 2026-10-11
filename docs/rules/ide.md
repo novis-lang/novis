@@ -357,7 +357,7 @@ the number of programs in the workspace, not with edits.
 - **Surveying by parsing every file.** The keyword search excludes almost every file for the cost of a
   read the index makes anyway.
 
-<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace). Decided in [0208](../decisions/0208.md), [0257](../decisions/0257.md).</sub>
+<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace). Decided in [0257](../decisions/0257.md).</sub>
 
 <a id="ide-the-stub-tree-is-where-core-is-declared"></a>
 
