@@ -1,9 +1,7 @@
 {
   "title": "Control never leaves `all` or `map` with a child still running",
   "status": "shipped",
-  "because": [
-    "0266"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/cancellation-runs-no-user-code",
     "security/isolate-shares-nothing",

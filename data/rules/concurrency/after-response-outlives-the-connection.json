@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Task::afterResponse` runs once the response is complete, still charged to the request tree",
   "status": "shipped",
-  "because": [
-    "0266"
-  ],
+  "because": [],
   "seeAlso": [
     "programs/memory-priority",
     "security/isolate-budget-is-the-trees",
