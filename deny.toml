@@ -38,8 +38,9 @@ ignore = [
 # This list decides what Novis may *link*. What it must then *ship* — the
 # reproduced notice for each component — is decided by its generator,
 # `tools/nv/cmd/gen-attribution.ts`, whose `PREFERENCE` must name exactly the
-# identifiers below, in preference order. The generator fails if the two ever
-# drift, so edit both together.
+# identifiers below, in preference order, plus the font-data licences of its
+# `FONT_DATA` (OFL-1.1), which no crate may offer. The generator fails if the
+# two ever drift, so edit both together.
 # ---------------------------------------------------------------------------
 [licenses]
 version = 2

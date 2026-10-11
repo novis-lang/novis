@@ -60,9 +60,9 @@ const BINARY = "nvs";
 // than "reproduce every offered license". An identifier absent here is an error, so a new license
 // entering the tree is a decision somebody makes.
 //
-// It names exactly the identifiers `deny.toml`'s `licenses.allow` does, only ordered: that file decides
-// what Novis may *link*, this one what it ships and which half of a choice. `checkPoliciesAgree` fails
-// on a drift in either direction.
+// It names exactly the identifiers `deny.toml`'s `licenses.allow` does, only ordered, plus the font-data
+// licences of `FONT_DATA`: that file decides what Novis may *link*, this one what it ships and which half
+// of a choice. `checkPoliciesAgree` fails on a drift in either direction.
 const PREFERENCE = [
   "MIT",
   // MIT with the attribution clause struck out, which is how `borrow-or-share` is offered. The text is
@@ -80,15 +80,23 @@ const PREFERENCE = [
   // set under. A data license, and one with no notice requirement; it is reproduced anyway.
   "CDLA-Permissive-2.0",
   "MPL-2.0",
-  // Last, so that `Unlicense OR MIT` — how the `regex` family is offered — always takes MIT and the
-  // notice stays one license shorter.
+  // Last among the code licences, so that `Unlicense OR MIT` — how the `regex` family is offered — always
+  // takes MIT and the notice stays one license shorter.
   "Unlicense",
+  // The SIL Open Font License, for the Liberation fonts the PDF component embeds
+  // (`rule:core-classes/pdf-default-fonts`). Font data only: it is in `FONT_DATA`, so a crate offering it
+  // is still refused by `deny.toml`, which does not allow it.
+  "OFL-1.1",
 ];
+
+// The identifiers `PREFERENCE` ranks for font data alone. A font file is shipped, never linked, so
+// `deny.toml` does not name these, and `checkPoliciesAgree` does not ask it to.
+const FONT_DATA = ["OFL-1.1"];
 
 // Content fingerprints, checked in order: a license file is classified by what it says, not by what it
 // is called, so LICENSE, LICENSE-MIT and license.txt all work, and a LICENSE that is Apache is filed as
 // Apache. Most specific first: the Unicode license opens with MIT's "Permission is hereby granted, free
-// of charge", BSD-3's text contains BSD-2's, and MIT-0's contains MIT's.
+// of charge", and so does the OFL's, BSD-3's text contains BSD-2's, and MIT-0's contains MIT's.
 const FINGERPRINTS: [string, string[]][] = [
   ["Apache-2.0 WITH LLVM-exception", ["apache license", "llvm exception"]],
   ["Apache-2.0", ["apache license", "version 2.0"]],
@@ -98,6 +106,7 @@ const FINGERPRINTS: [string, string[]][] = [
   ["Zlib", ["altered source versions must be plainly marked as such"]],
   ["MPL-2.0", ["mozilla public license version 2.0"]],
   ["CC0-1.0", ["creative commons legal code", "cc0 1.0 universal"]],
+  ["OFL-1.1", ["sil open font license", "version 1.1"]],
   ["CDLA-Permissive-2.0", ["community data license agreement", "permissive"]],
   ["BSD-3-Clause", ["redistribution and use in source and binary forms", "endorse or promote"]],
   ["BSD-2-Clause", ["redistribution and use in source and binary forms"]],
@@ -696,12 +705,13 @@ function denyAllowlist(): Set<string> {
 /**
  * Fails when `PREFERENCE` and `deny.toml`'s allow list have drifted apart. The two cannot be merged —
  * `deny.toml` is cargo-deny's format and has no order — so they are checked against each other, which
- * catches a license added to one file and not the other.
+ * catches a license added to one file and not the other. A `FONT_DATA` identifier is ranked and not
+ * allowed, because no crate may offer it.
  */
 function checkPoliciesAgree(allowed: Set<string>): void {
   if (allowed.size === 0) return;
   const unranked = [...allowed].filter((i) => !PREFERENCE.includes(i)).sort(cmp);
-  const unallowed = PREFERENCE.filter((i) => !allowed.has(i)).sort(cmp);
+  const unallowed = PREFERENCE.filter((i) => !allowed.has(i) && !FONT_DATA.includes(i)).sort(cmp);
   const problems: string[] = [];
   if (unranked.length > 0) problems.push(`allowed by deny.toml but absent from PREFERENCE: ${unranked.join(", ")}`);
   if (unallowed.length > 0) problems.push(`ranked in PREFERENCE but not allowed by deny.toml: ${unallowed.join(", ")}`);
