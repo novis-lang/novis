@@ -1,9 +1,7 @@
 {
   "title": "`nvs serve` runs the accept loop, the schedule ticker and the queue's workers in one process, and the drain stops all three",
   "status": "shipped",
-  "because": [
-    "0230"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/who-runs-a-job-is-configuration",
     "concurrency/queued-work-is-not-scheduled-work",

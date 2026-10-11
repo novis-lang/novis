@@ -1804,7 +1804,7 @@ beside it, and its argv is written into units on disk ([`packaging/a-service-is-
 - **Renaming the command.** A rename would collide with `service` and invalidate the argv stored in
   deployed units. A help text that names the three subsystems buys the same accuracy.
 
-<sub>See also [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/a-push-wakes-an-idle-worker`](concurrency.md#concurrency-a-push-wakes-an-idle-worker), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field). Decided in [0230](../decisions/0230.md).</sub>
+<sub>See also [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/a-push-wakes-an-idle-worker`](concurrency.md#concurrency-a-push-wakes-an-idle-worker), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field).</sub>
 
 <a id="concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers"></a>
 
@@ -1881,7 +1881,33 @@ lets a worker take one per wait). It is never a message a database sends: there 
 `NOTIFY` and no other backend's notification channel, so a backend that has none behaves exactly as
 one that has, and there is one path to test ([`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface)).
 
-<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface). Decided in [0230](../decisions/0230.md).</sub>
+**A push wakes every idle worker, not one.** A transaction that pushes many jobs wakes once, at its
+commit, and every woken worker claims at once, so the batch is shared out instead of run one job after
+another while the rest wait. The cost is that one push may cost each idle worker one claim that finds
+nothing left. A wake that lands between a worker's empty claim and the start of its wait is not lost:
+the worker sees it and claims again.
+
+- **Memory:** one number per database connection a request has open, and one wake per idle worker
+  for as long as it waits. Nothing grows with requests served or jobs pushed.
+- **Latency:** a push costs one uncontended lock and one cross-thread wake per idle worker. Nothing
+  else on the request path changes.
+
+**Declined:**
+- **`LISTEN` and `NOTIFY` on PostgreSQL, and the nearest thing on each other backend.** It would cover
+  a push from another process, but it is one mechanism per driver, SQLite has none, and each is a
+  second connection state to keep correct. The one-second bound covers that case on every backend.
+- **A wait that grows while the queue stays empty.** A job's delay would then depend on how long the
+  queue had been idle, which an operator cannot read off anything.
+- **A `[queue]` key for the interval.** With the wake in place the interval only bounds work this
+  process was not told about, and a key would be one more number to choose for a case a second serves.
+- **Waking at the statement inside a transaction.** The workers would ask before the row is visible,
+  find nothing, and the job would wait out the second: the exact case the wake exists for.
+- **Waking one worker per push.** A transaction that pushes many jobs wakes once, so one woken worker
+  would run them all in turn while the rest waited out the second.
+- **A shorter wait and no wake.** Any interval short enough to feel immediate is a poll an idle server
+  pays all day.
+
+<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface).</sub>
 
 <a id="concurrency-queued-work-is-not-scheduled-work"></a>
 

@@ -1,9 +1,7 @@
 {
   "title": "An idle queue worker asks its queue once a second, and a push in the same process wakes it once the job is committed",
   "status": "shipped",
-  "because": [
-    "0230"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/enqueue-commits-with-your-write",
     "concurrency/foreign-connection-enqueue-is-counted",
