@@ -1,0 +1,319 @@
+---
+/**
+ * The question index on /in-depth/questions/: every search question in
+ * src/data/questions.json, grouped by the site's areas and, inside an area,
+ * by the section or Core class its page belongs to. Each question links to
+ * the page it belongs to. The list is built from the questions file at build
+ * time, so a question added, changed or removed there shows here on the next
+ * build with no edit to this file.
+ *
+ * Page titles come from the pages themselves: the docs collection, the Core
+ * reference data and the Configuration and CLI reference data. A question
+ * whose page none of them names is listed under its path, in the last group.
+ *
+ * The list is wrapped in `data-pagefind-ignore`. Each question is already
+ * indexed on its own page (Banner.astro), and indexing it here as well would
+ * put this page beside the real one in every search.
+ *
+ * The box above the list hides every question that does not contain each
+ * typed word, and with it every page, group and area left empty. The count on
+ * each area's link is the number of its questions still shown.
+ */
+import { getCollection } from 'astro:content'
+import questions from '../data/questions.json'
+import { classes } from '~/lib/core'
+import { pages as refPages } from '~/lib/reference'
+import { withBase } from '~/lib/base'
+import { AREAS, INSTALL } from '../../config/site.mjs'
+
+interface Known {
+  title: string
+  code: boolean
+  /** The area's first path segment, or '' for the pages outside the four areas and Install. */
+  area: string
+  /** The group inside the area, '' for the area's own pages. */
+  group: string
+  order: number
+}
+
+const AREA_LIST = [INSTALL, ...AREAS].map((a) => ({ key: a.href.replace(/^\/|\/$/g, ''), label: a.label }))
+const AREA_KEYS = new Set(AREA_LIST.map((a) => a.key))
+const OTHER = { key: '', label: 'Other pages' }
+
+const known = new Map<string, Known>()
+const groupTitle = new Map<string, { title: string; code: boolean }>()
+let order = 0
+const add = (url: string, page: Omit<Known, 'order'>) => known.set(url, { ...page, order: order++ })
+
+const docs = (await getCollection('docs')).sort((a, b) => a.id.localeCompare(b.id))
+const pathOf = (id: string) => {
+  const trimmed = id.replace(/(^|\/)index$/, '')
+  return trimmed === '' ? '/' : `/${trimmed}/`
+}
+const segments = (path: string) => path.split('/').filter(Boolean)
+// A directory with pages under it is a group, and its own index page is the group's first page.
+const dirs = new Set(docs.map((d) => segments(pathOf(d.id))).filter((s) => s.length >= 3).map((s) => s.slice(0, 2).join('/')))
+for (const doc of docs) {
+  const parts = segments(pathOf(doc.id))
+  const area = AREA_KEYS.has(parts[0] ?? '') ? parts[0] : ''
+  const dir = parts.slice(0, 2).join('/')
+  const group = area && dirs.has(dir) ? dir : ''
+  if (group && parts.length === 2) groupTitle.set(group, { title: doc.data.title, code: false })
+  add(withBase(pathOf(doc.id)), { title: doc.data.title, code: false, area, group })
+}
+
+for (const cls of classes) {
+  const group = `core:${cls.name}`
+  groupTitle.set(group, { title: cls.name, code: true })
+  add(cls.url, { title: cls.name, code: true, area: 'reference', group })
+  for (const member of cls.members) add(member.url, { title: `${cls.name}::${member.name}`, code: true, area: 'reference', group })
+}
+
+const REF_AREAS = { config: 'Configuration', cli: 'CLI commands' } as const
+for (const [area, title] of Object.entries(REF_AREAS)) {
+  groupTitle.set(`ref:${area}`, { title, code: false })
+  add(withBase(`/reference/${area}/`), { title, code: false, area: 'reference', group: `ref:${area}` })
+}
+for (const page of refPages) {
+  add(page.url, { title: page.title.replace(/`/g, ''), code: page.area === 'config', area: 'reference', group: `ref:${page.area}` })
+}
+
+interface Entry {
+  url: string
+  page: Known
+  questions: string[]
+}
+const entries: Entry[] = Object.entries(questions as Record<string, { questions: string[] }>).map(([path, entry]) => {
+  const url = withBase(path)
+  const page = known.get(url) ?? { title: path, code: false, area: '', group: 'unknown', order: Number.MAX_SAFE_INTEGER }
+  return { url, page, questions: entry.questions }
+})
+entries.sort((a, b) => a.page.order - b.page.order)
+
+interface Group {
+  key: string
+  title: { title: string; code: boolean } | null
+  entries: Entry[]
+}
+const areas = [...AREA_LIST, OTHER]
+  .map((area) => {
+    const groups: Group[] = []
+    for (const entry of entries.filter((e) => e.page.area === area.key)) {
+      let group = groups.find((g) => g.key === entry.page.group)
+      if (!group) {
+        group = { key: entry.page.group, title: entry.page.group ? groupTitle.get(entry.page.group) ?? null : null, entries: [] }
+        groups.push(group)
+      }
+      group.entries.push(entry)
+    }
+    // An area's own pages come first, then its groups in page order.
+    groups.sort((a, b) => Number(a.key !== '') - Number(b.key !== ''))
+    return { ...area, id: `questions-${(area.key || 'other').replace(/[^a-z0-9]+/g, '-')}`, groups }
+  })
+  .filter((area) => area.groups.length > 0)
+
+const total = entries.reduce((sum, e) => sum + e.questions.length, 0)
+const count = (area: (typeof areas)[number]) => area.groups.reduce((sum, g) => sum + g.entries.reduce((s, e) => s + e.questions.length, 0), 0)
+---
+
+<div class="qa not-content" data-pagefind-ignore>
+  <div class="qa-tools">
+    <label class="qa-filter">
+      <span class="sr-only">Show only the questions that contain these words</span>
+      <input type="search" placeholder="Type words to filter the questions" autocomplete="off" />
+    </label>
+    <p class="qa-status" role="status" data-total={total}>{total} questions</p>
+  </div>
+
+  <nav class="qa-jump" aria-label="Areas">
+    {
+      areas.map((area) => (
+        <a href={`#${area.id}`} data-area={area.id}>
+          {area.label} <span>{count(area)}</span>
+        </a>
+      ))
+    }
+  </nav>
+
+  {
+    areas.map((area) => (
+      <section class="qa-area" id={area.id}>
+        <h2>{area.label}</h2>
+        {area.groups.map((group) => (
+          <div class="qa-group">
+            {group.title && <h3>{group.title.code ? <code>{group.title.title}</code> : group.title.title}</h3>}
+            <div class="qa-pages">
+              {group.entries.map((entry) => (
+                <div class="qa-page">
+                  <a class="qa-title" href={entry.url}>
+                    {entry.page.code ? <code>{entry.page.title}</code> : entry.page.title}
+                  </a>
+                  <ul>
+                    {entry.questions.map((q) => (
+                      <li>
+                        <a href={entry.url}>{q}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
+    ))
+  }
+  <p class="qa-none" hidden>No question contains all of these words. Type fewer words, or use the search at the top of the page.</p>
+</div>
+
+<style is:global>
+  .qa {
+    margin-top: 1.5rem;
+  }
+  .qa-tools {
+    position: sticky;
+    top: calc(var(--sl-nav-height) + 0.5rem);
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding: 0.75rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.75rem;
+    background: var(--sl-color-bg);
+  }
+  .qa-filter {
+    flex: 1 1 18rem;
+  }
+  .qa-filter input {
+    width: 100%;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    background: var(--sl-color-bg-nav);
+    color: var(--sl-color-white);
+    font-size: var(--sl-text-sm);
+  }
+  .qa-filter input:focus {
+    outline: 2px solid var(--sl-color-text-accent);
+    outline-offset: 1px;
+  }
+  .qa-status {
+    margin: 0;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+    white-space: nowrap;
+  }
+  .qa-jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0 0.5rem;
+  }
+  .qa-jump a {
+    padding: 0.3rem 0.75rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 999px;
+    color: var(--sl-color-white);
+    font-size: var(--sl-text-sm);
+    text-decoration: none;
+  }
+  .qa-jump a:hover {
+    border-color: var(--sl-color-text-accent);
+  }
+  .qa-jump span {
+    color: var(--sl-color-gray-3);
+  }
+  .qa-area h2 {
+    margin: 2.5rem 0 0.5rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--sl-color-hairline);
+    font-size: var(--sl-text-h2);
+    scroll-margin-top: calc(var(--sl-nav-height) + 5rem);
+  }
+  .qa-group h3 {
+    margin: 1.75rem 0 0.25rem;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-h4);
+  }
+  .qa-pages {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  .qa-page {
+    padding: 0.75rem 0.9rem;
+    border: 1px solid var(--sl-color-hairline);
+    border-radius: 0.6rem;
+    background: var(--sl-color-bg-nav);
+  }
+  .qa-title {
+    display: block;
+    margin-bottom: 0.4rem;
+    color: var(--sl-color-white);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .qa-title:hover {
+    color: var(--sl-color-text-accent);
+  }
+  .qa-page ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .qa-page li {
+    margin: 0;
+    padding: 0.2rem 0;
+    font-size: var(--sl-text-sm);
+    line-height: 1.4;
+  }
+  .qa-page li a {
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+  }
+  .qa-page li a:hover {
+    color: var(--sl-color-text-accent);
+    text-decoration: underline;
+  }
+  .qa-none {
+    margin-top: 2rem;
+    color: var(--sl-color-gray-3);
+  }
+  .qa [hidden] {
+    display: none !important;
+  }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('.qa')
+  if (root) {
+    const input = root.querySelector<HTMLInputElement>('.qa-filter input')!
+    const status = root.querySelector<HTMLElement>('.qa-status')!
+    const none = root.querySelector<HTMLElement>('.qa-none')!
+    const total = Number(status.dataset.total)
+    const items = [...root.querySelectorAll<HTMLLIElement>('.qa-page li')].map((li) => ({ li, text: li.textContent!.toLowerCase() }))
+    const filter = () => {
+      const words = input.value.toLowerCase().split(/\s+/).filter(Boolean)
+      let shown = 0
+      for (const { li, text } of items) {
+        const hit = words.every((w) => text.includes(w))
+        li.hidden = !hit
+        if (hit) shown++
+      }
+      for (const box of root.querySelectorAll<HTMLElement>('.qa-page, .qa-group, .qa-area')) {
+        box.hidden = !box.querySelector('li:not([hidden])')
+      }
+      for (const link of root.querySelectorAll<HTMLAnchorElement>('.qa-jump a')) {
+        const area = root.querySelector<HTMLElement>(`#${link.dataset.area}`)!
+        link.hidden = area.hidden
+        link.querySelector('span')!.textContent = String(area.querySelectorAll('li:not([hidden])').length)
+      }
+      none.hidden = shown > 0
+      status.textContent = words.length === 0 ? `${total} questions` : `${shown} of ${total} questions`
+    }
+    input.addEventListener('input', filter)
+  }
+</script>

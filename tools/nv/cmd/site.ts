@@ -74,7 +74,8 @@
 // `--questions --owed` prints, and no tool or build calls a language-model service for them. They name
 // no function from another language (`strlen`), and each belongs to the page that answers it best, so
 // two close pages (`trim` and `trimStart`) split the phrasing. They live in an indexed attribute, never
-// in hidden page text. The questions are not a feature proof.
+// in hidden page text. `/in-depth/questions/` (`website/src/components/QuestionIndex.astro`) lists them
+// all for a reader, outside the search index. The questions are not a feature proof.
 //
 // The parts of `--check`: `structure` (the nav is the four areas from `website/config/site.mjs`, then
 // Install and Sponsoring, each area is one sidebar group, no retired page or generator is on disk, the
@@ -613,6 +614,7 @@ export const IN_DEPTH_SECTIONS: [slug: string, least: number][] = [
   ["design-principles", 0],
   ["concepts", 5],
   ["falls-behind", 0],
+  ["questions", 0],
   ["roadmap", 0],
   ["what-changed", 0],
 ];

@@ -273,7 +273,7 @@ describe("nv site --check in-depth", () => {
 
   test("a missing page, a short directory and a sidebar out of order are named", () => {
     const root = inDepth(["in-depth/roadmap.mdx", "in-depth/concepts/5.mdx"]).root;
-    s.put("website/astro.config.ts", sidebar(["never", "what-for", "how-we-decide", "how-novis-is-written", "design-principles", "concepts", "falls-behind", "what-changed"]));
+    s.put("website/astro.config.ts", sidebar(["never", "what-for", "how-we-decide", "how-novis-is-written", "design-principles", "concepts", "falls-behind", "questions", "what-changed"]));
     expect(inDepthProblems(root)).toEqual([
       `${DOCS}/in-depth/concepts/: 4 page(s) beside its index, and the goal names 5 at least`,
       `${DOCS}/in-depth/roadmap.mdx: no page`,

@@ -679,7 +679,7 @@
   },
   "/in-depth/": {
     "feature": "in-depth/index.mdx",
-    "hash": "7e190bb835aba0a4",
+    "hash": "e4185d71e5b9f1fe",
     "questions": [
       "Why does Novis work the way it does?",
       "Where can I read about the design decisions behind Novis?",
@@ -801,6 +801,16 @@
       "Does Novis run my existing PHP files unchanged?",
       "Features Novis will never add, and why",
       "How will extensions work without native code?"
+    ]
+  },
+  "/in-depth/questions/": {
+    "feature": "in-depth/questions.mdx",
+    "hash": "4c34e750d2318d9a",
+    "questions": [
+      "List of all questions on the Novis website",
+      "Where can I browse every search question?",
+      "Which page has the answer to my question about Novis?",
+      "Frequently asked questions about Novis"
     ]
   },
   "/in-depth/roadmap/": {
