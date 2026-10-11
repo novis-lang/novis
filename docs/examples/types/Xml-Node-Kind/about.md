@@ -2,6 +2,9 @@ What a node in a parsed document is: the document itself, an element, some text,
 processing instruction. There are five and there will never be a sixth, so a walk that handles all
 five has handled everything a document can hold.
 
+`Core\Xml\Node::Kind` is declared in the class `Core\Xml\Node`. The method `kind` of a node returns
+it.
+
 Reading HTML and reading XML answer the same five kinds, so a walk written for one works unchanged
 on the other. Every node
 answers which kind it is, and that answer is the first question a walk asks, before it reaches for a

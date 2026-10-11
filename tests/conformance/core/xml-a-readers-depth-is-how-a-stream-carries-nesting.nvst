@@ -40,7 +40,7 @@ class Lines {
         while (true) {
             ?Core\Xml\Node $node = $reader->read();
             if ($node != null) {
-                if ($node->kind() == Core\Xml\NodeKind::Element && $node->name() == $name
+                if ($node->kind() == Core\Xml\Node::Kind::Element && $node->name() == $name
                     && $reader->depth() == 1) {
                     $found = $found + 1;
                 }

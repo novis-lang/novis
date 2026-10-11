@@ -9,7 +9,7 @@
 class Root {
     public static function of(Core\Xml\Node $document): Core\Xml\Node {
         foreach ($document->children() as Core\Xml\Node $child) {
-            if ($child->kind() == Core\Xml\NodeKind::Element) {
+            if ($child->kind() == Core\Xml\Node::Kind::Element) {
                 return $child;
             }
         }

@@ -15,14 +15,14 @@
 // quietly fall into a case that does not describe it.
 class Kind
 {
-    public static function name(Core\Xml\NodeKind $kind): string
+    public static function name(Core\Xml\Node::Kind $kind): string
     {
         return match ($kind) {
-            Core\Xml\NodeKind::Document => 'document',
-            Core\Xml\NodeKind::Element => 'element',
-            Core\Xml\NodeKind::Text => 'text',
-            Core\Xml\NodeKind::Comment => 'comment',
-            Core\Xml\NodeKind::ProcessingInstruction => 'instruction',
+            Core\Xml\Node::Kind::Document => 'document',
+            Core\Xml\Node::Kind::Element => 'element',
+            Core\Xml\Node::Kind::Text => 'text',
+            Core\Xml\Node::Kind::Comment => 'comment',
+            Core\Xml\Node::Kind::ProcessingInstruction => 'instruction',
         };
     }
 }
@@ -35,13 +35,13 @@ class Outline
     public static function show(Core\Xml\Node $node, string $indent): void
     {
         echo $indent, Kind::name($node->kind());
-        if ($node->kind() == Core\Xml\NodeKind::Element) {
+        if ($node->kind() == Core\Xml\Node::Kind::Element) {
             echo ' ', $node->name();
             foreach ($node->attributes() as tainted string $name => tainted string $value) {
                 echo ' ', $name, "=\"", $value, "\"";
             }
         }
-        if ($node->kind() != Core\Xml\NodeKind::Element) {
+        if ($node->kind() != Core\Xml\Node::Kind::Element) {
             echo " \"", $node->text(), "\"";
         }
         echo "\n";
@@ -72,7 +72,7 @@ class Root
     public static function of(Core\Xml\Node $document): Core\Xml\Node
     {
         foreach ($document->children() as Core\Xml\Node $child) {
-            if ($child->kind() == Core\Xml\NodeKind::Element) {
+            if ($child->kind() == Core\Xml\Node::Kind::Element) {
                 return $child;
             }
         }

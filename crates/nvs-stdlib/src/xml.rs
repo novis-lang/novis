@@ -169,9 +169,9 @@ pub(crate) const NAME: &str = r"Core\Xml";
 /// position that carries one.
 pub(crate) const NODE_NAME: &str = r"Core\Xml\Node";
 
-/// `Core\Xml\NodeKind`'s fully-qualified name, for [`KIND`] and for the return
+/// `Core\Xml\Node::Kind`'s fully-qualified name, for [`KIND`] and for the return
 /// position that carries one.
-pub(crate) const KIND_NAME: &str = r"Core\Xml\NodeKind";
+pub(crate) const KIND_NAME: &str = r"Core\Xml\Node::Kind";
 
 /// `Core\Xml\Reader`'s fully-qualified name, for [`READER`] and for the return
 /// position that carries one.
@@ -383,10 +383,10 @@ const NODE_CARD: ClassDoc = ClassDoc {
 /// `Core\Xml\Node::kind`'s reference card — `rule:core-api/reference-card`.
 const KIND_DOC: MethodDoc = MethodDoc {
     short: "Returns what kind of node this is: an element, a text, a comment, a processing \
-            instruction or the document. Compare it with a `Core\\Xml\\NodeKind` case, for \
+            instruction or the document. Compare it with a `Core\\Xml\\Node::Kind` case, for \
             example to skip everything that is not an element.",
     params: &[],
-    ret: "A `Core\\Xml\\NodeKind` case. There are exactly five cases, so a `match` over them \
+    ret: "A `Core\\Xml\\Node::Kind` case. There are exactly five cases, so a `match` over them \
           covers every node.",
     errors: &[],
 };
@@ -2430,7 +2430,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$node->kind(): Core\Xml\NodeKind` — which of the five this is.
+    /// `$node->kind(): Core\Xml\Node::Kind` — which of the five this is.
     ///
     /// An enum answers as its ordinal, exactly as a user-declared enum does
     /// (`rule:enums/closed-integer-type`), and the slot already holds it.

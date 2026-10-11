@@ -5,7 +5,7 @@ class Links {
     // Prints the `href` of every `a` element under `$node`, and the text of the link.
     public static function show(Core\Xml\Node $node): void {
         foreach ($node->children() as Core\Xml\Node $child) {
-            if ($child->kind() != Core\Xml\NodeKind::Element) {
+            if ($child->kind() != Core\Xml\Node::Kind::Element) {
                 continue;
             }
             array<tainted string> $attributes = $child->attributes();

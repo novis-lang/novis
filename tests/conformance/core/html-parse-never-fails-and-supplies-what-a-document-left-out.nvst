@@ -13,7 +13,7 @@ class Outline {
     public static function of(Core\Xml\Node $node): tainted string {
         tainted string $out = "";
         foreach ($node->children() as Core\Xml\Node $child) {
-            if ($child->kind() == Core\Xml\NodeKind::Element) {
+            if ($child->kind() == Core\Xml\Node::Kind::Element) {
                 $out = $out . " " . $child->name();
                 tainted string $under = Outline::of($child);
                 if ($under != "") {
@@ -77,7 +77,7 @@ class Every {
         uint $parsed = 0;
         foreach ($documents as string $at => string $document) {
             Core\Xml\Node $tree = Core\Html::parse($document);
-            if ($tree->kind() == Core\Xml\NodeKind::Document) {
+            if ($tree->kind() == Core\Xml\Node::Kind::Document) {
                 $parsed = $parsed + 1;
             }
         }

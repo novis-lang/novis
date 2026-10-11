@@ -5,13 +5,13 @@
 
 class Reader {
     public static function words(Core\Xml\Node $node): tainted string {
-        if ($node->kind() == Core\Xml\NodeKind::Text) {
+        if ($node->kind() == Core\Xml\Node::Kind::Text) {
             return $node->text();
         }
         // A comment or an instruction gives an empty string.
         // An element or the document gives the text of all its children.
-        if ($node->kind() == Core\Xml\NodeKind::Comment
-            || $node->kind() == Core\Xml\NodeKind::ProcessingInstruction) {
+        if ($node->kind() == Core\Xml\Node::Kind::Comment
+            || $node->kind() == Core\Xml\Node::Kind::ProcessingInstruction) {
             return "";
         }
         tainted string $said = "";

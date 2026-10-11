@@ -13,7 +13,7 @@ int $total = 0;
 foreach ($document->children() as Core\Xml\Node $stock) {
     foreach ($stock->children() as Core\Xml\Node $item) {
         // The line breaks between the items are text nodes. This loop skips them.
-        if ($item->kind() != Core\Xml\NodeKind::Element) {
+        if ($item->kind() != Core\Xml\Node::Kind::Element) {
             continue;
         }
         // `attributes` returns the attributes of the element, keyed by name.

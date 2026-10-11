@@ -8,10 +8,10 @@
 class Tree {
     public static function show(Core\Xml\Node $node, string $indent): void {
         foreach ($node->children() as Core\Xml\Node $child) {
-            if ($child->kind() == Core\Xml\NodeKind::Element) {
+            if ($child->kind() == Core\Xml\Node::Kind::Element) {
                 echo $indent, $child->name(), "\n";
             }
-            if ($child->kind() == Core\Xml\NodeKind::Text) {
+            if ($child->kind() == Core\Xml\Node::Kind::Text) {
                 echo $indent, "\"", $child->text(), "\"\n";
             }
             Tree::show($child, $indent . "  ");

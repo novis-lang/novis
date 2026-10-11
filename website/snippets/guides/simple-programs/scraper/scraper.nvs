@@ -4,7 +4,7 @@ class Scraper {
     // Prints each `a` element under `$node` that has an `href`, and looks inside every child.
     public static function links(Core\Xml\Node $node): void {
         foreach ($node->children() as Core\Xml\Node $child) {
-            if ($child->kind() != Core\Xml\NodeKind::Element) {
+            if ($child->kind() != Core\Xml\Node::Kind::Element) {
                 continue;
             }
             array<tainted string> $attributes = $child->attributes();

@@ -10,7 +10,7 @@ string $catalog = '<catalog>
 tainted string $inStock = "";
 foreach (Core\Xml::parse($catalog)->children() as Core\Xml\Node $root) {
     foreach ($root->children() as Core\Xml\Node $product) {
-        if ($product->kind() != Core\Xml\NodeKind::Element) {
+        if ($product->kind() != Core\Xml\Node::Kind::Element) {
             continue;
         }
         // A product in stock is copied as it is, with its attributes and its children.

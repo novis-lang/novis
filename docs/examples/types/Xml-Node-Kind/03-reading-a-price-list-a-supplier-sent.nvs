@@ -10,7 +10,7 @@ class Feed {
     public static function label(Core\Xml\Node $element): tainted string {
         tainted string $words = "";
         foreach ($element->children() as Core\Xml\Node $child) {
-            if ($child->kind() == Core\Xml\NodeKind::Text) {
+            if ($child->kind() == Core\Xml\Node::Kind::Text) {
                 $words = $words . $child->text();
             }
         }
@@ -29,12 +29,12 @@ foreach ($doc->children() as Core\Xml\Node $prices) {
     foreach ($prices->children() as Core\Xml\Node $child) {
         $children = $children + 1;
 
-        if ($child->kind() == Core\Xml\NodeKind::Comment) {
+        if ($child->kind() == Core\Xml\Node::Kind::Comment) {
             $notes = $notes + 1;
             echo "note: ", Core\Str::trim($child->text()), "\n";
             continue;
         }
-        if ($child->kind() != Core\Xml\NodeKind::Element) {
+        if ($child->kind() != Core\Xml\Node::Kind::Element) {
             continue;
         }
 

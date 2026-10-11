@@ -2,7 +2,7 @@
 `Core\Html::parse` and `Core\Xml::parse` answer the same node family, so one walk reads either and only the contract that got a document through the door differs — `rule:core-classes/html-parsing`
 --FILE--
 <?nvs
-// covers: Core\Xml\NodeKind
+// covers: Core\Xml\Node::Kind
 // The claim under test is *agreement*, so this file has exactly one walk and
 // both doors are asked to satisfy it. A door that grew a node of its own — an
 // attribute node, a fragment, a doctype — would have nothing here to print it
@@ -21,16 +21,16 @@ class Walk {
     }
 
     public static function kind(Core\Xml\Node $node): string {
-        if ($node->kind() == Core\Xml\NodeKind::Element) {
+        if ($node->kind() == Core\Xml\Node::Kind::Element) {
             return "element";
         }
-        if ($node->kind() == Core\Xml\NodeKind::Text) {
+        if ($node->kind() == Core\Xml\Node::Kind::Text) {
             return "text";
         }
-        if ($node->kind() == Core\Xml\NodeKind::Comment) {
+        if ($node->kind() == Core\Xml\Node::Kind::Comment) {
             return "comment";
         }
-        if ($node->kind() == Core\Xml\NodeKind::ProcessingInstruction) {
+        if ($node->kind() == Core\Xml\Node::Kind::ProcessingInstruction) {
             return "instruction";
         }
         return "document";

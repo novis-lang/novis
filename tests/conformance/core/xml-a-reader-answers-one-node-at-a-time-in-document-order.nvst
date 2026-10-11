@@ -3,13 +3,13 @@
 --FILE--
 <?nvs
 class Kind {
-    public static function name(Core\Xml\NodeKind $kind): string {
+    public static function name(Core\Xml\Node::Kind $kind): string {
         return match ($kind) {
-            Core\Xml\NodeKind::Document => "document",
-            Core\Xml\NodeKind::Element => "element",
-            Core\Xml\NodeKind::Text => "text",
-            Core\Xml\NodeKind::Comment => "comment",
-            Core\Xml\NodeKind::ProcessingInstruction => "instruction",
+            Core\Xml\Node::Kind::Document => "document",
+            Core\Xml\Node::Kind::Element => "element",
+            Core\Xml\Node::Kind::Text => "text",
+            Core\Xml\Node::Kind::Comment => "comment",
+            Core\Xml\Node::Kind::ProcessingInstruction => "instruction",
         };
     }
 }

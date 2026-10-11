@@ -16,7 +16,7 @@ class Ns {
 // The tree half: every element under a node the parse answered with.
 class Walk {
     public static function under(Core\Xml\Node $node): void {
-        if ($node->kind() == Core\Xml\NodeKind::Element) {
+        if ($node->kind() == Core\Xml\Node::Kind::Element) {
             Ns::show($node);
         }
         foreach ($node->children() as Core\Xml\Node $child) {
@@ -33,7 +33,7 @@ class Stream {
         while (true) {
             ?Core\Xml\Node $node = $reader->read();
             if ($node != null) {
-                if ($node->kind() == Core\Xml\NodeKind::Element) {
+                if ($node->kind() == Core\Xml\Node::Kind::Element) {
                     Ns::show($node);
                 }
             } else {
@@ -49,7 +49,7 @@ class Stream {
 class Count {
     public static function unnamespaced(Core\Xml\Node $node): uint {
         uint $seen = 0;
-        if ($node->kind() != Core\Xml\NodeKind::Element) {
+        if ($node->kind() != Core\Xml\Node::Kind::Element) {
             ?tainted string $uri = $node->namespaceUri();
             if ($uri == null) {
                 $seen = 1;

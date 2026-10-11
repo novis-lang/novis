@@ -6,7 +6,7 @@ class Items {
     public static function of(Core\Xml\Node $node): array<tainted string> {
         array<tainted string> $found = [];
         foreach ($node->children() as Core\Xml\Node $child) {
-            if ($child->kind() == Core\Xml\NodeKind::Element && $child->name() == "li") {
+            if ($child->kind() == Core\Xml\Node::Kind::Element && $child->name() == "li") {
                 // The text of an element is in its children, so this reads the first child.
                 foreach ($child->children() as Core\Xml\Node $text) {
                     $found[] = $text->text();

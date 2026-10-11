@@ -4,17 +4,17 @@ A comment and a processing instruction are nodes of the same family an element i
 <?nvs
 // covers: Core\Xml\Node::children, Core\Xml\Node::kind, Core\Xml\Node::name, Core\Xml\Node::text
 class Kind {
-    public static function name(Core\Xml\NodeKind $kind): string {
-        if ($kind == Core\Xml\NodeKind::Element) {
+    public static function name(Core\Xml\Node::Kind $kind): string {
+        if ($kind == Core\Xml\Node::Kind::Element) {
             return "element";
         }
-        if ($kind == Core\Xml\NodeKind::Text) {
+        if ($kind == Core\Xml\Node::Kind::Text) {
             return "text";
         }
-        if ($kind == Core\Xml\NodeKind::Comment) {
+        if ($kind == Core\Xml\Node::Kind::Comment) {
             return "comment";
         }
-        if ($kind == Core\Xml\NodeKind::ProcessingInstruction) {
+        if ($kind == Core\Xml\Node::Kind::ProcessingInstruction) {
             return "processing-instruction";
         }
         return "document";

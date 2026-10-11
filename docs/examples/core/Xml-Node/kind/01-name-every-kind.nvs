@@ -3,13 +3,13 @@
 
 class Label {
     // This returns a short word for each of the five kinds of node.
-    public static function of(Core\Xml\NodeKind $kind): string {
+    public static function of(Core\Xml\Node::Kind $kind): string {
         return match ($kind) {
-            Core\Xml\NodeKind::Element => "element",
-            Core\Xml\NodeKind::Text => "text",
-            Core\Xml\NodeKind::Comment => "comment",
-            Core\Xml\NodeKind::ProcessingInstruction => "processing instruction",
-            Core\Xml\NodeKind::Document => "document",
+            Core\Xml\Node::Kind::Element => "element",
+            Core\Xml\Node::Kind::Text => "text",
+            Core\Xml\Node::Kind::Comment => "comment",
+            Core\Xml\Node::Kind::ProcessingInstruction => "processing instruction",
+            Core\Xml\Node::Kind::Document => "document",
         };
     }
 }

@@ -16,7 +16,7 @@ class Ns {
 
 class Walk {
     public static function under(Core\Xml\Node $node): void {
-        if ($node->kind() == Core\Xml\NodeKind::Element) {
+        if ($node->kind() == Core\Xml\Node::Kind::Element) {
             Ns::show($node);
         }
         foreach ($node->children() as Core\Xml\Node $child) {

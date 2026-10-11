@@ -7,9 +7,9 @@ Core\Xml\Reader $reader = Core\Xml::reader('<note><to>Ana</to><!--draft--><body>
 // This prints six lines, starting with element: note.
 ?Core\Xml\Node $node = $reader->read();
 while ($node != null) {
-    if ($node->kind() == Core\Xml\NodeKind::Element) {
+    if ($node->kind() == Core\Xml\Node::Kind::Element) {
         echo "element: ", $node->name(), "\n";
-    } elseif ($node->kind() == Core\Xml\NodeKind::Text) {
+    } elseif ($node->kind() == Core\Xml\Node::Kind::Text) {
         echo "text: ", $node->text(), "\n";
     } else {
         echo "comment: ", $node->text(), "\n";

@@ -11,7 +11,7 @@ while (true) {
         break;
     }
     // This prints `menu`, then `item` twice, one step further in.
-    if ($node->kind() == Core\Xml\NodeKind::Element) {
+    if ($node->kind() == Core\Xml\Node::Kind::Element) {
         echo Core\Str::repeat("  ", $reader->depth()), $node->name(), "\n";
     }
 }

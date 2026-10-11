@@ -8,17 +8,17 @@
 // `rule:classes/no-free-functions-or-constants` makes every callable one, and
 // the `if` chain is the point: each case is reachable from source.
 class Kind {
-    public static function name(Core\Xml\NodeKind $kind): string {
-        if ($kind == Core\Xml\NodeKind::Element) {
+    public static function name(Core\Xml\Node::Kind $kind): string {
+        if ($kind == Core\Xml\Node::Kind::Element) {
             return "element";
         }
-        if ($kind == Core\Xml\NodeKind::Text) {
+        if ($kind == Core\Xml\Node::Kind::Text) {
             return "text";
         }
-        if ($kind == Core\Xml\NodeKind::Comment) {
+        if ($kind == Core\Xml\Node::Kind::Comment) {
             return "comment";
         }
-        if ($kind == Core\Xml\NodeKind::ProcessingInstruction) {
+        if ($kind == Core\Xml\Node::Kind::ProcessingInstruction) {
             return "processing-instruction";
         }
         return "document";
@@ -50,7 +50,7 @@ Walk::show($document, 0);
 // nothing under it is a document.
 int $documents = 0;
 foreach ($document->children() as Core\Xml\Node $child) {
-    if ($child->kind() == Core\Xml\NodeKind::Document) {
+    if ($child->kind() == Core\Xml\Node::Kind::Document) {
         $documents = $documents + 1;
     }
 }

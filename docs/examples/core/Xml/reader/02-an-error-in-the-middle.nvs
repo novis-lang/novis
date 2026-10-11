@@ -11,7 +11,7 @@ try {
         if ($node == null) {
             break;
         }
-        if ($node->kind() == Core\Xml\NodeKind::Text) {
+        if ($node->kind() == Core\Xml\Node::Kind::Text) {
             echo "text: ", $node->text(), "\n";
         }
     }

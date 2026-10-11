@@ -20900,24 +20900,24 @@ secret bytes $key = Core\Crypto::generateKey();
 bytes $message = "attack at dawn" as bytes;
 
 // No mode, no padding, no IV — and 40 octets of overhead, flat.
-bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
 if (Core\Bytes::length($sealed) == Core\Bytes::length($message) + 40) {
     echo "sealed, 40 octets over\n";
 }
 
-if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+if (Core\Crypto::open($sealed, $key, Core\Crypto::Cipher::XChaCha20Poly1305) == $message) {
     echo "and it opens\n";
 }
 
 // The nonce is drawn per call, so the same message never seals the same way.
-if (Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305) != $sealed) {
+if (Core\Crypto::seal($message, $key, Core\Crypto::Cipher::XChaCha20Poly1305) != $sealed) {
     echo "a fresh nonce every time\n";
 }
 
 // One octet short is a forgery, and an authenticated mode says so.
 bytes $tampered = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
 try {
-    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
     echo "tamper accepted\n";
 } catch (RuntimeError $refused) {
     echo "tamper refused\n";
@@ -20926,7 +20926,7 @@ try {
 // So is an intact message under a key that did not seal it.
 secret bytes $other = Core\Crypto::generateKey();
 try {
-    bytes $wrong = Core\Crypto::open($sealed, $other, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $wrong = Core\Crypto::open($sealed, $other, Core\Crypto::Cipher::XChaCha20Poly1305);
     echo "opened under the wrong key\n";
 } catch (RuntimeError $notThisKey) {
     echo "the wrong key is refused\n";
@@ -20977,8 +20977,8 @@ if ($forCookies != $forTokens) {
 // Either answer is a key like any other, and is a `secret bytes` like any
 // other: neither derivation is a way out of the qualifier.
 bytes $message = "attack at dawn" as bytes;
-bytes $sealed = Core\Crypto::seal($message, $fromPassword, Core\Crypto\Cipher::XChaCha20Poly1305);
-if (Core\Crypto::open($sealed, $fromPassword, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+bytes $sealed = Core\Crypto::seal($message, $fromPassword, Core\Crypto::Cipher::XChaCha20Poly1305);
+if (Core\Crypto::open($sealed, $fromPassword, Core\Crypto::Cipher::XChaCha20Poly1305) == $message) {
     echo "a derived key seals like a drawn one\n";
 }
 
@@ -21024,19 +21024,19 @@ not do is a `LogicError` rather than a weaker answer. `::agree` answers the shar
 // other end reads. `Raw` is the 32 octets a browser exports for a curve.
 Core\Crypto\KeyPair $mine = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
 Core\Crypto\KeyPair $theirs = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
-bytes $sent = $mine->publicKey()->write(Core\Crypto\KeyFormat::Raw);
+bytes $sent = $mine->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
 
 // What arrives is read back before anything uses it, under the kind and the
 // encoding the protocol says it is in.
 Core\Crypto\PublicKey $peer = Core\Crypto\PublicKey::read(
-    $theirs->publicKey()->write(Core\Crypto\KeyFormat::Raw),
+    $theirs->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
     Core\Crypto\KeyKind::X25519,
-    Core\Crypto\KeyFormat::Raw
+    Core\Crypto\PublicKey::Format::Raw
 );
 Core\Crypto\PublicKey $me = Core\Crypto\PublicKey::read(
     $sent,
     Core\Crypto\KeyKind::X25519,
-    Core\Crypto\KeyFormat::Raw
+    Core\Crypto\PublicKey::Format::Raw
 );
 
 // Both ends agree the same secret from opposite halves and spread it into a
@@ -21044,8 +21044,8 @@ Core\Crypto\PublicKey $me = Core\Crypto\PublicKey::read(
 bytes $salt = "a salt both ends know" as bytes;
 secret bytes $ours = Core\Crypto::expandKey(Core\Crypto::agree($mine, $peer), $salt, "session");
 secret bytes $yours = Core\Crypto::expandKey(Core\Crypto::agree($theirs, $me), $salt, "session");
-bytes $sealed = Core\Crypto::seal("ping" as bytes, $ours, Core\Crypto\Cipher::Aes256Gcm);
-if (Core\Crypto::open($sealed, $yours, Core\Crypto\Cipher::Aes256Gcm) == ("ping" as bytes)) {
+bytes $sealed = Core\Crypto::seal("ping" as bytes, $ours, Core\Crypto::Cipher::Aes256Gcm);
+if (Core\Crypto::open($sealed, $yours, Core\Crypto::Cipher::Aes256Gcm) == ("ping" as bytes)) {
     echo "one secret, agreed from both ends\n";
 }
 
@@ -21085,8 +21085,8 @@ an agreement key signs nothing
 | Member | Signature |
 |---|---|
 | [`Core\Crypto::generateKey`](#core-core-crypto-generatekey) | `generateKey(): secret bytes` |
-| [`Core\Crypto::seal`](#core-core-crypto-seal) | `seal(bytes $message, secret bytes $key, Core\Crypto\Cipher $cipher): bytes` |
-| [`Core\Crypto::open`](#core-core-crypto-open) | `open(bytes $sealed, secret bytes $key, Core\Crypto\Cipher $cipher): bytes` |
+| [`Core\Crypto::seal`](#core-core-crypto-seal) | `seal(bytes $message, secret bytes $key, Core\Crypto::Cipher $cipher): bytes` |
+| [`Core\Crypto::open`](#core-core-crypto-open) | `open(bytes $sealed, secret bytes $key, Core\Crypto::Cipher $cipher): bytes` |
 | [`Core\Crypto::deriveKey`](#core-core-crypto-derivekey) | `deriveKey(secret string $password, bytes $salt, uint $iterations): secret bytes` |
 | [`Core\Crypto::expandKey`](#core-core-crypto-expandkey) | `expandKey(secret bytes $material, bytes $salt, string $info): secret bytes` |
 | [`Core\Crypto::generateKeyPair`](#core-core-crypto-generatekeypair) | `generateKeyPair(Core\Crypto\KeyKind $kind): Core\Crypto\KeyPair` |
@@ -21109,16 +21109,16 @@ Draws a fresh key for `seal` and `open` from the same CSPRNG `Core\Random` uses.
 #### `Core\Crypto::seal`
 
 ```nvs skip
-Core\Crypto::seal(bytes $message, secret bytes $key, Core\Crypto\Cipher $cipher): bytes
+Core\Crypto::seal(bytes $message, secret bytes $key, Core\Crypto::Cipher $cipher): bytes
 ```
 
-Encrypts and authenticates `$message` under `$key` with the construction `$cipher` names, drawing a fresh nonce per call. There is no mode, padding or IV argument, and no cipher name in a string — the only choice is a `Core\Crypto\Cipher` case, and every case authenticates.
+Encrypts and authenticates `$message` under `$key` with the construction `$cipher` names, drawing a fresh nonce per call. There is no mode, padding or IV argument, and no cipher name in a string — the only choice is a `Core\Crypto::Cipher` case, and every case authenticates.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$message` | `bytes` | The plaintext. A `secret` is refused here: sealing one is a written `Core\Secret::revealBytes` call, which is what makes it greppable. |
 | `$key` | `secret bytes` (neutral) | A 32-octet key, as `generateKey` answers one. One width keys either cipher. |
-| `$cipher` | `Core\Crypto\Cipher` | Which construction to seal under. No default: `XChaCha20Poly1305` where both ends are Novis, `Aes256Gcm` where a browser has to read the result. |
+| `$cipher` | `Core\Crypto::Cipher` | Which construction to seal under. No default: `XChaCha20Poly1305` where both ends are Novis, `Aes256Gcm` where a browser has to read the result. |
 
 **Returns** `bytes` — The sealed message — 40 octets longer than `$message` under `XChaCha20Poly1305` and 28 under `Aes256Gcm`, and different on every call for the same inputs, because each draws its own nonce.
 
@@ -21128,7 +21128,7 @@ Encrypts and authenticates `$message` under `$key` with the construction `$ciphe
 #### `Core\Crypto::open`
 
 ```nvs skip
-Core\Crypto::open(bytes $sealed, secret bytes $key, Core\Crypto\Cipher $cipher): bytes
+Core\Crypto::open(bytes $sealed, secret bytes $key, Core\Crypto::Cipher $cipher): bytes
 ```
 
 Authenticates `$sealed` under `$key` and `$cipher` and answers the plaintext, or throws. A message altered by one octet is refused rather than decrypted into whatever is left of it, which is the whole reason the roster is AEAD only.
@@ -21137,7 +21137,7 @@ Authenticates `$sealed` under `$key` and `$cipher` and answers the plaintext, or
 |---|---|---|
 | `$sealed` | `bytes` | A message `seal` produced. |
 | `$key` | `secret bytes` (neutral) | The 32-octet key `$sealed` was sealed under. |
-| `$cipher` | `Core\Crypto\Cipher` | The construction `$sealed` was sealed under. Naming the other one is a forgery like any other, never plausible bytes. |
+| `$cipher` | `Core\Crypto::Cipher` | The construction `$sealed` was sealed under. Naming the other one is a forgery like any other, never plausible bytes. |
 
 **Returns** `bytes` — The original plaintext, byte for byte.
 
@@ -21258,15 +21258,15 @@ Keywords: read, write, kind
 
 | Member | Signature |
 |---|---|
-| [`Core\Crypto\PublicKey::read`](#core-core-crypto-publickey-read) | `read(bytes $encoded, Core\Crypto\KeyKind $kind, Core\Crypto\KeyFormat $format): Core\Crypto\PublicKey` |
-| [`Core\Crypto\PublicKey->write`](#core-core-crypto-publickey-write) | `write(Core\Crypto\KeyFormat $format): bytes` |
+| [`Core\Crypto\PublicKey::read`](#core-core-crypto-publickey-read) | `read(bytes $encoded, Core\Crypto\KeyKind $kind, Core\Crypto\PublicKey::Format $format): Core\Crypto\PublicKey` |
+| [`Core\Crypto\PublicKey->write`](#core-core-crypto-publickey-write) | `write(Core\Crypto\PublicKey::Format $format): bytes` |
 | [`Core\Crypto\PublicKey->kind`](#core-core-crypto-publickey-kind) | `kind(): Core\Crypto\KeyKind` |
 
 <a id="core-core-crypto-publickey-read"></a>
 #### `Core\Crypto\PublicKey::read`
 
 ```nvs skip
-Core\Crypto\PublicKey::read(bytes $encoded, Core\Crypto\KeyKind $kind, Core\Crypto\KeyFormat $format): Core\Crypto\PublicKey
+Core\Crypto\PublicKey::read(bytes $encoded, Core\Crypto\KeyKind $kind, Core\Crypto\PublicKey::Format $format): Core\Crypto\PublicKey
 ```
 
 Reads a public key out of `$encoded` and validates it: on the curve for `P256`, inside the roster's width for either RSA kind, and a JWK's members against the kind named. A key that does not check is refused here and nowhere later, so no member that takes one can be handed a key nobody looked at.
@@ -21275,7 +21275,7 @@ Reads a public key out of `$encoded` and validates it: on the curve for `P256`, 
 |---|---|---|
 | `$encoded` | `bytes` (neutral) | The key's octets, in `$format`. |
 | `$kind` | `Core\Crypto\KeyKind` | Which key this is. It is named rather than read out of the octets, because an RSA `SubjectPublicKeyInfo` says `rsaEncryption` whichever of `RS256` and `PS256` the key is for, so the program that was handed the key is the only party that can say. |
-| `$format` | `Core\Crypto\KeyFormat` | Which of WebCrypto's three export encodings `$encoded` is in. |
+| `$format` | `Core\Crypto\PublicKey::Format` | Which of WebCrypto's three export encodings `$encoded` is in. |
 
 **Returns** `Core\Crypto\PublicKey` — The key, ready to verify a signature or to agree with, and answering `kind` with the case it was read as.
 
@@ -21285,14 +21285,14 @@ Reads a public key out of `$encoded` and validates it: on the curve for `P256`, 
 #### `Core\Crypto\PublicKey->write`
 
 ```nvs skip
-$publicKey->write(Core\Crypto\KeyFormat $format): bytes
+$publicKey->write(Core\Crypto\PublicKey::Format $format): bytes
 ```
 
 Answers this key in `$format` — the same encodings `read` accepts, so a key crosses to a browser in whichever one the other end asked for. It is written from the key rather than from the octets it arrived in, so one key has one spelling per encoding however it was read.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$format` | `Core\Crypto\KeyFormat` | Which encoding to write. `Jwk` answers RFC 7638's required members, sorted, which is the form a thumbprint is taken over. |
+| `$format` | `Core\Crypto\PublicKey::Format` | Which encoding to write. `Jwk` answers RFC 7638's required members, sorted, which is the form a thumbprint is taken over. |
 
 **Returns** `bytes` — The key's octets, a JWK being its UTF-8 JSON.
 
@@ -22008,7 +22008,7 @@ Keywords: kind, name, namespaceUri, text, attributes, children, source
 
 | Member | Signature |
 |---|---|
-| [`Core\Xml\Node->kind`](#core-core-xml-node-kind) | `kind(): Core\Xml\NodeKind` |
+| [`Core\Xml\Node->kind`](#core-core-xml-node-kind) | `kind(): Core\Xml\Node::Kind` |
 | [`Core\Xml\Node->name`](#core-core-xml-node-name) | `name(): tainted string` |
 | [`Core\Xml\Node->namespaceUri`](#core-core-xml-node-namespaceuri) | `namespaceUri(): ?tainted string` |
 | [`Core\Xml\Node->text`](#core-core-xml-node-text) | `text(): tainted string` |
@@ -22020,12 +22020,12 @@ Keywords: kind, name, namespaceUri, text, attributes, children, source
 #### `Core\Xml\Node->kind`
 
 ```nvs skip
-$node->kind(): Core\Xml\NodeKind
+$node->kind(): Core\Xml\Node::Kind
 ```
 
-Returns what kind of node this is: an element, a text, a comment, a processing instruction or the document. Compare it with a `Core\Xml\NodeKind` case, for example to skip everything that is not an element.
+Returns what kind of node this is: an element, a text, a comment, a processing instruction or the document. Compare it with a `Core\Xml\Node::Kind` case, for example to skip everything that is not an element.
 
-**Returns** `Core\Xml\NodeKind` — A `Core\Xml\NodeKind` case. There are exactly five cases, so a `match` over them covers every node.
+**Returns** `Core\Xml\Node::Kind` — A `Core\Xml\Node::Kind` case. There are exactly five cases, so a `match` over them covers every node.
 
 <a id="core-core-xml-node-name"></a>
 #### `Core\Xml\Node->name`
@@ -22474,14 +22474,14 @@ Keywords: detect, mediaType
 
 | Member | Signature |
 |---|---|
-| [`Core\Mime::detect`](#core-core-mime-detect) | `detect(bytes $data): Core\Mime\Type` |
-| [`Core\Mime::mediaType`](#core-core-mime-mediatype) | `mediaType(Core\Mime\Type $type): string` |
+| [`Core\Mime::detect`](#core-core-mime-detect) | `detect(bytes $data): Core\Mime::Type` |
+| [`Core\Mime::mediaType`](#core-core-mime-mediatype) | `mediaType(Core\Mime::Type $type): string` |
 
 <a id="core-core-mime-detect"></a>
 #### `Core\Mime::detect`
 
 ```nvs skip
-Core\Mime::detect(bytes $data): Core\Mime\Type
+Core\Mime::detect(bytes $data): Core\Mime::Type
 ```
 
 Reports what `$data` is, read from the octets themselves — replacing `mime_content_type`, `finfo_buffer` and `exif_imagetype`. There is no parameter for a file name, because a type read off an extension is a type an attacker chose.
@@ -22490,22 +22490,22 @@ Reports what `$data` is, read from the octets themselves — replacing `mime_con
 |---|---|---|
 | `$data` | `bytes` (neutral) | The octets to inspect. Only the first few are read — the widest signature in the table is sixteen — so a prefix of an upload answers what the whole of it would. |
 
-**Returns** `Core\Mime\Type` — The case naming what the octets are, or `Core\Mime\Type::Unknown` where no signature matched — which includes every format serialized as text. **Detection is not a laundering**: bytes that detect as `image/png` are still `tainted`, because a signature describes the first octets and says nothing about what the rest is safe for.
+**Returns** `Core\Mime::Type` — The case naming what the octets are, or `Core\Mime::Type::Unknown` where no signature matched — which includes every format serialized as text. **Detection is not a laundering**: bytes that detect as `image/png` are still `tainted`, because a signature describes the first octets and says nothing about what the rest is safe for.
 
 <a id="core-core-mime-mediatype"></a>
 #### `Core\Mime::mediaType`
 
 ```nvs skip
-Core\Mime::mediaType(Core\Mime\Type $type): string
+Core\Mime::mediaType(Core\Mime::Type $type): string
 ```
 
 The IANA media type `$type` is spelled with, for a `Content-Type` header or a stored record. One direction only: a case has a name, and a name never becomes a case.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$type` | `Core\Mime\Type` | The case to spell, usually one `detect` just answered. |
+| `$type` | `Core\Mime::Type` | The case to spell, usually one `detect` just answered. |
 
-**Returns** `string` — The media type, as `image/png` — and `application/octet-stream` for `Core\Mime\Type::Unknown`, which is what a program that must send something should send for octets it could not name.
+**Returns** `string` — The media type, as `image/png` — and `application/octet-stream` for `Core\Mime::Type::Unknown`, which is what a program that must send something should send for octets it could not name.
 
 <a id="core-core-zip"></a>
 ### `Core\Zip`
@@ -29323,14 +29323,14 @@ The format a `Core\Compress` method reads or writes. The first three are one def
 | `Core\Compress::Codec::Zstd` | RFC 8878, `Content-Encoding: zstd`. |
 
 <a id="enum-core-crypto-cipher"></a>
-#### `Core\Crypto\Cipher`
+#### `Core\Crypto::Cipher`
 
 Which authenticated construction a `seal` or an `open` runs. There is no default: a call names its cipher, and both cases authenticate, so neither choice can produce a message an alteration would survive.
 
 | Case | Meaning |
 |---|---|
-| `Core\Crypto\Cipher::XChaCha20Poly1305` | ChaCha20-Poly1305 under a 192-bit nonce — the one to prefer when both ends are Novis, because a nonce that wide is never drawn twice and the cipher is fast on a host with no AES instructions. Seals as `nonce(24) ‖ ciphertext ‖ tag(16)`. |
-| `Core\Crypto\Cipher::Aes256Gcm` | AES-256-GCM, the interop cipher: what a browser's WebCrypto encrypts with, so a sealed message crosses to the other end. Seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is WebCrypto's own output with its IV in front. Its 96-bit nonce puts a birthday bound near 2^32 messages under one key; past that, seal under the other case. |
+| `Core\Crypto::Cipher::XChaCha20Poly1305` | ChaCha20-Poly1305 under a 192-bit nonce — the one to prefer when both ends are Novis, because a nonce that wide is never drawn twice and the cipher is fast on a host with no AES instructions. Seals as `nonce(24) ‖ ciphertext ‖ tag(16)`. |
+| `Core\Crypto::Cipher::Aes256Gcm` | AES-256-GCM, the interop cipher: what a browser's WebCrypto encrypts with, so a sealed message crosses to the other end. Seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is WebCrypto's own output with its IV in front. Its 96-bit nonce puts a birthday bound near 2^32 messages under one key; past that, seal under the other case. |
 
 <a id="enum-core-crypto-keykind"></a>
 #### `Core\Crypto\KeyKind`
@@ -29345,55 +29345,55 @@ Which asymmetric key a member is naming — the curve or the RSA scheme. There i
 | `Core\Crypto\KeyKind::RsaPkcs1` | An RSA key signing RSASSA-PKCS1-v1_5 over SHA-256 — JWS's `RS256`, and what most identity providers still issue. An RSA key is read, never generated, and this case is what fixes its scheme at the read. |
 | `Core\Crypto\KeyKind::RsaPss` | The same RSA key under RSASSA-PSS with SHA-256 and a 32-octet salt — JWS's `PS256`. It is a separate case rather than a separate key type because the key cannot say which of the two it is for. |
 
-<a id="enum-core-crypto-keyformat"></a>
-#### `Core\Crypto\KeyFormat`
+<a id="enum-core-crypto-publickey-format"></a>
+#### `Core\Crypto\PublicKey::Format`
 
 Which encoding a public key is read from or written to. They are WebCrypto's own three export formats under its own names, so a key crosses to a browser in whichever of them the other end asked for.
 
 | Case | Meaning |
 |---|---|
-| `Core\Crypto\KeyFormat::Raw` | The key material alone: the 65-octet uncompressed point for `P256`, the 32 octets for `X25519` and `Ed25519`. An RSA key has no raw form, so this is a `LogicError` under either RSA kind. |
-| `Core\Crypto\KeyFormat::Spki` | DER `SubjectPublicKeyInfo`, the one form every kind has — the key material under the algorithm identifier that names it. What a certificate and a `.pem` public key carry, and the only format an RSA key reads from or writes to besides `Jwk`. |
-| `Core\Crypto\KeyFormat::Jwk` | The JSON Web Key as UTF-8 JSON octets. A read accepts what a browser exports, `ext` and `key_ops` included, and refuses one carrying `d`, because a private key handed over as a public one is a bug. A write answers RFC 7638's required members, sorted — the form a thumbprint is taken over. |
+| `Core\Crypto\PublicKey::Format::Raw` | The key material alone: the 65-octet uncompressed point for `P256`, the 32 octets for `X25519` and `Ed25519`. An RSA key has no raw form, so this is a `LogicError` under either RSA kind. |
+| `Core\Crypto\PublicKey::Format::Spki` | DER `SubjectPublicKeyInfo`, the one form every kind has — the key material under the algorithm identifier that names it. What a certificate and a `.pem` public key carry, and the only format an RSA key reads from or writes to besides `Jwk`. |
+| `Core\Crypto\PublicKey::Format::Jwk` | The JSON Web Key as UTF-8 JSON octets. A read accepts what a browser exports, `ext` and `key_ops` included, and refuses one carrying `d`, because a private key handed over as a public one is a bug. A write answers RFC 7638's required members, sorted — the form a thumbprint is taken over. |
 
 <a id="enum-core-mime-type"></a>
-#### `Core\Mime\Type`
+#### `Core\Mime::Type`
 
 What `Core\Mime::detect` read out of a run of octets. Closed, so a program compares against a case rather than against a media-type spelling that may never occur, and `Unknown` is the answer for every format whose serialization is text.
 
 | Case | Meaning |
 |---|---|
-| `Core\Mime\Type::Unknown` | No signature matched. The ordinary answer for text — JSON, CSV, SVG, HTML — and for octets that are nothing in particular. |
-| `Core\Mime\Type::Png` | `image/png`. |
-| `Core\Mime\Type::Jpeg` | `image/jpeg`. |
-| `Core\Mime\Type::Gif` | `image/gif`, both the 87a and 89a versions. |
-| `Core\Mime\Type::Webp` | `image/webp` — a RIFF container whose form is `WEBP`. |
-| `Core\Mime\Type::Tiff` | `image/tiff`, in either byte order. |
-| `Core\Mime\Type::Avif` | `image/avif`. |
-| `Core\Mime\Type::Heic` | `image/heic` — what a phone camera uploads. |
-| `Core\Mime\Type::Pdf` | `application/pdf`. |
-| `Core\Mime\Type::Mp4` | `video/mp4`, by its ISO base media brand. |
-| `Core\Mime\Type::Ogg` | `application/ogg` — the container, which carries audio and video alike and says which only inside. |
-| `Core\Mime\Type::Wav` | `audio/wav` — a RIFF container whose form is `WAVE`. |
-| `Core\Mime\Type::Zip` | `application/zip`, including every format that *is* a zip archive: `.docx`, `.xlsx`, `.odt`, `.jar`. |
-| `Core\Mime\Type::Gzip` | `application/gzip`, the format `Core\Compress::Codec::Gzip` writes. |
-| `Core\Mime\Type::Zstd` | `application/zstd`, `Core\Compress::Codec::Zstd`'s frame. |
-| `Core\Mime\Type::Xz` | `application/x-xz`. |
-| `Core\Mime\Type::Wasm` | `application/wasm`, a binary WebAssembly module. |
-| `Core\Mime\Type::Ebml` | `video/matroska`, the EBML container every `.mkv` and every `.webm` is — WebM being a Matroska profile. Which of the two a file is lives in its `DocType` element, which a signature cannot reach, so this case never narrows to `video/webm`. |
+| `Core\Mime::Type::Unknown` | No signature matched. The ordinary answer for text — JSON, CSV, SVG, HTML — and for octets that are nothing in particular. |
+| `Core\Mime::Type::Png` | `image/png`. |
+| `Core\Mime::Type::Jpeg` | `image/jpeg`. |
+| `Core\Mime::Type::Gif` | `image/gif`, both the 87a and 89a versions. |
+| `Core\Mime::Type::Webp` | `image/webp` — a RIFF container whose form is `WEBP`. |
+| `Core\Mime::Type::Tiff` | `image/tiff`, in either byte order. |
+| `Core\Mime::Type::Avif` | `image/avif`. |
+| `Core\Mime::Type::Heic` | `image/heic` — what a phone camera uploads. |
+| `Core\Mime::Type::Pdf` | `application/pdf`. |
+| `Core\Mime::Type::Mp4` | `video/mp4`, by its ISO base media brand. |
+| `Core\Mime::Type::Ogg` | `application/ogg` — the container, which carries audio and video alike and says which only inside. |
+| `Core\Mime::Type::Wav` | `audio/wav` — a RIFF container whose form is `WAVE`. |
+| `Core\Mime::Type::Zip` | `application/zip`, including every format that *is* a zip archive: `.docx`, `.xlsx`, `.odt`, `.jar`. |
+| `Core\Mime::Type::Gzip` | `application/gzip`, the format `Core\Compress::Codec::Gzip` writes. |
+| `Core\Mime::Type::Zstd` | `application/zstd`, `Core\Compress::Codec::Zstd`'s frame. |
+| `Core\Mime::Type::Xz` | `application/x-xz`. |
+| `Core\Mime::Type::Wasm` | `application/wasm`, a binary WebAssembly module. |
+| `Core\Mime::Type::Ebml` | `video/matroska`, the EBML container every `.mkv` and every `.webm` is — WebM being a Matroska profile. Which of the two a file is lives in its `DocType` element, which a signature cannot reach, so this case never narrows to `video/webm`. |
 
-<a id="enum-core-xml-nodekind"></a>
-#### `Core\Xml\NodeKind`
+<a id="enum-core-xml-node-kind"></a>
+#### `Core\Xml\Node::Kind`
 
 What a node in a parsed document is. The set is closed at five and both parsers produce it, so a walk written against one door works unchanged through the other.
 
 | Case | Meaning |
 |---|---|
-| `Core\Xml\NodeKind::Element` | A tag and its content — the only kind that carries attributes or children of more than one kind. |
-| `Core\Xml\NodeKind::Text` | Character data, including what a CDATA section spelled: the two are the same characters written differently. |
-| `Core\Xml\NodeKind::Comment` | A `<!-- … -->`, carried rather than dropped, because a document's comments are part of what it says. |
-| `Core\Xml\NodeKind::ProcessingInstruction` | A `<?target data?>`, whose target is the node's name and whose data is its text. The XML declaration is not one of these. |
-| `Core\Xml\NodeKind::Document` | The root of what a parse answers with — never a child of anything, and the one node a program is handed rather than reaching. |
+| `Core\Xml\Node::Kind::Element` | A tag and its content — the only kind that carries attributes or children of more than one kind. |
+| `Core\Xml\Node::Kind::Text` | Character data, including what a CDATA section spelled: the two are the same characters written differently. |
+| `Core\Xml\Node::Kind::Comment` | A `<!-- … -->`, carried rather than dropped, because a document's comments are part of what it says. |
+| `Core\Xml\Node::Kind::ProcessingInstruction` | A `<?target data?>`, whose target is the node's name and whose data is its text. The XML declaration is not one of these. |
+| `Core\Xml\Node::Kind::Document` | The root of what a parse answers with — never a child of anything, and the one node a program is handed rather than reaching. |
 
 <a id="enum-core-log-level"></a>
 #### `Core\Log\Level`

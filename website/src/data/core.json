@@ -7529,7 +7529,7 @@
       "name": "Core\\Crypto",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto\\Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\KeyFormat` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*`",
+      "surface": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto::Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\PublicKey::Format` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*`",
       "enums": [],
       "constants": [],
       "members": [
@@ -7562,7 +7562,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "seal(bytes $message, secret bytes $key, Core\\Crypto\\Cipher $cipher): bytes",
+          "signature": "seal(bytes $message, secret bytes $key, Core\\Crypto::Cipher $cipher): bytes",
           "params": [
             {
               "kind": "param",
@@ -7583,7 +7583,7 @@
             {
               "kind": "param",
               "name": "cipher",
-              "type": "Core\\Crypto\\Cipher",
+              "type": "Core\\Crypto::Cipher",
               "default": null,
               "optional": false,
               "variadic": false
@@ -7597,7 +7597,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Encrypts and authenticates <code>$message</code> under <code>$key</code> with the construction <code>$cipher</code> names, drawing a fresh nonce per call. There is no mode, padding or IV argument, and no cipher name in a string — the only choice is a <code>Core\\Crypto\\Cipher</code> case, and every case authenticates.",
+            "shortHtml": "Encrypts and authenticates <code>$message</code> under <code>$key</code> with the construction <code>$cipher</code> names, drawing a fresh nonce per call. There is no mode, padding or IV argument, and no cipher name in a string — the only choice is a <code>Core\\Crypto::Cipher</code> case, and every case authenticates.",
             "params": [
               {
                 "name": "message",
@@ -7634,7 +7634,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "open(bytes $sealed, secret bytes $key, Core\\Crypto\\Cipher $cipher): bytes",
+          "signature": "open(bytes $sealed, secret bytes $key, Core\\Crypto::Cipher $cipher): bytes",
           "params": [
             {
               "kind": "param",
@@ -7655,7 +7655,7 @@
             {
               "kind": "param",
               "name": "cipher",
-              "type": "Core\\Crypto\\Cipher",
+              "type": "Core\\Crypto::Cipher",
               "default": null,
               "optional": false,
               "variadic": false
@@ -8068,14 +8068,14 @@
       "slug": "crypto",
       "url": "/reference/core/crypto/",
       "summaryHtml": "",
-      "surfaceHtml": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. <code>generateKey</code>, <code>seal</code>/<code>open</code> over a required <code>Crypto\\Cipher</code> (<code>XChaCha20Poly1305</code>, <code>Aes256Gcm</code>), <code>deriveKey</code> (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), <code>expandKey</code> (HKDF-SHA256), <code>generateKeyPair</code>/<code>agree</code> over <code>Crypto\\KeyKind</code>, and <code>sign</code>/<code>verify</code>, whose scheme is the key's kind. On the two key types: <code>read</code>/<code>write</code> over <code>Crypto\\KeyFormat</code> (<code>Raw</code>, <code>Spki</code>, <code>Jwk</code>) and PKCS#8, with every public key validated at <code>read</code> and no RSA pair ever generated. AES-GCM seals as <code>nonce(12) ‖ ciphertext ‖ tag(16)</code>, which is what WebCrypto answers. Replaces <code>openssl_<em></code>'s primitive half and <code>sodium_</em></code>"
+      "surfaceHtml": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. <code>generateKey</code>, <code>seal</code>/<code>open</code> over a required <code>Crypto::Cipher</code> (<code>XChaCha20Poly1305</code>, <code>Aes256Gcm</code>), <code>deriveKey</code> (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), <code>expandKey</code> (HKDF-SHA256), <code>generateKeyPair</code>/<code>agree</code> over <code>Crypto\\KeyKind</code>, and <code>sign</code>/<code>verify</code>, whose scheme is the key's kind. On the two key types: <code>read</code>/<code>write</code> over <code>Crypto\\PublicKey::Format</code> (<code>Raw</code>, <code>Spki</code>, <code>Jwk</code>) and PKCS#8, with every public key validated at <code>read</code> and no RSA pair ever generated. AES-GCM seals as <code>nonce(12) ‖ ciphertext ‖ tag(16)</code>, which is what WebCrypto answers. Replaces <code>openssl_<em></code>'s primitive half and <code>sodium_</em></code>"
     },
     {
       "id": "Crypto.KeyPair",
       "name": "Core\\Crypto\\KeyPair",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto\\Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\KeyFormat` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*`",
+      "surface": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto::Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\PublicKey::Format` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*`",
       "enums": [],
       "constants": [],
       "members": [
@@ -8187,14 +8187,14 @@
       "slug": "crypto-keypair",
       "url": "/reference/core/crypto-keypair/",
       "summaryHtml": "",
-      "surfaceHtml": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. <code>generateKey</code>, <code>seal</code>/<code>open</code> over a required <code>Crypto\\Cipher</code> (<code>XChaCha20Poly1305</code>, <code>Aes256Gcm</code>), <code>deriveKey</code> (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), <code>expandKey</code> (HKDF-SHA256), <code>generateKeyPair</code>/<code>agree</code> over <code>Crypto\\KeyKind</code>, and <code>sign</code>/<code>verify</code>, whose scheme is the key's kind. On the two key types: <code>read</code>/<code>write</code> over <code>Crypto\\KeyFormat</code> (<code>Raw</code>, <code>Spki</code>, <code>Jwk</code>) and PKCS#8, with every public key validated at <code>read</code> and no RSA pair ever generated. AES-GCM seals as <code>nonce(12) ‖ ciphertext ‖ tag(16)</code>, which is what WebCrypto answers. Replaces <code>openssl_<em></code>'s primitive half and <code>sodium_</em></code>"
+      "surfaceHtml": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. <code>generateKey</code>, <code>seal</code>/<code>open</code> over a required <code>Crypto::Cipher</code> (<code>XChaCha20Poly1305</code>, <code>Aes256Gcm</code>), <code>deriveKey</code> (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), <code>expandKey</code> (HKDF-SHA256), <code>generateKeyPair</code>/<code>agree</code> over <code>Crypto\\KeyKind</code>, and <code>sign</code>/<code>verify</code>, whose scheme is the key's kind. On the two key types: <code>read</code>/<code>write</code> over <code>Crypto\\PublicKey::Format</code> (<code>Raw</code>, <code>Spki</code>, <code>Jwk</code>) and PKCS#8, with every public key validated at <code>read</code> and no RSA pair ever generated. AES-GCM seals as <code>nonce(12) ‖ ciphertext ‖ tag(16)</code>, which is what WebCrypto answers. Replaces <code>openssl_<em></code>'s primitive half and <code>sodium_</em></code>"
     },
     {
       "id": "Crypto.PublicKey",
       "name": "Core\\Crypto\\PublicKey",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto\\Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\KeyFormat` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*`",
+      "surface": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto::Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\PublicKey::Format` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*`",
       "enums": [],
       "constants": [],
       "members": [
@@ -8204,7 +8204,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "read(bytes $encoded, Core\\Crypto\\KeyKind $kind, Core\\Crypto\\KeyFormat $format): Core\\Crypto\\PublicKey",
+          "signature": "read(bytes $encoded, Core\\Crypto\\KeyKind $kind, Core\\Crypto\\PublicKey::Format $format): Core\\Crypto\\PublicKey",
           "params": [
             {
               "kind": "param",
@@ -8225,7 +8225,7 @@
             {
               "kind": "param",
               "name": "format",
-              "type": "Core\\Crypto\\KeyFormat",
+              "type": "Core\\Crypto\\PublicKey::Format",
               "default": null,
               "optional": false,
               "variadic": false
@@ -8276,12 +8276,12 @@
           "static": false,
           "receiver": "publicKey",
           "generics": null,
-          "signature": "write(Core\\Crypto\\KeyFormat $format): bytes",
+          "signature": "write(Core\\Crypto\\PublicKey::Format $format): bytes",
           "params": [
             {
               "kind": "param",
               "name": "format",
-              "type": "Core\\Crypto\\KeyFormat",
+              "type": "Core\\Crypto\\PublicKey::Format",
               "default": null,
               "optional": false,
               "variadic": false
@@ -8343,7 +8343,7 @@
       "slug": "crypto-publickey",
       "url": "/reference/core/crypto-publickey/",
       "summaryHtml": "",
-      "surfaceHtml": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. <code>generateKey</code>, <code>seal</code>/<code>open</code> over a required <code>Crypto\\Cipher</code> (<code>XChaCha20Poly1305</code>, <code>Aes256Gcm</code>), <code>deriveKey</code> (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), <code>expandKey</code> (HKDF-SHA256), <code>generateKeyPair</code>/<code>agree</code> over <code>Crypto\\KeyKind</code>, and <code>sign</code>/<code>verify</code>, whose scheme is the key's kind. On the two key types: <code>read</code>/<code>write</code> over <code>Crypto\\KeyFormat</code> (<code>Raw</code>, <code>Spki</code>, <code>Jwk</code>) and PKCS#8, with every public key validated at <code>read</code> and no RSA pair ever generated. AES-GCM seals as <code>nonce(12) ‖ ciphertext ‖ tag(16)</code>, which is what WebCrypto answers. Replaces <code>openssl_<em></code>'s primitive half and <code>sodium_</em></code>"
+      "surfaceHtml": "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. <code>generateKey</code>, <code>seal</code>/<code>open</code> over a required <code>Crypto::Cipher</code> (<code>XChaCha20Poly1305</code>, <code>Aes256Gcm</code>), <code>deriveKey</code> (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), <code>expandKey</code> (HKDF-SHA256), <code>generateKeyPair</code>/<code>agree</code> over <code>Crypto\\KeyKind</code>, and <code>sign</code>/<code>verify</code>, whose scheme is the key's kind. On the two key types: <code>read</code>/<code>write</code> over <code>Crypto\\PublicKey::Format</code> (<code>Raw</code>, <code>Spki</code>, <code>Jwk</code>) and PKCS#8, with every public key validated at <code>read</code> and no RSA pair ever generated. AES-GCM seals as <code>nonce(12) ‖ ciphertext ‖ tag(16)</code>, which is what WebCrypto answers. Replaces <code>openssl_<em></code>'s primitive half and <code>sodium_</em></code>"
     },
     {
       "id": "Csrf",
@@ -22245,7 +22245,7 @@
       "name": "Core\\Mime",
       "section": "17. Documents and formats",
       "summary": "",
-      "surface": "`detect(bytes $data): Mime\\Type` and `mediaType(Mime\\Type $type): string` — type detection by magic bytes, from a fixed table of literal signatures rather than libmagic's rule interpreter, and never from a file extension: a type read off a name is a type an attacker chose. `Core\\Mime\\Type` is closed and its zero case is `Unknown`, so a caller compares against a case rather than against a spelling that may never occur, and a format serialized as text answers `Unknown` rather than a guess",
+      "surface": "`detect(bytes $data): Mime::Type` and `mediaType(Mime::Type $type): string` — type detection by magic bytes, from a fixed table of literal signatures rather than libmagic's rule interpreter, and never from a file extension: a type read off a name is a type an attacker chose. `Core\\Mime::Type` is closed and its zero case is `Unknown`, so a caller compares against a case rather than against a spelling that may never occur, and a format serialized as text answers `Unknown` rather than a guess",
       "enums": [],
       "constants": [],
       "members": [
@@ -22255,7 +22255,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "detect(bytes $data): Core\\Mime\\Type",
+          "signature": "detect(bytes $data): Core\\Mime::Type",
           "params": [
             {
               "kind": "param",
@@ -22267,7 +22267,7 @@
             }
           ],
           "options": [],
-          "returnType": "Core\\Mime\\Type",
+          "returnType": "Core\\Mime::Type",
           "notes": "",
           "qualifier": "",
           "section": "17. Documents and formats",
@@ -22281,7 +22281,7 @@
                 "descHtml": "The octets to inspect. Only the first few are read — the widest signature in the table is sixteen — so a prefix of an upload answers what the whole of it would."
               }
             ],
-            "returnHtml": "The case naming what the octets are, or <code>Core\\Mime\\Type::Unknown</code> where no signature matched — which includes every format serialized as text. <strong>Detection is not a laundering</strong>: bytes that detect as <code>image/png</code> are still <code>tainted</code>, because a signature describes the first octets and says nothing about what the rest is safe for."
+            "returnHtml": "The case naming what the octets are, or <code>Core\\Mime::Type::Unknown</code> where no signature matched — which includes every format serialized as text. <strong>Detection is not a laundering</strong>: bytes that detect as <code>image/png</code> are still <code>tainted</code>, because a signature describes the first octets and says nothing about what the rest is safe for."
           },
           "slug": "detect",
           "url": "/reference/core/mime/detect/",
@@ -22293,12 +22293,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "mediaType(Core\\Mime\\Type $type): string",
+          "signature": "mediaType(Core\\Mime::Type $type): string",
           "params": [
             {
               "kind": "param",
               "name": "type",
-              "type": "Core\\Mime\\Type",
+              "type": "Core\\Mime::Type",
               "default": null,
               "optional": false,
               "variadic": false
@@ -22319,7 +22319,7 @@
                 "descHtml": "The case to spell, usually one <code>detect</code> just answered."
               }
             ],
-            "returnHtml": "The media type, as <code>image/png</code> — and <code>application/octet-stream</code> for <code>Core\\Mime\\Type::Unknown</code>, which is what a program that must send something should send for octets it could not name."
+            "returnHtml": "The media type, as <code>image/png</code> — and <code>application/octet-stream</code> for <code>Core\\Mime::Type::Unknown</code>, which is what a program that must send something should send for octets it could not name."
           },
           "slug": "mediatype",
           "url": "/reference/core/mime/mediatype/",
@@ -22331,7 +22331,7 @@
       "slug": "mime",
       "url": "/reference/core/mime/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>detect(bytes $data): Mime\\Type</code> and <code>mediaType(Mime\\Type $type): string</code> — type detection by magic bytes, from a fixed table of literal signatures rather than libmagic's rule interpreter, and never from a file extension: a type read off a name is a type an attacker chose. <code>Core\\Mime\\Type</code> is closed and its zero case is <code>Unknown</code>, so a caller compares against a case rather than against a spelling that may never occur, and a format serialized as text answers <code>Unknown</code> rather than a guess"
+      "surfaceHtml": "<code>detect(bytes $data): Mime::Type</code> and <code>mediaType(Mime::Type $type): string</code> — type detection by magic bytes, from a fixed table of literal signatures rather than libmagic's rule interpreter, and never from a file extension: a type read off a name is a type an attacker chose. <code>Core\\Mime::Type</code> is closed and its zero case is <code>Unknown</code>, so a caller compares against a case rather than against a spelling that may never occur, and a format serialized as text answers <code>Unknown</code> rather than a guess"
     },
     {
       "id": "Net",
@@ -45965,18 +45965,18 @@
           "static": false,
           "receiver": "node",
           "generics": null,
-          "signature": "kind(): Core\\Xml\\NodeKind",
+          "signature": "kind(): Core\\Xml\\Node::Kind",
           "params": [],
           "options": [],
-          "returnType": "Core\\Xml\\NodeKind",
+          "returnType": "Core\\Xml\\Node::Kind",
           "notes": "",
           "qualifier": "",
           "section": "",
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns what kind of node this is: an element, a text, a comment, a processing instruction or the document. Compare it with a <code>Core\\Xml\\NodeKind</code> case, for example to skip everything that is not an element.",
-            "returnHtml": "A <code>Core\\Xml\\NodeKind</code> case. There are exactly five cases, so a <code>match</code> over them covers every node."
+            "shortHtml": "Returns what kind of node this is: an element, a text, a comment, a processing instruction or the document. Compare it with a <code>Core\\Xml\\Node::Kind</code> case, for example to skip everything that is not an element.",
+            "returnHtml": "A <code>Core\\Xml\\Node::Kind</code> case. There are exactly five cases, so a <code>match</code> over them covers every node."
           },
           "slug": "kind",
           "url": "/reference/core/xml-node/kind/",

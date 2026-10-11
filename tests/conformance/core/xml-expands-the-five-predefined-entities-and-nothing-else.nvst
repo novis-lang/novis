@@ -8,7 +8,7 @@ class Chars {
     public static function of(Core\Xml\Node $element): tainted string {
         tainted string $out = "";
         foreach ($element->children() as Core\Xml\Node $child) {
-            if ($child->kind() == Core\Xml\NodeKind::Text) {
+            if ($child->kind() == Core\Xml\Node::Kind::Text) {
                 $out = $out . $child->text();
             }
         }
@@ -19,7 +19,7 @@ class Chars {
 class Root {
     public static function of(Core\Xml\Node $document): Core\Xml\Node {
         foreach ($document->children() as Core\Xml\Node $child) {
-            if ($child->kind() == Core\Xml\NodeKind::Element) {
+            if ($child->kind() == Core\Xml\Node::Kind::Element) {
                 return $child;
             }
         }
