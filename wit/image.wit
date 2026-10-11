@@ -1,6 +1,6 @@
 package nvs:image@1.0.0;
 
-/// The image component's whole surface: eight entry points, each one call
+/// The image component's whole surface: nine entry points, each one call
 /// that carries its whole input and returns its whole output. There is no
 /// per-pixel, per-row or per-frame entry point.
 ///
@@ -12,7 +12,8 @@ interface codec {
     use nvs:ext/types@1.0.0.{error};
 
     /// The formats the component knows. `jxl`, `svg` and `pdf` decode only,
-    /// and asking `run` to encode one returns `invalid`.
+    /// and asking `run` to encode one returns `invalid`. `barcode` writes
+    /// `svg` too, as the UTF-8 bytes of an SVG document.
     enum format {
         jpeg,
         png,
@@ -98,6 +99,19 @@ interface codec {
         medium,
         quartile,
         high,
+    }
+
+    /// The codes `barcode` draws (`rule:core-classes/image-barcode-roster`).
+    /// A QR code is `qr`'s.
+    enum symbology {
+        code128,
+        gs1128,
+        ean13,
+        ean8,
+        upc-a,
+        code39,
+        itf14,
+        data-matrix,
     }
 
     /// The EXIF tags of an input, each tag's name with its value as text.
@@ -297,6 +311,18 @@ interface codec {
         format: option<format>,
     }
 
+    /// How `barcode` draws. `height` is a 1D code's bar height and `module`
+    /// the width of its narrowest bar, both in pixels, and `text` prints the
+    /// data under a 1D code. `format` is PNG when absent, and `svg` returns
+    /// an SVG document.
+    record barcode-options {
+        height: option<u64>,
+        module: option<u64>,
+        margin: option<u64>,
+        text: option<bool>,
+        format: option<format>,
+    }
+
     /// Reads the header of `data`.
     info: func(data: list<u8>) -> result<image-info, error>;
 
@@ -320,6 +346,11 @@ interface codec {
 
     /// Renders `data` as a QR code, encoded as `format` or PNG.
     qr: func(data: string, options: qr-options) -> result<list<u8>, error>;
+
+    /// Renders `data` as a `symbology` code, encoded as `format` or PNG. A
+    /// wrong check digit, or a character the symbology cannot carry, returns
+    /// `invalid` naming it.
+    barcode: func(data: string, symbology: symbology, options: barcode-options) -> result<list<u8>, error>;
 }
 
 /// The image component: everything an extension may import, and `codec`.

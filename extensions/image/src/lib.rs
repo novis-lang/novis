@@ -373,9 +373,9 @@ mod guest {
     });
 
     use exports::nvs::image::codec::{
-        Align, Axis, Blend, Color, CompareOptions, Diff, Error, Filter, Fit, Format, Gravity,
-        Guest, HashKind, ImageInfo, Output, PlaceholderKind, Plan, QrLevel, QrOptions, Source,
-        Step,
+        Align, Axis, BarcodeOptions, Blend, Color, CompareOptions, Diff, Error, Filter, Fit,
+        Format, Gravity, Guest, HashKind, ImageInfo, Output, PlaceholderKind, Plan, QrLevel,
+        QrOptions, Source, Step, Symbology,
     };
 
     use crate::ops::{self, Op};
@@ -751,6 +751,14 @@ mod guest {
                 format: options.format.map_or(defaults.format, from_format),
             };
             crate::qr::render(&data, options).map_err(error)
+        }
+
+        fn barcode(
+            _data: String,
+            _symbology: Symbology,
+            _options: BarcodeOptions,
+        ) -> Result<Vec<u8>, Error> {
+            Err(Error::Runtime("`barcode` is not implemented yet".into()))
         }
     }
 

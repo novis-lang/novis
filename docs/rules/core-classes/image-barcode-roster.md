@@ -20,7 +20,9 @@ sandbox. Every code a test writes is read back by a reader that is a dev-depende
 
 - **Memory:** a code is at most a few thousand modules, so a render is far under the pixel cap.
 
-**Not shipped.** There is no barcode export in the image component.
+**Not shipped.** `wit/image.wit` declares the `barcode` export, and the component returns `runtime`
+from it: no symbology draws yet, and `Barcode`, `QrCode::svg` and `QrCode::giroCode` are not in the
+binary.
 
 **Declined:**
 - **PDF417 and Aztec.** Each is a large encoder for documents almost no web application produces.

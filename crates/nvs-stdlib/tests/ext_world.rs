@@ -246,7 +246,7 @@ const VALUE_READERS: &[(&str, &[&str])] = &[
     ("object", &["class-name"]),
 ];
 
-/// The image component's `codec` exports, a closed set of eight
+/// The image component's `codec` exports, a closed set of nine
 /// (`rule:core-classes/image-pipeline`).
 const CODEC_EXPORTS: &[&str] = &[
     "info",
@@ -257,6 +257,7 @@ const CODEC_EXPORTS: &[&str] = &[
     "placeholder",
     "palette",
     "qr",
+    "barcode",
 ];
 
 /// Where a member of `Novis\Image` runs.
@@ -318,6 +319,10 @@ const IMAGE_MEMBERS: &[(&str, &[Place])] = &[
     ("Color::rgba", &[Novis]),
     ("Color::hex", &[Novis]),
     ("QrCode::render", &[Export("qr")]),
+    ("QrCode::svg", &[Export("qr")]),
+    ("QrCode::giroCode", &[Novis]),
+    ("Barcode::render", &[Export("barcode")]),
+    ("Barcode::svg", &[Export("barcode")]),
 ];
 
 fn world() -> (Resolve, PackageId) {
@@ -735,7 +740,7 @@ fn the_image_codec_interface_resolves_against_the_ext_world() {
 }
 
 #[test]
-fn the_image_codec_exports_exactly_the_eight_entry_points() {
+fn the_image_codec_exports_exactly_the_nine_entry_points() {
     let (resolve, _, package) = image();
     let codec = codec(&resolve, package);
     let functions = &resolve.interfaces[codec].functions;
