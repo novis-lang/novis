@@ -301,6 +301,53 @@ echo Report::total({ total: 2.5 }), \"\\n\";
 }
 
 #[test]
+fn a_class_scoped_enum_is_laid_out_like_a_file_scope_one() {
+    // An enum a class or interface body declares (`rule:enums/class-scoped-enum`)
+    // takes a file-scope enum's layout one body deeper: a list written on one
+    // line stays on one line with one space inside each brace, and a list
+    // written across lines puts its `{` on a line of its own and one case per
+    // line with a trailing comma. Each is written here at a depth nobody would
+    // choose. The members stay in the order they were written
+    // (`rule:tooling/fmt-never-reorders-members`): the enum after the property
+    // in the class and before the method in the interface.
+    let mangled = "\
+<?nvs
+class Order
+{
+    public Status $status = Status::Draft;
+        enum Status {Draft, Paid,}
+}
+
+interface Shipper
+{
+enum Speed: uint { Slow = 1,
+Fast = 2 }
+    public function speed(): Speed;
+}
+";
+    let canonical = "\
+<?nvs
+class Order
+{
+    public Status $status = Status::Draft;
+    enum Status { Draft, Paid }
+}
+
+interface Shipper
+{
+    enum Speed: uint
+    {
+        Slow = 1,
+        Fast = 2,
+    }
+    public function speed(): Speed;
+}
+";
+    assert_eq!(formatted(mangled), canonical);
+    assert_eq!(formatted(canonical), canonical);
+}
+
+#[test]
 fn an_anon_object_on_one_line_has_one_space_inside_each_brace() {
     // One literal with no space inside either brace and one with too much, and
     // a literal its author wrote across lines, whose fields are one per line
