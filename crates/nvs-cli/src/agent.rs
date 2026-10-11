@@ -890,12 +890,27 @@ pub(crate) fn show(symbol: &str, json: bool) -> ExitCode {
     ExitCode::FAILURE
 }
 
-/// The entry whose symbol, or second name, is `symbol`, compared without case.
+/// The entry whose symbol, or second name, is `symbol` exactly, and failing
+/// that the first one that is `symbol` compared without case.
+///
+/// The exact match comes first because a name resolves case-sensitively
+/// (`rule:classes/names-resolve-case-sensitively`): a class's method `kind` and
+/// its enum `Kind` are two symbols on two lines, and each has to reach its own
+/// card. The match without case is what still finds a name typed in the wrong
+/// case.
 fn show_target(document: &Value, symbol: &str) -> Option<Entry> {
-    let wanted = wanted(symbol);
-    entries(document)
-        .into_iter()
-        .find(|entry| entry.named(|name| name == wanted))
+    let exact = symbol.split_once('<').map_or(symbol, |(name, _)| name);
+    let entries = entries(document);
+    let position = entries
+        .iter()
+        .position(|entry| entry.symbol == exact || entry.also.as_deref() == Some(exact))
+        .or_else(|| {
+            let wanted = wanted(symbol);
+            entries
+                .iter()
+                .position(|entry| entry.named(|name| name == wanted))
+        })?;
+    entries.into_iter().nth(position)
 }
 
 /// `symbol` as `show` compares it: lowercased, and with a generic member's type

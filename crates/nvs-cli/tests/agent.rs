@@ -616,14 +616,13 @@ fn every_chapter_of_the_reference_has_a_line_on_the_index() {
     assert!(missing.is_empty(), "chapters with no line: {missing:?}");
 }
 
-/// `show` compares without case, so two lines whose symbols differ only by case
-/// would leave the second unreachable — which is what a chapter named for an
-/// exception or an attribute would be.
+/// Two lines with one symbol would leave the second unreachable through `show`
+/// — which is what a chapter named for an exception or an attribute would be.
 #[test]
 fn no_two_index_lines_open_with_the_same_symbol() {
     let mut symbols: Vec<String> = index()
         .iter()
-        .map(|line| symbol_of(line).to_lowercase())
+        .map(|line| symbol_of(line).to_owned())
         .collect();
     symbols.sort();
     let twice: Vec<&String> = symbols
@@ -632,6 +631,22 @@ fn no_two_index_lines_open_with_the_same_symbol() {
         .map(|pair| &pair[0])
         .collect();
     assert!(twice.is_empty(), "symbols on two lines: {twice:?}");
+}
+
+/// A class's method `kind` and its enum `Kind` are two symbols, because a name
+/// resolves case-sensitively, so `show` takes the exact symbol before it
+/// compares without case. Each of the two reaches its own card, and the name in
+/// the wrong case still reaches one of them.
+// covers: tools:agents/nvs-agent
+#[test]
+fn two_symbols_that_differ_only_by_case_each_show_their_own_card() {
+    for symbol in [r"Core\Xml\Node::kind", r"Core\Xml\Node::Kind"] {
+        let (card, ok) = agent_json(&["show", symbol]);
+        assert!(ok, "`nvs agent show {symbol} --json` succeeds");
+        assert_eq!(card["symbol"], symbol, "{card}");
+    }
+    let (card, ok) = agent_json(&["show", r"core\xml\node::KIND"]);
+    assert!(ok, "a name in the wrong case still finds a card: {card}");
 }
 
 /// Nothing on standard output is still the answer, so a consumer reading the
