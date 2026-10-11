@@ -1,5 +1,6 @@
 # A request starts with 32M of memory.
 # The program may raise that to 128M, and no higher.
+# `max_tasks` has no line in `[limits.hard]`, so a program may not raise it above 8.
 [limits]
 memory = "32M"
 max_tasks = 8

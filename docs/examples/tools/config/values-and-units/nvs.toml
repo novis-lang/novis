@@ -3,3 +3,8 @@
 [limits]
 memory = "256M"
 wall_time = "30s"
+
+# A program may raise its own limits up to these values.
+[limits.hard]
+memory = "512M"
+wall_time = "5m"

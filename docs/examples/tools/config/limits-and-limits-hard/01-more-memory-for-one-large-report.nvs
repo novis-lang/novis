@@ -12,6 +12,9 @@ echo Core\Config::get("memory"), "\n";
 string $report = Core\Str::repeat("x", 67108864);
 echo Core\Str::length($report), "\n";
 
-// `max_tasks` has no highest limit in `[limits.hard]`, so the program may set any number.
-// This prints `yes`.
+// `[limits.hard]` has no `max_tasks`, so the highest limit is the starting value, 8.
+// The program can lower it to 4, so this prints `yes`.
+echo Core\Config::set("max_tasks", "4") ? "yes" : "no", "\n";
+
+// The program cannot raise it above 8, so this prints `no`.
 echo Core\Config::set("max_tasks", "1000") ? "yes" : "no", "\n";

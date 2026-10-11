@@ -19,9 +19,9 @@ echo 'in force now:         ', Core\Config::get('limits.memory'), "\n";
 // No program can change the ceiling itself, so this call returns `false`.
 echo 'raise the ceiling:    ', Core\Config::set('limits.hard.memory', '1G') ? 'accepted' : 'refused', "\n";
 
-// `limits.cpu_time` is not set in the configuration, so it starts as `null`.
-// A program can still set it for itself.
-echo 'cpu time to start:    ', Core\Config::get('limits.cpu_time') ?? '(unset — no ceiling was written for it either)', "\n";
+// `limits.cpu_time` is not set here, so it is `null`. Under `nvs run` there is
+// then no CPU time limit. A program can still set one for itself.
+echo 'cpu time to start:    ', Core\Config::get('limits.cpu_time') ?? '(not set)', "\n";
 echo 'bound my own cpu:     ', Core\Config::set('limits.cpu_time', '2s') ? 'accepted' : 'refused', "\n";
 
 // `Core\Config::restore` sets the key back to the value in the configuration

@@ -9,4 +9,7 @@ the change is not allowed: a setting only the server may set, a name that is no 
 value that is not written the way the name needs, and a value above the ceiling the server keeps for
 that name. A refused change throws no error, so a program that needs to know reads the result.
 
+The ceiling of a limit is in `[limits.hard]`. When `[limits.hard]` does not set a limit, the ceiling
+is the value the request started with. A program can then lower that limit, but it cannot raise it.
+
 **Good to know:** `Core\Config::restore` puts the configuration file's own value back.

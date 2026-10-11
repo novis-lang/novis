@@ -7,5 +7,5 @@ raise limits.hard.memory: refused
 raise limits.hard: refused
 raise app.limits.hard.memory: refused
 raise limits.hard.hard.memory: refused
-cpu ceiling: (none written, so this one is the program's own affair)
+cpu ceiling: (not set)
 ask 9h cpu:  accepted

@@ -64,8 +64,16 @@ the value of the `[mode] default` the file names, each time the configuration is
 reloaded: a development server dispatches by path and serves static files, and a production server
 does neither. A mode switch made while the server runs changes neither key, and no request may
 change either. `workers` is how many cores accept; every core holds its own handle on every
-listener. `max_in_flight` answers a fixed `503` with `Retry-After` before any program runs. The
-four waits are idle waits, never a total, and none can be turned off. `[server.connection]`
+listener. `max_in_flight` answers a fixed `503` with `Retry-After` before any program runs.
+
+The server also runs no more requests at the same time than its memory can hold. It takes the
+memory of the machine, or of the container, and keeps `128M` for itself. It divides the rest by the
+memory limit of one request. That limit is `[limits.hard] memory`, else `[limits] memory`, else
+`128M`. With the defaults, 2 GB of memory runs about 15 requests at the same time, 8 GB runs 63 and
+32 GB runs 255. When this number is lower than `max_in_flight`, it is the limit, and the server
+writes both numbers to its log when it starts. `memory = false` leaves `max_in_flight` alone.
+
+The four waits are idle waits, never a total, and none can be turned off. `[server.connection]`
 bounds a connection that was upgraded out of a request — a WebSocket, or an event stream — with
 `max_open`, `max_frame`, `max_message`, `idle_timeout`, `max_lifetime` and `send_timeout`, all
 finite with nothing written.

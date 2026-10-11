@@ -202,7 +202,9 @@ feature that cannot be reached without one — a socket bound on `127.0.0.1` —
 configuration that grants it in the feature's own directory, and `--bless` and the sweep then run
 every example there with `--config` naming that file alone. It is the one other file a feature
 directory holds, and the reader sees it beside the examples: loopback only, never an address off
-this machine, so an example still runs with no network. A directory under `tests/hostile/` reads its
+this machine, so an example still runs with no network. That file replaces the root's, so the run
+has the default limits: `128M` of memory, and `Core\Config::set` cannot raise a limit unless the file
+writes `[limits.hard]`. A directory under `tests/hostile/` reads its
 own the same way, and `benches/members/` reads one per class directory.
 
 ## `// proof: exit 1`

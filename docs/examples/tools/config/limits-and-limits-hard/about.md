@@ -4,8 +4,12 @@ value that a request may raise each limit to.
 The main keys are `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` and
 `max_regex_steps`. `cpu_time` is the processor time that the request uses for computing. Time spent
 waiting for a database or a socket does not count. `wall_time` is the elapsed time, waiting
-included. A program raises its own limit with `Core\Config::set`. A key without an entry in
-`[limits.hard]` has no ceiling.
+included. A program raises its own limit with `Core\Config::set`. When `[limits.hard]` does not
+set a key, its ceiling is the value in `[limits]`. A program can lower that limit, but it cannot
+raise it.
+
+When `nvs.toml` does not set them, `memory` is `128M`. `cpu_time` is `30s` for a request and for other server work.
+`nvs run` and `nvs test` have no `cpu_time` limit unless you set one. `false` removes a limit.
 
 When a request reaches a limit, Novis stops the request. This is not an exception, so `catch` does
 not catch it. The function registered with `Core\Fatal::onLimit` runs, `FATAL: …` is written to

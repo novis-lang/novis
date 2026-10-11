@@ -6,6 +6,6 @@ ask for 400M:         accepted
 ask for 1G:           refused
 in force now:         400M
 raise the ceiling:    refused
-cpu time to start:    (unset — no ceiling was written for it either)
+cpu time to start:    (not set)
 bound my own cpu:     accepted
 back to the file:     256M

@@ -18,8 +18,9 @@ For web servers and the command line. Familiar syntax (Hello PHP).
 - **Actually compiled.** Cranelift emits native code. There is no interpreter tier.
 - **Parallel in-language.** `async`/`await` for overlapping I/O plus isolated workers for real multicore
   CPU work — with no `async` function colouring, so any function may do I/O.
-- **One process, many requests.** A single server process handles unlimited concurrent requests, each
-  fully isolated, all sharing one in-memory compiled-code cache.
+- **One process, many requests.** A single server process handles as many concurrent requests as its
+  memory holds at each request's limit (128M unless you set one), each fully isolated, all sharing one
+  in-memory compiled-code cache.
 - **Isolation you can reach from the language.** `spawn script 'job.nvs'` runs another file with its own
   heap, its own globals and its own slice of the caller's budget, and starts in microseconds
   ([`security/isolate-shares-nothing`](docs/rules/security.md#security-isolate-shares-nothing)).

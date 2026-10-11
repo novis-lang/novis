@@ -23,7 +23,7 @@ foreach ($spellings as string $key) {
     echo 'raise ', $key, ': ', Core\Config::set($key, '4G') ? 'accepted' : 'refused', "\n";
 }
 
-// This configuration sets no ceiling for `cpu_time`. A program may then set
-// `limits.cpu_time` to any value.
-echo 'cpu ceiling: ', Core\Config::get('limits.hard.cpu_time') ?? '(none written, so this one is the program\'s own affair)', "\n";
+// No `cpu_time` is set, so `nvs run` has no CPU time limit and no ceiling. `9h` is
+// allowed. A request on a server starts with `30s`, and that is also its ceiling.
+echo 'cpu ceiling: ', Core\Config::get('limits.hard.cpu_time') ?? '(not set)', "\n";
 echo 'ask 9h cpu:  ', Core\Config::set('limits.cpu_time', '9h') ? 'accepted' : 'refused', "\n";

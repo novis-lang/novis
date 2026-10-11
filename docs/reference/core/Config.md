@@ -8,7 +8,8 @@ keywords: ini_get, ini_set, ini_restore, ini_get_all, set_time_limit, nvs.toml, 
 (`log.level`), and a bare limit name — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` — is the
 `[limits]` entry. `set` changes a directive for this request alone and answers `false`, leaving the value in
 place, for anything it may not do: a directive only the file may set, an unknown name, a value of the wrong
-shape, or a value above the `[limits.hard]` ceiling the operator kept. `restore` puts the file's value back
+shape, or a value above the `[limits.hard]` ceiling the operator kept. When `[limits.hard]` does not
+set a limit, its ceiling is the value the request started with, so a program cannot raise it. `restore` puts the file's value back
 and `all` lists what is in force. Without an `nvs.toml`, `get` answers `null` for everything.
 
 ```toml file=nvs.toml
