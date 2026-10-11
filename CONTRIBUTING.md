@@ -177,7 +177,7 @@ apps/               whole example apps in Novis, each with its own `nvs.toml` an
 extensions/         the built-in extensions, each a Rust crate compiled to a wasm component
 wit/                the `nvs:ext` WIT world an extension is written against, and its WASI deps
 fuzz/               cargo-fuzz targets
-vendor/             html5ever, patched and built in place of the crates.io release (ADR 0223)
+vendor/             html5ever, patched and built in place of the crates.io release (`rule:core-classes/html-parsing`)
 docker/             the container image
 website/            the Astro site
 editors/            the VS Code extension, and where a second editor's would sit

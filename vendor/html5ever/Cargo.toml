@@ -1,5 +1,5 @@
 # html5ever 0.39.0 as published on crates.io, with the changes
-# docs/decisions/0223.md records. Every changed site carries a `// Novis:`
+# `rule:core-classes/html-parsing` needs. Every changed site carries a `// Novis:`
 # comment. The workspace's `[patch.crates-io]` row is what builds this copy in
 # place of the published crate.
 [package]

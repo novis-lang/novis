@@ -785,19 +785,28 @@ sanitizer in Core must parse to filter, so the parser is Core and not a componen
 
 **Memory:** each parse holds the materialised tree, proportional to the document, attributed to the
 request and freed with it. It is the same account `Core\Xml`'s tree opens, spent once because the tree
-is one implementation.
+is one implementation. On top of it each parse holds a random hashing key and, for an element that
+gained attributes after it was created, a set of their names.
 
 **The stack of open elements holds at most 512 elements**, the depth Chromium, Firefox and WebKit all
 cap a tree at. A start tag that arrives with 512 elements open first closes the current element, as
 WebKit does, and the new element becomes its sibling: nesting past the cap flattens, and every
 element, attribute and character of the document still arrives. The close is an end tag for the
 current element's own name, a token the algorithm already has a rule for, so the parse still never
-fails. The cap is a constant and not a setting, because it is what bounds the work one token costs:
+fails. The builder only ever sees a token stream a document could have held, so a `table`,
+`template` or `select` closed this way resets the insertion mode as its own end tag always does. An
+end tag for an element the cap closed is ignored or closes an open ancestor of the same name. If a
+rule ignores the closing end tag and the stack does not shrink, the start tag is dropped. The cap is a constant and not a setting, because it is what bounds the work one token costs:
 every scope check the algorithm makes walks that stack, and without the cap a document costs time in
-the square of its depth. It is part of the parse, so the PDF renderer holds it too. The two other
+the square of its depth. A setting could only buy that path back, and no document a person writes
+comes near the cap. It is part of the parse, so the PDF renderer holds it too. The two other
 checks that grow with a document — a tag's attributes against each other for a duplicate, and the
 active formatting elements against a new one for an equal entry — cost time in proportion to what
-they check, and neither changes what the parse produces.
+they check, and neither changes what the parse produces. A tag with fewer than ten attributes is
+scanned for a duplicate name, and one with more uses a hash set; the first value of a repeated name
+is kept. Each active formatting entry carries an order-independent hash of its name and attributes,
+keyed at random for each parse so a document cannot be written to collide, and the full comparison
+runs only when two hashes match.
 
 **The tree came first and this parse is written against it**, rather than beside it: the tree and the
 builder interface are one implementation, so whichever was built second would otherwise have been
@@ -823,8 +832,18 @@ separate fragment has no kind here and a program looks for them under the elemen
   specifications buys nothing `html5ever` does not already give, and loses on security and speed.
 - **Leaving HTML parsing to a component or the ecosystem.** The sanitizer is Core and must parse to
   filter ([`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)).
+- **Indexing the stack of open elements instead of capping it.** Every walk over the stack would need
+  an index kept correct under every push, pop, insertion and removal the adoption agency makes, which
+  is the largest change to `html5ever` of all.
+- **Dropping start tags past the cap.** Text would still arrive, but the elements and their
+  attributes would not, links included.
+- **Stopping at the cap.** Throwing breaks the parse's never-fails contract, and truncating drops
+  content.
+- **Tracking the stack from the tree builder of ours.** Several of `html5ever`'s pops never reach it,
+  and the one public view of the stack costs a walk per call.
+- **Capping a tag's attributes.** No browser does, and the hash set makes a cap unnecessary.
 
-<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0223](../decisions/0223.md).</sub>
+<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="core-classes-xml-tree-and-stream"></a>
 

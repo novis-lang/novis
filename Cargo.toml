@@ -1160,10 +1160,12 @@ debug-assertions = false
 # Patched third-party crates.
 # ---------------------------------------------------------------------------
 [patch.crates-io]
-# The published 0.39.0 with the changes docs/decisions/0223.md records: a cap
-# on the stack of open elements that `crates/nvs-stdlib/src/html.rs` switches
-# on, a hash set for duplicate attribute names, and a cached fingerprint for
-# the active formatting elements' attribute comparison. Without them a small
-# hostile document costs time in the square of its size. The version stays
-# 0.39.0, so the `html5ever` row above resolves to this copy unchanged.
+# The published 0.39.0 with the changes `rule:core-classes/html-parsing` needs:
+# a cap on the stack of open elements that `crates/nvs-stdlib/src/html.rs`
+# switches on, a hash set for duplicate attribute names, and a cached
+# fingerprint for the active formatting elements' attribute comparison. No
+# html5ever release has them, and without them a small hostile document costs
+# time in the square of its size. The version stays 0.39.0, so the `html5ever`
+# row above resolves to this copy unchanged, and upgrading means carrying the
+# patch onto the new release.
 html5ever = { path = "vendor/html5ever" }
