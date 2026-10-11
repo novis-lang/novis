@@ -1312,6 +1312,24 @@ pub enum PreparedFact {
     CldrPattern,
 }
 
+/// One piece of a `Core\Str::format` call that `nvs-ir` lowers to a string
+/// concatenation instead of a call.
+///
+/// The checker records a list of these only when the result cannot differ
+/// from the member's: the template is a constant, every placeholder is a
+/// plain `%d` over an `int` or a plain `%s` over an `int` or a `string`, and
+/// the placeholders read the arguments once each, in written order. So the
+/// arguments are evaluated in the order the call evaluates them, and each
+/// one converts to the same text `nvs_stdlib::format` writes for it.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum FormatPiece {
+    /// Template text, with each `%%` already replaced by `%`.
+    Text(String),
+    /// The argument at this index of the call's argument list, converted to a
+    /// `string` the way interpolation converts it.
+    Argument(usize),
+}
+
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
 /// looked up by the source span of the expression it describes. See the
 /// module docs for the full design and why a span is the lookup key.
@@ -1342,6 +1360,7 @@ pub struct ExprTypeTable {
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
     written_paths: FxHashMap<Span, String>,
     prepared: FxHashMap<Span, Prepared>,
+    formats: FxHashMap<Span, Vec<FormatPiece>>,
     delegations: Vec<Delegation>,
     locals: Vec<(Span, Vec<LocalBinding>)>,
     routes: crate::routes::RouteTable,
@@ -2089,6 +2108,18 @@ impl ExprTypeTable {
     #[must_use]
     pub fn prepared(&self, call: Span) -> Option<Prepared> {
         self.prepared.get(&call).copied()
+    }
+
+    /// Records that the `Core\Str::format` call at `call` lowers to `pieces`.
+    pub(crate) fn record_format(&mut self, call: Span, pieces: Vec<FormatPiece>) {
+        self.formats.insert(call, pieces);
+    }
+
+    /// The pieces the `Core\Str::format` call at `call` lowers to, or `None`
+    /// for a call that stays a call.
+    #[must_use]
+    pub fn format_pieces(&self, call: Span) -> Option<&[FormatPiece]> {
+        self.formats.get(&call).map(Vec::as_slice)
     }
 
     /// Every pattern this run settled a *tier* for, in no particular order —

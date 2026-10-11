@@ -408,13 +408,16 @@ per call, which is a heap allocation on every call through a callable and every 
 *Owner:* `crates/nvs-runtime/src/object.rs` for the layout, `dispatch.rs` for the call.
 *Guard:* a virtual call contains no name lookup.
 
-### I — `Core\Str::format` allocates once per call, not ten
+### I — every literal `Core\Str::format` template compiles to a concatenation
 
-Per call it builds an `NvsArray` for the variadic tail, walks it back out into a `Vec`, allocates a
-`vec![false; n]`, allocates a `String` per conversion and copies a final `String` into an `NvsStr`.
-PHP's `sprintf` allocates about one. This member is being reopened anyway for
-`rule:security/sink-predicate`'s qualifier
-classification — its template is that ADR's sink — so it is cheapest done in the same pass.
+The member allocates once, its result (`nvs_stdlib::format::format`, guarded by
+`tests/allocation_policy.rs`), and a constant template of plain `%d`/`%s` placeholders over `int` and
+`string` is no call at all (`nvs_types::expr_table::FormatPiece`, guarded by
+`nvs-codegen/tests/core_str.rs`). What is left is the template that still calls: the call site builds
+an `NvsArray` for the variadic tail and the member parses the template again, about 3.6 allocations a
+call against PHP's one. The next shape is a zero-padded `%0Nd`, which is a third of the
+`compare/html-page` case's calls: a per-placeholder conversion helper would take it, and every other
+flag, out of the call too.
 
 ### J — `Core\Arr::sort` compares without an indirection
 

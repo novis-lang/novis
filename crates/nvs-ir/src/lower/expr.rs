@@ -2307,16 +2307,32 @@ impl<'a> Lowering<'a> {
             }
             pieces.push(piece);
         }
+        self.join_pieces(&pieces, mark, leading, *cur)
+    }
+
+    /// Joins the pieces [`Self::lower_interpolated_parts`] and
+    /// [`Self::lower_format_pieces`] lowered into one fresh `string`.
+    ///
+    /// Each piece is a value and whether it aliases storage a durable slot
+    /// still owns. Every fresh piece is staged since `mark`, and `leading` is
+    /// the mark before the first piece when that piece is fresh.
+    fn join_pieces(
+        &mut self,
+        pieces: &[(ValueId, bool)],
+        mark: usize,
+        leading: Option<usize>,
+        cur: BlockId,
+    ) -> (ValueId, Ty) {
         let (v, alias) = match pieces[..] {
             [only] => only,
             _ => {
                 let ids = pieces.iter().map(|(v, _)| *v).collect();
-                let result = self.emit_concat(*cur, ids, leading);
+                let result = self.emit_concat(cur, ids, leading);
                 // Every piece is read here, and whichever of them were fresh
                 // are on the stack — so this releases exactly what the
                 // `if !alias` guard above staged, less the leading piece, whose
                 // reference `emit_concat` has just handed to the instruction.
-                self.release_temporaries_since(mark, *cur);
+                self.release_temporaries_since(mark, cur);
                 self.own_temporary(result);
                 (result, false)
             }
@@ -2324,13 +2340,59 @@ impl<'a> Lowering<'a> {
         // From here the value is the caller's, not this expression's.
         self.forget_temporaries_since(mark);
         if alias {
-            // The single-part-alias degenerate case this function's own doc
-            // comment names — no `Concat` ran, so `v` is still someone
-            // else's storage; retain it to become this expression's own
-            // single fresh owner.
-            self.emit_retain(*cur, v);
+            // The single-part-alias degenerate case: no `Concat` ran, so `v`
+            // is still someone else's storage; retain it to become this
+            // expression's own single fresh owner.
+            self.emit_retain(cur, v);
         }
         (v, Ty::Str)
+    }
+
+    /// Lowers a `Core\Str::format` call to the concatenation of `pieces`,
+    /// which the checker recorded for it (`nvs_types::expr_table::FormatPiece`
+    /// owns when it does).
+    ///
+    /// The template is a constant, so it is not evaluated. Each argument is
+    /// lowered in written order and converted by [`Self::concat_operand`], as
+    /// an interpolated string converts its holes. The result is one
+    /// [`InstKind::Concat`]: one allocation for the whole call, where the
+    /// member allocates an argument list and the result.
+    pub(crate) fn lower_format_pieces(
+        &mut self,
+        pieces: &[nvs_types::expr_table::FormatPiece],
+        args: &[nvs_syntax::ast::Arg],
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> (ValueId, Ty) {
+        let mark = self.temporaries_mark();
+        let mut lowered: Vec<(ValueId, bool)> = Vec::with_capacity(pieces.len());
+        let mut leading = None;
+        for piece in pieces {
+            let piece = match piece {
+                nvs_types::expr_table::FormatPiece::Text(text) => (
+                    self.emit(*cur, Ty::Str, InstKind::ConstStr(text.clone())).0,
+                    false,
+                ),
+                nvs_types::expr_table::FormatPiece::Argument(index) => {
+                    let arg = args.get(*index).unwrap_or_else(|| {
+                        panic!(
+                            "nvs-ir: a `Core\\Str::format` piece reads argument {index}, and \
+                             the call has {} — nvs_types records an index into the written list",
+                            args.len()
+                        )
+                    });
+                    self.concat_operand(&arg.value, env, cur)
+                }
+            };
+            if !piece.1 {
+                if lowered.is_empty() {
+                    leading = Some(self.temporaries_mark());
+                }
+                self.own_temporary(piece.0);
+            }
+            lowered.push(piece);
+        }
+        self.join_pieces(&lowered, mark, leading, *cur)
     }
     /// Lowers `ExprKind::HtmlTemplate`'s parts into the one `Core\Html\Markup` they
     /// denote — `rule:core-classes/html-template`'s **value** position, which is
@@ -4299,6 +4361,14 @@ impl<'a> Lowering<'a> {
             // helper behind that address exists at all.
             if symbol == nvs_types::CORE_SCRIPT_FINISH {
                 return self.lower_finish(env, cur);
+            }
+            // A `Core\Str::format` call the checker took apart is no call at
+            // all — `Self::lower_format_pieces`.
+            if let Some(pieces) = self.exprs.format_pieces(expr.span)
+                && let nvs_syntax::ast::CallArgs::List(list) = args
+            {
+                let pieces = pieces.to_vec();
+                return self.lower_format_pieces(&pieces, list, env, cur);
             }
             let sig = ArgSig::of_helper(call);
             let return_ty = erase_checked_ty(call.return_ty, self.checked_types);

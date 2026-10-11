@@ -421,6 +421,11 @@ member's leading argument. The compiled artifact itself belongs to the core that
 what keeps an automaton or a pattern's field list out of a store shared between requests, and it is
 what a runtime cache keyed only on what a program *wrote* can then hold for the life of that core.
 
+**A call can also be compiled away.** A `Core\Str::format` template that is a constant, whose
+placeholders all read their arguments in order with no flag or width, over types whose text cannot
+differ, lowers to the string concatenation it describes, and no call is made. Nothing crosses, so the
+bound above holds; `nvs_types::expr_table::FormatPiece` owns which calls qualify.
+
 A malformed constant is a diagnostic pointing at the exact offset inside the string literal. The check on
 `Core\Str::format`'s placeholders also counts and types them against the argument list, which turns a
 whole family of `printf`-shaped bugs into compile errors.

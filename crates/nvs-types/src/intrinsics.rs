@@ -109,7 +109,7 @@ use nvs_syntax::ast::{Arg, CallArgs, Expr, ExprKind};
 use crate::Env;
 use crate::defaults::ConstArg;
 use crate::expr::args::argument_filling;
-use crate::expr_table::{ArgSlot, Prepared, PreparedFact};
+use crate::expr_table::{ArgSlot, FormatPiece, Prepared, PreparedFact};
 use crate::ty::{Ty, TypeId};
 
 /// What kind of small program a folded argument is, and therefore which
@@ -575,7 +575,25 @@ pub(crate) fn check_call(
     match row.grammar {
         Grammar::Template => {
             let tail = tail_types(row, list, arg_types, slots);
-            check_template(&text, pattern, tail.as_deref(), env);
+            let lowered = check_template(&text, pattern, tail.as_deref(), env);
+            // The pieces name arguments by their place in the written list,
+            // so a call with a named argument stays a call.
+            if let Some(pieces) = lowered
+                && list.iter().all(|arg| arg.name.is_none() && !arg.spread)
+            {
+                env.exprs.record_format(
+                    call_span,
+                    pieces
+                        .into_iter()
+                        .map(|piece| match piece {
+                            FormatPiece::Argument(index) => {
+                                FormatPiece::Argument(row.at + 1 + index)
+                            }
+                            text @ FormatPiece::Text(_) => text,
+                        })
+                        .collect(),
+                );
+            }
         }
         Grammar::Sql => check_sql(&text, span, row, list, slots, env),
         // Both CLDR rows read the same pattern language through the same
@@ -794,22 +812,29 @@ fn tail_types(
 /// the call did not give, and an argument no placeholder consumes. The fourth
 /// — a value with no reading for its conversion — is the one this pass makes
 /// *narrower* than the runtime does, per the module docs' third bullet.
-fn check_template(text: &str, pattern: &Expr, values: Option<&[TypeId]>, env: &mut Env<'_>) {
+///
+/// Returns the pieces `nvs-ir` lowers the call to, with argument indices
+/// counted from the first value after the template, when the template passes
+/// every check and [`format_pieces`] accepts it. `None` keeps the call.
+fn check_template(
+    text: &str,
+    pattern: &Expr,
+    values: Option<&[TypeId]>,
+    env: &mut Env<'_>,
+) -> Option<Vec<FormatPiece>> {
     let span = pattern.span;
     let placeholders = match nvs_stdlib::format::placeholders(text) {
         Ok(placeholders) => placeholders,
         Err(why) => {
             let at = decoded_span(pattern, why.written, env).unwrap_or(span);
             report_malformed(at, &why.message, env);
-            return;
+            return None;
         }
     };
     // The template's own grammar is read however the arguments were written;
     // the three refusals below are each a count against them, and a `...`
     // hands over entries whose count is a run-time fact.
-    let Some(values) = values else {
-        return;
-    };
+    let values = values?;
     let given = values.len();
     let mut read = vec![false; given];
     for placeholder in &placeholders {
@@ -821,7 +846,7 @@ fn check_template(text: &str, pattern: &Expr, values: Option<&[TypeId]>, env: &m
                 "the template reads further than the arguments go",
                 env,
             );
-            return;
+            return None;
         };
         *seen = true;
     }
@@ -832,7 +857,7 @@ fn check_template(text: &str, pattern: &Expr, values: Option<&[TypeId]>, env: &m
             "an argument no placeholder in this template reads",
             env,
         );
-        return;
+        return None;
     }
     for placeholder in &placeholders {
         let ty = values[placeholder.index];
@@ -849,9 +874,47 @@ fn check_template(text: &str, pattern: &Expr, values: Option<&[TypeId]>, env: &m
                 "this template and these arguments do not fit",
                 env,
             );
-            return;
+            return None;
         }
     }
+    format_pieces(text, &placeholders, values, env)
+}
+
+/// A checked template as text and argument pieces, or `None` when the
+/// member's own rendering could differ from a concatenation.
+///
+/// Every placeholder must be plain and read the next argument, so each
+/// argument is read once, in written order. `%d` needs an `int`, because a
+/// `uint` past `int`'s range prints negative there. `%s` needs an `int` or a
+/// non-secret `string`, the two types interpolation converts to the same text.
+/// Between two placeholders the only `%` left is a `%%`.
+fn format_pieces(
+    text: &str,
+    placeholders: &[nvs_stdlib::format::Placeholder],
+    values: &[TypeId],
+    env: &Env<'_>,
+) -> Option<Vec<FormatPiece>> {
+    let mut pieces = Vec::with_capacity(placeholders.len() * 2 + 1);
+    let mut from = 0;
+    for (position, placeholder) in placeholders.iter().enumerate() {
+        let fits = matches!(
+            (placeholder.conversion, env.interner.get(values[position])),
+            ('d' | 's', Ty::Int) | ('s', Ty::String | Ty::TaintedString)
+        );
+        if !placeholder.plain || placeholder.index != position || !fits {
+            return None;
+        }
+        let between = &text[from..placeholder.written.at];
+        if !between.is_empty() {
+            pieces.push(FormatPiece::Text(between.replace("%%", "%")));
+        }
+        pieces.push(FormatPiece::Argument(position));
+        from = placeholder.written.at + placeholder.written.len;
+    }
+    if from < text.len() {
+        pieces.push(FormatPiece::Text(text[from..].replace("%%", "%")));
+    }
+    (!pieces.is_empty()).then_some(pieces)
 }
 
 /// Whether a conversion needs a number rather than anything renderable — every
