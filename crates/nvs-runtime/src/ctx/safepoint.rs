@@ -452,6 +452,12 @@ impl SafepointView {
             .fetch_or(flags.bits(), std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// Whether `other` stops the same request tree as this handle.
+    #[must_use]
+    pub fn same_tree(&self, other: &Self) -> bool {
+        std::sync::Arc::ptr_eq(&self.tree, &other.tree)
+    }
+
     /// The flags standing in the word, which is what the next poll reads.
     #[must_use]
     pub fn flags(&self) -> SafepointFlags {

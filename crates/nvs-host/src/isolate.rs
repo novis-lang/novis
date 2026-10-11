@@ -254,10 +254,13 @@ impl Isolate {
     /// move the ceiling the whole tree divides
     /// (`rule:security/isolate-budget-is-the-trees`).
     ///
-    /// The publication is cleared when this isolate's body ends, however it
-    /// ends. One slot per registered thread is the whole of what a registration
-    /// holds, so a thread running several isolates at once publishes the one it
-    /// took up last and clears the slot at the first of them to finish.
+    /// The publication is made where this isolate's body starts to run and
+    /// withdrawn where it ends, however it ends — [`Published`] owns both. One
+    /// slot per registered thread is the whole of what a registration holds, so
+    /// a thread running several isolates at once publishes the one whose body
+    /// started last. A request that parks and later runs away on resuming is
+    /// charged under whatever was published last, or under nothing once that
+    /// request has ended.
     #[must_use]
     pub fn watched_by(mut self, watch: Rc<Registration>) -> Self {
         self.watch = Some(watch);
@@ -644,13 +647,11 @@ impl Isolate {
         // this one is charging it, and what such a thread charges is the
         // **tree's** handle, which carries the tree's ceiling and is read again
         // on every sweep. The handle is this context's, and the child below
-        // shares it through `Ctx::share_safepoint_with`. Published before the
-        // child is built, so a runaway is published ahead of the code that
-        // runs away.
-        //
-        // [`Unpublished`] is what clears it, and the two are deliberately not
-        // symmetrical: the publication is one store made here, and the guard
-        // that undoes it goes wherever the body it belongs to ends.
+        // shares it through `Ctx::share_safepoint_with`. This store covers the
+        // spawn itself, which runs on this core now. The one a runaway is
+        // stopped under is the child's own, made by [`Published`] where its
+        // body starts, because other tasks may run and publish between this
+        // spawn and that start.
         if let Some(watch) = &watch {
             watch.publish(ctx.safepoint_view());
         }
@@ -772,7 +773,7 @@ impl Isolate {
             // it for. Nothing about the boundary weakens — it is the context,
             // not the stack.
             None => {
-                let _unpublished = watch.map(Unpublished);
+                let _published = watch.map(|watch| Published::new(watch, &isolate_ctx));
                 Box::new(Collected {
                     completion: Some(run_here(
                         isolate_ctx,
@@ -789,19 +790,44 @@ impl Isolate {
     }
 }
 
-/// Clears a thread's publication when the isolate it was made for ends.
+/// An isolate's publication to the watchdog, made where its body starts to run
+/// and withdrawn when that body ends.
+///
+/// Made on the body's own stack, as its first act, because a core runs many
+/// tasks and publishes one: the publication is a claim about what the core is
+/// running *now*. A spawn under a scheduler only queues the child, and every
+/// task the core runs before it — another connection taking up its own request
+/// — publishes over the spawn's store, so a child that then ran away would be
+/// charged under another request's tree, or under none once that request
+/// ended. Published at its first statement, a child that never yields keeps the
+/// publication it runs away under, and the watchdog stops it.
 ///
 /// A guard rather than a line at the end of the body, for [`Ended`]'s reason:
 /// an isolate torn down by a forced unwind reaches no line, and a slot left
 /// filled would charge whatever the thread does next to a tree that has
-/// finished. It carries no identity, so it clears the thread's slot whether or
-/// not the publication still names this isolate — [`Registration::clear`] owns
-/// what that costs.
-struct Unpublished(Rc<Registration>);
+/// finished. Its drop withdraws only its own tree's publication
+/// ([`Registration::withdraw`]), so a request that ends after another has
+/// published leaves that one standing.
+///
+/// **What it spends:** one lock of the watched set and one reading of the
+/// thread's clock where a request's body starts, and one lock where it ends.
+struct Published {
+    watch: Rc<Registration>,
+    view: nvs_runtime::SafepointView,
+}
 
-impl Drop for Unpublished {
+impl Published {
+    /// Publishes `ctx`'s tree on `watch`, charged from this instant.
+    fn new(watch: Rc<Registration>, ctx: &Ctx) -> Self {
+        let view = ctx.safepoint_view();
+        watch.publish(view.clone());
+        Self { watch, view }
+    }
+}
+
+impl Drop for Published {
     fn drop(&mut self) {
-        self.0.clear();
+        self.watch.withdraw(&self.view);
     }
 }
 
@@ -1001,7 +1027,6 @@ fn start_as_task(
         done: Rc::clone(&done),
         wake,
     };
-    let unpublished = watch.map(Unpublished);
     // The child's half of the event's split, as a flag rather than a flags read
     // on the other side: a request nobody is observing must not read a clock,
     // and the parent asked that question once at the spawn. `group::Child` says
@@ -1011,11 +1036,13 @@ fn start_as_task(
         // Moved in so the guard is dropped with the body — including when the
         // body is torn down half-way through by a forced unwind.
         let ended = ended;
-        // Moved in for the same reason, and held past `ended` below: the answer
-        // is filed there, while `rule:concurrency/after-response-outlives-the-connection`'s
-        // work runs on this stack afterwards and is this request's CPU as much
-        // as its body was.
-        let _unpublished = unpublished;
+        // Published here, where the body starts on this core, and not at the
+        // spawn: [`Published`] owns why. Withdrawn by the same guard, held past
+        // `ended` below: the answer is filed there, while
+        // `rule:concurrency/after-response-outlives-the-connection`'s work runs
+        // on this stack afterwards and is this request's CPU as much as its body
+        // was.
+        let _published = watch.map(|watch| Published::new(watch, child));
         let began = timed.then(Instant::now);
         let answer = program(child, args);
         // `rule:core-classes/html-later`: the page is the body with every slot
@@ -1578,6 +1605,65 @@ mod tests {
         assert!(
             dog.running().is_empty(),
             "a finished isolate was still offered as the request to stop"
+        );
+    }
+
+    /// `rule:errors/on-limit`'s CPU ceiling on a core that serves many requests:
+    /// two connections each spawn a request before either request runs, which
+    /// is the order a loaded core takes them in. Each request still finds its
+    /// own tree published while its body runs, so a request that never yields
+    /// is the one the watchdog charges and stops. Publishing at the spawn left
+    /// the first request running under the second one's tree, and under none
+    /// once the second had finished.
+    #[test]
+    fn requests_spawned_together_each_run_under_their_own_publication() {
+        let clocked = crate::ThreadClock::current().is_some();
+        let dog = Rc::new(crate::Watchdog::new());
+        let registered = Rc::new(dog.register_requests());
+        let mut sched = Scheduler::new();
+        // What happened, in order: a parent's spawn, and a child's body
+        // reporting whether the published tree was its own.
+        let log: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+        for name in ["a", "b"] {
+            let ran = Rc::clone(&log);
+            let reading = Rc::clone(&dog);
+            let program: Program = Box::new(move |child: &mut Ctx, _args| {
+                let mine = child.safepoint_view();
+                let published = reading.running();
+                let own = published.len() == 1 && published[0].1.view().same_tree(&mine);
+                ran.borrow_mut().push(format!("{name} ran, own={own}"));
+                Value::null()
+            });
+            let mut cell = Some(
+                Isolate::new(program, Value::null(), Output::Capture)
+                    .watched_by(Rc::clone(&registered)),
+            );
+            let spawned = Rc::clone(&log);
+            sched.spawn(parent(), TaskRoot::Request, move |parent_ctx| {
+                let isolate = cell.take().expect("run once");
+                let running = isolate.start(parent_ctx).expect("the argument crossed");
+                spawned.borrow_mut().push(format!("{name} spawned"));
+                let done = running.join(parent_ctx);
+                spawned.borrow_mut().push(format!("{name} ok={}", done.ok));
+            });
+        }
+        sched.run();
+
+        assert_eq!(
+            *log.borrow(),
+            [
+                "a spawned".to_owned(),
+                "b spawned".to_owned(),
+                format!("a ran, own={clocked}"),
+                format!("b ran, own={clocked}"),
+                "a ok=true".to_owned(),
+                "b ok=true".to_owned(),
+            ],
+            "a request ran under a publication that was not its own"
+        );
+        assert!(
+            dog.running().is_empty(),
+            "a finished request was still offered as the request to stop"
         );
     }
 

@@ -620,6 +620,26 @@ impl Registration {
     pub fn clear(&self) {
         self.publish_safepoint(None);
     }
+
+    /// Clears this thread's publication if it still names `view`'s request
+    /// tree, and leaves it standing otherwise.
+    ///
+    /// What a request owes when it ends on a core that runs other requests
+    /// beside it: while it was parked, another request may have published, and
+    /// that one is still running. [`Self::clear`] would leave that request
+    /// sampled against no ceiling, so a runaway it starts later would never be
+    /// stopped.
+    pub fn withdraw(&self, view: &SafepointView) {
+        let mut state = lock(&self.shared.state);
+        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id)
+            && watched
+                .running
+                .as_ref()
+                .is_some_and(|running| running.view().same_tree(view))
+        {
+            watched.running = None;
+        }
+    }
 }
 
 impl std::fmt::Debug for Registration {
