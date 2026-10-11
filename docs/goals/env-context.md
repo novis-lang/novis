@@ -22,7 +22,7 @@ stages:
         shapes: ["A `Core` member — the five edits", "A `.nvst` test case", A rule fragment]
   - id: 4
     title: "`Core\\Env::OS` is a `Core\\Env::Platform` case"
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Writing a test case > a case that tries both platforms"]
@@ -324,18 +324,17 @@ One file set: the files the two searches below print.
 
 ### State
 
-**Goal `env-context`: Stages 2 and 3 are done.** `Core\Env::context(): Core\Env::Context` exists (`crates/nvs-stdlib/src/env.rs`, the `context` row beside `mode`, the `CONTEXT` enum and `nvs_core_env_context`). The enum's values are `nvs_runtime::RunKind`'s discriminants, and `context_cases_are_run_kinds_in_order` holds the two together. The enum is registered beside `MODE` in `crates/nvs-stdlib/src/registry.rs`. The rule is `rule:core-classes/env-context`, and `rule:tooling/echo-always-has-a-sink` points at it. The spec row names the member and both enums. All three Stage 3 checks pass: the three `.nvst` cases and the seven host tests in `crates/nvs-cli/tests/env_context.rs` (the schedule one waits for the next minute's fire). A `match` over the seven cases compiles with no default arm. Nothing is blocked.
+**Goal `env-context`: Stages 2, 3 and 4 are done.** `Core\Env::context(): Core\Env::Context` exists and passes its three Stage 3 checks. `Core\Env::OS` is typed `Core\Env::Platform`: the `PLATFORM` enum sits beside `CONTEXT` in `crates/nvs-stdlib/src/env.rs` and is registered beside it in `registry.rs`. The `OS` row is a `Const::EnumCase`, and a comparison with a string is `E0466`. An enum-typed constant needed one fix outside the registry: `ExprInfo::ClassConst` carries `enum_backing`, and `nvs-ir` emits the folded integer as the enum (`crates/nvs-ir/src/lower/expr.rs`, the `ClassConst` arm). A user-declared enum-typed constant takes the same path (not checked with a case). The rule `rule:core-classes/env-context` and the spec row state `Platform`. Every Process reader compares with `Core\Env::Platform::Windows`. Both Stage 4 checks pass. Nothing is blocked.
 
 The § *Standing decisions* calls stand as written. No session re-decides one.
 
 ### Next
 
-**Stage 4: `Core\Env::OS` is a `Core\Env::Platform` case.** One file set: `crates/nvs-stdlib/src/env.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-types/src/core_lib.rs`, `tools/nv/cmd/reference.ts`, `docs/spec/01-core-library.md`, and the readers of `Core\Env::OS`.
+**Stage 5: the feature proofs for `Core\Env::context`.** One file set: `docs/examples/core/Env/context/`, `tests/hostile/core/Env/context/`, `benches/members/core/Env/context.nvs`. The `mode` siblings in each are the shape (`docs/examples/core/Env/mode/`, `tests/hostile/core/Env/mode/`, `benches/members/core/Env/mode.nvs`).
 
-- [ ] **The enum and the typed constant** (§ 4 in this file). Add `PLATFORM` beside `CONTEXT` in `crates/nvs-stdlib/src/env.rs`, register it beside `crate::env::CONTEXT` in `registry.rs`, and turn the `OS` row (`crates/nvs-stdlib/src/env.rs:185`) and the mapping (`crates/nvs-stdlib/src/env.rs:212`) into `Const::EnumCase`. The guard `every_registered_constant_matches_its_declared_type` (`crates/nvs-stdlib/src/registry.rs:6166`) gains the `(CoreTy::Enum(e), Const::EnumCase(e, _))` arm; check the fold at `crates/nvs-types/src/core_lib.rs:285` and `:452`. Add the other two tests the `nvs-stdlib-os-is-a-platform-case` check names.
-- [ ] **The readers**: the placeholder at `tools/nv/cmd/reference.ts:95`, the spec row (`docs/spec/01-core-library.md:1185`), the `env-the-three-constants-…` case, and the 25 Process files `git grep -l 'Core\\Env::OS'` prints. Add the two new cases the `env-os-conformance` check names.
+- [ ] **`about.md` and three examples** (§ 5 in this file, `rule:testing/feature-proofs`). The seven-case `match` is the `Kind` class at `crates/nvs-cli/tests/env_context.rs:42`. `bun nv proofs --id 'Core\Env::context'` prints what is owed.
+- [ ] **The attack and the bench** (§ 5 in this file). The bench is one call per round, with 0 allocations and 0 calls declared, in the shape of `benches/members/core/Env/mode.nvs:1`.
 
 ### Backlog
 
-- Stage 5: the feature proofs for `Core\Env::context`: `about.md`, three examples, one attack and one bench (§ 5 in this file). The `Kind::of` match in `crates/nvs-cli/tests/env_context.rs` is the shape the seven-case example needs.
 - Stage 6: move the 59 `catch (LogicError $noRequest)` files and the 19 `catch (RuntimeError $inside…)` files to `Core\Env::context()`. The three files whose subject is the throw stay (§ 6 in this file).
