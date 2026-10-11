@@ -52,8 +52,6 @@ const CASE_TEXT: Record<string, { title: string; text: string }> = {
 
 const ROW_TEXT: Record<string, string> = {
   cores: 'Many requests at once are spread over four CPU cores',
-  isolation: 'A request cannot see a value that another request set',
-  runaway: 'A request that loops or uses too much memory is stopped',
   crash: 'Other requests are still answered after one request crashes',
   loop: 'A request that loops forever is stopped, and other requests are still answered',
   memory: 'A request that uses too much memory is stopped, and other requests are still answered',
