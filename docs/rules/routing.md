@@ -359,7 +359,7 @@ kinds of capture differ is which of them the router itself reads.
 converts a query value into a bound parameter or answers `400` for one. `Core\Router\Match::params`
 carries the path captures alone, and a program reads `Core\Request::query()` raw.
 
-<sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0160](../decisions/0160.md).</sub>
+<sub>See also [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type).</sub>
 
 <a id="routing-repeated-routes-share-a-name-when-they-share-a-path"></a>
 
