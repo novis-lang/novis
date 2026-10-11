@@ -7,7 +7,8 @@ What it adds to the document is reading, never deciding. A page names the class'
 from the document's `extends` and `implements`, and a method with no doc comment of its own shows the one
 it inherits by following those same keys to the nearest documented method of the same name — the comment
 `rule:tooling/strict-docs` accepts for it. A name with a page in the same run becomes a link, and one
-without stays code.
+without stays code. `parent::` in a `@see` names the page's `extends`, and a member whose `kind` is
+`static` is printed with `static ` in front of its signature.
 
 It renders text the lexer has already accepted, so it needs no bidi check of its own
 (`rule:security/bidi-boundaries`). This repository does not itself need it — the one-file reference and the

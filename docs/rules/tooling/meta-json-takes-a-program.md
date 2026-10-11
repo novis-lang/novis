@@ -17,7 +17,23 @@ A user class also names its lineage: `extends` is its parent class and `implemen
 lists, in the order written, and an interface's `extends` is the list of interfaces it extends. Every one
 of them is **fully qualified**, resolved through the declaring file's namespace and `use` imports the way
 the compiler resolves it, and each key is omitted when the declaration has none. Only what the declaration
-itself writes is listed; an interface reached through the parent is on the parent's entry.
+itself writes is listed; an interface reached through the parent is on the parent's entry. The resolution
+is `nvs_hir::resolve_ref`, the function the compiler uses, so a consumer reads a class's lineage without
+resolving a name itself, and a consumer that wants every ancestor walks the edges. A static method's
+`static` is the member's `kind`, never part of its `signature`, which is the member's own spelling as the
+registry writes it.
 
 The no-argument form must emit byte-identical output before and after the argument exists: the seam is
 one input added to one document, never a fork.
+
+**Memory:** nothing at run time; this is compile-time output. The document grows by one short string per
+lineage edge.
+
+**Declined:**
+- **The names as written.** `Item` means `Shop\Item` only in the file that imported it, so a renderer
+  would have to repeat the compiler's resolution to link it, which is the second resolver
+  `rule:statements/one-function-resolves-every-name` forbids.
+- **The transitive closure of every ancestor.** It repeats each edge on every descendant, and a
+  renderer could no longer tell a direct parent from an inherited one.
+- **`static` inside `signature`.** The signature is the member's own spelling, the same as the
+  registry's, where `kind` already carries `static`; adding it would make the two halves disagree.

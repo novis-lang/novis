@@ -1308,7 +1308,8 @@ What it adds to the document is reading, never deciding. A page names the class'
 from the document's `extends` and `implements`, and a method with no doc comment of its own shows the one
 it inherits by following those same keys to the nearest documented method of the same name — the comment
 [`tooling/strict-docs`](tooling.md#tooling-strict-docs) accepts for it. A name with a page in the same run becomes a link, and one
-without stays code.
+without stays code. `parent::` in a `@see` names the page's `extends`, and a member whose `kind` is
+`static` is printed with `static ` in front of its signature.
 
 It renders text the lexer has already accepted, so it needs no bidi check of its own
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)). This repository does not itself need it — the one-file reference and the
@@ -1402,12 +1403,28 @@ A user class also names its lineage: `extends` is its parent class and `implemen
 lists, in the order written, and an interface's `extends` is the list of interfaces it extends. Every one
 of them is **fully qualified**, resolved through the declaring file's namespace and `use` imports the way
 the compiler resolves it, and each key is omitted when the declaration has none. Only what the declaration
-itself writes is listed; an interface reached through the parent is on the parent's entry.
+itself writes is listed; an interface reached through the parent is on the parent's entry. The resolution
+is `nvs_hir::resolve_ref`, the function the compiler uses, so a consumer reads a class's lineage without
+resolving a name itself, and a consumer that wants every ancestor walks the edges. A static method's
+`static` is the member's `kind`, never part of its `signature`, which is the member's own spelling as the
+registry writes it.
 
 The no-argument form must emit byte-identical output before and after the argument exists: the seam is
 one input added to one document, never a fork.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0233](../decisions/0233.md).</sub>
+**Memory:** nothing at run time; this is compile-time output. The document grows by one short string per
+lineage edge.
+
+**Declined:**
+- **The names as written.** `Item` means `Shop\Item` only in the file that imported it, so a renderer
+  would have to repeat the compiler's resolution to link it, which is the second resolver
+  [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name) forbids.
+- **The transitive closure of every ancestor.** It repeats each edge on every descendant, and a
+  renderer could no longer tell a direct parent from an inherited one.
+- **`static` inside `signature`.** The signature is the member's own spelling, the same as the
+  registry's, where `kind` already carries `static`; adding it would make the two halves disagree.
+
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case).</sub>
 
 <a id="tooling-an-agent-asks-the-binary"></a>
 
