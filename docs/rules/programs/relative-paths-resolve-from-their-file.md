@@ -37,7 +37,14 @@ The compiler replaces each call with the absolute path of the file that contains
 folder, from the same folder a string literal is joined to, and the program runs a string constant.
 `thisDir($join)` adds a relative string literal to the folder, lexically; any other `$join` does not
 compile (`E0837`), and `Core\Path::join(Core\Path::thisDir(), $part)` joins a path the program
-builds. There are no magic constants: `__FILE__` and `__DIR__` stay `E0319`.
+builds. There are no magic constants: `__FILE__` and `__DIR__` stay `E0319`, and that diagnostic's
+help names the two members. A program wants its folder as a value where no path parameter is: to
+build a path from parts it computes, to hand a folder to a library, to print where it runs from.
+Both members read the folder a string literal is joined to, so the two never disagree, and a file
+reached through `require` names itself and not the entry file. A literal `null` for `$join` is the
+same as no argument; an empty string and an absolute path are `E0837`, so the fold never falls back
+to a call at run time. A source handed to the compiler as text has no file, and there either member
+throws a `RuntimeError` that says so.
 
 **A relative path that reaches a `Core` door at run time throws** a `RuntimeError` naming the member
 and the path, before any grant is asked. `Core\Path::join` builds an absolute path from a folder the
@@ -47,3 +54,13 @@ app's. Its answer is a plain `string` without `tainted`, so a path from `Core\Cl
 a path door through it (`rule:security/launderers-are-sink-named` states the exception). The resolver an isolate's script goes through refuses a relative path the same way, for a
 spawn, a queued job, a scheduled entry and a log handler alike. With every path absolute at the check, a relative grant in `nvs.toml`, which resolves against
 that file's folder, names the same files as a string literal in a program beside it.
+
+**Declined:**
+
+- **A `__DIR__` constant.** Every call site would have to write the join, and a forgotten one would
+  still resolve against the working directory. A magic constant is also syntax that a `Core` member
+  makes unnecessary.
+- **`thisDir` accepting any string and joining at run time.** It would be `Core\Path::join` under a
+  second name, and the call could not be folded.
+- **`thisFile` and `thisDir` answering the entry file.** A library could not name a file beside its
+  own code.
