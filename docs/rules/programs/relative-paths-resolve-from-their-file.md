@@ -9,6 +9,13 @@ Core\IO::read('data/rates.json');        // -> <folder of src/Report.nvs>/data/r
 Core\IO::read('/srv/shop/rates.json');   // absolute: unchanged
 ```
 
+The working directory is not a base for a program's own paths. Nothing in Novis changes it, so every
+program in a process shares one: two apps mounted in one `nvs serve` could not each read their own
+`data/x.json`, and under a Windows service manager it is `System32`, so a program that works from a
+terminal would fail as a service. A string literal costs one join while compiling and nothing at run
+time, and a door pays one root test per call. A message that prints a resolved literal prints the
+absolute path.
+
 **A path parameter** is one whose text is marked as a path. `Core` marks every parameter that names a
 file on disk — `Core\IO`'s path members, `Core\Process::run`/`spawn`, `Core\Response::sendFile`,
 `Core\Http\Part::file`, both `saveTo` members, `Core\Net::connectLocal`/`listenLocal`,
@@ -22,13 +29,15 @@ and is allowed only on a parameter whose type is a `string`, alone or with `null
 elsewhere). A default value of such a parameter resolves against the file that declares it.
 
 **A string literal** here is one written as the argument itself. A class constant, a
-concatenation of string literals and a variable are values built while the program runs. A path
+concatenation of string literals and a variable are values built while the program runs: a constant
+declared in one file and used in another has no single file to resolve against. A path
 argument that starts with a relative string literal and adds more — `'data/' . $name` or `"data/{$name}"` — is
 relative on every run, so it does not compile (`E0840`); `Core\Path::thisDir('data') . '/' . $name`
 builds it from the file's folder. A single letter, which a `:` could turn into a drive, and a
 heredoc are left to the run-time check. The join is
 lexical: `.` and `..` are removed from the text and nothing on disk is read, so the answer does not
-depend on whether the file exists yet. The capability check still canonicalizes the absolute path
+depend on whether the file exists yet, and a bundled executable, which compiles from its payload
+with no folder on disk, gets the same answer. The capability check still canonicalizes the absolute path
 before it compares it with a grant (`rule:security/path-scope-canonicalise-then-prefix`). Inside a
 bundled executable the file's folder maps to the same folder beside the executable.
 
@@ -57,6 +66,16 @@ that file's folder, names the same files as a string literal in a program beside
 
 **Declined:**
 
+- **The working directory as the base**, which is PHP's rule for `fopen`. It breaks several apps in
+  one server and every program run as a service.
+- **The entry file's folder as the base for every relative path.** A library reached through
+  `require` or `autoload` would read its data relative to whoever ran it, so a package could not ship
+  a data file beside its own code.
+- **`nvs.toml`'s folder as the base.** A program run without a configuration file would have no base,
+  and a program's own source would mean something different depending on where the operator keeps
+  the file.
+- **Canonicalizing the literal while compiling.** The answer would depend on the build machine's
+  disk, and a bundle has none to ask.
 - **A `__DIR__` constant.** Every call site would have to write the join, and a forgotten one would
   still resolve against the working directory. A magic constant is also syntax that a `Core` member
   makes unnecessary.

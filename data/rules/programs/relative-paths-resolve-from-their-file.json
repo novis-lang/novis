@@ -2,7 +2,6 @@
   "title": "A relative path given as a string literal at a path parameter names a file beside the source file that wrote it, and a relative path built at run time throws",
   "status": "shipped",
   "because": [
-    "0241",
     "0245"
   ],
   "seeAlso": [
@@ -22,6 +21,7 @@
     "tests/conformance/reject/path-this-dir-joins-only-a-written-relative-path.nvst",
     "tests/conformance/isolate/a-spawn-script-path-written-in-the-code-names-the-script-beside-the-file-that-wrote-it.nvst",
     "tests/conformance/reject/the-path-marker-is-only-for-a-string-parameter.nvst",
-    "tests/conformance/reject/path-a-tainted-path-not-from-cwd-does-not-reach-io-read.nvst"
+    "tests/conformance/reject/path-a-tainted-path-not-from-cwd-does-not-reach-io-read.nvst",
+    "crates/nvs-runtime/src/capability.rs"
   ]
 }

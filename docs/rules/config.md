@@ -490,9 +490,12 @@ being copied or relocated whole. The resolved absolute path is what the boot log
 print, so the rule never has to be applied in a reader's head — and a block in an included file names
 a database beside *that* file, not beside the running program. A scheduled script and a log handler
 are resolved while the configuration is read, so every fire and every escalation runs the same file
-whatever folder the server was started in.
+whatever folder the server was started in. A `[storage.<name>] root` is a folder the runtime joins an
+object key to and opens through the same doors as a program's own paths, so left relative, every
+object on the disk would meet the run-time refusal of a relative path
+([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)).
 
-<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0241](../decisions/0241.md), [0245](../decisions/0245.md).</sub>
+<sub>See also [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir), [`config/app-keys-are-canonicalized-before-matching`](config.md#config-app-keys-are-canonicalized-before-matching), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0245](../decisions/0245.md).</sub>
 
 <a id="config-any-file-in-the-tree-may-set-any-directive"></a>
 
