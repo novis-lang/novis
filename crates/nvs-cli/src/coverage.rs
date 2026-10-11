@@ -1,6 +1,6 @@
 //! `nvs test --coverage-lcov <FILE>`, `--coverage-clover <FILE>` and
 //! `--coverage-cobertura <FILE>`: line and function coverage of a `#[Test]`
-//! run, written in the three formats CI services read (ADR 0273).
+//! run, written in the three formats CI services read (`rule:testing/coverage-report`).
 //!
 //! # Where the counts come from
 //!
