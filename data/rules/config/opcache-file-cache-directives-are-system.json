@@ -1,9 +1,7 @@
 {
   "title": "The five `opcache.file_cache*` directives are `System`-class, because where compiled code is read from is a code-injection primitive",
   "status": "shipped",
-  "because": [
-    "0281"
-  ],
+  "because": [],
   "seeAlso": [
     "config/every-schedule-key-is-system",
     "config/three-changeability-classes",

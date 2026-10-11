@@ -25,3 +25,7 @@ outside the data folder keeps its owner and mode, and the install warns when the
 it. Every path the service reads is then owned by root or by itself and writable by no group, which
 is what `rule:config/ownership-is-the-trust-boundary` checks at boot. An uninstall gives each path back
 to root with the owner's bits of its mode only.
+
+**Declined:**
+- **Read/write on the whole data folder for the service account.** It is simpler to grant, and it lets
+  the service rewrite the configuration that limits it.

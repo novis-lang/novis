@@ -366,7 +366,8 @@ need a further tier, because this is the floor. It writes to an operator-owned s
 target`: `stderr`, `file:<path>` or `syslog`. With no target in any file it is `stderr`, except in a
 process a service manager started, where it is `file:` the data folder's `logs/nvs.log`; a service with
 no usable data folder keeps `stderr`. The check reads where the key was written, so a `stderr` an
-operator wrote is kept.
+operator wrote is kept. A service has no terminal, and its `stderr` is the journal or the Event Log,
+where a busy server's records crowd out the service manager's own.
 
 It fires when `[log] handler` is unset or [`errors/handler-script`](errors.md#errors-handler-script) failed for any reason. **If
 even this write fails — a full disk, a broken pipe — the failure is swallowed**, and the request

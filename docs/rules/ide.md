@@ -438,7 +438,7 @@ server process's life after its first `Core` jump, and one copy on disk per serv
   walk, and a payload node under a method changes what both print. The server walks a payload itself
   instead.
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace).</sub>
 
 <a id="ide-the-request-set-is-closed"></a>
 

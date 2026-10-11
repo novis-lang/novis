@@ -1,9 +1,7 @@
 {
   "title": "The resolved root is canonicalized once at boot, announced with every file it reached, and re-read from that stored path on reload",
   "status": "designed",
-  "because": [
-    "0281"
-  ],
+  "because": [],
   "seeAlso": [
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
     "config/ownership-is-the-trust-boundary",

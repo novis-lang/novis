@@ -1,9 +1,7 @@
 {
   "title": "Every file the configuration reads, and its directory, must be owned by the runtime account or root and writable by nobody else",
   "status": "shipped",
-  "because": [
-    "0281"
-  ],
+  "because": [],
   "seeAlso": [
     "config/optional-covers-absence-and-moves-the-check-to-the-directory",
     "config/any-file-in-the-tree-may-set-any-directive",
@@ -12,6 +10,7 @@
   ],
   "guardedBy": [
     "crates/nvs-config/tests/trust.rs",
-    "crates/nvs-config/tests/resolve.rs"
+    "crates/nvs-config/tests/resolve.rs",
+    "crates/nvs-config/src/data.rs"
   ]
 }

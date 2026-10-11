@@ -216,7 +216,7 @@ folder's file is Novis's own default, one per data folder and not per project. W
 working directory safe to read there is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), the resolved
 absolute path announced at boot, and the installer storing an absolute `--config` for every service.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).</sub>
 
 <a id="config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults"></a>
 
@@ -257,6 +257,18 @@ it is a folder Novis creates private to its account ([`config/ownership-is-the-t
 it comes after both explicit steps, and a deployment that wants a file of its own names it with
 `--config` or moves the folder with `--data`.
 
+The data folder is beside the file the binary really is: the running binary's path is canonicalized,
+so a binary reached through a link uses the folder beside its target. An unedited template is
+refreshed because a block a later version removes would otherwise make every command of that version
+stop on the file an older one wrote. The cost is usability: a binary in a directory its account cannot
+write, such as a packaged `/usr/bin/nvs` run by an ordinary user, finds no usable default folder,
+prints the one warning, and runs without a compile cache until `--data` names a folder. One binary
+serving several deployments shares one default folder, so a deployment that wants its own passes
+`--config` or `--data`, and a service always stores one.
+
+- **Memory:** none. Locating the folder is one canonicalization per process, and preparing it is one
+  create attempt per folder at startup.
+
 What makes the working-directory step safe is [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), the
 announced path ([`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored)) and an installer that always
 stores an absolute `--config` for a service ([`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink)). What survives
@@ -273,8 +285,14 @@ commands attached to a terminal, not to remove it.
   resolution step for a case `--config` already covers.
 - **Walking up from the working directory or the entry file.** The single-directory step stops one
   step short of a walk ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)).
+- **Per-platform locations for Novis's own files**, such as a cache under the user's local application
+  data and a temporary root in the system temporary directory. They are several places an operator has
+  to know, one of them shared with every other program on the host.
+- **A data folder under the user's profile.** It moves with the account, not with the binary, so two
+  installed versions or a portable copy would share it, and a service account's profile is a place
+  nobody looks.
 
-<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`config/the-resolved-root-is-announced-and-stored`](config.md#config-the-resolved-root-is-announced-and-stored), [`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest), [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-path-or-a-dir).</sub>
 
 <a id="config-no-configuration-file-is-a-complete-configuration"></a>
 
@@ -315,7 +333,7 @@ each of which is the same TOML key as the `pool = false` beside it and cannot be
 a key of the same name, which is the one arrangement where uncommenting the key alone would be
 accepted into the wrong block.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production).</sub>
 
 <a id="config-the-resolved-root-is-announced-and-stored"></a>
 
@@ -345,7 +363,7 @@ The announcement is half of what makes the two implicit steps of
 When no step finds a file, the shipped-defaults line is printed instead, and the resolved absolute
 path is logged in every case.
 
-<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot).</sub>
 
 <a id="config-include-takes-a-path-or-a-dir"></a>
 
@@ -556,11 +574,16 @@ running binary. Its parent is the binary's own directory, and an account that ca
 already replace the binary, so examining it guards nothing the binary does not — while on a stock
 Windows drive it would make the default folder unusable everywhere. A folder `--data` names, and every
 path the configuration names, keeps the full check, parent included. A file inside the data folder is
-checked as any file is, with the private data folder as its directory.
+checked as any file is, with the private data folder as its directory. Novis creates the data folder
+private to its account and never re-permissions one that exists: it checks it.
+
+**Declined:**
+- **The full check on the default data folder.** It is correct in principle and unusable on a stock
+  Windows drive, and it protects only against an account that could replace the binary anyway.
 
 Where the check runs is [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered).
 
-<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/optional-covers-absence-and-moves-the-check-to-the-directory`](config.md#config-optional-covers-absence-and-moves-the-check-to-the-directory), [`config/any-file-in-the-tree-may-set-any-directive`](config.md#config-any-file-in-the-tree-may-set-any-directive), [`config/the-ownership-check-runs-where-it-can-be-answered`](config.md#config-the-ownership-check-runs-where-it-can-be-answered), [`config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`](config.md#config-a-secret-file-is-checked-for-integrity-and-advised-on-exposure).</sub>
 
 <a id="config-the-ownership-check-runs-where-it-can-be-answered"></a>
 
@@ -589,7 +612,7 @@ unchecked file on the `run` path carries the invoking account's own authority an
 `nvs.toml` can grant a CLI program nothing it could not take for itself, and the rule that places the
 capability check is bound by that sentence.
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope).</sub>
 
 <a id="config-optional-covers-absence-and-moves-the-check-to-the-directory"></a>
 
@@ -840,7 +863,7 @@ shipped defaults
 So `nvs serve --mode=development` on a mixed host does not drag an application that pins `production`
 along with it, and `[mode] ceiling` still bounds what any of them may select.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped).</sub>
 
 <a id="config-reloadability-is-its-own-field"></a>
 
@@ -2289,7 +2312,7 @@ world-writable directory are the packaging chapter's; this rule is only the rost
 - **Both keys, documented as equal.** Two keys that can disagree need a rule for which one wins, which
   is the alias above with its precedence left unwritten.
 
-<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class).</sub>
 
 <a id="config-telemetry-and-update-endpoints-are-configuration"></a>
 

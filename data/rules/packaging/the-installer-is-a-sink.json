@@ -1,9 +1,7 @@
 {
   "title": "The service installer fails closed: a closed `serve`/`run` allowlist, no relative path, no password on a command line, and an argv without `--config` stores the data folder's `nvs.toml`",
   "status": "shipped",
-  "because": [
-    "0281"
-  ],
+  "because": [],
   "seeAlso": [
     "security/sink-predicate",
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",

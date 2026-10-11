@@ -23,6 +23,11 @@ running binary. Its parent is the binary's own directory, and an account that ca
 already replace the binary, so examining it guards nothing the binary does not — while on a stock
 Windows drive it would make the default folder unusable everywhere. A folder `--data` names, and every
 path the configuration names, keeps the full check, parent included. A file inside the data folder is
-checked as any file is, with the private data folder as its directory.
+checked as any file is, with the private data folder as its directory. Novis creates the data folder
+private to its account and never re-permissions one that exists: it checks it.
+
+**Declined:**
+- **The full check on the default data folder.** It is correct in principle and unusable on a stock
+  Windows drive, and it protects only against an account that could replace the binary anyway.
 
 Where the check runs is `rule:config/the-ownership-check-runs-where-it-can-be-answered`.

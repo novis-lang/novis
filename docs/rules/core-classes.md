@@ -333,7 +333,7 @@ the operator runs the cleanup command.
   ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)). The operator-only key covers the one honest
   use, debugging, with no code change.
 
-<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="core-classes-temporary-dir-orphan-sweep"></a>
 
