@@ -30,4 +30,23 @@ build and an installed package tree that no footprint records, since only `nvs`,
 editor run on a machine where no editor started.
 
 The cost is a second test toolchain beside Cargo: npm, TypeScript and a Mocha suite, a CI job for each
-tier, and a setup step on a fresh machine that the Rust half does not need.
+tier, and a setup step on a fresh machine that the Rust half does not need. On every acceptance sweep it
+also spends one editor launch that a remembered verdict could have skipped, and the pinned build and
+throwaway profile under `editors/vscode/.vscode-test/`, once per machine. That minute buys a verdict that
+is true; a stale green is worse than the window, because it reports the editor surfaces proved by a suite
+that did not run. Nothing changes at run time: no byte of the binary, the server or a request.
+
+**Declined:**
+- **The host tier in CI alone.** It proves nothing while CI is not running, and the editor surfaces would
+  be reported done on a suite nothing executed.
+- **Hashing `.vscode-test/` and `node_modules/` so the host verdict can be remembered.** It widens what
+  every check's selection sees, so every check would re-run on every machine to fix one. A check that
+  reads something outside the tree opts out with `memoize = false` instead.
+- **A pixel tier.** Colour is asserted through the editor's own commands — `_workbench.captureSyntaxTokens`
+  for the TextMate layer, `vscode.provideDocumentSemanticTokens` and its legend for the semantic one. A
+  screenshot comparison fails on a font, a theme or a scaling factor with no scope wrong.
+- **A test surface with a setter on it.** What `activate` returns stays read-only and exposes nothing
+  another extension cannot already read. A function on it that changed state would let any installed
+  extension unconceal a secret (`rule:ide/redaction-ranges-come-from-the-server`).
+- **Skipping the local run when a display is busy.** A tier that runs only when convenient has a green
+  that means nothing, and the condition would not show in the sweep's output.
