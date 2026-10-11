@@ -33,7 +33,9 @@
 //!   what the WIT list of pairs carries.
 //! - A closed union of shapes is the union of its shapes, and a `Core` value class is that class.
 //! - **An enum the manifest declares is an `int`-backed Novis enum** named in the extension
-//!   class's namespace: `Unit` in the manifest of `Shop\Ledger` is `Shop\Unit`. Its cases are
+//!   class's namespace: `Unit` in the manifest of `Shop\Ledger` is `Shop\Unit`. One that names an
+//!   owner is a member of that class, as an enum a class body declares is: `Unit` owned by `Map`
+//!   is `Shop\Map::Unit` ([`enum_name`]). Its cases are
 //!   numbered from `0` in the manifest's order, and that number is what a case is at run time, so
 //!   the host crosses a case by its position in the manifest's list (`nvs_ext::convert`).
 //!   [`seed_enums`] puts it in the enum table a declared enum is in, so a case, a `match` and
@@ -51,7 +53,7 @@
 //!   per resource class name for the life of the process, and one two-slot object per resource a
 //!   request holds.
 
-use nvs_ext::manifest::{Const, Manifest, Method};
+use nvs_ext::manifest::{Const, Enum, Manifest, Method};
 use nvs_ext::types::{Field, NovisType};
 use nvs_hir::{ExtensionClass, ExtensionFile, QName};
 use nvs_stdlib::registry::{ParamText, Qual};
@@ -87,7 +89,7 @@ pub fn hir_classes(manifests: &[Manifest]) -> Vec<ExtensionClass> {
                 .collect(),
         });
         classes.extend(manifest.enums.iter().map(|declared| ExtensionClass {
-            name: declared_name(manifest, &declared.name),
+            name: enum_name(manifest, declared),
             methods: Vec::new(),
             consts: declared.cases.clone(),
             source: Vec::new(),
@@ -113,7 +115,7 @@ pub(crate) fn seed_enums(table: &mut EnumTable, manifests: &[Manifest]) {
                 .map(|(case, value)| (case.clone(), EnumValue::Int(value)))
                 .collect();
             table.insert(
-                declared_name(manifest, &declared.name),
+                enum_name(manifest, declared),
                 EnumInfo {
                     backing: EnumBacking::Int,
                     cases,
@@ -131,6 +133,25 @@ pub fn declared_name(manifest: &Manifest, short: &str) -> QName {
     let class = QName::parse(&manifest.class);
     let segments = class.segments();
     QName::join(&segments[..segments.len().saturating_sub(1)], short)
+}
+
+/// The full name of the enum `declared` that `manifest` declares, under its owner when it has one
+/// ([`Manifest::enum_name`]).
+#[must_use]
+pub fn enum_name(manifest: &Manifest, declared: &Enum) -> QName {
+    QName::parse(&manifest.enum_name(declared))
+}
+
+/// The full name of the enum a signature of `manifest` writes as `short`.
+fn enum_named(manifest: &Manifest, short: &str) -> QName {
+    manifest
+        .enums
+        .iter()
+        .find(|declared| declared.name == short)
+        .map_or_else(
+            || declared_name(manifest, short),
+            |declared| enum_name(manifest, declared),
+        )
 }
 
 /// A table holding the classes of `manifests` and nothing else, for a reader that asks about the
@@ -329,7 +350,7 @@ fn lower(manifest: &Manifest, ty: &NovisType, interner: &mut TypeInterner) -> Ty
         }
         NovisType::Core(core) => interner.class(QName::parse(core.class)),
         NovisType::Enum { name, .. } => {
-            interner.enum_(declared_name(manifest, name), EnumBacking::Int)
+            interner.enum_(enum_named(manifest, name), EnumBacking::Int)
         }
         NovisType::Resource(name) => interner.class(declared_name(manifest, name)),
     }

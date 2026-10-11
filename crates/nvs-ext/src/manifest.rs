@@ -44,7 +44,10 @@
 //! name, and [`Manifest::novis_type`] resolves them. A declared name is not a built-in type's, and
 //! a resource is one the interface exports under its name in kebab-case, which the loader checks.
 //! An enum's
-//! cases are distinct in kebab-case, which is how they cross. A union's case is a shape that may
+//! cases are distinct in kebab-case, which is how they cross. An enum may name an `owner`, the
+//! class whose body declares it: `{"name": "Level", "owner": "QrCode"}` in `Novis\Image` is
+//! `Novis\Image\QrCode::Level`. The owner is the manifest's class or a class of the extension's
+//! source ([`Manifest::check_owners`]). A union's case is a shape that may
 //! name an enum or a `Core` value class, never another union, and its cases must be told apart by
 //! their keys alone: no array is a value of two of them, which holds exactly when, for every two
 //! cases, some required field of one is not a field of the other. A value of the union is then the
@@ -56,6 +59,7 @@ use std::fmt;
 use serde::Deserialize;
 use serde_json::Value;
 
+use crate::source::SourceFile;
 use crate::types::{Field, NovisType};
 use crate::{Malformed, is_identifier, malformed};
 
@@ -226,8 +230,12 @@ pub struct Const {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Enum {
-    /// The enum's short name.
+    /// The enum's short name. A signature writes it by this name alone, owned or not.
     pub name: String,
+    /// The class whose body declares the enum, relative to the extension's namespace, or `None`
+    /// for an enum declared in the namespace itself (`rule:enums/an-enum-lives-in-the-class-that-uses-it`).
+    #[serde(default)]
+    pub owner: Option<String>,
     /// Its cases, in order.
     pub cases: Vec<String>,
     /// The help text `nvs` shows for the enum.
@@ -416,6 +424,41 @@ impl Manifest {
         Ok(manifest)
     }
 
+    /// The full name of the enum `decl` this manifest declares: in the namespace of the manifest's
+    /// class, and under its owner when it has one. `Level` owned by `QrCode` in `Novis\Image` is
+    /// `Novis\Image\QrCode::Level`, the name a program writes and sees.
+    #[must_use]
+    pub fn enum_name(&self, decl: &Enum) -> String {
+        let local = match &decl.owner {
+            Some(owner) => format!("{owner}::{}", decl.name),
+            None => decl.name.clone(),
+        };
+        match self.class.rsplit_once('\\') {
+            Some((namespace, _)) => format!("{namespace}\\{local}"),
+            None => local,
+        }
+    }
+
+    /// Refuses an enum whose owner is not a class the extension declares: the manifest's own
+    /// class, or the class of one of `files`, whose path is the class's name under the
+    /// extension's namespace (`Image.nvs` declares `Image`). The loader and the packer run it,
+    /// because [`Self::parse`] reads the manifest without its source.
+    pub fn check_owners(&self, files: &[SourceFile]) -> Result<(), Malformed> {
+        let class = self.class.rsplit('\\').next().unwrap_or(&self.class);
+        for decl in &self.enums {
+            let Some(owner) = &decl.owner else { continue };
+            let path = format!("{}.nvs", owner.replace('\\', "/"));
+            if owner != class && !files.iter().any(|file| file.path == path) {
+                return Err(malformed(format!(
+                    "the owner `{owner}` of `{}` is not the class `{class}` and no source file \
+                     declares it",
+                    decl.name
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// The type `text` writes, resolving the enums, unions and resources this manifest declares,
     /// or why it is outside the table.
     pub fn novis_type(&self, text: &str) -> Result<NovisType, String> {
@@ -505,6 +548,14 @@ impl Manifest {
         }
         for decl in &self.enums {
             distinct_cases(&decl.name, decl.cases.iter().map(String::as_str))?;
+            if let Some(owner) = &decl.owner
+                && !owner.split('\\').all(is_identifier)
+            {
+                return Err(malformed(format!(
+                    "the owner `{owner}` of `{}` is not a class name",
+                    decl.name
+                )));
+            }
         }
         for decl in &self.unions {
             distinct_cases(&decl.name, decl.cases.iter().map(|case| case.name.as_str()))?;

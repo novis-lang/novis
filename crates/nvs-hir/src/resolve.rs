@@ -307,11 +307,14 @@ impl Resolver {
 }
 
 /// The key of the enum `owner`'s body declares under `name`, if it declares one
-/// (`rule:enums/class-scoped-enum`). `Owner::Name` from anywhere reads this.
+/// (`rule:enums/class-scoped-enum`). `Owner::Name` from anywhere reads this. A
+/// loaded extension's manifest declares its owned enums under the same key, and
+/// the only extension class a key holding `::` can name is one of those.
 #[must_use]
 pub fn owned_enum(owner: &QName, name: &str, symbols: &SymbolTable) -> Option<QName> {
     let key = QName::member(owner, name);
-    matches!(symbols.get(&key), Some(symbol) if symbol.kind == SymbolKind::Enum).then_some(key)
+    let declared = matches!(symbols.get(&key), Some(symbol) if symbol.kind == SymbolKind::Enum);
+    (declared || symbols.is_extension(&key)).then_some(key)
 }
 
 /// The enum a bare `text` names inside the body of `current_class`: the

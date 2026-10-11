@@ -559,8 +559,8 @@ fn enum_doc_json(doc: &EnumDoc) -> Value {
 /// shape, to follow the registry's own in `classes` and `enums`.
 ///
 /// A component's manifest gives its export class, every method `static`
-/// with the manifest's `help` as its card, and its enums, named under the
-/// class's namespace with their `help` as theirs. Its Novis source half gives
+/// with the manifest's `help` as its card, and its enums, named under their
+/// owner or the class's namespace with their `help` as theirs. Its Novis source half gives
 /// the classes written in Novis, read by the program half's own walk over a
 /// parse of each file, and only their public members: a private member is not
 /// something a program calls. A source class's card is its `///` run, as a
@@ -571,10 +571,6 @@ fn builtin_json() -> (Vec<Value>, Vec<Value>) {
     let mut classes = Vec::new();
     let mut enums = Vec::new();
     for manifest in &manifests {
-        let namespace = manifest
-            .class
-            .rsplit_once('\\')
-            .map_or("", |(namespace, _)| namespace);
         let mut declared = Declared::default();
         for file in &manifest.source {
             let mut map = SourceMap::new();
@@ -588,7 +584,7 @@ fn builtin_json() -> (Vec<Value>, Vec<Value>) {
             manifest
                 .enums
                 .iter()
-                .map(|declared| manifest_enum_json(declared, namespace)),
+                .map(|declared| manifest_enum_json(manifest, declared)),
         );
     }
     (classes, enums)
@@ -681,13 +677,14 @@ fn manifest_class_json(manifest: &nvs_ext::manifest::Manifest) -> Value {
     Value::Object(out)
 }
 
-/// A manifest enum under `namespace`: its cases, and its `help` as its card.
-fn manifest_enum_json(declared: &nvs_ext::manifest::Enum, namespace: &str) -> Value {
+/// A manifest enum under its full name, its owner's when it has one: its cases,
+/// and its `help` as its card.
+fn manifest_enum_json(
+    manifest: &nvs_ext::manifest::Manifest,
+    declared: &nvs_ext::manifest::Enum,
+) -> Value {
     let mut out = Map::new();
-    out.insert(
-        "name".into(),
-        Value::from(qualify(namespace, &declared.name)),
-    );
+    out.insert("name".into(), Value::from(manifest.enum_name(declared)));
     let cases: Vec<Value> = declared
         .cases
         .iter()

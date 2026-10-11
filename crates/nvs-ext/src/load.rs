@@ -14,7 +14,8 @@
 //! 5. an import outside the world `wit/nvs-ext/world.wit` names ([`WORLD_IMPORTS`]), naming it,
 //!    unless it is one of the refusing stubs [`crate::wasi::STUBBED`] names;
 //! 6. a class under `Core\` or `Novis\`, whatever the case of the first segment, and then a source
-//!    file whose `namespace` is not under the class's own, naming the file ([`Source::outside`]);
+//!    file whose `namespace` is not under the class's own, naming the file ([`Source::outside`]),
+//!    and an enum whose owner the extension does not declare ([`Manifest::check_owners`]);
 //! 7. a method whose export is missing from the manifest's interface, or whose parameters or result
 //!    are not the WIT types `rule:packaging/a-value-crosses-as-its-wit-type`'s table gives its
 //!    Novis types, and a Novis type the table does not hold.
@@ -483,6 +484,9 @@ impl Loader {
         if let Some(reason) = outside(source, manifest) {
             return Err(refuse(reason));
         }
+        manifest
+            .check_owners(&source.files)
+            .map_err(|err| refuse(err.0))?;
         let interface = ty
             .exports(&self.engine)
             .find(|(name, _)| export_names(name, &manifest.interface))

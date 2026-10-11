@@ -129,6 +129,7 @@ pub fn pack(inputs: &Inputs<'_>) -> Result<Vec<u8>, Malformed> {
             )));
         }
     }
+    manifest.check_owners(inputs.files)?;
     let source = serde_json::to_vec(&SourceSection {
         source: source::FORMAT,
         files: inputs.files,
