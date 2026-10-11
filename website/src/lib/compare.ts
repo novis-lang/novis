@@ -18,7 +18,7 @@ interface PeerFigures {
   memory_peak_bytes: number | null
 }
 
-type Verdict = 'built-in' | 'one-setting' | 'your-code' | 'no'
+type Verdict = 'built-in' | 'on-by-default' | 'one-setting' | 'your-code' | 'no'
 
 interface RowResult {
   result: Verdict
@@ -68,8 +68,25 @@ const ROW_TEXT: Record<string, string> = {
   upgrade: 'A new runtime version runs with no failed request',
 }
 
+/**
+ * The heading on the comparison page that explains a row in more detail, by its id there. A row with
+ * no entry has no explanation beyond its own line.
+ */
+const ROW_DETAILS: Record<string, string> = {
+  escape: 'escaped-text',
+  taint: 'outside-data',
+  'live-edit': 'edited-files',
+  deploy: 'deploying-a-new-version',
+  cores: 'many-requests-at-once',
+  loop: 'runaway-requests',
+  memory: 'runaway-requests',
+  waiting: 'many-waiting-requests',
+  parallel: 'one-request-in-four-parts',
+}
+
 const VERDICT_TEXT: Record<Verdict, string> = {
   'built-in': 'Built in',
+  'on-by-default': 'On by default',
   'one-setting': 'One setting',
   'your-code': 'Your code',
   no: 'No',
@@ -139,6 +156,8 @@ export interface FeatureRow {
   text: string
   /** The folder on GitHub with the four programs this row runs. */
   url: string
+  /** The page's own link to the heading that explains this row, or `null` for a row with none. */
+  details: string | null
   /** One cell per peer in `peers` order, or `null` for a peer the row has no result for. */
   cells: (Cell | null)[]
 }
@@ -149,6 +168,7 @@ export const rows: FeatureRow[] = record?.scenarios
       id,
       text: textOf(ROW_TEXT, id, 'row'),
       url: githubFile(r.folder),
+      details: ROW_DETAILS[id] === undefined ? null : `#${ROW_DETAILS[id]}`,
       cells: peers.map((p) => {
         const c = r.peers[p.id]
         return c ? { verdict: c.result, text: textOf(VERDICT_TEXT, c.result, 'result'), setting: c.setting ?? null } : null

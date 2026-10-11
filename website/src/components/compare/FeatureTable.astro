@@ -2,7 +2,8 @@
 /**
  * The comparison page's feature table: one row per recorded scenario, one
  * column per peer. Every cell links to the folder on GitHub with the programs
- * the row runs, so a reader can check the result.
+ * the row runs, so a reader can check the result. A row the page explains
+ * under its own heading links there too.
  */
 import { peers, record, rows } from '~/lib/compare'
 ---
@@ -21,7 +22,17 @@ import { peers, record, rows } from '~/lib/compare'
       <tbody>
         {rows.map((r) => (
           <tr id={`row-${r.id}`}>
-            <td>{r.text}</td>
+            <td>
+              {r.text}
+              {r.details && (
+                <>
+                  {' '}
+                  <a class="compare-details" href={r.details}>
+                    See details
+                  </a>
+                </>
+              )}
+            </td>
             {r.cells.map((c) =>
               c ? (
                 <td class={`verdict-${c.verdict}`}>
@@ -62,7 +73,11 @@ import { peers, record, rows } from '~/lib/compare'
   .compare-features td a {
     white-space: nowrap;
   }
-  .compare-features .verdict-built-in a {
+  .compare-features .compare-details {
+    font-size: var(--sl-text-xs);
+  }
+  .compare-features .verdict-built-in a,
+  .compare-features .verdict-on-by-default a {
     color: var(--sl-color-green-high);
   }
   .compare-features .verdict-no a {

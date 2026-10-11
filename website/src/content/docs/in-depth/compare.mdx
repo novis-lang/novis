@@ -45,6 +45,10 @@ This is the machine and the run:
 server's container used during the test. Memory matters as much as speed when you pay for a server,
 because less memory per server means more servers on one machine.
 
+The margin of error is about 3%. Two results closer than that are the same speed. When servers in
+different languages reach about the same speed, the language is probably not the limit. The limit is
+then the rest of the setup: the nginx proxy, HTTPS and the network between the containers.
+
 ## More than one CPU core
 
 A server can use more than one CPU core in two ways. It can answer many requests at the same time,
@@ -79,39 +83,74 @@ The three languages split the work in different ways:
   that another part reads.
 
 PHP is not in this chart. PHP-FPM runs one request on one core, and PHP has no built-in way to split
-it. Novis needs one setting for this: `spawn = true` in the `[capabilities.script]` table.
+it. Novis needs one setting for this: `spawn = true` in the `[capabilities.script]` table. This
+setting is off by default for security. A program can start only the scripts that you allow.
 
 ## Features
 
 Each row tests one thing a web server needs. A small program for each language tries it, and the
 result comes from what the server did. A result says what happened in that test. It is not a
-promise for every program. Each result is one of four values:
+promise for every program. Each result is one of five values:
 
 - **Built in**: the server does it with no setting and no extra code.
+- **On by default**: a setting does it, and this setting is on when you install the server. You do
+  not need to change anything. The cell names the setting, which you can also use to turn it off.
 - **One setting**: the server does it after you change one setting. The cell names the setting.
 - **Your code**: you must write the code yourself, or add a library.
 - **No**: the server does not do it.
 
-Click a result to see the four programs for that row. The table shows every result, also the rows
-where another language does better than Novis.
+Most Novis settings that are off by default are off for security. A Novis program gets only the
+access that you give it. The details below say why a setting is off, for every language where the
+reason is known.
+
+Click a result to see the four programs for that row. Click **See details** to read more about a
+row below the table. The table shows every result, also the rows where another language does better
+than Novis.
 
 <FeatureTable />
+
+### Escaped text
 
 In Novis, every string you print in a request is escaped. To write HTML tags, you use an `html`
 template, and the values in it are still escaped. To print raw HTML, the program must use
 `Core\Html\Markup`, so it can only happen when you choose it. In Go, `html/template` escapes, but
 `fmt.Fprintf` writes the same text unescaped.
 
+### Outside data
+
 Outside data is every value that comes from outside the program: the request, the session,
 environment variables, command line arguments, a reply from another server and values read from a
 database. Novis calls these values tainted. A tainted value in an SQL string is a compile error, so
 the program never runs with it.
 
+### Runaway requests
+
+A runaway request is a request that never ends, or one that uses more and more memory. Novis has no
+limit for memory or CPU time by default, so this test sets both in the `[limits]` table. PHP stops
+these requests with `max_execution_time` and `memory_limit`, and both are on by default.
+
+### Many waiting requests
+
+PHP-FPM answers each request in its own worker process. By default, it starts at most 5 workers.
+The PHP configuration file says that this default is for a server with few resources. This test
+sets `pm.max_children` high enough for 1000 requests at the same time.
+
+### Edited files
+
+Novis checks for edited source files while it runs. No setting turns this check off. PHP checks for
+edited files by default, with `opcache.validate_timestamps`. The speed tests above turn this check
+off, because PHP is faster without it. This test uses PHP's default. Bun shows an edit only when it
+runs with `bun --hot`. Go compiles the program, so you must build and start it again.
+
+### Deploying a new version
+
 The deploy test copies a new version of 200 source files into a running server. Requests arrive
 the whole time. A failed request is a request that gets an error instead of the page. A mixed reply
-is a page built partly from old files and partly from new files. PHP needs a reload to use the new
-files, and Bun and Go need a restart. In this test, each of them failed requests during that step.
-Novis uses the new files with no reload and no restart, and every request got a complete page.
+is a page built partly from old files and partly from new files. By default, Bun needs a restart to
+use the new files, and Go needs a new build and a restart. In this test, both failed requests during
+the restart. PHP checks for changed files by default, so this test runs no reload for PHP. PHP had
+no failed request, but some of its pages mixed old and new files. Novis uses the new files with no reload and no restart, and every request got a complete
+page.
 
 ## Run it yourself
 
