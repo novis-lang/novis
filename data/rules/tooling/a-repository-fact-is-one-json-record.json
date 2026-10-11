@@ -7,7 +7,7 @@
   ],
   "guardedBy": [
     "tools/nv/lib/store.ts",
-    "tools/nv/test/records.test.ts",
+    "tools/nv/test/store.test.ts",
     "tools/nv/cmd/check.ts"
   ]
 }
