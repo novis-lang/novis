@@ -1,9 +1,7 @@
 {
   "title": "A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses",
   "status": "shipped",
-  "because": [
-    "0181"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/two-copy-depths",
     "security/isolate-values-cross-by-copy",

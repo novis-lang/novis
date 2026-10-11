@@ -2,8 +2,7 @@
   "title": "Every `[server] listen` entry is bound before any core accepts, each core holds its own handle on every listener, and `[server] workers` bounds the count over the machine's available parallelism",
   "status": "shipped",
   "because": [
-    "0161",
-    "0181"
+    "0161"
   ],
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",

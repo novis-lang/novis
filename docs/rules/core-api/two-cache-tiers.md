@@ -23,8 +23,18 @@ inside one core's heap. That is what the parsed-configuration and compiled-templ
 cache is used for, need, and none of them needs coherence.
 
 **Declined:**
-- **One member with a `coherent: true` flag.** The default would be chosen once and copied from then on,
-  and choosing wrong fails silently; two names cost a few characters and make the guarantee visible.
+- **One member with a `coherent: true` flag, or a `store(tier: Cache\Tier)` argument.** The default would
+  be chosen once and copied from then on, and choosing wrong fails silently; once a variable can carry the
+  tier, the choice stops being visible in review. A name per tier costs a few characters and makes the
+  guarantee visible.
+- **A secrets-only store such as `Core\Secrets`.** A machine-wide cache is wanted for ordinary values
+  too, so a secrets-only store would leave that unanswered or bring it later as a fourth thing: two
+  shapes for one mechanism. A secret reaches every tier through a sealed pair on the store class instead
+  (`rule:concurrency/a-secret-is-cached-only-sealed`).
+- **No new tier, with a token kept in a process-wide static of the caller's own.** It is the ambient
+  cross-request state `rule:security/no-cross-request-state` closes, which is why `Core\Cache` exists.
+- **Renaming this rule's id to match the tier count.** The id is a path every citation carries; the title
+  states the rule and is what every rendered list prints.
 - **A shared segment across cores, with locking.** It is the cross-request channel shared-nothing removes,
   and the lock lets one request's failure stall or corrupt another's view
   (`rule:security/no-cross-request-state`).

@@ -1470,15 +1470,25 @@ inside one core's heap. That is what the parsed-configuration and compiled-templ
 cache is used for, need, and none of them needs coherence.
 
 **Declined:**
-- **One member with a `coherent: true` flag.** The default would be chosen once and copied from then on,
-  and choosing wrong fails silently; two names cost a few characters and make the guarantee visible.
+- **One member with a `coherent: true` flag, or a `store(tier: Cache\Tier)` argument.** The default would
+  be chosen once and copied from then on, and choosing wrong fails silently; once a variable can carry the
+  tier, the choice stops being visible in review. A name per tier costs a few characters and makes the
+  guarantee visible.
+- **A secrets-only store such as `Core\Secrets`.** A machine-wide cache is wanted for ordinary values
+  too, so a secrets-only store would leave that unanswered or bring it later as a fourth thing: two
+  shapes for one mechanism. A secret reaches every tier through a sealed pair on the store class instead
+  ([`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed)).
+- **No new tier, with a token kept in a process-wide static of the caller's own.** It is the ambient
+  cross-request state [`security/no-cross-request-state`](security.md#security-no-cross-request-state) closes, which is why `Core\Cache` exists.
+- **Renaming this rule's id to match the tier count.** The id is a path every citation carries; the title
+  states the rule and is what every rendered list prints.
 - **A shared segment across cores, with locking.** It is the cross-request channel shared-nothing removes,
   and the lock lets one request's failure stall or corrupt another's view
   ([`security/no-cross-request-state`](security.md#security-no-cross-request-state)).
 - **No local tier, with everything in the shared store.** It puts a network round trip in front of the
   cases that need no coherence at all.
 
-<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0181](../decisions/0181.md).</sub>
+<sub>See also [`core-api/one-name-one-signature`](core-api.md#core-api-one-name-one-signature), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation).</sub>
 
 <a id="core-api-one-temporary-directory-member"></a>
 

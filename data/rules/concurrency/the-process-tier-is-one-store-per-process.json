@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Cache::process()` is one store per serving process, coherent across its cores and gone when it ends",
   "status": "shipped",
-  "because": [
-    "0181"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/two-cache-tiers",
     "concurrency/cross-request-state-is-explicit",

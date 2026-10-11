@@ -524,7 +524,7 @@ observable only as speed, and a metrics registry holds approximate aggregates th
 read and nothing decides on. Both are charged to a core and capped, which is the same accounting
 [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) records.
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0181](../decisions/0181.md).</sub>
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="concurrency-the-process-tier-is-one-store-per-process"></a>
 
@@ -547,8 +547,17 @@ by the same graph copy every tier uses ([`concurrency/a-cached-value-is-copied-a
 This is the first mutable state the cores share, so the map is sharded behind read/write locks and `get`
 takes a read lock and never a write, which is what keeps a lookup off a `&mut` on the request path. The
 shard count is a fixed constant rather than a directive or a function of `[server] workers`: the map is
-created before the workers exist under `nvs serve`, and there is one worker under `nvs run`. Eviction is by
-write age, as it is in the local tier, and a full tier forgets rather than failing a `put`.
+created before the workers exist under `nvs serve`, and there is one worker under `nvs run`. The constant
+is 64: a mask over the one hash the key already needs, so sharding costs no second hash, and 64 covers the
+core counts a serving box plausibly has. Contention here is write-side only, and sharding is invisible to
+a program, so the number can move without anything in this contract changing. Eviction is by write age, as
+it is in the local tier, and a full tier forgets the key written longest ago rather than failing a `put`.
+
+`[cache.process] max_size` ships at `32M`, the figure `[cache.local] max_size` ships. The same number
+means less memory here: this tier is held once per process where the local tier is held once per core, so a
+working set moved from `local()` to `process()` at stock configuration lowers the machine's ceiling from
+`32M` times `[server] workers` to `32M`. An expired entry is not swept by a timer: a sweep is a timer and
+a write pass over a shard, and what it would buy, memory returned slightly sooner, the cap already buys.
 
 An entry's real key carries the `[[app]]` and the configuration generation that was live when it was
 written, so two apps on one server never read each other's entries and a reload never serves an entry
@@ -558,10 +567,22 @@ No capability gates it, for the reason the local tier needs none: a capability i
 *effect*, and this tier has no door. What is bounded instead is footprint —
 `[cache.process] max_size`, `System`-class and applied on reload — and every byte of it moves the detached
 balance under a bracket the store itself holds
-([`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance)). What it spends is O(working set)
-once per process, where the local tier is O(cores × working set), and never O(requests served).
+([`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance)).
 
-<sub>See also [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent), [`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core). Decided in [0181](../decisions/0181.md).</sub>
+- **Memory:** at most `[cache.process] max_size` bytes, once per process, on the detached balance:
+  O(working set), where the local tier is O(cores × working set), and never O(requests served). On top
+  of it, 64 locks and 64 empty maps, allocated once at process start.
+
+**Declined:**
+- **A `[cache.process] shards` key, or a shard count derived from `[server] workers`.** The map exists
+  before the workers do, a derived count would size the CLI's map at one shard, and 64 empty shards are
+  below the granularity at which footprint is worth a directive.
+- **A sweeper thread for expired entries.** The cap already evicts, and a sweep is a timer and a write
+  pass over a shard for memory returned slightly sooner.
+- **A capability key for this tier.** It has no door to an effect, so there is nothing for a grant to
+  check ([`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers)).
+
+<sub>See also [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent), [`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core).</sub>
 
 <a id="concurrency-put-and-get-are-the-whole-boundary"></a>
 
@@ -592,7 +613,7 @@ for anything else. There is no in-process coordination primitive at all, so a pr
 pays a network round trip; that floor is deliberate, because an in-process one would be the channel
 [`security/no-cross-request-state`](security.md#security-no-cross-request-state) closes.
 
-<sub>See also [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0181](../decisions/0181.md).</sub>
+<sub>See also [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers).</sub>
 
 <a id="concurrency-a-cached-value-is-copied-across-the-boundary"></a>
 
@@ -625,7 +646,7 @@ optimisation, and it must not be observable.
   heap's lifetime to what a request read, it would leak a mutable value between requests unless every
   cached value were deeply immutable, which is a second value model to maintain.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0181](../decisions/0181.md).</sub>
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate).</sub>
 
 <a id="concurrency-cache-memory-is-charged-to-the-core"></a>
 
@@ -712,7 +733,7 @@ The test is what a program relies on, not where bytes live
 not one: a per-core metrics registry outlives requests and passes, because no program can read a
 metric at all and its values are approximate aggregates merged arithmetically at scrape.
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0181](../decisions/0181.md).</sub>
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state).</sub>
 
 <a id="concurrency-a-secret-is-cached-only-sealed"></a>
 
@@ -741,9 +762,20 @@ What sealing buys, exactly: a secret cannot be read by code that knows an entry'
 can reach the shared tier without leaving the process in the clear; and a tampered, moved or replayed entry
 is a miss. **It does not protect a secret from a compromised process** or a memory dump — the ring lives in
 the same memory as the plaintext. What it costs is one seal per `putSecret` and one open per ring key tried
-per `getSecret`, a ring ordered newest-first making the common case one open.
+per `getSecret`, a ring ordered newest-first making the common case one open. A program that puts a
+secret in a cache without a ring gets a compile error rather than a plaintext token in a network store,
+which is the whole return on making the door narrow.
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/a-secret-fill-runs-once-per-process`](concurrency.md#concurrency-a-secret-fill-runs-once-per-process), [`http-server/a-session-holds-a-secret-only-sealed`](http-server.md#http-server-a-session-holds-a-secret-only-sealed), [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload). Decided in [0181](../decisions/0181.md).</sub>
+- **Memory:** a sealed entry costs its ciphertext: the value, a nonce, a tag, an eight-octet expiry and
+  an eight-octet lifetime, held by whichever tier it was put in under that tier's cap.
+
+**Declined:**
+- **A tier that holds `secret` values in the clear**, since a process that holds the ring may as well
+  hold the plaintext. That tier would have to differ from the one an ordinary value uses, or the boundary
+  refusal would depend on which tier was asked for. Both are a second contract; the sealed door keeps one
+  boundary rule and one payload type, and the tier does not know what it holds.
+
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/a-secret-fill-runs-once-per-process`](concurrency.md#concurrency-a-secret-fill-runs-once-per-process), [`http-server/a-session-holds-a-secret-only-sealed`](http-server.md#http-server-a-session-holds-a-secret-only-sealed), [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload).</sub>
 
 <a id="concurrency-a-secret-fill-runs-once-per-process"></a>
 
@@ -766,17 +798,46 @@ releases it, so a cancelled fetch never wedges a key, and a `fill` that asks for
 
 **An entry inside the last fifth of its lifetime is still answered to every caller** while exactly one of
 them runs `fill` to replace it, so the expiry of a hot key costs nobody a wait. The window is a fraction
-rather than a duration because the tier does not know what a lifetime means to its caller. Refresh-ahead is
-`getSecret`-with-a-`fill` and nothing else: a plain `get` past its lifetime is simply absent.
+rather than a duration because the tier does not know what a lifetime means to its caller. A fifth leaves
+four fifths of every lifetime untouched and gives a fetch room to fail once and be retried by the next
+caller before anybody waits. Refresh-ahead is `getSecret`-with-a-`fill` and nothing else: a plain `get`
+past its lifetime is simply absent.
+
+**`[cache.process] fill_wait` ships at `5s`,** `System`-class and applied on reload. The filler may spend
+its whole `[http.client] deadline`, which ships at `30s`, but a waiter is a request held on the latency
+path, and a slow provider that held every in-flight request on the box for half a minute is the outage
+this tier exists to prevent. Five seconds is generous for a token endpoint and short enough that a caller
+gets a `TimeoutError` it can answer. So a `fill` slower than the wait succeeds for the filler while its
+waiters throw, and the callers after it find the entry; an operator whose provider is slower raises the
+key. It is `System`-class because how long one core's request may block on another's fetch is not a
+bargain one request gets to strike for everyone, and a caller who wants a different wait writes `wait` at
+the call site, where review sees it. A zero wait and `false` are refused at boot under `E0642`: zero makes
+every concurrent caller but one throw, the stampede's failure with the fetches removed, and there is no
+spelling for an unbounded wait ([`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait)).
 
 It is once per **process**, not once per fleet. On the shared tier every other process runs its own `fill`,
 and a fleet-wide single fetch is a lease over that store — an owner, a renewal and a recovery path — rather
 than anything this key spells. This is also the one step in `Core\Cache` that observes an entry and writes
 it, and it is not a coordination primitive
 ([`concurrency/put-and-get-are-the-whole-boundary`](concurrency.md#concurrency-put-and-get-are-the-whole-boundary)): a program cannot take the fill, cannot see who
-holds it, and cannot make one key's fill wait on another's.
+holds it, and cannot make one key's fill wait on another's. What it buys is that the fetches a fleet makes
+against a provider are bounded by its process count rather than its request rate.
 
-<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`concurrency/the-process-tier-is-one-store-per-process`](concurrency.md#concurrency-the-process-tier-is-one-store-per-process), [`concurrency/put-and-get-are-the-whole-boundary`](concurrency.md#concurrency-put-and-get-are-the-whole-boundary), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0181](../decisions/0181.md).</sub>
+- **Memory:** the fill table holds one slot per key being filled at that moment: O(concurrent fills),
+  not O(keys) and not O(requests).
+
+**Declined:**
+- **Caching a `fill` failure**, so an outage is not re-attempted by every caller. It puts one request's
+  exception into another's path, and the cure for a hammered provider is the caller's own retry policy,
+  which is already jittered and bounded.
+- **A fleet-wide single fill.** It is a lease, not a cache entry: an owner, a renewal, recovery from an
+  owner that died mid-fetch, and a story for a network partition, none of which belongs behind a `fill`
+  key.
+- **A refresh-ahead window of a tenth or a half.** A tenth of a short lifetime is a window a slow fetch
+  does not fit inside, which puts callers back into the wait refresh-ahead exists to remove; a half
+  doubles the fetch rate against the provider for values that are still good.
+
+<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`concurrency/the-process-tier-is-one-store-per-process`](concurrency.md#concurrency-the-process-tier-is-one-store-per-process), [`concurrency/put-and-get-are-the-whole-boundary`](concurrency.md#concurrency-put-and-get-are-the-whole-boundary), [`security/no-cross-request-state`](security.md#security-no-cross-request-state).</sub>
 
 <a id="concurrency-a-connection-is-a-root-isolate"></a>
 

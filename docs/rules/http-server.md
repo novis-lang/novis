@@ -258,7 +258,7 @@ no policy. Each becomes one deliberate line of configuration, and that is the tr
 
 What it costs, per [`programs/memory-priority`](programs.md#programs-memory-priority): one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). It holds strictly less than a per-core compiled-unit cache would, which is the shape this one replaces.
 
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0161](../decisions/0161.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0161](../decisions/0161.md).</sub>
 
 <a id="http-server-max-in-flight-refuses-before-allocating"></a>
 
@@ -918,7 +918,7 @@ crosses the store as the byte carrier it already is
 ([`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations)), so no `secret` reaches the store and
 [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary) is unchanged.
 
-<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary). Decided in [0181](../decisions/0181.md).</sub>
+<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary).</sub>
 
 <a id="http-server-an-upload-is-received-only-through-files"></a>
 
