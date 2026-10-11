@@ -130,6 +130,7 @@ mod ast;
 mod bundle;
 mod cache;
 mod check;
+mod code;
 mod config;
 mod coverage;
 #[cfg_attr(
@@ -916,6 +917,21 @@ enum Command {
         #[command(subcommand)]
         command: AgentCommand,
     },
+    /// Answer questions about the Novis project you are in: where a name is
+    /// used, what declares it, and which type a variable has.
+    ///
+    /// The project is the folder of the nearest `nvs.toml` at or above the
+    /// working directory. If there is none, it is the working directory. Every
+    /// `.nvs` file in it is read, and nothing is changed.
+    ///
+    /// Write a name in full, with its namespace, as `'Shop\Cart::addItem'`.
+    /// Put it in single quotes, so that the shell keeps the backslashes. A
+    /// file is a path from the working directory.
+    // `rule:tooling/nvs-code-answers-about-the-project`; see [`code`].
+    Code {
+        #[command(subcommand)]
+        command: CodeCommand,
+    },
     /// Write one declaration file per `Core` class, enum and attribute.
     ///
     /// An editor opens these files when you jump to a `Core` name. Each file
@@ -928,6 +944,70 @@ enum Command {
         /// The directory the files are written to, created if it is absent.
         #[arg(long, default_value = "stubs")]
         out: PathBuf,
+    },
+}
+
+/// `nvs code`'s verbs, each a reader of one workspace index
+/// (`rule:tooling/nvs-code-answers-about-the-project`).
+#[derive(Subcommand, Debug)]
+enum CodeCommand {
+    /// Print where a name is declared, its signature and its doc comment. For
+    /// a `Core` name, print the card that `nvs agent show` prints.
+    Show {
+        /// The name, as `Shop\Cart`, `Shop\Cart::addItem` or
+        /// `Shop\Cart::$total`.
+        symbol: String,
+        /// Print the answer as one JSON document. An unknown name prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print every place a name is written. The declaration comes first. Then
+    /// each `use` line and each use follow, in file and line order.
+    ///
+    /// Each line has the position, the kind (`declared`, `import` or `use`)
+    /// and the line of code.
+    Refs {
+        /// The name, as `Shop\Cart::addItem`. A `Core` name lists the places
+        /// where the project uses it.
+        symbol: String,
+        /// Print the answer as one JSON document. An unknown name prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print the types that extend or implement a type, or the methods that
+    /// override a method.
+    ///
+    /// These lines say `below`. Lines that say `above` show what the type
+    /// extends or implements, or which method the method overrides.
+    Impls {
+        /// The name of a type or a method, as `Shop\Priced`.
+        symbol: String,
+        /// Print the answer as one JSON document. An unknown name prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print what a file declares, one line each. The members of a class are
+    /// indented under it.
+    Outline {
+        /// The file, as `src/Cart.nvs`.
+        file: String,
+        /// Print the answer as one JSON document. An unknown file prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Print the type of each variable that a file declares with `var`.
+    Types {
+        /// The file, as `src/Cart.nvs`. Add `:10` for line 10 only, or
+        /// `:10-20` for lines 10 to 20.
+        file: String,
+        /// Print the answer as one JSON document. An unknown file prints an
+        /// `error` and a `nearest` list, and the command fails.
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -1982,6 +2062,13 @@ fn main() -> ExitCode {
                 eprintln!("error: could not write {}: {err}", out.display());
                 ExitCode::FAILURE
             }
+        },
+        Command::Code { command } => match command {
+            CodeCommand::Show { symbol, json } => code::show(&symbol, json),
+            CodeCommand::Refs { symbol, json } => code::refs(&symbol, json),
+            CodeCommand::Impls { symbol, json } => code::impls(&symbol, json),
+            CodeCommand::Outline { file, json } => code::outline(&file, json),
+            CodeCommand::Types { file, json } => code::types(&file, json),
         },
         Command::Agent { command } => match command {
             AgentCommand::Primer => agent::primer(),

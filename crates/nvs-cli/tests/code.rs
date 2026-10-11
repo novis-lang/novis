@@ -1,0 +1,364 @@
+//! `nvs code`, driven through the built binary in a project on disk, because
+//! `rule:tooling/nvs-code-answers-about-the-project`'s contract is what the
+//! command prints: the positions, the escaping, the exit status and the
+//! project it finds from the working directory.
+//!
+//! The project is the `Shop` fixture `nvs-lsp`'s `tests/query.rs` asks the
+//! same questions of by function, with an `nvs.toml` at its root so the
+//! command stops there.
+
+use std::fs;
+use std::path::Path;
+use std::process::Command;
+
+use serde_json::Value;
+
+/// The program's entry point: it autoloads `Shop` and uses three of its
+/// classes. Lines 8 to 10 declare a variable each.
+const INDEX: &str = "<?nvs\nautoload 'Shop' from '../src';\n\nuse Shop\\Cart;\n\
+                     use Shop\\GiftCart;\nuse Shop\\Wishlist;\n\n\
+                     var $cart = new Cart();\nvar $total = $cart->addItem(3);\n\
+                     var $wish = new Wishlist();\n$wish->addItem(Cart::MAX);\n\
+                     echo $total + (new GiftCart())->price();\n";
+
+/// An interface two classes implement, one of them through its superclass.
+const PRICED: &str = "<?nvs\nnamespace Shop;\n\ninterface Priced {\n    \
+                      public function price(): int;\n}\n";
+
+/// The class every test asks about, with a doc comment on it and on a method.
+const CART: &str = "<?nvs\nnamespace Shop;\n\n/// A cart a customer fills.\n\
+                    class Cart implements Priced {\n    public const int MAX = 10;\n    \
+                    public int $total = 0;\n\n    \
+                    /// Adds `n` items and returns the new total.\n    \
+                    public function addItem(int $n): int {\n        \
+                    $this->total = $this->total + $n;\n        return $this->total;\n    }\n\n    \
+                    public function price(): int {\n        return $this->total;\n    }\n}\n";
+
+/// A subclass that overrides `price`.
+const GIFT_CART: &str = "<?nvs\nnamespace Shop;\n\nclass GiftCart extends Cart {\n    \
+                         public function price(): int {\n        return 0;\n    }\n}\n";
+
+/// A class with a method of the same name as `Cart::addItem` and no relation
+/// to it.
+const WISHLIST: &str = "<?nvs\nnamespace Shop;\n\nclass Wishlist {\n    \
+                        public function addItem(int $n): int {\n        return $n;\n    }\n}\n";
+
+/// The `Shop` project and `extra` files in a scratch directory, deleted when
+/// it is dropped.
+fn project(name: &str, extra: &[(&str, &str)]) -> nvs_repo::Scratch {
+    let dir = nvs_repo::scratch(&format!("code-{name}"));
+    let files = [
+        ("nvs.toml", ""),
+        ("public/index.nvs", INDEX),
+        ("src/Priced.nvs", PRICED),
+        ("src/Cart.nvs", CART),
+        ("src/GiftCart.nvs", GIFT_CART),
+        ("src/Wishlist.nvs", WISHLIST),
+    ];
+    for (path, text) in files.iter().chain(extra) {
+        let at = dir.join(path);
+        fs::create_dir_all(at.parent().expect("a file has a directory"))
+            .expect("a writable scratch directory");
+        fs::write(at, text).expect("a writable scratch file");
+    }
+    dir
+}
+
+/// `nvs code <args...>` run in `cwd`, as `(stdout, stderr, success)`.
+fn code(cwd: &Path, args: &[&str]) -> (String, String, bool) {
+    run(cwd, "code", args)
+}
+
+fn run(cwd: &Path, command: &str, args: &[&str]) -> (String, String, bool) {
+    let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .current_dir(cwd)
+        .arg(command)
+        .args(args)
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+    (
+        String::from_utf8(out.stdout).expect("the output is UTF-8"),
+        String::from_utf8(out.stderr).expect("the output is UTF-8"),
+        out.status.success(),
+    )
+}
+
+fn parsed(out: &str) -> Value {
+    serde_json::from_str(out).unwrap_or_else(|err| panic!("{err}: {out}"))
+}
+
+#[test]
+fn refs_prints_the_declaration_first_then_each_use_with_its_position_and_line() {
+    let dir = project("refs", &[]);
+    let (out, err, ok) = code(&dir, &["refs", r"Shop\Cart::addItem"]);
+    assert!(ok, "{err}");
+    let lines: Vec<Vec<&str>> = out
+        .lines()
+        .map(|line| line.split_whitespace().collect())
+        .collect();
+    assert_eq!(lines.len(), 2, "{out}");
+    assert_eq!(lines[0][..2], ["src/Cart.nvs:10:21", "declared"], "{out}");
+    assert_eq!(
+        lines[0][2..].join(" "),
+        "public function addItem(int $n): int {"
+    );
+    // The call on the `Wishlist` is another method and is not listed.
+    assert_eq!(lines[1][..2], ["public/index.nvs:9:21", "use"], "{out}");
+    assert_eq!(lines[1][2..].join(" "), "var $total = $cart->addItem(3);");
+
+    let (class, _, _) = code(&dir, &["refs", r"Shop\Cart"]);
+    let kinds: Vec<&str> = class
+        .lines()
+        .map(|line| line.split_whitespace().nth(1).unwrap_or_default())
+        .collect();
+    assert_eq!(kinds.first(), Some(&"declared"), "{class}");
+    assert!(kinds.contains(&"import"), "{class}");
+}
+
+#[test]
+fn refs_of_a_name_nothing_uses_prints_nothing_and_exits_zero() {
+    let dir = project("unused", &[]);
+    // `Core\Str::length` is a real name the project does not use.
+    let (out, err, ok) = code(&dir, &["refs", r"Core\Str::length"]);
+    assert!(ok, "{err}");
+    assert_eq!(out, "");
+    let (out, _, ok) = code(&dir, &["refs", r"Core\Str::length", "--json"]);
+    assert!(ok);
+    assert_eq!(parsed(&out)["references"], Value::Array(Vec::new()));
+}
+
+#[test]
+fn show_prints_the_signature_nvs_meta_writes_and_the_doc_comment() {
+    let dir = project("show", &[]);
+    let (meta, err, ok) = run(&dir, "meta", &["--json", "public/index.nvs"]);
+    assert!(ok, "{err}");
+    let meta = parsed(&meta);
+    let cart = meta["program"]["classes"]
+        .as_array()
+        .expect("the program's classes")
+        .iter()
+        .find(|class| class["name"] == r"Shop\Cart")
+        .expect("the program half has `Shop\\Cart`");
+    let written = |name: &str| -> String {
+        cart["members"]
+            .as_array()
+            .expect("members")
+            .iter()
+            .find(|member| member["name"] == name)
+            .and_then(|member| member["signature"].as_str())
+            .expect("a member with a signature")
+            .to_owned()
+    };
+
+    let (out, err, ok) = code(&dir, &["show", r"Shop\Cart::addItem"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        out,
+        format!(
+            "Shop\\Cart::addItem  method, declared at src/Cart.nvs:10:21\n{}\n\
+             Adds `n` items and returns the new total.\n",
+            written("addItem")
+        )
+    );
+    let (out, _, _) = code(&dir, &["show", r"Shop\Cart::$total", "--json"]);
+    assert_eq!(parsed(&out)["signature"], written("$total").as_str());
+
+    let (out, _, ok) = code(&dir, &["show", r"Shop\Cart"]);
+    assert!(ok);
+    assert_eq!(
+        out,
+        "Shop\\Cart  class, declared at src/Cart.nvs:5:7\nA cart a customer fills.\n"
+    );
+}
+
+#[test]
+fn show_of_a_core_name_prints_the_card_nvs_agent_show_prints() {
+    let dir = project("core", &[]);
+    for args in [&[r"Core\IO::read"][..], &[r"Core\IO::read", "--json"]] {
+        let (by_code, err, ok) = code(&dir, &[&["show"], args].concat());
+        assert!(ok, "{err}");
+        let (by_agent, _, _) = run(&dir, "agent", &[&["show"], args].concat());
+        assert!(!by_code.is_empty());
+        assert_eq!(by_code, by_agent);
+    }
+}
+
+#[test]
+fn an_unknown_name_fails_and_lists_the_nearest_names_with_their_backslashes() {
+    let dir = project("nearest", &[]);
+    // The shell removes the backslashes from an unquoted name.
+    for verb in ["show", "refs", "impls"] {
+        let (out, err, ok) = code(&dir, &[verb, "ShopCart"]);
+        assert!(!ok, "{verb}");
+        assert_eq!(out, "", "{verb}");
+        assert!(err.contains("ShopCart"), "{err}");
+        let nearest: Vec<&str> = err
+            .lines()
+            .skip_while(|line| *line != "nearest:")
+            .skip(1)
+            .map(str::trim)
+            .collect();
+        assert_eq!(nearest.first(), Some(&r"Shop\Cart"), "{err}");
+    }
+    let (_, err, ok) = code(&dir, &["outline", "src/Crat.nvs"]);
+    assert!(!ok);
+    assert!(err.contains("  src/Cart.nvs"), "{err}");
+}
+
+#[test]
+fn every_verb_json_follows_the_check_json_conventions() {
+    let dir = project("json", &[]);
+    let answers: [(&[&str], &[&str]); 5] = [
+        (
+            &["show", r"Shop\Cart::price"],
+            &[
+                "symbol",
+                "kind",
+                "path",
+                "line",
+                "column",
+                "start",
+                "end",
+                "signature",
+                "doc",
+            ],
+        ),
+        (&["refs", r"Shop\Cart"], &["symbol", "references"]),
+        (&["impls", r"Shop\Priced"], &["symbol", "below", "above"]),
+        (&["outline", "src/Cart.nvs"], &["path", "declarations"]),
+        (&["types", "public/index.nvs:8-10"], &["path", "types"]),
+    ];
+    for (args, keys) in answers {
+        let (out, err, ok) = code(&dir, &[args, &["--json"]].concat());
+        assert!(ok, "{args:?}: {err}");
+        let document = parsed(&out);
+        assert_eq!(document["schemaVersion"], 1, "{args:?}");
+        for key in keys {
+            assert!(
+                document.get(key).is_some(),
+                "{args:?} has no `{key}`: {out}"
+            );
+        }
+    }
+    // A key with nothing to say is present as `null`.
+    let (out, _, _) = code(&dir, &["show", r"Shop\Cart::price", "--json"]);
+    assert_eq!(parsed(&out)["doc"], Value::Null);
+    // Nested members carry their position and their own `members`.
+    let (out, _, _) = code(&dir, &["outline", "src/Cart.nvs", "--json"]);
+    let members = &parsed(&out)["declarations"][0]["members"];
+    assert_eq!(members[0]["symbol"], r"Shop\Cart::MAX");
+    assert_eq!(members[0]["members"], Value::Array(Vec::new()));
+    let (out, _, _) = code(&dir, &["types", "public/index.nvs:9", "--json"]);
+    assert_eq!(parsed(&out)["types"][0]["type"], "int");
+
+    for args in [
+        &["show", "ShopCart"][..],
+        &["refs", "ShopCart"],
+        &["impls", "ShopCart"],
+        &["outline", "src/Crat.nvs"],
+        &["types", "src/Crat.nvs"],
+    ] {
+        let (out, _, ok) = code(&dir, &[args, &["--json"]].concat());
+        assert!(!ok, "{args:?}");
+        let document = parsed(&out);
+        assert_eq!(document["schemaVersion"], 1);
+        assert!(document["error"].is_string(), "{out}");
+        assert!(
+            document["nearest"]
+                .as_array()
+                .is_some_and(|nearest| !nearest.is_empty()),
+            "{out}"
+        );
+    }
+}
+
+#[test]
+fn a_project_with_errors_still_answers_and_counts_them_on_stderr() {
+    let broken = "<?nvs\nnamespace Shop;\n\nclass Broken {\n    \
+                  public function total(): int {\n        return 'none';\n    }\n}\n";
+    let dir = project("errors", &[("src/Broken.nvs", broken)]);
+    let (out, err, ok) = code(&dir, &["refs", r"Shop\Cart::addItem"]);
+    assert!(ok, "{err}");
+    assert_eq!(out.lines().count(), 2, "{out}");
+    assert_eq!(
+        err.trim(),
+        "warning: 1 file in this project has errors. A use inside it may be missing."
+    );
+    let (out, _, ok) = code(&dir, &["outline", "src/Broken.nvs"]);
+    assert!(ok);
+    assert!(out.contains(r"Shop\Broken::total"), "{out}");
+
+    let clean = project("clean", &[]);
+    let (_, err, _) = code(&clean, &["refs", r"Shop\Cart"]);
+    assert_eq!(err, "");
+}
+
+#[test]
+fn the_project_is_the_nearest_nvs_toml_at_or_above_the_working_directory() {
+    let lib = "<?nvs\nnamespace Lib;\n\nclass Tool {\n}\n";
+    let dir = project(
+        "root",
+        &[("vendor/lib/nvs.toml", ""), ("vendor/lib/Tool.nvs", lib)],
+    );
+    // From a folder inside the project, the whole project is read, and a path
+    // is relative to the working directory.
+    let (out, err, ok) = code(&dir.join("public"), &["refs", r"Shop\Cart::addItem"]);
+    assert!(ok, "{err}");
+    assert!(out.starts_with("../src/Cart.nvs:10:21 "), "{out}");
+    assert!(out.contains("\nindex.nvs:9:21 "), "{out}");
+    // A folder with its own `nvs.toml` is a project of its own.
+    let (_, _, ok) = code(&dir.join("vendor/lib"), &["show", r"Shop\Cart"]);
+    assert!(!ok);
+    let (out, _, ok) = code(&dir.join("vendor/lib"), &["show", r"Lib\Tool"]);
+    assert!(ok);
+    assert!(out.contains("declared at Tool.nvs:4:7"), "{out}");
+}
+
+#[test]
+fn a_position_is_one_based_and_counts_characters() {
+    let till = "<?nvs\nnamespace Shop;\n\nclass Till {\n    \
+                public function ring(): int {\n        \
+                return /* é € */ (new Cart())->addItem(1);\n    }\n}\n";
+    let dir = project("position", &[("src/Till.nvs", till)]);
+    let (out, err, ok) = code(&dir, &["refs", r"Shop\Cart::addItem", "--json"]);
+    assert!(ok, "{err}");
+    let document = parsed(&out);
+    let found = document["references"]
+        .as_array()
+        .expect("references")
+        .iter()
+        .find(|found| found["path"] == "src/Till.nvs")
+        .expect("the call in `Till`")
+        .clone();
+    let line = till.lines().nth(5).expect("the sixth line");
+    let before = &line[..line.find("addItem").expect("the call")];
+    assert_eq!(found["line"], 6);
+    assert_eq!(found["column"], before.chars().count() + 1);
+    assert_ne!(before.chars().count(), before.len());
+    let line_start = till.find(line).expect("the line");
+    assert_eq!(found["start"], line_start + before.len());
+    assert_eq!(found["end"], line_start + before.len() + "addItem".len());
+    assert!(
+        out.contains("return /* é € */ (new Cart())->addItem(1);"),
+        "{out}"
+    );
+}
+
+#[test]
+fn control_characters_from_the_project_are_printed_escaped() {
+    let noisy = "<?nvs\nnamespace Shop;\n\n/// Rings \u{1b}[31mred\u{1b}[0m.\nclass Noisy {\n    \
+                 public function ring(): int {\n        \
+                 return (new Cart())->addItem(1); // \u{1b}[2J\u{7}\n    }\n}\n";
+    let dir = project("escape", &[("src/Noisy.nvs", noisy)]);
+    let (out, err, ok) = code(&dir, &["show", r"Shop\Noisy"]);
+    assert!(ok, "{err}");
+    assert!(out.contains(r"Rings \u{1b}[31mred\u{1b}[0m."), "{out}");
+    assert!(!out.contains('\u{1b}'), "{out}");
+
+    let (out, _, _) = code(&dir, &["refs", r"Shop\Cart::addItem"]);
+    assert!(out.contains(r"// \u{1b}[2J\u{7}"), "{out}");
+    assert!(!out.contains('\u{1b}') && !out.contains('\u{7}'), "{out}");
+
+    let (out, _, _) = code(&dir, &["show", r"Shop\Noisy", "--json"]);
+    assert_eq!(parsed(&out)["doc"], r"Rings \u{1b}[31mred\u{1b}[0m.");
+}

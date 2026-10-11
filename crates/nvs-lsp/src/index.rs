@@ -307,6 +307,9 @@ struct Indexed {
     /// The kind of the one type this file declares, when the file has the
     /// shape an autoloaded file must have (`nvs_hir::autoload::sole_declaration`).
     sole: Option<DeclKind>,
+    /// Whether the analysis that indexed this file reported an error inside
+    /// it, in which case a use written there may be missing from the index.
+    errors: bool,
     /// The entry point that analysis started from, which is what re-indexing
     /// this file costs, and whose reads in [`SymbolIndex::reads`] are the edge
     /// [`SymbolIndex::invalidate`] follows.
@@ -683,6 +686,14 @@ impl SymbolIndex {
         self.files.len()
     }
 
+    /// How many of the files the index holds had an error in the analysis
+    /// that indexed them. `nvs code` reports this, because a use inside such
+    /// a file may not have resolved.
+    #[must_use]
+    pub fn files_with_errors(&self) -> usize {
+        self.files.values().filter(|indexed| indexed.errors).count()
+    }
+
     /// Whether the index holds nothing at all.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -719,6 +730,12 @@ impl SymbolIndex {
                 imports: imports(&analysed, loaded, &key),
                 sole: sole_declaration(&loaded.stmts, analysed.map.file(loaded.id))
                     .map(|(_, kind)| DeclKind::of_symbol(kind)),
+                errors: analysed.diags.iter().any(|diag| {
+                    diag.is_error()
+                        && diag
+                            .primary_span()
+                            .is_some_and(|span| span.file == loaded.id)
+                }),
                 entry: entry.clone(),
             };
             self.post(&key, &indexed);

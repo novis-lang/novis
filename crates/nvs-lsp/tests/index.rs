@@ -195,11 +195,12 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
 }
 
 /// The index's read-only methods that answer nobody's feature: how much it
-/// holds, and whether it holds one file.
+/// holds, whether it holds one file, and how many of its files had errors.
 ///
-/// The refresh path and this suite ask these; a feature asks the queries
-/// beside them, which is what [`all_six_readers_query_the_one_index`] counts.
-const BOOKKEEPING: [&str; 4] = ["files", "holds", "len", "is_empty"];
+/// The refresh path, `nvs code` and this suite ask these; a feature asks the
+/// queries beside them, which is what [`all_six_readers_query_the_one_index`]
+/// counts. None of them looks a name up.
+const BOOKKEEPING: [&str; 5] = ["files", "holds", "len", "is_empty", "files_with_errors"];
 
 /// Six features, and each one of them is a query against the one index.
 ///

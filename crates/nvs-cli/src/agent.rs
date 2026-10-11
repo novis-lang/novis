@@ -169,7 +169,7 @@ mod names;
 /// The shape of the three `--json` documents the module doc sketches, frozen
 /// the way `nvs check --json`'s is. It goes up when a key is removed or its
 /// meaning changes; a key added beside the others does not move it.
-const SCHEMA_VERSION: u64 = 1;
+pub(crate) const SCHEMA_VERSION: u64 = 1;
 
 /// The line that marks the section under it, on a line of its own.
 const MARKER: &str = "<!-- primer -->";
@@ -805,7 +805,7 @@ fn lines(entries: &[Entry], json: bool) -> String {
 
 /// A `--json` document as it is printed: pretty, as `nvs check --json`'s is,
 /// with a line break after it.
-fn pretty(document: Value) -> String {
+pub(crate) fn pretty(document: Value) -> String {
     // It cannot fail: the document holds strings, integers and nulls, and
     // `serde_json` only errors on a non-string map key or a non-finite float.
     let mut out = serde_json::to_string_pretty(&document)
@@ -888,6 +888,12 @@ pub(crate) fn show(symbol: &str, json: bool) -> ExitCode {
         }
     }
     ExitCode::FAILURE
+}
+
+/// Whether [`show`] has a card for `symbol`. `nvs code show` asks this before
+/// it hands a name the project does not declare to [`show`].
+pub(crate) fn has_card(symbol: &str) -> bool {
+    show_target(&crate::meta::document(), symbol).is_some()
 }
 
 /// The entry whose symbol, or second name, is `symbol` exactly, and failing

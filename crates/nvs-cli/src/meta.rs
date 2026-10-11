@@ -927,6 +927,27 @@ fn user_method_json(method: &MethodMember, doc: Option<&DocComment>, src: &Sourc
         _ if method.modifiers.contains(&Modifier::Static) => "static",
         _ => "instance",
     };
+    let mut out = Map::new();
+    out.insert("name".into(), Value::from(text(src, method.name)));
+    out.insert("kind".into(), Value::from(kind));
+    out.insert(
+        "visibility".into(),
+        Value::from(visibility(&method.modifiers)),
+    );
+    out.insert(
+        "signature".into(),
+        Value::from(method_signature(method, src)),
+    );
+    put_doc(&mut out, doc, src);
+    Value::Object(out)
+}
+
+/// A program method's signature as its source writes it:
+/// `addItem(int $n): int`.
+///
+/// This document and `nvs code show` both print it from here, so a program's
+/// signature has one spelling.
+pub(crate) fn method_signature(method: &MethodMember, src: &SourceFile) -> String {
     let params: Vec<String> = method
         .params
         .iter()
@@ -937,16 +958,17 @@ fn user_method_json(method: &MethodMember, doc: Option<&DocComment>, src: &Sourc
         signature.push_str(": ");
         signature.push_str(text(src, ret.span));
     }
-    let mut out = Map::new();
-    out.insert("name".into(), Value::from(text(src, method.name)));
-    out.insert("kind".into(), Value::from(kind));
-    out.insert(
-        "visibility".into(),
-        Value::from(visibility(&method.modifiers)),
-    );
-    out.insert("signature".into(), Value::from(signature));
-    put_doc(&mut out, doc, src);
-    Value::Object(out)
+    signature
+}
+
+/// A program property's signature: its declared type and its `$name`, as
+/// `int $total`. [`method_signature`]'s two callers print it too.
+pub(crate) fn property_signature(property: &PropertyMember, src: &SourceFile) -> String {
+    format!(
+        "{} {}",
+        text(src, property.ty.span),
+        text(src, property.name)
+    )
 }
 
 /// One parameter as it was written — `inout` and `...` included, and the
@@ -1010,11 +1032,7 @@ fn user_property_json(
     );
     out.insert(
         "signature".into(),
-        Value::from(format!(
-            "{} {}",
-            text(src, property.ty.span),
-            text(src, property.name)
-        )),
+        Value::from(property_signature(property, src)),
     );
     put_doc(&mut out, doc, src);
     Value::Object(out)
