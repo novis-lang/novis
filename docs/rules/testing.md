@@ -846,8 +846,11 @@ sweep cannot write into a tree it is not allowed to touch.
 - **Examples in the website's own tree, written by a person after the feature ships.** Written that
   way, almost no member ever had one. The sweep that understands the feature is the one that writes
   them.
+- **A mirror of the examples under `website/`, kept equal by a sync script and a check.** Two copies of
+  every example, and a failure mode, the mirror being behind, whose only fix is to run the script that
+  should have run.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped). Decided in [0263](../decisions/0263.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped).</sub>
 
 <a id="testing-website-pages-are-stamped"></a>
 
@@ -865,6 +868,15 @@ session made stale itself: the session that changes a feature rereads the pages 
 them and runs `bun nv site --stamp`, the same way it owes the feature's proofs. CI's `proofs` job runs
 `bun nv site --check` over the whole tree, so a stale page the wrap did not attribute is still caught
 before a merge. A stamp is written by whoever reread the page, never to quiet the check.
+
+The generated half of the site, the reference, is rewritten from the binary and the roster on every
+render and cannot drift; the handwritten half can, because nothing else connects a guide to the
+behaviour it explains. A hash makes exactly the pages that cover a changed feature stale, and the
+session that changed it is the one holding the context to reread them. `covers:` uses the roster's
+ids, so a page and a feature proof name a feature the same way. The cost is that a change to a
+feature costs its author a reread of the pages that cover it. `bun nv site` is one tool that holds the
+guard, the stamp, the build and every `--check` part, in place of a script per check, and its parts
+run in the CI job that has already built `nvs`, because the snippets and the roster both need it.
 
 **A page's search questions are stamped as the page is.** Each entry of `website/src/data/questions.json`
 records the feature its questions were written from and that feature's hash, and an entry whose hash
@@ -890,7 +902,11 @@ output="http">`, because a web server is what a visitor first comes to Novis for
 Novis code that is not known to run, and no output a page shows differs from what the binary prints in
 the context the page names.
 
-<sub>See also [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository), [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0263](../decisions/0263.md).</sub>
+**Declined:**
+- **Staleness by a "last reviewed" date.** A date says nothing about whether the feature moved since.
+- **A periodic review pass.** It finds drift late, and never says which page a change reached.
+
+<sub>See also [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository), [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
 <a id="testing-hostile-case-contract"></a>
 

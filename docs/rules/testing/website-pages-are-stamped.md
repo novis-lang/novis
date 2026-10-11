@@ -9,6 +9,15 @@ them and runs `bun nv site --stamp`, the same way it owes the feature's proofs. 
 `bun nv site --check` over the whole tree, so a stale page the wrap did not attribute is still caught
 before a merge. A stamp is written by whoever reread the page, never to quiet the check.
 
+The generated half of the site, the reference, is rewritten from the binary and the roster on every
+render and cannot drift; the handwritten half can, because nothing else connects a guide to the
+behaviour it explains. A hash makes exactly the pages that cover a changed feature stale, and the
+session that changed it is the one holding the context to reread them. `covers:` uses the roster's
+ids, so a page and a feature proof name a feature the same way. The cost is that a change to a
+feature costs its author a reread of the pages that cover it. `bun nv site` is one tool that holds the
+guard, the stamp, the build and every `--check` part, in place of a script per check, and its parts
+run in the CI job that has already built `nvs`, because the snippets and the roster both need it.
+
 **A page's search questions are stamped as the page is.** Each entry of `website/src/data/questions.json`
 records the feature its questions were written from and that feature's hash, and an entry whose hash
 moved is stale. `bun nv site --check questions` fails on every stale or broken entry and on every
@@ -32,3 +41,7 @@ one and refuses the second. **The front page shows only what the server sends**,
 output="http">`, because a web server is what a visitor first comes to Novis for. So no page carries
 Novis code that is not known to run, and no output a page shows differs from what the binary prints in
 the context the page names.
+
+**Declined:**
+- **Staleness by a "last reviewed" date.** A date says nothing about whether the feature moved since.
+- **A periodic review pass.** It finds drift late, and never says which page a change reached.
