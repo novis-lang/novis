@@ -70,8 +70,8 @@ stages:
 
 - **An overlay only ever adds.** The saving comes from keeping the *base* small — from moving an entry
   down into a stage, never from deleting one.
-- **Name the rule fragment, not the decision record.** A rule's fragment under `docs/rules/` is what is
-  true now; a record is history. Two or three fragments per stage is the shape.
+- **Name the rule fragment.** A rule's fragment under `docs/rules/` is what is true now, with its
+  reasons and its Declined list. Two or three fragments per stage is the shape.
 - **A goal's other data goes in `extra`.** `milestone`, `files` and `env` are Novis's own fields, which
   looper never reads inside, and `tools/nv/lib/chain.ts` is what reads them.
 
@@ -122,10 +122,9 @@ Failure modes worth naming, all of which have happened here:
   named test must be checked for having *existed and run*. That is what a check's `tests` list is for,
   and it is why most of the tests a goal names do not exist when it is written: writing one is how an
   item finishes.
-- **A chore is not a check.** Four goals ran `bun nv decisions --check`, which counts every
-  decision not yet summarized — a pass the user fires, never a goal. A goal that opens an ADR is
-  `missing` its own summary from the moment it writes the record, so all four were red on arrival and
-  would each have held the run on a backlog no session of theirs could clear. A check has to be
+- **A chore is not a check.** A check that counts a backlog across the whole tree — every doc not yet
+  swept, every item not yet summarized — is a pass the user fires, never a goal. It is red on arrival
+  and holds the run on work no session of the goal can clear. A check has to be
   something the goal's own work turns green. `looper lint` does not look for a chore, so this is the
   author's to catch while the goal is written.
 - **A tag is not a build.** One goal's gate was `unowned: 0` from the owners audit, and
@@ -165,17 +164,11 @@ settles it under AGENTS.md's priority ordering and records it in the home AGENTS
 Two things every standing decision should carry: the safe fallback if the implementation forces the
 opposite conclusion, and where the answer gets written down. A decision with no home gets re-derived.
 
-**A goal that will open a record says so, and does not name the number.** A number is claimed by the
-file that lands, one above the highest in `docs/decisions/` — so a number written into a goal near the
-end of the chain is a number an earlier goal claims first, and the session that arrives finds it taken
-and frozen. Say *one new record and no other number*; naming the record because it
-has already landed and this goal only implements it is the other legitimate form.
-
 `looper lint` refuses a goal with no § *Standing decisions* heading, which is the cheap half of this and
 the only half a tool can see. It cannot tell whether the section answers the questions the stages
-actually reach — that is this section's judgement, and the goal whose design record is not yet written is
-where it is hardest: implementing an accepted ADR asks a session to look a decision up, while writing one
-asks it to make the decision at the moment it is least equipped to.
+actually reach — that is this section's judgement, and the goal whose rule is not yet written is where
+it is hardest: implementing a settled rule asks a session to look a decision up, while writing one asks
+it to make the decision at the moment it is least equipped to.
 
 ## 6. The stages that have always worked
 
@@ -240,5 +233,5 @@ evidence moved enough to change the ceiling or the strategy, change it **and say
 that is how the next goal starts from measurement rather than from whatever this file happened to say.
 Fold anything durable the run taught you into the file that owns it: a trap into
 [playbook.md](playbook.md), a shape into [conventions.md](conventions.md), a decision into the rule's
-fragment under [docs/rules/](../rules/) with a new record for its reasoning. The next goal is written for
+fragment under [docs/rules/](../rules/) with its reasons and its Declined list. The next goal is written for
 its own target, never amended from this one's.

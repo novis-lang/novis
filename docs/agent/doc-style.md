@@ -5,22 +5,21 @@ The docs are optimised for an agent that reads one file and starts working. Keep
 
 - **State a fact once.** A rule's home is its fragment under [docs/rules/](../rules/), and `bun nv
   brief --where <keyword>` names the one that owns a topic; link to it from everywhere else,
-  as the token `rule:<topic>/<rule>`. Summarising a rule or a decision record into another document
-  creates a second copy that will silently go stale.
-- **Never quote a measured number outside the record that owns it.** Numbers live with their guard test.
+  as the token `rule:<topic>/<rule>`. Summarising a rule into another document creates a second copy
+  that will silently go stale.
+- **Never quote a measured number outside the file that owns it.** Numbers live with their guard test.
 - **No date, anywhere under `docs/`.** When something was decided, accepted, retired, measured or changed
   is `git log`'s to answer, and it answers exactly; a date written into prose can be checked against
-  nothing and tells a reader years later only that time has passed. This binds a record's body, a plan
-  file, a goal manifest and a rule alike — it is the rule [conventions.md](conventions.md) § *A code
-  comment* has always bound `crates/` to, and the reason the frozen records carry no `date:`. A date that
+  nothing and tells a reader years later only that time has passed. This binds a plan file, a goal
+  manifest and a rule alike — it is the rule [conventions.md](conventions.md) § *A code comment* binds
+  `crates/` to. A date that
   is a **value the subject handles** — an ISO literal in a `Core\Time` example, a `#[Test(at:)]` fixture,
   a SQL zero date — is content and stays.
 - **Edit the rule, never overlay it.** When a decision changes, edit the rule's fragment so its body is
-  true now, and write the new decision record whose `changes:` block names that rule. Never add a
-  paragraph to one file describing what another file changed — that is what makes a reader apply
-  patches in their head, and it is how `rule:types/declaration` came to carry eighteen of them at
-  once. `git log` is the changelog, and the records are the frozen reasoning; neither is a thing the
-  rule's own text describes.
+  true now, with the reasons for it and what it declines. Never add a paragraph to one file describing
+  what another file changed — that is what makes a reader apply patches in their head, and it is how
+  `rule:types/declaration` came to carry eighteen of them at once. `git log` is the changelog, and is
+  not a thing the rule's own text describes.
 - **A comment is prose too.** Every line on this page binds a `//!` header, a `///` on a `Core` member and
   a `#` in a manifest exactly as it binds a file under `docs/`: present tense, rewritten whole rather than
   overlaid, and carrying no date and no measured number it does not own.
@@ -52,7 +51,6 @@ a field or a file against a number, with the one exception stated below the tabl
 |---|---|
 | One field of the plan's status block | ~400 bytes, one overwritten paragraph |
 | One `### Mn — title` milestone heading | one short line |
-| One decision record's H1 | one sentence — it is the title every index derives from |
 | One rule fragment's opening sentence | one sentence — `ground-rules.md`'s line for the rule is cut from it |
 | One guard test's name + bounds | one line |
 | One module's `//!` first sentence | one line — it is the map's entry for that file |

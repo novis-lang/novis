@@ -5,8 +5,7 @@ and `looper goal move` edit the list.
 
 A reached goal's file under `docs/goals/` is deleted, its slug leaves the chain, and the next slug is the
 live goal. Nothing is archived, and `git log` is the history. A decision that only a goal's prose holds is
-moved to its home before the goal is reached. The frozen records under `docs/decisions/` keep the goals
-they name. A reached goal kept on disk would hold nothing a later session reads, and would still be a
+moved to its home before the goal is reached: a rule fragment, a module doc or a test. A reached goal kept on disk would hold nothing a later session reads, and would still be a
 document that cites code and drifts from it, with every tool carrying a branch to tell it from a live
 one. A regression in finished work is caught by the suite that tests it, or by nothing.
 

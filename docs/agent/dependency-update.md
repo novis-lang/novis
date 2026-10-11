@@ -11,7 +11,7 @@ one class of change whose entire value is that a person weighed it.
 
 **The policy is `rule:packaging/a-dependency-break-is-absorbed-never-forwarded`; this file is only
 the procedure.** Every judgement call below routes to a section number there rather than restating it. If the
-two ever disagree, the ADR is right and this file is the bug.
+two ever disagree, the rule is right and this file is the bug.
 
 ## Before you start: which regime are we in?
 
@@ -99,7 +99,7 @@ double-digit percentage move is a finding, not a footnote.
 single one of its results.
 
 **Two rules that are not yours to bend** (`rule:packaging/a-dependency-move-proves-two-things`): a failing guard test in `benches/abi-probe/` is never
-fixed by editing its threshold — the ADR named in the test's own comment is what gets revisited, and the
+fixed by editing its threshold — the rule named in the test's own comment is what gets revisited, and the
 sweep stops there — and a graph change always commits the regenerated `THIRD-PARTY-LICENSES.txt` alongside
 it.
 

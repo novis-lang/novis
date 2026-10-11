@@ -5,7 +5,7 @@ saying why. **A rule fragment under [docs/rules/](../rules/) is the only binding
 later goal must honour is written there, and this file is not where to look for it.
 
 Each entry below is a standing decision that had no home but a finished goal's prose when that goal was
-deleted: no rule fragment, decision record, module doc, reference page or test stated it. An entry says what was decided, where in the tree it applies, and the goal it came from. Work a
+deleted: no rule fragment, module doc, reference page or test stated it. An entry says what was decided, where in the tree it applies, and the goal it came from. Work a
 goal promised and did not build is not here: it is a gap record under `data/gaps/`.
 
 ## Decisions
@@ -26,8 +26,7 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
   status item says which of the three it was, the release page stays one command away, and the
   extension keeps working as a grammar-only client. Applies at the install commands `rule:ide/the-extension-guides-an-install-and-never-bundles-one`
   designs, over `editors/vscode/src/install.ts`. From `editor-install`.
-- **`Core\BigDecimal` is not scheduled.** A retired decision record named it, and no spec row and no ratchet key
-  asks for it, so it is a feature the user has not requested and not a gap. `Core\BigInt` is the
+- **`Core\BigDecimal` is not scheduled.** No spec row and no ratchet key asks for it, so it is a feature the user has not requested and not a gap. `Core\BigInt` is the
   arbitrary-precision type, and `decimal` with `Core\Decimal` is the bounded one. Applies at
   `rule:types/decimal`'s "what lies beyond" and the `E0456` card in `crates/nvs-diagnostics/src/lib.rs`.
   From `bigint`.

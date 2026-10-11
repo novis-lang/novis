@@ -111,7 +111,7 @@ fragment, so the next report of the same thing is answered by `bun nv brief --wh
 
 **Fix now, in this session,** when the item fits under the context ceiling (AGENTS.md § *Session
 workflow*), does not touch files the running goal is changing — its `context` manifest and
-`git status` say which — and does not need a decision record that reaches across several crates.
+`git status` say which — and does not need a design decision that reaches across several crates.
 
 Otherwise it is a goal, written with [loop-authoring.md](loop-authoring.md):
 
@@ -132,8 +132,8 @@ The proofs are the same as for any change:
   then the fix. The test is the proof that the report is answered.
 - **A feature** is finished when its feature proofs exist (`bun nv proofs --id '<feature>'`).
 - **Friction** gets the diagnostic or document change and the test that pins it.
-- A new decision gets its record and its rule fragment; take the next record number right before you
-  write it, because the loop may take one concurrently.
+- A new decision becomes a goal or goes into the plan. What it settles is written into a rule
+  fragment, with its reasons and its Declined list, once the work lands.
 
 The loop may be committing on `main` while you work: stage only your own files, and never touch
 the live goal's `## Handoff` in `docs/goals/<slug>.md`.

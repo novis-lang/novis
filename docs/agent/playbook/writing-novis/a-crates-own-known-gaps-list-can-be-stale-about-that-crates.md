@@ -2,6 +2,6 @@
   rule.** `nvs_types::layout`'s doc said a promoted constructor parameter claimed no slot while
   `own_properties` had been giving one an ordinary slot for some time, and `nvs_types::defaults`'s
   said `= null` stayed refused for want of a representation that had landed underneath the paragraph
-  — a `Known gaps` bullet is status, an ADR is a decision, and status goes stale silently. One
+  — a `Known gaps` bullet is status, a rule is a decision, and status goes stale silently. One
   scratch `.nvs` under `.agent-tmp/`, or one `grep` for the shape the paragraph calls impossible, is
   the whole check. `until: gone crates/nvs-types/src/layout.rs:own_properties`

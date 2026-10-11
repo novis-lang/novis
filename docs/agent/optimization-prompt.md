@@ -148,8 +148,8 @@ Say which way each moved and by how much. No prose about what it means unless it
 ## Proposals
 The things you found and did not do, most valuable first. Each one: what you observed, what
 you would change, what it would cost if it is wrong, and how a human would check it in five
-minutes. Be specific enough to act on — "the pack is large" is not a proposal; "`adrs`
-names 0107 whole at 7.1k where every item cites only § 3" is.
+minutes. Be specific enough to act on — "the pack is large" is not a proposal; "`context` names
+a whole module at 7.1k where every item cites one function in it" is.
 
 ## Blocked
 Anything that looked like a bug in the loop itself, including a measurement that was missing.

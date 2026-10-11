@@ -19,7 +19,7 @@ condition holds, so a trap that dies with a flag, a file or a test declares that
 bullet to say the same thing differently: the churn is the cost this playbook exists to avoid.
 
 **Scope.** A rule that binds every agent goes in [AGENTS.md](../../AGENTS.md). A settled rule lives in
-the rulebook under [docs/rules/](../rules/), with a decision record for its reasoning. How a subsystem
+the rulebook under [docs/rules/](../rules/), with its reasons and its Declined list. How a subsystem
 works goes in that crate's own module doc comment. The *shape* of something you are about to write is
 [conventions.md](conventions.md). What is left — the trap — is the playbook, and `looper orient` hands a
 session the bullets it ranks highest for the live goal, and names how many more there are.

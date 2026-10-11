@@ -71,9 +71,9 @@ there.
 
 The rulebook is the same arrangement one tree over: `bun nv rules --render` writes
 `docs/rules/<topic>.md` and `docs/ground-rules.md` from the topic JSON and the fragments, which own
-every line, and `--render --check` reports a rendered copy that has drifted. The decision records
-under `docs/decisions/` are frozen and derive nothing by hand: `bun nv records --check`
-is their audit, `--stats`, `--graph NNNN` and `--orphans` its readings. This is the pattern
+every line, and `--render --check` reports a rendered copy that has drifted. There are no decision
+records: a rule's fragment holds its reasons and its Declined list, and `bun nv rules --check` fails on
+a record directory or a citation of one. This is the pattern
 `docs/novis.md` already established below — derive the machine-derivable half, and let a `--check` fail
 when the committed copy stops agreeing with it.
 
@@ -275,12 +275,12 @@ wide one is, and `tools/data/impact-data-literals.txt` lists the `"../x"` litera
 the fix was always the same command and the whole run again.
 
 **The docs gates are not in that list and `nv verify` runs none of them.** `bun nv rules --check`,
-`bun nv rules --render --check`, `bun nv links`, `bun nv layout --check`, `bun nv records --check`,
-`bun nv plan --check` and `bun nv release --check` are CI's `docs` job, which has no Rust toolchain.
+`bun nv rules --render --check`, `bun nv links`, `bun nv layout --check`, `bun nv plan --check` and
+`bun nv release --check` are CI's `docs` job, which has no Rust toolchain.
 `looper wrap` runs none of them, so a session that edited the tree one of them reads runs that one
-itself before the wrap: `bun nv links` after any doc edit, `bun nv rules --check` after one under
-`docs/rules/`, and `bun nv records --check` after one under `docs/decisions/`. A rulebook or record
-finding is a property of the whole set, so a rename there is what makes a citation elsewhere go dead.
+itself before the wrap: `bun nv links` after any doc edit, and `bun nv rules --check` after one under
+`docs/rules/`. A rulebook finding is a property of the whole set, so a rename there is what makes a
+citation elsewhere go dead.
 
 **`docs/novis.md` is written by `nv verify`, not checked by it.** The reference is generated from the
 binary and the chapters under `docs/reference/`, and verify's `reference` step regenerates it whenever
