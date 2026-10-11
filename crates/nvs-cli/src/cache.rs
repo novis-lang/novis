@@ -1240,8 +1240,9 @@ fn existing_root(dir: &Path) -> &Path {
 
 impl Cache {
     /// The cache rooted at `dir` — `opcache.file_cache_dir`, which [`nvs_config::tree::Opcache`]
-    /// holds and `docs/decisions/0175.md` makes the only spelling of — for artifacts compiled
-    /// against `env`, once § 5's ownership check has passed on that directory.
+    /// holds and `rule:config/opcache-file-cache-directives-are-system` makes the only spelling
+    /// of — for artifacts compiled against `env`, once § 5's ownership check has passed on that
+    /// directory.
     ///
     /// It neither creates nor canonicalizes it: the first [`store`](Self::store) creates it, and
     /// the module doc says why the configured spelling is the one kept.
@@ -2027,7 +2028,7 @@ mod tests {
         drop(fs::remove_dir_all(&root));
     }
 
-    /// `docs/decisions/0175.md` § 2: `opcache.file_cache_dir` is where the artifact cache lives and
+    /// `rule:config/opcache-file-cache-directives-are-system`: `opcache.file_cache_dir` is where the artifact cache lives and
     /// [`from_config`] reads that key alone. The path arrives through the parser rather than a
     /// struct literal so the case covers the whole chain — the text an operator writes, the field
     /// the tree documents, and the root [`Cache::dir`] hands back.
@@ -2051,10 +2052,10 @@ mod tests {
         drop(fs::remove_dir_all(&root));
     }
 
-    /// `docs/decisions/0175.md` § 4: the retired `[cache] dir` is not a field of the typed tree, so
-    /// a file still carrying it is refused as a directive that does not exist rather than parsed
-    /// and ignored. Silence is the defect the record is about — an operator who moved the cache and
-    /// restarted was served by a process still writing where it always had.
+    /// `rule:config/opcache-file-cache-directives-are-system`: `[cache] dir` is not a field of the
+    /// typed tree, so a file carrying it is refused as a directive that does not exist rather than
+    /// parsed and ignored. Ignoring it would leave an operator who wrote it believing the cache had
+    /// moved while the process kept writing where it always had.
     // covers: tools:cli/the-compile-cache
     #[test]
     fn a_cache_directory_written_in_the_retired_spelling_is_reported_not_ignored() {

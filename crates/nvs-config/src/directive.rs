@@ -195,7 +195,7 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "log.keep", class: Class::System, apply: Apply::Reload },
     // `[cache]`'s three tiers, one row each. The artifact cache's directory is written
     // `opcache.file_cache_dir` further down: no `[cache]` key is an artifact directory at all
-    // (`docs/decisions/0175.md`). The only `Boot` rows are `[server]`'s, written with its block.
+    // (`rule:config/opcache-file-cache-directives-are-system`). The only `Boot` rows are `[server]`'s, written with its block.
     // `rule:core-api/two-cache-tiers`'s shared tier is `System` because where a fleet's coherent state lives is not a
     // decision a request may make for itself. `Reload` because a request dials the store its own
     // snapshot names, and the schedule ticker opens its fleet lease again when the block moves: the

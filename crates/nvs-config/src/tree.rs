@@ -1348,7 +1348,7 @@ pub struct Mount {
 
 /// `[cache]` — `Core\Cache`'s two tiers, and nothing else: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s compiled
 /// artifacts live in `[opcache]`, down to the directory they are read from, which is written
-/// `opcache.file_cache_dir` and is the only spelling of it (`docs/decisions/0175.md`).
+/// `opcache.file_cache_dir` and is the only spelling of it (`rule:config/opcache-file-cache-directives-are-system`).
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Cache {
