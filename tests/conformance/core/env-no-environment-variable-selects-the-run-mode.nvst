@@ -21,7 +21,7 @@ echo "NVS_MODE=", Core\Env::get("NVS_MODE") ?? "<unset>", "\n";
 // The file says production and every variable in the environment says
 // development, so a member that consulted any of the three answers the other
 // way here — which is what makes this a test and not a restatement.
-echo "mode=", (Core\Env::mode() == Core\Env\Mode::Production) ? "Production" : "Development", "\n";
+echo "mode=", (Core\Env::mode() == Core\Env::Mode::Production) ? "Production" : "Development", "\n";
 
 // Nor is development inferred from the ceiling merely permitting it: nothing
 // asked for the flip, so what was written still stands.

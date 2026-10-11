@@ -1114,7 +1114,7 @@ fn part_two_members() -> Vec<PartTwoMember> {
                 return;
             };
             // A Part II bullet names its class's types beside its members —
-            // `FileMode` is an enum, `Env\Mode`'s cases are `Production` and
+            // `FileMode` is an enum, `Env::Mode`'s cases are `Production` and
             // `Development` — and `rule:core-api/shape-rules`'s naming is what tells the two apart
             // without reading the sentence they sit in: a member is lowerCamelCase
             // and a constant is SCREAMING_CASE, so an initial capital followed by

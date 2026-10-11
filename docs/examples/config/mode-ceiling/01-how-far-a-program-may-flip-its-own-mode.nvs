@@ -2,7 +2,7 @@
 // `[mode] ceiling` is the most open mode any code on this server may select.
 // A program may change its own mode, but not past the ceiling.
 
-echo 'running in: ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
+echo 'running in: ', Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production', "\n";
 echo 'ceiling:    ', Core\Config::get('mode.ceiling') ?? '(nothing written — the mode the host started in)', "\n";
 
 // `production` is at the ceiling, so this call returns `true`.
@@ -11,7 +11,7 @@ echo 'select production:  ', Core\Config::set('mode.default', 'production') ? 'a
 // `development` is above the ceiling, so the call returns `false`. The server
 // started in production, and the mode stays `production`.
 echo 'select development: ', Core\Config::set('mode.default', 'development') ? 'accepted' : 'refused', "\n";
-echo 'still running in:   ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
+echo 'still running in:   ', Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production', "\n";
 
 // Only the person who runs the server may change the ceiling. This call
 // returns `false`.

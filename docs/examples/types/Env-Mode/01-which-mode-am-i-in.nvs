@@ -3,15 +3,15 @@
 // Nothing is configured here, so `Core\Env::mode()` returns `Production`.
 // A program is in `Production` until somebody sets the other mode.
 
-Core\Env\Mode $mode = Core\Env::mode();
+Core\Env::Mode $mode = Core\Env::mode();
 
 echo match ($mode) {
-    Core\Env\Mode::Production => "production: keep what a visitor sees short\n",
-    Core\Env\Mode::Development => "development: show me everything\n",
+    Core\Env::Mode::Production => "production: keep what a visitor sees short\n",
+    Core\Env::Mode::Development => "development: show me everything\n",
 };
 
 // There are only two modes. An `if` is enough when only one of them matters.
-if ($mode == Core\Env\Mode::Development) {
+if ($mode == Core\Env::Mode::Development) {
     echo "loading the sample customers\n";
 } else {
     echo "no sample customers on a real deployment\n";

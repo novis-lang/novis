@@ -17,7 +17,7 @@ foreach ($names as string $name) {
 uint $development = 0;
 uint $round = 0;
 while ($round < 1000000) {
-    if (Core\Env::mode() == Core\Env\Mode::Development) {
+    if (Core\Env::mode() == Core\Env::Mode::Development) {
         $development = $development + 1;
     }
     $round = $round + 1;

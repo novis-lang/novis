@@ -1,5 +1,5 @@
 ```
-Core\Env::mode(): Env\Mode                                  // read
+Core\Env::mode(): Env::Mode                                  // read
 Core\Config::set("mode.default", "development"): bool       // flip
 ```
 

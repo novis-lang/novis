@@ -1,4 +1,4 @@
-Returns which mode the program runs in: `Core\Env\Mode::Production` or `Core\Env\Mode::Development`.
+Returns which mode the program runs in: `Core\Env::Mode::Production` or `Core\Env::Mode::Development`.
 
 The mode is set in `nvs.toml`, with `default` in the `[mode]` section. No environment variable
 changes it, so a setting such as `APP_ENV` has no effect. When nothing is configured, the mode is

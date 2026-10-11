@@ -5,7 +5,7 @@
 class Orders {
     // Returns the text to show when saving an order failed.
     public static function failureText(RuntimeError $error): string {
-        if (Core\Env::mode() == Core\Env\Mode::Development) {
+        if (Core\Env::mode() == Core\Env::Mode::Development) {
             return "Saving the order failed: " . $error->message;
         }
         return "Sorry, we could not save your order. Please try again.";

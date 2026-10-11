@@ -262,14 +262,14 @@ const MODE_MEMBER_DOC: MethodDoc = MethodDoc {
             variable is consulted for it**, so there is no `APP_ENV` convention to get wrong and \
             no way for a request to select one.",
     params: &[],
-    ret: "The mode as a `Core\\Env\\Mode` case. `Production` for a host that configured nothing, \
+    ret: "The mode as a `Core\\Env::Mode` case. `Production` for a host that configured nothing, \
           so a deployment is the restrictive one until an operator has said otherwise.",
     errors: &[],
 };
 
-/// `Core\Env\Mode`'s fully-qualified name, written once so the registry row and
+/// `Core\Env::Mode`'s fully-qualified name, written once so the registry row and
 /// every message quoting it cannot drift apart.
-pub(crate) const MODE_NAME: &str = r"Core\Env\Mode";
+pub(crate) const MODE_NAME: &str = r"Core\Env::Mode";
 
 /// `rule:config/a-mode-is-five-defaults`'s two run modes, valued by the ceiling's permissiveness order — the
 /// same order `nvs_config::mode::rank` measures a flip against, so `Production`
@@ -414,7 +414,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Env::mode(): Core\Env\Mode` — `rule:config/two-modes-and-the-default-is-production`'s run mode, and the one
+    /// `Core\Env::mode(): Core\Env::Mode` — `rule:config/two-modes-and-the-default-is-production`'s run mode, and the one
     /// member of this class that reads no environment variable.
     ///
     /// An enum answers as its ordinal, exactly as a user-declared enum does

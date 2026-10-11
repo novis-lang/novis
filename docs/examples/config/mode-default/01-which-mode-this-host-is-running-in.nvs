@@ -3,14 +3,14 @@
 // configuration says otherwise. A program reads it for things like demo data
 // or a debug page.
 
-echo 'running in: ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
+echo 'running in: ', Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production', "\n";
 
 // This configuration does not set the mode, so `Core\Config::get` returns `null`
 // and the mode is `production`.
 echo 'written:    ', Core\Config::get('mode.default') ?? '(nothing — so production)', "\n";
 
 // `Core\Env::mode()` returns the current mode, so this runs the `else` branch.
-if (Core\Env::mode() == Core\Env\Mode::Development) {
+if (Core\Env::mode() == Core\Env::Mode::Development) {
     echo 'seeding the demo account', "\n";
 } else {
     echo 'not seeding: real orders live on this host', "\n";

@@ -4,10 +4,10 @@
 // While you are working on the program you want the whole message instead.
 
 class Failure {
-    public static function forVisitor(Core\Env\Mode $mode, string $detail, string $reference): string {
+    public static function forVisitor(Core\Env::Mode $mode, string $detail, string $reference): string {
         return match ($mode) {
-            Core\Env\Mode::Production => "Sorry, we could not save your order. Please quote " . $reference . ".",
-            Core\Env\Mode::Development => "Could not save the order: " . $detail,
+            Core\Env::Mode::Production => "Sorry, we could not save your order. Please quote " . $reference . ".",
+            Core\Env::Mode::Development => "Could not save the order: " . $detail,
         };
     }
 }
@@ -15,7 +15,7 @@ class Failure {
 string $detail = "the payments service did not answer in time";
 string $reference = "ORD-1042";
 
-Core\Env\Mode $mode = Core\Env::mode();
+Core\Env::Mode $mode = Core\Env::mode();
 
 echo "the visitor reads: ", Failure::forVisitor($mode, $detail, $reference), "\n";
 

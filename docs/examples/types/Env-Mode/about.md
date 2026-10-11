@@ -1,5 +1,7 @@
 Which deployment your program is running in. There are two modes and there is no third.
 
+`Core\Env::Mode` is declared in the class `Core\Env`. The method `mode` returns it.
+
 `Production` is the careful one: an error shows a short message rather than its details, the log is
 written as JSON at info level, and requests are not logged one by one. `Development` is the other
 end, and you ask for it in `nvs.toml`. A program that has configured nothing is in `Production`, so

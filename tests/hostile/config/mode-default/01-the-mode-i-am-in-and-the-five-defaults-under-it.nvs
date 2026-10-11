@@ -62,7 +62,7 @@ while ($i < 200000) {
 uint $disagreements = 0;
 uint $j = 0;
 while ($j < 200000) {
-    string $typed = Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production';
+    string $typed = Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production';
     string $written = Core\Config::get('mode.default') ?? 'production';
     if ($typed != $written) {
         $disagreements = $disagreements + 1;
@@ -71,5 +71,5 @@ while ($j < 200000) {
 }
 
 echo 'disagreements: ', $disagreements, "\n";
-echo 'running in: ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
+echo 'running in: ', Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production', "\n";
 echo 'log.level: ', Core\Config::get('log.level') ?? '(nothing written)', "\n";

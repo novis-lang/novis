@@ -354,7 +354,7 @@ fn a_mount_cannot_use_a_capability_only_another_applications_block_grants() {
 }
 
 /// A program that prints the mode it runs in.
-const MODE: &str = "<?nvs\necho Core\\Env::mode() == Core\\Env\\Mode::Production ? \"production\" : \"development\";\n";
+const MODE: &str = "<?nvs\necho Core\\Env::mode() == Core\\Env::Mode::Production ? \"production\" : \"development\";\n";
 
 /// `mode` is read off the snapshot of the file that runs: the block for `one`
 /// writes `production` and the block for `two` writes `development`, and each
@@ -408,7 +408,7 @@ fn each_mount_takes_its_own_app_origin() {
 }
 
 /// A program that prints the mode it runs in and its `limits.memory`.
-const READING: &str = "<?nvs\necho Core\\Env::mode() == Core\\Env\\Mode::Production ? \"production\" : \"development\", \" \", Core\\Config::get(\"limits.memory\") ?? \"unset\";\n";
+const READING: &str = "<?nvs\necho Core\\Env::mode() == Core\\Env::Mode::Production ? \"production\" : \"development\", \" \", Core\\Config::get(\"limits.memory\") ?? \"unset\";\n";
 
 /// A mount whose entry no `[[app]]` block matches runs under the global
 /// configuration: the global mode and `[limits] memory`, and nothing the
@@ -437,7 +437,7 @@ class Docs {
     public function here(): string { return "here"; }
 }
 
-echo Core\Env::mode() == Core\Env\Mode::Production ? "production" : "development", " ";
+echo Core\Env::mode() == Core\Env::Mode::Production ? "production" : "development", " ";
 echo Core\Router::urlAbsolute("Docs::here", []);
 "#;
 
@@ -515,7 +515,7 @@ class Docs {
     public function here(): string { return "here"; }
 }
 
-echo Core\Env::mode() == Core\Env\Mode::Production ? "production" : "development", " ";
+echo Core\Env::mode() == Core\Env::Mode::Production ? "production" : "development", " ";
 echo Core\Config::get("limits.memory") ?? "unset", " ";
 echo Core\Router::urlAbsolute("Docs::here", []);
 "#;

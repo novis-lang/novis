@@ -73,4 +73,4 @@ while ($i < 200000) {
 
 echo 'flips granted: ', $granted, "\n";
 echo 'ceiling: ', Core\Config::get('mode.ceiling') ?? '(nothing written — the mode the host started in)', "\n";
-echo 'running in: ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
+echo 'running in: ', Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production', "\n";

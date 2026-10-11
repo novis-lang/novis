@@ -18505,7 +18505,7 @@ Keywords: get, all, mode
 |---|---|
 | [`Core\Env::get`](#core-core-env-get) | `get(string $name): ?tainted string` |
 | [`Core\Env::all`](#core-core-env-all) | `all(): array<tainted string>` |
-| [`Core\Env::mode`](#core-core-env-mode) | `mode(): Core\Env\Mode` |
+| [`Core\Env::mode`](#core-core-env-mode) | `mode(): Core\Env::Mode` |
 | `Core\Env::EOL` | `string` = `"\n" ("\r\n" on Windows)` — The line ending this platform writes: `\r\n` on Windows and `\n` everywhere else. Use it to write text in the platform's own format. `Core\Str::lines` and `Core\IO::lines` do not use it, and split on all three line endings. |
 | `Core\Env::OS` | `string` = `"Linux" ("Windows" or "Darwin" per platform)` — The operating system **family**: `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. The value is always one of these six, so a program can compare against it. |
 | `Core\Env::VERSION` | `string` = `"0.0.1"` — This runtime's version: three numbers separated by dots, the same string `nvs info` prints. To compare versions, split it with `Core\Str::split` and compare the numbers. |
@@ -18542,12 +18542,12 @@ Every environment variable, keyed by name — the whole of `$_ENV`, and `getenv`
 #### `Core\Env::mode`
 
 ```nvs skip
-Core\Env::mode(): Core\Env\Mode
+Core\Env::mode(): Core\Env::Mode
 ```
 
 Which deployment this program is running in. The mode is written in `nvs.toml` and read back through `Core\Config` like every other directive: **no environment variable is consulted for it**, so there is no `APP_ENV` convention to get wrong and no way for a request to select one.
 
-**Returns** `Core\Env\Mode` — The mode as a `Core\Env\Mode` case. `Production` for a host that configured nothing, so a deployment is the restrictive one until an operator has said otherwise.
+**Returns** `Core\Env::Mode` — The mode as a `Core\Env::Mode` case. `Production` for a host that configured nothing, so a deployment is the restrictive one until an operator has said otherwise.
 
 <a id="core-core-cap"></a>
 ### `Core\Cap`
@@ -29409,14 +29409,14 @@ How loud a log record is — five cases, each valued by its own syslog severity 
 | `Core\Log::Level::Critical` | The escalation ladder's own level: a resource limit stopped the request, or the engine floor is reporting for a program that can no longer report for itself. |
 
 <a id="enum-core-env-mode"></a>
-#### `Core\Env\Mode`
+#### `Core\Env::Mode`
 
 Which deployment a program is running in — two modes, and there is no third. A mode is a shorthand for the defaults of five directives, each of which stays settable on its own.
 
 | Case | Meaning |
 |---|---|
-| `Core\Env\Mode::Production` | The restrictive end of the two, and what a host that wrote no configuration is in — a deployment is the safe one before anyone has said so. Which defaults it selects is fixed by the mode, and is not a table a program should re-derive. |
-| `Core\Env\Mode::Development` | The permissive end, selected in `nvs.toml` and never inferred from a variable, a hostname or a build. A request may flip into it with `Core\Config::set` only where `[mode] ceiling` reaches this far. |
+| `Core\Env::Mode::Production` | The restrictive end of the two, and what a host that wrote no configuration is in — a deployment is the safe one before anyone has said so. Which defaults it selects is fixed by the mode, and is not a table a program should re-derive. |
+| `Core\Env::Mode::Development` | The permissive end, selected in `nvs.toml` and never inferred from a variable, a hostname or a build. A request may flip into it with `Core\Config::set` only where `[mode] ceiling` reaches this far. |
 
 <a id="enum-core-http-method"></a>
 #### `Core\Http\Method`

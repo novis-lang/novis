@@ -12679,7 +12679,7 @@
       "name": "Core\\Env",
       "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
       "summary": "",
-      "surface": "`get(string): ?tainted string`, `all()`, `mode(): Env\\Mode`, and the constants `EOL`, `OS`, `VERSION`; its one enum is `Env\\Mode` — `Production`, `Development`. Read-only — `putenv` has no equivalent, because a process-global mutation is unsound across cores. `mode` reads the run mode (`rule:config/two-modes-and-the-default-is-production`); it is set through `Core\\Config`, like every other directive, and no environment variable is consulted for it.",
+      "surface": "`get(string): ?tainted string`, `all()`, `mode(): Env::Mode`, and the constants `EOL`, `OS`, `VERSION`; its one enum is `Env::Mode` — `Production`, `Development`. Read-only — `putenv` has no equivalent, because a process-global mutation is unsound across cores. `mode` reads the run mode (`rule:config/two-modes-and-the-default-is-production`); it is set through `Core\\Config`, like every other directive, and no environment variable is consulted for it.",
       "enums": [],
       "constants": [],
       "members": [
@@ -12756,10 +12756,10 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "mode(): Core\\Env\\Mode",
+          "signature": "mode(): Core\\Env::Mode",
           "params": [],
           "options": [],
-          "returnType": "Core\\Env\\Mode",
+          "returnType": "Core\\Env::Mode",
           "notes": "",
           "qualifier": "",
           "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
@@ -12767,7 +12767,7 @@
           "notesHtml": "",
           "doc": {
             "shortHtml": "Which deployment this program is running in. The mode is written in <code>nvs.toml</code> and read back through <code>Core\\Config</code> like every other directive: <strong>no environment variable is consulted for it</strong>, so there is no <code>APP_ENV</code> convention to get wrong and no way for a request to select one.",
-            "returnHtml": "The mode as a <code>Core\\Env\\Mode</code> case. <code>Production</code> for a host that configured nothing, so a deployment is the restrictive one until an operator has said otherwise."
+            "returnHtml": "The mode as a <code>Core\\Env::Mode</code> case. <code>Production</code> for a host that configured nothing, so a deployment is the restrictive one until an operator has said otherwise."
           },
           "slug": "mode",
           "url": "/reference/core/env/mode/",
@@ -12779,7 +12779,7 @@
       "slug": "env",
       "url": "/reference/core/env/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>get(string): ?tainted string</code>, <code>all()</code>, <code>mode(): Env\\Mode</code>, and the constants <code>EOL</code>, <code>OS</code>, <code>VERSION</code>; its one enum is <code>Env\\Mode</code> — <code>Production</code>, <code>Development</code>. Read-only — <code>putenv</code> has no equivalent, because a process-global mutation is unsound across cores. <code>mode</code> reads the run mode (<code>rule:config/two-modes-and-the-default-is-production</code>); it is set through <code>Core\\Config</code>, like every other directive, and no environment variable is consulted for it."
+      "surfaceHtml": "<code>get(string): ?tainted string</code>, <code>all()</code>, <code>mode(): Env::Mode</code>, and the constants <code>EOL</code>, <code>OS</code>, <code>VERSION</code>; its one enum is <code>Env::Mode</code> — <code>Production</code>, <code>Development</code>. Read-only — <code>putenv</code> has no equivalent, because a process-global mutation is unsound across cores. <code>mode</code> reads the run mode (<code>rule:config/two-modes-and-the-default-is-production</code>); it is set through <code>Core\\Config</code>, like every other directive, and no environment variable is consulted for it."
     },
     {
       "id": "Fatal",
@@ -34891,7 +34891,7 @@
       "id": "Server",
       "name": "Core\\Server",
       "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
-      "summary": "These replace PHP's superglobals (`rule:statements/no-host-populated-variables`); every value they return that\noriginates outside the process is `tainted` (`rule:security/tainted-qualifier`).\n\n- `Core\\Request`: `method`, `path`, `query`, `queryAs`, `post`, `postAs`, `body`, `bytes`, `json`, `jsonAs`, `bodyStream`,\n- `Core\\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the body members\n- `Core\\Server`: `traceId(): string`, which is\n- `Core\\Session`: `start`, `get`, `set`, `remove`, `clear`, `regenerate`, `destroy`, `setSecret`,\n- `Core\\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env\\Mode`, and the constants `EOL`, `OS`,\n- `Core\\Cap`: `has(string $capability): bool`, and nothing else. Reports whether the **calling namespace**\n- `Core\\Cli`: the terminal surface, owned by `rule:tooling/terminal-output-is-a-sink` —",
+      "summary": "These replace PHP's superglobals (`rule:statements/no-host-populated-variables`); every value they return that\noriginates outside the process is `tainted` (`rule:security/tainted-qualifier`).\n\n- `Core\\Request`: `method`, `path`, `query`, `queryAs`, `post`, `postAs`, `body`, `bytes`, `json`, `jsonAs`, `bodyStream`,\n- `Core\\Response`: `setStatus`, `setHeader`, `addCookie`, `redirect`, and the body members\n- `Core\\Server`: `traceId(): string`, which is\n- `Core\\Session`: `start`, `get`, `set`, `remove`, `clear`, `regenerate`, `destroy`, `setSecret`,\n- `Core\\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env::Mode`, and the constants `EOL`, `OS`,\n- `Core\\Cap`: `has(string $capability): bool`, and nothing else. Reports whether the **calling namespace**\n- `Core\\Cli`: the terminal surface, owned by `rule:tooling/terminal-output-is-a-sink` —",
       "surface": "`traceId(): string`, which is present on every request whether or not the trace is sampled and is Novis's only request identifier (`rule:observability/the-runtime-exports-what-it-already-measures`), and `isDraining(): bool`, true once graceful shutdown has begun (`rule:http-server/the-server-block-is-boot-class`). Nothing in this class replaces `$_SERVER`: `Core\\Request` has the method, path, query, headers, host, scheme and client address, and `Core\\Env` has the environment variables. The HTTP version and the server's and client's ports have no member.",
       "enums": [],
       "constants": [],
@@ -34953,7 +34953,7 @@
       "implemented": true,
       "slug": "server",
       "url": "/reference/core/server/",
-      "summaryHtml": "<p>These replace PHP's superglobals (<code>rule:statements/no-host-populated-variables</code>); every value they return that originates outside the process is <code>tainted</code> (<code>rule:security/tainted-qualifier</code>).</p>\n<ul><li><code>Core\\Request</code>: <code>method</code>, <code>path</code>, <code>query</code>, <code>queryAs</code>, <code>post</code>, <code>postAs</code>, <code>body</code>, <code>bytes</code>, <code>json</code>, <code>jsonAs</code>, <code>bodyStream</code>,</li><li><code>Core\\Response</code>: <code>setStatus</code>, <code>setHeader</code>, <code>addCookie</code>, <code>redirect</code>, and the body members</li><li><code>Core\\Server</code>: <code>traceId(): string</code>, which is</li><li><code>Core\\Session</code>: <code>start</code>, <code>get</code>, <code>set</code>, <code>remove</code>, <code>clear</code>, <code>regenerate</code>, <code>destroy</code>, <code>setSecret</code>,</li><li><code>Core\\Env</code>: <code>get(string): ?tainted string</code>, <code>all()</code>, <code>mode(): Env\\Mode</code>, and the constants <code>EOL</code>, <code>OS</code>,</li><li><code>Core\\Cap</code>: <code>has(string $capability): bool</code>, and nothing else. Reports whether the <strong>calling namespace</strong></li><li><code>Core\\Cli</code>: the terminal surface, owned by <code>rule:tooling/terminal-output-is-a-sink</code> —</li></ul>",
+      "summaryHtml": "<p>These replace PHP's superglobals (<code>rule:statements/no-host-populated-variables</code>); every value they return that originates outside the process is <code>tainted</code> (<code>rule:security/tainted-qualifier</code>).</p>\n<ul><li><code>Core\\Request</code>: <code>method</code>, <code>path</code>, <code>query</code>, <code>queryAs</code>, <code>post</code>, <code>postAs</code>, <code>body</code>, <code>bytes</code>, <code>json</code>, <code>jsonAs</code>, <code>bodyStream</code>,</li><li><code>Core\\Response</code>: <code>setStatus</code>, <code>setHeader</code>, <code>addCookie</code>, <code>redirect</code>, and the body members</li><li><code>Core\\Server</code>: <code>traceId(): string</code>, which is</li><li><code>Core\\Session</code>: <code>start</code>, <code>get</code>, <code>set</code>, <code>remove</code>, <code>clear</code>, <code>regenerate</code>, <code>destroy</code>, <code>setSecret</code>,</li><li><code>Core\\Env</code>: <code>get(string): ?tainted string</code>, <code>all()</code>, <code>mode(): Env::Mode</code>, and the constants <code>EOL</code>, <code>OS</code>,</li><li><code>Core\\Cap</code>: <code>has(string $capability): bool</code>, and nothing else. Reports whether the <strong>calling namespace</strong></li><li><code>Core\\Cli</code>: the terminal surface, owned by <code>rule:tooling/terminal-output-is-a-sink</code> —</li></ul>",
       "surfaceHtml": "<code>traceId(): string</code>, which is present on every request whether or not the trace is sampled and is Novis's only request identifier (<code>rule:observability/the-runtime-exports-what-it-already-measures</code>), and <code>isDraining(): bool</code>, true once graceful shutdown has begun (<code>rule:http-server/the-server-block-is-boot-class</code>). Nothing in this class replaces <code>$_SERVER</code>: <code>Core\\Request</code> has the method, path, query, headers, host, scheme and client address, and <code>Core\\Env</code> has the environment variables. The HTTP version and the server's and client's ports have no member."
     },
     {
