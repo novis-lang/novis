@@ -1,9 +1,7 @@
 {
   "title": "A stream that ends with its response is a streaming response; one that outlives it is a connection isolate",
   "status": "shipped",
-  "because": [
-    "0176"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/two-doors-one-isolate",
     "concurrency/a-connection-is-a-root-isolate"

@@ -1053,8 +1053,17 @@ proxy behaviour this server implements, so
 [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns) is untouched by it.
 
 Both spellings are built. `Core\Response::stream` and `Core\Sse::stream` write a body that ends with
-the response, from inside the request isolate; `Core\Sse::upgrade` opens the connection. Neither
-existed when this line was first drawn, and the line itself is what did not change when they landed.
+the response, from inside the request isolate; `Core\Sse::upgrade` opens the connection. Both write
+through one cell between the writing isolate and the connection that frames the body, so the two
+spellings are one model with two hand-overs rather than two mechanisms.
+
+**One chunk is in flight, and the writer parks until the connection has taken it.** Backpressure is
+structural: a program that writes faster than the peer reads is slowed by the peer, nothing
+accumulates in between, and there is no queue depth to choose. A writer that could park forever is
+the one failure this shape has, so the wait is bounded by the connection's send timeout
+([`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite)), and a consumer that has gone away closes its
+writer at once. A whole body keeps its exact length and its `Content-Length`; a streaming body
+reports none and is sent chunked.
 
 Choosing by protocol instead of by lifetime is the mistake the line exists to prevent. Server-sent
 events over a request that ends is a streaming response and not a connection; a WebSocket is never
@@ -1072,10 +1081,15 @@ anything but a connection.
 - **A `send`/`sendJson` split**, on `Core\Socket::send`/`sendBytes`'s model. It doubles the surface
   for a choice the caller never has to make: `send` writes a `string` raw and JSON-encodes anything
   else.
+- **The connection door alone, with a writing path of its own.** The event stream's `send` would
+  reach the wire through a path the request-scoped spelling could not use, and the language would
+  carry two mechanisms for one model.
+- **A queue between the writer and the connection.** A queue needs a depth somebody chooses, and
+  what it holds grows with how far the peer falls behind; one chunk in flight holds one chunk.
 - **A replay buffer in the runtime.** A bounded buffer answers some resumptions and silently not
   others, with the boundary decided by how fast the client reconnected.
 
-<sub>See also [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0176](../decisions/0176.md).</sub>
+<sub>See also [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>
 
 <a id="concurrency-two-doors-one-isolate"></a>
 
