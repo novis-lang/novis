@@ -1,0 +1,18 @@
+{
+  "title": "`Core\\Env::context()` names the kind of run the code is in, one `Core\\Env::Context` case for each kind of run the echo table names",
+  "status": "shipped",
+  "seeAlso": [
+    "tooling/echo-always-has-a-sink",
+    "security/request-state-throws-in-an-isolate",
+    "config/two-modes-and-the-default-is-production",
+    "concurrency/a-connection-is-a-root-isolate"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/env-context-is-command-in-a-program-run-from-the-command-line.nvst",
+    "tests/conformance/core/env-context-is-request-inside-an-in-process-request.nvst",
+    "tests/conformance/core/env-context-is-isolate-in-a-spawned-script.nvst",
+    "crates/nvs-cli/tests/env_context.rs",
+    "crates/nvs-runtime/src/ctx/isolate.rs",
+    "crates/nvs-host/src/isolate.rs"
+  ]
+}

@@ -18617,13 +18617,14 @@ Every directive in force for this request, keyed by dotted name, with what this 
 <a id="core-core-env"></a>
 ### `Core\Env`
 
-Keywords: get, all, mode
+Keywords: get, all, mode, context
 
 | Member | Signature |
 |---|---|
 | [`Core\Env::get`](#core-core-env-get) | `get(string $name): ?tainted string` |
 | [`Core\Env::all`](#core-core-env-all) | `all(): array<tainted string>` |
 | [`Core\Env::mode`](#core-core-env-mode) | `mode(): Core\Env::Mode` |
+| [`Core\Env::context`](#core-core-env-context) | `context(): Core\Env::Context` |
 | `Core\Env::EOL` | `string` = `"\n" ("\r\n" on Windows)` — The line ending this platform writes: `\r\n` on Windows and `\n` everywhere else. Use it to write text in the platform's own format. `Core\Str::lines` and `Core\IO::lines` do not use it, and split on all three line endings. |
 | `Core\Env::OS` | `string` = `"Linux" ("Windows" or "Darwin" per platform)` — The operating system **family**: `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. The value is always one of these six, so a program can compare against it. |
 | `Core\Env::VERSION` | `string` = `"0.0.1"` — This runtime's version: three numbers separated by dots, the same string `nvs info` prints. To compare versions, split it with `Core\Str::split` and compare the numbers. |
@@ -18666,6 +18667,17 @@ Core\Env::mode(): Core\Env::Mode
 Which deployment this program is running in. The mode is written in `nvs.toml` and read back through `Core\Config` like every other directive: **no environment variable is consulted for it**, so there is no `APP_ENV` convention to get wrong and no way for a request to select one.
 
 **Returns** `Core\Env::Mode` — The mode as a `Core\Env::Mode` case. `Production` for a host that configured nothing, so a deployment is the restrictive one until an operator has said otherwise.
+
+<a id="core-core-env-context"></a>
+#### `Core\Env::context`
+
+```nvs skip
+Core\Env::context(): Core\Env::Context
+```
+
+Which kind of run the code is in: an HTTP request, a command-line program, a spawned script, a scheduled script, a queued job, a test or a connection. Use it to choose what a program does in each one.
+
+**Returns** `Core\Env::Context` — The kind of run as a `Core\Env::Context` case. It is the same value for the whole run and for every task the run starts.
 
 <a id="core-core-cap"></a>
 ### `Core\Cap`
@@ -29535,6 +29547,21 @@ Which deployment a program is running in — two modes, and there is no third. A
 |---|---|
 | `Core\Env::Mode::Production` | The restrictive end of the two, and what a host that wrote no configuration is in — a deployment is the safe one before anyone has said so. Which defaults it selects is fixed by the mode, and is not a table a program should re-derive. |
 | `Core\Env::Mode::Development` | The permissive end, selected in `nvs.toml` and never inferred from a variable, a hostname or a build. A request may flip into it with `Core\Config::set` only where `[mode] ceiling` reaches this far. |
+
+<a id="enum-core-env-context"></a>
+#### `Core\Env::Context`
+
+The kind of run the code is in. `Core\Env::context()` returns one of these seven cases.
+
+| Case | Meaning |
+|---|---|
+| `Core\Env::Context::Request` | The code answers an HTTP request, under `nvs serve` or inside `Core\Test::request`. `echo` writes to the response body. |
+| `Core\Env::Context::Command` | The code runs from the command line: a script started with `nvs run`, or a `#[Command]` method. `echo` writes to stdout. |
+| `Core\Env::Context::Isolate` | The code runs in a script started with `spawn script`. A spawned script has no request, even when a request started it. |
+| `Core\Env::Context::Schedule` | The code runs as a `[[schedule]]` entry that the server started at its time. |
+| `Core\Env::Context::Job` | The code runs as a queued job, in a worker. |
+| `Core\Env::Context::Test` | The code runs in a `#[Test]` method under `nvs test`. |
+| `Core\Env::Context::Connection` | The code serves a connection that a request upgraded, a socket or an event stream. The request that upgraded it has already ended. |
 
 <a id="enum-core-http-method"></a>
 #### `Core\Http\Method`

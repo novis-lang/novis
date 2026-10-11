@@ -3,6 +3,7 @@
   "order": 160,
   "rules": [
     "core-classes/cli-arguments",
+    "core-classes/env-context",
     "core-classes/script-args",
     "core-classes/process-is-argv-only",
     "core-classes/process-run",

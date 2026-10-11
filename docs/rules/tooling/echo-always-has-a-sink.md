@@ -6,6 +6,9 @@
 | a scheduled script, a job worker, a `#[Test]` method | that run's captured output | `Cli\Text` |
 | a connection isolate, from either `upgrade` door | that connection's captured output | `Cli\Text` |
 
+A program reads which row it is in with `Core\Env::context()`, whose seven cases are these rows with
+the fourth split into `Schedule`, `Job` and `Test` (`rule:core-classes/env-context`).
+
 **A connection isolate takes the default sink because it is not a request.** The request that
 upgraded it ended (`rule:concurrency/a-connection-is-a-root-isolate`), so nothing attaches the HTML
 sink to the root that replaced it, and a socket connection and an event-stream connection are one row

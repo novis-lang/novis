@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*24 of 98 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 99 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -28,6 +28,60 @@ Inside a request the array is empty: the launcher writes the command line, and o
 point writes one.
 
 <sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
+
+<a id="core-classes-env-context"></a>
+
+## `Core\Env::context()` names the kind of run the code is in, one `Core\Env::Context` case for each kind of run the echo table names
+
+`rule:core-classes/env-context`
+
+`Core\Env::context(): Core\Env::Context` names the kind of run the calling code is in, with one case
+for each kind of run [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)'s table names:
+
+| Case | The run |
+|---|---|
+| `Request` | an HTTP request, served or made in-process by `Core\Test::request` |
+| `Command` | a CLI program: a script's main task or a `#[Command]` method; a `.nvst` program is one |
+| `Isolate` | a `spawn script` child, a method entry or a limit handler's isolate |
+| `Schedule` | a `[[schedule]]` fire |
+| `Job` | a queued job's attempt |
+| `Test` | a `#[Test]` method under `nvs test` |
+| `Connection` | a connection isolate, from either `upgrade` door |
+
+A `Core\Task` answers its parent's case, because a task is a second line of the same run. A
+spawned isolate answers `Isolate` even when a request spawned it, because it has no request of its
+own ([`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate)).
+
+The reader is `Ctx::run_kind`, and two of the seven are never stored: `Request` is read from the
+context's inbound request and `Connection` from its attached peer or connection event stream. So a
+host that forgets to store a kind cannot make a request answer `Command`. That matters because a
+program may print more on the command line than it would to a client, and the branch it takes is
+this answer (Security and request isolation). The other five are a byte each constructor and host
+stores once, before the program runs: `Command` from a new context, `Isolate` from every isolate
+constructor, and `Schedule`, `Job` and `Test` from the host that starts that run.
+
+The member never throws and asks no capability. Like `Core\Env::mode`, it is a fact about the run
+and not an effect, and a program that had to catch an error to learn it was reading the answer from
+a side effect of some other member.
+
+The tradeoffs:
+- **Performance:** nothing on the request path. A call is two pointer tests and one load.
+- **Memory:** one byte per in-flight context, possibly none where it fits the context's padding
+  (not checked). Nothing per request beyond that.
+- **Usability:** a program asks one member where it caught an error, and a misspelled case is a
+  compile error. A `match` over the seven cases compiles with no default arm.
+- **Simplicity:** one member and one enum, and no new limit or setting.
+
+**Declined:**
+- **A boolean `isRequest()`.** It answers one of seven questions, and the next program asks
+  whether it is a job.
+- **Storing `Request` and `Connection` like the other five.** A host that forgot to store them
+  would make a request read as a command, and the branch on that answer decides what a client
+  sees.
+- **A string answer.** A misspelled string compares `false` and compiles. A misspelled case does not
+  compile.
+
+<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>
 
 <a id="core-classes-script-args"></a>
 
