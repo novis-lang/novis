@@ -307,7 +307,25 @@ is not a shape is `E0729`. A `$member` that is not a string literal names no ros
 `attribute` is `null`, as the retrieval's computed member folds. The enumeration's own two refusals
 hold unchanged.
 
-<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking). Decided in [0212](../decisions/0212.md), [0253](../decisions/0253.md).</sub>
+A row is a shape rather than two parallel arrays because the loop body reads one class's two facts
+together. The join is not specific to routes: it serves every attribute a framework reads off the
+classes it discovered.
+
+**Memory:** each evaluation makes the allocations `implementing` makes, plus one row object per class
+and one payload object per matched attribute, where the call stands. The join itself is paid while
+checking, and nothing runs that did not run before.
+
+**Declined:**
+- **A retrieval that takes an instance**, `Core\Attributes::get<T>($view, 'render')`, accepted when the
+  receiver's static type is one of the enumerated classes. Inside the loop the variable is typed as the
+  interface, so no call site of that shape could ever be accepted.
+- **A route listing**, `Core\Router::routes()` answering the compiled rows. It removes the duplicated
+  path for routes alone, with a new class and several members, and leaves every other attribute where it
+  was. Listing a program's routes outside a request is a separate routing question.
+- **An interface that requires an attribute**, the compiler checking that every implementor's method
+  carries it. That checks the duplication rather than removing it: the path is still written twice.
+
+<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking). Decided in [0253](../decisions/0253.md).</sub>
 
 <a id="programs-constructors"></a>
 

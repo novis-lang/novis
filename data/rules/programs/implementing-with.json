@@ -2,7 +2,6 @@
   "title": "`Core\\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class, and it expands while compiling",
   "status": "shipped",
   "because": [
-    "0212",
     "0253"
   ],
   "seeAlso": [
