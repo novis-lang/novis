@@ -29,3 +29,31 @@ exit status says it failed. The shape is sketched in `crates/nvs-cli/src/agent.r
 The protocol is three calls and a check: read `primer` once, `find` a name, `show` its card, then
 `nvs check`. A diagnostic is the cheapest documentation the system has — it is read only by the agent
 that got something wrong — so the check loop is part of the surface rather than an alternative to it.
+That is why two diagnostics name their own fix: an undefined member gives a `help:` line with the
+nearest declared name (`crates/nvs-hir/src/members.rs:1463`), and a capability denial gives one naming
+the `nvs.toml` table that grants it (`crates/nvs-runtime/src/capability.rs:256`).
+
+The surface exists because no model has Novis in its weights, so every agent writes it from what it is
+handed at the time, on every session. The prior a model does hold is the harder part: Novis reads like
+PHP and rejects most of PHP's syntax, so a confident guess is wrong in a systematic way. And the whole
+reference is far larger than a context window while the flattened `Core` surface is small, so an
+agent can hold every name the language has and still have room to work; what it cannot hold is the
+prose around them. A primer read once and a lookup of a few hundred tokens each is the cost that fits.
+
+- **Memory:** nothing on the request path. `nvs agent` is a CLI-only path over the document the binary
+  already builds for `nvs meta --json`, and no server, isolate or request reaches it. What it spends is
+  simplicity: one subcommand and one renderer in the binary.
+
+**Declined:**
+- **A smaller hand-written document.** It goes stale while the language is still adding members, and
+  its completeness is whatever its author remembered, so an empty search over it proves nothing.
+- **An MCP server.** It answers the same questions over a protocol fewer harnesses speak, needs a
+  running process, and buys nothing over a subcommand any agent can already run. It would be one more
+  pointer (`rule:tooling/an-adapter-carries-protocol-and-never-language`).
+- **Vendoring the primer and the index into the user's project.** A copy on disk goes stale silently,
+  adds diff noise to the user's repository, and brings back the shell-quoting trap `find` removes. An
+  agent handed a broken pointer to such a copy rebuilds it from the binary, so the binary is the pointer.
+- **Teaching the agent through the LSP.** `nvs-lsp` answers an editor's questions at a cursor; an agent
+  has no cursor, and most harnesses do not speak the protocol.
+- **An embedded form, `nvs agent init --embed`, writing the primer to disk** for a sandbox that cannot
+  run the binary per session. Nothing has asked for it, and it is stale the moment it exists.

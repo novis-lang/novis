@@ -1,9 +1,7 @@
 {
   "title": "`nvs agent index` prints one derived line per registered member, carrying its signature and the capability it is gated on, and one per chapter heading",
   "status": "shipped",
-  "because": [
-    "0167"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/an-agent-asks-the-binary",
     "tooling/meta-json",

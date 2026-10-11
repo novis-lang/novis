@@ -98,8 +98,8 @@ fn the_primer_carries_the_lookup_protocol_the_worked_program_and_the_chapter_map
     );
 }
 
-/// The three shapes the investigation behind `docs/decisions/0167.md` caught an
-/// agent guessing wrong, all in one program that runs.
+/// The three shapes an agent new to Novis guesses wrong, all in one program
+/// that runs.
 // covers: tools:agents/nvs-agent-primer
 #[test]
 fn the_worked_program_shows_a_typed_local_a_foreach_binding_and_an_options_bag() {

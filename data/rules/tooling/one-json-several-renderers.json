@@ -1,9 +1,7 @@
 {
   "title": "`nvs meta --json` is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content",
   "status": "shipped",
-  "because": [
-    "0167"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/meta-json",
     "tooling/meta-json-takes-a-program",

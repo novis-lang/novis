@@ -19,3 +19,7 @@ agent that writes a PHP habit meets the diagnostic for it at its first `nvs chec
 
 Its budget is a low four figures of tokens, and it is met by what the primer selects — never by
 trimming what a selected section says.
+
+**Declined:**
+- **A size gate on the primer.** Trimming prose against a tripwire cuts what a section says rather
+  than what the primer selects, so the budget is held by review and nothing else.

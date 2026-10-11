@@ -1,9 +1,7 @@
 {
   "title": "`nvs agent` answers a coding agent from the registry and the embedded reference chapters in four commands, and the check loop is part of the surface",
   "status": "shipped",
-  "because": [
-    "0167"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/one-json-several-renderers",
     "tooling/meta-json",
