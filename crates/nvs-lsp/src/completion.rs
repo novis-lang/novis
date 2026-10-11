@@ -2636,6 +2636,15 @@ fn owner_written(analysed: &Analysed, offset: BytePos) -> Option<QName> {
         .strip_suffix("::")?;
     let owner = name_run(stem);
     let at = BytePos::try_from(stem.len() - owner.len()).ok()?;
+    // `Order::Status::` names the enum `Order` declares, keyed as the checker
+    // keys it (`rule:enums/class-scoped-enum`).
+    if let Some(outer_stem) = stem[..stem.len() - owner.len()].strip_suffix("::") {
+        let outer = name_run(outer_stem);
+        let outer_at = BytePos::try_from(outer_stem.len() - outer.len()).ok()?;
+        let class = class_word(analysed, outer, outer_at)
+            .or_else(|| resolved_name(analysed, outer, outer_at));
+        return class.map(|class| QName::member(&class, owner));
+    }
     class_word(analysed, owner, at).or_else(|| resolved_name(analysed, owner, at))
 }
 

@@ -1,0 +1,16 @@
+--TEST--
+an owned enum written through its class in type position offers the cases it declares, because one case is a type of its own, `rule:enums/class-scoped-enum`, `rule:types/single-value-types`
+--FILE--
+<?nvs
+class Order {
+    enum Status { Draft = 1, Paid = 2 }
+}
+
+class Invoice {
+    public function settle(Order::Status::<|>
+}
+--REQUEST--
+completion
+--EXPECT--
+Draft = 1 enumMember
+Paid = 2 enumMember
