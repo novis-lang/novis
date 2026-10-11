@@ -2,17 +2,17 @@
 `Core\Response::redirect` admits every case of its closed status set, and the codes it leaves out stay spellable beside it -- spec § 15
 --FILE--
 <?nvs
-// covers: Core\Response\Redirect
+// covers: Core\Response::Redirect
 // Invariance over the whole set rather than three answers read off three
 // lines: every case of the enum is a status this member converts, so a case
 // declared without an arm behind it fails here rather than on the wire.
-array<Core\Response\Redirect> $set = [
-    Core\Response\Redirect::SeeOther,
-    Core\Response\Redirect::Temporary,
-    Core\Response\Redirect::Permanent,
+array<Core\Response::Redirect> $set = [
+    Core\Response::Redirect::SeeOther,
+    Core\Response::Redirect::Temporary,
+    Core\Response::Redirect::Permanent,
 ];
 uint $admitted = 0;
-foreach ($set as Core\Response\Redirect $status) {
+foreach ($set as Core\Response::Redirect $status) {
     Core\Response::redirect("/next", $status);
     $admitted = $admitted + 1;
 }
@@ -37,7 +37,7 @@ array<string> $carried = ["/next", "/next?a=b&c=d", "https://example.test/next",
 uint $sent = 0;
 foreach ($carried as string $where) {
     try {
-        Core\Response::redirect($where, Core\Response\Redirect::Temporary);
+        Core\Response::redirect($where, Core\Response::Redirect::Temporary);
         $sent = $sent + 1;
     } catch (LogicError $unwritable) {
     }

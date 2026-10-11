@@ -7,7 +7,7 @@ string $order = "ORD-1042";
 
 // After a `SeeOther` redirect, the browser loads the new page with a plain `GET`.
 // This is what you want to show the saved order.
-Core\Response::redirect("/orders/" . $order, Core\Response\Redirect::SeeOther);
+Core\Response::redirect("/orders/" . $order, Core\Response::Redirect::SeeOther);
 
 // This is the short way to write the same redirect. `SeeOther` is the default.
 // The second call replaces the first.

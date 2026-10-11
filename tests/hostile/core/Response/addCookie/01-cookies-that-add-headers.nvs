@@ -65,7 +65,7 @@ try {
 
 // 9. `SameSite::None` without `secure`, which every browser drops.
 try {
-    Core\Response::addCookie('sid', 'abc', { sameSite: Core\Response\SameSite::None, secure: false });
+    Core\Response::addCookie('sid', 'abc', { sameSite: Core\Response::SameSite::None, secure: false });
 } catch (LogicError $error) {
     $refused = $refused + 1;
 }

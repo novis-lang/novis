@@ -4,41 +4,41 @@
 // it, a form on it, or a script on it calling your server.
 
 class Travel {
-    public static function label(Core\Response\SameSite $choice): string {
+    public static function label(Core\Response::SameSite $choice): string {
         return match ($choice) {
-            Core\Response\SameSite::Lax => "Lax   ",
-            Core\Response\SameSite::Strict => "Strict",
-            Core\Response\SameSite::None => "None  ",
+            Core\Response::SameSite::Lax => "Lax   ",
+            Core\Response::SameSite::Strict => "Strict",
+            Core\Response::SameSite::None => "None  ",
         };
     }
 
     // Somebody on another site clicks a link to one of your pages.
-    public static function onAClickFromElsewhere(Core\Response\SameSite $choice): bool {
+    public static function onAClickFromElsewhere(Core\Response::SameSite $choice): bool {
         return match ($choice) {
-            Core\Response\SameSite::Lax => true,
-            Core\Response\SameSite::Strict => false,
-            Core\Response\SameSite::None => true,
+            Core\Response::SameSite::Lax => true,
+            Core\Response::SameSite::Strict => false,
+            Core\Response::SameSite::None => true,
         };
     }
 
     // Another site's page posts a form to you, or asks your server for
     // something from a script. This is the one that matters for safety.
-    public static function onAPostFromElsewhere(Core\Response\SameSite $choice): bool {
+    public static function onAPostFromElsewhere(Core\Response::SameSite $choice): bool {
         return match ($choice) {
-            Core\Response\SameSite::Lax => false,
-            Core\Response\SameSite::Strict => false,
-            Core\Response\SameSite::None => true,
+            Core\Response::SameSite::Lax => false,
+            Core\Response::SameSite::Strict => false,
+            Core\Response::SameSite::None => true,
         };
     }
 }
 
-array<Core\Response\SameSite> $choices = [
-    Core\Response\SameSite::Lax,
-    Core\Response\SameSite::Strict,
-    Core\Response\SameSite::None,
+array<Core\Response::SameSite> $choices = [
+    Core\Response::SameSite::Lax,
+    Core\Response::SameSite::Strict,
+    Core\Response::SameSite::None,
 ];
 
-foreach ($choices as Core\Response\SameSite $choice) {
+foreach ($choices as Core\Response::SameSite $choice) {
     echo Travel::label($choice),
         "  click from another site: ", Travel::onAClickFromElsewhere($choice) ? "yes" : "no ",
         "  post from another site: ", Travel::onAPostFromElsewhere($choice) ? "yes" : "no",

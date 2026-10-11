@@ -4,41 +4,41 @@
 // Is the new address the one to use from now on?
 
 class Redirects {
-    public static function label(Core\Response\Redirect $kind): string {
+    public static function label(Core\Response::Redirect $kind): string {
         return match ($kind) {
-            Core\Response\Redirect::SeeOther => "SeeOther ",
-            Core\Response\Redirect::Temporary => "Temporary",
-            Core\Response\Redirect::Permanent => "Permanent",
+            Core\Response::Redirect::SeeOther => "SeeOther ",
+            Core\Response::Redirect::Temporary => "Temporary",
+            Core\Response::Redirect::Permanent => "Permanent",
         };
     }
 
     // `Temporary` and `Permanent` make the browser send the request again, with the same method and body.
     // `SeeOther` makes the browser load the new page with a plain `GET`.
-    public static function repeatsTheRequest(Core\Response\Redirect $kind): bool {
+    public static function repeatsTheRequest(Core\Response::Redirect $kind): bool {
         return match ($kind) {
-            Core\Response\Redirect::SeeOther => false,
-            Core\Response\Redirect::Temporary => true,
-            Core\Response\Redirect::Permanent => true,
+            Core\Response::Redirect::SeeOther => false,
+            Core\Response::Redirect::Temporary => true,
+            Core\Response::Redirect::Permanent => true,
         };
     }
 
     // Only `Permanent` tells the browser that the old address is gone for good.
-    public static function isForGood(Core\Response\Redirect $kind): bool {
+    public static function isForGood(Core\Response::Redirect $kind): bool {
         return match ($kind) {
-            Core\Response\Redirect::SeeOther => false,
-            Core\Response\Redirect::Temporary => false,
-            Core\Response\Redirect::Permanent => true,
+            Core\Response::Redirect::SeeOther => false,
+            Core\Response::Redirect::Temporary => false,
+            Core\Response::Redirect::Permanent => true,
         };
     }
 }
 
-array<Core\Response\Redirect> $kinds = [
-    Core\Response\Redirect::SeeOther,
-    Core\Response\Redirect::Temporary,
-    Core\Response\Redirect::Permanent,
+array<Core\Response::Redirect> $kinds = [
+    Core\Response::Redirect::SeeOther,
+    Core\Response::Redirect::Temporary,
+    Core\Response::Redirect::Permanent,
 ];
 
-foreach ($kinds as Core\Response\Redirect $kind) {
+foreach ($kinds as Core\Response::Redirect $kind) {
     echo Redirects::label($kind),
         "  repeats the request: ", Redirects::repeatsTheRequest($kind) ? "yes" : "no ",
         "  the new address is the one from now on: ", Redirects::isForGood($kind) ? "yes" : "no",

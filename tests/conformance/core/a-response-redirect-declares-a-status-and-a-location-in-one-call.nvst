@@ -16,7 +16,7 @@ echo "a redirect wrote [", $quiet, "]\n";
 // and both admitted.
 var $both = Core\Out::capture(fn (): void => {
     Core\Response::redirect("/signed-in");
-    Core\Response::redirect("/signed-in", Core\Response\Redirect::SeeOther);
+    Core\Response::redirect("/signed-in", Core\Response::Redirect::SeeOther);
 });
 echo "with and without the status wrote [", $both, "]\n";
 
@@ -37,7 +37,7 @@ echo "one destination named ", $accepted, " times\n";
 // And a redirect beside a body leaves the body alone, byte for byte: which of
 // the two the peer is given is the server's question, not this member's.
 var $withBody = Core\Out::capture(fn (): void => {
-    Core\Response::redirect("/elsewhere", Core\Response\Redirect::Permanent);
+    Core\Response::redirect("/elsewhere", Core\Response::Redirect::Permanent);
     Core\Response::text("moved");
 });
 echo "a body under a redirect is [", $withBody, "]\n";

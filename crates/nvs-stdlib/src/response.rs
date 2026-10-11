@@ -900,10 +900,10 @@ const ADD_COOKIE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Response\SameSite`'s fully-qualified name, written once — [`SAME_SITE`]
+/// `Core\Response::SameSite`'s fully-qualified name, written once — [`SAME_SITE`]
 /// declares it and the [`CoreTy::Enum`] naming it resolves against
 /// [`crate::registry::ENUMS`], so the two cannot drift apart.
-pub(crate) const SAME_SITE_NAME: &str = r"Core\Response\SameSite";
+pub(crate) const SAME_SITE_NAME: &str = r"Core\Response::SameSite";
 
 /// `rule:http-server/cookies-are-secure-httponly-and-lax`'s `SameSite`, as the enum the spec says it is and never the
 /// string `[http.cookies]` writes.
@@ -948,10 +948,10 @@ const SAME_SITE_CASES_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Core\Response\Redirect`'s fully-qualified name, written once — [`REDIRECT`]
+/// `Core\Response::Redirect`'s fully-qualified name, written once — [`REDIRECT`]
 /// declares it and the [`CoreTy::Enum`] naming it resolves against
 /// [`crate::registry::ENUMS`], so the two cannot drift apart.
-pub(crate) const REDIRECT_NAME: &str = r"Core\Response\Redirect";
+pub(crate) const REDIRECT_NAME: &str = r"Core\Response::Redirect";
 
 /// The closed set of statuses [`nvs_core_response_redirect`] will declare —
 /// the module doc owns which three and why the other five `3xx` codes are not
@@ -1301,7 +1301,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::redirect(string $url, Core\Response\Redirect $status): void`
+    /// `Core\Response::redirect(string $url, Core\Response::Redirect $status): void`
     /// — spec § 15's redirect, replacing a `Location` written through `header`
     /// beside an `http_response_code`.
     ///
@@ -1490,7 +1490,7 @@ fn same_site_of(value: &Value) -> Result<Option<nvs_config::http::SameSite>, Fau
         Some(1) => Ok(Some(SameSite::Strict)),
         Some(2) => Ok(Some(SameSite::None)),
         _ => Err(Fault::fatal(format!(
-            "{ADD_COOKIE}: expected a `Core\\Response\\SameSite` case, got tag {}",
+            "{ADD_COOKIE}: expected a `Core\\Response::SameSite` case, got tag {}",
             value.tag_byte()
         ))),
     }
@@ -1548,7 +1548,7 @@ fn attributable(value: &str) -> bool {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Response::addCookie(string $name, string $value, {secure?: bool,
-    /// httpOnly?: bool, sameSite?: Core\Response\SameSite, path?: string,
+    /// httpOnly?: bool, sameSite?: Core\Response::SameSite, path?: string,
     /// domain?: string, maxAge?: Core\Time\Duration}): void` — spec § 15's
     /// cookie, replacing `setcookie` and `setrawcookie` both.
     ///

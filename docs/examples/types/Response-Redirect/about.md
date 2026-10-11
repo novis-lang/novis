@@ -1,5 +1,8 @@
 Which kind of redirect a response is, when it answers by sending the visitor somewhere else.
 
+`Core\Response::Redirect` is declared in the class `Core\Response`. The method `redirect` takes it
+as its `status` argument.
+
 There are three. `SeeOther` sends the browser to fetch another page with a plain `GET`, whatever
 method asked — the answer to a saved form, and what you get when you name no case at all.
 `Temporary` asks for the same request again, method and body intact, at the new address this once.

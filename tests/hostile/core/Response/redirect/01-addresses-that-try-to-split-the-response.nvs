@@ -15,7 +15,7 @@ array<string> $urls = [
 ];
 foreach ($urls as string $url) {
     try {
-        Core\Response::redirect($url, Core\Response\Redirect::Permanent);
+        Core\Response::redirect($url, Core\Response::Redirect::Permanent);
         throw new RuntimeError('an address that could split the header line was set');
     } catch (LogicError $badUrl) {
     }
@@ -23,10 +23,10 @@ foreach ($urls as string $url) {
 
 // 2. An address of one million characters, set one thousand times with each kind of redirect.
 string $long = '/' . Core\Str::repeat('a', 1000000);
-array<Core\Response\Redirect> $kinds = [
-    Core\Response\Redirect::SeeOther,
-    Core\Response\Redirect::Temporary,
-    Core\Response\Redirect::Permanent,
+array<Core\Response::Redirect> $kinds = [
+    Core\Response::Redirect::SeeOther,
+    Core\Response::Redirect::Temporary,
+    Core\Response::Redirect::Permanent,
 ];
 uint $n = 0;
 while ($n < 1000) {

@@ -1,7 +1,7 @@
 Sends the browser to another address. It sets two things at once: a redirect status, and the
 `Location` header with the new address. The browser then asks for the new address by itself.
 
-There are three kinds of redirect, and `Core\Response\Redirect` names them. `SeeOther` (303) is the
+There are three kinds of redirect, and `Core\Response::Redirect` names them. `SeeOther` (303) is the
 default. You use it after a form is sent, so the browser loads the next page with `GET`. `Temporary`
 (307) and `Permanent` (308) repeat the same request at the new address. `Permanent` also tells the
 browser to use the new address from now on.

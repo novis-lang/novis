@@ -33706,7 +33706,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "redirect(string $url, Core\\Response\\Redirect $status = Core\\Response\\Redirect::SeeOther): void",
+          "signature": "redirect(string $url, Core\\Response::Redirect $status = Core\\Response::Redirect::SeeOther): void",
           "params": [
             {
               "kind": "param",
@@ -33719,8 +33719,8 @@
             {
               "kind": "param",
               "name": "status",
-              "type": "Core\\Response\\Redirect",
-              "default": "Core\\Response\\Redirect::SeeOther",
+              "type": "Core\\Response::Redirect",
+              "default": "Core\\Response::Redirect::SeeOther",
               "optional": true,
               "variadic": false
             }
@@ -33762,7 +33762,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "addCookie(string $name, string $value, {secure?: bool, httpOnly?: bool, sameSite?: Core\\Response\\SameSite, path?: string, domain?: string, maxAge?: Core\\Time\\Duration}): void",
+          "signature": "addCookie(string $name, string $value, {secure?: bool, httpOnly?: bool, sameSite?: Core\\Response::SameSite, path?: string, domain?: string, maxAge?: Core\\Time\\Duration}): void",
           "params": [
             {
               "kind": "param",
@@ -33792,7 +33792,7 @@
             },
             {
               "name": "sameSite",
-              "type": "Core\\Response\\SameSite"
+              "type": "Core\\Response::SameSite"
             },
             {
               "name": "path",

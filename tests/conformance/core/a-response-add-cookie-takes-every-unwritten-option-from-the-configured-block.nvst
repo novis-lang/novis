@@ -2,7 +2,7 @@
 `Core\Response::addCookie` takes every option its call site left out from `[http.cookies]`, and the defaults are observable through the two rules that read them -- `rule:http-server/cookies-are-secure-httponly-and-lax`, spec § 15
 --FILE--
 <?nvs
-// covers: Core\Response\SameSite
+// covers: Core\Response::SameSite
 // Invariance over a sweep, and the sweep is the options bag. Nothing here reads
 // a header back — that crossing is asserted in `nvs-server`, where a response
 // exists — so what pins the defaults is that two *rules* read them, and each
@@ -13,7 +13,7 @@
 // configured, `rule:http-server/cookies-are-secure-httponly-and-lax` says it does.
 uint $admitted = 0;
 try {
-    Core\Response::addCookie("sid", "abc", {sameSite: Core\Response\SameSite::None});
+    Core\Response::addCookie("sid", "abc", {sameSite: Core\Response::SameSite::None});
     $admitted = $admitted + 1;
 } catch (LogicError $dropped) {
 }
@@ -23,7 +23,7 @@ echo "SameSite::None alone was admitted ", $admitted, " time\n";
 // rule the boot refusal uses on the same two keys.
 uint $pair = 0;
 try {
-    Core\Response::addCookie("sid", "abc", {sameSite: Core\Response\SameSite::None, secure: false});
+    Core\Response::addCookie("sid", "abc", {sameSite: Core\Response::SameSite::None, secure: false});
 } catch (LogicError $meaningless) {
     $pair = $pair + 1;
 }
@@ -32,12 +32,12 @@ echo "SameSite::None without Secure was refused ", $pair, " of 1\n";
 // The pair is `None`'s alone: the other two cases are an ordinary cookie
 // without `Secure`, so a member that had refused on `secure: false` generally
 // would fail here while still looking right on the line above.
-array<Core\Response\SameSite> $cases = [
-    Core\Response\SameSite::Lax,
-    Core\Response\SameSite::Strict,
+array<Core\Response::SameSite> $cases = [
+    Core\Response::SameSite::Lax,
+    Core\Response::SameSite::Strict,
 ];
 uint $insecure = 0;
-foreach ($cases as Core\Response\SameSite $case) {
+foreach ($cases as Core\Response::SameSite $case) {
     try {
         Core\Response::addCookie("sid", "abc", {sameSite: $case, secure: false});
         $insecure = $insecure + 1;

@@ -19577,8 +19577,8 @@ Keywords: html, json, text, bytes, sendFile, stream, setStatus, slotted, setHead
 | [`Core\Response::setStatus`](#core-core-response-setstatus) | `setStatus(uint $code): void` |
 | [`Core\Response::slotted`](#core-core-response-slotted) | `slotted(): void` |
 | [`Core\Response::setHeader`](#core-core-response-setheader) | `setHeader(string $name, string $value): void` |
-| [`Core\Response::redirect`](#core-core-response-redirect) | `redirect(string $url, Core\Response\Redirect $status = Core\Response\Redirect::SeeOther): void` |
-| [`Core\Response::addCookie`](#core-core-response-addcookie) | `addCookie(string $name, string $value, {secure?: bool, httpOnly?: bool, sameSite?: Core\Response\SameSite, path?: string, domain?: string, maxAge?: Core\Time\Duration}): void` |
+| [`Core\Response::redirect`](#core-core-response-redirect) | `redirect(string $url, Core\Response::Redirect $status = Core\Response::Redirect::SeeOther): void` |
+| [`Core\Response::addCookie`](#core-core-response-addcookie) | `addCookie(string $name, string $value, {secure?: bool, httpOnly?: bool, sameSite?: Core\Response::SameSite, path?: string, domain?: string, maxAge?: Core\Time\Duration}): void` |
 
 <a id="core-core-response-html"></a>
 #### `Core\Response::html`
@@ -19731,7 +19731,7 @@ Sets the response header `$name` to `$value`. If the server already sets this he
 #### `Core\Response::redirect`
 
 ```nvs skip
-Core\Response::redirect(string $url, Core\Response\Redirect $status = Core\Response\Redirect::SeeOther): void
+Core\Response::redirect(string $url, Core\Response::Redirect $status = Core\Response::Redirect::SeeOther): void
 ```
 
 Sends the browser to another address. It sets the redirect status and the `Location` header together. It does not write a body.
@@ -19739,7 +19739,7 @@ Sends the browser to another address. It sets the redirect status and the `Locat
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$url` | `string` (sink) | The address to send the browser to. It can be a full URL or a path such as `/orders/42`. It is not empty and contains only printable ASCII characters. A `tainted` value is not allowed, because a visitor must not choose where the browser goes. |
-| `$status` | `Core\Response\Redirect` (default `Core\Response\Redirect::SeeOther`) | The kind of redirect: `SeeOther` (303), `Temporary` (307) or `Permanent` (308). The default is `SeeOther`, which you use after a form is sent. |
+| `$status` | `Core\Response::Redirect` (default `Core\Response::Redirect::SeeOther`) | The kind of redirect: `SeeOther` (303), `Temporary` (307) or `Permanent` (308). The default is `SeeOther`, which you use after a form is sent. |
 
 **Returns** `void` — Nothing. If you call it more than once, the last call wins. If the request fails with an error, the status is `500` and there is no `Location` header.
 
@@ -19749,7 +19749,7 @@ Sends the browser to another address. It sets the redirect status and the `Locat
 #### `Core\Response::addCookie`
 
 ```nvs skip
-Core\Response::addCookie(string $name, string $value, {secure?: bool, httpOnly?: bool, sameSite?: Core\Response\SameSite, path?: string, domain?: string, maxAge?: Core\Time\Duration}): void
+Core\Response::addCookie(string $name, string $value, {secure?: bool, httpOnly?: bool, sameSite?: Core\Response::SameSite, path?: string, domain?: string, maxAge?: Core\Time\Duration}): void
 ```
 
 Adds one `Set-Cookie` to this response, every option it leaves out taken from `[http.cookies]` — so a cookie written with no options is `Secure; HttpOnly; SameSite=Lax; Path=/`.
@@ -19760,7 +19760,7 @@ Adds one `Set-Cookie` to this response, every option it leaves out taken from `[
 | `$value` | `string` (sink) | The value, as the bytes RFC 6265 admits — printable ASCII without a space, a comma, a semicolon, a backslash or a quote, since each of those ends the value and begins something the program did not write. |
 | `{secure: …}` | `bool` (default `null`) | Whether the cookie is sent over HTTPS alone. Defaults to `[http.cookies] secure`, which is `true` with nothing configured. |
 | `{httpOnly: …}` | `bool` (default `null`) | Whether the cookie is hidden from script. Defaults to `[http.cookies] http_only`, which is `true` with nothing configured — a cookie that genuinely needs to be readable says so here, in one field, visibly. |
-| `{sameSite: …}` | `Core\Response\SameSite` (default `null`) | Which cross-site requests carry it. Defaults to `[http.cookies] same_site`, which is `Lax` with nothing configured. `None` without `Secure` is refused, for the reason the same pair is refused at boot: every browser drops it. |
+| `{sameSite: …}` | `Core\Response::SameSite` (default `null`) | Which cross-site requests carry it. Defaults to `[http.cookies] same_site`, which is `Lax` with nothing configured. `None` without `Secure` is refused, for the reason the same pair is refused at boot: every browser drops it. |
 | `{path: …}` | `string` (default `null`, sink) | The path prefix the cookie is sent under. Defaults to `[http.cookies] path`, which is `/` with nothing configured. |
 | `{domain: …}` | `string` (default `null`, sink) | The domain the cookie is sent to. Omitted by default, which is the narrower of the two meanings — this host and no subdomain — and `[http.cookies]` deliberately configures no default for it. |
 | `{maxAge: …}` | `Core\Time\Duration` (default `null`) | How long the cookie lives. Omitted by default, which is a session cookie. `0s` is the spelling that deletes one; a negative duration is refused rather than read as that second spelling. |
@@ -29444,26 +29444,26 @@ The one access decision `Core` names for `#[Access(allow: …)]`: a route open t
 | `Core\Audience::Public` | The route is open to every caller; every other decision is the application's own enum case or class constant. |
 
 <a id="enum-core-response-redirect"></a>
-#### `Core\Response\Redirect`
+#### `Core\Response::Redirect`
 
 Which redirect a response is. The three cases are the redirect statuses whose meaning is defined without reference to what browsers historically did with them, so what a program writes is what every peer performs.
 
 | Case | Meaning |
 |---|---|
-| `Core\Response\Redirect::SeeOther` | `303` — the other resource is fetched with a `GET`, whatever method asked. The answer to a form post, and the default. |
-| `Core\Response\Redirect::Temporary` | `307` — repeat this request, method and body intact, at the new address this time only. Nothing is cached and nothing is renamed. |
-| `Core\Response\Redirect::Permanent` | `308` — repeat this request, method and body intact, and the new address is the one from now on. Caches and crawlers are entitled to remember it. |
+| `Core\Response::Redirect::SeeOther` | `303` — the other resource is fetched with a `GET`, whatever method asked. The answer to a form post, and the default. |
+| `Core\Response::Redirect::Temporary` | `307` — repeat this request, method and body intact, at the new address this time only. Nothing is cached and nothing is renamed. |
+| `Core\Response::Redirect::Permanent` | `308` — repeat this request, method and body intact, and the new address is the one from now on. Caches and crawlers are entitled to remember it. |
 
 <a id="enum-core-response-samesite"></a>
-#### `Core\Response\SameSite`
+#### `Core\Response::SameSite`
 
 Which cross-site requests carry a cookie. The three cases are the attribute's own, and the default is `Lax` because a cookie that travels on a cross-site subrequest is what CSRF is made of.
 
 | Case | Meaning |
 |---|---|
-| `Core\Response\SameSite::Lax` | Sent with a top-level navigation to this site and with nothing else — not with an image, a form post or a `fetch` from somewhere else. The default, configured or not. |
-| `Core\Response\SameSite::Strict` | Never sent cross-site at all, a navigation included. A visitor arriving from a link therefore arrives logged out, which is the cost that makes this the deliberate choice rather than the default. |
-| `Core\Response\SameSite::None` | Sent cross-site. Requires `Secure`, and is refused without it here and at boot alike, because a browser drops the pair rather than honouring it. |
+| `Core\Response::SameSite::Lax` | Sent with a top-level navigation to this site and with nothing else — not with an image, a form post or a `fetch` from somewhere else. The default, configured or not. |
+| `Core\Response::SameSite::Strict` | Never sent cross-site at all, a navigation included. A visitor arriving from a link therefore arrives logged out, which is the cost that makes this the deliberate choice rather than the default. |
+| `Core\Response::SameSite::None` | Sent cross-site. Requires `Secure`, and is refused without it here and at boot alike, because a browser drops the pair rather than honouring it. |
 
 <a id="enum-core-cli-stream"></a>
 #### `Core\Cli\Stream`
