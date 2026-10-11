@@ -2,7 +2,6 @@
   "title": "A shutdown or a reload closes a connection with a defined code after a drain, never with a reset",
   "status": "shipped",
   "because": [
-    "0205",
     "0206",
     "0209"
   ],
@@ -11,6 +10,7 @@
     "concurrency/a-connection-keeps-its-compiled-unit"
   ],
   "guardedBy": [
-    "crates/nvs-server/src/serve.rs"
+    "crates/nvs-server/src/serve.rs",
+    "crates/nvs-cli/src/serve.rs"
   ]
 }

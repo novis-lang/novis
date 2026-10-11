@@ -43,8 +43,18 @@ distribution that lowered it. An operator whose requests legitimately run longer
 rather than discovering a `SIGKILL`. A deployment killed inside the bound means the wake is not
 reaching some parked wait, which is a defect and not a tuning question.
 
+- **Memory:** an HTTP connection holds one `bool` for the close it has asked for, and each poll of
+  it reads the drain bit once, which the idle poll already paid.
+
 **Declined:**
 - **A fixed drain constant in the server.** Bounded, but an operator could not raise it for a
   deployment whose requests are legitimately long, and the answer to that is a directive.
 - **`keepalive_timeout` as the drain period.** It bounds a connection doing nothing, and the drain
   bounds connections doing something (`rule:http-server/the-server-block-is-boot-class`).
+- **A shorter default drain period, so an idle connection costs less.** The period bounds a request
+  that is working, and a shorter one cuts a slow response short on every restart.
+- **Closing an idle connection from the accept loop.** The socket belongs to the connection's own
+  task, and a close reached in from outside is the reset this rule prevents.
+- **`Connection: close` on the last response.** It covers only a response written after the drain
+  began, so a connection that had already answered, and one a browser opened and never used, would
+  still wait.
