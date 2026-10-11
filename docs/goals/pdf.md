@@ -13,7 +13,7 @@ stages:
         shapes: [A rule fragment]
   - id: 3
     title: SVG and PDF open as images
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/image-format-roster, core-classes/image-pixel-cap, core-classes/pdf-page-is-an-image-source, core-classes/pdf-decode-refusals]
@@ -791,27 +791,29 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 3's SVG half and `page` and `dpi` are on disk, and `looper verify` is green.** The PDF half and the fonts are not on disk. `image-svg-and-pdf-open-as-images` is still red, because its PDF case does not exist yet. `nvs-ext-svg-and-pdf-decode-as-images` is red for the same reason: `an_svg_decodes_and_an_external_href_throws` passes, and the eight PDF tests are not written.
+**Stage 3 is done: SVG and a chosen PDF page open as images, and both of its checks pass.** `looper verify` is green.
 
-- **The prerequisites hold.** `hayro` 0.8 with `default-features = false` built for `wasm32-wasip2` (rustc 1.97.1, `hayro` needs 1.92), and `cargo deny --manifest-path extensions/image/Cargo.toml --target wasm32-wasip2 --locked check` passed with it in the graph. It was taken out again because nothing calls it yet, and `rule:core-classes/pdf-page-is-an-image-source`'s *Not shipped* line records the result. Its default features are `embed-fonts`, `embed-cmaps` and `simd`, so the PDF slice decides whether `embed-cmaps` is needed and gives Liberation to its font resolver in place of `embed-fonts`.
-- SVG decodes in `extensions/image/src/svg.rs` through `resvg` 0.48 with no default features. Its `<image>` resolver reads `data:` URIs only and throws `RuntimeError` naming any other `href`. `<text>` is not drawn, because `usvg`'s `text` feature is off until the fonts exist.
-- `page` and `dpi` cross: `Origin`'s encoded case has `page?: uint, dpi?: float`, and `Image::open` always sends them (1 and 150), because Novis has no way to build a shape with an optional key left out except branching. The guest returns `invalid` for page 0 and a `dpi` that is not more than 0, and a page past 1 of any format but PDF throws via `past_end` (`extensions/image/src/lib.rs:221`).
-- The image component is 6.6 MiB embedded (`resvg` added about 0.8 MiB), recorded in `extensions/image/src/lib.rs`'s module doc.
-- `looper lint` reports AGENTS.md's managed text as edited by hand, and `bun nv plan --check` has six findings for M4, M8 and M10. Both predate this goal's sessions and are not touched here.
+- A PDF page rasterises through `hayro` 0.8 with its default features off, in `extensions/image/src/pdf.rs`. It is priced at `ceil(w × dpi / 72) × ceil(h × dpi / 72)` before the render context exists, drawn on white, and a side may be at most 65535 pixels. `info` returns the page count and the first page's box in points. `decode_page` in `extensions/image/src/decode.rs` carries `page` and `dpi`, and `known_size` in `extensions/image/src/lib.rs` prices a PDF's chosen page.
+- An encrypted PDF is opened with a password nobody sets, so one with an empty user password throws `ParseError` too. `extensions/image/fixtures/encrypted.pdf` is that case, made with Ghostscript.
+- The bomb corpus pins each outcome in `crates/nvs-ext/tests/image_decode.rs`. Nested forms reach the CPU limit, and the deflate bomb reaches the memory limit. A self-drawing form, an xref loop and a stream-length lie are drawn whole, because `hayro` cuts or repairs them. `rule:core-classes/pdf-decode-refusals` now says a repaired page drawn correctly is an allowed end. The user should know this changed.
+- The 12 Liberation fonts are under `extensions/fonts/`, with `SOURCE.json` naming release 2.1.5. `bun nv gen-attribution` reads them through `FONT_DIRS`. The image component embeds them as `hayro`'s standard-14 replacements.
+- The image component is 13.7 MiB embedded, up from 6.6. The fonts are 4.3 MiB of that and `hayro` most of the rest.
+- `looper lint` reports AGENTS.md's managed text as edited by hand. `bun nv plan --check` has six findings for M4, M8 and M10. Both predate this goal.
+- `nvs-stdlib`'s `ldap` test binary failed once under the full verify's load and passed alone, and passed on the next run.
 
 ### Next
 
-**Stage 3, the PDF half**: the file set is `extensions/image/Cargo.toml`, `extensions/image/src/decode.rs`, `extensions/image/src/info.rs`, `extensions/image/src/lib.rs`, a new `extensions/image/src/pdf.rs`, `extensions/fonts/` and `crates/nvs-ext/tests/image_decode.rs`.
+**Stage 4, shaping and barcodes in `Novis\Image`**: the file set is `extensions/image/src/text.rs`, `extensions/image/src/qr.rs`, a new `extensions/image/src/barcode.rs`, `extensions/image/src/lib.rs`, `extensions/image/nvs/QrCode.nvs`, a new `extensions/image/nvs/Barcode.nvs`, `crates/nvs-ext/tests/image_analysis.rs` and a new `crates/nvs-ext/tests/image_barcode.rs`.
 
-- [ ] **The Liberation fonts under `extensions/fonts/`**, four styles of Sans, Serif and Mono, with their OFL notice through `bun nv gen-attribution`, which ranks the licence at `tools/nv/cmd/gen-attribution.ts:89` (`rule:core-classes/pdf-default-fonts`).
-- [ ] **A PDF page rasterises through `hayro`**: `sniff` at `extensions/image/src/decode.rs:61` learns `%PDF-`, `decode` at `extensions/image/src/decode.rs:125` gains the PDF arm with `page` and `dpi`, the pixel price `ceil(w × dpi / 72) × ceil(h × dpi / 72)` is checked before a buffer, a page past the end throws through `past_end` at `extensions/image/src/lib.rs:221`, and an encrypted file throws `ParseError` (`rule:core-classes/pdf-page-is-an-image-source`, `rule:core-classes/pdf-decode-refusals`).
-- [ ] **`info` counts pages without a pixel** at `extensions/image/src/info.rs:31`, and the bomb corpus and the eight PDF tests named by `nvs-ext-svg-and-pdf-decode-as-images` go into `crates/nvs-ext/tests/image_decode.rs`.
-- [ ] **`tests/conformance/novis/image-a-pdf-page-opens-as-an-image.nvst`**, beside the SVG case already on disk, opening a chosen page through `Image::open` at `extensions/image/nvs/Image.nvs:63`.
+- [ ] **`Image::text` shapes through `harfrust`** with `unicode-bidi`, replacing the Latin-only kerning in `measure` at `extensions/image/src/text.rs:305` and `render` at `extensions/image/src/text.rs:314`. The checks are `text_shapes_arabic_right_to_left_with_joined_letters`, `text_shapes_devanagari_with_its_conjuncts` and `latin_text_keeps_its_kerning_under_the_shaper` (`rule:core-classes/image-one-entry-point-per-job`). Each new crate owes `cargo deny` over the component's graph and `bun nv gen-attribution`.
+- [ ] **The `barcode` export's real body** replaces the stub at `extensions/image/src/lib.rs:804`, for the `barcode` function at `wit/image.wit:353`. Use `barcoders` for the 1D codes and `datamatrix` for DataMatrix. A wrong check digit throws naming it (`rule:core-classes/image-barcode-roster`).
+- [ ] **QR codes render as SVG**, beside `render` at `extensions/image/src/qr.rs:60`, with the GiroCode EPC helper in `extensions/image/nvs/QrCode.nvs`. Then add `tests/conformance/novis/image-a-barcode-renders-as-svg.nvst`.
 
 ### Backlog
 
 - SVG `<text>`: turn on `usvg`'s `text` feature with the Liberation fonts as its only `fontdb` (`rule:core-classes/image-format-roster`).
-- Stage 4: `harfrust` shaping and the barcode export's real body, with QR's SVG output (`rule:core-classes/image-barcode-roster`).
+- The PDF fixtures still owed by `rule:core-classes/pdf-decode-refusals`: an external reference, a JavaScript action and an embedded file, and one per object that throws. The guest-against-native benchmark is owed by `rule:core-classes/pdf-page-is-an-image-source`.
+- `hayro`'s `embed-cmaps`, which draws CJK text in a predefined CMap, is not taken. Its size is not measured (`rule:core-classes/pdf-page-is-an-image-source`).
 - Stages 5 to 13: `extensions/pdf/` built in, with its own `cargo deny` check, then the cascade, layout, pagination, header functions, tables, standards and existing PDFs.
 - Stages 14 to 16: growth and benches, the editor's custom data, the feature proofs.
 - veraPDF as an external validator of PDF/A and PDF/UA output in CI is not in the acceptance. `krilla`'s own validation is. Adding it is the user's call.
