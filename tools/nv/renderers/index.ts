@@ -8,9 +8,10 @@
 import type { Renderer } from "../lib/render.ts";
 import { recordSchemas } from "./record-schemas.ts";
 import { specTables } from "./spec-tables.ts";
+import { websiteCompare } from "./website-compare.ts";
 import { websiteCore } from "./website-core.ts";
 import { websiteGrammar } from "./website-grammar.ts";
 
-export const RENDERERS: Renderer[] = [specTables, websiteGrammar, recordSchemas];
+export const RENDERERS: Renderer[] = [specTables, websiteGrammar, websiteCompare, recordSchemas];
 
-export const WEBSITE_RENDERERS: Renderer[] = [websiteGrammar, websiteCore];
+export const WEBSITE_RENDERERS: Renderer[] = [websiteGrammar, websiteCompare, websiteCore];

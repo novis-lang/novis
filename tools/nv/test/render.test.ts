@@ -8,6 +8,7 @@ import { recordFiles, SCHEMA_DIR } from "../lib/store.ts";
 import { recordSchemas, renderRecordSchemas } from "../renderers/record-schemas.ts";
 import { RECORDS } from "../schema/index.ts";
 import { parseSignature } from "../renderers/website-core.ts";
+import { renderWebsiteCompare } from "../renderers/website-compare.ts";
 import { EDITOR_GRAMMAR, renderWebsiteGrammar } from "../renderers/website-grammar.ts";
 import { scratch, type Scratch } from "./scratch.ts";
 
@@ -34,6 +35,16 @@ describe("render", () => {
     expect(Object.keys(site.repository)).toEqual(Object.keys(editor.repository));
     expect(site.comment).toBe(MARKER);
     expect(JSON.stringify(site.repository)).not.toContain('"comment"');
+  });
+
+  test("the website's comparison data is the record, marked, or says that none is recorded", () => {
+    expect(JSON.parse(renderWebsiteCompare(null).text)).toEqual({ comment: MARKER, recorded: false });
+    const record = { date: "2026-10-10T08:00:00", cases: { hello: {} }, scenarios: null };
+    const copy = JSON.parse(renderWebsiteCompare(JSON.stringify(record)).text);
+    expect(copy).toEqual({ comment: MARKER, recorded: true, ...record });
+    expect(Object.keys(copy).slice(0, 3)).toEqual(["comment", "recorded", "date"]);
+    expect(() => renderWebsiteCompare("[]")).toThrow("no cases");
+    expect(() => renderWebsiteCompare('{"date":"x"}')).toThrow("no cases");
   });
 
   test("the marker goes first, or right after front matter", () => {
