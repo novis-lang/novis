@@ -65,7 +65,7 @@
 //!   written out twice: JSON can express repetition and not sharing. Nothing
 //!   is substituted into the document to stand for the cycle, because this
 //!   document is somebody else's contract rather than our own diagnostic
-//!   format — [ADR 0164](/docs/decisions/0164.md).
+//!   format.
 //! * **An integer literal too large for `int` throws**, rather than
 //!   degrading to `float`: silent precision loss on a wire format is the bug
 //!   `JSON_BIGINT_AS_STRING` exists to work around. The refusal reaches

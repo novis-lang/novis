@@ -18,4 +18,19 @@ count of levels.
 The depth cap stays and bounds what this does not: a structure that is acyclic and simply deeper than
 any encoder should walk. After this rule the two failures are distinguishable, which is what was
 wrong with reporting a cycle as nesting. `Core\Serialize` reaches the same property through
-`rule:classes/graph-copy`'s walk rather than through this rule.
+`rule:classes/graph-copy`'s walk rather than through this rule. A cycle costs the depth it closes at,
+not the cap's worth of walking and allocation before the throw.
+
+**Memory:** the ancestor chain is at most as deep as the walk, which the depth cap already bounds, so
+the check costs nothing proportional to the size of the document, and it is released when the call
+returns.
+
+**Declined:**
+- **A reference such as `{"$cycle": N}` in the encoded document.** It is right for a record rendering
+  and wrong for a payload, and one encoder that sometimes emits a foreign key is worse than two whose
+  audiences are stated.
+- **A global seen-set.** It refuses legal documents with shared substructure and buys nothing.
+- **Raising or removing the depth cap.** The cap is not what was wrong: it is what keeps the failure
+  safe, and removing it trades a bad diagnosis for a stack overflow.
+- **Detecting cycles in `Core\Json` alone.** Every encoder a program calls holds the rule, so one that
+  is built later does not drift from the one that exists, the failure `rule:classes/graph-copy` names.

@@ -1,9 +1,7 @@
 {
   "title": "Every encoder that walks a value graph ends a cycle by identity and names the path, never by exhausting a depth cap",
   "status": "shipped",
-  "because": [
-    "0164"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/graph-copy",
     "classes/serialize-is-a-closed-format",
