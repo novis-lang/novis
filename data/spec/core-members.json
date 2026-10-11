@@ -1836,7 +1836,7 @@
         ],
         [
           "`Core\\Crypto`, `Core\\Crypto\\PublicKey`, `Core\\Crypto\\KeyPair`",
-          "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto\\Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\KeyFormat` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*`",
+          "AEAD only, no ECB, no unauthenticated CBC, no cipher-name-as-string — and no algorithm argument with a default. `generateKey`, `seal`/`open` over a required `Crypto::Cipher` (`XChaCha20Poly1305`, `Aes256Gcm`), `deriveKey` (PBKDF2-HMAC-SHA256, a required iteration count bounded at 100,000 and 2,000,000), `expandKey` (HKDF-SHA256), `generateKeyPair`/`agree` over `Crypto\\KeyKind`, and `sign`/`verify`, whose scheme is the key's kind. On the two key types: `read`/`write` over `Crypto\\PublicKey::Format` (`Raw`, `Spki`, `Jwk`) and PKCS#8, with every public key validated at `read` and no RSA pair ever generated. AES-GCM seals as `nonce(12) ‖ ciphertext ‖ tag(16)`, which is what WebCrypto answers. Replaces `openssl_*`'s primitive half and `sodium_*`",
           "`rule:core-api/tier-roster`, `rule:core-classes/crypto-interop-tier`"
         ],
         [
@@ -1934,7 +1934,7 @@
         ],
         [
           "`Core\\Mime`",
-          "`detect(bytes $data): Mime\\Type` and `mediaType(Mime\\Type $type): string` — type detection by magic bytes, from a fixed table of literal signatures rather than libmagic's rule interpreter, and never from a file extension: a type read off a name is a type an attacker chose. `Core\\Mime\\Type` is closed and its zero case is `Unknown`, so a caller compares against a case rather than against a spelling that may never occur, and a format serialized as text answers `Unknown` rather than a guess",
+          "`detect(bytes $data): Mime::Type` and `mediaType(Mime::Type $type): string` — type detection by magic bytes, from a fixed table of literal signatures rather than libmagic's rule interpreter, and never from a file extension: a type read off a name is a type an attacker chose. `Core\\Mime::Type` is closed and its zero case is `Unknown`, so a caller compares against a case rather than against a spelling that may never occur, and a format serialized as text answers `Unknown` rather than a guess",
           "detection launders nothing (`rule:security/launderers-are-sink-named`): bytes that detect as `image/png` are still `tainted`. The table's shape, and what deliberately has no case, are `crates/nvs-stdlib/src/mime.rs`'s module doc"
         ]
       ]

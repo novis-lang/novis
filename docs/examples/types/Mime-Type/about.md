@@ -2,6 +2,9 @@ What a run of bytes turned out to be, read from the bytes themselves. `Core\Mime
 with one of these cases, one per format it can recognise: images, audio and video, documents and
 archives.
 
+`Core\Mime::Type` is declared in the class `Core\Mime`. The method `detect` returns it, and the
+method `mediaType` takes it as an argument.
+
 A file name is never part of the answer. Whoever uploads a file chooses what to call it, so a type
 taken from the `.png` on the end of it is a type a stranger chose for you. Detection reads the first
 few bytes instead, which every one of these formats begins with.

@@ -16,7 +16,7 @@ array<string> $signatures = [
     '0061736d01000000',
     '1a45dfa3',
 ];
-array<Core\Mime\Type> $types = [];
+array<Core\Mime::Type> $types = [];
 foreach ($signatures as string $hex) {
     $types[] = Core\Mime::detect(Core\Encoding::fromHex($hex));
 }

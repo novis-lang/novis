@@ -11,7 +11,7 @@ array<string> $arrived = [
 ];
 
 foreach ($arrived as string $what => string $firstBytes) {
-    Core\Mime\Type $found = Core\Mime::detect(Core\Encoding::fromHex($firstBytes));
+    Core\Mime::Type $found = Core\Mime::detect(Core\Encoding::fromHex($firstBytes));
     echo $what, ": ", Core\Mime::mediaType($found), "\n";
 }
 

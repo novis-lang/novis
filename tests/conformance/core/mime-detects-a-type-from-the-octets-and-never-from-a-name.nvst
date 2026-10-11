@@ -27,7 +27,7 @@ array<string> $signatures = [
 
 int $agreed = 0;
 foreach ($signatures as string $hex => string $want) {
-    Core\Mime\Type $found = Core\Mime::detect(Core\Encoding::fromHex($hex));
+    Core\Mime::Type $found = Core\Mime::detect(Core\Encoding::fromHex($hex));
     if (Core\Mime::mediaType($found) == $want) {
         $agreed = $agreed + 1;
     }
@@ -42,7 +42,7 @@ echo Core\Mime::mediaType(Core\Mime::detect("holiday.png" as bytes)), "\n";
 // And the other half of the same sentence: the octets are what they are
 // whatever a name would have claimed about them.
 bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");
-echo Core\Mime::detect($png) == Core\Mime\Type::Png ? "png" : "not png", "\n";
+echo Core\Mime::detect($png) == Core\Mime::Type::Png ? "png" : "not png", "\n";
 --EXPECT--
 agreed: 17
 application/octet-stream

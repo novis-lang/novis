@@ -3,10 +3,10 @@
 
 class Avatar {
     public static function accepts(bytes $upload): bool {
-        Core\Mime\Type $type = Core\Mime::detect($upload);
-        return $type == Core\Mime\Type::Png
-            || $type == Core\Mime\Type::Jpeg
-            || $type == Core\Mime\Type::Webp;
+        Core\Mime::Type $type = Core\Mime::detect($upload);
+        return $type == Core\Mime::Type::Png
+            || $type == Core\Mime::Type::Jpeg
+            || $type == Core\Mime::Type::Webp;
     }
 }
 

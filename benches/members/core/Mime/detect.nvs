@@ -16,7 +16,7 @@ class Bench {
             if ($total % 2 == 1) {
                 $upload = $pdf;
             }
-            if (Core\Mime::detect($upload) == Core\Mime\Type::Png) {
+            if (Core\Mime::detect($upload) == Core\Mime::Type::Png) {
                 $total = $total + 1;
             }
             $total = $total + 2;

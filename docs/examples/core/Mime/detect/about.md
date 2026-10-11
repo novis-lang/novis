@@ -1,8 +1,8 @@
 `Core\Mime::detect` finds out what kind of file some bytes are, such as a PNG image, a PDF or a ZIP
 archive. It reads the first bytes, where most file formats write a fixed signature.
 
-The result is a case of the enum `Core\Mime\Type`, for example `Core\Mime\Type::Png`. When no
-signature matches, the result is `Core\Mime\Type::Unknown`. Text formats such as JSON, CSV, HTML and
+The result is a case of the enum `Core\Mime::Type`, for example `Core\Mime::Type::Png`. When no
+signature matches, the result is `Core\Mime::Type::Unknown`. Text formats such as JSON, CSV, HTML and
 SVG have no signature, so they are always `Unknown`.
 
 `detect` has no parameter for a file name. A file name comes from the user, and anybody can call a

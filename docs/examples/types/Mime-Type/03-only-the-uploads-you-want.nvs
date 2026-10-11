@@ -3,11 +3,11 @@
 // not the file name. So `setup.png`, which is really a zip archive, is not accepted.
 
 class Upload {
-    public static function accepted(Core\Mime\Type $found): bool {
+    public static function accepted(Core\Mime::Type $found): bool {
         return match ($found) {
-            Core\Mime\Type::Png => true,
-            Core\Mime\Type::Jpeg => true,
-            Core\Mime\Type::Pdf => true,
+            Core\Mime::Type::Png => true,
+            Core\Mime::Type::Jpeg => true,
+            Core\Mime::Type::Pdf => true,
             default => false,
         };
     }
@@ -21,7 +21,7 @@ array<string> $received = [
 ];
 
 foreach ($received as string $name => string $firstBytes) {
-    Core\Mime\Type $found = Core\Mime::detect(Core\Encoding::fromHex($firstBytes));
+    Core\Mime::Type $found = Core\Mime::detect(Core\Encoding::fromHex($firstBytes));
     echo $name, ": ", Upload::accepted($found) ? "kept" : "refused",
          " (", Core\Mime::mediaType($found), ")\n";
 }

@@ -26,7 +26,7 @@ foreach ($signatures as string $hex) {
     string $cut = Core\Str::slice($hex, 0, (Core\Str::length($hex) - 2) as int);
     bytes $short = Core\Encoding::fromHex($cut);
     bytes $changed = Core\Encoding::fromHex($cut . '7e');
-    if (Core\Mime::detect($short) == Core\Mime\Type::Unknown) {
+    if (Core\Mime::detect($short) == Core\Mime::Type::Unknown) {
         $unknown = $unknown + 1;
     }
     Core\Mime::detect($changed);

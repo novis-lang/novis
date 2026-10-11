@@ -19,7 +19,7 @@
 //!
 //! **The answer is a case, never a string a caller has to spell.** [`TYPE`] is
 //! closed and its zero case is `Unknown`, so a program compares against
-//! `Core\Mime\Type::Png` rather than against `"image/png"`, and a misspelling is
+//! `Core\Mime::Type::Png` rather than against `"image/png"`, and a misspelling is
 //! a compile error rather than a comparison that is quietly never true. The
 //! IANA name exists as [`nvs_core_mime_media_type`]'s answer, one direction
 //! only: a case can be spelled, and a spelling can never become a case.
@@ -63,9 +63,9 @@ use crate::registry::{
 /// every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Mime";
 
-/// `Core\Mime\Type`'s fully-qualified name, for [`TYPE`] and for the parameter
+/// `Core\Mime::Type`'s fully-qualified name, for [`TYPE`] and for the parameter
 /// and return position that carry one.
-pub(crate) const TYPE_NAME: &str = r"Core\Mime\Type";
+pub(crate) const TYPE_NAME: &str = r"Core\Mime::Type";
 
 /// What a run of octets is, as far as its first octets can say.
 ///
@@ -193,7 +193,7 @@ const TYPE_DOC: EnumDoc = EnumDoc {
 /// `Core\Mime`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Finds out what kind of file some bytes are, such as a PNG image or a PDF, by reading \
-            the first bytes. `detect` returns a `Core\\Mime\\Type` case, and `mediaType` gives its \
+            the first bytes. `detect` returns a `Core\\Mime::Type` case, and `mediaType` gives its \
             name, such as `image/png`.",
 };
 
@@ -238,7 +238,7 @@ const DETECT_DOC: MethodDoc = MethodDoc {
                table is sixteen — so a prefix of an upload answers what the whole of it would.",
         shape: &[],
     }],
-    ret: "The case naming what the octets are, or `Core\\Mime\\Type::Unknown` where no signature \
+    ret: "The case naming what the octets are, or `Core\\Mime::Type::Unknown` where no signature \
           matched — which includes every format serialized as text. **Detection is not a \
           laundering**: bytes that detect as `image/png` are still `tainted`, because a signature \
           describes the first octets and says nothing about what the rest is safe for.",
@@ -255,7 +255,7 @@ const MEDIA_TYPE_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "The media type, as `image/png` — and `application/octet-stream` for \
-          `Core\\Mime\\Type::Unknown`, which is what a program that must send something should \
+          `Core\\Mime::Type::Unknown`, which is what a program that must send something should \
           send for octets it could not name.",
     errors: &[],
 };
@@ -569,7 +569,7 @@ pub(crate) fn detect_media(data: &[u8]) -> Media {
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Mime::detect(bytes $data): Mime\Type` — replacing
+    /// `Core\Mime::detect(bytes $data): Mime::Type` — replacing
     /// `mime_content_type`, `finfo_buffer` and `exif_imagetype`.
     ///
     /// An enum answers as its ordinal, exactly as a user-declared enum does
@@ -588,7 +588,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Mime::mediaType(Mime\Type $type): string` — the case's IANA name,
+    /// `Core\Mime::mediaType(Mime::Type $type): string` — the case's IANA name,
     /// replacing `image_type_to_mime_type` and the arrays every framework keeps
     /// for the same job.
     ///
@@ -597,11 +597,11 @@ nvs_runtime::nvs_helper! {
     /// launders nothing: there is no caller input in it.
     fn nvs_core_mime_media_type(_ctx, args: [1]) {
         // unreachable from source: the parameter is `CoreTy::Enum(TYPE_NAME)`,
-        // so an integer no case carries is `E0401: expected 'Core\Mime\Type'`
+        // so an integer no case carries is `E0401: expected 'Core\Mime::Type'`
         // before the call runs.
         let Some(media) = args[0].as_int().and_then(Media::of_ordinal) else {
             return Err(Fault::fatal(format!(
-                "Core\\Mime::mediaType expected a `Core\\Mime\\Type` case, got tag {} value {:?}",
+                "Core\\Mime::mediaType expected a `Core\\Mime::Type` case, got tag {} value {:?}",
                 args[0].tag_byte(),
                 args[0].as_int()
             )));
