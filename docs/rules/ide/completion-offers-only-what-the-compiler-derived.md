@@ -43,7 +43,9 @@ A name literal's item is a whole name replacing all the text after the opening q
 before the closing quote escapes it, so no list can be answered at that keystroke, and a whole name
 never needs it. `Core\Test::assertThrows` is the one member whose class-name parameter expects an
 error, named in a one-row table in `crate::arguments`, since the mark says only that the text is a class
-name.
+name. A parameter whose type is a set of allowed string values completes them as items of kind
+`value`, its `null` aside, and is offered a completion file's list beside them, merged by value; it gets
+no warning for a literal outside the set, because the checker already rejects one.
 
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
 properties, already reached as members), service-container and facade resolution (constructor injection
@@ -94,6 +96,8 @@ a running program, which is why no completion source fetches anything.
   committed source for good.
 - **A `std::fs` listing in `completion.rs`.** It would bypass the test that keeps every completion
   source on a table the compiler builds, and could disagree with what resolution finds.
+- **A completion file that overrides a method's return type.** The editor's types would then disagree
+  with the compiler's, which is the second description of the program's shape this rule refuses.
 - **Offering every workspace class for the string of `as class<T>`.** A class the program never loads
   is one the conversion throws for.
 - **A bound in the class-name mark, so `assertThrows` would carry `Throwable` in the registry.** One

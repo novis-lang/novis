@@ -1357,7 +1357,9 @@ A name literal's item is a whole name replacing all the text after the opening q
 before the closing quote escapes it, so no list can be answered at that keystroke, and a whole name
 never needs it. `Core\Test::assertThrows` is the one member whose class-name parameter expects an
 error, named in a one-row table in `crate::arguments`, since the mark says only that the text is a class
-name.
+name. A parameter whose type is a set of allowed string values completes them as items of kind
+`value`, its `null` aside, and is offered a completion file's list beside them, merged by value; it gets
+no warning for a literal outside the set, because the checker already rejects one.
 
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
 properties, already reached as members), service-container and facade resolution (constructor injection
@@ -1408,12 +1410,14 @@ a running program, which is why no completion source fetches anything.
   committed source for good.
 - **A `std::fs` listing in `completion.rs`.** It would bypass the test that keeps every completion
   source on a table the compiler builds, and could disagree with what resolution finds.
+- **A completion file that overrides a method's return type.** The editor's types would then disagree
+  with the compiler's, which is the second description of the program's shape this rule refuses.
 - **Offering every workspace class for the string of `as class<T>`.** A class the program never loads
   is one the conversion throws for.
 - **A bound in the class-name mark, so `assertThrows` would carry `Throwable` in the registry.** One
   member needs it, and a new mark field would be read by nothing but the editor.
 
-<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0243](../decisions/0243.md).</sub>
+<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework).</sub>
 
 <a id="ide-completion-files-offer-values-at-named-parameters"></a>
 
@@ -1450,10 +1454,17 @@ completion item, and two more: `location`, a `file` relative to the completion f
 named without its `$`, a `set`, a list in `values` or both, and two optional fields: `when`, a
 `parameter` of the same method and the string or strings its argument must `equals`, and `strict`.
 
+Each optional field answers something a plain list cannot say. A translation key is defined in a file
+of its own, and a developer reading it wants its text and the line that defines it: `location`. One
+method's keys can depend on another argument, and a list merging every domain's keys offers mostly
+wrong ones: `when`. Keys written as paths, with many entries under a few prefixes, are easier to choose
+one segment at a time: a separator. A renamed value should say what replaced it: `replacement`.
+
 **Where it reaches.** An attachment is keyed by the declaration the checker resolved the call to, so an
 inherited method is reached through the class that declares it, and an override needs an attachment of
 its own. An attachment with `when` applies at a call only when that call's argument for the named
-parameter is a string literal equal to one of its strings; when that argument is not a literal or is
+parameter is a string literal equal to one of its strings, that argument found the way the completed
+one is, so a named and a positional argument read alike; when that argument is not a literal or is
 left out, only the attachments without `when` apply. Every applying attachment for one parameter
 contributes, files in path order and entries in written order, and a repeated `value` keeps the first
 one read. A set or a merge is never a conflict, so nothing about one is reported. Inside a string
@@ -1462,7 +1473,9 @@ and a parameter a path or class-name mark already completes is offered both list
 
 **What an item may do.** Its one edit replaces the text of the string literal with `value`, escaped for
 the literal's quote style. In a list with a separator, completion offers the distinct segments that
-follow the text already typed, and an item's edit replaces only the segment being typed; the
+follow the text already typed, and an item's edit replaces only the segment being typed. A segment
+that ends a value carries that value's fields, and one that only leads to longer values carries its
+text alone; the strict check and hover still compare whole values. The
 separator, `.` included, opens the next segment's list inside such a string. No item carries a command,
 which would let a cloned repository run an editor command when an item is accepted, an edit outside
 the string, or a snippet, which means nothing inside a string; each is an unknown field. `documentation`
@@ -1472,14 +1485,17 @@ its icon. A URL in it is fetched, if at all, by the client that renders it.
 
 **What else reads it.** Hover on a string literal at an attached parameter whose text equals a value
 shows the value's `title` and `documentation`, and go-to-definition on it answers the value's
-`location`. A literal equal to a deprecated value gets a hint with the `Deprecated` tag, and when the
+`location`, at the start of its line; a value with no `location` answers hover alone. Both read the
+loaded table and neither opens the named file. A literal equal to a deprecated value gets a hint with the `Deprecated` tag, and when the
 value names a `replacement` the hint carries it as the suggestion its quick fix applies, rewriting only
 the string. A parameter is strict when any attachment for it says `"strict": true`, and the language
 server then warns on a string literal at it, in a `.nvs` file, whose text is not one of the values of
 the attachments that apply at that call. A value built at run time is not checked, nor a literal where
 a `when` cannot be decided, and `nvs check` reads no completion file. Without `strict`, nothing checks a
 program's string literals against the values, because the data they describe can change after the
-file is written.
+file is written and a stale file would raise false warnings. That holds for a file nobody keeps
+current and not for one a build step regenerates from the data itself, and only the person who
+writes the file knows which kind it is, so the check is theirs to ask for.
 
 **How it stays current.** The server walks each workspace root once when it starts. The walk enters
 `vendor/`, so a library can ship values for its own parameters, skips `target`, `node_modules` and
@@ -1504,8 +1520,10 @@ silence every set in a file until it is regenerated. A file under `vendor/` is a
 
 - **Memory:** every value of every completion file, kept in the server for its lifetime, in proportion
   to what the files hold. One walk of the directory tree at start, one `stat` per changed file per
-  watcher event and one hash lookup per completion request inside a string argument. Nothing at run
-  time, and a program compiles the same with or without the files.
+  watcher event, and one lookup in the loaded table per completion, hover, definition or code-action
+  request inside a string argument. A strict parameter costs one set lookup per string literal at it
+  each time a document is analysed. Nothing at run time, and a program compiles the same with or
+  without the files.
 
 **Declined:**
 - **A helper written in Novis, run when completion is requested.** Opening a cloned repository would
@@ -1520,8 +1538,12 @@ silence every set in a file until it is regenerated. A file under `vendor/` is a
   `.novis` open to later kinds, and a file name would claim the whole folder for completion.
 - **An attribute in the source naming a set, `#[Completion('icons')]`.** It needs a change to the code,
   and a project could not give values to a library's parameters.
+- **Values attached to a method's return value or to a property.** A return or property type that is a
+  set of allowed string values already says this in the program, and the checker holds it.
+- **The `strict` check on by default.** A file nobody regenerates would turn into false warnings; the
+  person who writes the file says when it is current.
 
-<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends). Decided in [0243](../decisions/0243.md).</sub>
+<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends).</sub>
 
 <a id="ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted"></a>
 
@@ -1620,7 +1642,7 @@ other processing instruction stay markup's own.
   the lexer's open tags in a package that holds no language logic
   ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
 
-<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0243](../decisions/0243.md).</sub>
+<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
 
 <a id="ide-an-accepted-type-writes-what-follows-it"></a>
 

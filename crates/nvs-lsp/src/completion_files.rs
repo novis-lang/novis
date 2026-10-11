@@ -1,9 +1,8 @@
 //! The completion files: every `.json` file under a `.novis/completion/` folder, loaded into one table
 //! keyed by the parameter each value is offered at.
 //!
-//! `rule:ide/completion-files-offer-values-at-named-parameters` is the rule, with ADR 0243 the
-//! reasoning. This module finds the files, reads them, keeps them current and says what is wrong
-//! with them. It offers nothing itself: the completion, hover, definition and diagnostic arms read
+//! `rule:ide/completion-files-offer-values-at-named-parameters` is the rule and its reasoning. This
+//! module finds the files, reads them, keeps them current and says what is wrong with them. It offers nothing itself: the completion, hover, definition and diagnostic arms read
 //! [`CompletionFiles`] and never a file or a directory, which is how
 //! `rule:ide/completion-offers-only-what-the-compiler-derived` can name this table as the one source
 //! of values the compiler does not derive.
@@ -26,7 +25,7 @@
 //!
 //! Every shape is parsed with `deny_unknown_fields`, so an unknown field is a finding that names it
 //! and the fields allowed there. A file with any finding of that kind contributes nothing. The
-//! fields are the rule's, ADR 0243's among them: `location` and `replacement` on a value, `when` and
+//! fields are the rule's, among them `location` and `replacement` on a value, `when` and
 //! `strict` on an attachment, and a list written as `{ "separator", "values" }`.
 //!
 //! Each piece is parsed from its own slice of the file (`serde_json::value::RawValue`), so a
