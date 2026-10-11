@@ -1165,7 +1165,7 @@ choice in it: the type is the one its elements state, so `var` takes it.
   heterogeneous literal under `var` would take a union nobody wrote, and [`types/arrays`](types.md#types-arrays)' checked
   literal would stop being checked.
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/arrays`](types.md#types-arrays), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal). Decided in [0252](../decisions/0252.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/arrays`](types.md#types-arrays), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal).</sub>
 
 <a id="ide-narrowing-is-a-diff-never-a-save-time-fix"></a>
 

@@ -21,9 +21,11 @@ otherwise. An element's type is what `var` gives that element alone, so `var $id
 `array<int>`, `["a" => 1]` is `array<int>` because keys take no part, a nested literal is inferred the
 same way first, and a spread gives its source's element type. Nothing is widened to a common type:
 `[1, 2.5]`, `[$user, $admin]` with `Admin` a child of `User`, and `[$tainted, "plain"]` are each two
-types. Those, an empty literal at any depth, and a literal with an element that could not be typed
-are `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, whose help names the declaration to write: the union of the
-element types, `?T` where the other one is `null`, or `array<T>` for an empty literal. A bare literal
+types. Those and an empty literal at any depth are `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, whose help names the declaration to write: the union of the
+element types, `?T` where the other one is `null`, or `array<T>` for an empty literal. An element that
+reported its own error, a spread over something that is not an array (`E0484`) included, adds no
+second diagnostic, and the literal is then not inferred. An inferred literal records each element at
+`T` exactly as a written `array<T>` target does, so the two declarations lower the same. A bare literal
 as the subject of a `var` value binding follows the same rule, and the help there is a typed local,
 iterated. A `var` key over a literal is never refused, since its type comes from the array's key and
 not from the elements. The rule is on the expression's own top level only — in `var $x = f([1, 2]);` and
@@ -56,7 +58,12 @@ writing twice the type the subject already states.
   further `as`, which is a worse trap than a diagnostic at the declaration.
 - **A new keyword instead of `var`.** `var` was already a reserved token with no meaning in Novis, so
   reusing it needed no lexer change and collides with nothing.
-- **A new code for a bare literal under a `var` value binding.** The local's message is true of both
-  sites, and one mistake gets one code.
+- **A common supertype for a literal's elements.** It would give `[$user, $admin]` the type
+  `array<User>`, a choice the author did not make. One type, or the author writes it.
+- **Inferring the union of a literal's element types.** A union attached to a binding unseen is a type
+  nobody chose (`rule:ide/no-compile-path-calls-the-synthesis`); the help line prints it to be written.
+- **A new code per refused literal, or for a bare literal under a `var` value binding.** Every refused
+  literal is the one mistake `var` cannot type, and one mistake gets one code; the message names the
+  case.
 - **An untyped `foreach ($xs as $v)` meaning `var`.** The binding would look like PHP's and mean
   something PHP does not; `var` says in the source that the type was taken.
