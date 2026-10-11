@@ -1,9 +1,7 @@
 {
   "title": "The chain in the goals README names the live goal, and a reached goal's file is deleted with none of its checks carried",
   "status": "shipped",
-  "because": [
-    "0262"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/a-repository-fact-is-one-json-record"
   ],

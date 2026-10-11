@@ -1,9 +1,7 @@
 {
   "title": "`nvs test` writes line, function and branch coverage as lcov, Clover and Cobertura, from one hit table every context of the run counts into",
   "status": "shipped",
-  "because": [
-    "0273"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/debug-probes",
     "testing/report-formats"
@@ -11,6 +9,7 @@
   "guardedBy": [
     "crates/nvs-cli/tests/test_coverage.rs",
     "crates/nvs-codegen/tests/probes.rs",
-    "crates/nvs-runtime/src/ctx/trace.rs"
+    "crates/nvs-runtime/src/ctx/trace.rs",
+    "editors/vscode/test/surfaces/tests.test.ts"
   ]
 }

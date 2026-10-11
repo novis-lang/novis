@@ -687,7 +687,7 @@ accepts these in any order, which is exactly why the formatter must fix one — 
 `public static $x;` both compile and would otherwise never converge. A missing modifier is never
 supplied: a formatter that changes meaning is not a formatter ([`core-api/written-visibility`](core-api.md#core-api-written-visibility)).
 
-<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/lateinit`](classes.md#classes-lateinit). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/lateinit`](classes.md#classes-lateinit).</sub>
 
 <a id="tooling-fmt-never-reflows"></a>
 
@@ -710,6 +710,12 @@ There is deliberately no line-length rule anywhere, soft or hard. With no width 
 width limit would be advisory prose with nothing in the tool to enforce it, and the editor's own ruler
 already shows a column.
 
+A width-fitting printer breaks at places nobody would choose and packs as much onto a line as fits, so
+its output is often less readable than its input. Leaving every byte of an expression as written gives
+the author no help either: a list wrapped two items to a line, or closed on its last item's line,
+would stay exactly as typed. The fixed layout of a broken construct is the help, and the author's line
+break is the only decision it needs.
+
 The cost is stated and accepted: the formatter cannot decide by itself that a line is too long, and a
 human still chooses when a construct is long enough to break, with one keystroke or with
 [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). What that buys is a formatter that walks the
@@ -717,7 +723,15 @@ existing parse tree rather than a width-fitting printer this project has no othe
 breaks a line at a place nobody would choose, and stays byte-for-byte deterministic as the parser
 evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)).
 
-<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0267](../decisions/0267.md).</sub>
+**Declined:**
+- **A width-fitting printer, as Prettier, php-cs-fixer and rustfmt are.** The tool chooses every
+  break, at places nobody would choose.
+- **A trailing comma as the signal to keep a list broken, as Black and dart format use.** It is a
+  second, less visible way to say what a line break already says.
+- **A line-length limit that only reports.** It is a diagnostic about layout, which
+  [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic) excludes, and the editor's ruler already shows a column.
+
+<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution).</sub>
 
 <a id="tooling-fmt-a-list-is-one-line-or-one-item-per-line"></a>
 
@@ -778,7 +792,13 @@ A comment inside a broken list stays on the line of the item it follows, or keep
 when it was written on one. A line comment breaks the list it sits in, because a line break follows
 it. `match` arms keep their own rule ([`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs)).
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`enums/declaration`](enums.md#enums-declaration), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md).</sub>
+**Declined:**
+- **Keeping several items per line in a broken list.** That is the packing a width-fitting printer
+  does, and it gives a list a third layout.
+- **One enum case per line always.** It needs no exception to the Allman brace, but turns every
+  two-case enum into four lines.
+
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`enums/declaration`](enums.md#enums-declaration), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one).</sub>
 
 <a id="tooling-fmt-a-broken-call-chain-is-one-call-per-line"></a>
 
@@ -810,7 +830,7 @@ $rows = $query
 
 The first statement formats to the second. A chain written on one line stays on one line.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one).</sub>
 
 <a id="tooling-fmt-a-broken-operator-chain-is-one-operand-per-line"></a>
 
@@ -850,7 +870,7 @@ if (
 The first statement formats to the second. A condition written on one line stays on one line, and
 an unbroken chain anywhere else does too.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line).</sub>
 
 <a id="tooling-fmt-quotes"></a>
 
@@ -905,7 +925,7 @@ preserves; the comma follows from that decision mechanically. This removes the o
 leaves a genuinely free stylistic choice with no way to derive the right answer from context, and it is
 what makes adding an element to a multi-line list a one-line diff.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs).</sub>
 
 <a id="tooling-fmt-sorts-the-use-block"></a>
 
@@ -961,7 +981,7 @@ Each construct with no PER precedent has one layout, chosen once:
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template).</sub>
 
 <a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
 
@@ -1055,7 +1075,7 @@ layout. A formatter whose output depended only on the AST
 would have to choose every line break itself, which is exactly the width-fitting printer this design
 declines to build. What converges is one file, run twice — never two semantically identical files.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="tooling-fmt-is-never-a-diagnostic"></a>
 
@@ -1671,12 +1691,58 @@ GitHub Copilot an instructions file at `.github/instructions/novis.instructions.
 run wrote is kept current whichever agent runs it now. Each pointer names the four `nvs agent`
 commands, the `nvs check` loop with its `--json` form, and `nvs test`.
 
+**The agent is found by the variable it sets, never by the tree.** A directory in the tree says that
+somebody on the project once used a tool, not that the agent running `init` now is it, so one person's
+run would write files for another person's tool, and an agent whose tool left no directory would get
+nothing. `--agent <name>` replaces detection and may be given more than once; `--all` installs for every
+agent and conflicts with `--agent`. A run that finds none writes the stanza alone and says how to name
+one, so a person running `init` by hand gets nothing for any one tool. Claude Code gets its skill
+because it reads `AGENTS.md` only in a project with no `CLAUDE.md`, and Copilot its instructions file
+because which Copilot surface reads `AGENTS.md` is not documented. The Cursor rule an earlier `init`
+wrote, `.cursor/rules/novis.mdc`, is retired: a re-run deletes an untouched copy and leaves an edited
+one with a note. Keeping every file an earlier run wrote current, whoever runs `init`, is what keeps
+every person on a team on the same files. Each agent's row rests on its tool's own documentation:
+Claude Code's environment variable, memory and hooks pages; Cursor's agent terminal, rules, hooks and
+third-party hooks pages; and `codex-rs/core/src/exec_env.rs` in the Codex repository.
+
 **A hook is protocol too.** Where an agent's tool runs a plain command after an edit, `init` merges
 one entry into that tool's settings — `hooks.PostToolUse` in `.claude/settings.json` for Claude Code,
 `hooks.postToolUse` in `.cursor/hooks.json` for Cursor — and `--no-hooks` removes it. The entry runs
 `nvs agent hook <agent>`, which checks the edited `.nvs` file as `nvs check` does and gives its errors
 back in the tool's JSON. It runs the checker and states no language fact of its own. An agent whose
-tool has no plain command hook gets no hook, and no wrapper or plugin stands in for one.
+tool has no plain command hook gets no hook, and no wrapper or plugin stands in for one: Codex's hooks
+give the patch text rather than the edited file's path, Copilot's are a preview whose fields naming an
+edited file are not documented, and OpenCode runs code after an edit only as a plugin.
+
+An entry is found again by its exact command, so a project may change its matcher. A missing entry is
+added at the end of the event's array for a chosen agent, and an entry already there is left whoever
+runs `init`. `--no-hooks` removes the entry wherever it is and deletes a file left with nothing but the
+skeleton `init` creates, and `--check` names a missing hook. `.claude/settings.local.json` is each
+person's own and is never read or written. The merge reads the file into an order-keeping document of
+its own and writes every key and entry back in the order it found them, because the workspace's JSON
+map sorts its keys. A file that is not a JSON object, or whose `hooks` or event value has the wrong
+type, refuses the whole run and `--force` does not override it: the file holds the project's other
+settings, and a file `init` cannot read is one it cannot rewrite without losing them.
+
+`nvs agent hook` reads the tool's payload on standard input and takes the path from `tool_input`, or a
+top-level `file_path`. Anything that goes wrong before the check — a payload that is not JSON, no path,
+a path not ending in `.nvs` — ends it silently with status 0, because a hook must never break the
+agent. It checks in the payload's `cwd`, or Cursor's first workspace root, by starting itself again
+there, because a binary that changes its own working directory counts as one that can read any file.
+It never writes a default `nvs.toml`: it runs after every edit, and the project did not ask for one.
+Only errors are given back, because a warning that stands would repeat after every edit until the
+agent learned to pass over the report. The first five are rendered by position, then the count of the
+others and the `nvs check <path>` that shows them all; the whole-run rendering would misstate a capped
+list. Claude Code gets `{"decision": "block", "reason": …}` with status 0: after an edit, `block` does
+not undo it, and the reason reaches the agent as feedback to act on. Cursor gets `additional_context`,
+the only text its output has. Cursor also loads Claude Code's hooks, so the Claude Code hook prints
+nothing under Cursor when `.cursor/hooks.json` carries Cursor's own entry, and a Cursor session hears
+about an edit once. No live Claude Code or Cursor session has run the hook, and which field of
+Cursor's `Write` input names the file is not documented.
+
+The hook costs one front-end run of the edited file after every `.nvs` edit, a process start and a
+JSON parse after every other edit, and a second process start when the tool starts it outside the
+payload's directory.
 
 **No adapter states a language fact.** Not a member signature, not a refusal, not a type. A language
 fact written into an adapter is a copy that goes stale the day the member changes, and every copy is
@@ -1691,11 +1757,39 @@ and writing nothing, one that does not, unless `--force`. Every unit is judged b
 puts one line on standard error while a re-run would change a unit in the working directory, so the
 agent reading the primer learns of it with nobody in between.
 
+The fingerprint is what tells an upgrade from an edit, which from the text alone look the same. The
+stanza opens on its marker, and an adapter carries it on the line under its front matter as an HTML
+comment, never a front-matter key a harness might reject. BLAKE3 is fixed by its specification and
+already in the binary for the code cache, so the fingerprint is the same on every platform and from
+every build. A unit an `init` before fingerprints wrote carries the old marker or none; its text is
+known, so its fingerprint is a constant in the binary and the old text itself is not kept. An edited
+unit gets no note from the primer: it is the project's own text. A marker somebody rewrites by hand so
+that text and fingerprint agree reads as untouched and is updated; that is somebody imitating `init`,
+and it is accepted.
+
 That is what keeps the adapter list open. Another harness is another short pointer file, adding one
 decides nothing and reopens nothing, and none of them can disagree with the language, because none of
 them says anything about it.
 
-<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0256](../decisions/0256.md), [0260](../decisions/0260.md).</sub>
+**Declined:**
+- **A version number in the marker.** It says which binary wrote the unit, not whether somebody edited
+  it since, which is the one thing a re-run has to know.
+- **Keeping every old text in the binary.** It grows with every release; a fingerprint per old text is
+  eight characters, and only the text written before fingerprints needs one.
+- **Choosing an agent by the directories in the tree.** They name the tools somebody used, not the
+  one running, and `.github/` is in almost every repository whatever it uses.
+- **Claude Code's `CLAUDECODE` variable.** An editor's integrated terminal started from Claude Code
+  also sets it, so a person typing `nvs agent init` there would be taken for the agent.
+- **Turning on `serde_json`'s `preserve_order`.** It reorders every other JSON document the workspace
+  writes.
+- **A wrapper script or a plugin for an agent with no plain command hook.** Where the tool has none,
+  there is no hook.
+- **Warnings in the hook's report.** A warning that stands repeats after every edit.
+- **`hookSpecificOutput.additionalContext` for Claude Code.** It is the field for context that is not
+  an error.
+- **Exit status 2 with the report on standard error.** Cursor treats status 2 as a denial.
+
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one).</sub>
 
 <a id="tooling-bench-engine-list-is-data"></a>
 
@@ -1991,7 +2085,9 @@ and `looper goal move` edit the list.
 A reached goal's file under `docs/goals/` is deleted, its slug leaves the chain, and the next slug is the
 live goal. Nothing is archived, and `git log` is the history. A decision that only a goal's prose holds is
 moved to its home before the goal is reached. The frozen records under `docs/decisions/` keep the goals
-they name.
+they name. A reached goal kept on disk would hold nothing a later session reads, and would still be a
+document that cites code and drifts from it, with every tool carrying a branch to tell it from a live
+one. A regression in finished work is caught by the suite that tests it, or by nothing.
 
 No goal's checks are carried as a floor: `looper.toml` sets `carry_to_floor = false`. A goal's plan is its
 own front matter and nothing else. The permanent suites and `bun nv verify` protect finished work, and a
@@ -2008,8 +2104,12 @@ state under `.loop/`. It is per machine, and a fresh clone owes nothing it holds
   per case tree.** Most of them re-run what `bun nv verify` already runs, and the floor grows with
   every goal reached. A check written for an early goal also pins that goal's view of the engine, so
   when the engine moves on a session has to edit the record of a goal it has never seen.
+- **Keeping the floor and deleting only a reached goal's prose.** Its checks would still have to stay
+  current against code that moves on, which is the drift deleting the goal removes.
+- **Archiving reached goals under another directory.** An archive is a document nobody reads that
+  still matches every search, and `git log` already holds it.
 
-<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0262](../decisions/0262.md).</sub>
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record).</sub>
 
 <a id="tooling-a-check-runs-only-when-the-change-reaches-its-footprint"></a>
 

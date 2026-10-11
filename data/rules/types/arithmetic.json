@@ -1,9 +1,7 @@
 {
   "title": "An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting",
   "status": "shipped",
-  "because": [
-    "0261"
-  ],
+  "because": [],
   "seeAlso": [
     "types/ordering",
     "types/uint",

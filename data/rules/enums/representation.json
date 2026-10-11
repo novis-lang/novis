@@ -1,9 +1,7 @@
 {
   "title": "An enum value costs nothing beyond the integer it is",
   "status": "shipped",
-  "because": [
-    "0261"
-  ],
+  "because": [],
   "seeAlso": [
     "enums/no-class-machinery",
     "enums/one-backing-type",

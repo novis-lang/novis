@@ -6,7 +6,9 @@ and `looper goal move` edit the list.
 A reached goal's file under `docs/goals/` is deleted, its slug leaves the chain, and the next slug is the
 live goal. Nothing is archived, and `git log` is the history. A decision that only a goal's prose holds is
 moved to its home before the goal is reached. The frozen records under `docs/decisions/` keep the goals
-they name.
+they name. A reached goal kept on disk would hold nothing a later session reads, and would still be a
+document that cites code and drifts from it, with every tool carrying a branch to tell it from a live
+one. A regression in finished work is caught by the suite that tests it, or by nothing.
 
 No goal's checks are carried as a floor: `looper.toml` sets `carry_to_floor = false`. A goal's plan is its
 own front matter and nothing else. The permanent suites and `bun nv verify` protect finished work, and a
@@ -23,3 +25,7 @@ state under `.loop/`. It is per machine, and a fresh clone owes nothing it holds
   per case tree.** Most of them re-run what `bun nv verify` already runs, and the floor grows with
   every goal reached. A check written for an early goal also pins that goal's view of the engine, so
   when the engine moves on a session has to edit the record of a goal it has never seen.
+- **Keeping the floor and deleting only a reached goal's prose.** Its checks would still have to stay
+  current against code that moves on, which is the drift deleting the goal removes.
+- **Archiving reached goals under another directory.** An archive is a document nobody reads that
+  still matches every search, and `git log` already holds it.

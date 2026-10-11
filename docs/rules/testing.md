@@ -711,9 +711,21 @@ no table counts nothing. A line takes the largest count of its statements, not t
 and the block it opens are not counted twice. A file's own top-level statements do not run under
 `nvs test`, so they read `0`.
 
+One table feeds all three formats, so the files cannot disagree about a count. Cobertura is the
+format GitLab and Azure DevOps read, branches are what a reviewer asks for, and a function record is
+what most coverage dashboards summarise first. A function's count is its first statement's, which
+runs exactly when the function does; a function with no statement has no probe and is not listed,
+the same rule a line follows. Every coverage flag turns both bits on, and no flag counts lines
+without branches. The suite runs one test at a time, so the lines each test reached
+([`testing/report-formats`](testing.md#testing-report-formats)) are the statements whose count in the shared table grew while it ran.
+The VS Code extension's Coverage run profile runs the same command with `--coverage-lcov` into its
+storage directory and reads that file into the editor's own coverage view, drawing nothing of its own
+([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)).
+
 **Memory:** per run that asks, one `u64` per statement and per edge in the program, and one file and
 line pair per statement for the report. A run that does not ask spends nothing. With coverage on, each
-statement executed costs one relaxed atomic add beside the call the probe already made.
+statement executed costs one relaxed atomic add beside the call the probe already made. Per-test lines
+cost one copy of the statement table per test while a JSON document is being written.
 
 **Declined:**
 - **Program-wide statement numbers in the IR.** An edit in one function would renumber every other
@@ -721,8 +733,16 @@ statement executed costs one relaxed atomic add beside the call the probe alread
 - **Copying each isolate's counts back to its parent when it ends.** A request a `server: true` test
   sends runs in a context no test owns, and a placed isolate ends on another core, so each path would
   need its own copy step.
+- **A probe of its own at each function's entry.** The first statement's probe already counts it, and
+  a second site would cost every call a load and a branch for a number the table already has.
+- **Branch counts derived from the statement counts**, as a condition's count minus the first
+  statement of each side. A side with no statement of its own, such as an `if` with no `else`, has
+  nothing to subtract, and the result would be a guess.
+- **A table per test.** While the runner runs one test at a time, the shared table's counts before and
+  after a test name exactly its lines. A runner that runs tests in parallel gives each test a table of
+  its own.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0273](../decisions/0273.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats).</sub>
 
 <a id="testing-nvst-is-separate"></a>
 
@@ -846,8 +866,11 @@ sweep cannot write into a tree it is not allowed to touch.
 - **Examples in the website's own tree, written by a person after the feature ships.** Written that
   way, almost no member ever had one. The sweep that understands the feature is the one that writes
   them.
+- **A mirror of the examples under `website/`, kept equal by a sync script and a check.** Two copies of
+  every example, and a failure mode, the mirror being behind, whose only fix is to run the script that
+  should have run.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped). Decided in [0263](../decisions/0263.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped).</sub>
 
 <a id="testing-website-pages-are-stamped"></a>
 
@@ -865,6 +888,15 @@ session made stale itself: the session that changes a feature rereads the pages 
 them and runs `bun nv site --stamp`, the same way it owes the feature's proofs. CI's `proofs` job runs
 `bun nv site --check` over the whole tree, so a stale page the wrap did not attribute is still caught
 before a merge. A stamp is written by whoever reread the page, never to quiet the check.
+
+The generated half of the site, the reference, is rewritten from the binary and the roster on every
+render and cannot drift; the handwritten half can, because nothing else connects a guide to the
+behaviour it explains. A hash makes exactly the pages that cover a changed feature stale, and the
+session that changed it is the one holding the context to reread them. `covers:` uses the roster's
+ids, so a page and a feature proof name a feature the same way. The cost is that a change to a
+feature costs its author a reread of the pages that cover it. `bun nv site` is one tool that holds the
+guard, the stamp, the build and every `--check` part, in place of a script per check, and its parts
+run in the CI job that has already built `nvs`, because the snippets and the roster both need it.
 
 **A page's search questions are stamped as the page is.** Each entry of `website/src/data/questions.json`
 records the feature its questions were written from and that feature's hash, and an entry whose hash
@@ -890,7 +922,11 @@ output="http">`, because a web server is what a visitor first comes to Novis for
 Novis code that is not known to run, and no output a page shows differs from what the binary prints in
 the context the page names.
 
-<sub>See also [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository), [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0263](../decisions/0263.md).</sub>
+**Declined:**
+- **Staleness by a "last reviewed" date.** A date says nothing about whether the feature moved since.
+- **A periodic review pass.** It finds drift late, and never says which page a change reached.
+
+<sub>See also [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository), [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
 <a id="testing-hostile-case-contract"></a>
 
@@ -920,11 +956,29 @@ only when that line was printed and the program then stopped with the ending it 
 before the step, stopping with another ending, running to the last line, and a marker with no step,
 no ending or a step that is not the last all fail it.
 
+The step is the number its step comment carries (`// 4.` or `// Step 4:`), and a file with one
+attack is step `1`. The `step <N>` line is how the runner knows the program reached the step: a
+`FATAL` prints only its message, with no class and no frames, because no backtrace is taken on the
+path that stops a program at a limit, and `exit` prints nothing. One rule for every ending is simpler
+for an author than one for throws and another for the rest. Where the error report does name a line,
+the runner maps the outermost frame in the attack file to the step comment above it, and a failure
+names the declared and the reached together: `stopped at step 2 with RuntimeError, declares step 4
+with FATAL`. An attack that stops before its last step is fixed so the step runs; moving the marker
+to the step it stops in is softening the case.
+
 Freezing the output instead is refused: every one of these programs is written to produce output
 nobody can predict, and a suite whose expectations must be maintained is a suite that gets weakened
 until it passes.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0244](../decisions/0244.md).</sub>
+**Declined:**
+- **The error report's line alone.** It finds the step for a throw, and a throw is the ending an
+  attack should not have. A `FATAL` has no frames, so the endings that matter most would go
+  unchecked.
+- **A class for each limit** (`MemoryLimitError`). No such class exists, and none should exist only
+  so that a marker can name it; giving a `FATAL` a class would change what every operator reads for
+  the sake of a test runner.
+
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test).</sub>
 
 <a id="testing-feature-proofs"></a>
 
@@ -958,6 +1012,24 @@ when it finished; a feature leaves the list when it gains its help.
 
 Each tree's own README owns what a file in it *is*, and this rule restates none of them.
 
+**Perf's growth is judged on the counts.** The ramp judges the slope of each count's increment as the
+batches double, so start-up and set-up cancel out and the verdict is the same on every machine; the
+clock is reported and never fails a proof, sets an iteration count or decides that a bench is proven.
+`tools/nv/cmd/scaling.ts`'s module doc is the one home of the ramp, its agreement test, its ceiling
+and its bounds, and `bun nv proofs --record-perf` and `bun nv proofs --id '<feature>'` run it with no
+extra command. A bench that grows past its bound is a failing proof
+([`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded)), and no ledger record is written. Every bench
+declares `// bench: complexity`, and `quadratic` is never accepted; a bench with no declaration fails
+its proof, so the size check cannot be skipped by omission. Callgrind runs only where the counts stay
+flat while the work happens inside a Rust member and the clock is too noisy to read before the ramp
+reaches its ceiling. It finds the batch at which the growth is clear, the bench's `// bench:
+iterations N` is set from it with a note that callgrind measured it, and later runs do not start
+valgrind again until the bench's definition changes or the ramp at N is unclear again. A bench still
+unclear after callgrind is reported, not judged. Valgrind stays out of `nv verify` because callgrind
+costs minutes per bench and needs WSL on Windows, so a gate that could start it would be as slow as
+its slowest unclear bench. A recording sweep costs more per bench than one timed run, because the
+ramp runs several batches, and that cost is paid when a figure is re-measured, not on every verify.
+
 Not every kind of feature owes every proof: an enum is not attacked and a directive is not
 benchmarked.
 What each kind owes is **data**, overridable per feature, because a policy stated only in prose is a
@@ -977,8 +1049,14 @@ and says so in the audit.
   feature is proven, and a coverage percentage is a threshold rather than a finished feature.
 - **A hand-kept checklist of finished features.** It rots within a day of an unattended run
   ([`testing/roster-is-derived`](testing.md#testing-roster-is-derived)).
+- **Growth judged by one ratio of two clock figures against a scaled sibling.** A noisy machine can
+  pass or fail it at random, and at a tolerance of three times the predicted ratio it misses a slope
+  of 1.5: at a scale factor of 4 a linear bench may cost 12 times as much per operation, and `n^1.5`
+  costs 8.
+- **Callgrind on every bench.** Its verdict is exact, and it costs minutes per bench on every
+  recording, for a question the counts already answer for most benches.
 
-<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0272](../decisions/0272.md).</sub>
+<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature).</sub>
 
 <a id="testing-roster-is-derived"></a>
 

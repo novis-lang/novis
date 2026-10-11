@@ -50,3 +50,9 @@ enum Permission: uint
 A comment inside a broken list stays on the line of the item it follows, or keeps a line of its own
 when it was written on one. A line comment breaks the list it sits in, because a line break follows
 it. `match` arms keep their own rule (`rule:tooling/fmt-novis-constructs`).
+
+**Declined:**
+- **Keeping several items per line in a broken list.** That is the packing a width-fitting printer
+  does, and it gives a list a third layout.
+- **One enum case per line always.** It needs no exception to the Allman brace, but turns every
+  two-case enum into four lines.

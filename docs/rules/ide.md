@@ -762,7 +762,7 @@ them, and the server computes each from the expression under the cursor alone, w
 question. Neither is ever under `source.fixAll.nvs` or `quickfix`. Any further action the server
 computes for itself is still M10's.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md), [0275](../decisions/0275.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0275](../decisions/0275.md).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
@@ -888,7 +888,7 @@ The server computes both from the tree under the cursor alone, with no type or m
 are filed under `refactor.rewrite`, and are never under `source.fixAll.nvs` or `quickfix`: whether a
 construct is broken is the author's choice, never something wrong.
 
-<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows).</sub>
 
 <a id="ide-an-undeclared-name-offers-its-import"></a>
 

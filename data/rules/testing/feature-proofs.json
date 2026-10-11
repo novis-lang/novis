@@ -1,9 +1,7 @@
 {
   "title": "A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and its growth, an attack and its help in the binary",
   "status": "shipped",
-  "because": [
-    "0272"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/roster-is-derived",
     "testing/proof-attribution",
@@ -14,6 +12,7 @@
   "guardedBy": [
     "tools/nv/cmd/proofs.ts",
     "data/proofs/policy.json",
-    "data/proofs/help-backlog.json"
+    "data/proofs/help-backlog.json",
+    "tools/nv/test/proof-growth.test.ts"
   ]
 }

@@ -33,9 +33,21 @@ no table counts nothing. A line takes the largest count of its statements, not t
 and the block it opens are not counted twice. A file's own top-level statements do not run under
 `nvs test`, so they read `0`.
 
+One table feeds all three formats, so the files cannot disagree about a count. Cobertura is the
+format GitLab and Azure DevOps read, branches are what a reviewer asks for, and a function record is
+what most coverage dashboards summarise first. A function's count is its first statement's, which
+runs exactly when the function does; a function with no statement has no probe and is not listed,
+the same rule a line follows. Every coverage flag turns both bits on, and no flag counts lines
+without branches. The suite runs one test at a time, so the lines each test reached
+(`rule:testing/report-formats`) are the statements whose count in the shared table grew while it ran.
+The VS Code extension's Coverage run profile runs the same command with `--coverage-lcov` into its
+storage directory and reads that file into the editor's own coverage view, drawing nothing of its own
+(`rule:ide/the-extension-builds-no-ui-the-editor-already-has`).
+
 **Memory:** per run that asks, one `u64` per statement and per edge in the program, and one file and
 line pair per statement for the report. A run that does not ask spends nothing. With coverage on, each
-statement executed costs one relaxed atomic add beside the call the probe already made.
+statement executed costs one relaxed atomic add beside the call the probe already made. Per-test lines
+cost one copy of the statement table per test while a JSON document is being written.
 
 **Declined:**
 - **Program-wide statement numbers in the IR.** An edit in one function would renumber every other
@@ -43,3 +55,11 @@ statement executed costs one relaxed atomic add beside the call the probe alread
 - **Copying each isolate's counts back to its parent when it ends.** A request a `server: true` test
   sends runs in a context no test owns, and a placed isolate ends on another core, so each path would
   need its own copy step.
+- **A probe of its own at each function's entry.** The first statement's probe already counts it, and
+  a second site would cost every call a load and a branch for a number the table already has.
+- **Branch counts derived from the statement counts**, as a condition's count minus the first
+  statement of each side. A side with no statement of its own, such as an `if` with no `else`, has
+  nothing to subtract, and the result would be a guess.
+- **A table per test.** While the runner runs one test at a time, the shared table's counts before and
+  after a test name exactly its lines. A runner that runs tests in parallel gives each test a table of
+  its own.
