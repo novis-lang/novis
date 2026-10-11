@@ -23,13 +23,13 @@ class Bench {
 
 // Each request runs this file again. In that run, this part sets one header
 // for each character of the path, so the three answers have 2, 5 and 8 headers.
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     uint $n = 0;
     while ($n < Core\Str::length($path)) {
         Core\Response::setHeader("X-Part-" . $n, "yes");
         $n = $n + 1;
     }
-} catch (LogicError $noRequest) {
+} else {
     echo Bench::run(400000), "\n";
 }

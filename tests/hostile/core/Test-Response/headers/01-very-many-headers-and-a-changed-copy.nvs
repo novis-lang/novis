@@ -5,7 +5,7 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == '/many') {
         uint $n = 0;
@@ -32,7 +32,7 @@ try {
         Core\Response::setHeader('X-Before', 'set');
         throw new RuntimeError('not handled');
     }
-} catch (LogicError $noRequest) {
+} else {
     // 1. Read 20000 headers 100 times.
     var $many = Test::request(Method::Get, '/many');
     uint $total = 0;

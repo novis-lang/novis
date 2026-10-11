@@ -4,13 +4,12 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It sets `theme` twice.
-    var $path = Core\Request::path();
     Core\Response::addCookie("theme", "light");
     Core\Response::addCookie("lang", "en");
     Core\Response::addCookie("theme", "dark");
-} catch (LogicError $noRequest) {
+} else {
     var $response = Test::request(Method::Get, "/settings");
 
     // A browser keeps the last value, and so does `cookies()`. This prints `dark`.

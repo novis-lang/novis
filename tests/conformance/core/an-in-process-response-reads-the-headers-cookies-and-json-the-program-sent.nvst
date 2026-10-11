@@ -8,7 +8,7 @@ an in-process response reads the headers a visitor is sent, the cookies the prog
 // member declared or HTML for an echo, a redirect's `Location`, `addCookie`'s
 // `Set-Cookie` lines and a `setHeader`. A request that fails answers none.
 //
-// The `catch (LogicError ...)` is the parent: there is no request in its run.
+// The `else` half is the parent: `Core\Env::context()` is `Command` in its run.
 #[Core\Json\Derive]
 class Product {
     public string $sku;
@@ -20,7 +20,7 @@ class Product {
     }
 }
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == "/product") {
         Core\Response::json(["sku" => "mug-7", "stock" => 3]);
@@ -45,7 +45,7 @@ try {
     if ($path == "/wrong") {
         Core\Response::json(["sku" => 7]);
     }
-} catch (LogicError $noRequest) {
+} else {
     var $product = Core\Test::request(Core\Http\Method::Get, "/product");
     echo "type ", $product->header("CONTENT-TYPE"), "\n";
     var $decoded = $product->json();

@@ -6,12 +6,12 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It writes the length of the path and the
     // number of headers.
     var $path = Core\Request::path();
     echo Core\Str::length($path), ' ', Core\Arr::count(Core\Request::headers());
-} catch (LogicError $noRequest) {
+} else {
     // Step 1: ten thousand small requests, one after another.
     uint $count = 0;
     uint $total = 0;

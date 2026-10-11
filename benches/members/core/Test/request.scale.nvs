@@ -20,8 +20,8 @@ class Bench
 }
 
 // Each request runs this file again. In that run, this part writes one `x` for each character of the path.
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     echo Core\Str::repeat('x', Core\Str::length(Core\Request::path()));
-} catch (LogicError $noRequest) {
+} else {
 echo Bench::run(256), "\n";
 }

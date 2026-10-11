@@ -17,12 +17,12 @@ class PingTest {
     }
 }
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The server runs this file for each request, and this part writes the answer.
     var $path = Core\Request::path();
     echo $path == "/ping" ? "pong" : "unknown page";
-} catch (LogicError $noRequest) {
-    // `nvs test` runs the test above. Under `nvs run` there is no request,
-    // so `Core\Request::path()` throws and this prints `no server`.
+} else {
+    // `nvs test` runs the test above. Under `nvs run` there is no server,
+    // so this prints `no server`.
     echo Test::serverUrl() ?? "no server", "\n";
 }

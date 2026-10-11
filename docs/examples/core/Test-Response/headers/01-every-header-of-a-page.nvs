@@ -4,12 +4,11 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It sets one header and writes a page.
-    var $path = Core\Request::path();
     Core\Response::setHeader("Cache-Control", "no-store");
     echo "<h1>Your basket</h1>";
-} catch (LogicError $noRequest) {
+} else {
     var $response = Test::request(Method::Get, "/basket");
 
     // Each name is in lower case, and each value is a list of lines.

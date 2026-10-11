@@ -11,7 +11,7 @@ class Shop {
     }
 }
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers a request. A path with no route gets the status 404.
     ?Core\Router\Match $matched = Core\Request::route();
     if ($matched == null) {
@@ -20,9 +20,8 @@ try {
     } else {
         echo "product ", $matched->param("id") as string;
     }
-} catch (LogicError $noRequest) {
-    // Outside a request, `Core\Request::route()` throws a `LogicError`.
-    // So this part runs. It sends two requests and checks each response.
+} else {
+    // From the command line, this part runs. It sends two requests and checks each response.
     var $found = Test::request(Method::Get, "/products/7");
     Test::assertEquals($found->status(), 200);
     Test::assertSame($found->body(), "product 7");

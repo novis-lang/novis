@@ -7,7 +7,7 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == '/mega') {
         echo Core\Str::repeat('x', 1048576);
@@ -21,7 +21,7 @@ try {
     if ($path == '/empty') {
         echo '';
     }
-} catch (LogicError $noRequest) {
+} else {
     // 1. Read a body of one megabyte 1000 times from the same response.
     var $mega = Test::request(Method::Get, '/mega');
     uint $total = 0;

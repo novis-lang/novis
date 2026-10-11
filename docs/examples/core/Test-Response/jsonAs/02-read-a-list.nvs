@@ -15,11 +15,10 @@ class Product {
     }
 }
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It sends a list of two products.
-    var $path = Core\Request::path();
     Core\Response::json([["sku" => "mug-7", "price" => 12], ["sku" => "cup-2", "price" => 8]]);
-} catch (LogicError $noRequest) {
+} else {
     var $response = Test::request(Method::Get, "/products");
 
     // `array<Product>` creates one `Product` for each element.

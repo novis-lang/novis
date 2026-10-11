@@ -4,14 +4,13 @@
 use Core\Http\Method;
 use Core\Test;
 
-// `Core\Test::request` runs this file a second time to answer the request.
-// In that run, `Core\Request::path()` returns the path of the request.
-try {
+// `Core\Test::request` runs this file again for the request. In that run,
+// `Core\Env::context()` returns `Request`, and this part writes the answer.
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     echo "Hello from ", $path;
-} catch (LogicError $noRequest) {
-    // In the first run there is no request, so `Core\Request::path()` throws.
-    // This part sends the request and reads the answer.
+} else {
+    // From the command line, this part sends the request and reads the answer.
     var $response = Test::request(Method::Get, "/hello");
 
     // The program set no status, so this prints `200`.

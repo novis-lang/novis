@@ -4,11 +4,10 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It sends one product as JSON.
-    var $path = Core\Request::path();
     Core\Response::json(["sku" => "mug-7", "price" => 12, "tags" => ["blue", "kitchen"]]);
-} catch (LogicError $noRequest) {
+} else {
     // This part is the test.
     var $response = Test::request(Method::Get, "/products/mug-7");
 

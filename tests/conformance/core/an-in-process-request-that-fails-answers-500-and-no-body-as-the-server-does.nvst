@@ -9,8 +9,8 @@ an in-process request whose program throws and does not catch answers `500` and 
 // while production fails. Both sides of the bound in one run: the program that
 // catches its own throw still answers what it declared and wrote.
 //
-// The `catch (LogicError ...)` is the parent: there is no request in its run.
-try {
+// The `else` half is the parent: `Core\Env::context()` is `Command` in its run.
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     Core\Response::setStatus(201);
     echo "half a page";
@@ -23,7 +23,7 @@ try {
     } else {
         throw new RuntimeError("not handled");
     }
-} catch (LogicError $noRequest) {
+} else {
     var $failed = Core\Test::request(Core\Http\Method::Get, "/fails");
     echo "fails ", $failed->status(), " [", $failed->body(), "]\n";
     var $caught = Core\Test::request(Core\Http\Method::Get, "/caught");

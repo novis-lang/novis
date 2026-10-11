@@ -8,7 +8,7 @@ an in-process response reads the media type `Core\Response::bytes` declared as i
 // `Content-Type`. The JSON readers do not check the type, so a document sent
 // as `text/plain` decodes; the depth bound applies to both readers alike.
 //
-// The `catch (LogicError ...)` is the parent: there is no request in its run.
+// The `else` half is the parent: `Core\Env::context()` is `Command` in its run.
 #[Core\Json\Derive]
 class Problem {
     public string $title;
@@ -20,7 +20,7 @@ class Problem {
     }
 }
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == "/problem") {
         Core\Response::setStatus(422);
@@ -29,7 +29,7 @@ try {
     if ($path == "/plain") {
         Core\Response::text("{\"title\":\"plain\",\"status\":200}");
     }
-} catch (LogicError $noRequest) {
+} else {
     var $problem = Core\Test::request(Core\Http\Method::Post, "/problem");
     echo $problem->status(), " ", $problem->header("Content-Type") ?? "none", "\n";
     echo Core\Json::encode($problem->headers()), "\n";

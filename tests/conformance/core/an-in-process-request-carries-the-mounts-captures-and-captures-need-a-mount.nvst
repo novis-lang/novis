@@ -8,14 +8,14 @@ an in-process request's `captures` reach `Core\Request::mount()->captures()` in 
 // both or the prefix alone. The root has no pattern, so captures with no
 // mount describe a request no server could send.
 //
-// The `catch (LogicError ...)` is the parent: there is no request in its run.
-try {
+// The `else` half is the parent: `Core\Env::context()` is `Command` in its run.
+if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Request\Mount $mount = Core\Request::mount();
     echo "prefix ", $mount->prefix(), " captures ", Core\Arr::count($mount->captures());
     foreach ($mount->captures() as tainted string $part) {
         echo " [", $part, "]";
     }
-} catch (LogicError $noRequest) {
+} else {
     var $tenant = Core\Test::request(Core\Http\Method::Get, "/orders", {mount: "/acme/eu", captures: ["Acme", "eu"]});
     echo $tenant->body(), "\n";
 

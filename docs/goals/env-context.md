@@ -308,7 +308,7 @@ One file set: `docs/examples/core/Env/context/`, `tests/hostile/core/Env/context
 
 One file set: the files the two searches below print.
 
-- `git grep -l -F 'catch (LogicError $noRequest)' -- '*.nvs' '*.nvst' '*.md'`: 59 files in
+- The search for a `LogicError` caught as `$noRequest`, over `*.nvs`, `*.nvst` and `*.md`: 59 files in
   `benches/members/core/{Html,Response,Test,Test-Response}`, `docs/examples/core/{Test,Test-Response}`,
   `tests/hostile/core/{Test,Test-Response}`, `tests/conformance/core` and
   `website/snippets/guides/testing/test-a-route`.
@@ -326,19 +326,20 @@ One file set: the files the two searches below print.
 
 ### State
 
-**Goal `env-context`: Stages 2 to 5 are done.** `Core\Env::context(): Core\Env::Context` and `Core\Env::OS` typed `Core\Env::Platform` are on disk, with their rule, spec rows and checks. Stage 5's proofs are on disk: `docs/examples/core/Env/context/` (about and three examples), `tests/hostile/core/Env/context/` (the attack, its `nvs.toml` granting `script.spawn`, and `scripts/child.nvs`), `benches/members/core/Env/context.nvs`, and the type proofs `docs/examples/types/Env-Context/` and `docs/examples/types/Env-Platform/`. The `covers:` markers for the member and both enums are on the tests in `crates/nvs-stdlib/src/env.rs`. The `get`, `all` and `mode` bench figures were re-recorded, because `env.rs` changed. `bun nv proofs --gate` owes nothing across the roster. Nothing is blocked.
+**Goal `env-context`: Stages 2 to 5 are done, and Stage 6's `$noRequest` half is done.** `Core\Env::context()` and `Core\Env::OS` typed `Core\Env::Platform` are on disk with their rule, spec rows, checks and proofs. All 59 files that caught a `LogicError` as `$noRequest` now branch on `Core\Env::context() == Core\Env::Context::Request`: the `Core\Test` and `Core\Test\Response` examples, attacks and benches, the `Html` and `Response` benches, five `an-in-process-*` cases and `website/snippets/guides/testing/test-a-route`. `session-start-where-no-request-arrived-is-a-logic-error.nvst` proves the throw itself, so it keeps its `catch` and names the variable `$refusal`. § 6 no longer quotes the pattern. `bun nv proofs --verify` owes nothing in `Core\Test` or `Core\Test\Response`.
+
+The Stage 6 check stays red on 19 files, all the `RuntimeError` half. The `nvs-stdlib-os-is-a-platform-case` red was the two Redis lease tests: a stopped container engine kept port 16379 open with no store behind it. `lease_case` in `crates/nvs-stdlib/src/cache/redis.rs` now probes with its first round trip and skips. Nothing is blocked.
 
 The § *Standing decisions* calls stand as written. No session re-decides one.
 
 ### Next
 
-**Stage 6, first group: the `Core\Test` and `Core\Test\Response` readers.** One file set: `docs/examples/core/Test/`, `docs/examples/core/Test-Response/`, `tests/hostile/core/Test/` and `tests/hostile/core/Test-Response/`, which are 37 of the 59 `LogicError $noRequest` files. The shape is `if (Core\Env::context() == Core\Env::Context::Request) { … } else { … }`, as in `docs/examples/core/Env/context/02-serve-a-page-and-test-it.nvs:5` (§ 6 in this file, `rule:core-classes/env-context`).
+**Stage 6, second group: the 19 files that catch a nested request's `RuntimeError`.** These files have the halves the other way round. The `try` part is the parent that calls `Core\Test::request`, and the `catch` part is the page. The new shape is `if (Core\Env::context() == Core\Env::Context::Request) { <the catch body> } else { <the try body> }` (`rule:core-classes/env-context`). Each example comment that says the call "throws an error, so the `catch` block runs" is rewritten whole.
 
-- [ ] **The `Core\Test` examples and attacks**: `docs/examples/core/Test/request/01-send-one-request.nvs:12` and its siblings, `docs/examples/core/Test/serverUrl/`, `tests/hostile/core/Test/`. Each comment is rewritten whole, and each `.out` is re-blessed with `bun nv proofs --bless`.
-- [ ] **The `Core\Test\Response` examples and attacks**: `docs/examples/core/Test-Response/body/01-read-what-the-page-wrote.nvs:13` and the other six member folders under `docs/examples/core/Test-Response/`, and `tests/hostile/core/Test-Response/`.
-- [ ] **The benches**: `benches/members/core/Test-Response/body.nvs:27` and the rest of `benches/members/core/{Test,Test-Response,Html,Response}`, 15 files. Re-record a figure only if `bun nv proofs --gate` asks.
+- [ ] **The examples and attacks**: `docs/examples/core/Html/later/01-two-parts-of-a-page.nvs:6`, its two siblings, `docs/examples/core/Response/slotted/01-send-the-page-early.nvs:9` and its two siblings, `tests/hostile/core/Html/later/01-fake-and-repeated-placeholders.nvs:22` and `tests/hostile/core/Response/slotted/01-fake-fills-and-late-calls.nvs:23`. Check them with `bun nv proofs --verify --group 'Core\Html'` and `--group 'Core\Response'`.
+- [ ] **The 11 `.nvst` cases**: `tests/conformance/core/html-later-assembles-the-page-in-place-whatever-order-the-slots-finish.nvst:13` and the other ten the Stage 6 check prints, one of them `tests/conformance/lang/text-outside-the-tags-is-written-as-it-is-in-a-request-and-a-hole-is-escaped.nvst:13`. Run them with `bun nv suite tests/conformance/ --case …`.
+- [ ] **Close the goal**: the Stage 6 check (`docs/goals/env-context.md:99`) exits nonzero, then the goal-end gates `bun nv verify --doc` and `bun nv owners --closes env-context`.
 
 ### Backlog
 
-- Stage 6, second group: the 19 `RuntimeError $inside…` files (`docs/examples/core/Html/later/01-two-parts-of-a-page.nvs:9`, `docs/examples/core/Response/slotted/`, 11 `.nvst` cases), the 6 `.nvst` cases and `website/snippets/guides/testing/test-a-route`. The three files whose subject is the throw stay (§ 6 in this file).
-- The Stage 6 check greps `*.md`, and § 6 of this file quotes both `catch` lines literally. Reword § 6 so it names the pattern without matching it, or the check stays red after every reader has moved.
+- `tests/hostile/core/Test-Response/jsonAs/01-a-class-that-contains-itself-and-wrong-bodies.nvs:48` reports `diverged` under `bun nv proofs --verify`. Its 1000-level step has two allowed outcomes, and the instrumented recording run reaches the other one. It is not a failure, and the attack's owner decides whether to pin one outcome.

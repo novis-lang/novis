@@ -5,7 +5,7 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == '/many') {
         uint $n = 0;
@@ -24,7 +24,7 @@ try {
             $c = $c + 1;
         }
     }
-} catch (LogicError $noRequest) {
+} else {
     // 1. Ask for names that no header can have. Each result is `null`.
     var $plain = Test::request(Method::Get, '/plain');
     array<string> $names = ['', ' ', "x\nSet-Cookie", Core\Str::repeat('a', 1048576), 'ÄÖÜ', "\0"];

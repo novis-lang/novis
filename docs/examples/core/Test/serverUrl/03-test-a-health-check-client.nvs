@@ -21,7 +21,7 @@ class HealthCheckTest {
     }
 }
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The server runs this file for each request. `/health` works,
     // and every other page answers with the status 503.
     var $path = Core\Request::path();
@@ -31,7 +31,7 @@ try {
         Core\Response::setStatus(503);
         echo "failing";
     }
-} catch (LogicError $noRequest) {
+} else {
     // `nvs test` runs the test above. Under `nvs run` there is no server,
     // so this prints `no server`.
     echo Test::serverUrl() ?? "no server", "\n";

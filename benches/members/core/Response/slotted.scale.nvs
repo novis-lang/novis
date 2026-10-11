@@ -9,10 +9,10 @@ class Bench
     public static function run(uint $size): uint
     {
         // Each request runs this file again. In that run, this part writes the page.
-        try {
+        if (Core\Env::context() == Core\Env::Context::Request) {
             Bench::page(Core\Request::path());
             return 0;
-        } catch (LogicError $noRequest) {
+        } else {
         }
         string $path = '/' . Core\Str::repeat('a', $size);
         uint $total = 0;

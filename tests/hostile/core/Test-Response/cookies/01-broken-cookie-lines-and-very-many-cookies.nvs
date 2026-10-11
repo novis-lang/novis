@@ -5,7 +5,7 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     // Each of these paths writes one broken `Set-Cookie` line.
     if ($path == '/no-equals') {
@@ -31,7 +31,7 @@ try {
             $c = $c + 1;
         }
     }
-} catch (LogicError $noRequest) {
+} else {
     // 1. Read the cookies of each broken line. A line with no name sets nothing.
     array<string> $paths = ['/no-equals', '/no-name', '/only-semicolons', '/two-equals', '/spaces'];
     foreach ($paths as string $broken) {

@@ -18,12 +18,12 @@ class Bench {
 }
 
 // Each request runs this file again. In that run, this part writes the page.
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     tainted string $path = Core\Request::path();
     Core\Html\Markup $title = Core\Html::later(fn(): Core\Html\Markup => html`<h1>{$path}</h1>`);
     Core\Html\Markup $list = Core\Html::later(fn(): Core\Html\Markup => html`<ul><li>one</li></ul>`);
     Core\Html\Markup $foot = Core\Html::later(fn(): Core\Html\Markup => html`<p>end</p>`);
     echo $title, $list, $foot;
-} catch (LogicError $noRequest) {
+} else {
     echo Bench::run(2000), "\n";
 }

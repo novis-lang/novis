@@ -5,10 +5,10 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $parts = Core\Request::mount()->captures();
     echo Core\Arr::count($parts);
-} catch (LogicError $noRequest) {
+} else {
     // 1. 100000 captures in one request.
     array<string> $many = [];
     uint $n = 0;

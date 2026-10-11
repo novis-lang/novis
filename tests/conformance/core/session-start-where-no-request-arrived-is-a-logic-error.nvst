@@ -22,9 +22,9 @@ uint $refused = 0;
 string $said = "";
 try {
     Core\Session::start();
-} catch (LogicError $noRequest) {
+} catch (LogicError $refusal) {
     $refused = $refused + 1;
-    $said = $noRequest->message;
+    $said = $refusal->message;
 }
 echo "start was refused ", $refused, " of 1\n";
 

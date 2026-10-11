@@ -4,11 +4,10 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It writes an HTML page.
-    var $path = Core\Request::path();
     echo "<h1>Not found</h1>";
-} catch (LogicError $noRequest) {
+} else {
     var $response = Test::request(Method::Get, "/api/missing");
 
     // An HTML page is not JSON, so `json()` throws a `ParseError`.

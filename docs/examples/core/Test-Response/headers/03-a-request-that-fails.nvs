@@ -4,13 +4,12 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It sets a header, and then throws
     // an error it does not catch.
-    var $path = Core\Request::path();
     Core\Response::setHeader("Cache-Control", "no-store");
     throw new RuntimeError("the database is not available");
-} catch (LogicError $noRequest) {
+} else {
     var $response = Test::request(Method::Get, "/report");
 
     // The server does not send the headers of a failed request, so the

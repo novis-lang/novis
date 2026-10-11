@@ -15,12 +15,11 @@ class Product {
     }
 }
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. The price is a string, but `Product`
     // needs an `int`.
-    var $path = Core\Request::path();
     Core\Response::json(["sku" => "mug-7", "price" => "12"]);
-} catch (LogicError $noRequest) {
+} else {
     var $response = Test::request(Method::Get, "/products/mug-7");
 
     // `jsonAs` throws a `ParseError`. Its `issues` list has one entry for

@@ -4,12 +4,11 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers the request. A new order gets the status 201 (Created).
-    var $path = Core\Request::path();
     Core\Response::setStatus(201);
     echo "order created";
-} catch (LogicError $noRequest) {
+} else {
     var $response = Test::request(Method::Post, "/orders");
 
     // This prints `201 order created`.

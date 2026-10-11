@@ -9,7 +9,7 @@ an in-process response carries the last value a `setHeader` set as its one line,
 // it reads back as the name with an empty value. A body holding the document
 // `null` decodes to `null`, where an empty body throws.
 //
-// The `catch (LogicError ...)` is the parent: there is no request in its run.
+// The `else` half is the parent: `Core\Env::context()` is `Command` in its run.
 #[Core\Json\Derive]
 class Tag {
     public string $name;
@@ -19,7 +19,7 @@ class Tag {
     }
 }
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == "/replaced") {
         Core\Response::setHeader("X-Stage", "one");
@@ -32,7 +32,7 @@ try {
     if ($path == "/none") {
         Core\Response::json([]);
     }
-} catch (LogicError $noRequest) {
+} else {
     var $replaced = Core\Test::request(Core\Http\Method::Get, "/replaced");
     echo "header ", $replaced->header("x-stage") ?? "none", "\n";
     echo "lines ", Core\Json::encode($replaced->headers()["x-stage"]), "\n";

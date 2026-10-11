@@ -4,12 +4,11 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. `Core\Response::json` sends the array
     // as JSON and sets the content type.
-    var $path = Core\Request::path();
     Core\Response::json(["ok" => true]);
-} catch (LogicError $noRequest) {
+} else {
     // This part is the test.
     var $response = Test::request(Method::Get, "/health");
 

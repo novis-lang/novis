@@ -22,8 +22,8 @@ class Bench {
 }
 
 // Each request runs this file again. In that run, this part writes the answer.
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     echo Core\Request::path();
-} catch (LogicError $noRequest) {
+} else {
     echo Bench::run(400000), "\n";
 }

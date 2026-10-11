@@ -6,11 +6,10 @@ use Core\Http\Client;
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers the request of step 4. It writes what `serverUrl` returns there.
-    var $path = Core\Request::path();
     echo Test::serverUrl() ?? 'none';
-} catch (LogicError $noRequest) {
+} else {
     // Step 1: one million calls. Each call should return `null`, so this prints `0`.
     uint $found = 0;
     uint $i = 0;

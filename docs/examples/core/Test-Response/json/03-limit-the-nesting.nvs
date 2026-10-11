@@ -4,12 +4,11 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. The JSON is an object inside an object,
     // so its depth is 3.
-    var $path = Core\Request::path();
     Core\Response::json(["order" => ["id" => 7]]);
-} catch (LogicError $noRequest) {
+} else {
     var $response = Test::request(Method::Get, "/orders/7");
 
     // A depth of 3 is allowed, so this prints `{"order":{"id":7}}`.

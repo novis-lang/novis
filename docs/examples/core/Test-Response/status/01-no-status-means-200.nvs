@@ -4,11 +4,10 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers the request. It writes text and sets no status.
-    var $path = Core\Request::path();
     echo "Hello";
-} catch (LogicError $noRequest) {
+} else {
     var $response = Test::request(Method::Get, "/hello");
 
     // The program set no status, so `status()` returns 200. This prints `200`.

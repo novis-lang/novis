@@ -4,12 +4,11 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
-    var $path = Core\Request::path();
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The program writes some text, and then throws an error it does not catch.
     echo "The first half of the page";
     throw new RuntimeError("the database is not available");
-} catch (LogicError $noRequest) {
+} else {
     var $response = Test::request(Method::Get, "/report");
 
     // The server sends no body for a failed request, so `body()` returns

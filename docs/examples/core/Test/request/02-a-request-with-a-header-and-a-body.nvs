@@ -4,14 +4,14 @@
 use Core\Http\Method;
 use Core\Test;
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers the request. It reads one header and the body,
     // and sets the status to 201.
     var $language = Core\Request::header("accept-language") ?? "none";
     var $body = Core\Request::body();
     Core\Response::setStatus(201);
     echo "language ", $language, ", note ", $body;
-} catch (LogicError $noRequest) {
+} else {
     // This part sends a `POST` request with one header and a body.
     var $response = Test::request(Method::Post, "/notes", {
         headers: ["Accept-Language" => "de"],

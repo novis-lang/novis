@@ -20,9 +20,9 @@ class Bench
 
 // Each request runs this file again. In that run, this part sets two cookies.
 // The `sid` value has one `x` for each character of the path.
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Response::addCookie('theme', 'dark');
     Core\Response::addCookie('sid', Core\Str::repeat('x', Core\Str::length(Core\Request::path())));
-} catch (LogicError $noRequest) {
+} else {
 echo Bench::run(256), "\n";
 }
