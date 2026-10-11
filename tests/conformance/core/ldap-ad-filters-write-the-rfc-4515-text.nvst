@@ -1,5 +1,5 @@
 --TEST--
-Each `Ldap\Ad` filter is the extensible match AD defines, as `toString` shows: `memberOf` with `nested: true` uses rule `1.2.840.113556.1.4.1941`, `bitAnd` and `bitOr` use `.803` and `.804` with the number in decimal, and `enabled` is `disabled` reversed — ADR 0278 § 1 and `rule:core-classes/ldap-filter-is-a-value`
+Each `Ldap\Ad` filter is the extensible match AD defines, as `toString` shows: `memberOf` with `nested: true` uses rule `1.2.840.113556.1.4.1941`, `bitAnd` and `bitOr` use `.803` and `.804` with the number in decimal, and `enabled` is `disabled` reversed — `rule:core-classes/ldap-filter-is-a-value`
 --FILE--
 <?nvs
 var $staff = Core\Ldap\Dn::parse("CN=Staff,DC=example,DC=test");

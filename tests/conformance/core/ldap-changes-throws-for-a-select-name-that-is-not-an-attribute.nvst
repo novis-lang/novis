@@ -1,5 +1,5 @@
 --TEST--
-`changes` throws `LogicError` for a `select` name RFC 4512 does not allow before anything is sent, and throws `Unsupported` for a `base` that is not the root of the domain — ADR 0278 § 11
+`changes` throws `LogicError` for a `select` name RFC 4512 does not allow before anything is sent, and throws `Unsupported` for a `base` that is not the root of the domain
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

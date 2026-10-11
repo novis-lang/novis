@@ -1,5 +1,5 @@
 --TEST--
-`read` and a search's `base` take a `Dn`, `Entry::dn` returns one, and a `tainted` name built into a `Dn` reads no other entry — ADR 0278 § 7 and `rule:core-classes/ldap-dn-is-the-launderer`
+`read` and a search's `base` take a `Dn`, `Entry::dn` returns one, and a `tainted` name built into a `Dn` reads no other entry — `rule:core-classes/ldap-dn-is-the-launderer`
 --FILE--
 <?nvs
 // covers: Core\Ldap\Connection::read

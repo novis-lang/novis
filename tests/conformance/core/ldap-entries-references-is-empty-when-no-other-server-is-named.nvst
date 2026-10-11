@@ -1,5 +1,5 @@
 --TEST--
-A search under `CN=Users` names no other server, so `references()` is an empty list before the loop, after it, and after a second loop that finds nothing more — ADR 0278 § 5
+A search under `CN=Users` names no other server, so `references()` is an empty list before the loop, after it, and after a second loop that finds nothing more
 --FILE--
 <?nvs
 // covers: Core\Ldap\Entries::references

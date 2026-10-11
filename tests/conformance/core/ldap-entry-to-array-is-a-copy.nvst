@@ -1,5 +1,5 @@
 --TEST--
-Changing the array `toArray` returns does not change the entry: the readers and a second `toArray` still see the values the server sent — ADR 0278 § 1
+Changing the array `toArray` returns does not change the entry: the readers and a second `toArray` still see the values the server sent
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

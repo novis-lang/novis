@@ -1,5 +1,5 @@
 --TEST--
-`showDeleted` makes a search also find deleted entries, `isDeleted()` is `true` only for them, and a `select` that does not name `isDeleted` still gets it — ADR 0278 § 11
+`showDeleted` makes a search also find deleted entries, `isDeleted()` is `true` only for them, and a `select` that does not name `isDeleted` still gets it
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

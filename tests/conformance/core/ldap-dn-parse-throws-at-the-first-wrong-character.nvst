@@ -1,5 +1,5 @@
 --TEST--
-`Ldap\Dn::parse` drops the spaces around `,` and `=`, reads an escaped `,` as part of a value, and throws `LogicError` naming the first character that is not part of a DN — ADR 0278 § 7
+`Ldap\Dn::parse` drops the spaces around `,` and `=`, reads an escaped `,` as part of a value, and throws `LogicError` naming the first character that is not part of a DN — `rule:core-classes/ldap-dn-is-the-launderer`
 --FILE--
 <?nvs
 var $base = Core\Ldap\Dn::parse(" OU = Staff , DC=example,DC=test ");

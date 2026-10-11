@@ -1,5 +1,5 @@
 --TEST--
-A block with `tls = "none"` on a host `[capabilities.ldap] cleartext` grants binds over plain `ldap://`, and `whoami` returns the same identity it returns over LDAPS — ADR 0278 § 2 and § 5
+A block with `tls = "none"` on a host `[capabilities.ldap] cleartext` grants binds over plain `ldap://`, and `whoami` returns the same identity it returns over LDAPS — `rule:security/ldap-cleartext-bind-is-granted-per-host`
 --FILE--
 <?nvs
 // covers: Core\Ldap\Connection::whoami

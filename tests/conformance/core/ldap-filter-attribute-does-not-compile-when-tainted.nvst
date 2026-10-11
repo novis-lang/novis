@@ -1,5 +1,5 @@
 --TEST--
-The attribute name of `Filter::equals` and `Filter::present` is sent as it is written, so a `tainted` one does not compile — ADR 0278 § 5 and `rule:security/tainted-qualifier`
+The attribute name of `Filter::equals` and `Filter::present` is sent as it is written, so a `tainted` one does not compile — `rule:core-classes/ldap-filter-is-a-value` and `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 tainted string $attribute = "cn";

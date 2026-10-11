@@ -1,5 +1,5 @@
 --TEST--
-`Ldap\Dn` is built from an attribute and a value, and a `,`, `+` or `=` in a `tainted` value stays part of that one value — ADR 0278 § 7 and `rule:core-classes/ldap-dn-is-the-launderer`
+`Ldap\Dn` is built from an attribute and a value, and a `,`, `+` or `=` in a `tainted` value stays part of that one value — `rule:core-classes/ldap-dn-is-the-launderer`
 --FILE--
 <?nvs
 // A value from a request, with characters that would end the name early or add a level.

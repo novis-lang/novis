@@ -1,5 +1,5 @@
 --TEST--
-Core\Ldap::connect to a block whose only URL does not answer throws `Core\Ldap\LdapError` with the kind `Unavailable` and a `null` code, because no server sent a result code — ADR 0278 § 2 and § 10
+Core\Ldap::connect to a block whose only URL does not answer throws `Core\Ldap\LdapError` with the kind `Unavailable` and a `null` code, because no server sent a result code
 --FILE--
 <?nvs
 // Nothing listens on port 1, so the only URL in the block does not answer.

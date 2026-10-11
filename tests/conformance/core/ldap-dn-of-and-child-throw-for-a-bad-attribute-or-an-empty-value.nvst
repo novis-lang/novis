@@ -1,5 +1,5 @@
 --TEST--
-`Dn::of` and `child` throw `LogicError` for an empty value and for an attribute that is not a name, and accept a value of one space and a numeric OID — ADR 0278 § 7
+`Dn::of` and `child` throw `LogicError` for an empty value and for an attribute that is not a name, and accept a value of one space and a numeric OID — `rule:core-classes/ldap-dn-is-the-launderer`
 --FILE--
 <?nvs
 var $base = Core\Ldap\Dn::of("DC", "test");

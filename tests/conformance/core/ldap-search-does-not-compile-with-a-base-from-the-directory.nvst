@@ -1,5 +1,5 @@
 --TEST--
-A value an `Ldap\Entry` returns is `tainted`, so `string`'s result does not compile as a search `base` — ADR 0278 § 5 and § 6 and `rule:security/tainted-qualifier`
+A value an `Ldap\Entry` returns is `tainted`, so `string`'s result does not compile as a search `base` — `rule:core-classes/ldap-value-types` and `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 class Reports {

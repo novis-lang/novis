@@ -1,5 +1,5 @@
 --TEST--
-`search` and `read` both throw `LogicError` for a `select` name RFC 4512 does not allow, before anything is sent, and accept a name with an option — ADR 0278 § 5
+`search` and `read` both throw `LogicError` for a `select` name RFC 4512 does not allow, before anything is sent, and accept a name with an option
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

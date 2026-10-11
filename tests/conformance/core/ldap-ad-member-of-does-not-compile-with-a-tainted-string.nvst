@@ -1,5 +1,5 @@
 --TEST--
-`Ad::memberOf` takes the group's DN, which the server reads as a path in the tree, so a `tainted` string does not compile there, and a DN the program wrote does — ADR 0278 § 1 and `rule:core-classes/ldap-dn-is-the-launderer`
+`Ad::memberOf` takes the group's DN, which the server reads as a path in the tree, so a `tainted` string does not compile there, and a DN the program wrote does — `rule:core-classes/ldap-filter-is-a-value` and `rule:core-classes/ldap-dn-is-the-launderer`
 --FILE--
 <?nvs
 class Groups {

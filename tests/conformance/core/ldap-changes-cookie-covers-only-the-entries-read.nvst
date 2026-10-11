@@ -1,5 +1,5 @@
 --TEST--
-`Changes::cookie()` stays the cookie `changes` was given until every entry of the server's answer is read, so a loop that stops early does not skip entries, and it is a new cookie after the loop ends — ADR 0278 § 11
+`Changes::cookie()` stays the cookie `changes` was given until every entry of the server's answer is read, so a loop that stops early does not skip entries, and it is a new cookie after the loop ends
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

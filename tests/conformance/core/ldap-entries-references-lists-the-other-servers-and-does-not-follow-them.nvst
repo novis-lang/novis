@@ -1,5 +1,5 @@
 --TEST--
-A search at the domain root returns the other naming contexts as continuation references: `references()` lists their URLs after the loop, and no entry from them is in the result — ADR 0278 § 5
+A search at the domain root returns the other naming contexts as continuation references: `references()` lists their URLs after the loop, and no entry from them is in the result
 --FILE--
 <?nvs
 // covers: Core\Ldap\Entries::references

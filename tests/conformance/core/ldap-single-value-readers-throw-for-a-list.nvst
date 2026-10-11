@@ -1,5 +1,5 @@
 --TEST--
-`objectClass` has several values, so `string` and `bytes` both throw `LogicError` naming the count and `strings`, and `strings` returns every value in the order the server sent them — ADR 0278 § 6
+`objectClass` has several values, so `string` and `bytes` both throw `LogicError` naming the count and `strings`, and `strings` returns every value in the order the server sent them — `rule:core-classes/ldap-value-types`
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

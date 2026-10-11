@@ -1,5 +1,5 @@
 --TEST--
-An `Ldap\Entry` read with `select` has only the attributes it named: `has` returns `false` for any other, and `string`, `strings` and `bytes` all return `null` for it — ADR 0278 § 5 and § 6
+An `Ldap\Entry` read with `select` has only the attributes it named: `has` returns `false` for any other, and `string`, `strings` and `bytes` all return `null` for it — `rule:core-classes/ldap-value-types`
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

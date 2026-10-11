@@ -1,5 +1,5 @@
 --TEST--
-A connection from `open` with no `base` has nowhere to start a search, so a search that names no `base` throws `LogicError` and one that names a `base` runs — ADR 0278 § 2 and § 5
+A connection from `open` with no `base` has nowhere to start a search, so a search that names no `base` throws `LogicError` and one that names a `base` runs
 --FILE--
 <?nvs
 // This connection sends its password without TLS. Only the test server on

@@ -1,5 +1,5 @@
 --TEST--
-Core\Ldap::connect binds as its block, `whoami` returns that identity, `search` finds an entry by an equality filter and `read` reads the same entry by its DN — ADR 0278 § 1, § 5 and § 6
+Core\Ldap::connect binds as its block, `whoami` returns that identity, `search` finds an entry by an equality filter and `read` reads the same entry by its DN
 --FILE--
 <?nvs
 // covers: Core\Ldap\Connection::search

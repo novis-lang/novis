@@ -1,5 +1,5 @@
 --TEST--
-`changes` with the `cookie()` of an earlier result returns only the entries that changed after it, a deleted entry among them with `isDeleted()` set, and the newest cookie returns none of them again — ADR 0278 § 11
+`changes` with the `cookie()` of an earlier result returns only the entries that changed after it, a deleted entry among them with `isDeleted()` set, and the newest cookie returns none of them again
 --FILE--
 <?nvs
 // covers: Core\Ldap\Connection::changes

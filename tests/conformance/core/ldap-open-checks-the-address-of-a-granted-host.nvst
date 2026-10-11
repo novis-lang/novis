@@ -1,5 +1,5 @@
 --TEST--
-Core\Ldap::open checks the address of a granted host, so a loopback host throws `RuntimeError` before anything is dialled — ADR 0278 § 2 and `rule:security/net-address-policy`
+Core\Ldap::open checks the address of a granted host, so a loopback host throws `RuntimeError` before anything is dialled — `rule:security/net-address-policy`
 --FILE--
 <?nvs
 // `127.0.0.1` is granted, but it is a loopback address, and no

@@ -1,5 +1,5 @@
 --TEST--
-`Filter::parse` reads every form `toString` writes back as the same filter, so the text it renders is the text it was given, for each constructor, nesting, escapes and an extensible match — ADR 0278 § 6 and `rule:core-classes/ldap-filter-is-a-value`
+`Filter::parse` reads every form `toString` writes back as the same filter, so the text it renders is the text it was given, for each constructor, nesting, escapes and an extensible match — `rule:core-classes/ldap-filter-is-a-value`
 --FILE--
 <?nvs
 array<string> $texts = [

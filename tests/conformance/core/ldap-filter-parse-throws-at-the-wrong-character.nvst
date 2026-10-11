@@ -1,5 +1,5 @@
 --TEST--
-`Filter::parse` throws `LogicError` for text that is not a filter, and the message names the first character that is wrong; an attribute name it reads is held to the same RFC 4512 check as `equals` — ADR 0278 § 6
+`Filter::parse` throws `LogicError` for text that is not a filter, and the message names the first character that is wrong; an attribute name it reads is held to the same RFC 4512 check as `equals` — `rule:core-classes/ldap-filter-is-a-value`
 --FILE--
 <?nvs
 array<string> $bad = [

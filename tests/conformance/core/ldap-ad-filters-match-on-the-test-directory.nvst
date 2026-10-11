@@ -1,5 +1,5 @@
 --TEST--
-Each `Ldap\Ad` filter matches the accounts it says it matches on the test directory: `memberOf` finds the members of `Domain Admins`, the server accepts `nested: true`, `enabled` and `disabled` split the accounts by `userAccountControl`, and `bitAnd` and `bitOr` test its bits — ADR 0278 § 1 and `rule:core-classes/ldap-filter-is-a-value`
+Each `Ldap\Ad` filter matches the accounts it says it matches on the test directory: `memberOf` finds the members of `Domain Admins`, the server accepts `nested: true`, `enabled` and `disabled` split the accounts by `userAccountControl`, and `bitAnd` and `bitOr` test its bits — `rule:core-classes/ldap-filter-is-a-value`
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

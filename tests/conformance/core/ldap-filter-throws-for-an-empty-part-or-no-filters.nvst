@@ -1,5 +1,5 @@
 --TEST--
-`startsWith`, `endsWith` and `contains` throw `LogicError` for an empty value, `all` and `any` throw it with no filter, and every constructor that takes an attribute agrees with `equals` on which names it throws for — ADR 0278 § 6
+`startsWith`, `endsWith` and `contains` throw `LogicError` for an empty value, `all` and `any` throw it with no filter, and every constructor that takes an attribute agrees with `equals` on which names it throws for — `rule:core-classes/ldap-filter-is-a-value`
 --FILE--
 <?nvs
 // An empty part would match every value, so the three substring constructors throw.

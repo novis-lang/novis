@@ -1,5 +1,5 @@
 --TEST--
-A continuation reference is a URL the server chose, so `references()` returns `tainted string` values and a plain `array<string>` does not take them — ADR 0278 § 5 and `rule:security/tainted-qualifier`
+A continuation reference is a URL the server chose, so `references()` returns `tainted string` values and a plain `array<string>` does not take them — `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 // covers: Core\Ldap\Entries::references

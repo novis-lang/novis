@@ -1,5 +1,5 @@
 --TEST--
-`toString` returns a `tainted string`, because a value inside the filter may be, so it does not compile where a `string` is needed — ADR 0278 § 6 and `rule:security/tainted-qualifier`
+`toString` returns a `tainted string`, because a value inside the filter may be, so it does not compile where a `string` is needed — `rule:core-classes/ldap-filter-is-a-value` and `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 var $filter = Core\Ldap\Filter::not(Core\Ldap\Filter::present("mail"));
