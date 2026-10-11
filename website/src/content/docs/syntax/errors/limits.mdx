@@ -24,8 +24,8 @@ read = ["."]
 ## Limits that stop the program
 
 The `[limits]` block of `nvs.toml` sets `memory`, `cpu_time`, `wall_time` and `max_output`. A
-program that uses more memory than `memory` stops at once with `FATAL`. This is not an error
-object. No `catch` runs, no `finally` runs, and the exit status is `1`.
+program that uses more memory than `memory` stops at once with `FATAL`. When `nvs.toml` does not
+set `memory`, the limit is `128M`. This is not an error object. No `catch` runs, no `finally` runs, and the exit status is `1`.
 
 `Core\Fatal::onLimit` registers one function that runs when a limit stops the program. It gets an
 array, and its `limit` key is the name of the limit. The program still ends after it.

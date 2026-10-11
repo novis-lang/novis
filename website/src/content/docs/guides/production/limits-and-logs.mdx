@@ -9,8 +9,9 @@ A production server needs limits for each request and a log you can read. Both a
 
 ## Limits for each request
 
-Set a starting value and a maximum for memory and time. Without them, one request can use the
-whole machine:
+Each request has a memory limit of `128M` and a processor time limit of `30s` by default. Set the
+values your application needs, and a maximum that a request may raise itself to. Also set
+`wall_time`, because it has no default:
 
 ```toml
 [limits]

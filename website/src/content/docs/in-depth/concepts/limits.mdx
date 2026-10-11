@@ -8,13 +8,17 @@ import { githubFile } from '@config/site.mjs'
 
 A server has a fixed amount of memory and processor time. Without limits, one slow or broken
 request can use all of it, and every other request waits. In Novis, every request runs under
-limits that you set in `nvs.toml`.
+limits. Novis has a default for each one, and you can change it in `nvs.toml`.
 
 ## How a limit works
 
 `[limits]` sets what each request starts with, such as 64 MB of memory and 5 seconds of processor
-time. `[limits.hard]` sets the maximum. A request that needs more may raise its own limit up to the
-maximum.
+time. When you do not set them, a request starts with 128 MB of memory and 30 seconds of processor
+time. A command-line program has no limit on processor time unless you set one.
+
+`[limits.hard]` sets the maximum. A request that needs more may raise its own limit up to the
+maximum. When `[limits.hard]` does not set a limit, the maximum is the starting value. So the
+request cannot raise it.
 
 A request that uses more than a limit stops immediately. Only that request stops. The server writes the
 reason to its log, and the other requests keep running.
@@ -25,7 +29,8 @@ A request can start tasks and other programs. They all share the limits of that 
 that starts fifty programs still has one memory limit, and the fifty programs share it.
 
 So the most memory a server can use is easy to calculate. It is the number of requests that run at
-the same time, multiplied by the memory ceiling.
+the same time, multiplied by the memory ceiling. The server uses the same calculation the other way
+round. It runs only as many requests at the same time as its memory can hold.
 
 ## Your code can read its own memory
 

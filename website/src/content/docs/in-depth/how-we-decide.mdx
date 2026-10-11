@@ -32,8 +32,11 @@ copy uses memory.
 
 ## Memory use is allowed, and it is still limited
 
-Memory is last, but it is never unlimited. Every request has a memory limit that you set. The
-memory a server uses grows with the requests it runs at the same time. It does not grow with the
+Memory is last, but it is never unlimited. Every request has a memory limit. It is `128M` until
+you set another value in `nvs.toml`. The server runs only as many requests at the same time as its
+memory can hold.
+
+The memory a server uses grows with the requests it runs at the same time. It does not grow with the
 number of requests it has served in total. Growth of that kind is a bug.
 
 <a href={githubFile('docs/rules/programs/memory-priority.md')}>Read the full reasoning behind the order.</a>

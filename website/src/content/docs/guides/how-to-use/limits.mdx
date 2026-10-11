@@ -1,18 +1,53 @@
 ---
 title: Limits
 covers: []
-description: Limit the memory and time of each request, and raise a limit for one request that needs more.
+description: The default memory and time limits of each request, how to change them in nvs.toml, and how to raise a limit for one request that needs more.
 ---
 
 import Snippet from '@components/Snippet.astro'
 
-Each request runs under limits that you write in `nvs.toml`. A request that goes over a limit stops,
-and the other requests keep running.
+Each request runs under limits for memory and processor time. Novis has a default for both, and you
+can change them in `nvs.toml`. A request that goes over a limit stops, and the other requests keep
+running.
+
+## The default limits
+
+When `nvs.toml` does not set a limit, Novis uses these values:
+
+| Key | Default |
+|---|---|
+| `memory` | `128M` for every program |
+| `cpu_time` | `30s` for a request, a WebSocket or SSE connection, a scheduled script and a queued job |
+| `wall_time`, `max_output`, `max_tasks` | no limit |
+
+A command-line program has no `cpu_time` limit by default. This is true for `nvs run`, a
+`#[Command]` method and `nvs test`. A command-line program still has the `128M` memory limit.
+
+`false` removes a limit:
+
+```toml
+[limits]
+memory = false
+```
+
+## Raise a limit in nvs.toml
+
+A program cannot raise its own limit unless `nvs.toml` allows it. To give every request more, write
+the new value in `[limits]`:
+
+```toml
+[limits]
+memory = "256M"
+cpu_time = "60s"
+```
 
 ## A starting value and a maximum
 
 `[limits]` is what each request starts with. `[limits.hard]` is the maximum: the most a request may
-raise itself to. This is the `nvs.toml` for the program below:
+raise itself to. When `[limits.hard]` does not set a key, the maximum is the value in `[limits]`. A
+program can then lower that limit, but it cannot raise it.
+
+This is the `nvs.toml` for the program below:
 
 ```toml
 [limits]
@@ -29,7 +64,7 @@ raises its own limit:
 
 <Snippet src="guides/how-to-use/limits/limits.nvs" />
 
-`Core\Config::set` returns `false` for a value above the ceiling, and the limit stays the same.
+`Core\Config::set` returns `false` for a value above the maximum, and the limit stays the same.
 
 ## The limits
 
@@ -42,7 +77,21 @@ raises its own limit:
 | `max_tasks` | how many tasks one request may run at the same time |
 
 `wall_time` limits how long a client waits. `cpu_time` stops a loop that never ends, but not a
-request that waits for a slow query. When a key is not set, there is no limit.
+request that waits for a slow query.
+
+## Memory and the number of requests
+
+The server runs only as many requests at the same time as its memory allows. It takes the memory of
+the machine and keeps `128M` for itself. Then it divides the rest by the memory limit of one request.
+In a container, the server uses the memory limit of the container.
+
+With the default limit of `128M`, a machine with 2 GB runs about 15 requests at the same time. A
+machine with 8 GB runs 63, and a machine with 32 GB runs 255. A request over that number gets the
+status `503`.
+
+A smaller `memory` limit, or more memory on the machine, lets more requests run at the same time.
+When `[limits.hard] memory` is set, the server divides by that value. When the number is lower than
+`[server] max_in_flight`, the server writes it to its log when it starts.
 
 ## When a request goes over
 
@@ -51,11 +100,11 @@ The request stops at once. This is not an exception, so no `catch` block runs. T
 
 ## Do and don't
 
-- Do set `memory` and `wall_time` for every server. Without them, one request can use the whole
-  machine.
-- Do set a ceiling in `[limits.hard]`, so a request can raise its limit only that far.
+- Do set `wall_time` for every server. It has no default, so a request that waits for a slow service has no time limit.
+- Do set a maximum in `[limits.hard]` when a request needs to raise its own limit.
 - Do raise a limit in the one request that needs it, with `Core\Config::set`.
-- Don't raise the starting value for every request because one page needs more.
+- Don't raise the starting value for every request because one page needs more. Each request then
+  holds more memory, and fewer requests run at the same time.
 - Don't catch a limit as an error. Make the work smaller, or raise the limit before you start it.
 
 Read more in [Syntax: limits](/syntax/errors/limits/) and
