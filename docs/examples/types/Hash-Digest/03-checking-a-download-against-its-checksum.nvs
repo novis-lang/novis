@@ -9,7 +9,7 @@ string $downloaded = "the release archive";
 // so `Core\Encoding::fromHex` converts it to bytes below.
 string $published = "9287352f960eca8487b5cf180199b11a82306e1e6fff02b566d48a229a8ebe32";
 
-bytes $ours = Core\Hash::of($downloaded, Core\Digest::Sha256);
+bytes $ours = Core\Hash::of($downloaded, Core\Hash::Digest::Sha256);
 bytes $theirs = Core\Encoding::fromHex($published);
 
 if (Core\Hash::equals($ours, $theirs)) {

@@ -1,7 +1,7 @@
 Computes a digest of some data: a short, fixed-size fingerprint that changes completely when the
 data changes by even one byte.
 
-You choose the algorithm with a `Core\Digest` case, such as `Core\Digest::Sha256`. The same data
+You choose the algorithm with a `Core\Hash::Digest` case, such as `Core\Hash::Digest::Sha256`. The same data
 and the same algorithm always give the same digest, on every computer. The result is `bytes`, not
 text. To show it or store it as text, convert it with `Core\Encoding::toHex`.
 

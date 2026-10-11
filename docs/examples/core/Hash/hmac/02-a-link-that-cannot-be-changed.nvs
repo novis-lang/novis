@@ -9,13 +9,13 @@ class SignedLink {
 
     // Returns the signature of `$path` as text that is safe to put in a URL.
     public static function sign(string $path): string {
-        bytes $signature = Core\Hash::hmac($path, SignedLink::key(), Core\Digest::Sha256);
+        bytes $signature = Core\Hash::hmac($path, SignedLink::key(), Core\Hash::Digest::Sha256);
         return Core\Encoding::toBase64Url($signature);
     }
 
     // Returns `true` when `$signature` belongs to `$path`.
     public static function check(string $path, string $signature): bool {
-        bytes $expected = Core\Hash::hmac($path, SignedLink::key(), Core\Digest::Sha256);
+        bytes $expected = Core\Hash::hmac($path, SignedLink::key(), Core\Hash::Digest::Sha256);
         return Core\Hash::equals($expected, Core\Encoding::fromBase64Url($signature));
     }
 }

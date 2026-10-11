@@ -5,31 +5,31 @@
 // § 11: the incremental form answers exactly what the one-shot member would
 // over the concatenation of everything fed to it, which is the property that
 // makes it substitutable for `Core\Hash::of`.
-var $stream = Core\Hash::stream(Core\Digest::Sha256);
+var $stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
 $stream->update("a");
 $stream->update("bc");
 bytes $streamed = $stream->finish();
 echo Core\Encoding::toHex($streamed), "\n";
-echo Core\Hash::equals($streamed, Core\Hash::of("abc", Core\Digest::Sha256)) ? "same" : "differ", "\n";
+echo Core\Hash::equals($streamed, Core\Hash::of("abc", Core\Hash::Digest::Sha256)) ? "same" : "differ", "\n";
 
 // `rule:types/conversion`: `string as bytes` is total, so a chunk arrives under either
 // tag and the stream reads the same octets — the `bytes|string` parameter
 // `Core\Hash::of` already declares, applied one call at a time.
-var $mixed = Core\Hash::stream(Core\Digest::Sha256);
+var $mixed = Core\Hash::stream(Core\Hash::Digest::Sha256);
 $mixed->update(Core\Encoding::fromHex("61"));
 $mixed->update("bc");
 echo Core\Encoding::toHex($mixed->finish()), "\n";
 
 // § 11 keeps the three broken algorithms for interop, and the stream takes the
-// whole of `Core\Digest` for the same reason — a checksum over a file being
+// whole of `Core\Hash::Digest` for the same reason — a checksum over a file being
 // copied is the case that wants it.
-var $sum = Core\Hash::stream(Core\Digest::Crc32);
+var $sum = Core\Hash::stream(Core\Hash::Digest::Crc32);
 $sum->update("abc");
 echo Core\Encoding::toHex($sum->finish()), "\n";
 
 // A stream with nothing fed to it is the digest of the empty input, not an
 // error: `hash_init` followed by `hash_final` says the same in PHP.
-var $empty = Core\Hash::stream(Core\Digest::Md5);
+var $empty = Core\Hash::stream(Core\Hash::Digest::Md5);
 echo Core\Encoding::toHex($empty->finish()), "\n";
 
 // The digest is final, so the stream is consumed by its own `finish`.

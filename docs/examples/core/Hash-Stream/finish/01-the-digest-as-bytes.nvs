@@ -1,7 +1,7 @@
 <?nvs
 // Shows what `finish` returns: the digest as `bytes`.
 
-Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha512);
+Core\Hash\Stream $stream = Core\Hash::stream(Core\Hash::Digest::Sha512);
 $stream->update("hello");
 bytes $digest = $stream->finish();
 

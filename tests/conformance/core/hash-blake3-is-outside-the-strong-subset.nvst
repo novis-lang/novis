@@ -1,5 +1,5 @@
 --TEST--
-`Core\Digest::Blake3` hashes but does not authenticate: `Core\Hash::hmac` refuses it, and the diagnostic's accepted set is exactly spec § 11's ten `StrongDigest` cases — spec § 11, `rule:types/enum-case-type`
+`Core\Hash::Digest::Blake3` hashes but does not authenticate: `Core\Hash::hmac` refuses it, and the diagnostic's accepted set is exactly spec § 11's ten `StrongDigest` cases — spec § 11, `rule:types/enum-case-type`
 --FILE--
 <?nvs
 // Every other case outside `StrongDigest` is outside it because it is broken
@@ -21,12 +21,12 @@
 // `hash-of-reproduces-the-modern-digests-published-vectors.nvst`, which is the
 // half a compile-error case cannot also assert.
 bytes $key = Core\Encoding::fromHex("4a656665");
-bytes $mac = Core\Hash::hmac("message", $key, Core\Digest::Blake3);
+bytes $mac = Core\Hash::hmac("message", $key, Core\Hash::Digest::Blake3);
 echo Core\Encoding::toHex($mac), "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `Core\Digest::Sha224|Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512|Core\Digest::Sha512_224|Core\Digest::Sha512_256|Core\Digest::Sha3_224|Core\Digest::Sha3_256|Core\Digest::Sha3_384|Core\Digest::Sha3_512`, found `Core\Digest`
+error[E0401]: expected `Core\Hash::Digest::Sha224|Core\Hash::Digest::Sha256|Core\Hash::Digest::Sha384|Core\Hash::Digest::Sha512|Core\Hash::Digest::Sha512_224|Core\Hash::Digest::Sha512_256|Core\Hash::Digest::Sha3_224|Core\Hash::Digest::Sha3_256|Core\Hash::Digest::Sha3_384|Core\Hash::Digest::Sha3_512`, found `Core\Hash::Digest`
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

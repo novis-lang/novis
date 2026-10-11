@@ -8,8 +8,8 @@
 // would fail to compile here rather than print.
 tainted string $text = "abc";
 tainted bytes $raw = "abc" as bytes;
-bytes $whole = Core\Hash::of($text, Core\Digest::Sha256);
-bytes $again = Core\Hash::of($raw, Core\Digest::Sha256);
+bytes $whole = Core\Hash::of($text, Core\Hash::Digest::Sha256);
+bytes $again = Core\Hash::of($raw, Core\Hash::Digest::Sha256);
 echo Core\Encoding::toHex($whole), "\n";
 
 // A webhook's check: the HMAC of the body it sent, compared in constant time
@@ -17,12 +17,12 @@ echo Core\Encoding::toHex($whole), "\n";
 tainted string $body = '{"order":1042,"status":"paid"}';
 tainted string $signature = "4a7abd7115cbbcab0388feb8a93f517e0229c0d89bc9d5908d0b8e7e5a9fc736";
 bytes $secret = "whsec_shop_payments" as bytes;
-bytes $mac = Core\Hash::hmac($body, $secret, Core\Digest::Sha256);
+bytes $mac = Core\Hash::hmac($body, $secret, Core\Hash::Digest::Sha256);
 echo Core\Hash::equals(Core\Encoding::toHex($mac) as bytes, $signature as bytes) ? "genuine" : "forged", "\n";
 echo Core\Hash::equals($whole, $raw) ? "same" : "different", "\n";
 
 // The streaming form takes the same argument a piece at a time, and agrees.
-Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+Core\Hash\Stream $stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
 $stream->update($text);
 $stream->update("" as bytes);
 echo Core\Hash::equals($stream->finish(), $again) ? "agrees" : "disagrees", "\n";

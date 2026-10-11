@@ -26,7 +26,7 @@ class Rfc2104
         string $message,
         string $ipadHex,
         string $opadHex,
-        Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512 $digest,
+        Core\Hash::Digest::Sha256|Core\Hash::Digest::Sha384|Core\Hash::Digest::Sha512 $digest,
     ): bytes {
         var $inner = Core\Hash::stream($digest);
         $inner->update(Core\Encoding::fromHex($ipadHex));
@@ -44,7 +44,7 @@ class Rfc2104
         string $keyHex,
         string $ipadHex,
         string $opadHex,
-        Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512 $digest,
+        Core\Hash::Digest::Sha256|Core\Hash::Digest::Sha384|Core\Hash::Digest::Sha512 $digest,
     ): bool {
         bytes $key = Core\Encoding::fromHex($keyHex);
         return Core\Hash::equals(
@@ -60,7 +60,7 @@ class Rfc2104
     public static function agreeing(
         string $message,
         uint $block,
-        Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512 $digest,
+        Core\Hash::Digest::Sha256|Core\Hash::Digest::Sha384|Core\Hash::Digest::Sha512 $digest,
     ): int
     {
         int $count = 0;
@@ -112,19 +112,19 @@ string $short = "what do ya want for nothing?";
 string $long = Core\Str::repeat("0123456789", 30);
 
 echo "sha256: ",
-    Rfc2104::agreeing("", 64, Core\Digest::Sha256)
-        + Rfc2104::agreeing($short, 64, Core\Digest::Sha256)
-        + Rfc2104::agreeing($long, 64, Core\Digest::Sha256),
+    Rfc2104::agreeing("", 64, Core\Hash::Digest::Sha256)
+        + Rfc2104::agreeing($short, 64, Core\Hash::Digest::Sha256)
+        + Rfc2104::agreeing($long, 64, Core\Hash::Digest::Sha256),
     "/9\n";
 echo "sha384: ",
-    Rfc2104::agreeing("", 128, Core\Digest::Sha384)
-        + Rfc2104::agreeing($short, 128, Core\Digest::Sha384)
-        + Rfc2104::agreeing($long, 128, Core\Digest::Sha384),
+    Rfc2104::agreeing("", 128, Core\Hash::Digest::Sha384)
+        + Rfc2104::agreeing($short, 128, Core\Hash::Digest::Sha384)
+        + Rfc2104::agreeing($long, 128, Core\Hash::Digest::Sha384),
     "/9\n";
 echo "sha512: ",
-    Rfc2104::agreeing("", 128, Core\Digest::Sha512)
-        + Rfc2104::agreeing($short, 128, Core\Digest::Sha512)
-        + Rfc2104::agreeing($long, 128, Core\Digest::Sha512),
+    Rfc2104::agreeing("", 128, Core\Hash::Digest::Sha512)
+        + Rfc2104::agreeing($short, 128, Core\Hash::Digest::Sha512)
+        + Rfc2104::agreeing($long, 128, Core\Hash::Digest::Sha512),
     "/9\n";
 
 // The agreement above would hold vacuously if the construction were being
@@ -132,14 +132,14 @@ echo "sha512: ",
 // second test case, whose key is `4a656665` — not one of the three shapes
 // above, and the vector `Core\Hash` is already pinned against elsewhere.
 bytes $jefe = Core\Encoding::fromHex("4a656665");
-echo Core\Encoding::toHex(Core\Hash::hmac($short, $jefe, Core\Digest::Sha256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::hmac($short, $jefe, Core\Hash::Digest::Sha256)), "\n";
 
 // And the construction is sensitive to the pad it was given: swapping ipad
 // for opad answers a different digest, which is what makes the nine rows
 // above an assertion rather than a tautology.
 echo Core\Hash::equals(
-    Core\Hash::hmac($short, Core\Encoding::fromHex(""), Core\Digest::Sha256),
-    Rfc2104::streamed($short, Core\Str::repeat("5c", 64), Core\Str::repeat("36", 64), Core\Digest::Sha256),
+    Core\Hash::hmac($short, Core\Encoding::fromHex(""), Core\Hash::Digest::Sha256),
+    Rfc2104::streamed($short, Core\Str::repeat("5c", 64), Core\Str::repeat("36", 64), Core\Hash::Digest::Sha256),
 ) ? "swapped pads agree" : "swapped pads differ", "\n";
 --EXPECT--
 sha256: 9/9

@@ -18,7 +18,7 @@ foreach (Core\Request::files() as Core\Request\Part $part) {
         tainted bytes $picture = $part->readAll({max: 2000000});
         // The client chose the file name "../../me.png", so the program does not use it.
         // The stored name is the SHA-256 checksum of the picture.
-        string $stored = Core\Encoding::toHex(Core\Hash::of($picture, Core\Digest::Sha256));
+        string $stored = Core\Encoding::toHex(Core\Hash::of($picture, Core\Hash::Digest::Sha256));
         echo "stored as ", $stored, ".", $extension, "\n";
     } catch (RuntimeError $tooLarge) {
         echo "the picture is larger than 2 MB\n";

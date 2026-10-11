@@ -10,7 +10,7 @@ tainted string $body = Core\Request::body();
 tainted string $signature = Core\Request::header("x-signature") ?? "";
 
 // Compute the signature again, and compare it with the one in the header.
-string $expected = Core\Encoding::toHex(Core\Hash::hmac($body, $secret, Core\Digest::Sha256));
+string $expected = Core\Encoding::toHex(Core\Hash::hmac($body, $secret, Core\Hash::Digest::Sha256));
 
 // `Core\Hash::equals` takes the same time wherever two values differ.
 // This prints `accepted`.

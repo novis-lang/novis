@@ -9,7 +9,7 @@ class Bench
     // Builds a ZIP archive with one stored file for each name. All files have the same bytes.
     public static function archive(array<string> $names, bytes $data): bytes
     {
-        array<mixed> $sum = Core\Bytes::unpack(Core\Hash::of($data, Core\Digest::Crc32), "N");
+        array<mixed> $sum = Core\Bytes::unpack(Core\Hash::of($data, Core\Hash::Digest::Crc32), "N");
         uint $crc = $sum[0] as uint;
         uint $size = Core\Bytes::length($data);
         array<bytes> $locals = [];

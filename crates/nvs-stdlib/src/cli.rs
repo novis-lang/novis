@@ -1104,7 +1104,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// # Errors
 ///
 /// A [`Fault::fatal`] for a value that is no case of the enum — the same
-/// treatment [`crate::hash`] gives its `Core\Digest` argument, and for the same
+/// treatment [`crate::hash`] gives its `Core\Hash::Digest` argument, and for the same
 /// reason.
 fn stream_of(value: &Value, member: &str) -> Result<Stream, Fault> {
     match value.as_int() {

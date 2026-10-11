@@ -10,7 +10,7 @@ goal promised and did not build is not here: it is a gap record under `data/gaps
 
 ## Decisions
 
-- **`Core\Digest` leaves out table hashes and dead algorithms.** `xxh*`, `murmur3*`, `fnv1*`, `adler32`
+- **`Core\Hash::Digest` leaves out table hashes and dead algorithms.** `xxh*`, `murmur3*`, `fnv1*`, `adler32`
   and `joaat` are table hashes, and an enum that also has `Sha512` would invite using one where a strong
   digest is needed. `md2`, `md4`, `ripemd*`, `whirlpool`, `tiger*`, `snefru*`, `gost*` and `haval*` are
   out because nothing current uses them. `sha3` and `crc32c` are in, because each is worth a crate: SHA-3

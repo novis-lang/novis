@@ -406,7 +406,7 @@ smallvec = { version = "1", features = ["union", "const_generics"] }
 indexmap = "2"
 rustc-hash = "2"
 # Two consumers, one crate: the on-disk artifact cache keys on it, and
-# spec § 11's `Core\Digest::Blake3` computes it — the second is what finally put
+# spec § 11's `Core\Hash::Digest::Blake3` computes it — the second is what finally put
 # it in `Cargo.lock`. `pure` and no default features on purpose: blake3 ships
 # hand-written assembly built through `cc` by default, and
 # `rule:packaging/a-c-dependency-answers-two-questions` is not spent on a hash that is already
@@ -597,7 +597,7 @@ rand = { version = "0.10", features = ["unbiased"] }
 # layout.
 uuid = { version = "1", default-features = false, features = ["std"] }
 
-# --- digests and MACs (spec § 11's `Core\Hash` and `Core\Digest`) ---
+# --- digests and MACs (spec § 11's `Core\Hash` and `Core\Hash::Digest`) ---
 # Every one of these is an external specification with published test vectors
 # and a decade of cryptanalysis attached (docs/ground-rules.md
 # § *Implementation invariants*), and `Core\Hash::of` is a member request bodies
@@ -606,7 +606,7 @@ uuid = { version = "1", default-features = false, features = ["std"] }
 # script and no C, so § 4's confine-to-wasm branch never opens: it is the
 # ecosystem's audited default, it is verified against each algorithm's own NIST
 # or RFC vectors in its own test suite, and one `digest` trait set drives all
-# four hashes plus the HMAC construction, so `Core\Digest` dispatches over one
+# four hashes plus the HMAC construction, so `Core\Hash::Digest` dispatches over one
 # shape rather than four hand-fitted APIs.
 # `crc32fast` is not from that family and not a hash at all — it is the
 # checksum spec § 11 keeps for interop, and that crate is the one the Rust
@@ -620,7 +620,7 @@ uuid = { version = "1", default-features = false, features = ["std"] }
 # `crc32fast` and `digest 0.10` are already in this tree's lock file, pulled in
 # by the cranelift/wasmtime side, so pinning to what is there adds four crates
 # instead of eleven and keeps one `digest` trait version rather than two.
-# `crates/nvs-stdlib/src/hash.rs` owns why this set and what `Core\Digest`
+# `crates/nvs-stdlib/src/hash.rs` owns why this set and what `Core\Hash::Digest`
 # carries.
 #
 # `sha3` and `crc32c` are the two additions the roster earned, and each is
@@ -655,7 +655,7 @@ subtle = "2"
 # `crypto-common 0.2`/`block-buffer 0.12` trait set, all MIT/Apache-2.0. That
 # last three is the cost worth naming: `sha2` and friends above are pinned to
 # `digest 0.10` on purpose, and this is a **second** copy of those traits in
-# the tree. It is not shared code duplicated — `Core\Digest`'s algorithms and
+# the tree. It is not shared code duplicated — `Core\Hash::Digest`'s algorithms and
 # Argon2's internal Blake2b are different implementations either way — so what
 # it costs is compile time and lock-file surface, not a divided abstraction,
 # and the alternative was pinning `argon2` to a release older than its own

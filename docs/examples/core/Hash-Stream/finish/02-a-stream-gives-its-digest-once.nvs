@@ -1,7 +1,7 @@
 <?nvs
 // Shows that a stream is closed after `finish`, and how to start the next digest.
 
-Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+Core\Hash\Stream $stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
 $stream->update("first file");
 echo Core\Encoding::toHex($stream->finish()), "\n";
 
@@ -13,6 +13,6 @@ try {
 }
 
 // For the next digest, start a new stream.
-$stream = Core\Hash::stream(Core\Digest::Sha256);
+$stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
 $stream->update("second file");
 echo Core\Encoding::toHex($stream->finish()), "\n";

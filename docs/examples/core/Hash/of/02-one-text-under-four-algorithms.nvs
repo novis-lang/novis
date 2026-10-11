@@ -1,16 +1,16 @@
 <?nvs
 // Shows that the algorithm is an argument, so the same call works for every algorithm.
 
-array<Core\Digest> $algorithms = [
-    Core\Digest::Crc32,
-    Core\Digest::Md5,
-    Core\Digest::Sha256,
-    Core\Digest::Sha512,
+array<Core\Hash::Digest> $algorithms = [
+    Core\Hash::Digest::Crc32,
+    Core\Hash::Digest::Md5,
+    Core\Hash::Digest::Sha256,
+    Core\Hash::Digest::Sha512,
 ];
 
 // Each algorithm gives a digest of its own fixed size.
 // This prints 4, 16, 32 and 64 bytes.
-foreach ($algorithms as Core\Digest $digest) {
+foreach ($algorithms as Core\Hash::Digest $digest) {
     bytes $result = Core\Hash::of("abc", $digest);
     echo Core\Bytes::length($result), " bytes: ", Core\Encoding::toHex($result), "\n";
 }

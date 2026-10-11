@@ -1,7 +1,7 @@
 <?nvs
 // Shows how to compute a SHA-256 digest from a text that arrives in two parts.
 
-Core\Hash\Stream $stream = Core\Hash::stream(Core\Digest::Sha256);
+Core\Hash\Stream $stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
 $stream->update("hel");
 $stream->update("lo");
 
@@ -9,4 +9,4 @@ $stream->update("lo");
 echo Core\Encoding::toHex($stream->finish()), "\n";
 
 // `Core\Hash::of` over the whole text gives the same digest.
-echo Core\Encoding::toHex(Core\Hash::of("hello", Core\Digest::Sha256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("hello", Core\Hash::Digest::Sha256)), "\n";

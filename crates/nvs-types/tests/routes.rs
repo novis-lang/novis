@@ -186,11 +186,11 @@ fn a_method_case_is_admitted_at_the_enum_the_roster_names() {
 fn a_case_of_another_enum_is_refused_at_the_method_option() {
     // The half the row interning to a real type buys: before `Core\Http\Method`
     // existed, `method` was checked as a compile-time constant and placed at no
-    // type, so any enum case at all passed. `Core\Digest` is an unrelated `Core`
+    // type, so any enum case at all passed. `Core\Hash::Digest` is an unrelated `Core`
     // enum, so this is that same walk with the type restored.
     let diags = check_src(
         "<?nvs\nclass Users {\n  \
-         #[Core\\Route(path: \"/users\", method: Core\\Digest::Md5)]\n  \
+         #[Core\\Route(path: \"/users\", method: Core\\Hash::Digest::Md5)]\n  \
          public function index(): string { return \"\"; }\n}\n",
     );
     assert!(diags.has_errors());

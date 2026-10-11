@@ -1,25 +1,25 @@
 --TEST--
-`Core\Hash` computes every `Core\Digest`, authenticates with HMAC and compares two digests by content — spec § 11, `rule:types/bytes` and `rule:types/conversion`
+`Core\Hash` computes every `Core\Hash::Digest`, authenticates with HMAC and compares two digests by content — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
-// covers: Core\Digest
+// covers: Core\Hash::Digest
 // § 11: the algorithm is an argument, not part of the member's name, so one
 // member stands where PHP has `md5`, `sha1`, `crc32`, `hash` and
 // `openssl_digest`. Each line below is that specification's own "abc" vector.
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Crc32)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Md5)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha1)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha384)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha512)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Crc32)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Md5)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha1)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha384)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha512)), "\n";
 
 // `rule:types/conversion`: `string as bytes` is total and free, so the same octets hash
 // the same whichever of the two tags the caller is holding them under. That is
 // what the `bytes|string` parameter buys, and the reason there is no
 // text-flavoured twin of this member.
 bytes $raw = Core\Encoding::fromHex("616263");
-bytes $viaBytes = Core\Hash::of($raw, Core\Digest::Sha256);
-bytes $viaText = Core\Hash::of("abc", Core\Digest::Sha256);
+bytes $viaBytes = Core\Hash::of($raw, Core\Hash::Digest::Sha256);
+bytes $viaText = Core\Hash::of("abc", Core\Hash::Digest::Sha256);
 if (Core\Hash::equals($viaBytes, $viaText)) {
     echo "one digest, either tag\n";
 }
@@ -35,15 +35,15 @@ echo Core\Str::length(Core\Encoding::toHex($viaBytes)), "\n";
 // closed `StrongDigest` subset and `of`'s is the whole enum.
 bytes $key = Core\Encoding::fromHex("4a656665");
 echo Core\Encoding::toHex(
-    Core\Hash::hmac("what do ya want for nothing?", $key, Core\Digest::Sha256)
+    Core\Hash::hmac("what do ya want for nothing?", $key, Core\Hash::Digest::Sha256)
 ), "\n";
 echo Core\Encoding::toHex(
-    Core\Hash::hmac("what do ya want for nothing?", $key, Core\Digest::Sha512)
+    Core\Hash::hmac("what do ya want for nothing?", $key, Core\Hash::Digest::Sha512)
 ), "\n";
 
 // A one-octet difference is still a difference: `equals` is constant-time in
 // where the operands diverge, not in whether they do.
-if (!Core\Hash::equals($viaBytes, Core\Hash::of("abd", Core\Digest::Sha256))) {
+if (!Core\Hash::equals($viaBytes, Core\Hash::of("abd", Core\Hash::Digest::Sha256))) {
     echo "differ\n";
 }
 --EXPECT--

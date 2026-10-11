@@ -1,11 +1,11 @@
 --TEST--
-`Core\Hash\Stream::update`/`finish` agree with `Core\Hash::of` over every chunking of one input, for every `Core\Digest` — spec § 11, `rule:types/bytes` and `rule:types/conversion`
+`Core\Hash\Stream::update`/`finish` agree with `Core\Hash::of` over every chunking of one input, for every `Core\Hash::Digest` — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // § 11: the streaming pair's whole contract is an *agreement* with the
 // one-shot member — `finish` answers what `Core\Hash::of` would over the
 // concatenation of every chunk, whatever shape the updates arrived in. So the
-// question is asked of each of `Core\Digest`'s six cases with the same table
+// question is asked of each of `Core\Hash::Digest`'s six cases with the same table
 // of chunkings, and the answer is a count rather than a digest: a stream that
 // carried a boundary into its state fails the count while every row of it
 // still prints plausibly on its own.
@@ -19,7 +19,7 @@ class Chunkings
     // Every two-way split, offset 0 through the length inclusive: the sweep
     // contains the empty leading chunk, the empty trailing one, and a boundary
     // either side of the block edge.
-    public static function twoWay(string $message, Core\Digest $digest): int
+    public static function twoWay(string $message, Core\Hash::Digest $digest): int
     {
         int $len = Core\Str::length($message) as int;
         bytes $whole = Core\Hash::of($message, $digest);
@@ -39,7 +39,7 @@ class Chunkings
     // Every three-way split, both boundaries swept independently — which is
     // where a state that remembered only the *last* chunk's alignment shows
     // up, and where two adjacent empty chunks appear (`$i == $j`).
-    public static function threeWay(string $message, Core\Digest $digest): int
+    public static function threeWay(string $message, Core\Hash::Digest $digest): int
     {
         int $len = Core\Str::length($message) as int;
         bytes $whole = Core\Hash::of($message, $digest);
@@ -66,7 +66,7 @@ class Chunkings
     // leaves. With `$padded`, an empty `update` is interleaved before every
     // chunk and after the last — an update carrying no octets contributes
     // none, at any alignment.
-    public static function byWidth(string $message, Core\Digest $digest, bool $padded): int
+    public static function byWidth(string $message, Core\Hash::Digest $digest, bool $padded): int
     {
         int $len = Core\Str::length($message) as int;
         bytes $whole = Core\Hash::of($message, $digest);
@@ -99,7 +99,7 @@ class Chunkings
     // padding and nothing else. `rule:types/conversion`: `string as bytes` is total, so
     // the tag a chunk arrives under is not part of the digest either, and the
     // single-chunk row is spelled with the other one.
-    public static function degenerate(string $message, Core\Digest $digest): int
+    public static function degenerate(string $message, Core\Hash::Digest $digest): int
     {
         int $agree = 0;
         var $one = Core\Hash::stream($digest);
@@ -114,7 +114,7 @@ class Chunkings
         return $agree;
     }
 
-    public static function all(string $message, Core\Digest $digest): int
+    public static function all(string $message, Core\Hash::Digest $digest): int
     {
         return Chunkings::degenerate($message, $digest)
             + Chunkings::twoWay($message, $digest)
@@ -131,7 +131,7 @@ echo "length: ", Core\Str::length($message), "\n";
 // denominator is printed from the digest whose vectors are already pinned
 // elsewhere, so a sweep that silently stopped short fails every later line
 // against it rather than agreeing with itself.
-int $total = Chunkings::all($message, Core\Digest::Sha256);
+int $total = Chunkings::all($message, Core\Hash::Digest::Sha256);
 echo "chunkings per digest: ", $total, "\n";
 
 // § 11 keeps `Crc32`, `Md5` and `Sha1` for interop, and the stream takes the
@@ -140,22 +140,22 @@ echo "chunkings per digest: ", $total, "\n";
 // grew a chunking rule of its own — a checksum accumulated per update, a
 // block width read from the wrong case — fails its own line here while the
 // digests either side of it still print.
-echo "Crc32  agreeing: ", Chunkings::all($message, Core\Digest::Crc32) == $total ? "all" : "some", "\n";
-echo "Md5    agreeing: ", Chunkings::all($message, Core\Digest::Md5) == $total ? "all" : "some", "\n";
-echo "Sha1   agreeing: ", Chunkings::all($message, Core\Digest::Sha1) == $total ? "all" : "some", "\n";
-echo "Sha256 agreeing: ", Chunkings::all($message, Core\Digest::Sha256) == $total ? "all" : "some", "\n";
-echo "Sha384 agreeing: ", Chunkings::all($message, Core\Digest::Sha384) == $total ? "all" : "some", "\n";
-echo "Sha512 agreeing: ", Chunkings::all($message, Core\Digest::Sha512) == $total ? "all" : "some", "\n";
+echo "Crc32  agreeing: ", Chunkings::all($message, Core\Hash::Digest::Crc32) == $total ? "all" : "some", "\n";
+echo "Md5    agreeing: ", Chunkings::all($message, Core\Hash::Digest::Md5) == $total ? "all" : "some", "\n";
+echo "Sha1   agreeing: ", Chunkings::all($message, Core\Hash::Digest::Sha1) == $total ? "all" : "some", "\n";
+echo "Sha256 agreeing: ", Chunkings::all($message, Core\Hash::Digest::Sha256) == $total ? "all" : "some", "\n";
+echo "Sha384 agreeing: ", Chunkings::all($message, Core\Hash::Digest::Sha384) == $total ? "all" : "some", "\n";
+echo "Sha512 agreeing: ", Chunkings::all($message, Core\Hash::Digest::Sha512) == $total ? "all" : "some", "\n";
 
 // The count is only worth something if the six answers are actually six: the
 // agreement above would hold vacuously if every digest answered the same
 // octets. `Core\Hash::equals` says they do not, pairwise down the enum.
 echo "distinct: ",
-    !Core\Hash::equals(Core\Hash::of($message, Core\Digest::Crc32), Core\Hash::of($message, Core\Digest::Md5))
-        && !Core\Hash::equals(Core\Hash::of($message, Core\Digest::Md5), Core\Hash::of($message, Core\Digest::Sha1))
-        && !Core\Hash::equals(Core\Hash::of($message, Core\Digest::Sha1), Core\Hash::of($message, Core\Digest::Sha256))
-        && !Core\Hash::equals(Core\Hash::of($message, Core\Digest::Sha256), Core\Hash::of($message, Core\Digest::Sha384))
-        && !Core\Hash::equals(Core\Hash::of($message, Core\Digest::Sha384), Core\Hash::of($message, Core\Digest::Sha512))
+    !Core\Hash::equals(Core\Hash::of($message, Core\Hash::Digest::Crc32), Core\Hash::of($message, Core\Hash::Digest::Md5))
+        && !Core\Hash::equals(Core\Hash::of($message, Core\Hash::Digest::Md5), Core\Hash::of($message, Core\Hash::Digest::Sha1))
+        && !Core\Hash::equals(Core\Hash::of($message, Core\Hash::Digest::Sha1), Core\Hash::of($message, Core\Hash::Digest::Sha256))
+        && !Core\Hash::equals(Core\Hash::of($message, Core\Hash::Digest::Sha256), Core\Hash::of($message, Core\Hash::Digest::Sha384))
+        && !Core\Hash::equals(Core\Hash::of($message, Core\Hash::Digest::Sha384), Core\Hash::of($message, Core\Hash::Digest::Sha512))
         ? "yes" : "no",
     "\n";
 --EXPECT--

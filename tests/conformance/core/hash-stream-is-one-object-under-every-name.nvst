@@ -21,7 +21,7 @@ class Fed
     // the one-shot member rather than as either digest — a stream that read
     // the other's chunks fails the count while still printing a plausible
     // line of its own.
-    public static function independent(Core\Digest $digest): bool
+    public static function independent(Core\Hash::Digest $digest): bool
     {
         var $left = Core\Hash::stream($digest);
         var $right = Core\Hash::stream($digest);
@@ -36,13 +36,13 @@ class Fed
 
 // One stream under three names: a second binding, a helper's parameter, and an
 // array entry read back out. Every octet reaches the one digest.
-var $stream = Core\Hash::stream(Core\Digest::Sha256);
+var $stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
 var $alias = $stream;
 array<Core\Hash\Stream> $held = [$stream];
 $stream->update("a");
 $alias->update("b");
 Fed::feed($held[0], "c");
-echo Core\Hash::equals($alias->finish(), Core\Hash::of("abc", Core\Digest::Sha256)) ? "same" : "differ", "\n";
+echo Core\Hash::equals($alias->finish(), Core\Hash::of("abc", Core\Hash::Digest::Sha256)) ? "same" : "differ", "\n";
 
 // `finish` closed the object rather than the name that called it, so the other
 // two names are the same finished stream and each member says so.
@@ -57,25 +57,25 @@ try {
     echo "threw: ", $again->message, "\n";
 }
 
-// Independence over every `Core\Digest` case, counted: six rows and twelve
+// Independence over every `Core\Hash::Digest` case, counted: six rows and twelve
 // agreements, so no algorithm passes by answering plausibly on its own line.
 int $mixed = 0;
-if (!Fed::independent(Core\Digest::Crc32)) {
+if (!Fed::independent(Core\Hash::Digest::Crc32)) {
     $mixed = $mixed + 1;
 }
-if (!Fed::independent(Core\Digest::Md5)) {
+if (!Fed::independent(Core\Hash::Digest::Md5)) {
     $mixed = $mixed + 1;
 }
-if (!Fed::independent(Core\Digest::Sha1)) {
+if (!Fed::independent(Core\Hash::Digest::Sha1)) {
     $mixed = $mixed + 1;
 }
-if (!Fed::independent(Core\Digest::Sha256)) {
+if (!Fed::independent(Core\Hash::Digest::Sha256)) {
     $mixed = $mixed + 1;
 }
-if (!Fed::independent(Core\Digest::Sha384)) {
+if (!Fed::independent(Core\Hash::Digest::Sha384)) {
     $mixed = $mixed + 1;
 }
-if (!Fed::independent(Core\Digest::Sha512)) {
+if (!Fed::independent(Core\Hash::Digest::Sha512)) {
     $mixed = $mixed + 1;
 }
 echo "digests whose two streams mixed: ", $mixed, "\n";
@@ -83,8 +83,8 @@ echo "digests whose two streams mixed: ", $mixed, "\n";
 // Two streams opened with one digest and fed one input are equal without being
 // the same stream: closing the first leaves the second open, which is the
 // difference between an identity and a value.
-var $first = Core\Hash::stream(Core\Digest::Sha256);
-var $second = Core\Hash::stream(Core\Digest::Sha256);
+var $first = Core\Hash::stream(Core\Hash::Digest::Sha256);
+var $second = Core\Hash::stream(Core\Hash::Digest::Sha256);
 $first->update("abc");
 $second->update("abc");
 bytes $done = $first->finish();

@@ -1,4 +1,4 @@
-//! `Core\Hash` and `Core\Digest` — docs/spec/01-core-library.md § 11's second
+//! `Core\Hash` and `Core\Hash::Digest` — docs/spec/01-core-library.md § 11's second
 //! half: one member per *question* a program asks about a digest, with the
 //! algorithm as an argument rather than as part of the member's name.
 //!
@@ -126,9 +126,9 @@ use crate::registry::{
 /// every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Hash";
 
-/// `Core\Digest`'s fully-qualified name, for [`DIGEST`] and for the case types
+/// `Core\Hash::Digest`'s fully-qualified name, for [`DIGEST`] and for the case types
 /// [`STRONG`] is built out of.
-pub(crate) const DIGEST_NAME: &str = r"Core\Digest";
+pub(crate) const DIGEST_NAME: &str = r"Core\Hash::Digest";
 
 /// Spec § 11's `Digest` — **every** algorithm, the two broken ones included.
 ///
@@ -253,7 +253,7 @@ const DIGEST_DOC: EnumDoc = EnumDoc {
 ///
 /// A **union of case types** (`rule:types/enum-case-type`) rather than a second enum, which is the whole reason
 /// [`CoreTy::EnumCase`] exists: `Core\StrongDigest::Sha256` would be a
-/// different type from `Core\Digest::Sha256`, so no single value could be
+/// different type from `Core\Hash::Digest::Sha256`, so no single value could be
 /// passed to both `of` and `hmac` and every program holding a configured
 /// algorithm would need two of them.
 ///
@@ -376,7 +376,7 @@ const OF_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "digest",
-            desc: "The algorithm, any `Core\\Digest` case — the broken ones included, for \
+            desc: "The algorithm, any `Core\\Hash::Digest` case — the broken ones included, for \
                    interop.",
             shape: &[],
         },
@@ -405,7 +405,7 @@ const HMAC_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "digest",
-            desc: "The algorithm, one of the ten SHA-2 and SHA-3 `Core\\Digest` cases.",
+            desc: "The algorithm, one of the ten SHA-2 and SHA-3 `Core\\Hash::Digest` cases.",
             shape: &[],
         },
     ],
@@ -440,7 +440,7 @@ const STREAM_DOC: MethodDoc = MethodDoc {
             `Core\\Hash\\Stream` fed by `update` and closed by `finish`.",
     params: &[ParamDoc {
         name: "digest",
-        desc: "The algorithm, any `Core\\Digest` case.",
+        desc: "The algorithm, any `Core\\Hash::Digest` case.",
         shape: &[],
     }],
     ret: "A fresh, open stream that has been fed nothing yet.",
@@ -619,7 +619,7 @@ fn kind_of(ordinal: Option<i64>) -> Option<DigestKind> {
     })
 }
 
-/// The `Core\Digest` case in slot `index`, or the `FATAL` a value that is no
+/// The `Core\Hash::Digest` case in slot `index`, or the `FATAL` a value that is no
 /// case is.
 ///
 /// # Errors
@@ -632,7 +632,7 @@ fn digest_kind(args: &[Value], index: usize, member: &str) -> Result<DigestKind,
     match kind_of(args[index].as_int()) {
         Some(kind) => Ok(kind),
         None => Err(Fault::fatal(format!(
-            "Core\\Hash::{member} expected a `Core\\Digest` case, got tag {} value {:?}",
+            "Core\\Hash::{member} expected a `Core\\Hash::Digest` case, got tag {} value {:?}",
             args[index].tag_byte(),
             args[index].as_int()
         ))),
@@ -965,13 +965,13 @@ nvs_runtime::nvs_helper! {
         let key = bytes_of(args, 1, "hmac")?;
         let kind = digest_kind(args, 2, "hmac")?;
         // Unreachable from source: parameter 2 is `CoreTy::Union(STRONG)`, so a
-        // weak case is `E0401: expected 'Core\Digest::Sha256|Core\Digest::
-        // Sha384|Core\Digest::Sha512', found 'Core\Digest'` — probed with
-        // `Core\Digest::Md5` and with a `mixed` binding. `hmac_of`'s own docs
+        // weak case is `E0401: expected 'Core\Hash::Digest::Sha256|Core\Hash::Digest::
+        // Sha384|Core\Hash::Digest::Sha512', found 'Core\Hash::Digest'` — probed with
+        // `Core\Hash::Digest::Md5` and with a `mixed` binding. `hmac_of`'s own docs
         // own why the subset is then enforced a second time here.
         let mac = hmac_of(kind, key, data).ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Hash::hmac reached with `Core\\Digest::{kind:?}`, which is not a \
+                "Core\\Hash::hmac reached with `Core\\Hash::Digest::{kind:?}`, which is not a \
                  `StrongDigest`"
             ))
         })?;
@@ -1043,7 +1043,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Hash::stream(Digest $digest): Hash\Stream` — replacing
     /// `hash_init`, and the whole of `HashContext`.
     ///
-    /// Takes the same `Core\Digest` [`nvs_core_hash_of`] does, including the
+    /// Takes the same `Core\Hash::Digest` [`nvs_core_hash_of`] does, including the
     /// three broken ones: an incremental checksum over a file being copied is
     /// exactly the interop case § 11 keeps `Crc32`, `Md5` and `Sha1` for.
     fn nvs_core_hash_stream(_ctx, args: [1]) {
@@ -1324,7 +1324,7 @@ mod tests {
             assert_eq!(
                 hmac_of(kind, b"k", b"d").is_some(),
                 named.contains(case),
-                "`Core\\Digest::{case}` is in `STRONG` xor its HMAC dispatch"
+                "`Core\\Hash::Digest::{case}` is in `STRONG` xor its HMAC dispatch"
             );
         }
     }
@@ -1389,11 +1389,11 @@ mod tests {
         }
     }
 
-    /// A stream opened under `ordinal` — the integer a `Core\Digest` case
+    /// A stream opened under `ordinal` — the integer a `Core\Hash::Digest` case
     /// arrives as.
     fn opened(ctx: &mut nvs_runtime::Ctx, ordinal: i64) -> Value {
         nvs_runtime::call(nvs_core_hash_stream, ctx, &[Value::int(ordinal)])
-            .expect("every `Core\\Digest` case opens a stream")
+            .expect("every `Core\\Hash::Digest` case opens a stream")
     }
 
     /// The digest `finish` answers for `stream`, as octets.

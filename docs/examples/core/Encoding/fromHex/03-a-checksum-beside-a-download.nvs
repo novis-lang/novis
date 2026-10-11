@@ -7,7 +7,7 @@ bytes $download = Core\Encoding::encodeText("hello", Core\Charset::Utf8);
 string $published = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
 
 // The checksum of what you have. This prints the same 64 digits.
-bytes $mine = Core\Hash::of($download, Core\Digest::Sha256);
+bytes $mine = Core\Hash::of($download, Core\Hash::Digest::Sha256);
 echo Core\Encoding::toHex($mine), "\n";
 
 // Compare the bytes, not the text: the site may print the digits in upper

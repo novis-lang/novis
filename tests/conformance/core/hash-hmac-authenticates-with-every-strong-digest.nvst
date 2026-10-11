@@ -19,16 +19,16 @@ bytes $key = "Jefe" as bytes;
 string $message = "what do ya want for nothing?";
 
 array<bytes> $macs = [
-    Core\Hash::hmac($message, $key, Core\Digest::Sha224),
-    Core\Hash::hmac($message, $key, Core\Digest::Sha256),
-    Core\Hash::hmac($message, $key, Core\Digest::Sha384),
-    Core\Hash::hmac($message, $key, Core\Digest::Sha512),
-    Core\Hash::hmac($message, $key, Core\Digest::Sha512_224),
-    Core\Hash::hmac($message, $key, Core\Digest::Sha512_256),
-    Core\Hash::hmac($message, $key, Core\Digest::Sha3_224),
-    Core\Hash::hmac($message, $key, Core\Digest::Sha3_256),
-    Core\Hash::hmac($message, $key, Core\Digest::Sha3_384),
-    Core\Hash::hmac($message, $key, Core\Digest::Sha3_512),
+    Core\Hash::hmac($message, $key, Core\Hash::Digest::Sha224),
+    Core\Hash::hmac($message, $key, Core\Hash::Digest::Sha256),
+    Core\Hash::hmac($message, $key, Core\Hash::Digest::Sha384),
+    Core\Hash::hmac($message, $key, Core\Hash::Digest::Sha512),
+    Core\Hash::hmac($message, $key, Core\Hash::Digest::Sha512_224),
+    Core\Hash::hmac($message, $key, Core\Hash::Digest::Sha512_256),
+    Core\Hash::hmac($message, $key, Core\Hash::Digest::Sha3_224),
+    Core\Hash::hmac($message, $key, Core\Hash::Digest::Sha3_256),
+    Core\Hash::hmac($message, $key, Core\Hash::Digest::Sha3_384),
+    Core\Hash::hmac($message, $key, Core\Hash::Digest::Sha3_512),
 ];
 
 array<string> $published = [
@@ -45,35 +45,35 @@ array<string> $published = [
 ];
 
 // The same ten cases through `of` instead of `hmac`. Both members take one
-// `Core\Digest`, so this is the pair that pins that the *subset* is a
+// `Core\Hash::Digest`, so this is the pair that pins that the *subset* is a
 // narrowing of the roster and not a second roster: a value written once is
 // passed to both.
 array<bytes> $plain = [
-    Core\Hash::of($message, Core\Digest::Sha224),
-    Core\Hash::of($message, Core\Digest::Sha256),
-    Core\Hash::of($message, Core\Digest::Sha384),
-    Core\Hash::of($message, Core\Digest::Sha512),
-    Core\Hash::of($message, Core\Digest::Sha512_224),
-    Core\Hash::of($message, Core\Digest::Sha512_256),
-    Core\Hash::of($message, Core\Digest::Sha3_224),
-    Core\Hash::of($message, Core\Digest::Sha3_256),
-    Core\Hash::of($message, Core\Digest::Sha3_384),
-    Core\Hash::of($message, Core\Digest::Sha3_512),
+    Core\Hash::of($message, Core\Hash::Digest::Sha224),
+    Core\Hash::of($message, Core\Hash::Digest::Sha256),
+    Core\Hash::of($message, Core\Hash::Digest::Sha384),
+    Core\Hash::of($message, Core\Hash::Digest::Sha512),
+    Core\Hash::of($message, Core\Hash::Digest::Sha512_224),
+    Core\Hash::of($message, Core\Hash::Digest::Sha512_256),
+    Core\Hash::of($message, Core\Hash::Digest::Sha3_224),
+    Core\Hash::of($message, Core\Hash::Digest::Sha3_256),
+    Core\Hash::of($message, Core\Hash::Digest::Sha3_384),
+    Core\Hash::of($message, Core\Hash::Digest::Sha3_512),
 ];
 
 // One octet of the key changed, and nothing else.
 bytes $other = "Kefe" as bytes;
 array<bytes> $rekeyed = [
-    Core\Hash::hmac($message, $other, Core\Digest::Sha224),
-    Core\Hash::hmac($message, $other, Core\Digest::Sha256),
-    Core\Hash::hmac($message, $other, Core\Digest::Sha384),
-    Core\Hash::hmac($message, $other, Core\Digest::Sha512),
-    Core\Hash::hmac($message, $other, Core\Digest::Sha512_224),
-    Core\Hash::hmac($message, $other, Core\Digest::Sha512_256),
-    Core\Hash::hmac($message, $other, Core\Digest::Sha3_224),
-    Core\Hash::hmac($message, $other, Core\Digest::Sha3_256),
-    Core\Hash::hmac($message, $other, Core\Digest::Sha3_384),
-    Core\Hash::hmac($message, $other, Core\Digest::Sha3_512),
+    Core\Hash::hmac($message, $other, Core\Hash::Digest::Sha224),
+    Core\Hash::hmac($message, $other, Core\Hash::Digest::Sha256),
+    Core\Hash::hmac($message, $other, Core\Hash::Digest::Sha384),
+    Core\Hash::hmac($message, $other, Core\Hash::Digest::Sha512),
+    Core\Hash::hmac($message, $other, Core\Hash::Digest::Sha512_224),
+    Core\Hash::hmac($message, $other, Core\Hash::Digest::Sha512_256),
+    Core\Hash::hmac($message, $other, Core\Hash::Digest::Sha3_224),
+    Core\Hash::hmac($message, $other, Core\Hash::Digest::Sha3_256),
+    Core\Hash::hmac($message, $other, Core\Hash::Digest::Sha3_384),
+    Core\Hash::hmac($message, $other, Core\Hash::Digest::Sha3_512),
 ];
 
 echo "cases ", Core\Arr::count($macs), "\n";

@@ -708,7 +708,7 @@ pub enum CoreTy {
     /// the HMAC and signature members declare," so that
     /// `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming the reason.
     /// A *second enum* would not say that: `Core\StrongDigest::Sha256` would
-    /// be a different type from `Core\Digest::Sha256`, and no value could be
+    /// be a different type from `Core\Hash::Digest::Sha256`, and no value could be
     /// passed to both `of` and `hmac`. A union of case types is the shape
     /// `rule:types/enum-case-type` already gives that idea, and the checker already places an
     /// enum-case expression against it — `nvs_types::expr::literals`'
@@ -3125,11 +3125,11 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::time::UNIT,
     crate::time::WEEKDAY,
     crate::hash::DIGEST,
-    // Beside `Core\Digest` because it is the same decision on a second
+    // Beside `Core\Hash::Digest` because it is the same decision on a second
     // subsystem: a format chosen at the call site is a closed enum, never a
     // name in a string that a run-time comparison has to validate.
     crate::compress::CODEC,
-    // The cipher a `Core\Crypto::seal` or `::open` names, beside `Core\Digest`
+    // The cipher a `Core\Crypto::seal` or `::open` names, beside `Core\Hash::Digest`
     // and `Core\Compress\Codec` because it is their decision a third time: the
     // primitive is a closed case at the call site, never the mode string
     // `openssl_encrypt` reads, and this one carries no default either.

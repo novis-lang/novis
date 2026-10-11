@@ -1,5 +1,8 @@
 Which hashing algorithm a `Core\Hash` call computes.
 
+`Core\Hash::Digest` is declared in the class `Core\Hash`. `Core\Hash::of`, `Core\Hash::hmac` and
+`Core\Hash::stream` take it as an argument.
+
 The algorithm is an argument rather than part of the member's name, so one member stands where other
 languages have a function per algorithm. The list holds every algorithm interop needs: the checksums,
 the two broken ones, the SHA-2 and SHA-3 families, and BLAKE3. `Sha256` is the one to reach for when

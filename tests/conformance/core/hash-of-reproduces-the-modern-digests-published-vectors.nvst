@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::of` reproduces the published vector of every `Core\Digest` case added past the original six — spec § 11's roster table, `rule:types/bytes` and `rule:types/conversion`
+`Core\Hash::of` reproduces the published vector of every `Core\Hash::Digest` case added past the original six — spec § 11's roster table, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // Spec § 11's roster grew from six cases to fifteen, and the nine below are
@@ -20,15 +20,15 @@
 // two CRCs have no padding and start and end at zero, which is why `Crc32c`'s
 // line is indistinguishable from `Crc32`'s and only the next block separates
 // them.
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha224)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha512_224)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha512_256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha3_224)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha3_256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha3_384)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha3_512)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Crc32c)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Blake3)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha224)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha512_224)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha512_256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha3_224)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha3_256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha3_384)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha3_512)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Crc32c)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Blake3)), "\n";
 
 // "abc" — the vector FIPS 180-4 and FIPS 202 both publish, and the one
 // BLAKE3's own reference implementation is quoted with everywhere. Two rows
@@ -37,15 +37,15 @@ echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Blake3)), "\n";
 // `Sha512_256` is not `Sha512` truncated to 32, because each has its own
 // initial state (FIPS 180-4 § 5.3.6) — compare these against the `Sha512`
 // line in the sibling case and no prefix matches.
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha224)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha512_224)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha512_256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha3_224)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha3_256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha3_384)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Sha3_512)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Crc32c)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Blake3)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha224)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha512_224)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha512_256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha3_224)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha3_256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha3_384)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Sha3_512)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Crc32c)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Blake3)), "\n";
 
 // FIPS 180-4's 896-bit message — 112 octets, which is the multi-block row for
 // every algorithm below and for a different reason in each family. SHA-512's
@@ -55,20 +55,20 @@ echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Blake3)), "\n";
 // for SHA3-224 and SHA3-256 and two for SHA3-384 and SHA3-512. A sponge wired
 // to one fixed rate passes half of these.
 string $long = "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu";
-echo Core\Encoding::toHex(Core\Hash::of($long, Core\Digest::Sha512_224)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($long, Core\Digest::Sha512_256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($long, Core\Digest::Sha3_224)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($long, Core\Digest::Sha3_256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($long, Core\Digest::Sha3_384)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($long, Core\Digest::Sha3_512)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($long, Core\Hash::Digest::Sha512_224)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($long, Core\Hash::Digest::Sha512_256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($long, Core\Hash::Digest::Sha3_224)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($long, Core\Hash::Digest::Sha3_256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($long, Core\Hash::Digest::Sha3_384)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($long, Core\Hash::Digest::Sha3_512)), "\n";
 
 // The CRC catalogue's check value is the checksum of the nine ASCII digits,
 // and it is the one constant every CRC implementation is compared against.
 // Printed for both polynomials together because that is the pair that would
 // otherwise be one arm calling the other: CRC-32/ISO-HDLC answers `cbf43926`
 // and CRC-32C/Castagnoli answers `e3069283`, four octets each, big-endian.
-echo Core\Encoding::toHex(Core\Hash::of("123456789", Core\Digest::Crc32)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("123456789", Core\Digest::Crc32c)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("123456789", Core\Hash::Digest::Crc32)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("123456789", Core\Hash::Digest::Crc32c)), "\n";
 
 // A `bytes` no `string` could hold — a lone `ff`, a continuation byte with no
 // lead and a truncated sequence. `"…" as bytes` only reaches octets that are
@@ -78,9 +78,9 @@ echo Core\Encoding::toHex(Core\Hash::of("123456789", Core\Digest::Crc32c)), "\n"
 // text; one case per family is enough to pin that, since they share `of`'s
 // single reader.
 bytes $raw = Core\Encoding::fromHex("00ff80fe");
-echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Sha512_256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Sha3_256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Crc32c)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Hash::Digest::Sha512_256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Hash::Digest::Sha3_256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Hash::Digest::Crc32c)), "\n";
 --EXPECT--
 d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f
 6ed0dd02806fa89e25de060c19d3ac86cabb87d6a0ddd05c333b84f4

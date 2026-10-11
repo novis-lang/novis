@@ -2,8 +2,8 @@
 // Shows how to compute two digests of the same data with two streams.
 
 // An older system checks the data with MD5. Your own records use SHA-256.
-Core\Hash\Stream $forOldSystem = Core\Hash::stream(Core\Digest::Md5);
-Core\Hash\Stream $forRecords = Core\Hash::stream(Core\Digest::Sha256);
+Core\Hash\Stream $forOldSystem = Core\Hash::stream(Core\Hash::Digest::Md5);
+Core\Hash\Stream $forRecords = Core\Hash::stream(Core\Hash::Digest::Sha256);
 
 array<string> $parts = ["invoice 2031\n", "total 49.90 EUR\n"];
 foreach ($parts as string $part) {

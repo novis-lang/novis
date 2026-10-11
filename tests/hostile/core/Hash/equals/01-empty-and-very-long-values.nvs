@@ -24,11 +24,11 @@ echo 'empty and huge: ', Core\Hash::equals($empty, $huge) ? 'true' : 'false', "\
 
 // 5. One hundred thousand comparisons of two short digests. Nothing is kept, so memory
 // use must stay flat.
-bytes $digest = Core\Hash::of('token', Core\Digest::Sha256);
+bytes $digest = Core\Hash::of('token', Core\Hash::Digest::Sha256);
 uint $matches = 0;
 uint $round = 0;
 while ($round < 100000) {
-    if (Core\Hash::equals($digest, Core\Hash::of('token', Core\Digest::Sha256))) {
+    if (Core\Hash::equals($digest, Core\Hash::of('token', Core\Hash::Digest::Sha256))) {
         $matches = $matches + 1;
     }
     $round = $round + 1;

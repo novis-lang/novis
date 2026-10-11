@@ -618,7 +618,7 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
             interner.enum_(qname, crate::enums::EnumBacking::Int)
         }
         // `rule:types/enum-case-type`'s narrowed case type, interned exactly as a source-
-        // written `Core\Digest::Sha256` in type position is — `crate::lower`
+        // written `Core\Hash::Digest::Sha256` in type position is — `crate::lower`
         // reaches the same `enum_case` for that spelling, so the union a
         // registry row builds out of these and one a program could write are
         // the same interned id.

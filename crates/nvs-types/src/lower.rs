@@ -1044,11 +1044,11 @@ fn resolve_name_type(
         // A `Core`-owned enum and a loaded extension's enum are in no symbol
         // table — no source file declared them — but `crate::enums` seeded
         // them exactly as `lower_member_type` above reads them back for the
-        // `Core\Digest::Sha1` spelling. Without this arm a written
-        // `Core\Digest` annotation interned as `Ty::Class`, which no `Core`
+        // `Core\Hash::Digest::Sha1` spelling. Without this arm a written
+        // `Core\Hash::Digest` annotation interned as `Ty::Class`, which no `Core`
         // signature's `Ty::Enum` unified with: the two print the same qname,
-        // so the mismatch arrived as "expected `Core\Digest`, found
-        // `Core\Digest`" and a digest could not be passed through a parameter
+        // so the mismatch arrived as "expected `Core\Hash::Digest`, found
+        // `Core\Hash::Digest`" and a digest could not be passed through a parameter
         // at all.
         None if env.enums.get(&qname).is_some() => {
             let backing = env.enums.backing_of(&qname);
@@ -1204,17 +1204,17 @@ mod tests {
 
     #[test]
     fn a_core_enum_name_resolves_to_an_enum_type_not_a_class() {
-        // Nothing declares `Core\Digest`, so the symbol table has no entry for
+        // Nothing declares `Core\Hash::Digest`, so the symbol table has no entry for
         // it and the `is_core()` arm below used to intern a `Ty::Class` — which
         // no registry row's `Ty::Enum` unified with, though both print the same
         // qname. `array<...>` for the same `rule:types/alias-is-never-a-bare-class` reason as above.
-        let (id, interner, diags) = lower_alias("<?nvs\ntype Probe = array<Core\\Digest>;\n");
+        let (id, interner, diags) = lower_alias("<?nvs\ntype Probe = array<Core\\Hash::Digest>;\n");
         assert!(!diags.has_errors(), "{diags:?}");
         let Ty::Array(elem) = interner.get(id) else {
             panic!("expected array<...>, got {:?}", interner.get(id));
         };
         assert!(
-            matches!(interner.get(*elem), Ty::Enum(q, _) if q.to_string() == r"Core\Digest"),
+            matches!(interner.get(*elem), Ty::Enum(q, _) if q.to_string() == r"Core\Hash::Digest"),
             "expected an enum type, got {:?}",
             interner.get(*elem)
         );

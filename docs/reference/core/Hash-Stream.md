@@ -3,20 +3,20 @@ summary: an incremental digest — fed piece by piece with `update`, closed once
 keywords: hash_init, hash_update, hash_final, HashContext, incremental hash, streaming digest, chunked input
 ---
 
-A `Core\Hash\Stream` is opened by `Core\Hash::stream` with a `Core\Digest` case and digests
+A `Core\Hash\Stream` is opened by `Core\Hash::stream` with a `Core\Hash::Digest` case and digests
 everything `update` feeds it, in order, so `finish` answers exactly what `Core\Hash::of` answers
 over the concatenation. `finish` consumes the stream: a second `finish`, or an `update` after one,
 throws `RuntimeError`. Two digests of one input need two streams.
 
 ```nvs
 <?nvs
-var $stream = Core\Hash::stream(Core\Digest::Sha256);
+var $stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
 $stream->update("a");
 $stream->update("bc");
 bytes $streamed = $stream->finish();
 echo Core\Encoding::toHex($streamed), "\n";
 
-bytes $whole = Core\Hash::of("abc", Core\Digest::Sha256);
+bytes $whole = Core\Hash::of("abc", Core\Hash::Digest::Sha256);
 echo Core\Hash::equals($streamed, $whole) ? "same" : "differ", "\n";
 
 try {

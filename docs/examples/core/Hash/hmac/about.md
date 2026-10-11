@@ -9,5 +9,5 @@ signature again and compare the two with `Core\Hash::equals`. The result is `byt
 **In plain words:** a digest is a fingerprint that anybody can compute. An HMAC is a fingerprint
 that only the owner of the key can compute.
 
-**Good to know:** only the SHA-2 and SHA-3 algorithms are allowed. `Core\Digest::Md5` or
-`Core\Digest::Sha1` here does not compile.
+**Good to know:** only the SHA-2 and SHA-3 algorithms are allowed. `Core\Hash::Digest::Md5` or
+`Core\Hash::Digest::Sha1` here does not compile.

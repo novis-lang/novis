@@ -24,7 +24,7 @@ $weights->set($blue, 7);
 echo 'weight=' . ($weights->get($red) ?? 0) . "\n";
 echo 'absent=' . ($weights->get(new Tag('red')) ?? -1) . "\n";
 
-echo 'sha256=' . Core\Encoding::toHex(Core\Hash::of('nvs', Core\Digest::Sha256)) . "\n";
+echo 'sha256=' . Core\Encoding::toHex(Core\Hash::of('nvs', Core\Hash::Digest::Sha256)) . "\n";
 echo 'base64=' . Core\Encoding::toBase64(Core\Encoding::encodeText('nvs', Core\Charset::Utf8)) . "\n";
 
 echo 'dice=' . Core\Random::int(5, 5) . "\n";

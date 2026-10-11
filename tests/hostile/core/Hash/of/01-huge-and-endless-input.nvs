@@ -7,39 +7,39 @@
 Core\Config::set('memory', '64M');
 
 // 1. Empty data, under every algorithm. Each one returns a digest of its normal size.
-array<Core\Digest> $all = [
-    Core\Digest::Crc32,
-    Core\Digest::Md5,
-    Core\Digest::Sha1,
-    Core\Digest::Sha256,
-    Core\Digest::Sha384,
-    Core\Digest::Sha512,
-    Core\Digest::Sha224,
-    Core\Digest::Sha512_224,
-    Core\Digest::Sha512_256,
-    Core\Digest::Sha3_224,
-    Core\Digest::Sha3_256,
-    Core\Digest::Sha3_384,
-    Core\Digest::Sha3_512,
-    Core\Digest::Crc32c,
-    Core\Digest::Blake3,
+array<Core\Hash::Digest> $all = [
+    Core\Hash::Digest::Crc32,
+    Core\Hash::Digest::Md5,
+    Core\Hash::Digest::Sha1,
+    Core\Hash::Digest::Sha256,
+    Core\Hash::Digest::Sha384,
+    Core\Hash::Digest::Sha512,
+    Core\Hash::Digest::Sha224,
+    Core\Hash::Digest::Sha512_224,
+    Core\Hash::Digest::Sha512_256,
+    Core\Hash::Digest::Sha3_224,
+    Core\Hash::Digest::Sha3_256,
+    Core\Hash::Digest::Sha3_384,
+    Core\Hash::Digest::Sha3_512,
+    Core\Hash::Digest::Crc32c,
+    Core\Hash::Digest::Blake3,
 ];
-foreach ($all as Core\Digest $digest) {
+foreach ($all as Core\Hash::Digest $digest) {
     echo 'empty: ', Core\Bytes::length(Core\Hash::of('', $digest)), " bytes\n";
 }
 
 // 2. A text of 16 million characters, hashed under three algorithms.
 string $huge = Core\Str::repeat('x', 16000000);
-echo 'huge sha256: ', Core\Bytes::length(Core\Hash::of($huge, Core\Digest::Sha256)), " bytes\n";
-echo 'huge sha3: ', Core\Bytes::length(Core\Hash::of($huge, Core\Digest::Sha3_512)), " bytes\n";
-echo 'huge blake3: ', Core\Bytes::length(Core\Hash::of($huge, Core\Digest::Blake3)), " bytes\n";
+echo 'huge sha256: ', Core\Bytes::length(Core\Hash::of($huge, Core\Hash::Digest::Sha256)), " bytes\n";
+echo 'huge sha3: ', Core\Bytes::length(Core\Hash::of($huge, Core\Hash::Digest::Sha3_512)), " bytes\n";
+echo 'huge blake3: ', Core\Bytes::length(Core\Hash::of($huge, Core\Hash::Digest::Blake3)), " bytes\n";
 
 // 3. Each digest is used as the next input, one hundred thousand times. Every digest
 // is freed, so memory use must stay flat.
-bytes $chain = Core\Hash::of('start', Core\Digest::Sha256);
+bytes $chain = Core\Hash::of('start', Core\Hash::Digest::Sha256);
 uint $round = 0;
 while ($round < 100000) {
-    $chain = Core\Hash::of($chain, Core\Digest::Sha256);
+    $chain = Core\Hash::of($chain, Core\Hash::Digest::Sha256);
     $round = $round + 1;
 }
 echo 'chain done: ', Core\Bytes::length($chain), " bytes\n";
@@ -49,5 +49,5 @@ echo 'chain done: ', Core\Bytes::length($chain), " bytes\n";
 echo "step 4\n";
 array<bytes> $kept = [];
 while (true) {
-    $kept[] = Core\Hash::of($chain, Core\Digest::Sha512);
+    $kept[] = Core\Hash::of($chain, Core\Hash::Digest::Sha512);
 }

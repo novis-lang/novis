@@ -4,7 +4,7 @@
 class PageVersion {
     // Returns the first 16 hex digits of the page's SHA-256 digest.
     public static function of(string $body): string {
-        string $hex = Core\Encoding::toHex(Core\Hash::of($body, Core\Digest::Sha256));
+        string $hex = Core\Encoding::toHex(Core\Hash::of($body, Core\Hash::Digest::Sha256));
         return Core\Str::slice($hex, 0, 16);
     }
 }

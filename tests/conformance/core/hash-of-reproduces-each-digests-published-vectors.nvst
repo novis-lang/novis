@@ -1,5 +1,5 @@
 --TEST--
-`Core\Hash::of` reproduces each `Core\Digest` case's own published vector, hashes the empty input and hashes a buffer no `string` could hold — spec § 11, `rule:types/bytes` and `rule:types/conversion`
+`Core\Hash::of` reproduces each `Core\Hash::Digest` case's own published vector, hashes the empty input and hashes a buffer no `string` could hold — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
 // § 11: the algorithm is an argument, so this one member has to be right six
@@ -15,12 +15,12 @@
 // still compresses one padded block, so a member that special-cased "no data
 // to feed" would answer the wrong thing here and nowhere else. CRC-32 has no
 // padding and starts and ends at zero.
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Crc32)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Md5)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha1)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha384)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha512)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Crc32)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Md5)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha1)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha384)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("", Core\Hash::Digest::Sha512)), "\n";
 
 // One published vector per case, taken from the document that defines that
 // algorithm rather than from this implementation's own output.
@@ -30,10 +30,10 @@ echo Core\Encoding::toHex(Core\Hash::of("", Core\Digest::Sha512)), "\n";
 // CRC implementation is compared against. `Core\Hash::of` answers the four
 // octets big-endian, so this reads as PHP's `hash("crc32b", …)` and not as its
 // `crc32()`, which returns an `int` — this module's own docs say why.
-echo Core\Encoding::toHex(Core\Hash::of("123456789", Core\Digest::Crc32)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("123456789", Core\Hash::Digest::Crc32)), "\n";
 
 // RFC 1321 § A.5's suite, the entry long enough to be interesting.
-echo Core\Encoding::toHex(Core\Hash::of("message digest", Core\Digest::Md5)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("message digest", Core\Hash::Digest::Md5)), "\n";
 
 // FIPS 180-4's 448-bit message, for the two algorithms with a 512-bit block:
 // 56 octets, so the length field no longer fits behind the padding and the
@@ -41,22 +41,22 @@ echo Core\Encoding::toHex(Core\Hash::of("message digest", Core\Digest::Md5)), "\
 // every short vector above and fails exactly here.
 echo Core\Encoding::toHex(Core\Hash::of(
     "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
-    Core\Digest::Sha1
+    Core\Hash::Digest::Sha1
 )), "\n";
 echo Core\Encoding::toHex(Core\Hash::of(
     "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
-    Core\Digest::Sha256
+    Core\Hash::Digest::Sha256
 )), "\n";
 
 // FIPS 180-4's 896-bit message, which is the same test for the 1024-bit block
 // SHA-384 and SHA-512 use: 112 octets against a 128-octet block.
 echo Core\Encoding::toHex(Core\Hash::of(
     "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu",
-    Core\Digest::Sha384
+    Core\Hash::Digest::Sha384
 )), "\n";
 echo Core\Encoding::toHex(Core\Hash::of(
     "abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu",
-    Core\Digest::Sha512
+    Core\Hash::Digest::Sha512
 )), "\n";
 
 // A `bytes` no `string` could hold: a lone `ff`, a continuation byte with no
@@ -67,12 +67,12 @@ echo Core\Encoding::toHex(Core\Hash::of(
 // takes the same path over it, which is the property being pinned: a digest
 // is defined over octets and has no opinion about text.
 bytes $raw = Core\Encoding::fromHex("00ff80fe");
-echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Crc32)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Md5)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Sha1)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Sha256)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Sha384)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Digest::Sha512)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Hash::Digest::Crc32)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Hash::Digest::Md5)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Hash::Digest::Sha1)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Hash::Digest::Sha256)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Hash::Digest::Sha384)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of($raw, Core\Hash::Digest::Sha512)), "\n";
 --EXPECT--
 00000000
 d41d8cd98f00b204e9800998ecf8427e
