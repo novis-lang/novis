@@ -1,5 +1,5 @@
 --TEST--
-`exit` stops the program where it stands: no `catch` sees it and no `finally` above it runs — docs/adr/README.md § Decisions taken at project start
+`exit` stops the program where it stands: no `catch` sees it and no `finally` above it runs — `rule:statements/exit-stops-the-program-where-it-stands`
 --FILE--
 <?nvs
 // covers: lang:programs/ending-a-program

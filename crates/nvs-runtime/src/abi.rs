@@ -52,9 +52,9 @@ pub const FATAL: i32 = 2;
 /// It propagates exactly the way [`FATAL`] does — no `catch` sees it, and no
 /// `finally` runs, which is PHP's own `exit` — but it is **not** a failure:
 /// `exit(0)` is the most ordinary end a program has, so the request boundary
-/// reports the code rather than an error. `docs/adr/README.md`
-/// § *Decisions taken at project start* owns why this is a fourth status
-/// rather than a `FATAL` carrying a code.
+/// reports the code rather than an error.
+/// `rule:statements/exit-stops-the-program-where-it-stands` owns why this is
+/// a fourth status rather than a `FATAL` carrying a code.
 pub const EXITED: i32 = 3;
 
 /// A compiled Novis function.

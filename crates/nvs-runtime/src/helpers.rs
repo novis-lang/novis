@@ -2897,9 +2897,9 @@ crate::nvs_helper! {
     /// status check `nvs-codegen` emits after the call takes the site's error
     /// edge: the frame's live locals are released in its landing block, and
     /// every caller's own check propagates the status the same way. Nothing
-    /// catches it and no `finally` runs — `docs/adr/README.md`
-    /// § *Decisions taken at project start* owns why that is a fourth status
-    /// rather than a `FATAL` carrying a code.
+    /// catches it and no `finally` runs —
+    /// `rule:statements/exit-stops-the-program-where-it-stands` owns why that
+    /// is a fourth status rather than a `FATAL` carrying a code.
     fn nvs_exit(ctx, args: [1]) {
         let code = expect_tag!("nvs_exit", args[0], as_int, Tag::Int);
         ctx.set_exit_code(code);

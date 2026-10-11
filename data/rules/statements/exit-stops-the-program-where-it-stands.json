@@ -1,0 +1,15 @@
+{
+  "title": "`exit` ends the program where it stands: no `catch` sees it, no `finally` runs, and a clean exit is not a failure",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "statements/exit-is-the-only-termination-keyword",
+    "errors/propagation",
+    "observability/three-endings-fire-the-exit-queue"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/exit-stops-the-program-where-it-stands.nvst",
+    "tests/conformance/lang/exit-takes-a-status-or-a-message.nvst",
+    "crates/nvs-codegen/tests/throwing.rs"
+  ]
+}

@@ -3,7 +3,7 @@
 
 # Packaging
 
-*43 of 78 rules below are **designed** rather than shipped, and are marked where they appear.*
+*43 of 79 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="packaging-an-artifact-is-one-immutable-content-addressed-file"></a>
 
@@ -2226,15 +2226,17 @@ opens a native loading path ([`security/no-ffi`](security.md#security-no-ffi)).
 `rule:packaging/a-c-dependency-answers-two-questions`
 
 "Pure Rust by default, deviations argued individually" is a standing test rather than a case-by-case
-argument, so the answer does not depend on who argues it:
+argument, so the answer does not depend on who argues it. The default is pure Rust because a
+memory-safe runtime cannot contain arbitrary C, and the test decides which C it may contain:
 
 1. **Does attacker-controlled data reach this code?** If no — accept it under ordinary audit.
 2. If yes — accept it only with a **demonstrable, exceptional verification record**. Otherwise it
    must be confined to wasm.
 
-SQLite passes the second question: its test suite is orders of magnitude larger than its source and it
-is continuously fuzzed. Almost nothing else clears that bar, which is the point. A codec, an archive
-reader or an XSLT engine fails it and is therefore Tier 1 — including when the only implementation is
+SQLite, through `rusqlite`, is the C dependency the question exists for: no credible pure-Rust
+implementation of it exists, and it passes the second question, because its test suite is orders of
+magnitude larger than its source and it is continuously fuzzed. Almost nothing else clears that bar,
+which is the point. A codec, an archive reader or an XSLT engine fails it and is therefore Tier 1 — including when the only implementation is
 C, since compiling a C library to wasm is the standing answer when the test fails; lossy WebP encoding
 via libwebp is admitted exactly that way. An authentication handshake handles attacker-reachable bytes,
 so a driver plugin the pure-Rust crates lack gets a Rust implementation or a documented refusal, never a
@@ -2249,6 +2251,33 @@ default binary's C dependencies from the resolved graph and fails CI on any with
   how a pure-Rust default stops being one.
 
 <sub>See also [`core-api/tier-placement`](core-api.md#core-api-tier-placement), [`testing/attribution-is-diffed-in-ci`](testing.md#testing-attribution-is-diffed-in-ci), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
+
+<a id="packaging-somebody-elses-specification-is-a-crate"></a>
+
+## Somebody else's specification is implemented by an existing first-class crate, and the compiler and scheduler are written here
+
+`rule:packaging/somebody-elses-specification-is-a-crate`
+
+Anything with an external specification — a protocol, a parser, a wire format, a cipher, a codec, a
+cron expression, a timezone database — is implemented by an existing first-class Rust crate. Anything
+about Novis's own compiler or scheduler has no possible crate and is written here. This is the
+question beside [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions): not what the tree may depend
+on, but what it may write itself.
+
+A second-rate implementation of somebody else's specification is a security surface the project would
+then own for as long as the feature exists, so the default is that a feature without such a crate is
+not built. Writing one anyway is the exception, argued in the feature's own rule against that cost:
+[`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary) does it for TDS, the one database wire with no crate, because
+SQL Server is in the driver matrix at all only that way.
+
+The split is the one the tree already lives with. Cranelift compiles, and the lowering into it is
+written here; `serde_json` parses, and the derive that emits Novis IR from Novis types
+([`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute)) could not be a crate. When a feature is half of each — a
+database driver borrows its codec and writes its state machine, an exporter borrows its encoder and
+writes its wiring ([`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates)) — which half is which is said
+before either is written.
+
+<sub>See also [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates).</sub>
 
 <a id="packaging-pdf-decoding-ships-in-the-image-package"></a>
 

@@ -2,8 +2,8 @@
 
 The frozen half of [the implementation plan](../implementation-plan.md): what was decided
 before the first milestone, the architecture those decisions imply, and how the whole thing is
-verified. Every decision here is argued out in [docs/adr/](../adr/README.md) — this states the
-headline and links. The *live* half — where the work stands, and every milestone — is the plan
+verified. A decision a program can observe is argued in the rule it links, and this states the
+headline; a decision about how the implementation is built is argued here, in its own section. The *live* half — where the work stands, and every milestone — is the plan
 index, and one file per milestone beside this one.
 
 ---
@@ -13,7 +13,7 @@ index, and one file per milestone beside this one.
 **Novis** is the language this repository builds. The plan of record is
 [docs/implementation-plan.md](../implementation-plan.md) — its status block is where the work stands,
 and its table routes to one file per milestone. This document holds what that plan decided *before* the
-first milestone; every decision it states is argued out in full in [docs/adr/](../adr/README.md).
+first milestone.
 
 The goal is a new programming language for web servers and CLI, written in Rust, that:
 
@@ -52,14 +52,14 @@ test suites — into Novis.
 
 ## Confirmed design decisions
 
-Every row that names an ADR states only the headline — open that ADR for the mechanism, the exact
-spellings rejected, and the reasoning. Do not restate that detail here when adding a row.
+Every row that names a rule states only the headline — open that rule for the mechanism, the exact
+spellings declined, and the reasoning. Do not restate that detail here when adding a row.
 
 | Area | Decision |
 |---|---|
-| Implementation language | Rust (stable, pinned via `rust-toolchain.toml`) |
+| Implementation language | Rust (stable, pinned via `rust-toolchain.toml`): memory safety in the runtime is a product requirement, and Cranelift and the pure-Rust protocol crates are Rust (`rule:packaging/somebody-elses-specification-is-a-crate`) |
 | Resource priorities | Security → semantics → latency → simplicity → memory footprint, in that order, within an enforced per-request cap (`rule:programs/memory-priority`) |
-| Execution | Cranelift JIT from day one, no interpreter tier; baseline codegen first, optimising tier later |
+| Execution | Cranelift JIT from day one, no interpreter tier, for peak performance and one implementation of the semantics to keep correct; baseline codegen first, optimising tier later behind the same IR boundary |
 | Code cache | Content-addressed on-disk cache (BLAKE3) + in-process `Arc` sharing; hot-reloads on an edit via a per-path pointer swap, no watcher, no restart (`rule:config/an-edit-reaches-the-next-request-without-a-restart`); the on-disk file format, its mmap-verify-then-execute read path and its eviction policy are `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` |
 | Parallelism | Hybrid: `async`/`await` for I/O inside a task (same heap, cooperative) + isolated workers on other cores for CPU work |
 | Suspension | Stackful coroutines — no async colouring; any function may yield |
@@ -75,7 +75,7 @@ spellings rejected, and the reasoning. Do not restate that detail here when addi
 | Code reuse | No `trait`; shared behavior is a `public`/`private` interface method body, shared state is explicit `implements Interface by $field;` delegation, and any resulting name collision is always a compile error requiring an explicit override — there is no `insteadof` (`rule:classes/no-traits`) |
 | PHP compatibility | Pragmatic superset of the syntax, not of the type discipline: PHP 8.5 syntax accepted, `strict_types` implicit, no `eval`/`$$var`/`goto`/`extract()`/`settype()`/pipe operator (`\|>`, deliberately unparsed — see `nvs-syntax`'s module docs). Existing PHP does not run unconverted — see *Consequences to accept* below, and each ADR above for its own divergence from PHP |
 | Templating | `<?nvs … ?>` inline-HTML mode, `<?= ?>` short echo, `.nvs` extension. Explicit escaping (not auto) |
-| Request state | Strict shared-nothing: only compiled code survives a request; no connection pooling in v1 (seam reserved). A request is the root isolate of a tree; `spawn script` adds children to it |
+| Request state | Strict shared-nothing: of the program's state only compiled code survives a request; a database connection is host state, pooled per core and reset before reuse (`rule:security/db-pool-reset-is-a-boundary`). A request is the root isolate of a tree; `spawn script` adds children to it |
 | Regex | Pure Rust two-tier: `regex` (linear-time) → `fancy-regex` (lookaround/backrefs) fallback |
 | Security | Server-level `nvs.toml`, root-owned, TOML (`rule:config/the-file-is-nvs-toml-and-it-is-toml`), deny-by-default capabilities + hard per-request limits (`rule:config/three-changeability-classes`) |
 | Serving | Built-in **HTTP/1.1** server, scoped to a development server and a proxied origin; no TLS listener, no h2c, no HTTP/3, no FastCGI, no compression (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`) |
@@ -136,7 +136,8 @@ listener for it (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`).
   (all codegen is type-checked and bounds-checked); the codegen itself, the coroutine stack switcher and
   the arena are the audited unsafe surface. See "Unsafe policy".
 - **Resident memory is higher than a footprint-tuned runtime's, and scales with in-flight concurrency
-  rather than request rate.** 64 KiB of reserved stack per task, 16-byte values, copy-on-write clones and a
+  rather than request rate.** 1 MiB of reserved stack per task, resident only in the pages it touches
+  (`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`), 16-byte values, copy-on-write clones and a
   per-request arena held to its peak are all deliberate purchases of safety, speed or simplicity. Sizing a
   deployment therefore means sizing for concurrency — tasks × stack, plus concurrent requests × their
   `memory` cap — and deployment docs must say so rather than quote a typical RSS.
@@ -171,7 +172,7 @@ not restate them.**
 | Native unwinding through JIT frames is unavailable on every platform — the premise the calling convention exists for | `tests/unwind_unavailable.rs` | `rule:errors/propagation` |
 | A throw propagates, and a runtime panic is *contained*, across native frames | `tests/invariants.rs` | `rule:errors/helper-abi` |
 | A checked-return frame stays cheap, and throwing costs no more than returning | `a_checked_return_frame_stays_cheap`, `throwing_costs_about_the_same_as_returning` | `rule:errors/throw-is-not-slower` |
-| A coroutine can suspend from beneath live JIT frames, cheaply | `a_helper_can_suspend_with_jit_frames_live_above_it`, `a_coroutine_round_trip_stays_cheap` | [adr/README.md](../adr/README.md), *Stackful coroutines* |
+| A coroutine can suspend from beneath live JIT frames, cheaply | `a_helper_can_suspend_with_jit_frames_live_above_it`, `a_coroutine_round_trip_stays_cheap` | § *Thread-per-core, shared-nothing runtime* below |
 | A wasm guest cannot read past the host heap or outlive its deadline, and the boundary is affordable | `tests/wasm_sandbox.rs`, `a_host_to_guest_call_stays_cheap`, `per_request_instantiation_stays_affordable` | `rule:packaging/the-boundary-is-the-cost` |
 | An OS process still costs orders of magnitude more than a task — the whole cost case for in-process isolation | `an_os_process_costs_orders_of_magnitude_more_than_a_task` | `rule:security/isolate-shares-nothing` |
 
@@ -243,8 +244,15 @@ load-balanced across cores; a request never migrates between cores.
 **That runtime is ours, and it is not `async`.** It is `corosensei` stackful coroutines on a thread-per-core
 scheduler of our own, and no crate of ours depends on `tokio` — where it appears at all it is compiled
 with `sync` alone, a channel library and not a runtime (`rule:concurrency/one-scheduler`).
-Earlier drafts of this section and of `rule:http-server/a-core-is-never-blocked-on-a-syscall`
- said "Tokio"; that was stale text rather than a live decision, and both now say the same thing.
+
+**Suspension is a stack switch, so no function has a colour.** Any Novis function may perform I/O and
+yield without being marked `async`, which is what lets a converted PHP call chain become concurrent
+with no rewriting. The cost is a stack per in-flight task
+(`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`), paid deliberately under
+`rule:programs/memory-priority`, and a small unsafe core for the switch itself, taken as a dependency
+(`corosensei`) rather than written here. `benches/abi-probe`'s
+`a_helper_can_suspend_with_jit_frames_live_above_it` proves a helper can suspend with JIT frames live
+above it, and `a_coroutine_round_trip_stays_cheap` holds the round trip to no allocation.
 
 **A socket is therefore a synchronous one that parks its coroutine.** `nvs-host` exposes a stream
 implementing plain `std::io::Read` and `Write` whose `read` returns `WouldBlock` to the reactor, parks the
@@ -257,7 +265,8 @@ connection on the coroutine that owns it is a loop and a waker, not a second sch
 the one below — request framing is a security-critical parser.
 
 - Value refcounts are **non-atomic** — no atomics on the hot path, because a heap is only ever touched by
-  one thread.
+  one thread. The same fact makes cross-request contamination structurally impossible, not merely
+  prevented.
 - True multicore parallelism comes from N independent runtimes.
 - `spawn worker` for CPU-bound work dispatches to another core; the value crossing the boundary is
   deep-copied (moved when refcount == 1). This is exactly the isolated-worker semantics already chosen, so
@@ -302,6 +311,27 @@ single mechanism delivers:
 5. deoptimisation/OSR points for the optimising tier.
 
 Retrofitting safepoints later would mean rewriting the backend. They are not optional.
+
+### SIMD is a dependency's job, and the JIT emits scalar code
+
+No `target-cpu` flag is set anywhere, on any platform. LLVM autovectorizes the Rust crates at each
+target's baseline ISA — SSE2 on x86_64, NEON on aarch64 — and no further, because a `native` build
+produces a binary that faults on the next machine. Wide, feature-detected SIMD arrives through
+dependencies that wrote it and dispatch at runtime: `memchr` behind every `regex` prefilter
+(`rule:core-classes/regex-two-tiers`), `blake3` on the artifact-cache path. That is the trade
+`rule:packaging/a-c-dependency-answers-two-questions` already makes: the `unsafe` lives in a fuzzed
+crate with a user base, not in ours, where `unsafe_code = "forbid"` and a stable-pinned toolchain (so no
+`std::simd`) bar it anyway. A byte-scanning leaf that turns out to be hot — UTF-8 validation, grapheme
+scanning, the HTML auto-escape (`rule:core-classes/html-auto-escape`) — reaches for such a crate, never
+for `core::arch` intrinsics.
+
+Cranelift has no autovectorizer: its vector instructions exist to lower wasm's fixed 128-bit SIMD, not
+to be discovered in scalar loops, so JIT-compiled Novis is scalar by design. Little is lost, because a
+request's hot path is refcounting, ordered-hash lookups and tagged dispatch, not the dense homogeneous
+loops a vectorizer needs, and vectorizing a `float` reduction would reassociate its additions and
+change the result a program computes. A claimed SIMD win is checked twice: the instruction counts of
+`rule:testing/perf-two-mechanisms` flatter SIMD, because callgrind does not model vector port
+throughput, and anything built on Cranelift's vector support is capped at 128 bits.
 
 ### Compiled-unit cache with single-flight compilation
 
@@ -396,7 +426,7 @@ section does not restate it.** A prose copy here is what went stale: it named fo
 carried `unsafe`, and nothing failed. Cargo refuses a manifest that inherits `[workspace.lints]` and
 overrides one entry, so those crates must restate the whole table; `bun nv lints` generates the
 copies and `--check` fails the `lint` CI job and `nv verify` on any drift. A crate joins the roster
-with an ADR.
+with its reason written beside its name there.
 
 Each `unsafe` block carries its own `#[allow(unsafe_code, reason = "...")]`, plus a safety-invariant
 doc comment and dedicated Miri/ASAN coverage. `unsafe_op_in_unsafe_fn` is edition 2024's

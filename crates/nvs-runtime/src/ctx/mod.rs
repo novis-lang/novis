@@ -13,7 +13,7 @@
 //!
 //! * [`SAFEPOINT_OFFSET`] — the *address* of the word the safepoint poll
 //!   `nvs-codegen` emits at every function entry and loop back edge reads
-//!   (`docs/adr/README.md`'s project-start decisions). The address is loaded
+//!   (`docs/plan/design.md` § *Safepoints*). The address is loaded
 //!   once in the ABI entry block, which dominates every block below it, so the
 //!   poll itself is a load of the word, a test, and a predicted-not-taken
 //!   branch to the [`nvs_safepoint`] slow path. The word is out of line

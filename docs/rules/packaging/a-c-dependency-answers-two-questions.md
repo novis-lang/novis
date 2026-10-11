@@ -1,13 +1,15 @@
 "Pure Rust by default, deviations argued individually" is a standing test rather than a case-by-case
-argument, so the answer does not depend on who argues it:
+argument, so the answer does not depend on who argues it. The default is pure Rust because a
+memory-safe runtime cannot contain arbitrary C, and the test decides which C it may contain:
 
 1. **Does attacker-controlled data reach this code?** If no — accept it under ordinary audit.
 2. If yes — accept it only with a **demonstrable, exceptional verification record**. Otherwise it
    must be confined to wasm.
 
-SQLite passes the second question: its test suite is orders of magnitude larger than its source and it
-is continuously fuzzed. Almost nothing else clears that bar, which is the point. A codec, an archive
-reader or an XSLT engine fails it and is therefore Tier 1 — including when the only implementation is
+SQLite, through `rusqlite`, is the C dependency the question exists for: no credible pure-Rust
+implementation of it exists, and it passes the second question, because its test suite is orders of
+magnitude larger than its source and it is continuously fuzzed. Almost nothing else clears that bar,
+which is the point. A codec, an archive reader or an XSLT engine fails it and is therefore Tier 1 — including when the only implementation is
 C, since compiling a C library to wasm is the standing answer when the test fails; lossy WebP encoding
 via libwebp is admitted exactly that way. An authentication handshake handles attacker-reachable bytes,
 so a driver plugin the pure-Rust crates lack gets a Rust implementation or a documented refusal, never a

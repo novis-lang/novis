@@ -783,10 +783,10 @@ jobs:
           RUSTDOCFLAGS: -A rustdoc::private_intra_doc_links -D warnings
 
   # ---------------------------------------------------------------------------
-  # Enforces the claims in docs/adr: no C dependencies sneaking into the trusted
-  # core, no yanked or vulnerable deps. The other claim this comment used to
-  # make -- no unsafe outside the audited modules -- is the `lint` job's
-  # `bun nv lints --check`, which is where the roster of those modules lives:
+  # No C dependency enters the trusted core without the answer
+  # `rule:packaging/a-c-dependency-answers-two-questions` asks for, and no
+  # yanked or vulnerable dependency is admitted. No unsafe outside the audited
+  # crates is the `lint` job's `bun nv lints --check`, which holds their roster:
   # a crate off it keeps `[workspace.lints]`'s `forbid`, which no `#[allow]` can
   # relax, so it cannot hold an `unsafe` block at all.
   # ---------------------------------------------------------------------------

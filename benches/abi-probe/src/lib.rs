@@ -1,7 +1,7 @@
 //! Architecture invariants and cost baselines for Novis's execution model.
 //!
-//! This crate is not part of the compiler. It exists because decisions in
-//! `docs/adr/` rest on how Cranelift, `corosensei` and Wasmtime actually behave
+//! This crate is not part of the compiler. It exists because the rules and
+//! `docs/plan/design.md` rest on how Cranelift, `corosensei` and Wasmtime actually behave
 //! on the host platform, and those are properties of our dependencies rather
 //! than of our code. A dependency bump can silently invalidate them.
 //!

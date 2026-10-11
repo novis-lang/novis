@@ -408,8 +408,8 @@ rustc-hash = "2"
 # Two consumers, one crate: the on-disk artifact cache keys on it, and
 # spec § 11's `Core\Digest::Blake3` computes it — the second is what finally put
 # it in `Cargo.lock`. `pure` and no default features on purpose: blake3 ships
-# hand-written assembly built through `cc` by default, and ground-rules.md
-# § *Pure-Rust dependencies by default* is not spent on a hash that is already
+# hand-written assembly built through `cc` by default, and
+# `rule:packaging/a-c-dependency-answers-two-questions` is not spent on a hash that is already
 # faster than SHA-256 in its portable form. `std` is added back because
 # `default-features = false` is what turns the assembly off.
 blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
@@ -1095,7 +1095,7 @@ print_stderr = "warn"
 # a runtime panic to one request
 # (`rule:http-server/containment-does-not-end-at-the-helper` puts the outer one at the
 # task root). `panic = "abort"` would break that guarantee, so unwinding is
-# mandatory in every profile. See docs/adr/0003.
+# mandatory in every profile (`rule:errors/helper-abi`).
 panic = "unwind"
 # Line tables only, for Novis's own crates: a panic location and a backtrace still name file and
 # line, which is what every `debug_assert` and the owner stamp in `nvs-runtime` report through, so

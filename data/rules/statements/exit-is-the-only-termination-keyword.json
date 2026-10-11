@@ -3,12 +3,11 @@
   "status": "shipped",
   "because": [],
   "seeAlso": [
-    "statements/nvs-is-the-only-open-tag"
+    "statements/nvs-is-the-only-open-tag",
+    "statements/exit-stops-the-program-where-it-stands"
   ],
   "guardedBy": [
     "tests/conformance/reject/die-is-refused-in-favour-of-exit.nvst",
-    "tests/conformance/lang/exit-stops-the-program-where-it-stands.nvst",
-    "tests/conformance/lang/exit-takes-a-status-or-a-message.nvst",
     "crates/nvs-syntax/src/parser/tests/stmt.rs"
   ]
 }

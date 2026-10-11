@@ -266,8 +266,8 @@
 //! writing.
 //!
 //! That compare is not an optimization either path may skip. A compiled unit
-//! is the one thing requests share (`docs/adr/README.md`'s project-start
-//! decisions), so an immortal header is reachable from every core at once, and
+//! is the one thing requests share (`docs/plan/design.md`
+//! § *Thread-per-core, shared-nothing runtime*), so an immortal header is reachable from every core at once, and
 //! what keeps the [`Cell`]s sound is the narrower sentence [`crate::string`]
 //! makes one representation over: **no reference count two threads can reach
 //! is ever written**. No other word of such a header is written either. The

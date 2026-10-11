@@ -82,9 +82,9 @@
 //! # Why the refcount is a plain `Cell`
 //!
 //! A request shares nothing with any other request but compiled code
-//! (`docs/adr/README.md`'s project-start decisions), and a value crossing a
-//! `spawn`/`spawn worker`/`spawn script` boundary is deep-copied rather than
-//! shared (`rule:classes/two-copy-depths`).
+//! (`docs/plan/design.md` § *Thread-per-core, shared-nothing runtime*), and a
+//! value crossing a `spawn`/`spawn worker`/`spawn script` boundary is
+//! deep-copied rather than shared (`rule:classes/two-copy-depths`).
 //! No `NvsStr` a request *allocates* is ever reachable from two threads, so
 //! an atomic increment would buy nothing and cost a locked instruction on the
 //! hottest operation in the runtime. [`NvsStr`] is correspondingly neither
@@ -103,8 +103,8 @@
 //!
 //! The pin is not an optimization the release path may skip; it is what keeps
 //! the paragraph above sound. A compiled unit **is** shared between requests
-//! (`docs/adr/README.md`'s project-start decisions say it is the one thing
-//! that is), so an immortal header is reachable from two threads and the
+//! (`docs/plan/design.md` § *Thread-per-core, shared-nothing runtime* says
+//! it is the one thing that is), so an immortal header is reachable from two threads and the
 //! sentence "no `NvsStr` is ever reachable from two threads" stops being true
 //! as stated. What the `Cell` actually needs is narrower and does still hold:
 //! **no refcount two threads can reach is ever written.** A word that is only

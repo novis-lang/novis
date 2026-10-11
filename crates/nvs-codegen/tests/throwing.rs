@@ -272,7 +272,7 @@ fn an_exit_is_caught_by_nothing_and_carries_the_status_it_named() {
     // `exit` is its own ABI status, so the `catch` does not run and neither
     // does the `finally` — PHP's own behaviour, and the reason it is not a
     // `FATAL` is that the code it named survives to the request boundary.
-    // docs/adr/README.md § Decisions taken at project start owns both.
+    // `rule:statements/exit-stops-the-program-where-it-stands` owns both.
     let mut ctx = Ctx::buffered();
     let source = "<?nvs\ntry {\n    exit(3);\n} catch (Throwable $e) {\n    \
                   echo \"caught\";\n} finally {\n    echo \"finally\";\n}\n";

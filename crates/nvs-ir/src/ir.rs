@@ -596,10 +596,8 @@ pub enum InstKind {
     /// begin, in program order. Defines no value.
     StmtMarker(StmtId),
     /// A reserved safepoint poll site — function entry (recursion) or a
-    /// loop's back edge, the sites the project-start "safepoints emitted
-    /// from the first backend commit" decision names
-    /// ([`docs/adr/README.md`](/docs/adr/README.md)'s "Decisions
-    /// taken at project start" section) and that `rule:testing/debug-probes`
+    /// loop's back edge, the sites `docs/plan/design.md` § *Safepoints*
+    /// names and that `rule:testing/debug-probes`
     /// contrasts its own, denser probe grid against. `nvs-codegen` lowers it
     /// to one load of the context's safepoint word and a predicted-not-taken
     /// branch, and the **function-entry** one — the first in the entry
@@ -2537,7 +2535,7 @@ pub enum Helper {
     /// `catch` sees it — [`Terminator::Catch`] admits only `THROWN` — and **no
     /// `finally` runs**, because every copy of a `finally` body lives behind
     /// that comparison. Both are PHP's own behaviour for `exit`;
-    /// `docs/adr/README.md` § *Decisions taken at project start* owns the
+    /// `rule:statements/exit-stops-the-program-where-it-stands` owns the
     /// decision and what it costs.
     ///
     /// Defines no value and never returns normally, so it is pushed with
