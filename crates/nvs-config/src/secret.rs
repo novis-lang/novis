@@ -180,7 +180,7 @@ pub const SECRETS: &[SecretPair] = &[
             }
         },
     },
-    // ADR 0278 § 2's directory credential: the account every pooled connection of the block binds
+    // An `[ldap.<name>]` block's credential: the account every pooled connection of the block binds
     // as, for its whole life (`rule:security/ldap-pool-is-bound-as-its-block`).
     SecretPair {
         block: "ldap.*",

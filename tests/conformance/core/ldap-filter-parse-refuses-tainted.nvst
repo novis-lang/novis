@@ -1,5 +1,5 @@
 --TEST--
-`Filter::parse` reads text as a filter's structure, so a `tainted` text does not compile, and that includes the `tainted` text `toString` returns — ADR 0278 § 6, `rule:core-classes/ldap-filter-is-a-value` and `rule:security/unclassified-parameter-refuses-tainted`
+`Filter::parse` reads text as a filter's structure, so a `tainted` text does not compile, and that includes the `tainted` text `toString` returns — `rule:core-classes/ldap-filter-is-a-value` and `rule:security/unclassified-parameter-refuses-tainted`
 --FILE--
 <?nvs
 tainted string $text = "(cn=Ann)";

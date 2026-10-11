@@ -101,7 +101,7 @@ pub(super) const FLAGS_COMPUTED_AT: usize = 1;
 /// [`ACCOUNT_FLAGS`]' slot for whether `pwdLastSet` is `0`, as a `bool`.
 pub(super) const FLAGS_MUST_CHANGE_AT: usize = 2;
 
-/// ADR 0278 § 2's `Ldap\Settings`, the one shape `open` takes.
+/// `Ldap\Settings`, the one shape `open` takes (`rule:core-classes/ldap-capabilities`).
 ///
 /// The qualifiers sit on the fields: `url` is a sink with no launderer, as
 /// `rule:core-classes/db-capabilities` makes `Db\Settings.host` one, `user`
@@ -171,7 +171,7 @@ const CONNECTION_CARD: ClassDoc = ClassDoc {
             ends.",
 };
 
-/// ADR 0278 § 1's `Core\Ldap`: `connect` and `open`.
+/// `Core\Ldap`: `connect` and `open`.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     doc: Some(&CARD),
@@ -296,8 +296,8 @@ const OPEN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `search`'s options, ADR 0278 § 1's `SearchOptions` and § 11's sort,
-/// window and deleted objects. `super::search`'s module doc says why the
+/// `search`'s options, with the sort, window and deleted objects of
+/// `rule:core-classes/ldap-search-pages-and-never-follows-a-referral`. `super::search`'s module doc says why the
 /// window is two flat options.
 ///
 /// `base`, `select` and `sort` are sinks: the base is a path the server
@@ -361,7 +361,7 @@ const SEARCH_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `changes`' options, ADR 0278 § 1's `ChangesOptions` in order. `base` and
+/// `changes`' options: `base`, `select` and `cookie`, in that order. `base` and
 /// `select` are sinks, as `search`'s are. `cookie` is only sent back to the
 /// server, so a `tainted` one is accepted, and an option admits a qualifier
 /// only through its type.
@@ -392,7 +392,7 @@ const READ_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// ADR 0278 § 1's `Ldap\Connection`: what `connect` and `open` return.
+/// `Ldap\Connection`: what `connect` and `open` return.
 ///
 /// Its one slot is the key the connection is held under in the request's own
 /// table, which [`super::held`] reads back.
@@ -962,7 +962,7 @@ const CHANGE_ERRORS: &[ErrorDoc] = &[ErrorDoc {
     desc: "`attribute` is not an attribute name.",
 }];
 
-/// ADR 0278 § 1's `Ldap\Change`: one change of a `modify`, its value kept
+/// `Ldap\Change`: one change of a `modify`, its value kept
 /// unencoded until `modify` sends it. `super::write`'s module doc says why.
 pub(crate) const CHANGE: CoreClass = CoreClass {
     name: CHANGE_NAME,
@@ -1049,7 +1049,8 @@ const ENTRIES_CARD: ClassDoc = ClassDoc {
             next page from the server when it needs it.",
 };
 
-/// ADR 0278 § 5's `Ldap\Entries`: what `search` returns, and its own iterator.
+/// `Ldap\Entries`: what `search` returns, and its own iterator
+/// (`rule:core-classes/ldap-search-pages-and-never-follows-a-referral`).
 ///
 /// `ITERABLES` in [`crate::registry`] declares its element, and
 /// [`crate::instance`]'s dispatch roster gives it the three names a `foreach`
@@ -1088,7 +1089,7 @@ const CHANGES_CARD: ClassDoc = ClassDoc {
             After the loop, `cookie()` returns the cookie for the next call to `changes`.",
 };
 
-/// ADR 0278 § 11's `Ldap\Changes`: what `changes` returns, and its own
+/// `Ldap\Changes`: what `changes` returns, and its own
 /// iterator, as [`ENTRIES`] is. `super::search`'s module doc says what each
 /// slot is.
 pub(crate) const CHANGES_SET: CoreClass = CoreClass {
@@ -1154,8 +1155,8 @@ const ATTRIBUTE_NAME_PARAM: ParamDoc = ParamDoc {
     shape: &[],
 };
 
-/// ADR 0278 § 1's `Ldap\Entry`: the DN, the readers for text and bytes, and
-/// § 8's typed readers. `super::search`'s module doc says what each slot is,
+/// `Ldap\Entry`: the DN, the readers for text and bytes, and the typed
+/// readers of `rule:core-classes/ldap-value-types`. `super::search`'s module doc says what each slot is,
 /// and `super::value`'s what each typed reader accepts.
 pub(crate) const ENTRY: CoreClass = CoreClass {
     name: ENTRY_NAME,
@@ -1555,7 +1556,7 @@ const fn filter_compare(
     }
 }
 
-/// ADR 0278 § 6's `Ldap\Filter`. `super::search`'s module doc says what its
+/// `Ldap\Filter`, `rule:core-classes/ldap-filter-is-a-value`. `super::search`'s module doc says what its
 /// slot is.
 pub(crate) const FILTER: CoreClass = CoreClass {
     name: FILTER_NAME,
@@ -1879,7 +1880,7 @@ const DN_PART_ERRORS: &[ErrorDoc] = &[ErrorDoc {
     desc: "The attribute is not an attribute name, or the value is empty.",
 }];
 
-/// ADR 0278 § 7's `Ldap\Dn`, `rule:core-classes/ldap-dn-is-the-launderer`.
+/// `Ldap\Dn`, `rule:core-classes/ldap-dn-is-the-launderer`.
 /// `super::dn`'s module doc says what its slot is.
 ///
 /// `of` and `child` launder their `value` for the DN sink and nothing else:
@@ -2061,7 +2062,7 @@ const SID_CARD: ClassDoc = ClassDoc {
             computer, such as `S-1-5-21-1004336348-1177238915-682003330-512`.",
 };
 
-/// ADR 0278 § 1's `Ldap\Sid`: one value, its binary form in one slot. The
+/// `Ldap\Sid`: one value, its binary form in one slot. The
 /// bodies are `super::sid`'s.
 pub(crate) const SID: CoreClass = CoreClass {
     name: SID_NAME,
@@ -2187,7 +2188,7 @@ const AD_MEMBER_OF_OPTIONS: &[CoreOption] = &[CoreOption {
 /// every attribute name in a filter is.
 const AD_BITS: &[CoreTy] = &[CoreTy::Text(Qual::Sink), CoreTy::Int];
 
-/// ADR 0278 § 1's `Ldap\Ad`: AD's matching rules, as `Ldap\Filter` values.
+/// `Ldap\Ad`: AD's matching rules, as `Ldap\Filter` values.
 /// The bodies are `super::search`'s, beside the other filter constructors.
 pub(crate) const AD: CoreClass = CoreClass {
     name: AD_NAME,
@@ -2346,7 +2347,7 @@ const ACCOUNT_FLAGS_CARD: ClassDoc = ClassDoc {
             bit, also the bits no function names.",
 };
 
-/// ADR 0278 §§ 1 and 8's `Ldap\Ad\AccountFlags`: one reader per flag
+/// `Ldap\Ad\AccountFlags` (`rule:core-classes/ldap-value-types`): one reader per flag
 /// `nvs_ldap::value::ACCOUNT_FLAGS` names, in its order. `super::flags`' module
 /// doc says what its slots are.
 pub(crate) const ACCOUNT_FLAGS: CoreClass = CoreClass {
@@ -2643,7 +2644,7 @@ const GROUP_TYPE_CARD: ClassDoc = ClassDoc {
             `bool`. `bits` returns the whole number.",
 };
 
-/// ADR 0278 §§ 1 and 8's `Ldap\Ad\GroupType`: one reader per flag
+/// `Ldap\Ad\GroupType` (`rule:core-classes/ldap-value-types`): one reader per flag
 /// `nvs_ldap::value::GROUP_TYPE_FLAGS` names, in its order.
 pub(crate) const GROUP_TYPE: CoreClass = CoreClass {
     name: GROUP_TYPE_NAME,
@@ -2763,7 +2764,7 @@ const GT_WITH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// ADR 0278 § 8's `Ldap\Ad\AccountType`, the registry half of
+/// `rule:core-classes/ldap-value-types`'s `Ldap\Ad\AccountType`, the registry half of
 /// [`nvs_ldap::value::AccountType`]. The values are declaration ordinals, and
 /// `super::value` joins the two halves by name.
 pub(crate) const ACCOUNT_TYPE: CoreEnum = CoreEnum {
@@ -2830,7 +2831,7 @@ const ACCOUNT_TYPE_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// ADR 0278 § 5's `Ldap\Scope`. The values are declaration ordinals.
+/// `Ldap\Scope`, a search's scope. The values are declaration ordinals.
 pub(crate) const SCOPE: CoreEnum = CoreEnum {
     name: SCOPE_NAME,
     cases: &[("Base", 0), ("OneLevel", 1), ("Subtree", 2)],
@@ -2856,7 +2857,7 @@ const SCOPE_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// ADR 0278 § 2's `Ldap\Tls`. The values are declaration ordinals.
+/// `Ldap\Tls`, a block's or settings value's `tls`. The values are declaration ordinals.
 pub(crate) const TLS: CoreEnum = CoreEnum {
     name: TLS_NAME,
     cases: &[("Required", 0), ("None", 1)],
@@ -2889,7 +2890,7 @@ const TLS_DOC: EnumDoc = EnumDoc {
 /// spellings together.
 pub(crate) const ERROR_KIND_NAME: &str = r"Core\Ldap\ErrorKind";
 
-/// ADR 0278 § 10's `ErrorKind`, the registry half of [`nvs_ldap::Kind`].
+/// `rule:core-classes/ldap-error`'s `ErrorKind`, the registry half of [`nvs_ldap::Kind`].
 ///
 /// **The two halves are one enum and the wire one is authoritative**: a
 /// program matches on this table, and `nvs_ldap::Kind::of_result` is where a
@@ -2897,7 +2898,7 @@ pub(crate) const ERROR_KIND_NAME: &str = r"Core\Ldap\ErrorKind";
 /// joins them by name, and `every_ldap_kind_names_a_registered_case` holds the
 /// join total.
 ///
-/// The values are declaration ordinals in § 10's order and mean nothing else.
+/// The values are declaration ordinals in the rule's order and mean nothing else.
 /// `Protocol` is last, and it is also what `nvs_ldap::Kind::of_result` gives a
 /// result code it does not name, which is why a `LdapError` a program builds
 /// itself starts at that case (`nvs_ir::lower::exception`'s `LDAP_KIND_PROTOCOL`
@@ -3075,7 +3076,7 @@ mod tests {
         assert_eq!(cases, kinds);
     }
 
-    /// Every [`nvs_ldap::Kind`], in § 10's order. The `match` below has no
+    /// Every [`nvs_ldap::Kind`], in `rule:core-classes/ldap-error`'s order. The `match` below has no
     /// wildcard, so a kind added to that enum fails to compile here until it
     /// is listed.
     const EVERY_KIND: [nvs_ldap::Kind; 21] = {

@@ -301,7 +301,7 @@ it is why cancellation is the runtime's own teardown rather than anything a prog
   [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)'s tree accounting exists to rule out, and a row lock still
   held after the `catch` has run.
 
-<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0266](../decisions/0266.md).</sub>
+<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write), [`core-classes/html-later`](core-classes.md#core-classes-html-later).</sub>
 
 <a id="concurrency-cancellation-runs-no-user-code"></a>
 
@@ -404,7 +404,7 @@ member says it is not one in its first paragraph.
   and an operator command, which is a subsystem and not one member; it is the job queue's
   ([`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table)).
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0266](../decisions/0266.md).</sub>
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later).</sub>
 
 <a id="concurrency-only-the-request-registers-deferred-work"></a>
 
@@ -1705,7 +1705,7 @@ one script compiles it once.
 Output is captured rather than written through, because a job's `echo` landing in the middle of what
 the server or the run's own script is writing is exactly the mixing capture exists to prevent.
 
-<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0271](../decisions/0271.md).</sub>
+<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue).</sub>
 
 <a id="concurrency-who-runs-a-job-is-configuration"></a>
 

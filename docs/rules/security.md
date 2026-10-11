@@ -235,7 +235,7 @@ use-after-free. `crates/nvs-runtime/src/object.rs` is the mechanism's one home.
   is the runtime's only reclamation path, so it is the only one that can be wrong. The sweep spends two
   pointers per live object and a few non-atomic stores at each object's allocation and death.
 
-<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="security-arena-is-an-ownership-root"></a>
 
@@ -517,7 +517,7 @@ serializer or a test helper that reached into private state through reflection h
 the declaring class to offer the access, which is the same answer [`testing/private-in-the-same-file`](testing.md#testing-private-in-the-same-file)
 gives a test.
 
-<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection).</sub>
 
 <a id="security-reflection-needs-no-capability"></a>
 
@@ -830,7 +830,32 @@ A link that already exists when the door is called is unchanged in meaning: the 
 the grant is checked on its target, and the walk opens the target. Only a link that appears between the
 check and the open is refused.
 
-<sub>See also [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door). Decided in [0264](../decisions/0264.md).</sub>
+The grant is asked about the resolved path as written, never resolved again inside the check, because a
+second resolution could see a different path than the one the walk opens. On Windows an overwrite
+opens the existing file without emptying it, refuses it if it is a link, and only then sets its length
+to zero, so a link is never emptied. A folder the process may search but not list is walked on Linux,
+where a level is opened `O_PATH`; on every other platform it fails the walk. A volume mount point
+inside a granted tree on Windows has a name-surrogate tag, so the walk refuses it unless the resolved
+path is spelled through its volume.
+
+The walk costs one open per level of the path, the count the operating system's own lookup makes, plus
+one attribute read per level on Windows.
+
+- **Memory:** nothing past the call: every handle but the deepest is closed as soon as the next one is
+  open.
+
+**Declined:**
+
+- **The walk for `Core\Zip::extract` alone.** Its per-folder comparison against the destination left
+  the moment between the last comparison and the create, and did nothing for `Core\IO`'s own writes.
+- **Keeping the window and stating it as a bound.** A folder swapped for a link would still send a
+  write outside the grant.
+- **`openat2` with `RESOLVE_BENEATH` on Linux.** It would be a third platform half for one kernel, and
+  the walk already gives the same guarantee there.
+- **Anchoring the walk at the granted root** instead of the filesystem root. It would refuse a link
+  inside a granted tree that points to another place in the same tree, which a write may follow.
+
+<sub>See also [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door).</sub>
 
 <a id="security-denial-is-a-runtime-error"></a>
 
@@ -1186,7 +1211,7 @@ at the cost of one written reason per call site.
   long enough that programs stop writing it, and [`security/tainted-sources`](security.md#security-tainted-sources) is only worth as much
   as the declarations that carry it forward.
 
-<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0279](../decisions/0279.md).</sub>
+<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar).</sub>
 
 <a id="security-tainted-sources"></a>
 
@@ -1220,7 +1245,7 @@ is `?tainted bytes`. The list of sources being **enumerable** is what lets the q
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
 <a id="security-taint-propagation"></a>
 
@@ -1255,15 +1280,29 @@ are admitted. The same holds for an `array<mixed>` operand and for a union with 
 **The keys of such a value are outside text too**: a `foreach` key over a `mixed` or `iterable`
 subject, or over an array whose element type carries `tainted` or `mixed` anywhere — `queryArray`,
 `postArray`, `headers()`, a decoded `array<mixed>` — is `tainted string`, because an array's type says
-nothing of its keys and its elements are the evidence of where it was filled. An object's fields are
+nothing of its keys and its elements are the evidence of where it was filled. Every member that fills
+an array from outside answers one with such elements, so the element type covers members not yet
+written too. An array the program fills with tainted values under its own literal keys over-taints,
+which is the safe direction: write `tainted string $k`, and bind or escape the key where it reaches a
+sink. The bound is a map nested in a decoded target: a `postAs<Form>` whose `Form` has an `array<int>`
+field is keyed by the peer and has clean elements, so its keys bind as plain `string`. An object's fields are
 read the same way: a shape target of `as` or `is` over a class takes each text field from the field of
 that name, so a field that is `mixed`, `object` or tainted, or one the class does not declare and only
 a subclass could, counts as outside text. Where the text would land in a type the program *wrote* — a
 shape target of `as` or `is` over a `mixed` or `object` operand or over such an object, or a `foreach`
 key or value binding — the qualifier is never added behind the declaration: a field or binding written
-without `tainted` is a diagnostic asking for `tainted {…}` or `tainted string`, and a `var` key takes
-`tainted string` itself. A literal that was stored in `mixed` and is genuinely trusted is recovered
-with [`security/assert-trusted`](security.md#security-assert-trusted), or with the sink's own launderer.
+without `tainted` is a diagnostic asking for `tainted {…}` or `tainted string` (`E0851`), and a `var`
+key takes `tainted string` itself. `object` counts with `mixed` for a shape target because its fields
+are as untyped as `mixed`'s, so `$m as object` is no step round the rule. A shape target whose
+qualified fields are all `tainted` is admitted by `as`, and over an unchecked subject by `is`, and is
+tested with the qualifier erased; a `secret` field stays refused. A literal that was stored in `mixed`
+and is genuinely trusted, or the text of a `Stringable` object pulled out of one, is recovered with
+[`security/assert-trusted`](security.md#security-assert-trusted), or with the sink's own launderer.
+
+The rule sits at the one boundary every `mixed` source shares — `Core\Request::json`,
+`Core\Script::args`, `Core\Session::get`, `Core\Json::decode`, `Core\Cache::get`, a row's `get`,
+`Core\Serialize::decode`, `Core\Uri::queryParameter`, a socket's or event stream's `value` — so it
+covers members not yet written as well.
 
 A checked `as` conversion to a type that already throws on a malformed shape — `as uint`, `as int`,
 `as float`, `as bool`, an enum's backing type, a set of allowed values — **removes the qualifier on
@@ -1278,7 +1317,28 @@ whether the content is safe for a given sink, and a conversion that laundered he
 bypass of every rule below. All of it is decided while checking: no tag at run time, nothing on the
 request path.
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+- **Memory:** none. The qualifier is erased before codegen; the cost is compile time, one walk of the
+  operand's type per conversion, `.`, interpolation and type test, one walk of the subject's element
+  type per `foreach` with a key, and one property lookup per text field of a shape target over an
+  object.
+
+**Declined:**
+- **Typed request accessors as the only fix.** They leave `json()`, `Core\Script::args`,
+  `Core\Session::get`, `Core\Cache::get` and a row's `get` open, and every later member answering
+  `mixed` would reopen the gap.
+- **A hidden, source-marked `mixed`** carrying an invisible "came from outside" bit. It is lost at the
+  first `mixed` parameter or property, it cannot be written in a declaration, and `tainted mixed` is
+  refused for the same reason ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)).
+- **A key qualifier on the array type**, such as `array<tainted string => T>`, set by the members
+  that fill an array from outside. It is exact, and it closes the nested-map bound above, but it adds
+  a type parameter to every array and a second axis to assignability, which simplicity does not buy
+  until that shape turns up in practice.
+- **Tainting a written shape target or binding without `tainted` written.** The declaration would then
+  understate the value, and a type that is not what it says is worse than a long one.
+- **Refusing `as string` out of `mixed` outright.** It leaves no way to read text from a request at
+  all, and the tainted result is exactly what a sink needs to see.
+
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers).</sub>
 
 <a id="security-sink-predicate"></a>
 
@@ -1863,9 +1923,15 @@ parses. AD's reasons are kinds — `AccountDisabled`, `AccountLocked`, `Password
 `MustChangePassword`, `AccountExpired`, `NotAllowedNow` — and **an unknown user (525) and a wrong
 password (52e) are both `InvalidCredentials`**, so a login form cannot tell an attacker which accounts
 exist, and every `InvalidCredentials` it throws has one message, since AD's diagnostic would name the
-sub-code. The message never carries the password. Each login pays one TCP and TLS handshake.
+sub-code. The message never carries the password. Each login pays one TCP and TLS handshake, which is
+the price of a pool that never changes identity.
 
-<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/ldap-empty-password-is-refused`](security.md#security-ldap-empty-password-is-refused). Decided in [0278](../decisions/0278.md).</sub>
+**Declined:**
+- **Rebinding a pooled connection for `authenticate`.** It saves a handshake per login and makes the
+  pool's identity something a request can change, which [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary)
+  exists to prevent.
+
+<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/ldap-empty-password-is-refused`](security.md#security-ldap-empty-password-is-refused).</sub>
 
 <a id="security-ldap-empty-password-is-refused"></a>
 
@@ -1882,7 +1948,7 @@ password is refused when it is read. An anonymous bind is a block with no `user`
 purpose, never an empty password. The kind is `InvalidCredentials`, the same as a wrong password, so an
 empty field tells a caller nothing a wrong one does not.
 
-<sub>See also [`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block), [`security/ldap-cleartext-bind-is-granted-per-host`](security.md#security-ldap-cleartext-bind-is-granted-per-host). Decided in [0278](../decisions/0278.md).</sub>
+<sub>See also [`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block), [`security/ldap-cleartext-bind-is-granted-per-host`](security.md#security-ldap-cleartext-bind-is-granted-per-host).</sub>
 
 <a id="security-ldap-cleartext-bind-is-granted-per-host"></a>
 
@@ -1897,11 +1963,29 @@ says *where* this may happen and the code says *here*. `cleartext` is a list of 
 `ldap.open` matches them, in the shape of `tls.insecure` and `net.downgrade`, and `true` is not a
 spelling it has. Some controllers accept a cleartext bind and the operator decides per host; the cost
 is that the password and every answer cross the network readable and changeable. A controller that
-refuses one answers `strongerAuthRequired`, which is the kind `EncryptionRequired`. Passwords are
-written only over TLS whatever the grant says, and nothing relaxes certificate checks beyond what
-`[capabilities.tls]` already allows per host.
+refuses one answers `strongerAuthRequired`, which is the kind `EncryptionRequired`. Nothing relaxes
+certificate checks beyond what `[capabilities.tls]` already allows per host.
 
-<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`security/ldap-empty-password-is-refused`](security.md#security-ldap-empty-password-is-refused), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0278](../decisions/0278.md).</sub>
+**A simple bind is the only bind**, because every directory this client is for accepts one over TLS.
+A deployment whose directory accepts only Kerberos or NTLM cannot use `Core\Ldap`.
+
+**A password is written only over TLS, whatever the grant says.** It is AD's `unicodePwd`, the quoted
+string in UTF-16LE, and both writers take `secret` strings ([`security/secret-qualifier`](security.md#security-secret-qualifier)).
+`setPassword` is a `replace`, an administrator's reset; `changePassword` is a `remove` of the old and
+an `add` of the new in one Modify, the user's own change, which AD checks against the password history.
+
+**Declined:**
+- **Kerberos, NTLM and every SASL mechanism, `EXTERNAL` included.** Kerberos needs a C GSSAPI library,
+  a keytab or a credential cache found through the environment, and clock and DNS state outside the
+  request; NTLM is a broken challenge-response over MD4. Both are credential handling on the most
+  sensitive surface there is. The question reopens only if a directory this client is for stops
+  accepting a simple bind over TLS, and then only for a mechanism that needs no state outside the
+  request.
+- **A "do not verify" switch, or TLS options set for the process.** A TLS option one connection sets
+  would reach another request's connection.
+- **RFC 3062's Password Modify operation.** AD does not implement it.
+
+<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`security/ldap-empty-password-is-refused`](security.md#security-ldap-empty-password-is-refused), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities).</sub>
 
 <a id="security-secret-qualifier"></a>
 
@@ -2246,7 +2330,13 @@ request's snapshot and its isolate's `grants:` list. Each root of it is a preope
 `connect` set before anything is sent, and the caller's `net.connect` is asked again by the client
 that sends it, so the address policy, TLS trust and the proxy apply (`crates/nvs-ext/tests/http.rs`).
 
-<sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0246](../decisions/0246.md).</sub>
+**Declined:**
+- **The caller's authority alone.** A malicious extension would hold everything the application
+  holds.
+- **The entry's grant alone.** A request narrowed by an isolate would widen again through the
+  extension.
+
+<sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
 <a id="security-extension-contagion"></a>
 
@@ -2801,7 +2891,10 @@ as a case of the enum `E` and `null` for any other decision, so a renamed case i
 the comparison and an admin route never reads as a public one. A case reaching `mixed` is only its
 integer ([`enums/representation`](enums.md#enums-representation)), which is why the typed member names its enum rather than
 answering `mixed`. `access()` answers the resolved name as a `string`, for a log line and for a class
-constant, which has no enum. A type argument that is not an enum is **`E0841`**. **The server enforces
+constant, which has no enum. A type argument that is not an enum is **`E0841`**. An application that
+mixes `Core\Audience::Public` with its own roles asks once per enum, and reads `null` as denied. A
+comparison against the text keeps compiling after the case it names is renamed, never matches again,
+and serves the route unguarded, so text is the reading for a log line only. **The server enforces
 CSRF and nothing else** ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default)): interpreting a role would need a
 session, a user model and a role source, all three of which are deliberately outside the binary. Two
 enforcement points is how a route ends up checked twice in development and not at all in production,
@@ -2816,14 +2909,25 @@ Object-level authorisation is outside it too. Most privilege escalation is a req
 belongs to another user, and no language-level mechanism answers that, because the check needs the
 row. The handler that loads the row makes that check.
 
+- **Memory:** `accessAs<E>()` allocates nothing per call: the enum's name is an immortal string
+  constant of the unit. The work is one comparison of the row's enum name against the written one and,
+  when they are equal, a linear search of the unit's enums by name.
+
 **Declined:**
+- **`access(): mixed` answering the constant's value.** A case in `mixed` is its backing integer, so
+  `Core\Audience::Public` and `App\Role::Admin` are both `0` there, and a `match` would take the
+  public arm for the admin route.
+- **`access(Class::class): ?E`, typed from a string argument.** The checker would type a result from
+  an argument's value, a special case no other member has, for the answer a written type argument
+  already gives.
+- **Keeping the text and teaching the comparison.** The silent rename stays, and that is the bug.
 - **The decision readable only through `Core\Attributes::get` on the handler.** That call names the
   method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
   and nothing reports the omission.
 - **A compile error where an access decision is never read.** The compiler would have to recognise a
   dispatch site, and it cannot follow a dispatch table a program builds from data.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0255](../decisions/0255.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type).</sub>
 
 <a id="security-bidi-predicate"></a>
 

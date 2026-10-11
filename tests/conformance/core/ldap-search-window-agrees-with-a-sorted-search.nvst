@@ -1,5 +1,5 @@
 --TEST--
-A `window` returns the slice of the same sorted search that pages return, in either order, and `total()` is the count of the whole sorted result; a search with no window has a `null` total, and `window`, `offset` and `descending` without the option each needs throw `LogicError` — ADR 0278 § 11
+A `window` returns the slice of the same sorted search that pages return, in either order, and `total()` is the count of the whole sorted result; a search with no window has a `null` total, and `window`, `offset` and `descending` without the option each needs throw `LogicError`
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

@@ -1,4 +1,4 @@
-//! Plural rules: `plural-categories` over `icu_plurals` (ADR 0277 § 4 and § 5,
+//! Plural rules: `plural-categories` over `icu_plurals` (`rule:core-classes/intl-roster`,
 //! `rule:core-classes/intl-batch-shape`).
 //!
 //! A number crosses as its decimal text, parsed exactly as [`crate::numbers`] parses it, so the

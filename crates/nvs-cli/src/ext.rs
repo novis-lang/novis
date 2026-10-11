@@ -48,7 +48,8 @@
 //! is tested with no grant, and the other subcommands read a project or a `.nvsx` and no
 //! configuration at all.
 //!
-//! **Calls ADR 0246 leaves, settled here under AGENTS.md's priority ordering:**
+//! **Calls `rule:packaging/nvs-ext-is-the-authoring-tool` leaves, settled here under AGENTS.md's
+//! priority ordering:**
 //!
 //! - `build` and `test` take the project directory as an optional argument and default to the
 //!   working directory, the way `cargo` does, so the common case is the bare command.

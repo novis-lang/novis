@@ -138,7 +138,7 @@ writing twice the type the subject already states.
 - **An untyped `foreach ($xs as $v)` meaning `var`.** The binding would look like PHP's and mean
   something PHP does not; `var` says in the source that the type was taken.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0279](../decisions/0279.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="types-grammar"></a>
 
@@ -1185,7 +1185,7 @@ pays nothing.
   in one call. Each arm's read would also be tagged into the union before the join, so it gives no
   statically typed read.
 
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance).</sub>
 
 <a id="types-unions-and-mixed"></a>
 
@@ -1231,7 +1231,7 @@ every step out of it is an `as` a reviewer can see.
 - **`mixed` checked at its boundaries.** It would leave no way to say "this is untyped input"
   honestly, which is the one thing `mixed` is for.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0279](../decisions/0279.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test).</sub>
 
 <a id="types-type-test"></a>
 
@@ -1358,7 +1358,7 @@ A guarded branch is cheaper with `is` than without it: the `as` a program wrote 
 - **An `integer`-style spelling matching both integer tags.** It adds surface to hide the `int` and
   `uint` split rather than stating it, and `int|uint` already says it in the grammar a reader knows.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test).</sub>
 
 <a id="types-narrowing"></a>
 
@@ -1403,13 +1403,15 @@ write the checker could not see throws a `LogicError` naming the property, and n
 an object. A mutable property, an element or any other place is never the thing narrowed:
 `$e->previous != null` proves nothing about the next read of a mutable `$e->previous`, because a
 call in between may have written it, so a nullable one is reached through `?->` or bound to a
-local and tested there.
+local and tested there, and `E0459`'s help on one shows both. Narrowing a `readonly` path spares a
+program the copy into a local it would otherwise write before every test, at one compare and branch
+per narrowed property read.
 
 Narrowing never changes a binding's declared type ([`types/declaration`](types.md#types-declaration)); it changes what the
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0270](../decisions/0270.md).</sub>
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites).</sub>
 
 <a id="types-conversion"></a>
 
@@ -1482,7 +1484,7 @@ conversion whose operand needs one.
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
   ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
@@ -2474,9 +2476,24 @@ and the throw is what makes it worth writing. The guard covers every level of th
 than throw, and so is the read `$a["k"]["j"] ??= $d` makes of its own target: an absent key at either
 depth takes `$d`, and the write that follows is the plain `$a["k"]["j"] = $d`, which builds the row.
 Only the read is guarded, so a nullable row under a `??=` target is refused where it is written, as it
-is under `=`.
+is under `=`: the read and the write share one typed entry per span, and a write through a guarded row
+would lose the `null` the write path checks for.
 
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0254](../decisions/0254.md).</sub>
+The value of `$a ??= $v` is the value `$a` has afterwards, the one written and never a second read of
+the target, so a hooked property runs its `get` hook once and its `set` hook once. Its type is the
+target's type with `null` removed when `$v`'s type has no `null`, and the target's type when it does,
+so `return $this->posts ??= Post::findActive();` compiles against a return type of `array<Post>`.
+Every other compound operator and the plain `=` keep the target's type. The target's declared type
+does not change, and nothing is narrowed on the next line ([`types/narrowing`](types.md#types-narrowing)).
+
+**Declined:**
+
+- **Keeping the throw for an absent `??=` target**, and writing `$a[$k] = $a[$k] ?? $v` instead. `??=`
+  is written as `??`, and a program that writes it means the same "absent or `null`".
+- **Narrowing the target after `??=`.** One write would narrow where no other write does; that is a
+  question for every write at once.
+
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws).</sub>
 
 <a id="types-an-element-write-needs-storage-to-write-back-into"></a>
 

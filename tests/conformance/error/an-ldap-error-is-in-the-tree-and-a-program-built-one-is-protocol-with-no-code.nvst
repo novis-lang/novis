@@ -1,8 +1,8 @@
 --TEST--
-`Core\Ldap\LdapError` is a class in spec § 10's tree under `RuntimeError`, caught by its own name and its parent's and never by `Core\Db\DbError`, and one a program builds itself has the kind `Protocol` and a `null` code — ADR 0278 § 10
+`Core\Ldap\LdapError` is a class in spec § 10's tree under `RuntimeError`, caught by its own name and its parent's and never by `Core\Db\DbError`, and one a program builds itself has the kind `Protocol` and a `null` code
 --FILE--
 <?nvs
-// ADR 0278 § 10: one class for every LDAP failure, with the condition as `kind`.
+// One class for every LDAP failure, with the condition as `kind`.
 try {
     throw new Core\Ldap\LdapError("the directory is down");
 } catch (Core\Ldap\LdapError $down) {

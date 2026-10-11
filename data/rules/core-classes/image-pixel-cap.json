@@ -1,9 +1,7 @@
 {
   "title": "The pixel cap is read off the header before a buffer is allocated, and a call may only lower it",
   "status": "designed",
-  "because": [
-    "0246"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/pdf-page-is-an-image-source",

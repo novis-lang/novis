@@ -1,9 +1,7 @@
 {
   "title": "Memory buys security, latency and simplicity — bounded, attributable and stated",
   "status": "shipped",
-  "because": [
-    "0274"
-  ],
+  "because": [],
   "seeAlso": [
     "programs/program-id",
     "programs/three-claims",

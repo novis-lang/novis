@@ -1,9 +1,7 @@
 {
   "title": "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it",
   "status": "shipped",
-  "because": [
-    "0270"
-  ],
+  "because": [],
   "seeAlso": [
     "types/unions-and-mixed",
     "types/conversion",

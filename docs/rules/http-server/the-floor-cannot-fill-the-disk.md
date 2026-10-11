@@ -4,3 +4,7 @@
 - **A rate limit with a coalescing counter** — repeated identical records within a window become one record carrying a count. The record shape is `rule:errors/diagnostic-record`'s and gains a `count` field rather than a second shape; it is the one key written by a sink rather than by a producer. The next occurrence after the window carries how many it stands for, and a record that differs is never held back.
 
 A full disk also stops compilation, which would convert a log problem into a total outage. **A write failure in the on-disk artifact cache falls back to compiling in memory** and reports once; the cache is an optimisation and is treated as one.
+
+The request path pays one lock and one comparison per record written to a file, and the size is counted in memory with no `stat` per record.
+
+- **Memory:** one shared entry per open log path, per process.

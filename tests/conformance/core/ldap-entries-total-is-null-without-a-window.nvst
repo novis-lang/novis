@@ -1,5 +1,5 @@
 --TEST--
-`Entries::total()` is `null` for a plain search, for a sorted search with no `window`, and for both again after the loop has read every entry: only a window asks the server for a count — ADR 0278 § 11
+`Entries::total()` is `null` for a plain search, for a sorted search with no `window`, and for both again after the loop has read every entry: only a window asks the server for a count
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

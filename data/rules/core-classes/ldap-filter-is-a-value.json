@@ -1,14 +1,18 @@
 {
   "title": "An LDAP filter is an immutable value encoded straight to BER, whose values accept `tainted` and whose attribute names are a sink",
   "status": "designed",
-  "because": [
-    "0278"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/ldap-dn-is-the-launderer",
     "core-classes/ldap-value-types",
     "core-classes/db-one-api",
     "security/sink-predicate"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/core/ldap-filter-a-tainted-value-stays-one-value.nvst",
+    "tests/conformance/core/ldap-filter-attribute-does-not-compile-when-tainted.nvst",
+    "tests/conformance/core/ldap-filter-parse-refuses-tainted.nvst",
+    "tests/conformance/core/ldap-filter-throws-for-an-attribute-that-is-not-a-name.nvst",
+    "tests/conformance/core/ldap-filter-throws-past-100-levels-of-nesting.nvst"
+  ]
 }

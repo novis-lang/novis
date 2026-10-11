@@ -1,9 +1,7 @@
 {
   "title": "An exporter brings no second registry, no second scheduler and no second client, and a crate is taken only for an encoder",
   "status": "shipped",
-  "because": [
-    "0274"
-  ],
+  "because": [],
   "seeAlso": [
     "observability/the-exporters-are-crates",
     "observability/a-registry-is-per-core-and-nothing-reads-it",

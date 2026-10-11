@@ -1,10 +1,7 @@
 {
   "title": "`$x is T` tests whether a value holds a `T`, answers `bool`, and never refuses because the answer is knowable",
   "status": "shipped",
-  "because": [
-    "0279",
-    "0280"
-  ],
+  "because": [],
   "seeAlso": [
     "types/narrowing",
     "types/conversion",
@@ -23,6 +20,7 @@
     "tests/conformance/lang/an-is-test-against-a-union-or-an-intersection-asks-each-member.nvst",
     "tests/conformance/lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst",
     "tests/conformance/reject/an-is-test-against-a-qualifier-has-no-run-time-bit-to-read.nvst",
-    "tests/conformance/reject/an-is-test-against-an-uninhabited-type-has-no-answer.nvst"
+    "tests/conformance/reject/an-is-test-against-an-uninhabited-type-has-no-answer.nvst",
+    "tests/conformance/reject/a-shape-filled-from-a-mixed-or-tainted-field-must-be-written-tainted.nvst"
   ]
 }

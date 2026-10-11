@@ -1,13 +1,14 @@
 //! `Core\Ldap`'s reading half for a Novis program: `Ldap\Connection`'s `whoami`, `search` and `read`, the `Ldap\Entries` a search returns, the `Ldap\Entry` it yields, and the `Ldap\Filter` it takes, with `Ldap\Ad`'s filters
 //!
-//! ADR 0278 §§ 1, 5 and 6. Every body here reads its arguments, calls the
+//! `rule:core-classes/ldap-search-pages-and-never-follows-a-referral` and
+//! `rule:core-classes/ldap-filter-is-a-value`. Every body here reads its arguments, calls the
 //! Rust half in [`super`], and builds what it returns.
 //!
 //! **An `Ldap\Entry` is a value, built once per entry.** Its two slots are the
 //! DN and an array keyed by each attribute's name as the server spelled it,
 //! whose values are lists of `bytes`. A reader finds a name without case, as
 //! LDAP does, and `toArray`'s keys keep the server's spelling. The typed
-//! readers ADR 0278 § 8 adds read the same lists, and are `super::value`'s.
+//! readers of `rule:core-classes/ldap-value-types` read the same lists, and are `super::value`'s.
 //!
 //! **An `Ldap\Filter` is its BER encoding**, one `bytes` slot written by the
 //! static member that built it (`rule:core-classes/ldap-filter-is-a-value`).
@@ -24,8 +25,8 @@
 //! is `total()`: the count a window's answer carried, written once when the
 //! search starts, or `null` for a search with no window.
 //!
-//! **A window is two flat options, `offset` and `window`**, where ADR 0278
-//! § 1 wrote one `window: {offset, count}`: an option bag cannot hold a shape
+//! **A window is two flat options, `offset` and `window`**, not one
+//! `window: {offset, count}`: an option bag cannot hold a shape
 //! (`a_shape_is_only_ever_a_whole_parameter`), and two counts beside `sort`
 //! need no type of their own. `window` needs `sort`, and `offset` needs
 //! `window`; both are checked before anything is sent.

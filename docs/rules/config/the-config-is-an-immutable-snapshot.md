@@ -4,6 +4,16 @@ already running and no request ever observes half of one file and half of anothe
 half is unchanged: `Core\Config::set` writes an overlay over the clone
 (`rule:config/a-runtime-set-is-request-local`).
 
+**One publish is the host's snapshot and the way from an entry file to its own.** The host's is the
+global tree with no `[[app]]` block folded, which the door and every process-wide key read; beside it
+is a map from canonical entry file to that file's snapshot. Both are swapped together under one lock,
+so no request reads from two publishes. An entry's snapshot depends only on the chain of blocks that
+match it, so every entry with the same chain shares one `Arc`, and an entry no block matches gets the
+host's `Arc` itself. Each chain is folded over the host's tree after its `Boot` carry, so a `Boot` key
+reads the running value in every snapshot of the publish. Every snapshot of one publish carries the
+host's generation: the database pool keys on it, so a server of many applications keeps one pool per
+`[db.<name>]`, and the drain after a reload tracks one number.
+
 Replacement is **validate-then-publish**, in this order, and any failure before the last step leaves
 the running configuration completely untouched: read and parse the whole tree of files, where a
 syntax error, an unknown key or a duplicate key ends it; verify every `[[extension]]` pin against the
@@ -31,8 +41,10 @@ whose roots are the shipped defaults read no file, and has nothing to check.
 Cost: one `Arc` clone at request start and **no syscall** on the request path, and one `stat` per
 configuration path every two seconds on the checking thread.
 
-- **Memory:** two snapshots live during a swap, plus one per in-flight request still holding an
-  older one, kilobytes each. Bounded by concurrency in flight, never by reloads performed.
+- **Memory:** one snapshot per distinct chain of matching blocks per publish, kilobytes each and
+  bounded by the configuration, and one map entry per entry file the publish resolved, bounded by the
+  files on disk. Two publishes live during a swap, plus one per in-flight request still holding an
+  older one. Bounded by concurrency in flight, never by reloads performed or by traffic.
 
 **Declined:**
 - **Re-reading `nvs.toml` on every request.** It adds a syscall and a parse to the request path,
@@ -53,3 +65,9 @@ configuration path every two seconds on the checking thread.
   cut. One quiet check costs two seconds.
 - **Restart only.** Defensible behind a load balancer with rolling deploys, and still not enough
   when one process holds the whole concurrency.
+- **One snapshot per entry file, unshared.** Correct, but it spends a snapshot per file where most
+  files share a chain, and a host whose blocks match nothing would hold one copy of the global tree
+  per file.
+- **A generation per snapshot.** It would open one database pool per application for every
+  `[db.<name>]`, multiplying connections by the number of applications, and the drain would have to
+  track a set of numbers.

@@ -1,7 +1,7 @@
 //! The `nvs.manifest` section: the class an extension declares, and everything the compiler and the
 //! loader need to know about it without running it.
 //!
-//! The shape is ADR 0246 § 3's list, as JSON:
+//! The shape is `rule:packaging/an-nvsx-is-one-file-carrying-its-manifest`'s list, as JSON:
 //!
 //! ```json
 //! {
@@ -276,7 +276,7 @@ pub struct Settings {
 
 impl Settings {
     /// Checks the `[ext.<name>]` block a configuration writes against the keys declared here,
-    /// as boot does before a request runs (ADR 0246 § 9).
+    /// as boot does before a request runs (`rule:packaging/a-guest-has-no-ambient-authority`).
     ///
     /// # Errors
     ///
@@ -322,7 +322,7 @@ pub struct SettingKey {
     pub default: Value,
 }
 
-/// The types a setting may have (ADR 0246 § 9).
+/// The types a setting may have (`rule:packaging/a-guest-has-no-ambient-authority`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 pub enum SettingType {
     /// `bool`.

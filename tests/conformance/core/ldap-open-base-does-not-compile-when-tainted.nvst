@@ -1,5 +1,5 @@
 --TEST--
-`Ldap\Settings.base` is where every search without its own `base` starts, so a `tainted` one does not compile, the same as `search`'s `base` option — ADR 0278 § 2 and `rule:security/tainted-qualifier`
+`Ldap\Settings.base` is where every search without its own `base` starts, so a `tainted` one does not compile, the same as `search`'s `base` option — `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 class Directory {

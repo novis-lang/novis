@@ -1,5 +1,5 @@
 --TEST--
-Over every attribute of a whole entry, `toArray` agrees with the readers: `has` is `true` for each key, `strings` has as many values, and `bytes` returns the same one value — ADR 0278 § 1
+Over every attribute of a whole entry, `toArray` agrees with the readers: `has` is `true` for each key, `strings` has as many values, and `bytes` returns the same one value
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

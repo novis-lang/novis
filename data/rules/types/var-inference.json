@@ -1,9 +1,7 @@
 {
   "title": "`var` takes a local's or a `foreach` binding's type from the expression that fills it, and fixes it there for good",
   "status": "shipped",
-  "because": [
-    "0279"
-  ],
+  "because": [],
   "seeAlso": [
     "types/declaration",
     "types/numeric-literal-placement",

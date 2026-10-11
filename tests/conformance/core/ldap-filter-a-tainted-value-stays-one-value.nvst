@@ -1,5 +1,5 @@
 --TEST--
-Every `Filter` constructor that takes a value accepts a `tainted` one, and a value written as filter text stays one value inside `all`, `any` and `not` — ADR 0278 § 6 and `rule:core-classes/ldap-filter-is-a-value`
+Every `Filter` constructor that takes a value accepts a `tainted` one, and a value written as filter text stays one value inside `all`, `any` and `not` — `rule:core-classes/ldap-filter-is-a-value`
 --FILE--
 <?nvs
 // As filter text, this value would end one filter and start another.

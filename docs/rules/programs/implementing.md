@@ -12,7 +12,11 @@ per-request like every other object and nothing crosses an isolate boundary.
 
 The selector is a type rather than an attribute because a type is what gives the loop body something to
 call through: `object` is opaque, shape types describe data rather than methods, and bare `callable`
-carries no signature. An interface and a class both give it, so every other type argument is refused.
+carries no signature. An interface and a class both give it, so every other type argument is refused
+(`E0743`). A class selector lets a plugin family share an abstract base, with state and a template
+method an interface cannot carry, without declaring an interface beside the base to keep in step
+with it. **Membership is `is`**, so no second notion of "subclass" exists: `nvs_hir::implementors`
+walks `extends` as well as `implements` and counts a declaration as reaching itself.
 
 Answering the query means parsing and collecting declarations from every file under every autoload root
 — the one place resolution is not lazy, and the only thing in Novis that makes a compiled unit depend
@@ -24,4 +28,12 @@ many it calls. Type checking and lowering stay lazy regardless — a discovered 
 never checked past its declaration and never reaches codegen.
 
 - **Memory:** the scan's symbol entries are O(declarations under the autoload roots), held per host and
-  only by a program that runs a scan.
+  only by a program that runs a scan. A class selector is compile-time only and adds nothing to the
+  request path.
+
+**Declined:**
+- **An `extending<T>()` member.** It is a second member answering the same walk with a different word,
+  and a program would have to learn which one applies to an abstract base that also implements an
+  interface.
+- **A hierarchy reader on `Core\Reflect\ClassInfo`** (`parent`, `interfaces`, `isAbstract`). It lets a
+  program filter a list it still cannot obtain without a scan.

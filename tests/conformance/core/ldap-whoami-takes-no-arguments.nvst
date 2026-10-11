@@ -1,5 +1,5 @@
 --TEST--
-`whoami` asks the server who the connection is bound as, and takes no arguments, so passing a name does not compile — ADR 0278 § 5
+`whoami` asks the server who the connection is bound as, and takes no arguments, so passing a name does not compile
 --FILE--
 <?nvs
 // covers: Core\Ldap\Connection::whoami

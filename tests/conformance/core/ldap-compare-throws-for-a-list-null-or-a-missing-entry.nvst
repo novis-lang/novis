@@ -1,5 +1,5 @@
 --TEST--
-`compare` takes exactly one value, so a list and `null` throw `LogicError` before anything is sent, and an entry that does not exist throws `Core\Ldap\LdapError` with the kind `NoSuchObject` — ADR 0278 § 9
+`compare` takes exactly one value, so a list and `null` throw `LogicError` before anything is sent, and an entry that does not exist throws `Core\Ldap\LdapError` with the kind `NoSuchObject`
 --FILE--
 <?nvs
 // covers: Core\Ldap\Connection::compare

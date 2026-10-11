@@ -1,5 +1,5 @@
 --TEST--
-`toArray` keys each attribute by the name the server sent, whatever case `select` used, holds every value of a list, and has no key for the DN — ADR 0278 § 1 and § 5
+`toArray` keys each attribute by the name the server sent, whatever case `select` used, holds every value of a list, and has no key for the DN
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

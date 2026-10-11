@@ -1,5 +1,5 @@
 --TEST--
-`objectGUID` is 16 bytes that are not UTF-8, so `bytes` returns them and `string` and `strings` both throw `LogicError` naming `bytes` — ADR 0278 § 6
+`objectGUID` is 16 bytes that are not UTF-8, so `bytes` returns them and `string` and `strings` both throw `LogicError` naming `bytes` — `rule:core-classes/ldap-value-types`
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

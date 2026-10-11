@@ -161,7 +161,8 @@ pub enum Cap {
     /// catalog and asks nothing beyond the `db.connect` the program already holds; only applying one
     /// arrives here.
     DbSchema,
-    /// `ldap.connect` — which `[ldap.<name>]` blocks a program may open by name (ADR 0278 § 2).
+    /// `ldap.connect` — which `[ldap.<name>]` blocks a program may open by name
+    /// (`rule:core-classes/ldap-capabilities`).
     ///
     /// [`DbConnect`](Self::DbConnect)'s shape and its reasoning: every URL in a block was written by
     /// an operator, so a block named here is pre-approved against

@@ -1,5 +1,5 @@
 --TEST--
-Core\Ldap::open throws `RuntimeError` for a `url` that is not `ldap://` or `ldaps://`, before it asks any grant — ADR 0278 § 2
+Core\Ldap::open throws `RuntimeError` for a `url` that is not `ldap://` or `ldaps://`, before it asks any grant
 --FILE--
 <?nvs
 // An `https://` URL is not a directory URL.

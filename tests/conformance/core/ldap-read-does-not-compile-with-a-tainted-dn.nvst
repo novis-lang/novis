@@ -1,5 +1,5 @@
 --TEST--
-`read` sends its DN as the path of an entry, so a `tainted` DN does not compile, and a DN the program wrote does — ADR 0278 § 5 and `rule:security/tainted-qualifier`
+`read` sends its DN as the path of an entry, so a `tainted` DN does not compile, and a DN the program wrote does — `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 // covers: Core\Ldap\Connection::read

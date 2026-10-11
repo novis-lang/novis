@@ -1,5 +1,5 @@
 --TEST--
-`Entries::total()` is the count of the whole sorted result whatever the window is: it is the same for a window of one entry and for a window larger than the result, which returns exactly `total()` entries, and it does not change while the loop reads them — ADR 0278 § 11
+`Entries::total()` is the count of the whole sorted result whatever the window is: it is the same for a window of one entry and for a window larger than the result, which returns exactly `total()` entries, and it does not change while the loop reads them
 --FILE--
 <?nvs
 // covers: Core\Ldap\Scope

@@ -4,7 +4,7 @@
 //! entry (1500 by default). Past that it sends `member;range=0-1499` instead of
 //! `member`, and the client asks for `member;range=1500-*` with a base search
 //! on the same entry, and so on until an answer's range ends in `*`
-//! (`rule:core-classes/ldap-value-types`, ADR 0278 § 8). [`complete`] runs
+//! (`rule:core-classes/ldap-value-types`). [`complete`] runs
 //! that loop for every ranged attribute of an entry before [`Cursor::next`]
 //! returns it, so no caller sees a range option or a partial list.
 //!

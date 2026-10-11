@@ -1,6 +1,6 @@
 //! `Core\Ldap\Sid` for a Novis program: a Windows security identifier, read from its `S-1-…` text or from the bytes a directory sent
 //!
-//! ADR 0278 §§ 1 and 8. The SID logic is [`nvs_ldap::Sid`]'s, and every body
+//! `rule:core-classes/ldap-value-types`. The SID logic is [`nvs_ldap::Sid`]'s, and every body
 //! here reads its arguments, calls it, and builds what it returns.
 //!
 //! **A `Sid` is its binary form**, one `bytes` slot written by

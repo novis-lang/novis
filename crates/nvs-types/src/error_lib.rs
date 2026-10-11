@@ -123,7 +123,7 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
                 // its caller passed, and the synthesized constructor writes
                 // the message into it (`nvs_ir::lower::exception`).
                 "reason" => interner.string(),
-                // `Core\Ldap\LdapError::$kind` — ADR 0278 § 10's `ErrorKind`,
+                // `Core\Ldap\LdapError::$kind` — `rule:core-classes/ldap-error`'s `ErrorKind`,
                 // registered by `nvs_stdlib::ldap::ERROR_KIND`. The one property
                 // name two classes type differently, so it is matched on the
                 // class before the `kind` arm below takes `Core\Db\DbError`'s.

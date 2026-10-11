@@ -438,7 +438,7 @@ server process's life after its first `Core` jump, and one copy on disk per serv
   walk, and a payload node under a method changes what both print. The server walks a payload itself
   instead.
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace).</sub>
 
 <a id="ide-the-request-set-is-closed"></a>
 
@@ -762,7 +762,7 @@ them, and the server computes each from the expression under the cursor alone, w
 question. Neither is ever under `source.fixAll.nvs` or `quickfix`. Any further action the server
 computes for itself is still M10's.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0275](../decisions/0275.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
@@ -793,14 +793,18 @@ dialog, with its per-action checkboxes, is the same composition through a differ
 A suggestion marked as an **alternative**, one of several edits a person chooses between, is offered
 as a quick fix and never under `source.fixAll.nvs`, since a save that applied every alternative would
 write one over another. `W1022`'s likely grouping is one ([`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns)),
-and the parentheses that keep the current meaning beside it are not.
+and the parentheses that keep the current meaning beside it are not. The mark is a field on the
+suggestion, and `nvs check --json` carries it as `alternative` beside `safe`, so the diagnostic says
+what it is and no consumer keeps a list of codes. `safe` is a different question: the legacy cast's
+fix is not safe and still composes with format-on-save
+([`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix)), so a fix-all filtered on `safe` would drop it.
 
 A rewrite with no diagnostic behind it is not an inspection. The one there is, a string converted to
 an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template)), is offered beside the quick fixes
 under its own `refactor.rewrite.htmlTemplate` kind and never under `source.fixAll.nvs`, since it
 changes what the line prints.
 
-<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0258](../decisions/0258.md).</sub>
+<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template).</sub>
 
 <a id="ide-a-string-converts-to-an-html-template"></a>
 
@@ -1129,7 +1133,7 @@ reaching the declaration and a generator that picks between answers, which
 objection goes away if the reference index of [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index) comes
 to answer every write reaching a declaration; the choice half remains.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/tainted-sources`](security.md#security-tainted-sources).</sub>
 
 <a id="ide-no-compile-path-calls-the-synthesis"></a>
 
@@ -1920,7 +1924,7 @@ written is the one for the format the project authors most — the only grammar 
 people working on Novis rather than the people using it. A `.nvst` case opens with its sections coloured
 and Novis highlighted inside `--FILE--`.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
 
 <a id="ide-an-lsp-answer-is-frozen-as-an-lspt-case"></a>
 
@@ -2300,7 +2304,7 @@ M10 adds, under the same rule and not as an exception to it: the settings `nvs.c
 request of Novis's own, `nvs/regions`. A contributions test asserts `package.json` declares exactly
 what the roster names.
 
-<sub>See also [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document).</sub>
 
 <a id="ide-tasks-carry-a-problem-matcher"></a>
 

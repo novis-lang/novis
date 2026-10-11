@@ -1,5 +1,5 @@
 --TEST--
-`parent` removes one level at a time until it returns `null`, and `isWithin` compares every level without case, so each level up is within the domain until the domain's own parent — ADR 0278 § 7
+`parent` removes one level at a time until it returns `null`, and `isWithin` compares every level without case, so each level up is within the domain until the domain's own parent — `rule:core-classes/ldap-dn-is-the-launderer`
 --FILE--
 <?nvs
 var $domain = Core\Ldap\Dn::parse("dc=EXAMPLE,dc=Test");

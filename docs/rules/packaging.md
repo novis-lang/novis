@@ -214,7 +214,7 @@ nothing of its own, because nobody chose it; an unusable data folder has its own
 Ownership that changes after the process started is not re-checked mid-run, consistent with every other
 `System`-class directive ([`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system)).
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system), [`packaging/an-artifact-is-verified-whole-before-a-page-is-executable`](packaging.md#packaging-an-artifact-is-verified-whole-before-a-page-is-executable).</sub>
 
 <a id="packaging-a-bad-cache-entry-is-a-miss-never-an-error"></a>
 
@@ -528,7 +528,7 @@ pin is checked when the bundle builds and again when it starts.
 `.nvsx` and its entry, and the bundle loads them from its payload with no file beside it
 (`crates/nvs-cli/tests/bundle.rs`; the layout is in `crates/nvs-cli/src/bundle.rs`'s module doc).
 
-<sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component). Decided in [0246](../decisions/0246.md).</sub>
+<sub>See also [`packaging/a-bundle-carries-source-not-artifacts`](packaging.md#packaging-a-bundle-carries-source-not-artifacts), [`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component).</sub>
 
 <a id="packaging-a-macos-bundle-is-ad-hoc-signed-at-build"></a>
 
@@ -661,7 +661,7 @@ program being recognisable to the person and the operating system running it.
 - **The release icon on both builds.** The debug binary is the one a contributor runs by accident when
   measuring, and the icon is the cheapest place to say so.
 
-<sub>See also [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host).</sub>
 
 <a id="packaging-the-third-party-notice-is-generated-never-written-by-hand"></a>
 
@@ -735,7 +735,7 @@ is changed alone.
 The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: memory footprint
 spent on a legal obligation, never touching a request path.
 
-<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call).</sub>
 
 <a id="packaging-the-cli-surface-is-novis-own"></a>
 
@@ -1549,7 +1549,7 @@ under the request's budget (`crates/nvs-ext/tests/call.rs`).
 - **A wasm engine of Novis's own on the Cranelift it already embeds.** Its validator would be a
   sandbox nobody else audits.
 
-<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0246](../decisions/0246.md).</sub>
+<sub>See also [`packaging/three-tiers`](packaging.md#packaging-three-tiers), [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/no-ffi`](security.md#security-no-ffi), [`security/closed-doors`](security.md#security-closed-doors), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
 
 <a id="packaging-three-tiers"></a>
 
@@ -1714,7 +1714,7 @@ reads both sections and parses the manifest and the source list without linking 
 checks a manifest against its component's exports and the world's version
 (`crates/nvs-ext/tests/load.rs`), and nothing builds a component against the world.
 
-<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key). Decided in [0246](../decisions/0246.md).</sub>
+<sub>See also [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key).</sub>
 
 <a id="packaging-an-extension-package-carries-two-payloads"></a>
 
@@ -1750,7 +1750,13 @@ a name under that namespace to the carried file with no `autoload` line
 from the set's manifests
 (`tests/conformance/ext/an-extension-source-class-resolves-with-no-autoload-line.nvst`).
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0246](../decisions/0246.md).</sub>
+**Declined:**
+- **The source in a folder beside the `.nvsx`.** It would sit outside the pin, so it could change
+  under a pinned component.
+- **A minimal package system to carry the source.** It would design half of the package system
+  ahead of the rest of it ([`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest)).
+
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
 
 <a id="packaging-extension-loading-is-root-controlled"></a>
 
@@ -1772,8 +1778,7 @@ convention over a repeated key, which is one reason the configuration format has
 shape ([`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables)); the entry lives
 where [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) puts every grant of authority. An entry without a
 pin, or with one that is not 64 hexadecimal digits, is refused at boot and at reload, naming its file
-and line, and `nvs ext pin <file>` prints the entry ready to paste. Signatures are not offered: a pin
-of the exact bytes, written by root, is the stronger check for a file already on the disk.
+and line, and `nvs ext pin <file>` prints the entry ready to paste.
 
 Load refuses, each naming the entry: a file whose digest differs from its pin, a component that does
 not validate, a manifest that is malformed or does not match the exports, an import outside the world,
@@ -1800,7 +1805,15 @@ artifact cache. No named type (an enum, a `Core` value class, a union, a `resour
 export check. `nvs ext pin` prints an entry `nvs config check` accepts, for a file that loads
 (`crates/nvs-cli/tests/ext_command.rs`).
 
-<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0246](../decisions/0246.md).</sub>
+**Declined:**
+- **An optional pin.** An entry without one would load whatever bytes are at its path at the next
+  reload.
+- **Signatures on an extension.** A pin of the exact bytes, written by root, is the stronger check for
+  a file already on the disk. A signature matters when new bytes arrive from somewhere else, and key
+  formats and rotation belong with the package registry
+([`packaging/the-registry-keeps-an-append-only-log`](packaging.md#packaging-the-registry-keeps-an-append-only-log)).
+
+<sub>See also [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
 
 <a id="packaging-extension-calls-are-statically-typed"></a>
 
@@ -1844,7 +1857,7 @@ Codegen emits it as a direct call of one runtime helper with the export named in
 `nvs serve`, keeping one request's instances in its request tree until the request ends
 (`crates/nvs-cli/tests/live_config.rs`).
 
-<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest). Decided in [0246](../decisions/0246.md).</sub>
+<sub>See also [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest).</sub>
 
 <a id="packaging-a-value-crosses-as-its-wit-type"></a>
 
@@ -1894,7 +1907,13 @@ An extension's enum is an `int`-backed enum in its class's namespace whose cases
 the manifest's order, and its resource is a member-less class in that namespace, held at run time
 as an object whose one slot is the request's number for it (`nvs_types::ext_lib`).
 
-<sub>See also [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed). Decided in [0246](../decisions/0246.md).</sub>
+**Declined:**
+- **A handle for every value.** Nothing would be copied that the guest does not read, but every
+  author would write marshalling code, and a record of ten fields would cost ten crossings. The
+  common call is coarse, and a copy serves it faster.
+- **Typed values and handles at the author's choice.** That is two ways to pass one argument.
+
+<sub>See also [`packaging/values-cross-as-handles`](packaging.md#packaging-values-cross-as-handles), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/extension-calls-are-statically-typed`](packaging.md#packaging-extension-calls-are-statically-typed).</sub>
 
 <a id="packaging-values-cross-as-handles"></a>
 
@@ -1926,7 +1945,7 @@ program, and the row-table case passes `mixed` values to the fixture's `kindOf`
 (`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst`). There is
 no bulk byte copy beyond `as-bytes`.
 
-<sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0246](../decisions/0246.md).</sub>
+<sub>See also [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object).</sub>
 
 <a id="packaging-a-fresh-instance-per-request"></a>
 
@@ -1962,14 +1981,17 @@ A guest call runs on the calling request's own core, as a wasmtime async call th
 coroutine polls. A pending call parks the coroutine exactly as a socket wait does, and the core's
 `RemoteWake` is its waker. wasmtime's fiber holds the wasm frames and saves its thread-local call chain
 when it suspends, which is what lets a second coroutine on the same thread enter wasm safely while the
-first is parked.
+first is parked. Without that, the composition would not be sound: wasmtime keeps a per-thread chain
+of active wasm calls and requires it to unwind in order, and a coroutine that parked with wasm frames
+on its own stack would let a second coroutine break that order.
 
 A call suspends in two cases. A host import that waits — a granted file read on the blocking pool, a
 granted HTTP call through `Core\Http\Client` — returns a pending future. And an epoch ticker advances
 the engine's epoch about once a millisecond: at each tick the guest checks the request's CPU deadline,
 traps past it ([`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget)), and otherwise yields so the
 other tasks on that core run. A long encode slows its core's neighbours fairly and never freezes the
-core, and no call pays a thread handoff.
+core, and no call pays a thread handoff. The tick costs one check per millisecond of guest time, and
+a request that calls no extension pays nothing.
 
 A request has one instance per extension it calls ([`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request)). A
 component cannot be re-entered, so a second task of the same request calling the same extension waits
@@ -1985,7 +2007,12 @@ next poll, with no deadline armed; a pending import parks until its own wake
 under its `wasm-probe` feature: a second coroutine runs a whole guest call on the thread while the
 first is parked inside wasm, and the CPU deadline traps a call that keeps yielding.
 
-<sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0246](../decisions/0246.md).</sub>
+**Declined:**
+- **A compute pool, for every call or for the exports that ask for one.** It costs a thread handoff
+  per call, a second CPU account and a new setting, for computation the core already shares fairly by
+  yielding.
+
+<sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request).</sub>
 
 <a id="packaging-a-guest-runs-under-the-requests-budget"></a>
 
@@ -2018,7 +2045,7 @@ implements that budget over a request's own deadline and memory accounting yet. 
 is a `FATAL` naming the limit as `onLimit` receives it (`crates/nvs-ext/tests/failure.rs`), and no
 host raises it on a request yet.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request). Decided in [0246](../decisions/0246.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request).</sub>
 
 <a id="packaging-a-guest-crash-throws"></a>
 
@@ -2053,7 +2080,11 @@ A limit runs the request's limit handler before its `FATAL`
 (`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`).
 `nvs serve` reaches the same host code for every request.
 
-<sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0246](../decisions/0246.md).</sub>
+**Declined:**
+- **A trap as a `FATAL`, with or without `onLimit`.** A crafted upload that crashes a codec would end
+  the request with no answer the application can write, though nothing in the host was harmed.
+
+<sub>See also [`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
 
 <a id="packaging-a-guest-has-no-ambient-authority"></a>
 
@@ -2079,6 +2110,13 @@ The same absence is what keeps an extension honest about qualifiers: with no amb
 sink of its own, it can declare what it consumes and produces but cannot launder
 ([`security/extension-cannot-launder`](security.md#security-extension-cannot-launder)).
 
+A manifest may declare one settings block, `[ext.<name>]`, with each key's type — `bool`, `int`,
+`uint`, `float`, `string` or a list of strings — and its default. The block is the operator's, as the
+entry that loads the extension is, so it is `System` and reloads; a key the manifest does not declare
+is refused at boot and at reload, and the guest reads the block through `nvs:ext/settings`. A setting
+only narrows what the component does, as `[image] max_pixels` does, and never grants anything: the
+entry's `grants` are the only place a guest gains I/O.
+
 **Not on disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
 `crates/nvs-stdlib/tests/ext_world.rs` checks it imports exactly the allowed interfaces. `nvs_ext::wasi`
 links every WASI interface of the world, and the loader admits a WASI import only from the
@@ -2095,7 +2133,15 @@ reach it. `nvs:ext/settings` reads the `[ext.<name>]` block of the request's sna
 `nvs_ext::call::Budget::send`, which `nvs serve` and `nvs run` answer with `Core\Http\Client`'s
 transport under the request's own context (`crates/nvs-ext/tests/http.rs`).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder). Decided in [0246](../decisions/0246.md).</sub>
+**Declined:**
+- **Novis's own imports only, with no WASI.** It is the smallest surface, but C, Go and Zig
+  toolchains would need a shim to build at all, so a guest could no longer be written in any language
+  with a wasm target.
+- **Raw sockets.** A WASI socket connects to an address, so a grant written as a host name would need
+  the host to remember which addresses came from which lookups. That is a second copy of the outbound
+  policy, and TLS would become the guest's own code.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder).</sub>
 
 <a id="packaging-nvs-ext-is-the-authoring-tool"></a>
 
@@ -2137,7 +2183,7 @@ a `--config` entry pins to another digest (`crates/nvs-cli/tests/ext_command.rs`
 a core module with the author's WIT, plus a manifest and source files, refuses a source path that leaves
 the project, and writes a `.nvsx` that loads, the same bytes each time (`crates/nvs-ext/tests/pack.rs`).
 
-<sub>See also [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled). Decided in [0246](../decisions/0246.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`packaging/an-nvsx-is-one-file-carrying-its-manifest`](packaging.md#packaging-an-nvsx-is-one-file-carrying-its-manifest), [`packaging/extension-loading-is-root-controlled`](packaging.md#packaging-extension-loading-is-root-controlled).</sub>
 
 <a id="packaging-the-boundary-is-the-cost"></a>
 
@@ -2332,7 +2378,7 @@ uninstall` removes it.
   `[log] target` never answered it anyway: a refused configuration's diagnostic, a boot warning and a
   `FATAL` go to stderr, not to `Core\Log`.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself).</sub>
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 
@@ -2396,7 +2442,11 @@ it. Every path the service reads is then owned by root or by itself and writable
 is what [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary) checks at boot. An uninstall gives each path back
 to root with the owner's bits of its mode only.
 
-<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0281](../decisions/0281.md).</sub>
+**Declined:**
+- **Read/write on the whole data folder for the service account.** It is simpler to grant, and it lets
+  the service rewrite the configuration that limits it.
+
+<sub>See also [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager).</sub>
 
 <a id="packaging-a-service-answers-its-manager"></a>
 

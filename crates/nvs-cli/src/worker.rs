@@ -643,7 +643,8 @@ fn turn(
 }
 
 /// Sets `ctx`'s configuration to the snapshot `job` runs under: the one the `[[app]]` blocks
-/// matching the job's own script fold to (ADR 0271 § 2), out of the publish in force now, just
+/// matching the job's own script fold to (`rule:concurrency/a-job-runs-as-a-root-isolate`), out
+/// of the publish in force now, just
 /// after the claim, and not the one this worker started with
 /// (`rule:config/reloadability-is-its-own-field`).
 ///
@@ -2309,7 +2310,8 @@ mod tests {
     }
 
     /// A job runs under the snapshot the `[[app]]` blocks matching its own script fold to
-    /// (ADR 0271 § 2), out of the publish the worker's holder serves.
+    /// (`rule:concurrency/a-job-runs-as-a-root-isolate`), out of the publish the worker's holder
+    /// serves.
     ///
     /// The tree grants `script.spawn` over both scripts. The script whose block narrows
     /// `[app.limits] memory` gets that block's budget, and the resolve of the script whose block

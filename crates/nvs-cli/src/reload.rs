@@ -138,7 +138,8 @@ pub(crate) struct Process {
     /// resolved rather than whatever the working directory now holds.
     roots: Vec<PathBuf>,
     /// The mount rows the server answers from, whose entries a reload folds
-    /// before it publishes (ADR 0271), or `None` where no server is serving.
+    /// before it publishes (`rule:http-server/the-served-file-is-optional`), or
+    /// `None` where no server is serving.
     rows: Option<Arc<crate::serve::mounts::Mounts>>,
     /// The fleet's one unit cache, for the count a reload reports and the
     /// re-key it owes.

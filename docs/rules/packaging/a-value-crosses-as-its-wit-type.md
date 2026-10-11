@@ -39,3 +39,9 @@ row (`tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-tab
 An extension's enum is an `int`-backed enum in its class's namespace whose cases are numbered in
 the manifest's order, and its resource is a member-less class in that namespace, held at run time
 as an object whose one slot is the request's number for it (`nvs_types::ext_lib`).
+
+**Declined:**
+- **A handle for every value.** Nothing would be copied that the guest does not read, but every
+  author would write marshalling code, and a record of ten fields would cost ten crossings. The
+  common call is coarse, and a copy serves it faster.
+- **Typed values and handles at the author's choice.** That is two ways to pass one argument.

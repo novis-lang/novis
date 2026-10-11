@@ -7,7 +7,8 @@
 //! preopens and the outbound handler read only the [`Effective`] this returns, which is a type of
 //! its own so the entry's unintersected grant cannot be handed to them by mistake.
 //!
-//! Decisions ADR 0246 § 7 left to this module, under the priority ordering:
+//! Decisions `rule:security/extension-grants-are-an-intersection` leaves to this module, under
+//! the priority ordering:
 //!
 //! - **The manifest's `read` and `write` say whether it asks for that kind at all.** An author
 //!   cannot know the operator's folders, so a list that is not empty requests the kind, its entries

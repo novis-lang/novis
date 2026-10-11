@@ -31,6 +31,18 @@ it is a folder Novis creates private to its account (`rule:config/ownership-is-t
 it comes after both explicit steps, and a deployment that wants a file of its own names it with
 `--config` or moves the folder with `--data`.
 
+The data folder is beside the file the binary really is: the running binary's path is canonicalized,
+so a binary reached through a link uses the folder beside its target. An unedited template is
+refreshed because a block a later version removes would otherwise make every command of that version
+stop on the file an older one wrote. The cost is usability: a binary in a directory its account cannot
+write, such as a packaged `/usr/bin/nvs` run by an ordinary user, finds no usable default folder,
+prints the one warning, and runs without a compile cache until `--data` names a folder. One binary
+serving several deployments shares one default folder, so a deployment that wants its own passes
+`--config` or `--data`, and a service always stores one.
+
+- **Memory:** none. Locating the folder is one canonicalization per process, and preparing it is one
+  create attempt per folder at startup.
+
 What makes the working-directory step safe is `rule:config/ownership-is-the-trust-boundary`, the
 announced path (`rule:config/the-resolved-root-is-announced-and-stored`) and an installer that always
 stores an absolute `--config` for a service (`rule:packaging/the-installer-is-a-sink`). What survives
@@ -47,3 +59,9 @@ commands attached to a terminal, not to remove it.
   resolution step for a case `--config` already covers.
 - **Walking up from the working directory or the entry file.** The single-directory step stops one
   step short of a walk (`rule:config/nvs-toml-is-not-a-project-manifest`).
+- **Per-platform locations for Novis's own files**, such as a cache under the user's local application
+  data and a temporary root in the system temporary directory. They are several places an operator has
+  to know, one of them shared with every other program on the host.
+- **A data folder under the user's profile.** It moves with the account, not with the binary, so two
+  installed versions or a portable copy would share it, and a service account's profile is a place
+  nobody looks.

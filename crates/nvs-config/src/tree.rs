@@ -85,9 +85,9 @@ pub struct Config {
     /// `[[extension]]` — a precompiled binary and its pin (`rule:packaging/extension-loading-is-root-controlled`).
     pub extension: Vec<Extension>,
     /// `[ext.<name>]` — one loaded extension's settings block, keyed on the name its manifest
-    /// declares (ADR 0246 § 9). Kept as written, because only that manifest knows the keys and
-    /// their types: the CLI checks each block against it at boot and at reload, and refuses a
-    /// block no loaded extension declares.
+    /// declares (`rule:packaging/a-guest-has-no-ambient-authority`). Kept as written, because
+    /// only that manifest knows the keys and their types: the CLI checks each block against it
+    /// at boot and at reload, and refuses a block no loaded extension declares.
     pub ext: BTreeMap<String, toml::Table>,
     /// `[debug]` — the probe set, default and ceiling in one (`rule:testing/debug-probes`).
     pub debug: Option<Debug>,
@@ -445,7 +445,7 @@ pub struct CapDb {
     pub schema: Option<Setting>,
 }
 
-/// The `ldap.*` grants — ADR 0278 § 2, in [`CapDb`]'s shape.
+/// The `ldap.*` grants — `rule:core-classes/ldap-capabilities`, in [`CapDb`]'s shape.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct CapLdap {
@@ -845,9 +845,9 @@ pub struct CapQueue {
     pub purge: Option<Setting>,
 }
 
-/// One `[ldap.<name>]` block — ADR 0278 § 2's operator-named directory, whose shape is
-/// [`Database`]'s and for the same reason: the name is the key, and the URL and the credential are
-/// the operator's alone.
+/// One `[ldap.<name>]` block — an operator-named directory (`rule:core-classes/ldap-capabilities`),
+/// whose shape is [`Database`]'s and for the same reason: the name is the key, and the URL and the
+/// credential are the operator's alone.
 ///
 /// The block is read here and judged in [`mod@crate::ldap`], which owns every rule about it: the URL
 /// list, the two `tls` words, the empty password refused at boot

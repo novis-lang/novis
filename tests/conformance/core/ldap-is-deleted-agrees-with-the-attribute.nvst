@@ -1,5 +1,5 @@
 --TEST--
-Over every deleted entry a `showDeleted` search finds, `isDeleted()` agrees with `bool("isDeleted")`, and both are `true`, counted rather than read off one line — ADR 0278 § 11
+Over every deleted entry a `showDeleted` search finds, `isDeleted()` agrees with `bool("isDeleted")`, and both are `true`, counted rather than read off one line
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

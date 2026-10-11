@@ -1,5 +1,5 @@
 --TEST--
-`search` with a `pageSize` of 2 returns the same entries as one page of 1000, every one of them has the attribute a `Filter::present` asked for, and `Scope::OneLevel` stays one level under the base — ADR 0278 § 5
+`search` with a `pageSize` of 2 returns the same entries as one page of 1000, every one of them has the attribute a `Filter::present` asked for, and `Scope::OneLevel` stays one level under the base
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

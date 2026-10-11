@@ -1,5 +1,5 @@
 //! Segmentation: `word-segments` and `sentence-segments` over `icu_segmenter`'s word and sentence
-//! segmenters (ADR 0277 § 8 and § 9, `rule:core-classes/intl-batch-shape`).
+//! segmenters (`rule:core-classes/intl-roster`, `rule:core-classes/intl-batch-shape`).
 //!
 //! A string is cut at every boundary UAX #29 finds, so its segments joined give the string back,
 //! and an empty string has no segments. A word segment is word-like when the segmenter's rule

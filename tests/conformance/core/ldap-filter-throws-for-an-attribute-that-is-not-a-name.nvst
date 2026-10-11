@@ -1,5 +1,5 @@
 --TEST--
-`Filter::equals` and `Filter::present` agree on which attribute names RFC 4512 allows: both throw `LogicError` for the same four, and both accept a name, a name with an option and a numeric OID — ADR 0278 § 5
+`Filter::equals` and `Filter::present` agree on which attribute names RFC 4512 allows: both throw `LogicError` for the same four, and both accept a name, a name with an option and a numeric OID — `rule:core-classes/ldap-filter-is-a-value`
 --FILE--
 <?nvs
 array<string> $bad = ["cn=x)(cn=*", "1cn", "", "cn;"];

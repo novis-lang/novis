@@ -15,4 +15,10 @@ parses. AD's reasons are kinds — `AccountDisabled`, `AccountLocked`, `Password
 `MustChangePassword`, `AccountExpired`, `NotAllowedNow` — and **an unknown user (525) and a wrong
 password (52e) are both `InvalidCredentials`**, so a login form cannot tell an attacker which accounts
 exist, and every `InvalidCredentials` it throws has one message, since AD's diagnostic would name the
-sub-code. The message never carries the password. Each login pays one TCP and TLS handshake.
+sub-code. The message never carries the password. Each login pays one TCP and TLS handshake, which is
+the price of a pool that never changes identity.
+
+**Declined:**
+- **Rebinding a pooled connection for `authenticate`.** It saves a handshake per login and makes the
+  pool's identity something a request can change, which `rule:security/db-pool-reset-is-a-boundary`
+  exists to prevent.

@@ -938,7 +938,7 @@ pub(crate) const KIND_FIELD: &str = "kind";
 /// pins the ordinal against that roster, being the one crate that can see both.
 pub(crate) const ERROR_KIND_OTHER: i64 = 10;
 
-/// `Core\Ldap\LdapError`, ADR 0278 § 10's one directory error, with a `kind`
+/// `Core\Ldap\LdapError`, the one directory error (`rule:core-classes/ldap-error`), with a `kind`
 /// and a `?int` `code`. Restated here for [`PARSE_ERROR`]'s reason.
 pub(crate) const LDAP_ERROR: &str = "Core\\Ldap\\LdapError";
 

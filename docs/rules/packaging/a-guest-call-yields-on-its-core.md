@@ -2,14 +2,17 @@ A guest call runs on the calling request's own core, as a wasmtime async call th
 coroutine polls. A pending call parks the coroutine exactly as a socket wait does, and the core's
 `RemoteWake` is its waker. wasmtime's fiber holds the wasm frames and saves its thread-local call chain
 when it suspends, which is what lets a second coroutine on the same thread enter wasm safely while the
-first is parked.
+first is parked. Without that, the composition would not be sound: wasmtime keeps a per-thread chain
+of active wasm calls and requires it to unwind in order, and a coroutine that parked with wasm frames
+on its own stack would let a second coroutine break that order.
 
 A call suspends in two cases. A host import that waits — a granted file read on the blocking pool, a
 granted HTTP call through `Core\Http\Client` — returns a pending future. And an epoch ticker advances
 the engine's epoch about once a millisecond: at each tick the guest checks the request's CPU deadline,
 traps past it (`rule:packaging/a-guest-runs-under-the-requests-budget`), and otherwise yields so the
 other tasks on that core run. A long encode slows its core's neighbours fairly and never freezes the
-core, and no call pays a thread handoff.
+core, and no call pays a thread handoff. The tick costs one check per millisecond of guest time, and
+a request that calls no extension pays nothing.
 
 A request has one instance per extension it calls (`rule:packaging/a-fresh-instance-per-request`). A
 component cannot be re-entered, so a second task of the same request calling the same extension waits
@@ -24,3 +27,8 @@ next poll, with no deadline armed; a pending import parks until its own wake
 (`crates/nvs-host/src/block_on.rs`). `benches/abi-probe` proves the bridge with a component guest
 under its `wasm-probe` feature: a second coroutine runs a whole guest call on the thread while the
 first is parked inside wasm, and the CPU deadline traps a call that keeps yielding.
+
+**Declined:**
+- **A compute pool, for every call or for the exports that ask for one.** It costs a thread handoff
+  per call, a second CPU account and a new setting, for computation the core already shares fairly by
+  yielding.

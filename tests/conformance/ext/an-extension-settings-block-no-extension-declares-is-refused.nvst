@@ -1,5 +1,5 @@
 --TEST--
-An `[ext.<name>]` block that no loaded extension declares stops the boot — ADR 0246 § 9
+An `[ext.<name>]` block that no loaded extension declares stops the boot
 --EXTENSION--
 ledger
 --FILE nvs.toml--

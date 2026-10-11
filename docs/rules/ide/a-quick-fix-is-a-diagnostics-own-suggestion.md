@@ -21,7 +21,11 @@ dialog, with its per-action checkboxes, is the same composition through a differ
 A suggestion marked as an **alternative**, one of several edits a person chooses between, is offered
 as a quick fix and never under `source.fixAll.nvs`, since a save that applied every alternative would
 write one over another. `W1022`'s likely grouping is one (`rule:expressions/misread-grouping-warns`),
-and the parentheses that keep the current meaning beside it are not.
+and the parentheses that keep the current meaning beside it are not. The mark is a field on the
+suggestion, and `nvs check --json` carries it as `alternative` beside `safe`, so the diagnostic says
+what it is and no consumer keeps a list of codes. `safe` is a different question: the legacy cast's
+fix is not safe and still composes with format-on-save
+(`rule:ide/narrowing-is-a-diff-never-a-save-time-fix`), so a fix-all filtered on `safe` would drop it.
 
 A rewrite with no diagnostic behind it is not an inspection. The one there is, a string converted to
 an html template (`rule:ide/a-string-converts-to-an-html-template`), is offered beside the quick fixes

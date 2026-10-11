@@ -1,9 +1,7 @@
 {
   "title": "`Novis\\Intl` is eight classes, one per job, over one manifest class, and message formatting is not in it",
   "status": "designed",
-  "because": [
-    "0277"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/intl-batch-shape",
     "core-classes/intl-locale-is-an-argument",
@@ -12,6 +10,11 @@
     "programs/framework-core-half"
   ],
   "guardedBy": [
-    "crates/nvs-stdlib/tests/ext_world.rs"
+    "crates/nvs-stdlib/tests/ext_world.rs",
+    "crates/nvs-ext/tests/intl.rs",
+    "tests/conformance/novis/intl-numbers-format-by-locale.nvst",
+    "tests/conformance/novis/intl-plural-categories-by-locale.nvst",
+    "tests/conformance/novis/intl-relative-time-and-lists.nvst",
+    "tests/conformance/novis/intl-segments-words-and-sentences.nvst"
   ]
 }

@@ -20,3 +20,13 @@ rules as filters: `memberOf` with `nested: true` (`1.2.840.113556.1.4.1941`), `b
 once per level, so a filter a request built in a loop would otherwise exhaust the thread's stack and
 take every request on the core down with it. The builder that would pass the limit throws
 `LogicError`, and so does `parse` at the `(` that does; no filter a person writes comes near it.
+
+**Declined:**
+- **`Filter::escape` beside text filters.** A second, weaker answer to a question the value builder
+  settles, and an escaper over filter text is the catch-all `rule:security/launderers-are-sink-named`
+  forbids.
+- **A fluent filter chain.** `->and()` beside `all` would be two ways to write the same tree, and a
+  chain's order is something a reader has to simulate.
+- **Leaving filters and AD's types to a package.** A package cannot be a launderer
+  (`rule:security/launderers-are-sink-named`), and a GUID read in the wrong byte order is a bug every
+  caller would write once.

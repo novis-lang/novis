@@ -1,5 +1,5 @@
 --TEST--
-`Filter::equals` accepts a `tainted` value, because the value is encoded as data and is never parsed as filter text — ADR 0278 § 5 and `rule:security/tainted-qualifier`
+`Filter::equals` accepts a `tainted` value, because the value is encoded as data and is never parsed as filter text — `rule:core-classes/ldap-filter-is-a-value` and `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 class Logins {

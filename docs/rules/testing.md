@@ -751,7 +751,9 @@ cost one copy of the statement table per test while a JSON document is being wri
 `rule:testing/nvst-is-separate`
 
 `.nvst` is a whole-program, expected-stdout conformance case, and it is how **Novis's own conformance
-to its specification** is proven. A case's expectation is what the rules say Novis prints.
+to its specification** is proven. A case's expectation is what the rules say Novis prints. No test
+and no check runs another language's engine to judge Novis, for this repository or for a user: the
+rules and the conformance cases are the one reference.
 
 `#[Test]` is how **a program written in Novis** tests itself.
 
@@ -759,7 +761,12 @@ The two formats answer different questions and are not unified, now or later. `n
 both — a path of `.nvst` files, or a program's compiled test table — and reports each in the shape
 that fits it.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0274](../decisions/0274.md).</sub>
+**Declined:**
+- **A PHP oracle**: an `--ORACLE--` section run under PHP, an `nvs test --php` mode, or a differential
+  tree kept as an unrun archive. It is a second reference that disagrees with the rules wherever they
+  diverge, and a reader cannot tell which one is normative.
+
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/feature-proofs`](testing.md#testing-feature-proofs).</sub>
 
 <a id="testing-a-directory-of-programs-is-one-test-program"></a>
 

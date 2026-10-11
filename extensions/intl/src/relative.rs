@@ -1,5 +1,5 @@
-//! Relative time: `format-relative` over `icu_experimental`'s `RelativeTimeFormatter` (ADR 0277
-//! § 1 and § 9, `rule:core-classes/intl-batch-shape`).
+//! Relative time: `format-relative` over `icu_experimental`'s `RelativeTimeFormatter`
+//! (`rule:core-classes/intl-roster`, `rule:core-classes/intl-batch-shape`).
 //!
 //! Each item is a whole count of one unit, and a negative count is in the past. ICU4X has one
 //! formatter per unit and width, so a call builds at most one per unit its items name and reuses

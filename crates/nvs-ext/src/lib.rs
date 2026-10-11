@@ -35,7 +35,7 @@
 //! `default-features = false`. One crate keeps the manifest beside the loader that checks it; a
 //! second crate for three modules would buy nothing the feature does not.
 //!
-//! Decisions ADR 0246 left to this crate, under the priority ordering:
+//! Decisions the extension rules leave to this crate, under the priority ordering:
 //!
 //! - **Two versions, kept apart.** The manifest's `"manifest": 1` is the version of the JSON format,
 //!   read first, so a newer format is refused by its number and never as an unknown key. Its

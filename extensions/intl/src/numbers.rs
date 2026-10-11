@@ -1,5 +1,5 @@
 //! Numbers: `format-numbers` over `icu_decimal`'s decimal and compact formatters and
-//! `icu_experimental`'s percent and currency formatters (ADR 0277 § 4,
+//! `icu_experimental`'s percent and currency formatters (`rule:core-classes/intl-roster`,
 //! `rule:core-classes/intl-batch-shape`).
 //!
 //! A number crosses as its decimal text, which [`fixed_decimal`] parses exactly, so a `decimal` is

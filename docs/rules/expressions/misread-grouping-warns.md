@@ -5,8 +5,15 @@ a `??` whose right operand is an arithmetic or `.` expression written without pa
 
 The list is closed because every shape on it is valid code, and a warning on valid code is worth its
 noise only where the misreading is common. `&&` beside `||`, `-2 ** 2` and a nested ternary are left
-alone, and a parenthesized operand never warns. The grammar is unchanged, so the warning costs nothing
-when the program runs.
+alone: the first is common, deliberate and well understood, the second is pinned by the reference's
+own precedence table, and the third groups to the right as documented. A parenthesized operand never
+warns. Neither shape is a type error, which is why nothing else reports it: `??` binds looser than
+every arithmetic operator and `.`, and a ternary condition accepts any type and tests its truthiness
+(`rule:expressions/truthy-positions`).
+
+The grammar is unchanged, so the warning costs nothing when the program runs. The parser raises it,
+seeing each written operator once with its source at hand: one `match` per `??`, per `?:` and per
+invalid assignment target, allocating only when it warns, and nothing is held past the diagnostic.
 
 Each warning carries two edits. Parentheses around what the code does now change nothing, so
 `source.fixAll.nvs` may apply them on save. The grouping the author most likely meant, the `??` or `?`
@@ -16,4 +23,13 @@ the light bulb and no batch applies (`rule:ide/a-quick-fix-is-a-diagnostics-own-
 Two errors name the same kind of parentheses. `E0105` on `$ok && $row = $next` offers the grouping
 `$ok && ($row = $next)` and recovers the parse as it, so no second error follows
 about a target nobody meant. `E0706` on `$flags & 4 == 4`, which is `$flags & (4 == 4)`, offers
-`($flags & 4) == 4`.
+`($flags & 4) == 4`, with a help line about precedence in place of its general one about converting
+the operand. Each of these two fixes is the only grouping of its line that compiles, so neither is an
+alternative. Both errors keep their codes and messages.
+
+**Declined:**
+
+- **An error for the warned shapes.** Each is valid code with one meaning, and refusing it would
+  break programs that meant exactly that meaning.
+- **A hint in the editor alone.** `nvs check` and CI would never see it, and the language server would
+  carry a second copy of a check the compiler makes once.

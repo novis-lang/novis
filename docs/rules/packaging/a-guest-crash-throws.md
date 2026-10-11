@@ -24,3 +24,7 @@ runtime spells it, a trapped instance dropped and an `err`'s kept (`crates/nvs-e
 A limit runs the request's limit handler before its `FATAL`
 (`tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst`).
 `nvs serve` reaches the same host code for every request.
+
+**Declined:**
+- **A trap as a `FATAL`, with or without `onLimit`.** A crafted upload that crashes a codec would end
+  the request with no answer the application can write, though nothing in the host was harmed.

@@ -1,5 +1,5 @@
 --TEST--
-A `base` in `Ldap\Settings` is where a search that names no `base` starts, and a search that names one starts there instead — ADR 0278 § 2 and § 5
+A `base` in `Ldap\Settings` is where a search that names no `base` starts, and a search that names one starts there instead
 --FILE--
 <?nvs
 // covers: Core\Ldap\Tls

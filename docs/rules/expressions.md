@@ -154,8 +154,15 @@ a `??` whose right operand is an arithmetic or `.` expression written without pa
 
 The list is closed because every shape on it is valid code, and a warning on valid code is worth its
 noise only where the misreading is common. `&&` beside `||`, `-2 ** 2` and a nested ternary are left
-alone, and a parenthesized operand never warns. The grammar is unchanged, so the warning costs nothing
-when the program runs.
+alone: the first is common, deliberate and well understood, the second is pinned by the reference's
+own precedence table, and the third groups to the right as documented. A parenthesized operand never
+warns. Neither shape is a type error, which is why nothing else reports it: `??` binds looser than
+every arithmetic operator and `.`, and a ternary condition accepts any type and tests its truthiness
+([`expressions/truthy-positions`](expressions.md#expressions-truthy-positions)).
+
+The grammar is unchanged, so the warning costs nothing when the program runs. The parser raises it,
+seeing each written operator once with its source at hand: one `match` per `??`, per `?:` and per
+invalid assignment target, allocating only when it warns, and nothing is held past the diagnostic.
 
 Each warning carries two edits. Parentheses around what the code does now change nothing, so
 `source.fixAll.nvs` may apply them on save. The grouping the author most likely meant, the `??` or `?`
@@ -165,9 +172,18 @@ the light bulb and no batch applies ([`ide/a-quick-fix-is-a-diagnostics-own-sugg
 Two errors name the same kind of parentheses. `E0105` on `$ok && $row = $next` offers the grouping
 `$ok && ($row = $next)` and recovers the parse as it, so no second error follows
 about a target nobody meant. `E0706` on `$flags & 4 == 4`, which is `$flags & (4 == 4)`, offers
-`($flags & 4) == 4`.
+`($flags & 4) == 4`, with a help line about precedence in place of its general one about converting
+the operand. Each of these two fixes is the only grouping of its line that compiles, so neither is an
+alternative. Both errors keep their codes and messages.
 
-<sub>See also [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence). Decided in [0258](../decisions/0258.md).</sub>
+**Declined:**
+
+- **An error for the warned shapes.** Each is valid code with one meaning, and refusing it would
+  break programs that meant exactly that meaning.
+- **A hint in the editor alone.** `nvs check` and CI would never see it, and the language server would
+  carry a second copy of a check the compiler makes once.
+
+<sub>See also [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence).</sub>
 
 <a id="expressions-one-equality-operator"></a>
 
@@ -512,7 +528,25 @@ There are exactly three, and no syntax writes another default: `($a ?? 100) -= 1
 `$a = ($a ?? 100) - 1` is that program. `$a ??-1` is a `??` and a `-1`, because each operator ends in
 `=`.
 
-<sub>See also [`types/absent-storage-is-never-a-zero-value`](types.md#types-absent-storage-is-never-a-zero-value), [`types/arithmetic`](types.md#types-arithmetic), [`types/narrowing`](types.md#types-narrowing). Decided in [0254](../decisions/0254.md).</sub>
+They exist because `$counts[$word] += 1` throws on the first word not yet counted, and
+`$lines[$day] .= $entry` on the first day, so without them a count, a running total or a grouped string
+names its target twice: `$counts[$word] = ($counts[$word] ?? 0) + 1`. That form keeps working, and
+neither is preferred. Each operator costs one `null`-or-absent test more than the plain one, with the
+same one read and one write of the target; `??.=` copies the accumulated string on each append, as
+`.=` on an element or a property does. The default is not visible where the operator is written, and
+the default carries neither `tainted` nor `secret`.
+
+**Declined:**
+
+- **Reading an absent target as zero under `+=`, `-=` and `.=`.** A misspelled key would count from
+  zero silently, which is the hole [`types/absent-storage-is-never-a-zero-value`](types.md#types-absent-storage-is-never-a-zero-value) closes. These
+  operators say where a default is wanted.
+- **A default written at the use, `($a ?? 100) -= 1`.** `($primary ?? $backup) += 1` reads as "add to
+  whichever exists", so the same syntax would have two meanings.
+- **`??*=`, `??/=` and the bitwise forms.** A product or a quotient that starts from zero stays zero.
+- **A bare `??+` or `??-`.** `$a ??-1` already means `$a ?? -1`, so each token needs its `=`.
+
+<sub>See also [`types/absent-storage-is-never-a-zero-value`](types.md#types-absent-storage-is-never-a-zero-value), [`types/arithmetic`](types.md#types-arithmetic), [`types/narrowing`](types.md#types-narrowing).</sub>
 
 <a id="expressions-nullable-conversion"></a>
 

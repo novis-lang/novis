@@ -1,9 +1,7 @@
 {
   "title": "`echo` in an HTTP request escapes everything it is given, and `Core\\Html\\Markup` is the only raw-write bypass",
   "status": "shipped",
-  "because": [
-    "0266"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/html-template",
     "core-classes/html-later",

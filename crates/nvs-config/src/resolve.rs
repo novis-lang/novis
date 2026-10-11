@@ -470,7 +470,7 @@ pub fn resolve(
     // `rule:security/db-pool-reset-is-a-boundary`'s pool bounds, in the same pass's second half: a `lifetime` that spells nothing
     // is a boot refusal naming its file, rather than the first acquire of the first request.
     crate::db::validate(&resolved.config, &origins)?;
-    // ADR 0278 § 2's `[ldap]` blocks, after `rule:config/a-secret-is-a-file-whose-content-is-the-value` has put each `password_file`'s value in place, so an
+    // The `[ldap]` blocks (`rule:core-classes/ldap-capabilities`), after `rule:config/a-secret-is-a-file-whose-content-is-the-value` has put each `password_file`'s value in place, so an
     // empty password is refused here whichever spelling wrote it
     // (`rule:security/ldap-empty-password-is-refused`).
     crate::ldap::validate(&resolved.config, &origins)?;

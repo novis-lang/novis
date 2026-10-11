@@ -1,9 +1,7 @@
 {
   "title": "A `.nvsx` is a single WebAssembly component whose manifest is an `nvs.manifest` custom section",
   "status": "designed",
-  "because": [
-    "0246"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/extension-calls-are-statically-typed",
     "security/extension-manifest-only-tightens",

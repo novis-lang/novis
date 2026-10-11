@@ -1,6 +1,6 @@
 //! The one error this crate returns: a kind a program branches on, the LDAP result code when a server sent one, and a message with no credential in it
 //!
-//! [`Kind`] is ADR 0278 § 10's list one for one, so `Core\Ldap`'s `LdapError`
+//! [`Kind`] is `rule:core-classes/ldap-error`'s list one for one, so `Core\Ldap`'s `LdapError`
 //! reads its `$kind` off [`Kind::name`] and its `$code` off [`Error::code`]
 //! with nothing to translate. The mapping from a result code to a kind lives
 //! here, beside the kinds, because it is protocol knowledge: which code AD

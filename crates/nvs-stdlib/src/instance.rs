@@ -290,7 +290,7 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::CURRENT, crate::db::STREAM_CURRENT_SYMBOL),
         ],
     ),
-    // And ADR 0278 § 5's search, for the same reason: the next entry may be on
+    // And `Core\Ldap`'s search, for the same reason: the next entry may be on
     // a page the server has not sent yet.
     (
         crate::ldap::ENTRIES_NAME,

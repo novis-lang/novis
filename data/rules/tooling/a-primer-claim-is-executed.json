@@ -1,9 +1,7 @@
 {
   "title": "The primer is generated, and every example it shows and every diagnostic code it names is proven against the compiler that ships with it",
   "status": "shipped",
-  "because": [
-    "0274"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/an-agent-asks-the-binary",
     "tooling/the-index-is-one-line-per-member"

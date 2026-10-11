@@ -1,5 +1,5 @@
 --TEST--
-An `[ext.<name>]` block whose keys and types the extension's manifest declares is accepted at boot — ADR 0246 § 9
+An `[ext.<name>]` block whose keys and types the extension's manifest declares is accepted at boot
 --EXTENSION--
 ledger
 --FILE nvs.toml--

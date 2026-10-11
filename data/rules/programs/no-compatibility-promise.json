@@ -1,9 +1,7 @@
 {
   "title": "The PHP-shaped syntax is an on-ramp, and no document may promise compatibility",
   "status": "shipped",
-  "because": [
-    "0274"
-  ],
+  "because": [],
   "seeAlso": [
     "programs/audience",
     "programs/three-claims",

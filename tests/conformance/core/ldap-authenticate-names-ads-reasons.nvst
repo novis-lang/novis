@@ -1,5 +1,5 @@
 --TEST--
-`authenticate` throws `MustChangePassword` for an account that must change its password, `AccountDisabled` for a disabled account, and `InvalidCredentials` for an empty login, which is never sent — ADR 0278 § 10 and `rule:security/ldap-pool-is-bound-as-its-block`
+`authenticate` throws `MustChangePassword` for an account that must change its password, `AccountDisabled` for a disabled account, and `InvalidCredentials` for an empty login, which is never sent — `rule:security/ldap-pool-is-bound-as-its-block`
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

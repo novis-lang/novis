@@ -1,5 +1,6 @@
 //! Negotiation: `negotiate` picks the best offered locale for an `Accept-Language` value, and
-//! `resolve-locales` says which locale's data answers for a tag (ADR 0277 § 8 and § 9).
+//! `resolve-locales` says which locale's data answers for a tag
+//! (`rule:core-classes/intl-locale-is-an-argument`).
 //!
 //! The header is a comma-separated list of ranges, each a language tag or `*` with an optional
 //! `;q=` weight between 0 and 1, which defaults to 1. Only the first [`MAX_RANGES`] ranges are read,

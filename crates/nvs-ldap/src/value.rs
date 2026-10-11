@@ -1,6 +1,6 @@
 //! The value forms Active Directory sends that are not text: a GUID, a SID, a FILETIME, an interval, a GeneralizedTime, a flag field and an account type
 //!
-//! ADR 0278 § 8, `rule:core-classes/ldap-value-types`. Each reader takes the
+//! `rule:core-classes/ldap-value-types`. Each reader takes the
 //! bytes of one attribute value as the server sent them and returns the
 //! numbers a typed `Core` value is built from, or `None`/an error where the
 //! value is not in that form. Nothing here allocates a Novis value: the

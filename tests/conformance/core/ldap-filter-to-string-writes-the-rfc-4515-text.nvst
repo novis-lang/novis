@@ -1,5 +1,5 @@
 --TEST--
-`toString` writes each `Filter` constructor as the RFC 4515 text it encodes, nests `all`, `any` and `not` as written, and writes a `*`, `(`, `)` or `\` in a value as an escape — ADR 0278 § 6 and `rule:core-classes/ldap-filter-is-a-value`
+`toString` writes each `Filter` constructor as the RFC 4515 text it encodes, nests `all`, `any` and `not` as written, and writes a `*`, `(`, `)` or `\` in a value as an escape — `rule:core-classes/ldap-filter-is-a-value`
 --FILE--
 <?nvs
 echo Core\Ldap\Filter::equals("cn", "Ann")->toString(), "\n";

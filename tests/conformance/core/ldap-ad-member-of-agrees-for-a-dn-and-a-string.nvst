@@ -1,5 +1,5 @@
 --TEST--
-`Ldap\Ad`'s filters agree with the ones they are built from: `memberOf` builds the same filter from a `Dn` and from the same DN as a string, a `Dn` from `Dn::of` carries a `tainted` name as one escaped value, `enabled` is `Filter::not` of `disabled`, and `bitAnd` and `bitOr` agree for a single bit — ADR 0278 § 1 and `rule:core-classes/ldap-dn-is-the-launderer`
+`Ldap\Ad`'s filters agree with the ones they are built from: `memberOf` builds the same filter from a `Dn` and from the same DN as a string, a `Dn` from `Dn::of` carries a `tainted` name as one escaped value, `enabled` is `Filter::not` of `disabled`, and `bitAnd` and `bitOr` agree for a single bit — `rule:core-classes/ldap-filter-is-a-value` and `rule:core-classes/ldap-dn-is-the-launderer`
 --FILE--
 <?nvs
 string $written = "CN=Staff,DC=example,DC=test";

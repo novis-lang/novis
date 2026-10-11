@@ -204,8 +204,8 @@ const REFUSED: &[(&str, &str)] = &[
 ];
 
 /// Every interface the `extension` world imports once resolved: its own
-/// three, the WASI ones 0246 § 2 allows, and the `wasi:io` interfaces those
-/// are written in.
+/// three, the WASI ones `rule:packaging/a-guest-has-no-ambient-authority`
+/// allows, and the `wasi:io` interfaces those are written in.
 const ALLOWED_IMPORTS: &[&str] = &[
     "nvs:ext/types@1.0.0",
     "nvs:ext/log@1.0.0",
@@ -276,7 +276,7 @@ use Place::{Export, Novis, Output, Source, Step};
 /// Every member of `Novis\Image`, with where it runs
 /// (`rule:core-classes/image-pipeline`,
 /// `rule:core-classes/image-one-entry-point-per-job`). `measureText` and `fromRaw` start a pipeline from a `source`
-/// case and `raw` is an `output` of `run`, as ADR 0276 decides.
+/// case and `raw` is an `output` of `run`.
 const IMAGE_MEMBERS: &[(&str, &[Place])] = &[
     ("Image::open", &[Source("encoded")]),
     ("Image::create", &[Source("canvas")]),
@@ -670,7 +670,7 @@ fn the_settings_interface_reads_every_setting_type_a_manifest_may_declare() {
     .collect();
     assert_eq!(
         cases, expected,
-        "`setting`'s cases, one per type 0246 § 9 allows"
+        "`setting`'s cases, one per type a settings block allows"
     );
 
     let get = resolve.interfaces[settings]
@@ -851,7 +851,8 @@ fn every_image_builder_member_maps_to_an_export_a_plan_step_or_novis_source() {
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));
 }
 
-/// The exports of the intl component's `icu`, ADR 0277 § 9's thirteen.
+/// The exports of the intl component's `icu`, one per static method of `Novis\Intl\Icu`
+/// (`rule:core-classes/intl-roster`).
 const ICU_EXPORTS: &[&str] = &[
     "collate-order",
     "sort-keys",

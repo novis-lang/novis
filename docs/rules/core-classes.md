@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*24 of 95 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 98 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -333,7 +333,7 @@ the operator runs the cleanup command.
   ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)). The operator-only key covers the one honest
   use, debugging, with no code change.
 
-<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0281](../decisions/0281.md).</sub>
+<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="core-classes-temporary-dir-orphan-sweep"></a>
 
@@ -508,7 +508,7 @@ other fragment, and `Markup` keeps its one slot.
   And `.` would give a `string` or a `Markup` depending on its operands, so a reader could not tell
   what `$a . $b` is without knowing both types.
 
-<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0266](../decisions/0266.md).</sub>
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="core-classes-html-template"></a>
 
@@ -649,15 +649,31 @@ output belongs:
 ```
 
 The output is what `fn` echoes through the request's escaping sink, followed by the `Markup` it
-returns. **The route decides delivery, never the call**, so a component is written once:
+returns. `placeholder` defaults to empty and `deadline` has no default. A `later` inside a `later`
+callable is the request's child too, and its placeholder is part of its parent's output. Without
+`later`, every response is buffered whole, so a page's first byte waits for its slowest query, and
+`Core\Response::stream`, the only early byte, gives up `echo` and its escaping
+([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
+
+**The route decides delivery, never the call**, so a component is written once:
 
 | route | the page goes out | each output |
 |---|---|---|
 | normal | once every `later` task has ended | replaces its placeholder in one pass over the body |
 | `#[Core\Route(…, slotted: true)]`, or `Core\Response::slotted()` before the main script ends | when the main script ends, placeholders in place | follows in the same response as a `<template for>` fill, in finishing order, with an inline polyfill sent once |
 
+A slotted route sends nothing before the main script ends, and a slotted request that never calls
+`later` is sent whole. `Core\Response::slotted()` after the main script ends, or inside a `later`
+callable, throws `LogicError`. A slotted response is chunked, has no `Content-Length`, carries
+`X-Accel-Buffering: no`, holds back a closing `</body></html>` until after the last fill, and keeps
+its admission place until that fill. When its client goes,
+[`http-server/a-request-outlives-a-client-that-goes-away`](http-server.md#http-server-a-request-outlives-a-client-that-goes-away) applies to the `later` tasks as to the
+main script. Where the response's CSP limits scripts, the hashes of the polyfill and of the call after
+each fill are added to it.
+
 The placeholder is `<?start name="nvs-<token>-<n>">…<?end>`, where `<token>` is 96 random bits drawn
-once per request. A visitor's string is escaped before the sink and an author cannot know the token, so
+once per request and written as 16 base64url characters, and `<n>` counts the request's `later`
+calls from 1. A visitor's string is escaped before the sink and an author cannot know the token, so
 only `later` can name a slot, and `Markup` needs no second slot to carry one. A placeholder written
 nowhere cancels its task with a `Warn`; one written twice throws `LogicError`.
 
@@ -667,10 +683,35 @@ nowhere cancels its task with a `Warn`; one written twice throws `LogicError`.
 response ends. A task that throws or passes its own `deadline` shows `error` too, and the page keeps the
 status the main script set. **A `later` callable cannot change the response head**: a status, a header,
 a redirect, a body method, a cookie or a session regeneration inside one throws `LogicError`, and is a
-compile error where the checker sees it. Outside an HTML response `later` runs `fn` in place and
-returns its output.
+compile error where the checker sees it. Reading the request and the session is allowed. Outside an
+HTML response, or outside an HTTP request, `later` runs `fn` in place and returns its output, so a
+component still works there.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0266](../decisions/0266.md).</sub>
+A request that never calls `later` pays nothing. A normal route pays one pass over the body to
+assemble the page; a slotted route sends its first byte when the main script ends and its last when
+the slowest slot ends. A browser without JavaScript shows the placeholders.
+
+- **Memory:** each `later` task's output is held until it is sent, and a slotted shell from the end
+  of the main script until it is written: per request, O(in-flight), under the request's `memory`
+  cap.
+
+**Declined:**
+
+- **Declarative shadow DOM as the markup.** It needs no script in any current browser, and the
+  content would sit in a shadow root that the page's CSS does not reach and
+  `document.getElementById` does not find.
+- **Delivery chosen by the call site**, a `later` that streams and one that does not. A component
+  would depend on the route that includes it.
+- **A carrier slot on `Markup` for the placeholder.** The token in the bytes is enough to find it, and
+  `+`, `Core\Html::join` and partials carry it with no change.
+- **Flushing the shell before the main script ends.** The status and headers would be fixed before
+  the script that sets them has finished.
+- **A limit of `later`'s own**, such as a slot count or a per-slot memory share. A page with `later`
+  is bounded exactly as the same page without it, and a second set of limits is something every
+  developer must learn.
+- **A slot in `<head>`.** The head is sent first, so a `<title>` cannot be filled later.
+
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees).</sub>
 
 <a id="core-classes-html-escape-answers-markup"></a>
 
@@ -2230,6 +2271,104 @@ a program that neither carries the attribute nor writes a half pays nothing at a
 
 <sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type).</sub>
 
+<a id="core-classes-ldap-capabilities"></a>
+
+## Three deny-by-default capabilities gate naming an LDAP block, dialling a directory, and binding without TLS, and nothing is read from `ldap.conf` or the environment
+
+`rule:core-classes/ldap-capabilities`
+
+Three deny-by-default capabilities under `[capabilities.ldap]` sit in front of a directory, in `db.*`'s shape. `ldap.connect` names the `[ldap.<name>]` blocks a program may open with `Ldap::connect`; `ldap.open` names the hosts an `Ldap\Settings` may reach with `Ldap::open`, and takes `*.` at a label boundary; `ldap.cleartext` names the hosts a bind may reach without TLS ([`security/ldap-cleartext-bind-is-granted-per-host`](security.md#security-ldap-cleartext-bind-is-granted-per-host)).
+
+A block's address is the operator's, so a `connect`-named block is pre-approved and is not checked
+against the outbound address policy, as [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities) reasons for a database. An
+`open` target is the program's: its host is checked against `ldap.open` and its address against
+[`security/net-address-policy`](security.md#security-net-address-policy) in full before anything is dialled.
+
+`[ldap.<name>]` follows `[db.<name>]`: `url` (one `ldaps://` or `ldap://` URL, or a list), `base`,
+`user`, `password` or `password_file` ([`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value)),
+`tls` (`"required"`, the default, or `"none"`), `tls_ca_file`, `timeout` and `pool`, and every table
+refuses an unknown key. A block with no `user` binds anonymously. `Ldap\Settings` is the same fields as
+a shape: `url` is a sink with no launderer, as `Settings.host` is for a database; `base` is
+`Dn|string`; `user` accepts `tainted`, being a length-framed protocol field; `password` is `secret
+tainted string`; and `tls` is the enum `Ldap\Tls`.
+
+**A block's URL list fails over in order**, and so does every address one URL's host resolves to. A
+server that does not answer, or whose TLS handshake fails, moves the walk on. A server that answers and
+refuses the credentials stops it, because the next server would refuse them too and the walk would
+only add to the account's lockout count.
+
+A timeout has a default and no spelling for unlimited. Nothing is read from `ldap.conf`, `LDAPTLS_*` or
+any other environment, so no setting one request's code makes can reach another request's connection,
+and TLS trust is relaxed only where [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant)
+already allows it per host.
+
+**Declined:**
+- **A binding to OpenLDAP's `libldap`.** It brings process-wide options, a second TLS stack beside the
+  one [`security/one-tls-client`](security.md#security-one-tls-client) allows, `ldap.conf` and the environment, and SASL through
+  `libsasl2`, and a TLS option set for one connection can then apply to the next request's.
+- **A tokio-based client crate.** It needs a second scheduler per core, which
+  [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler) refuses; the BER codec is borrowed sans-IO and the sequencing is
+  written over the runtime's own TCP and TLS streams ([`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary)).
+- **An unlimited timeout, and reading `ldap.conf` or `LDAPTLS_*`.** Both put a connection's behaviour
+  outside what the operator's configuration states.
+
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`security/ldap-cleartext-bind-is-granted-per-host`](security.md#security-ldap-cleartext-bind-is-granted-per-host), [`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block).</sub>
+
+<a id="core-classes-ldap-search-pages-and-never-follows-a-referral"></a>
+
+## An LDAP search reads one page at a time, throws at a server limit and never follows a referral, and every control is a named option
+
+`rule:core-classes/ldap-search-pages-and-never-follows-a-referral`
+
+`Ldap\Connection::search` returns an `Ldap\Entries` that reads one page at a time as the loop reaches it, throws when the server stopped at a size or time limit, and never follows a referral. Every control `Core\Ldap` sends is a named option of the member it changes, and every extended operation is the member that needs it.
+
+`search` sends the paged-results control (RFC 2696) on every request, `pageSize` 1000 by default, and
+reads the first page itself, so a base that does not exist or a filter the server refuses throws at the
+call. **A size or time limit the server hit throws** `SizeLimitExceeded` or `TimeLimitExceeded`, and
+the page it came with is dropped, so a partial result is never returned as if it were complete. A
+connection released with a search still paging is closed, not pooled
+([`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block)). `read` is a base-scope search for one entry and
+returns `null` for `noSuchObject`.
+
+**A referral is never followed.** A continuation reference in a search is data, read from
+`Entries::references()`; a referral answering any other operation throws the kind `Referral`. A
+referral the client followed would dial a server the server named, not one the operator or a grant in
+[`core-classes/ldap-capabilities`](core-classes.md#core-classes-ldap-capabilities) named.
+
+Active Directory's four extras are named options or members:
+
+- **Sort and a window.** `sort` (one attribute, because AD sorts on one key) with `descending`, and
+  `window` with `offset`, which need `sort`, replace paging for that search, and fill
+  `Entries::total()` with the server's count. Both are checked before anything is sent.
+- **Deleted objects.** `showDeleted` includes deleted entries, and `Entry::isDeleted` says which.
+- **Incremental sync.** `changes` is DirSync: it returns the entries changed since the `cookie` the
+  program stored, and `Changes::cookie()` is the next one. On a server without DirSync it throws
+  `Unsupported`.
+- **The Global Catalog** is a block whose URL uses port 3268 or 3269. It is read-only: every write but
+  `compare` throws `ReadOnly` before a byte is sent.
+
+`modify` sends one Modify request, so the server applies every `Ldap\Change` in order or none of them.
+`rename` derives the new first level and, where it moved, the new parent from its second DN. `compare`
+returns `bool` and throws on an error.
+
+- **Memory:** a search holds one page of up to `pageSize` entries and the current entry, per search a
+  request has open. A finished search leaves nothing on its connection.
+
+**Declined:**
+- **A `bind` member, a raw-control member and a raw-extended-operation member.** Each would be a
+  second form of an operation the named members already have
+  ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)), and a rebind would let a request change a pooled
+  connection's identity.
+- **Following referrals, or a rebind callback.** See above.
+- **`uSNChanged` polling pinned to one controller.** It is a second form of DirSync's job, correct only
+  while every call reaches the same controller, which the URL list's failover does not promise.
+- **A client-side sort, as PHP's `ldap_sort`.** The server sorts with `sort`, so a second sort would be
+  a second form of the same operation.
+- **A `compare` that returns `-1` on an error.** A third value a caller has to test for beside `true`
+  and `false`.
+
+<sub>See also [`core-classes/ldap-capabilities`](core-classes.md#core-classes-ldap-capabilities), [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value), [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming).</sub>
+
 <a id="core-classes-ldap-filter-is-a-value"></a>
 
 ## An LDAP filter is an immutable value encoded straight to BER, whose values accept `tainted` and whose attribute names are a sink  *(designed — not yet in the compiler)*
@@ -2259,7 +2398,17 @@ once per level, so a filter a request built in a loop would otherwise exhaust th
 take every request on the core down with it. The builder that would pass the limit throws
 `LogicError`, and so does `parse` at the `(` that does; no filter a person writes comes near it.
 
-<sub>See also [`core-classes/ldap-dn-is-the-launderer`](core-classes.md#core-classes-ldap-dn-is-the-launderer), [`core-classes/ldap-value-types`](core-classes.md#core-classes-ldap-value-types), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0278](../decisions/0278.md).</sub>
+**Declined:**
+- **`Filter::escape` beside text filters.** A second, weaker answer to a question the value builder
+  settles, and an escaper over filter text is the catch-all [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)
+  forbids.
+- **A fluent filter chain.** `->and()` beside `all` would be two ways to write the same tree, and a
+  chain's order is something a reader has to simulate.
+- **Leaving filters and AD's types to a package.** A package cannot be a launderer
+  ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), and a GUID read in the wrong byte order is a bug every
+  caller would write once.
+
+<sub>See also [`core-classes/ldap-dn-is-the-launderer`](core-classes.md#core-classes-ldap-dn-is-the-launderer), [`core-classes/ldap-value-types`](core-classes.md#core-classes-ldap-value-types), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`security/sink-predicate`](security.md#security-sink-predicate).</sub>
 
 <a id="core-classes-ldap-dn-is-the-launderer"></a>
 
@@ -2279,7 +2428,7 @@ parameter. A DN the server returns comes back as a `Dn`, and `parent`, `rdnAttri
 `toString` and `rdnValue`, is `tainted`, since a value in it may be. There is no `ldap_escape`, and no
 escaper for filter text either ([`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value)).
 
-<sub>See also [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier). Decided in [0278](../decisions/0278.md).</sub>
+<sub>See also [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier).</sub>
 
 <a id="core-classes-ldap-value-types"></a>
 
@@ -2310,12 +2459,50 @@ taking one `bool` option per flag it may set, where an option left out keeps its
 general flag-set type. Bits the object does not name are kept, so a write never drops them. Lockout and
 an expired password are read from the computed attribute, and `mustChangePassword` from `pwdLastSet =
 0`, both of which `search` requests whenever `userAccountControl` is selected, because AD does not
-store them in `userAccountControl`; `with` cannot set them. A value is written in the form it is read, so every type above round-trips through
+store them in `userAccountControl`, and a reader of the stored attribute alone would report a locked
+account as active; `with` cannot set them. A value is written in the form it is read, so every type above round-trips through
 `modify` and is encoded the same way inside a filter. A ranged attribute (`member;range=0-1499`) is
 fetched to its end and returned whole under its plain name. An attribute name matches without case and
 keeps the server's case.
 
-<sub>See also [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value). Decided in [0278](../decisions/0278.md).</sub>
+- **Memory:** the schema is one map per block per core, O(blocks) and not O(requests). A merged ranged
+  attribute is the whole list, and counts against the request's memory cap like any other value.
+
+**Declined:**
+- **A general bit-flag type in `Core`.** Three AD fields need it; a readonly object per field names
+  every flag and costs nothing anywhere else.
+- **An array with a `count` key and lowercased attribute names, as PHP's `ldap_get_entries` returns.**
+  The typed readers replace it, and `toArray` keeps the server's spelling.
+
+<sub>See also [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value).</sub>
+
+<a id="core-classes-ldap-error"></a>
+
+## Every `Core\Ldap` failure is one `Ldap\LdapError` with a kind to branch on and the LDAP result code, and no message carries a password
+
+`rule:core-classes/ldap-error`
+
+Every failure the directory or the wire reports is one class, `Ldap\LdapError`, with `$kind`, an `Ldap\ErrorKind` a program branches on, and `$code`, the LDAP result code, or `null` where no server sent one. A malformed attribute name, DN or URL is the program's own `LogicError` or `RuntimeError`, and a pool with no free slot is an `IOError`, as for `Core\Db`.
+
+The kinds are `InvalidCredentials`, `AccountDisabled` (AD `data 533`), `AccountLocked` (775),
+`PasswordExpired` (532), `MustChangePassword` (773), `AccountExpired` (701), `NotAllowedNow` (530,
+531), `EncryptionRequired`, `PasswordPolicy`, `NoSuchObject`, `AlreadyExists`, `InsufficientAccess`,
+`ConstraintViolation`, `SizeLimitExceeded`, `TimeLimitExceeded`, `Referral`, `ReadOnly`,
+`Unsupported`, `Unavailable`, `Timeout` and `Protocol`. One class with a kind lets a program branch on
+the condition rather than on a result code, for the reason [`core-classes/db-error`](core-classes.md#core-classes-db-error) gives
+`Core\Db\DbError`.
+
+An unknown user (525) and a wrong password (52e) are both `InvalidCredentials`
+([`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block)). AD's policy refusal of a new password is
+`PasswordPolicy`. **No message carries a password or a value of a filter**: a message is built from
+the operation's name, the result code and the server's own diagnostic.
+
+**Declined:**
+- **`false` and a separate error number, as PHP's `ldap_errno` gives.** A failure throws, so a
+  caller that forgets to test a return value cannot read a failure as a result.
+- **Distinct kinds for 525 and 52e.** A user-enumeration oracle handed to every login form.
+
+<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block).</sub>
 
 <a id="core-classes-queue-storage-is-a-table"></a>
 
@@ -2806,6 +2993,21 @@ encoded file (`encode`), the RGBA8 pixels behind a size header (`raw`), or the s
 position, because WIT has no recursive types. `hashDistance`, `Color` and `Font::fromBytes` are Novis
 source and call no export.
 
+`fromRaw` and `measureText` are pipeline starts, so each is a `source` case and not an export of its
+own: both stay inside `run`, and a text source can be resized, padded and composited like any other
+start. A `fromRaw` buffer that is not exactly `width * height * 4` bytes returns `invalid`, and the
+pixel cap applies to `width * height` as it does to a header's declared size. A text source lays the
+text out exactly as a `text` step does, so the size `measureText` returns is the box that step draws;
+it rasterises the text to size it, which costs one glyph run. `run` returns `list<u8>` for every
+output: the size header is width, then height, each a big-endian `u64`, and the host reads it into
+the `Raw` shape or the size it returns. `hashDistance` counts the differing bits between two hashes
+of one kind, which needs no decoder. A row's own `composite` steps name only earlier rows, so the
+table is in dependency order and no overlay contains itself; the guest returns `invalid` for a
+position that is not earlier, and the host flattens a nested Novis pipeline into rows when it builds
+the plan.
+
+- **Memory:** the `raw` output adds 16 bytes to the pixel buffer it returns.
+
 A `Format` carries no members, because an enum declares only cases ([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)):
 `Image::mime(Format)` and `Image::extension(Format)` name a format's MIME type and file extension. The
 plan's option shapes that the builder fills in for the caller — `format`'s, `rotate`'s and
@@ -2818,7 +3020,7 @@ builder member. A plan's `step` is a WIT record with one optional field per oper
 of them set, because the manifest tells a union's cases apart by their required keys and most steps
 have none: a step crosses as a Novis array keyed by its operation, `['resize' => [...]]`. The
 component's `run` and `variants` run every step, in order, and check each step's
-options before anything is decoded; what each pixel step does where 0120 leaves it open, and the
+options before anything is decoded; what each pixel step does beyond this rule, and the
 pixel cap every frame a step makes is held to, are `extensions/image/src/ops.rs`'s module doc. A
 `composite` step names only an earlier row, and one plan draws a bounded number of overlays counting
 every level, so a few rows that each draw the one before twice cannot double the work per level
@@ -2841,8 +3043,14 @@ pixel source is held to the default pixel cap, not the `[image]` one.
 - **ImageMagick or libvips compiled to wasm wholesale.** A surface that large is the long tail the
   component declines to own, and a C codebase that size is still one to build and audit inside the
   sandbox.
+- **An export of its own for `fromRaw` and for `measureText`.** Each would carry the same input as a
+  `source` case, add a boundary entry point for a job that is one more pipeline start, and break the
+  closed export count.
+- **A `variant` result for `run`.** It changes `run`'s signature to carry one case that two members
+  use, where a size header on the same `list<u8>` carries it.
+- **`hashDistance` as a call into the component.** It pays the boundary for a loop over a few bytes.
 
-<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0276](../decisions/0276.md).</sub>
+<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job).</sub>
 
 <a id="core-classes-image-pixel-model"></a>
 
@@ -2955,7 +3163,7 @@ smaller of the call's and the key's value in the request's snapshot before the c
 (`tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`). The
 `Novis\Image` builder that would pass a program's own `{maxPixels}` is not written.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0246](../decisions/0246.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary).</sub>
 
 <a id="core-classes-image-correct-by-default"></a>
 
@@ -3063,19 +3271,48 @@ source over one manifest class, `Novis\Intl\Icu`, whose static methods are the e
 | `Segmenter` | `words`, `sentences` |
 | `Locale` | `negotiate`, `resolve` |
 
-Their signatures, options shapes and enums are ADR 0277 § 1's table. No member reaches another's job,
-and there is no per-value member beside a batch one ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)).
-Message formatting is not in the roster until ICU4X's MessageFormat 2 is stable, and grapheme
-segmentation, case mapping and normalization stay in `Core\Str`.
+Their signatures are the classes in `extensions/intl/nvs/`, and their options shapes and enums are
+`wit/intl.wit`'s. No member reaches another's job, and there is no per-value member beside a batch one
+([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)). Message formatting is not in the roster until ICU4X's
+MessageFormat 2 is stable, and grapheme segmentation, case mapping and normalization stay in `Core\Str`.
+
+A manifest names exactly one class, so `Icu` is the boundary and the job classes a program uses are
+Novis source in the same `.nvsx`, as the image component's are. The Novis half does the two things the
+guest cannot: it converts a `Core\Time` value to local fields ([`core-classes/intl-host-converts-time`](core-classes.md#core-classes-intl-host-converts-time)),
+and it writes a number as its decimal text.
+
+- **Two collation members, two results.** `sort` returns the strings in order; `sortKeys` returns bytes
+  a program stores in a column or sorts rows by. A key is valid only under the ICU4X version the
+  component pins, so a stored key is rebuilt when the binary's component version changes.
+- **A number crosses as its decimal text.** The text is exact, so a `decimal` amount is never rounded
+  through `f64`, and the export has one numeric type. A `float` that is not finite throws
+  `RuntimeError` in the Novis half before the call, and a currency code that is not three ASCII letters
+  throws `LogicError`. The four `NumberFormat` members are four styles with four options shapes.
+- **One plural category type.** A catalog keyed on `Core\Cldr`'s category reads `PluralRules`'s with no
+  conversion.
 
 `Core\Cldr::pluralCategory` and `ordinalCategory` stay in Tier 0 beside `PluralRules`. On a bare
 language tag from `Core\Cldr`'s roster the two return the same category for every number; `PluralRules`
-also reads a region, so `pt-PT` may differ from `Core\Cldr`'s `pt`.
+also reads a region, so `pt-PT` may differ from `Core\Cldr`'s `pt`. Neither is deprecated: `Core\Cldr`
+is the one a template reaches without the sandbox, and `PluralRules` is the one that knows every
+locale.
+
+- **Memory:** nothing until a process first calls the component; then the compiled module, shared by
+  every core, and each calling request's instance under that request's cap. The CLDR data is in the
+  binary, and the component's module doc states its size. If that size is too large, the answer is a
+  slimmer locale set, never an optional component.
 
 **Not on disk.** The component crate `extensions/intl/` and its Novis half do not exist; `wit/intl.wit`
 is the interface they will export.
 
-<sub>See also [`core-classes/intl-batch-shape`](core-classes.md#core-classes-intl-batch-shape), [`core-classes/intl-locale-is-an-argument`](core-classes.md#core-classes-intl-locale-is-an-argument), [`core-classes/intl-host-converts-time`](core-classes.md#core-classes-intl-host-converts-time), [`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in), [`programs/framework-core-half`](programs.md#programs-framework-core-half). Decided in [0277](../decisions/0277.md).</sub>
+**Declined:**
+
+- **Numbers as a `variant` of `s64`, `f64` and digits.** It adds three cases to every numeric export to
+  carry what one string already carries exactly.
+- **`RelativeTime` from a `Duration`.** A month and a year are not a fixed number of nanoseconds, so the
+  unit would be a guess. The program chooses the unit and the count.
+
+<sub>See also [`core-classes/intl-batch-shape`](core-classes.md#core-classes-intl-batch-shape), [`core-classes/intl-locale-is-an-argument`](core-classes.md#core-classes-intl-locale-is-an-argument), [`core-classes/intl-host-converts-time`](core-classes.md#core-classes-intl-host-converts-time), [`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in), [`programs/framework-core-half`](programs.md#programs-framework-core-half).</sub>
 
 <a id="core-classes-intl-batch-shape"></a>
 
@@ -3088,15 +3325,28 @@ in the same order, and makes exactly one host-to-guest call. A single value is a
 same one call, so sorting 10,000 names or formatting a page of prices costs one crossing and one copy
 each way ([`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost)).
 
-One call has one locale. A program whose rows carry different locales makes one call per locale.
+One call has one locale. A program whose rows carry different locales makes one call per locale, which
+is the shape it has anyway when it groups output by reader. A per-item locale would put a string per
+item into every crossing, for a case no web page has.
 
-`negotiate` is the one exception, because its input is one `Accept-Language` header from one request.
+`negotiate` is the one exception, because its input is one `Accept-Language` header from one request,
+and a batch of headers is not a thing a request holds.
 
 The interface holds the shape: every export of `nvs:intl/icu` but `negotiate` takes a `list` as its
 first parameter and returns a `list`, and `crates/nvs-stdlib/tests/ext_world.rs` fails naming an export
-that does not. `Collator::sort`'s export returns the strings' positions, so only numbers cross back.
+that does not. `Collator::sort`'s export returns the strings' positions, so only numbers cross back and
+the Novis half reorders the list it already has; equal strings keep their input order.
 
-<sub>See also [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type). Decided in [0277](../decisions/0277.md).</sub>
+- **Memory:** a batch costs its input and its output, copied once each way. A large batch is bounded by
+  the request's memory cap like any other value.
+
+**Declined:**
+
+- **A comparator for collation.** A sort of 10,000 strings would make about 130,000 crossings.
+- **A per-value member beside each batch member.** It is a second way to reach every operation, and
+  saves only a pair of brackets.
+
+<sub>See also [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster), [`packaging/the-boundary-is-the-cost`](packaging.md#packaging-the-boundary-is-the-cost), [`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type).</sub>
 
 <a id="core-classes-intl-locale-is-an-argument"></a>
 
@@ -3110,19 +3360,30 @@ setting that holds one and no `[intl]` configuration block ([`core-api/no-ambien
 - **A malformed tag** throws `LogicError` naming it, cut to its first 64 characters. A locale is the
   program's own data, so a bad one is a bug.
 - **A well-formed tag with no data** falls back along CLDR's chain — `de-AT` to `de`, and at last to
-  the root locale — and formats. It never throws.
+  the root locale — and formats. It never throws: a tag a program got from a user or a header is
+  well-formed and unknown far more often than it is wrong.
 - **`Locale::resolve`** returns, for each tag and a `Service`, the locale whose data answers: `de` for
   `de-XX`, `und` where only the root does. Coverage differs between services, so the service is an
-  argument.
+  argument. It is how a program learns which locale answered.
 - **A `-u-` keyword that an option also names** — `ks`, `kf` or `kn` beside `strength`, `caseFirst`
   or `numeric` — throws `LogicError`, so no option has two spellings. A keyword no option names, such
-  as `co`, `nu`, `ca` or `hc`, is read from the tag.
+  as `co`, `nu`, `ca` or `hc`, is read from the tag, so a user's preference travels with their locale.
 
 `Locale::negotiate` never throws for its header: an empty, malformed or unmatched `Accept-Language`
-returns the default, and only its first 32 ranges are read. A malformed tag among the offered locales
-or the default throws `LogicError`, because those are the program's.
+returns the default, because the header is request data the program does not control. It matches each
+range against the offered tags with CLDR's fallback and returns the offered tag as the program spells
+it. Only the first 32 ranges are read, which keeps a hostile header's cost fixed; no browser sends a
+tenth of that. A malformed tag among the offered locales or the default throws `LogicError`, because
+those are the program's.
 
-<sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0277](../decisions/0277.md).</sub>
+**Declined:**
+
+- **A default locale** — a setting, a per-request value, or the current request's `Accept-Language`
+  read implicitly. Each is ambient state.
+- **Throwing for an unknown but well-formed locale.** A page that throws for `gsw` is worse than one in
+  German.
+
+<sub>See also [`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state), [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster), [`security/no-cross-request-state`](security.md#security-no-cross-request-state).</sub>
 
 <a id="core-classes-intl-host-converts-time"></a>
 
@@ -3136,14 +3397,22 @@ offset in seconds and the IANA zone id — and the guest formats those fields. `
 time-zone database, and the binary carries one.
 
 `DateFormat::dates` and `times` cross as `nvs:ext/types`' `date` and `time-of-day` records, which are
-local fields already. An `Instant` is placed in its zone with `Core\Time` first; there is no member that
-takes an `Instant` and a `Zone`.
+local fields already. A `DateTime` does not cross as the `date-time` record, because that record is an
+instant and a zone name, and turning it into fields is the time-zone database's job. An `Instant` is
+placed in its zone with `Core\Time` first; a member that took an `Instant` and a `Zone` would be a
+second way to write `dateTimes`.
 
 The guest names a zone from its id and offset: `ZoneStyle::Offset`, `Location` or `Generic`. A zone's
-specific daylight-time name is not offered. The calendar is the locale's, selected by a tag's `-u-ca-`
-keyword; the fields cross as ISO fields and the guest converts them.
+specific daylight-time name is not offered, because it needs to know whether the offset is daylight
+time. The calendar is the locale's, selected by a tag's `-u-ca-` keyword; the fields cross as ISO
+fields and the guest converts them.
 
-<sub>See also [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster), [`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type). Decided in [0277](../decisions/0277.md).</sub>
+**Declined:**
+
+- **A second time-zone database in the guest**, so that a `DateTime` crosses as its instant. It doubles
+  data `Core\Time` already carries, and two databases can disagree about the same instant.
+
+<sub>See also [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster), [`packaging/a-value-crosses-as-its-wit-type`](packaging.md#packaging-a-value-crosses-as-its-wit-type).</sub>
 
 <a id="core-classes-pdf-render-has-no-io"></a>
 

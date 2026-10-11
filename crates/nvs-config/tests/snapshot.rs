@@ -199,7 +199,7 @@ fn shop_with_cart() -> Fake {
     fs
 }
 
-/// ADR 0271's published set over `fs`, with `entries` matched at publish time.
+/// The published set over `fs`, with `entries` matched at publish time.
 fn published(fs: &Fake, entries: &[&str]) -> Published {
     let tree = tree_of(fs);
     let host = Snapshot::host(&tree, fs)

@@ -1,5 +1,5 @@
 --TEST--
-Over every value `read` returns for `objectClass`, `compare` returns `true`, and it returns `false` for a class the entry does not have — ADR 0278 § 9
+Over every value `read` returns for `objectClass`, `compare` returns `true`, and it returns `false` for a class the entry does not have
 --FILE--
 <?nvs
 // covers: Core\Ldap\Connection::compare

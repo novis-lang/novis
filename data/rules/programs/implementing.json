@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Program::implementing<T>()` lists every concrete class that is a `T`, for an interface or a class, and it expands while compiling",
   "status": "shipped",
-  "because": [
-    "0253"
-  ],
+  "because": [],
   "seeAlso": [
     "programs/no-runtime-autoload",
     "programs/autoload",
@@ -13,6 +11,9 @@
   "guardedBy": [
     "tests/conformance/core/program-implementing-enumerates-every-implementor.nvst",
     "tests/conformance/core/program-implementing-expands-to-new-expressions-at-the-call-site.nvst",
-    "tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst"
+    "tests/conformance/lang/a-class-named-only-by-an-attribute-is-autoloaded.nvst",
+    "tests/conformance/core/program-implementing-takes-a-class-and-lists-every-concrete-subclass.nvst",
+    "tests/conformance/reject/program-implementing-takes-an-interface-or-a-class-whose-classes-need-no-arguments.nvst",
+    "crates/nvs-hir/src/requires.rs"
   ]
 }

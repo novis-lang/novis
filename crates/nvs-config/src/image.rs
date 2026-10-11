@@ -1,8 +1,9 @@
 //! `rule:core-classes/image-pixel-cap`'s `[image] max_pixels`: the most pixels the image component
 //! decodes in one call, read off the header before a buffer is allocated.
 //!
-//! **The block reads the cap and nothing else.** No key in it grants anything (ADR 0246 § 9), and a
-//! second key is a new decision rather than a row added here.
+//! **The block reads the cap and nothing else.** No key in it grants anything
+//! (`rule:packaging/a-guest-has-no-ambient-authority`), and a second key is a new decision rather
+//! than a row added here.
 //!
 //! **`System`-class and reloadable** (`crate::directive`'s `image.max_pixels` row). A program
 //! lowers the cap for one call through that call's own argument, so a request-set value would be a

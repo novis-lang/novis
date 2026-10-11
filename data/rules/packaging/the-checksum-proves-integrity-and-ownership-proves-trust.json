@@ -1,9 +1,7 @@
 {
   "title": "The checksum answers corruption; a cache directory another account can write is never used",
   "status": "shipped",
-  "because": [
-    "0281"
-  ],
+  "because": [],
   "seeAlso": [
     "config/ownership-is-the-trust-boundary",
     "config/opcache-file-cache-directives-are-system",

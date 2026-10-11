@@ -1,5 +1,5 @@
 --TEST--
-A `select` name is sent as it is written, so a `tainted` one does not compile on `search` or on `read` — ADR 0278 § 5 and `rule:security/tainted-qualifier`
+A `select` name is sent as it is written, so a `tainted` one does not compile on `search` or on `read` — `rule:security/tainted-qualifier`
 --FILE--
 <?nvs
 class Fields {

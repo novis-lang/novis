@@ -1,9 +1,7 @@
 {
   "title": "`foreach` drives exactly three subjects, and a fourth is refused where it is written",
   "status": "shipped",
-  "because": [
-    "0280"
-  ],
+  "because": [],
   "seeAlso": [
     "iteration/two-interfaces",
     "iteration/no-magic-collection-interfaces",

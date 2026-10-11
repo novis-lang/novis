@@ -1,5 +1,5 @@
 --TEST--
-Each `Filter` constructor but `approx`, which the Samba test server does not evaluate, matches the accounts it says it matches on the test directory, `all`, `any` and `not` combine them, and a `tainted` value with `*` in it matches only itself — ADR 0278 § 6 and `rule:core-classes/ldap-filter-is-a-value`
+Each `Filter` constructor but `approx`, which the Samba test server does not evaluate, matches the accounts it says it matches on the test directory, `all`, `any` and `not` combine them, and a `tainted` value with `*` in it matches only itself — `rule:core-classes/ldap-filter-is-a-value`
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");

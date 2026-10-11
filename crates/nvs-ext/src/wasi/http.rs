@@ -10,7 +10,8 @@
 //! behind [`Budget::send`] then asks the caller's `net.connect` again at every hop, so a redirect
 //! stays inside the caller's grant (`rule:security/extension-grants-are-an-intersection`).
 //!
-//! Decisions ADR 0246 § 7 left to this module, under the priority ordering:
+//! Decisions `rule:security/extension-grants-are-an-intersection` leaves to this module, under
+//! the priority ordering:
 //!
 //! - **Bodies cross whole, both ways.** A request is sent once its body is finished, or as soon as
 //!   it is polled when the guest never asked for a body, and the response's body is read whole

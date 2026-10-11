@@ -653,7 +653,7 @@ Either is taken up again only when a release makes its encoder separable — a P
 a caller's own series, or OTLP message types that do not require `opentelemetry_sdk` — and the
 manifests are read again before concluding either way.
 
-<sub>See also [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`observability/the-exporters-are-crates`](observability.md#observability-the-exporters-are-crates), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions).</sub>
 
 <a id="observability-speedscope-timeline-export"></a>
 

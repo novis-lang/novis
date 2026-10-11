@@ -1,6 +1,6 @@
 //! `Core\Ldap\Dn` for a Novis program: a DN built from parts with each value escaped, read from text an operator wrote, or taken from an entry the server sent
 //!
-//! ADR 0278 § 7, `rule:core-classes/ldap-dn-is-the-launderer`. The DN logic is
+//! `rule:core-classes/ldap-dn-is-the-launderer`. The DN logic is
 //! [`nvs_ldap::Dn`]'s, and every body here reads its arguments, calls it, and
 //! builds what it returns.
 //!

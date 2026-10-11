@@ -133,11 +133,15 @@ whose file name mentions PHP keep their names.
 - **A compatibility package that carries PHP's semantics** — an integer-keyed array class, a loose
   comparison helper, byte-counting string functions. Each one is a difference in a result, not a
   missing destination, and a package for it lets a ported program stay on PHP's semantics forever.
+- **A feature that reads a PHP-to-Novis table**: editor completion that offers PHP function names, or
+  a diagnostic clause naming the PHP function a call replaces. Each needs the table this rule forbids.
+- **A catalogue of divergences from PHP**, as a document or as a field on each rule. A divergence is a
+  relation to PHP, and PHP is not the reference: each behaviour is stated by its own rule.
 - **A clean-sheet syntax with no PHP shape.** It would remove the association and the temptation to
   promise compatibility, and it would throw away a syntax that is good, implemented and familiar.
   The harm is the promise, and this rule removes the promise while keeping the syntax.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader).</sub>
 
 <a id="programs-slice-ranking"></a>
 
@@ -239,7 +243,12 @@ tuning.
   state cannot leak between requests
   ([`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)).
 
-<sub>See also [`programs/program-id`](programs.md#programs-program-id), [`programs/three-claims`](programs.md#programs-three-claims), [`errors/propagation`](errors.md#errors-propagation). Decided in [0274](../decisions/0274.md).</sub>
+**Declined:**
+- **A correctness item in the ordering**, with or without a clause naming PHP. Correctness is not
+  something the ordering trades against latency or memory, so an item for it decides nothing, and the
+  rules and the conformance cases already own it.
+
+<sub>See also [`programs/program-id`](programs.md#programs-program-id), [`programs/three-claims`](programs.md#programs-three-claims), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="programs-implementing"></a>
 
@@ -261,7 +270,11 @@ per-request like every other object and nothing crosses an isolate boundary.
 
 The selector is a type rather than an attribute because a type is what gives the loop body something to
 call through: `object` is opaque, shape types describe data rather than methods, and bare `callable`
-carries no signature. An interface and a class both give it, so every other type argument is refused.
+carries no signature. An interface and a class both give it, so every other type argument is refused
+(`E0743`). A class selector lets a plugin family share an abstract base, with state and a template
+method an interface cannot carry, without declaring an interface beside the base to keep in step
+with it. **Membership is `is`**, so no second notion of "subclass" exists: `nvs_hir::implementors`
+walks `extends` as well as `implements` and counts a declaration as reaching itself.
 
 Answering the query means parsing and collecting declarations from every file under every autoload root
 — the one place resolution is not lazy, and the only thing in Novis that makes a compiled unit depend
@@ -273,9 +286,17 @@ many it calls. Type checking and lowering stay lazy regardless — a discovered 
 never checked past its declaration and never reaches codegen.
 
 - **Memory:** the scan's symbol entries are O(declarations under the autoload roots), held per host and
-  only by a program that runs a scan.
+  only by a program that runs a scan. A class selector is compile-time only and adds nothing to the
+  request path.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/constructors`](programs.md#programs-constructors). Decided in [0253](../decisions/0253.md).</sub>
+**Declined:**
+- **An `extending<T>()` member.** It is a second member answering the same walk with a different word,
+  and a program would have to learn which one applies to an abstract base that also implements an
+  interface.
+- **A hierarchy reader on `Core\Reflect\ClassInfo`** (`parent`, `interfaces`, `isAbstract`). It lets a
+  program filter a list it still cannot obtain without a scan.
+
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/constructors`](programs.md#programs-constructors).</sub>
 
 <a id="programs-implementing-with"></a>
 
@@ -325,7 +346,7 @@ checking, and nothing runs that did not run before.
 - **An interface that requires an attribute**, the compiler checking that every implementor's method
   carries it. That checks the duplication rather than removing it: the path is still written twice.
 
-<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking). Decided in [0253](../decisions/0253.md).</sub>
+<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking).</sub>
 
 <a id="programs-constructors"></a>
 
@@ -344,16 +365,27 @@ arguments, in order>)`, checked exactly as that anonymous function would be if i
 argument types, defaults and the visibility `new` faces there. No new calling path and no reflection is
 involved: the rows are what a program could have written by hand, had it known the list.
 
-`C` must be a `callable(...)` type whose return type is `T`, or the call is refused. A class whose
-constructor that anonymous function does not fit is refused on the call, naming the class, with the ordinary error
-attached as a note. The enumeration's no-argument-constructor demand does not apply here: this member
-is how a class whose constructor takes dependencies is enumerated.
+`C` must be a `callable(...)` type whose return type is `T`, or the call is refused (`E0838`). A class
+whose constructor that anonymous function does not fit — a wrong argument type, a missing required
+parameter, a constructor not visible at the call site — is refused on the call (`E0839`), naming the
+class, with the ordinary error attached as a note. The enumeration's no-argument-constructor demand
+(`E0744`) does not apply here: this member is how a class whose constructor takes dependencies is
+enumerated. Without it, a dependency arrives through a method called after construction, so an object
+is reachable half-built and every class owes a setter its type cannot require.
 
-Nothing is built until `make` is called. Each call allocates one callable per listed class, charged to
-the request and freed with the array, and calling it opts the program into the same scan the other
-enumeration members do.
+Nothing is built until `make` is called, and calling `constructors` opts the program into the same
+scan the other enumeration members do.
 
-<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`programs/implementing-with`](programs.md#programs-implementing-with), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0253](../decisions/0253.md).</sub>
+- **Memory:** each call allocates one callable per listed class, charged to the request and freed with
+  the array, and no listed object until its `make` is called.
+
+**Declined:**
+- **Class names to pass to `Core\Reflect::construct`.** It moves the constructor check from the call
+  site to run time, and the arguments lose their static types.
+- **Keeping the no-argument-constructor limit and documenting the second step.** It leaves an object
+  reachable half-built between construction and the setter call.
+
+<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`programs/implementing-with`](programs.md#programs-implementing-with), [`types/callable-signature`](types.md#types-callable-signature).</sub>
 
 <a id="programs-compile-target"></a>
 
@@ -907,7 +939,7 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
 - **No second way to do anything the language does.** The framework ships no collections of its own, no
   date type, no string helpers and no error hierarchy.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing). Decided in [0253](../decisions/0253.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing).</sub>
 
 <a id="programs-no-migration-runner"></a>
 

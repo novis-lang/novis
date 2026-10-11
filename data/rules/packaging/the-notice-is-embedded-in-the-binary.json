@@ -1,9 +1,7 @@
 {
   "title": "The notice and Novis's own license are compiled into the binary from the same tree",
   "status": "shipped",
-  "because": [
-    "0274"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/the-third-party-notice-is-generated-never-written-by-hand",
     "packaging/nvs-info-is-the-one-call"
