@@ -30,7 +30,7 @@ stages:
         shapes: []
   - id: 5
     title: the feature proofs
-    status: open
+    status: done
     extra:
       context:
         rules: [testing/feature-proofs, testing/one-slice-is-one-feature]
@@ -284,11 +284,13 @@ and the 25 Process files: `benches/members/core/Process*`, `tests/hostile/core/P
 
 ### 5. the feature proofs
 
-**Does:** Writes the feature proofs for `Core\Env::context`, the one new feature on the roster. An enum
-and a constant are not features (`bun nv proofs --group 'Core\Env'` lists methods only).
+**Does:** Writes the feature proofs for `Core\Env::context`, and the type proofs for the two enums
+`Core\Env::Context` and `Core\Env::Platform`, which the roster lists as types. A type owes an
+`about.md`, one example and one `covers:` case. The constant `Core\Env::OS` owes nothing.
 
 One file set: `docs/examples/core/Env/context/`, `tests/hostile/core/Env/context/`,
-`benches/members/core/Env/context.nvs`.
+`benches/members/core/Env/context.nvs`, `docs/examples/types/Env-Context/` and
+`docs/examples/types/Env-Platform/`.
 
 - **`about.md`** says what each case means in one line each.
 - **The examples:** print the kind of run; one file that serves a page in a request and tests itself
@@ -324,17 +326,19 @@ One file set: the files the two searches below print.
 
 ### State
 
-**Goal `env-context`: Stages 2, 3 and 4 are done.** `Core\Env::context(): Core\Env::Context` exists and passes its three Stage 3 checks. `Core\Env::OS` is typed `Core\Env::Platform`: the `PLATFORM` enum sits beside `CONTEXT` in `crates/nvs-stdlib/src/env.rs` and is registered beside it in `registry.rs`. The `OS` row is a `Const::EnumCase`, and a comparison with a string is `E0466`. An enum-typed constant needed one fix outside the registry: `ExprInfo::ClassConst` carries `enum_backing`, and `nvs-ir` emits the folded integer as the enum (`crates/nvs-ir/src/lower/expr.rs`, the `ClassConst` arm). A user-declared enum-typed constant takes the same path (not checked with a case). The rule `rule:core-classes/env-context` and the spec row state `Platform`. Every Process reader compares with `Core\Env::Platform::Windows`. Both Stage 4 checks pass. Nothing is blocked.
+**Goal `env-context`: Stages 2 to 5 are done.** `Core\Env::context(): Core\Env::Context` and `Core\Env::OS` typed `Core\Env::Platform` are on disk, with their rule, spec rows and checks. Stage 5's proofs are on disk: `docs/examples/core/Env/context/` (about and three examples), `tests/hostile/core/Env/context/` (the attack, its `nvs.toml` granting `script.spawn`, and `scripts/child.nvs`), `benches/members/core/Env/context.nvs`, and the type proofs `docs/examples/types/Env-Context/` and `docs/examples/types/Env-Platform/`. The `covers:` markers for the member and both enums are on the tests in `crates/nvs-stdlib/src/env.rs`. The `get`, `all` and `mode` bench figures were re-recorded, because `env.rs` changed. `bun nv proofs --gate` owes nothing across the roster. Nothing is blocked.
 
 The § *Standing decisions* calls stand as written. No session re-decides one.
 
 ### Next
 
-**Stage 5: the feature proofs for `Core\Env::context`.** One file set: `docs/examples/core/Env/context/`, `tests/hostile/core/Env/context/`, `benches/members/core/Env/context.nvs`. The `mode` siblings in each are the shape (`docs/examples/core/Env/mode/`, `tests/hostile/core/Env/mode/`, `benches/members/core/Env/mode.nvs`).
+**Stage 6, first group: the `Core\Test` and `Core\Test\Response` readers.** One file set: `docs/examples/core/Test/`, `docs/examples/core/Test-Response/`, `tests/hostile/core/Test/` and `tests/hostile/core/Test-Response/`, which are 37 of the 59 `LogicError $noRequest` files. The shape is `if (Core\Env::context() == Core\Env::Context::Request) { … } else { … }`, as in `docs/examples/core/Env/context/02-serve-a-page-and-test-it.nvs:5` (§ 6 in this file, `rule:core-classes/env-context`).
 
-- [ ] **`about.md` and three examples** (§ 5 in this file, `rule:testing/feature-proofs`). The seven-case `match` is the `Kind` class at `crates/nvs-cli/tests/env_context.rs:42`. `bun nv proofs --id 'Core\Env::context'` prints what is owed.
-- [ ] **The attack and the bench** (§ 5 in this file). The bench is one call per round, with 0 allocations and 0 calls declared, in the shape of `benches/members/core/Env/mode.nvs:1`.
+- [ ] **The `Core\Test` examples and attacks**: `docs/examples/core/Test/request/01-send-one-request.nvs:12` and its siblings, `docs/examples/core/Test/serverUrl/`, `tests/hostile/core/Test/`. Each comment is rewritten whole, and each `.out` is re-blessed with `bun nv proofs --bless`.
+- [ ] **The `Core\Test\Response` examples and attacks**: `docs/examples/core/Test-Response/body/01-read-what-the-page-wrote.nvs:13` and the other six member folders under `docs/examples/core/Test-Response/`, and `tests/hostile/core/Test-Response/`.
+- [ ] **The benches**: `benches/members/core/Test-Response/body.nvs:27` and the rest of `benches/members/core/{Test,Test-Response,Html,Response}`, 15 files. Re-record a figure only if `bun nv proofs --gate` asks.
 
 ### Backlog
 
-- Stage 6: move the 59 `catch (LogicError $noRequest)` files and the 19 `catch (RuntimeError $inside…)` files to `Core\Env::context()`. The three files whose subject is the throw stay (§ 6 in this file).
+- Stage 6, second group: the 19 `RuntimeError $inside…` files (`docs/examples/core/Html/later/01-two-parts-of-a-page.nvs:9`, `docs/examples/core/Response/slotted/`, 11 `.nvst` cases), the 6 `.nvst` cases and `website/snippets/guides/testing/test-a-route`. The three files whose subject is the throw stay (§ 6 in this file).
+- The Stage 6 check greps `*.md`, and § 6 of this file quotes both `catch` lines literally. Reword § 6 so it names the pattern without matching it, or the check stays red after every reader has moved.
