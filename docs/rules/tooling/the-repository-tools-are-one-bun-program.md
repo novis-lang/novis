@@ -10,8 +10,13 @@ of the `covws` build, and it has no dependencies. `bun nv audit python` fails on
 name as allowed, and on a document that tells a reader to run a Python tool.
 
 This is the repository's tooling, not the language's: nothing here reaches the `nvs` binary, a Novis
-program or a request.
+program or a request. What it costs is that every developer and every CI job needs Bun, which is one
+binary on Windows, macOS and Linux.
 
 **Declined:**
+- **Keeping the Python scripts.** Each script carried its own parser for a shape another script also
+  parsed, and two readers of one shape drifted apart.
+- **More runtime dependencies**, such as a schema or a command-line library. Each one is a
+  supply-chain input to every contributor's machine, and the schema builder is a few hundred lines.
 - **Reading Rust source with regular expressions over lexed text.** A wrong match there does not fail
   loudly: it gives two different programs one digest, and a check that should run is skipped.

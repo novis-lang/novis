@@ -1875,13 +1875,18 @@ of the `covws` build, and it has no dependencies. `bun nv audit python` fails on
 name as allowed, and on a document that tells a reader to run a Python tool.
 
 This is the repository's tooling, not the language's: nothing here reaches the `nvs` binary, a Novis
-program or a request.
+program or a request. What it costs is that every developer and every CI job needs Bun, which is one
+binary on Windows, macOS and Linux.
 
 **Declined:**
+- **Keeping the Python scripts.** Each script carried its own parser for a shape another script also
+  parsed, and two readers of one shape drifted apart.
+- **More runtime dependencies**, such as a schema or a command-line library. Each one is a
+  supply-chain input to every contributor's machine, and the schema builder is a few hundred lines.
 - **Reading Rust source with regular expressions over lexed text.** A wrong match there does not fail
   loudly: it gives two different programs one digest, and a check that should run is skipped.
 
-<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited). Decided in [0221](../decisions/0221.md).</sub>
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited).</sub>
 
 <a id="tooling-a-repository-fact-is-one-json-record"></a>
 
@@ -1893,17 +1898,23 @@ A fact a repository tool reads — a goal, the chain, a rule's structure, a deci
 a playbook bullet, a plan field — is one JSON file under `data/`, holding one entity. Its type is
 declared once in `tools/nv/schema/`, and that declaration is the static type, the runtime check and
 the JSON Schema together. `tools/nv/lib/store.ts` is the only code that writes a record: keys in
-schema order, two-space indent, LF and one trailing newline. So one value has one text, and git merges
-two edits to one record line by line.
+schema order, two-space indent, LF and one trailing newline. So one value has one text, loading a
+record and writing it back changes nothing, and git merges two edits to one record line by line. No
+record is TOML.
 
 An id is a slug or a number, and it never changes. A reference is an id, and `bun nv check` fails on
 one that names no record.
 
 Prose stays under `docs/` at its own path — a rule fragment, a decision record, a goal's prose, a
 reference chapter — so every citation into it still resolves. Where a prose file repeats a field a
-record holds, the record is the authority and a check compares the copy to it.
+record holds, the record is the authority and a check compares the copy to it. A shape that once had
+a checker of its own is a schema, and `bun nv check` is the one audit of all of them.
 
-<sub>See also [`tooling/the-repository-tools-are-one-bun-program`](tooling.md#tooling-the-repository-tools-are-one-bun-program), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited). Decided in [0221](../decisions/0221.md).</sub>
+**Declined:**
+- **TOML records.** A second writer cannot reproduce a TOML file's text from its value without a
+  formatting library, and JSON is what the website and the editors already read.
+
+<sub>See also [`tooling/the-repository-tools-are-one-bun-program`](tooling.md#tooling-the-repository-tools-are-one-bun-program), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited).</sub>
 
 <a id="tooling-a-rendered-file-is-committed-and-never-edited"></a>
 
@@ -1920,9 +1931,13 @@ The command that writes it has a check form that writes nothing and fails when t
 matches its sources — `bun nv render --check` for the website's pages and data, `bun nv rules --render
 --check` for the rulebook's chapters and `docs/ground-rules.md`. CI's `docs` job runs both. After a
 merge conflict in a rendered file, it is rendered again from the merged
-records, never merged by hand.
+records, never merged by hand. A rendered file shows in a diff beside the record change that caused it.
 
-<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0221](../decisions/0221.md).</sub>
+**Declined:**
+- **Rendering on demand and committing nothing generated.** GitHub would show no rulebook, and a
+  reader would need Bun to read the rules.
+
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record).</sub>
 
 <a id="tooling-the-chain-names-its-live-goal"></a>
 
