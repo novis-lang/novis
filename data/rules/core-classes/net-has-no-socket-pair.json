@@ -1,0 +1,10 @@
+{
+  "title": "There is no `Core\\Net` socket pair: PHP's `stream_socket_pair` is dropped, because no process boundary can receive one",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "core-classes/net-one-api-three-transports",
+    "security/isolate-shares-nothing"
+  ],
+  "guardedBy": []
+}

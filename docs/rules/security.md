@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*17 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -1059,11 +1059,11 @@ no policy of its own.
   private address, a container network or loopback, so every ordinary deployment would be denied
   ([`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)).
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0162](../decisions/0162.md), [0182](../decisions/0182.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0182](../decisions/0182.md).</sub>
 
 <a id="security-net-listen-is-a-separate-grant-from-net-connect"></a>
 
-## The grant follows what the program is doing rather than the transport: reaching out is `net.connect`, binding is `net.listen`, and neither widens the other  *(designed — not yet in the compiler)*
+## The grant follows what the program is doing rather than the transport: reaching out is `net.connect`, binding is `net.listen`, and neither widens the other
 
 `rule:security/net-listen-is-a-separate-grant-from-net-connect`
 
@@ -1092,7 +1092,27 @@ reason: an operator writing a range hands back more than the endpoint they meant
 value is that a reviewer can see what a deployment opened. An entry that does not parse as an endpoint
 matches nothing.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports). Decided in [0162](../decisions/0162.md).</sub>
+Three grants are three keys, and that is a real cost: an operator whose program binds writes
+`net.listen` beside `net.connect`, and a reviewer reads both. It buys the property the roster exists
+for, a grant that says one thing. A refusal names the grant that was missing and what was asked for:
+the endpoint for `net.listen`, the canonical path for `net.local`, and for `net.connect` either the
+ungranted host or the denied address it resolved to. A datagram refused at its destination is refused
+at the send, not at the open.
+
+A datagram's check at each send is a resolution on a hot path, the same one a TCP connect pays once.
+If a datagram-heavy program shows it dominating, the answer is a pin cached on the socket for as long
+as the destination is unchanged, never a grant asked once at the bind.
+
+**Declined:**
+- **`net.connect` widened to cover binds and socket paths.** One name would cover three guarantees,
+  an operator granting an outbound host would silently grant a listener, and the address table it
+  carries would be wrong for two of the three.
+- **A datagram socket granted once, at the bind.** It makes UDP a way around the address policy.
+- **A denied-range table for `net.listen`, inverted so that public addresses are denied.** It reads
+  as symmetry and is a second policy to keep in step with the first, for a risk that naming the
+  endpoint already answers exactly.
+
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports).</sub>
 
 <a id="security-the-policy-lives-in-the-capability"></a>
 

@@ -22,3 +22,13 @@ expressed over the reactor is cut, not given a loop of its own.
 The connected transports answer a `Read` and a `Write` shaped like every other stream in the language.
 A datagram socket does not, because it has no stream to read: it sends and receives whole messages,
 addressed one at a time.
+
+**Memory:** each open socket costs one reactor registration, held by the request that opened it
+(`rule:core-classes/net-a-socket-does-not-outlive-its-request`).
+
+**Declined:**
+- **A stream-shaped surface where one member opens any transport.** It is PHP's shape, and the
+  argument's text would decide what gets opened, which `rule:security/a-path-is-not-a-url` forbids.
+- **A second event loop for the sockets a program opens.** Two poll structures must be made to agree
+  by hand and disagree only under load (`rule:concurrency/one-scheduler`).
+- **A member for a connected pair of anonymous sockets.** `rule:core-classes/net-has-no-socket-pair`.

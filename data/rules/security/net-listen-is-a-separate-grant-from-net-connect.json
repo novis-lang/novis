@@ -1,9 +1,7 @@
 {
   "title": "The grant follows what the program is doing rather than the transport: reaching out is `net.connect`, binding is `net.listen`, and neither widens the other",
-  "status": "designed",
-  "because": [
-    "0162"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "security/net-address-policy",
     "config/net-local-is-named-and-not-on-the-roster",
@@ -12,6 +10,7 @@
   ],
   "guardedBy": [
     "tests/conformance/core/net-a-listen-grant-does-not-reach-a-host.nvst",
-    "tests/conformance/core/net-a-connect-grant-does-not-bind-a-port.nvst"
+    "tests/conformance/core/net-a-connect-grant-does-not-bind-a-port.nvst",
+    "tests/conformance/core/net-a-datagram-send-asks-the-outbound-grant-and-the-bind-did-not-buy-it.nvst"
   ]
 }

@@ -2,7 +2,7 @@
 // `Core\Net` over TCP, as a program: one process binds a port, dials itself,
 // and sends a line back the way it came.
 //
-// [ADR 0162](/docs/decisions/0162.md) § 7 is the surface — one class over three
+// `rule:core-classes/net-one-api-three-transports` is the surface — one class over three
 // transports, five entry points, and `accept` as a member on the listener
 // rather than a sixth way in. Two of those five are on disk and this file is
 // both of them.
@@ -15,8 +15,8 @@
 // `nvs.toml` grants this file three things and the header of its block says
 // why each is separate. `net.listen` is the bind, `net.connect` is the dial,
 // and `net.internal` is what lets the dial reach `127.0.0.1` at all — the outbound
-// address policy denies loopback by default, and § 8 of ADR 0162 is why holding the first
-// of those three does not buy the second.
+// address policy denies loopback by default. Holding the first of those three does not
+// buy the second (`rule:security/net-listen-is-a-separate-grant-from-net-connect`).
 
 // 1. The bind. Port `0` asks the operating system to pick, which is the only
 // way a fixture can take a port without racing whatever else is on this

@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*26 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 95 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -3487,34 +3487,44 @@ The connected transports answer a `Read` and a `Write` shaped like every other s
 A datagram socket does not, because it has no stream to read: it sends and receives whole messages,
 addressed one at a time.
 
-<sub>See also [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`core-classes/net-udp-carries-no-reliability-layer`](core-classes.md#core-classes-net-udp-carries-no-reliability-layer). Decided in [0162](../decisions/0162.md).</sub>
+**Memory:** each open socket costs one reactor registration, held by the request that opened it
+([`core-classes/net-a-socket-does-not-outlive-its-request`](core-classes.md#core-classes-net-a-socket-does-not-outlive-its-request)).
+
+**Declined:**
+- **A stream-shaped surface where one member opens any transport.** It is PHP's shape, and the
+  argument's text would decide what gets opened, which [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url) forbids.
+- **A second event loop for the sockets a program opens.** Two poll structures must be made to agree
+  by hand and disagree only under load ([`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler)).
+- **A member for a connected pair of anonymous sockets.** [`core-classes/net-has-no-socket-pair`](core-classes.md#core-classes-net-has-no-socket-pair).
+
+<sub>See also [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`core-classes/net-udp-carries-no-reliability-layer`](core-classes.md#core-classes-net-udp-carries-no-reliability-layer).</sub>
 
 <a id="core-classes-net-a-socket-does-not-outlive-its-request"></a>
 
-## A `Core\Net` socket closes with the request that opened it, so there is no persistent connection and no pool across requests  *(designed — not yet in the compiler)*
+## A `Core\Net` socket closes with the request that opened it, so there is no persistent connection and no pool across requests
 
 `rule:core-classes/net-a-socket-does-not-outlive-its-request`
 
 A socket opened through `Core\Net` closes with the request that opened it. There is no persistent
 connection, no pool held across requests and no handle a later request can find, which is
 [`security/no-cross-request-state`](security.md#security-no-cross-request-state) applied to sockets, the subsystem where a persistent connection
-is the most tempting shape: no member opens one.
+is the most tempting shape: no member opens one. PHP's `pfsockopen` maps to `Core\Net::connect` with its
+persistent half dropped.
 
-What this spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): one reactor registration per open socket,
-attributable to the request that opened it and released with its arena. The process therefore holds
-one registration per socket **in flight** and nothing per socket served, which is the O(in-flight)
-bound that separates a cost from a leak.
+**Memory:** one reactor registration per open socket, attributable to the request that opened it and
+released with its arena. The process holds one registration per socket **in flight** and nothing per
+socket served, which is the O(in-flight) bound that separates a cost from a leak.
 
 A program that wants a connection to survive a request wants a store, and the stores are the ones
 already granted by name — [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)'s shared
 cache and [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s database — where the endpoint is an operator's and the
 lifetime is the runtime's.
 
-<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0162](../decisions/0162.md).</sub>
+<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="core-classes-net-udp-carries-no-reliability-layer"></a>
 
-## A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them  *(designed — not yet in the compiler)*
+## A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them
 
 `rule:core-classes/net-udp-carries-no-reliability-layer`
 
@@ -3531,4 +3541,19 @@ where it lands.
 A program that builds ordering or retries over this surface is making that choice explicitly, which is
 the point: the trade is visible in the program rather than hidden in a member's contract.
 
-<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0162](../decisions/0162.md).</sub>
+<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`core-api/tier-placement`](core-api.md#core-api-tier-placement).</sub>
+
+<a id="core-classes-net-has-no-socket-pair"></a>
+
+## There is no `Core\Net` socket pair: PHP's `stream_socket_pair` is dropped, because no process boundary can receive one
+
+`rule:core-classes/net-has-no-socket-pair`
+
+`Core\Net` has no member that opens a connected pair of anonymous sockets, and PHP's
+`stream_socket_pair` is a `dropped` row. A socket pair exists to be handed to a forked child. Novis has
+no fork, and the one process boundary it has is an isolate, which shares nothing
+([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)) and so cannot receive a descriptor. A member for it would have
+no caller, and a PHP function with no Novis answer is a `dropped` row, never a member written to fill a
+hole.
+
+<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing).</sub>

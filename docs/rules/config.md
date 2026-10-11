@@ -2101,7 +2101,7 @@ as strict. `Core\Net::connect` still may not take a path, because it is not the 
 a host and a path are separately-typed arguments to separate members, which is
 [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url) holding by construction rather than by a check.
 
-<sub>See also [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/net-address-policy`](security.md#security-net-address-policy). Decided in [0162](../decisions/0162.md).</sub>
+<sub>See also [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/net-address-policy`](security.md#security-net-address-policy).</sub>
 
 <a id="config-the-extension-set-is-in-every-unit-key"></a>
 
