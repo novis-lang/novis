@@ -1,9 +1,7 @@
 {
   "title": "`[http.client.proxy]` is the only way an outbound call is proxied: `System` class, written by the operator, and never a call option or an environment variable",
   "status": "shipped",
-  "because": [
-    "0182"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",
     "http-server/the-client-trust-roots-are-the-operators",

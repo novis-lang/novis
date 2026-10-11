@@ -1554,7 +1554,33 @@ authentication and any other refusal of `CONNECT` is an `IOError`; neither is re
 ([`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed)), which retries an answer from the destination,
 and a proxy that refused the tunnel is not one.
 
-<sub>See also [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0182](../decisions/0182.md).</sub>
+**The pool key carries the proxy.** A tunnelled connection and a direct one are never confused, a
+bypassed host's connections are their own, and a reload that changes the block leaves the old value's
+connections unmatchable, so they age out rather than serve a call the operator has redirected
+([`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned)).
+
+- **Memory:** a new tunnelled connection pays one `CONNECT` round trip and a few hundred octets of
+  request line and response head, released with the handshake. A request pays nothing more, because a
+  tunnelled connection is pooled like any other and the pool's existing cap bounds it. The process holds
+  the parsed block and, with `password_file`, the credential read once at boot.
+
+**Declined:**
+- **No proxy support.** A deployment whose only egress is a forward proxy would run no Novis at all
+  rather than run it with a narrower policy.
+- **Reading `HTTP_PROXY`, `HTTPS_PROXY` or `NO_PROXY`.** Familiarity does not buy back ambient,
+  process-wide control over where every outbound byte goes, and a request header landing in the same
+  namespace is a known hazard.
+- **An absolute-form request line for `http` destinations.** It is a second code path on which the proxy
+  reads and may rewrite the whole request, to save one round trip on the scheme this client uses least.
+- **Proxying `Core\Net`.** A datagram has no `CONNECT`, and a raw socket a program opened by address is not
+  what a forward proxy for HTTP is for.
+- **A capability for "may be proxied".** The proxy is where the deployment's packets go, not a right a
+  program holds; a grant would imply a program could ask not to be proxied.
+- **TLS to the proxy, and a proxy per destination.** The first is a second trust decision about whose roots
+  verify the proxy; the second is a routing table rather than a block. Neither has a deployment asking
+  for it.
+
+<sub>See also [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value).</sub>
 
 <a id="http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"></a>
 
@@ -1595,7 +1621,17 @@ A program cannot tell which word is written. There is no member, option or const
 same reason there is no per-call spelling: whether this deployment's egress is proxied is not a thing
 program code decides or branches on.
 
-<sub>See also [`http-server/an-outbound-proxy-is-operator-configured`](http-server.md#http-server-an-outbound-proxy-is-operator-configured), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline). Decided in [0182](../decisions/0182.md).</sub>
+**Declined:**
+- **A proxy that always resolves**, `CONNECT` with the host name every time. It gives up the pin in every
+  deployment, including the many whose proxy can dial an address.
+- **A proxy that never resolves**, `CONNECT` with the approved address every time. It cannot run in a
+  network where Novis has no DNS route outward.
+- **A default for `resolve`, with an override.** Whichever default is picked is wrong somewhere, and
+  `proxy` as the default is wrong silently.
+- **Warning once per process, at the first proxied call.** A long-lived server writes that before anyone
+  is watching and never again; the boot log is where a deployment's posture is read.
+
+<sub>See also [`http-server/an-outbound-proxy-is-operator-configured`](http-server.md#http-server-an-outbound-proxy-is-operator-configured), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline).</sub>
 
 <a id="http-server-the-client-trust-roots-are-the-operators"></a>
 
