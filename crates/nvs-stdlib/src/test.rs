@@ -451,7 +451,7 @@ const ANSWER: &[CoreOption] = &[
     },
     // A `Core\Http\TlsInfo` and not a bag of its fields, because an option is
     // never itself a bag: `Core\Test::tlsSession` is the member that takes the
-    // fields and builds one (ADR 0217).
+    // fields and builds one.
     CoreOption {
         name: "tls",
         ty: CoreTy::Instance(crate::http::TLS_INFO_NAME),
@@ -2490,7 +2490,8 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Test::tlsSession({version?, cipher?, verified?, subject?, issuer?, expiry?}):
     /// Core\Http\TlsInfo` — a TLS session a test describes, for the reply
-    /// `Core\Test::answerHttp`'s `tls` option makes report it (ADR 0217).
+    /// `Core\Test::answerHttp`'s `tls` option makes report it
+    /// (`rule:testing/an-outbound-call-is-answered-from-a-table`).
     ///
     /// `nvs_host::tls::described` checks the version and the suite and issues
     /// the chain; this reads the options and fills the two defaults that need

@@ -1713,7 +1713,7 @@ The chain is `tainted` and the timings are not here: where a call's time went is
 ([`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind)), and a second surface for one measurement is the copy
 that disagrees.
 
-<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0217](../decisions/0217.md).</sub>
+<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object).</sub>
 
 <a id="http-server-an-outbound-socket-is-opened-like-an-outbound-call"></a>
 

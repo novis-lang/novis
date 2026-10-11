@@ -56,7 +56,7 @@ webpki-roots.workspace = true
 x509-parser.workspace = true
 sha2.workspace = true
 base64.workspace = true
-# `Core\Test::tlsSession`'s chain (ADR 0217): `src/tls.rs`'s `described` issues a
+# `Core\Test::tlsSession`'s chain: `src/tls.rs`'s `described` issues a
 # real leaf and CA certificate, so every `Core\Http\TlsInfo` member reads a
 # session a test describes exactly as it reads a peer's. The handshake tests in
 # `src/tls.rs` and `net.rs` sign the certificates their real peers present

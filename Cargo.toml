@@ -302,7 +302,7 @@ windows-sys = { version = "0.61", features = [
 # module doc is the home of that decision and of what an operator adds to it.
 # `rcgen` issues certificates on the same provider, so the two share one crypto
 # implementation: the handshake tests' peers, and the chain
-# `Core\Test::tlsSession` describes (ADR 0217), which puts it in the shipped
+# `Core\Test::tlsSession` describes, which puts it in the shipped
 # binary. It is reached from that one member and never from a request.
 rustls = { version = "0.23", default-features = false, features = [
     "std",
