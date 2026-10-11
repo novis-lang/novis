@@ -18,3 +18,10 @@ This is not tolerance invented for convenience: the runtime already hands a call
 it declares, which is what lets a one-parameter callback satisfy the `Core` convention that every
 callback is offered value *and* key. The type system describes that behaviour. An exact-arity rule
 would instead grow an unused `$key` parameter across every callback ever written.
+
+**Declined:**
+- **Exact arity.** Every callback in every program and test would grow an unused parameter, and the
+  runtime's trimming would become dead code.
+- **Exact arity for a typed `callable`, trimming for a bare one.** Two arity rules, chosen by whether
+  the callee annotated, which is invisible at the call site where the error appears. Adding a
+  signature would then break every short callback.

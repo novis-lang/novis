@@ -1,9 +1,7 @@
 {
   "title": "`callable` is satisfied by an anonymous function or a method reference and by nothing else, and no object is callable",
   "status": "shipped",
-  "because": [
-    "0136"
-  ],
+  "because": [],
   "seeAlso": [
     "types/anonymous-function",
     "types/callable-is-the-only-function-type",

@@ -4705,7 +4705,7 @@ pub mod code {
     /// `callable(int $x): string` — a parameter name inside a `callable` type,
     /// `rule:types/callable-signature`.
     ///
-    /// The band's first code, claimed by ADR 0136 § *Diagnostics* before
+    /// The band's first code, claimed for `rule:types/callable-signature` before
     /// anything below it was written, which is why it sits ahead of the
     /// numbers rather than filling a hole. A name in the type would imply
     /// calling through the value by name, which nothing supports; reported

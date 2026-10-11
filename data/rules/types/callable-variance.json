@@ -1,9 +1,7 @@
 {
   "title": "A callable's parameters are contravariant and its return type covariant",
   "status": "shipped",
-  "because": [
-    "0136"
-  ],
+  "because": [],
   "seeAlso": [
     "types/callable-signature",
     "types/callable-arity",

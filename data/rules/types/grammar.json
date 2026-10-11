@@ -1,9 +1,7 @@
 {
   "title": "The type grammar is a closed set of atoms under unions and intersections",
   "status": "shipped",
-  "because": [
-    "0136"
-  ],
+  "because": [],
   "seeAlso": [
     "types/declaration",
     "types/unions-and-mixed",

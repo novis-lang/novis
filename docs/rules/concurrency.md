@@ -152,7 +152,7 @@ and each member refuses the other's subject.
 - **One untyped signature answering `array<mixed>`.** It is simpler to declare and puts a cast at every
   call site, which costs more than the type the registry carries for this one parameter.
 
-<sub>See also [`types/object-top`](types.md#types-object-top), [`core-api/shape-rules`](core-api.md#core-api-shape-rules). Decided in [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/object-top`](types.md#types-object-top), [`core-api/shape-rules`](core-api.md#core-api-shape-rules).</sub>
 
 <a id="concurrency-an-all-field-answers-what-its-callable-declares"></a>
 
@@ -176,7 +176,7 @@ naming: until a `callable` carried a signature, the type existed only at the wri
 framework storing callables in a variable could not use `all` at all. It can now, and it pays only
 for the signatures it declines to write.
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type). Decided in [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type).</sub>
 
 <a id="concurrency-map-preserves-keys-and-order"></a>
 

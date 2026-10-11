@@ -292,7 +292,7 @@ returns (`rule:iteration/generators`), so the staged cell is gone before the fir
 § 2's by-value capture lets it outlive every frame in scope where it was written, so there is no frame whose
 death the copy-back could be ordered against — `E0493`,
 `nvs_types::expr::calls::report_by_reference_parameter`. A written signature
-([0136](../decisions/0136.md)) does not reopen it: that gives a site a parameter list to
+(`rule:types/callable-signature`) does not reopen it: that gives a site a parameter list to
 read and still no call site at which to stage a cell. Neither is a lowering we
 chose not to write: there is no representation either could keep instead, because copying the value in would
 stop being a reference, which is the whole observable point of `inout`. The replacements are the ones those
@@ -336,7 +336,7 @@ inside `E04xx` reuses a retired number, which the same promise forbids. `bun nv 
 whose max-plus-one would leave it as **full** rather than handing out the number past its end, so the
 next session reads this decision off the tool instead of re-deriving it. `E08xx` was held unallocated for
 whichever band filled next, and types is what filled it — a second time, at `E0799` — so
-[0136](../decisions/0136.md) opens **`E08xx` at `E0800`** for the diagnostics a
+`rule:types/callable-signature` opens **`E08xx` at `E0800`** for the diagnostics a
 written `callable` signature needs, a third row in that legend table for the one stage. `E10xx` is the
 reserve that replaces it, `E09xx` being internal compiler errors.
 

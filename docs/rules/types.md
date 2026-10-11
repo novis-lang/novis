@@ -174,7 +174,7 @@ name already says. The refusal recovers as `mixed`, which is what keeps one miss
 
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type).</sub>
 
 <a id="types-integer-literals"></a>
 
@@ -1638,7 +1638,7 @@ that made it, so "go to definition" on any callable value lands on real code.
 - **A dedicated `MethodRef` or `FunctionRef` type.** A second type with no behaviour of its own adds
   surface and nothing else ([`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type)).
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature). Decided in [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type), [`types/callable-signature`](types.md#types-callable-signature).</sub>
 
 <a id="types-anonymous-function"></a>
 
@@ -1703,11 +1703,41 @@ reaches a callable whose type names its parameters, the arguments are proven at 
 per-argument tag check is **not emitted**; the metadata stays on every callable, because bare `callable`
 still needs it and an anonymous function does not know where it is written which kind of site will call it.
 
-The two binding-site variants that stood in for this — a callback-return parameter and a shape of
-callbacks — are retired, and the restriction that a shape's every field be a *written* anonymous function
-goes with them, because a `callable(): T`-typed variable now carries what the field needs.
+**The reason is safety, not convenience.** A compiled callable reads each argument at its own declared
+representation, so a mismatched argument is reinterpreted: an `int` read as a string pointer is an
+arbitrary dereference, not a fault. A bare `callable` guards that with a runtime tag check per
+argument, per call. A written signature discharges the same guard at compile time, as an error where
+the mismatch is written. `Core\Arr::map($ints, fn (string $s): string => $s)` over an `array<int>`
+does not compile.
 
-<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values). Decided in [0136](../decisions/0136.md).</sub>
+The parameter list needs no trial parse: a `(` after `callable` in a type position can only open a
+parameter list, because a type position has no call syntax to confuse it with.
+
+The binding-site variant that stood in for a callback's return type is retired: every `Core`
+signature that used it writes an ordinary `callable(T, string): U` instead, and a type variable binds
+by walking into it the way it walks into `array<T>`. The restriction that a shape's every field be a
+*written* anonymous function goes too, because a `callable(): T`-typed variable now carries what the
+field needs. The shape-of-callables type that `Core\Task::all` takes stays, as a bound and nothing
+more: no type variable can be bounded, and without it `Task::all(5)` would compile and answer `mixed`.
+What it accepts is ordinary assignability, and what it binds is the same structural walk.
+
+- **Memory:** none. A written signature adds no runtime representation, no heap shape and no
+  per-callable growth. The parameter tags and the arity stay on every callable value.
+
+**Declined:**
+- **Angle brackets, `callable<User, string, string>`.** The return type would be positional and
+  unmarked, and `callable<void>` reads as taking a `void`. Seeing the return type is worth more than
+  matching the bracket shape of `array<T>`.
+- **An optional return type.** `callable(int)` would be a third level of partial knowledge that still
+  cannot bind a result type variable, so it buys argument checking at the price of a second syntax.
+- **Optional and variadic parameters in a callable type.** `callable(int, ?string = null): void` and
+  `callable(int, ...string): void` do not parse. The prefix rule ([`types/callable-arity`](types.md#types-callable-arity))
+  already covers a callback that ignores trailing arguments, and no `Core` callback's own arity
+  varies.
+- **`Closure` as a second name for a typed signature.** One function type is enough
+  ([`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type)).
+
+<sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values).</sub>
 
 <a id="types-callable-arity"></a>
 
@@ -1736,7 +1766,14 @@ it declares, which is what lets a one-parameter callback satisfy the `Core` conv
 callback is offered value *and* key. The type system describes that behaviour. An exact-arity rule
 would instead grow an unused `$key` parameter across every callback ever written.
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/callable-variance`](types.md#types-callable-variance). Decided in [0136](../decisions/0136.md).</sub>
+**Declined:**
+- **Exact arity.** Every callback in every program and test would grow an unused parameter, and the
+  runtime's trimming would become dead code.
+- **Exact arity for a typed `callable`, trimming for a bare one.** Two arity rules, chosen by whether
+  the callee annotated, which is invisible at the call site where the error appears. Adding a
+  signature would then break every short callback.
+
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/callable-variance`](types.md#types-callable-variance).</sub>
 
 <a id="types-callable-variance"></a>
 
@@ -1766,7 +1803,16 @@ check is discharged entirely in the checker. Same shape of question, different c
 answer. What it buys is that a helper written once as `fn (mixed $v): string` stays assignable
 everywhere, which is the whole reason such a helper is written.
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/callable-arity`](types.md#types-callable-arity), [`types/arrays`](types.md#types-arrays). Decided in [0136](../decisions/0136.md).</sub>
+This is the first place a type is neither invariant nor identical-only, so it is one more rule to
+know. It is spent to keep reusable helpers assignable without a conversion at every call.
+
+**Declined:**
+- **Invariance, matching `array<T>`.** It copies the array's answer without the array's reason, since
+  there is no restamp here, and it puts an `as` at every call of a reusable helper.
+- **Invariant parameters with a covariant return.** It refuses the widely-typed helper, which is the
+  reusable one, so it keeps the half of the rule that matters least.
+
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/callable-arity`](types.md#types-callable-arity), [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="types-anonymous-function-parameter-inference"></a>
 
@@ -1792,7 +1838,11 @@ dynamic one while writing *less*: `$u->name` stops being an erased-receiver fetc
 A block-bodied `fn` still declares its own return type; inferring one under an expected type is
 whole-body return-type inference and is not part of this ([`types/anonymous-function`](types.md#types-anonymous-function)).
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0136](../decisions/0136.md).</sub>
+**Declined:**
+- **Inferring the return type too, under an expected callable type.** It would make every return
+  path the checker reads part of this rule, for a declaration the block body already writes.
+
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/erased-member-access`](types.md#types-erased-member-access).</sub>
 
 <a id="types-callable-is-the-only-function-type"></a>
 

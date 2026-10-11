@@ -1032,7 +1032,7 @@ A `callable` may carry its signature. The resolvability this rule is after comes
 the value's creation site rather than from the static type, so it holds whether or not the slot being
 filled declares one.
 
-<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0136](../decisions/0136.md).</sub>
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability).</sub>
 
 <a id="expressions-no-partial-application"></a>
 

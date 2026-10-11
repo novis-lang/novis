@@ -1,9 +1,7 @@
 {
   "title": "An unannotated `fn` parameter takes its type from the position the anonymous function is written in",
   "status": "shipped",
-  "because": [
-    "0136"
-  ],
+  "because": [],
   "seeAlso": [
     "types/callable-signature",
     "types/anonymous-function",
