@@ -20,6 +20,16 @@ or `use` applied, and the compiler loads that class through `rule:programs/autol
 codes `Bogus::class` and `Rock::class` get. A class constant, a concatenation and a variable are values
 built at run time, and they are checked when they arrive against the classes the program loaded.
 
+The literal is the whole name because the same text built at run time gets no namespace and no
+imports, and the two must name the same class; `E0303`'s help says so. It is read parenthesized or
+not, as identifier segments separated by `\`, and a leading `\` does not parse
+(`rule:statements/a-leading-separator-does-not-parse`). Loading it while compiling is what makes the
+literal work: `rule:programs/no-runtime-autoload` closes the file graph before the program runs, so a
+literal looked up at run time finds its class only when another line names it, and compiles cleanly
+before it throws on its first run. Under `as ?class<T>` a literal is refused the same way, because a
+decided operand has no run-time failure for the `?` to turn into `null`
+(`rule:expressions/nullable-conversion-availability`).
+
 ```nvs
 class<Shop\Animal> $c = 'Shop\Dog' as class<Shop\Animal>;   // loads src/Dog.nvs while compiling
 ?class<Shop\Animal> $d = $name as ?class<Shop\Animal>;       // null unless that class is loaded
@@ -60,3 +70,8 @@ and ordering one is refused with the other unordered types (`rule:types/ordering
 - **A bare `string` accepted at the three sites when the base is written beside it.** The check moves
   from the source to every use, so a string flows through the program unchecked and one forgotten
   annotation is PHP's behaviour (`rule:types/class-reference-sites`).
+- **Resolving a string literal through the file's namespace and imports**, as `::class` resolves. The
+  same text built at run time would name a different class, and the run-time lookup has no imports to
+  apply.
+- **A diagnostic code of its own for the literal.** Its mistakes are the ones `::class` already
+  reports, and one code per mistake keeps `nvs agent show` to one page.
