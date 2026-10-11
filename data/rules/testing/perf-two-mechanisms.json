@@ -1,9 +1,7 @@
 {
   "title": "A per-PR guard and the historical dashboard are separate measurements, and never one",
   "status": "shipped",
-  "because": [
-    "0228"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/perf-secondary-figures",
     "testing/perf-history-file",
@@ -12,6 +10,7 @@
   ],
   "guardedBy": [
     "benches/abi-probe/tests/perf_guards.rs",
-    "benches/abi-probe/examples/callgrind_spike.rs"
+    "benches/abi-probe/examples/callgrind_spike.rs",
+    "crates/nvs-lsp/tests/latency.rs"
   ]
 }
