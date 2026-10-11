@@ -41,6 +41,20 @@ function body it is not a declaration at all — see `rule:statements/no-functio
 Late static binding stays because fluent builders, record-style models and static factories are
 written with it.
 
+- **Memory:** only code that writes `static::` on a constant pays for the late read. Each read scans
+  the called class's constant table, which is the size its declarations wrote, and builds the name as
+  a fresh string released when the read returns. A `string` constant costs one allocation per read,
+  charged to the isolate, as `static::class` does: the process-wide table's strings are not shared
+  across isolates. `self::NAME` and `Class::NAME` still inline and cost nothing at run time.
+
 **Declined:**
+- **Refusing `static::NAME`.** It would be sound, but it drops a meaning PHP programs rely on: a
+  default method that reads the implementor's constant.
+- **Choosing the constant per called class at compile time.** The checker does not hold the set of
+  classes a body can be called on, since a class in an autoload root nobody has named yet is still a
+  caller.
+- **Reading an `array` constant late.** The table stores a folded scalar, so an array would have to be
+  rebuilt from its constant form on every read, a second constant builder beside the compiler's.
+  `self::` still inlines it.
 - **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
   self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.
