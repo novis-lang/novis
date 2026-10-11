@@ -513,6 +513,20 @@ fn collect(
                         found.push((Member::Method(method), d));
                     }
                 }
+                // An enum in a class body is a type of its own, under its
+                // own key (`rule:enums/class-scoped-enum`).
+                ClassMemberKind::Enum(decl) => {
+                    let key = QName::member(&owner, span_text(src, decl.name.span));
+                    if let Some(d) = deprecated(&decl.attributes) {
+                        table.sites.insert((key.clone(), Member::Type), d);
+                    }
+                    for case in &decl.cases {
+                        if let Some(d) = deprecated(&case.attributes) {
+                            let case = Member::Case(span_text(src, case.name.span).to_owned());
+                            table.sites.insert((key.clone(), case), d);
+                        }
+                    }
+                }
                 _ => {}
             }
         }

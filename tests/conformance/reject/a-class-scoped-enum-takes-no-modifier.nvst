@@ -1,0 +1,29 @@
+--TEST--
+A visibility or other modifier in front of an enum in a class body is `E0133`, and an attribute group there is accepted — `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+// `rule:enums/class-scoped-enum`: an enum's cases leave the class in every
+// return value, so a `private` enum would hide the name and not the values.
+final class Accepted {
+    #[Note]
+    enum Status { Open, Paid }
+}
+
+final class Refused {
+    private enum Status { Open, Paid }
+
+    public static enum Kind { A, B }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0133]: an enum in a class body takes no modifier
+   --> case.nvs:10:5
+%A
+error[E0133]: an enum in a class body takes no modifier
+   --> case.nvs:12:5
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

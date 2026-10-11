@@ -508,6 +508,9 @@ impl<'src, 'd> Parser<'src, 'd> {
         if self.at(TokenKind::Backslash) && self.peek_at(1).kind == TokenKind::LBrace {
             self.recover_use_group(path.span);
         }
+        if self.at(TokenKind::DoubleColon) {
+            return self.refuse_member_import(start, path.span);
+        }
         let alias = if self.eat_keyword(Keyword::As).is_some() {
             Some(self.expect(TokenKind::Ident, "an alias name"))
         } else {
@@ -531,6 +534,35 @@ impl<'src, 'd> Parser<'src, 'd> {
         Stmt {
             span,
             kind: StmtKind::UseDecl(UseDecl { span, path, alias }),
+        }
+    }
+
+    /// `use Shop\Order::Status;`: an import names a class, interface or enum,
+    /// never a member of one. A member import would give an enum in a class
+    /// body a second short name (`rule:enums/class-scoped-enum`). The statement
+    /// is one diagnostic and imports nothing, so the owner's own import beside
+    /// it is no duplicate.
+    fn refuse_member_import(&mut self, start: Span, owner: Span) -> Stmt {
+        let colons = self.bump().span;
+        let member = self.expect(TokenKind::Ident, "a member name");
+        let owner_text = self.file.span_text(owner).unwrap_or_default().to_owned();
+        let short = owner_text.rsplit('\\').next().unwrap_or_default().to_owned();
+        let member_text = self.file.span_text(member).unwrap_or_default().to_owned();
+        self.diags.report(
+            Diagnostic::error(
+                code::E_IMPORT_ALIAS_UNSUPPORTED,
+                "an import cannot name a member of a class",
+            )
+            .with_primary(colons.to(member), "a member of a class")
+            .with_help(format!(
+                "import the class with `use {owner_text};` and write `{short}::{member_text}` \
+                 (`rule:enums/class-scoped-enum`)"
+            )),
+        );
+        self.expect(TokenKind::Semicolon, "`;`");
+        Stmt {
+            span: start.to(self.last_span),
+            kind: StmtKind::Error,
         }
     }
 

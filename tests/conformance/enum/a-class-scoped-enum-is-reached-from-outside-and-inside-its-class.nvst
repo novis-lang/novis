@@ -1,0 +1,50 @@
+--TEST--
+An enum declared in a class body is reached as `Owner::Name::Case` from anywhere and as a bare `Name::Case` inside its owner, and both spellings are the same constant — `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+namespace Shop;
+
+// `rule:enums/class-scoped-enum`: inside its owner the enum is `Status`,
+// in a property type, a default, a parameter and a return type.
+final class Order {
+    enum Status { Open, Paid = 5, Cancelled }
+
+    public Status $status = Status::Open;
+
+    public function pay(): void {
+        $this->status = Status::Paid;
+    }
+
+    public function isPaid(): bool {
+        return $this->status == Status::Paid;
+    }
+
+    public static function first(): Status {
+        return Status::Open;
+    }
+}
+
+// Outside its owner the enum is `Order::Status`, in a type and in a value.
+final class Report {
+    public static function label(Order::Status $status): string {
+        return $status == Order::Status::Paid ? "paid" : "unpaid";
+    }
+}
+
+var $order = new Order();
+echo Report::label($order->status), "\n";
+$order->pay();
+echo Report::label($order->status), " ", $order->isPaid() as string, "\n";
+
+// The two spellings are one enum and one integer per case.
+echo $order->status as int, " ", Order::Status::Paid as int, "\n";
+echo (Order::first() == Order::Status::Open) as string, "\n";
+
+Order::Status $cancelled = Order::Status::Cancelled;
+echo $cancelled as int, "\n";
+--EXPECT--
+unpaid
+paid 1
+5 5
+1
+6

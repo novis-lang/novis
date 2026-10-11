@@ -1,0 +1,50 @@
+--TEST--
+An enum declared in a class body types a property, a parameter, a return, an array element and a local, and a `match` and a `switch` read its cases in both spellings — `rule:enums/class-scoped-enum`, `rule:statements/an-enum-name-is-a-type-everywhere`
+--FILE--
+<?nvs
+namespace Blog;
+
+final class Post {
+    enum State: uint { Draft = 1, Published = 2, Archived = 4 }
+
+    public State $state;
+
+    public function constructor(State $state) {
+        $this->state = $state;
+    }
+
+    // A `match` inside the owner reads the bare spelling.
+    public function word(): string {
+        return match ($this->state) {
+            State::Draft => "draft",
+            State::Published => "published",
+            State::Archived => "archived",
+        };
+    }
+
+    public function next(): State {
+        return $this->state == State::Draft ? State::Published : State::Archived;
+    }
+}
+
+// A `switch` outside the owner reads the qualified spelling.
+final class Feed {
+    public static function shown(Post::State $state): bool {
+        switch ($state) {
+            case Post::State::Published:
+                return true;
+            default:
+                return false;
+        }
+    }
+}
+
+array<Post::State> $states = [Post::State::Draft, Post::State::Published, Post::State::Archived];
+foreach ($states as Post::State $state) {
+    var $post = new Post($state);
+    echo $post->word(), " ", Feed::shown($state) as string, " ", $post->next() as uint, "\n";
+}
+--EXPECT--
+draft  2
+published 1 4
+archived  4

@@ -1290,6 +1290,18 @@ fn walk_class_members(members: &[ClassMember], src: &SourceFile, out: &mut Harve
                     walk_property_hook(hook, src, out);
                 }
             }
+            // An enum in a class body names what a file-scope one does
+            // (`rule:enums/class-scoped-enum`).
+            ClassMemberKind::Enum(decl) => {
+                walk_attributes(&decl.attributes, src, out);
+                for case in &decl.cases {
+                    walk_attributes(&case.attributes, src, out);
+                    if let Some(value) = &case.value {
+                        walk_expr(value, src, out);
+                    }
+                }
+                walk_class_members(&decl.members, src, out);
+            }
             // A recovery placeholder stands in for a member that was refused
             // or never written, and carries nothing to walk.
             ClassMemberKind::Error => {}

@@ -98,6 +98,32 @@ impl QName {
             .then_some(Self { segments })
     }
 
+    /// The key of an enum declared in `owner`'s body (`rule:enums/class-scoped-enum`):
+    /// the owner's path with `::Name` on its last segment, which is also the name a
+    /// program sees, `Shop\Order::Status`. No written name resolves to a segment
+    /// holding `::`, so the key never equals the namespace path `Shop\Order\Status`,
+    /// which is a class `Status` in namespace `Shop\Order`.
+    #[must_use]
+    pub fn member(owner: &Self, name: &str) -> Self {
+        let mut segments = owner.segments.clone();
+        let last = segments.last_mut().expect("a QName always has at least one segment");
+        last.push_str("::");
+        last.push_str(name);
+        Self { segments }
+    }
+
+    /// The owner and the member name of a key [`Self::member`] built, or `None`
+    /// for a name declared at file scope.
+    #[must_use]
+    pub fn as_member(&self) -> Option<(Self, &str)> {
+        let last = self.short_name();
+        let at = last.find("::")?;
+        let mut segments = self.segments.clone();
+        let owner_short = segments.last_mut().expect("a QName always has at least one segment");
+        owner_short.truncate(at);
+        Some((Self { segments }, &last[at + 2..]))
+    }
+
     /// The path's segments, root to leaf.
     #[must_use]
     pub fn segments(&self) -> &[String] {
@@ -190,6 +216,16 @@ mod tests {
     #[test]
     fn display_joins_segments_with_backslashes() {
         assert_eq!(QName::parse("App\\User").to_string(), "App\\User");
+    }
+
+    #[test]
+    fn a_member_key_is_not_the_namespace_path_and_reads_back() {
+        let owner = QName::parse("Shop\\Order");
+        let key = QName::member(&owner, "Status");
+        assert_eq!(key.to_string(), "Shop\\Order::Status");
+        assert_ne!(key, QName::parse("Shop\\Order\\Status"));
+        assert_eq!(key.as_member(), Some((owner, "Status")));
+        assert_eq!(QName::parse("Shop\\Order").as_member(), None);
     }
 
     #[test]

@@ -84,7 +84,14 @@ pub(crate) fn infer_class_const(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    check_expr(class, None, live, scope, ctx, env);
+    if reject_keyword_owned_enum(class, env) {
+        return env.interner.mixed();
+    }
+    // `Order::Status` names an enum and is no constant read, so it is not
+    // checked as a value (`rule:enums/class-scoped-enum`).
+    if !matches!(class.kind, ExprKind::ClassConstAccess { .. }) {
+        check_expr(class, None, live, scope, ctx, env);
+    }
     super::reject_class_side_outside_class(class, ctx, env);
     // `$o::VERSION` is the mistake `$o::f()` makes, written on a constant, and
     // it is not one of `rule:types/class-reference-sites`'s three sites: a
@@ -855,24 +862,70 @@ pub(crate) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>
         }
         ExprKind::ConstFetch(name) => {
             let text = span_text(env.src, name.span);
-            Some(nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports))
+            Some(
+                nvs_hir::owned_enum_in_scope(text, ctx.current_class, env.symbols)
+                    .unwrap_or_else(|| nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports)),
+            )
+        }
+        // `Order::Status` on the left of `::Paid`: the enum the owner's body
+        // declares (`rule:enums/class-scoped-enum`).
+        ExprKind::ClassConstAccess { class: inner, name } => {
+            if !matches!(inner.kind, ExprKind::ConstFetch(_)) {
+                return None;
+            }
+            let owner = resolve_class_expr(inner, ctx, env)?;
+            nvs_hir::owned_enum(&owner, span_text(env.src, *name), env.symbols)
         }
         _ => None,
     }
 }
 
 /// Whether a `Class::…`-side expression *names* a class rather than computing
-/// one — the four spellings [`resolve_class_expr`] resolves.
+/// one — the spellings [`resolve_class_expr`] resolves: the four name-shaped
+/// ones, and `Owner::Name` whose owner is written by name, which names an
+/// enum the owner declares (`rule:enums/class-scoped-enum`). `nvs_hir::members`
+/// reports an `Owner::Name` that names no such enum.
 ///
 /// Asked instead of testing that resolution for `None`, because that answers
 /// `None` for two written spellings as well: `self::` outside any class, and
 /// `parent::` in a class with no `extends`. Both are already diagnosed where
 /// the name is resolved, and a second report here would name the wrong rule.
 pub(crate) fn is_written_class_side(class_expr: &Expr) -> bool {
-    matches!(
-        &class_expr.kind,
-        ExprKind::SelfExpr | ExprKind::StaticExpr | ExprKind::ParentExpr | ExprKind::ConstFetch(_)
-    )
+    match &class_expr.kind {
+        ExprKind::SelfExpr | ExprKind::StaticExpr | ExprKind::ParentExpr | ExprKind::ConstFetch(_) => {
+            true
+        }
+        ExprKind::ClassConstAccess { class, .. } => matches!(class.kind, ExprKind::ConstFetch(_)),
+        _ => false,
+    }
+}
+
+/// `self::Status::Paid`, `static::Status::Paid` and `parent::Status::Paid`: an
+/// enum in a class body is reached through its owner's name, or its bare name
+/// inside the owner (`rule:enums/class-scoped-enum`). Reported once, at the
+/// inner access, and `true` when it was.
+fn reject_keyword_owned_enum(class: &Expr, env: &mut Env<'_>) -> bool {
+    let ExprKind::ClassConstAccess { class: inner, .. } = &class.kind else {
+        return false;
+    };
+    let keyword = match inner.kind {
+        ExprKind::SelfExpr => "self",
+        ExprKind::StaticExpr => "static",
+        ExprKind::ParentExpr => "parent",
+        _ => return false,
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_CLASS_KEYWORD_MEMBER_IN_TYPE,
+            format!("`{keyword}::` does not reach an enum"),
+        )
+        .with_primary(class.span, "a class keyword in front of an enum name")
+        .with_help(
+            "write the owner's name, `Order::Status::Paid`, or inside the class that declares \
+             the enum, its name alone, `Status::Paid` (`rule:enums/class-scoped-enum`)",
+        ),
+    );
+    true
 }
 
 /// `rule:types/conversion`'s no-computed-names rule, at the four spellings that reach a

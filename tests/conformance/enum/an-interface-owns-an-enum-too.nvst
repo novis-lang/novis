@@ -1,0 +1,27 @@
+--TEST--
+An interface body declares an enum, and it is reached through the interface's name, in the interface's own signatures and in an implementing class — `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+namespace Shop;
+
+interface Shipment {
+    enum Speed { Slow, Fast }
+
+    // Inside the interface the bare spelling names its own enum.
+    public function speed(): Speed;
+}
+
+// An implementor reaches the enum through the interface's name: it is not
+// inherited.
+final class Parcel implements Shipment {
+    public function speed(): Shipment::Speed {
+        return Shipment::Speed::Fast;
+    }
+}
+
+var $parcel = new Parcel();
+echo $parcel->speed() as int, "\n";
+echo ($parcel->speed() == Shipment::Speed::Fast) as string, "\n";
+--EXPECT--
+1
+1

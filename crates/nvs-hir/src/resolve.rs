@@ -151,10 +151,12 @@ impl Resolver {
                 StmtKind::ClassDecl(decl) => {
                     self.declare(SymbolKind::Class, &current_ns, &decl.name, src, diags);
                     check_body_aliases(&decl.members, diags);
+                    self.declare_owned_enums(&current_ns, &decl.name, &decl.members, src, diags);
                 }
                 StmtKind::InterfaceDecl(decl) => {
                     self.declare(SymbolKind::Interface, &current_ns, &decl.name, src, diags);
                     check_body_aliases(&decl.members, diags);
+                    self.declare_owned_enums(&current_ns, &decl.name, &decl.members, src, diags);
                 }
                 StmtKind::EnumDecl(decl) => {
                     self.declare(SymbolKind::Enum, &current_ns, &decl.name, src, diags);
@@ -169,6 +171,28 @@ impl Resolver {
         }
     }
 
+    /// Every enum a class or interface body declares, under the key
+    /// [`QName::member`] builds (`rule:enums/class-scoped-enum`). The key is no
+    /// namespace path, so no written name resolves to it: the owner's name is
+    /// the only way in, as `Owner::Name` or a bare `Name` inside the owner.
+    fn declare_owned_enums(
+        &mut self,
+        namespace: &[String],
+        owner: &Name,
+        members: &[ClassMember],
+        src: &SourceFile,
+        diags: &mut Diagnostics,
+    ) {
+        let owner = QName::join(namespace, name_text(src, owner));
+        for member in members {
+            if let ClassMemberKind::Enum(decl) = &member.kind {
+                let qname = QName::member(&owner, name_text(src, &decl.name));
+                self.declare_qname(SymbolKind::Enum, qname, &decl.name, diags);
+                check_body_aliases(&decl.members, diags);
+            }
+        }
+    }
+
     fn declare(
         &mut self,
         kind: SymbolKind,
@@ -178,6 +202,16 @@ impl Resolver {
         diags: &mut Diagnostics,
     ) {
         let qname = QName::join(namespace, name_text(src, name));
+        self.declare_qname(kind, qname, name, diags);
+    }
+
+    fn declare_qname(
+        &mut self,
+        kind: SymbolKind,
+        qname: QName,
+        name: &Name,
+        diags: &mut Diagnostics,
+    ) {
         // The compiler declares two rosters in every program — the global
         // interfaces of [`crate::interfaces::RESERVED`] and the exception tree
         // of [`crate::errors::TREE`] — and every resolver in this crate
@@ -270,6 +304,31 @@ impl Resolver {
     pub const fn module(&self) -> &Module {
         &self.module
     }
+}
+
+/// The key of the enum `owner`'s body declares under `name`, if it declares one
+/// (`rule:enums/class-scoped-enum`). `Owner::Name` from anywhere reads this.
+#[must_use]
+pub fn owned_enum(owner: &QName, name: &str, symbols: &SymbolTable) -> Option<QName> {
+    let key = QName::member(owner, name);
+    matches!(symbols.get(&key), Some(symbol) if symbol.kind == SymbolKind::Enum).then_some(key)
+}
+
+/// The enum a bare `text` names inside the body of `current_class`: the
+/// owner's own enum comes before a name the namespace and imports resolve,
+/// the order a bare alias name is read in (`rule:enums/class-scoped-enum`).
+/// A qualified `text` is never an owned enum.
+#[must_use]
+pub fn owned_enum_in_scope(
+    text: &str,
+    current_class: Option<&QName>,
+    symbols: &SymbolTable,
+) -> Option<QName> {
+    let owner = current_class?;
+    if text.contains('\\') {
+        return None;
+    }
+    owned_enum(owner, text, symbols)
 }
 
 /// The aliases a body owns are not file-scope names, so nothing declares them

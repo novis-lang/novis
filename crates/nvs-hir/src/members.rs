@@ -269,10 +269,12 @@ impl<'a> MemberResolver<'a> {
                 }
                 StmtKind::ClassDecl(decl) => {
                     let qname = QName::join(&current_ns, name_text(src, &decl.name));
+                    self.collect_owned_enums(&decl.members, src, &qname);
                     self.collect_class_members(&decl.members, src, qname);
                 }
                 StmtKind::InterfaceDecl(decl) => {
                     let qname = QName::join(&current_ns, name_text(src, &decl.name));
+                    self.collect_owned_enums(&decl.members, src, &qname);
                     self.collect_class_members(&decl.members, src, qname);
                 }
                 StmtKind::EnumDecl(decl) => {
@@ -286,6 +288,24 @@ impl<'a> MemberResolver<'a> {
                     self.collect_class_members(&decl.members, src, qname);
                 }
                 _ => {}
+            }
+        }
+    }
+
+    /// Each enum a class or interface body declares is an entry of its own,
+    /// under [`QName::member`]'s key, with its cases as its constants — the
+    /// entry a file-scope enum gets (`rule:enums/class-scoped-enum`).
+    fn collect_owned_enums(&mut self, members: &[ClassMember], src: &SourceFile, owner: &QName) {
+        for member in members {
+            if let ClassMemberKind::Enum(decl) = &member.kind {
+                let qname = QName::member(owner, name_text(src, &decl.name));
+                {
+                    let entry = self.table.entry(qname.clone());
+                    for case in &decl.cases {
+                        entry.consts.insert(name_text(src, &case.name).to_owned());
+                    }
+                }
+                self.collect_class_members(&decl.members, src, qname);
             }
         }
     }
@@ -550,6 +570,14 @@ fn check_members(members: &[ClassMember], src: &SourceFile, ctx: &Ctx<'_>, env: 
             ClassMemberKind::Property(p) => {
                 if let Some(default) = &p.default {
                     walk_expr(default, src, ctx, env);
+                }
+            }
+            ClassMemberKind::Enum(decl) => {
+                for case in &decl.cases {
+                    check_doc(case.doc.as_ref(), src, ctx, env);
+                    if let Some(v) = &case.value {
+                        walk_expr(v, src, ctx, env);
+                    }
                 }
             }
             ClassMemberKind::Error => {}
@@ -1381,6 +1409,20 @@ fn walk_class_side(class: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<
     ) {
         return;
     }
+    // `Order::Status` on the left of `::Paid` names an owned enum, which
+    // `check_member_ref` resolves (`rule:enums/class-scoped-enum`). A class
+    // keyword in front of the enum is `nvs_types`' to refuse.
+    if let ExprKind::ClassConstAccess { class: inner, .. } = &class.kind
+        && matches!(
+            inner.kind,
+            ExprKind::SelfExpr
+                | ExprKind::StaticExpr
+                | ExprKind::ParentExpr
+                | ExprKind::ConstFetch(_)
+        )
+    {
+        return;
+    }
     walk_expr(class, src, ctx, env);
 }
 
@@ -1424,24 +1466,28 @@ fn check_member_ref(
                 }
             }
         }
-        ExprKind::ConstFetch(class_name) => {
-            let text = name_text(src, class_name);
-            let resolved = resolve_ref(text, ctx.namespace, ctx.imports);
-            if resolved.is_core() || env.symbols.contains(&resolved) {
-                Some(resolved)
+        ExprKind::ConstFetch(class_name) => resolve_class_name(class_name, src, ctx, env),
+        // `Order::Status::Paid`: the inner access names an enum its owner
+        // declares (`rule:enums/class-scoped-enum`), and no other chain names a
+        // class.
+        ExprKind::ClassConstAccess {
+            class: inner,
+            name: member,
+        } => {
+            let ExprKind::ConstFetch(owner_name) = &inner.kind else {
+                return;
+            };
+            let Some(owner) = resolve_class_name(owner_name, src, ctx, env) else {
+                return;
+            };
+            let member = src.span_text(*member).unwrap_or_default();
+            if owner.is_core() {
+                return;
+            }
+            if let Some(key) = crate::resolve::owned_enum(&owner, member, env.symbols) {
+                Some(key)
             } else {
-                env.diags.report(crate::hierarchy::undeclared_name(
-                    crate::hierarchy::Undeclared {
-                        qname: &resolved,
-                        text,
-                        span: class_name.span,
-                        namespace: ctx.namespace,
-                        stmts: env.stmts,
-                        src,
-                    },
-                    env.symbols,
-                    env.core,
-                ));
+                report_missing_owned_enum(&owner, member, class_expr.span, env);
                 None
             }
         }
@@ -1463,6 +1509,87 @@ fn check_member_ref(
         diag = diag.with_help(format!("did you mean `{nearest}`?"));
     }
     env.diags.report(diag);
+}
+
+/// The class a bare or qualified name on the left of a `::` names: inside an
+/// owner's body, the owner's own enum first (`rule:enums/class-scoped-enum`),
+/// then what the namespace and imports resolve. A name nothing declares is
+/// reported, and `None`.
+fn resolve_class_name(
+    class_name: &nvs_syntax::ast::Name,
+    src: &SourceFile,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<QName> {
+    let text = name_text(src, class_name);
+    if let Some(key) = crate::resolve::owned_enum_in_scope(text, ctx.current_class, env.symbols) {
+        return Some(key);
+    }
+    let resolved = resolve_ref(text, ctx.namespace, ctx.imports);
+    if resolved.is_core() || env.symbols.contains(&resolved) {
+        return Some(resolved);
+    }
+    env.diags.report(crate::hierarchy::undeclared_name(
+        crate::hierarchy::Undeclared {
+            qname: &resolved,
+            text,
+            span: class_name.span,
+            namespace: ctx.namespace,
+            stmts: env.stmts,
+            src,
+        },
+        env.symbols,
+        env.core,
+    ));
+    None
+}
+
+/// `Owner::Name::Case` where `Owner` declares no enum `Name`. When an ancestor
+/// does, the help names it: an enum is reached through the class that declares
+/// it and is not inherited (`rule:enums/class-scoped-enum`).
+fn report_missing_owned_enum(owner: &QName, name: &str, span: Span, env: &mut Env<'_>) {
+    let mut diag = Diagnostic::error(
+        code::E_UNDEFINED_MEMBER,
+        format!("`{owner}` has no enum named `{name}`"),
+    )
+    .with_primary(span, "referenced here");
+    if let Some(declaring) = ancestor_owning_enum(owner, name, env) {
+        diag = diag.with_help(format!(
+            "`{declaring}::{name}` is where it is declared. An enum in a class body is reached \
+             through that class and is not inherited (`rule:enums/class-scoped-enum`)"
+        ));
+    }
+    env.diags.report(diag);
+}
+
+/// The nearest `extends`/`implements` ancestor of `owner` whose body declares
+/// an enum called `name`, breadth-first.
+fn ancestor_owning_enum(owner: &QName, name: &str, env: &Env<'_>) -> Option<QName> {
+    let supertypes = |qname: &QName| {
+        env.graph.get(qname).map_or_else(Vec::new, |links| {
+            links
+                .extends
+                .iter()
+                .chain(links.implements.iter())
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+    };
+    let mut seen = FxHashSet::default();
+    let mut queue = supertypes(owner);
+    let mut next = 0;
+    while next < queue.len() {
+        let candidate = queue[next].clone();
+        next += 1;
+        if !seen.insert(candidate.clone()) {
+            continue;
+        }
+        if crate::resolve::owned_enum(&candidate, name, env.symbols).is_some() {
+            return Some(candidate);
+        }
+        queue.extend(supertypes(&candidate));
+    }
+    None
 }
 
 /// Checks `$this->name` against the enclosing class and its

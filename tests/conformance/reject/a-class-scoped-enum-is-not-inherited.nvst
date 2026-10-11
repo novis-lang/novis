@@ -1,0 +1,50 @@
+--TEST--
+An enum in a class or interface body is reached through the owner that declares it, so `Sub::Name` where only an ancestor declares `Name` is `E0405` in a type and in a value, naming the owner that does — `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+// `rule:enums/class-scoped-enum`: an inherited enum name would give one enum
+// as many names as its owner has descendants.
+interface Contract {
+    enum Speed { Slow, Fast }
+}
+
+class Base {
+    enum Status { Open, Paid }
+}
+
+class Sub extends Base {}
+
+final class Implementor implements Contract {}
+
+// The accepted half first: through the declaring owner's own name.
+final class Uses {
+    public static function throughTheOwner(Base::Status $status): Contract::Speed {
+        return $status == Base::Status::Paid ? Contract::Speed::Fast : Contract::Speed::Slow;
+    }
+}
+
+final class Refused {
+    public static function throughASubclass(Sub::Status $status): void {}
+
+    public static function throughAnImplementor(Implementor::Speed $speed): void {}
+
+    public static function aCaseThroughASubclass(): int {
+        return Sub::Status::Paid as int;
+    }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Sub` has no enum named `Status`
+   --> case.nvs:24:45
+%A
+error[E0405]: `Implementor` has no enum named `Speed`
+   --> case.nvs:26:49
+%A
+error[E0309]: `Sub` has no enum named `Status`
+   --> case.nvs:29:16
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

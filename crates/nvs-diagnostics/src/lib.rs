@@ -484,8 +484,8 @@ pub mod code {
     /// (`rule:types/class-scoped-alias` § *Two spellings and no third*).
     pub const E_CLASS_KEYWORD_MEMBER_IN_TYPE: Code = Code::new("E0135").card(
         "`self::`, `static::` and `parent::` cannot be used in a type. Write the class name \
-         instead, for example `Order::Status`. Inside the class that declares a `type` alias, \
-         you can also write the alias name alone.",
+         instead, for example `Order::Status`. Inside the class that declares a `type` alias \
+         or an enum, you can also write its name alone.",
     );
 
     // --- E02xx rejected PHP constructs -------------------------------------
@@ -556,10 +556,13 @@ pub mod code {
          the one to use.",
     );
     /// `use Path\To\Name as Other;`: an import cannot be renamed — see
-    /// `rule:statements/nothing-gets-a-second-name`.
+    /// `rule:statements/nothing-gets-a-second-name`. `use Shop\Order::Status;`
+    /// is the same refusal: a member import would give an enum in a class body a
+    /// second short name (`rule:enums/class-scoped-enum`).
     pub const E_IMPORT_ALIAS_UNSUPPORTED: Code = Code::new("E0212").card(
         "An import cannot be given a second name with `as`. Use the name the class was declared \
-         with, or write its full path in the code.",
+         with, or write its full path in the code. An import also cannot name an enum inside a \
+         class, as `use Shop\\Order::Status;` does. Import the class and write `Order::Status`.",
     );
     /// `function foo() { ... }` outside any class: a function must be a
     /// method — see `rule:classes/no-free-functions-or-constants`.

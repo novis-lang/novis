@@ -8,6 +8,8 @@
     "statements/nothing-gets-a-second-name"
   ],
   "guardedBy": [
-    "crates/nvs-syntax/src/parser/tests/decl.rs"
+    "crates/nvs-syntax/src/parser/tests/decl.rs",
+    "tests/conformance/enum/a-class-scoped-enum-is-reached-from-outside-and-inside-its-class.nvst",
+    "tests/conformance/reject/a-class-scoped-enum-is-not-inherited.nvst"
   ]
 }

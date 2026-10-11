@@ -230,6 +230,9 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
         }
         TypeAtom::SingleValueInt(lit) => lower_int_single_value_type(*lit, env),
         TypeAtom::Member(name, member) => lower_member_type(name, *member, span, depth, ctx, env),
+        TypeAtom::MemberCase(name, member, case) => {
+            lower_member_case_type(name, *member, *case, span, depth, ctx, env)
+        }
         _ => env.interner.mixed(),
     }
 }
@@ -411,19 +414,10 @@ fn lower_member_type(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    let text = span_text(env.src, name.span);
     let case = span_text(env.src, member).to_owned();
-
-    let qname = match alias_left_of_member(text, ctx, env) {
-        Some(expansion) => match name_atom_of(&expansion, ctx, env) {
-            Some(stood_in) => stood_in,
-            None => {
-                return report_expansion_has_no_member(
-                    &expansion, text, &case, span, depth, ctx, env,
-                );
-            }
-        },
-        None => nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports),
+    let qname = match owner_left_of_member(name, &case, span, depth, ctx, env) {
+        Ok(qname) => qname,
+        Err(recovered) => return recovered,
     };
 
     if let Some(alias_ty) = env.aliases.get_member(&qname, &case) {
@@ -431,9 +425,14 @@ fn lower_member_type(
         return lower_type_at_depth(&alias_ty, depth, ctx, env);
     }
 
-    let is_enum = matches!(env.symbols.get(&qname), Some(sym) if sym.kind == SymbolKind::Enum)
-        || env.enums.get(&qname).is_some();
-    if is_enum {
+    // `rule:enums/class-scoped-enum`: `Order::Status` is the enum the owner's
+    // body declares, read after the owner's alias and before a case.
+    if let Some(owned) = nvs_hir::owned_enum(&qname, &case, env.symbols) {
+        let backing = env.enums.backing_of(&owned);
+        return env.interner.enum_(owned, backing);
+    }
+
+    if is_enum_name(&qname, env) {
         let backing = env.enums.backing_of(&qname);
         return match env.enums.case(&qname, &case) {
             Some(_) => env.interner.enum_case(qname, backing, case),
@@ -448,6 +447,71 @@ fn lower_member_type(
         };
     }
     lower_class_const_type(&qname, &case, span, env)
+}
+
+/// `Order::Status::Paid` in type position: `rule:types/enum-case-type`'s case
+/// type, of an enum the owner's body declares (`rule:enums/class-scoped-enum`).
+fn lower_member_case_type(
+    name: &Name,
+    member: Span,
+    case: Span,
+    span: Span,
+    depth: u32,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let member = span_text(env.src, member).to_owned();
+    let case = span_text(env.src, case).to_owned();
+    let owner = match owner_left_of_member(name, &member, span, depth, ctx, env) {
+        Ok(qname) => qname,
+        Err(recovered) => return recovered,
+    };
+    let Some(owned) = nvs_hir::owned_enum(&owner, &member, env.symbols) else {
+        report_missing_member(span, &owner, &member, "enum", env);
+        return env.interner.mixed();
+    };
+    let backing = env.enums.backing_of(&owned);
+    if env.enums.case(&owned, &case).is_some() {
+        env.interner.enum_case(owned, backing, case)
+    } else {
+        report_unknown(span, &owned, &case, "case", env);
+        env.interner.enum_(owned, backing)
+    }
+}
+
+/// The class, interface or enum the name left of a `::` names in type
+/// position. Inside an owner's body a bare name is the owner's own enum first
+/// (`rule:enums/class-scoped-enum`); an alias standing for one name atom
+/// stands in for it; any other alias has no member, which is reported and
+/// recovered as `Err`.
+fn owner_left_of_member(
+    name: &Name,
+    member: &str,
+    span: Span,
+    depth: u32,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Result<nvs_hir::QName, TypeId> {
+    let text = span_text(env.src, name.span);
+    if let Some(owned) = nvs_hir::owned_enum_in_scope(text, ctx.current_class, env.symbols) {
+        return Ok(owned);
+    }
+    match alias_left_of_member(text, ctx, env) {
+        Some(expansion) => match name_atom_of(&expansion, ctx, env) {
+            Some(stood_in) => Ok(stood_in),
+            None => Err(report_expansion_has_no_member(
+                &expansion, text, member, span, depth, ctx, env,
+            )),
+        },
+        None => Ok(nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports)),
+    }
+}
+
+/// Whether `qname` is an enum: declared in source, or a `Core` or extension
+/// enum, which only the [`crate::enums::EnumTable`] holds.
+fn is_enum_name(qname: &nvs_hir::QName, env: &Env<'_>) -> bool {
+    matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum)
+        || env.enums.get(qname).is_some()
 }
 
 /// The expansion the name left of a `::` stands for, when that name is itself a
@@ -611,11 +675,22 @@ fn report_missing_member(
     kind: &str,
     env: &mut Env<'_>,
 ) {
-    let Some(owner) = alias_owned_by_an_ancestor(qname, name, env) else {
+    let Some((owner, is_enum)) = member_owned_by_an_ancestor(qname, name, env) else {
         report_unknown(span, qname, name, kind, env);
         return;
     };
-    env.diags.report(
+    let diag = if is_enum {
+        Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!("`{qname}` has no enum named `{name}`"),
+        )
+        .with_primary(span, "not inherited")
+        .with_help(format!(
+            "`{owner}::{name}` is where it is declared, and that is the spelling that resolves \
+             — an enum in a class body is reached through its own owner and through no subclass \
+             or implementor (`rule:enums/class-scoped-enum`)"
+        ))
+    } else {
         Diagnostic::error(
             code::E_UNKNOWN_MEMBER,
             format!("`{qname}` has no `type` named `{name}`"),
@@ -625,18 +700,20 @@ fn report_missing_member(
             "`{owner}::{name}` is where it is declared, and that is the spelling that resolves \
              — a class-scoped `type` is reached through its own owner and through no subclass or \
              implementor (`rule:types/type-alias`)"
-        )),
-    );
+        ))
+    };
+    env.diags.report(diag);
 }
 
 /// The nearest `extends`/`implements` ancestor of `qname` that declares a
-/// `type` alias called `name`, if one does. Breadth-first, so a name declared
-/// twice up the chain answers with the closest owner.
-fn alias_owned_by_an_ancestor(
+/// `type` alias or an enum called `name`, if one does, and whether it is the
+/// enum. Breadth-first, so a name declared twice up the chain answers with the
+/// closest owner.
+fn member_owned_by_an_ancestor(
     qname: &nvs_hir::QName,
     name: &str,
     env: &Env<'_>,
-) -> Option<nvs_hir::QName> {
+) -> Option<(nvs_hir::QName, bool)> {
     let mut seen: FxHashSet<nvs_hir::QName> = FxHashSet::default();
     let mut queue = supertypes_of(qname, env);
     let mut next = 0;
@@ -647,7 +724,10 @@ fn alias_owned_by_an_ancestor(
             continue;
         }
         if env.aliases.get_member(&candidate, name).is_some() {
-            return Some(candidate);
+            return Some((candidate, false));
+        }
+        if nvs_hir::owned_enum(&candidate, name, env.symbols).is_some() {
+            return Some((candidate, true));
         }
         queue.extend(supertypes_of(&candidate, env));
     }
@@ -897,7 +977,10 @@ fn resolve_name_type(
     env: &mut Env<'_>,
 ) -> TypeId {
     let text = span_text(env.src, name.span);
-    let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+    // `rule:enums/class-scoped-enum`'s short spelling: inside its owner's body
+    // a bare `Status` is the owner's own enum before it is the namespace's.
+    let qname = nvs_hir::owned_enum_in_scope(text, ctx.current_class, env.symbols)
+        .unwrap_or_else(|| nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports));
 
     // Lowered up front, and unconditionally: an argument written on a name
     // that turns out not to be generic is still a type the author wrote, and

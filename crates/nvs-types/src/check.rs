@@ -390,6 +390,7 @@ pub(crate) fn check_stmts(
                 let parents = parents.chain(decl.implements.iter().map(|clause| &clause.name));
                 warn_deprecated_parents(&qname, parents, &ctx, env);
                 check_members(&decl.members, &ctx, env);
+                check_owned_enums(&decl.members, &qname, &ctx, env);
                 crate::attributes::check_declaration(
                     crate::deprecated::Decl::Class,
                     &decl.attributes,
@@ -426,6 +427,7 @@ pub(crate) fn check_stmts(
                 };
                 warn_deprecated_parents(&qname, decl.extends.iter(), &ctx, env);
                 check_members(&decl.members, &ctx, env);
+                check_owned_enums(&decl.members, &qname, &ctx, env);
                 crate::attributes::check_declaration(
                     crate::deprecated::Decl::Interface,
                     &decl.attributes,
@@ -583,6 +585,30 @@ fn warn_deprecated_parents<'n>(
             crate::deprecated::warn(name.span, &parent, crate::deprecated::Member::Type, env);
         }
     });
+}
+
+/// Each enum a class or interface body declares is checked as a file-scope
+/// enum is, under its own key (`rule:enums/class-scoped-enum`).
+fn check_owned_enums(members: &[ClassMember], owner: &QName, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    for member in members {
+        let ClassMemberKind::Enum(decl) = &member.kind else {
+            continue;
+        };
+        let qname = QName::member(owner, span_text(env.src, decl.name.span));
+        let ctx = Ctx {
+            current_class: Some(&qname),
+            ..*ctx
+        };
+        check_members(&decl.members, &ctx, env);
+        crate::attributes::check_declaration(
+            crate::deprecated::Decl::Enum,
+            &decl.attributes,
+            &decl.members,
+            &decl.cases,
+            &ctx,
+            env,
+        );
+    }
 }
 
 /// Checks each method and property hook body, each in its own

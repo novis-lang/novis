@@ -46,7 +46,8 @@
 use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    EnumDecl, Expr, ExprKind, NamespaceDecl, Stmt, StmtKind, Type, TypeAtom, TypeKind, UnaryOp,
+    ClassMember, ClassMemberKind, EnumDecl, Expr, ExprKind, NamespaceDecl, Stmt, StmtKind, Type,
+    TypeAtom, TypeKind, UnaryOp,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -254,7 +255,33 @@ fn collect(
                 let info = resolve_enum(decl, src, diags);
                 table.by_name.insert(qname, info);
             }
+            StmtKind::ClassDecl(decl) => {
+                collect_owned(&current_ns, &decl.name, &decl.members, src, table, diags);
+            }
+            StmtKind::InterfaceDecl(decl) => {
+                collect_owned(&current_ns, &decl.name, &decl.members, src, table, diags);
+            }
             _ => {}
+        }
+    }
+}
+
+/// The enums a class or interface body declares, keyed by
+/// [`QName::member`] under their owner (`rule:enums/class-scoped-enum`).
+fn collect_owned(
+    namespace: &[String],
+    owner: &nvs_syntax::ast::Name,
+    members: &[ClassMember],
+    src: &SourceFile,
+    table: &mut EnumTable,
+    diags: &mut nvs_diagnostics::Diagnostics,
+) {
+    let owner = QName::join(namespace, span_text(src, owner.span));
+    for member in members {
+        if let ClassMemberKind::Enum(decl) = &member.kind {
+            let qname = QName::member(&owner, span_text(src, decl.name.span));
+            let info = resolve_enum(decl, src, diags);
+            table.by_name.insert(qname, info);
         }
     }
 }

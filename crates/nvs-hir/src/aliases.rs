@@ -278,27 +278,58 @@ impl AliasResolver {
         imports: &FxHashMap<String, QName>,
     ) {
         let owner = QName::join(namespace, name_text(src, &owner_name));
-        self.check_name_collisions(members, cases, &owner, src);
+        self.record_owned(members, cases, &owner, src, namespace, imports);
+    }
+
+    /// [`Self::record_members`] under an owner already resolved — which an
+    /// enum in a class body's own aliases need, keyed under
+    /// [`QName::member`] (`rule:enums/class-scoped-enum`).
+    fn record_owned(
+        &mut self,
+        members: &[ClassMember],
+        cases: &[EnumCase],
+        owner: &QName,
+        src: &SourceFile,
+        namespace: &[String],
+        imports: &FxHashMap<String, QName>,
+    ) {
+        self.check_name_collisions(members, cases, owner, src);
         for member in members {
-            let ClassMemberKind::TypeAlias(alias) = &member.kind else {
-                continue;
-            };
-            let key = AliasKey::Member(owner.clone(), name_text(src, &alias.name).to_owned());
-            self.record(key, alias, src, namespace, imports, Some(owner.clone()));
+            match &member.kind {
+                ClassMemberKind::TypeAlias(alias) => {
+                    let key =
+                        AliasKey::Member(owner.clone(), name_text(src, &alias.name).to_owned());
+                    self.record(key, alias, src, namespace, imports, Some(owner.clone()));
+                }
+                ClassMemberKind::Enum(decl) => {
+                    let enum_key = QName::member(owner, name_text(src, &decl.name));
+                    self.record_owned(
+                        &decl.members,
+                        &decl.cases,
+                        &enum_key,
+                        src,
+                        namespace,
+                        imports,
+                    );
+                }
+                _ => {}
+            }
         }
     }
 
-    /// An alias, an enum case and a constant are all spelled `Owner::Name`,
-    /// so one body declaring two of them under one name is refused where the
-    /// later of the two is written — `rule:types/type-alias`, which is
-    /// `rule:statements/nothing-gets-a-second-name` for a member. The goal's
+    /// An alias, an owned enum, an enum case and a constant are all spelled
+    /// `Owner::Name`, so one body declaring two of them under one name is
+    /// refused where the later of the two is written — `rule:types/type-alias`
+    /// and `rule:enums/class-scoped-enum`, which are
+    /// `rule:statements/nothing-gets-a-second-name` for a member. The
     /// resolution order at `Owner::Name` therefore decides nothing a
     /// compiling program can observe.
     ///
-    /// Only a collision an alias takes part in is reported here: two
-    /// constants or two cases under one name are [`crate::members`]'s to
-    /// report. The alias is still recorded, so a reference to it resolves to
-    /// its expansion instead of drawing a second, unrelated error.
+    /// Only a collision an alias or an owned enum takes part in is reported
+    /// here: two constants or two cases under one name are
+    /// [`crate::members`]'s to report, and two enums the symbol table's. The
+    /// alias is still recorded, so a reference to it resolves to its expansion
+    /// instead of drawing a second, unrelated error.
     fn check_name_collisions(
         &mut self,
         members: &[ClassMember],
@@ -306,44 +337,45 @@ impl AliasResolver {
         owner: &QName,
         src: &SourceFile,
     ) {
-        let mut declared: Vec<(&str, Span, &str, bool)> = Vec::new();
+        const CASE: &str = "an enum case";
+        const CONST: &str = "a class constant";
+        const ALIAS: &str = "a `type` alias";
+        const ENUM: &str = "an enum";
+        let mut declared: Vec<(&str, Span, &str)> = Vec::new();
         for case in cases {
-            declared.push((
-                name_text(src, &case.name),
-                case.name.span,
-                "an enum case",
-                false,
-            ));
+            declared.push((name_text(src, &case.name), case.name.span, CASE));
         }
         for member in members {
             match &member.kind {
                 ClassMemberKind::Const(konst) => declared.push((
                     src.span_text(konst.name).unwrap_or_default(),
                     konst.name,
-                    "a class constant",
-                    false,
+                    CONST,
                 )),
-                ClassMemberKind::TypeAlias(alias) => declared.push((
-                    name_text(src, &alias.name),
-                    alias.name.span,
-                    "a `type` alias",
-                    true,
-                )),
+                ClassMemberKind::TypeAlias(alias) => {
+                    declared.push((name_text(src, &alias.name), alias.name.span, ALIAS));
+                }
+                ClassMemberKind::Enum(decl) => {
+                    declared.push((name_text(src, &decl.name), decl.name.span, ENUM));
+                }
                 _ => {}
             }
         }
         // Source order, because the diagnostic points at the second
         // declaration and the AST keeps an enum's cases beside its members
         // rather than interleaved with them.
-        declared.sort_by_key(|(_, span, _, _)| span.start);
-        for (index, (name, span, _, is_alias)) in declared.iter().enumerate() {
-            let Some((_, first_span, first_kind, first_is_alias)) = declared[..index]
+        declared.sort_by_key(|(_, span, _)| span.start);
+        for (index, (name, span, kind)) in declared.iter().enumerate() {
+            let Some((_, first_span, first_kind)) = declared[..index]
                 .iter()
-                .find(|(earlier, _, _, _)| earlier == name)
+                .find(|(earlier, _, _)| earlier == name)
             else {
                 continue;
             };
-            if !is_alias && !first_is_alias {
+            // An alias or an owned enum takes part. Two of the same kind
+            // otherwise are the symbol table's or `crate::members`'s to report.
+            let reported_here = |k: &str| k == ALIAS || k == ENUM;
+            if !(reported_here(kind) || reported_here(first_kind)) || (*kind == ENUM && *first_kind == ENUM) {
                 continue;
             }
             self.collisions.push(
@@ -355,7 +387,8 @@ impl AliasResolver {
                 .with_secondary(*first_span, "previously declared here")
                 .with_help(
                     "`Owner::Name` in type position names one thing — rename the alias, the \
-                     constant or the case (`rule:types/type-alias`)",
+                     enum, the constant or the case (`rule:types/type-alias`, \
+                     `rule:enums/class-scoped-enum`)",
                 ),
             );
         }

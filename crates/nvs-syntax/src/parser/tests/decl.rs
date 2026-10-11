@@ -1293,6 +1293,14 @@ fn a_modifier_in_front_of_a_member_enum_is_refused() {
 }
 
 #[test]
+fn a_use_of_a_class_member_is_one_diagnostic_and_imports_nothing() {
+    let (s, diags) = parse_stmt_with_diags("use Shop\\Order::Status;");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_IMPORT_ALIAS_UNSUPPORTED]);
+    assert!(matches!(s.kind, StmtKind::Error), "{s:?}");
+}
+
+#[test]
 fn a_class_or_interface_in_a_class_body_is_one_diagnostic() {
     for src in [
         "class Order { class Line { public int $n = 1; } public int $id = 0; }",
