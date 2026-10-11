@@ -126,6 +126,20 @@
 //! itself, so it is charged from the publication on and goes back to whatever
 //! it was charging when the publication is withdrawn.
 //!
+//! **A child placed `on: "worker"` is charged on the core that runs it.** It
+//! runs in a task that core's receptionist started, so it publishes its tree
+//! there itself ([`publish_here`]) and moves its task to that tree
+//! ([`crate::scheduler::charge_running_task_to`]). The walk adds up what a
+//! tree has spent on every thread it is published on and compares the sum
+//! with the tree's one ceiling, so a parent and its placed children spend one
+//! `cpu_time` between them (`rule:security/isolate-budget-is-the-trees`). A
+//! core [`crate::worker`] started is registered with no watchdog of its own,
+//! so its receptionist registers it with the one the placement came from
+//! ([`Watcher`]) and keeps that registration while the core runs. What it
+//! spends: per placed child, one publication and one tree switch on the far
+//! core, which is what a request's body pays where it starts; per sweep, one
+//! map entry per tree under a ceiling, on the watchdog's own thread.
+//!
 //! # Registering a core
 //!
 //! Whoever installs a core's [`Reactor`](crate::Reactor) registers it, because
@@ -365,11 +379,33 @@ impl Meter {
     }
 }
 
+/// What one registration keeps on its own thread: its [`Meter`], and the
+/// entry in the watched set its publications are written to.
+///
+/// Shared by the [`Registration`] and by [`METER`], so a publication made
+/// without the registration in hand — [`publish_here`] — reaches the same
+/// table and the same entry as one made through it.
+#[derive(Debug)]
+struct Local {
+    shared: Arc<Shared>,
+    id: u64,
+    meter: RefCell<Meter>,
+}
+
+impl std::fmt::Debug for Shared {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Shared")
+            .field("margin", &self.margin)
+            .field("interval", &self.interval)
+            .finish_non_exhaustive()
+    }
+}
+
 thread_local! {
-    /// The [`Meter`] of the registration this thread made last, which is the
+    /// The [`Local`] of the registration this thread made last, which is the
     /// one the scheduler charges through. Empty on a thread that registered
     /// nothing, or that has no clock to charge with.
-    static METER: RefCell<Option<Rc<RefCell<Meter>>>> = const { RefCell::new(None) };
+    static METER: RefCell<Option<Rc<Local>>> = const { RefCell::new(None) };
 }
 
 /// Charges the CPU time this thread spends from now on to `tree`, as
@@ -381,20 +417,88 @@ thread_local! {
 /// once more at the end of a turn with what [`running_tree`] answered at its
 /// start.
 pub(crate) fn switch_to(tree: usize) {
-    METER.with_borrow(|meter| {
-        if let Some(meter) = meter {
-            meter.borrow_mut().switch(tree);
+    METER.with_borrow(|local| {
+        if let Some(local) = local {
+            local.meter.borrow_mut().switch(tree);
         }
     });
 }
 
 /// The tree this thread is charging now, or [`NO_TREE`].
 pub(crate) fn running_tree() -> usize {
-    METER.with_borrow(|meter| {
-        meter
+    METER.with_borrow(|local| {
+        local
             .as_ref()
-            .map_or(NO_TREE, |meter| meter.borrow().running)
+            .map_or(NO_TREE, |local| local.meter.borrow().running)
     })
+}
+
+/// Publishes `view`'s request tree on this thread's registration until the
+/// returned guard is dropped, or returns `None` on a thread that registered
+/// nothing.
+///
+/// For a request that runs on a thread whose [`Registration`] it was not
+/// handed: a child placed `on: "worker"` runs on another core, in a task that
+/// core's receptionist started, and nothing there holds the registration.
+/// The publication is [`Registration::publish`]'s, in the same table and the
+/// same entry, so the tree is charged on this thread exactly as on the thread
+/// its root runs on, and the walk adds the two
+/// (`rule:security/isolate-budget-is-the-trees`).
+pub(crate) fn publish_here(view: SafepointView) -> Option<PublishedHere> {
+    let local = METER.with_borrow(Clone::clone)?;
+    local.publish(view.clone());
+    Some(PublishedHere { local, view })
+}
+
+/// One [`publish_here`] publication, withdrawn when this is dropped.
+#[derive(Debug)]
+pub(crate) struct PublishedHere {
+    local: Rc<Local>,
+    view: SafepointView,
+}
+
+impl Drop for PublishedHere {
+    fn drop(&mut self) {
+        self.local.withdraw(&self.view);
+    }
+}
+
+/// A handle on the watchdog this thread is registered with, which another
+/// thread may register itself with in turn.
+///
+/// Carried with a placement to a core [`crate::worker`] started. Such a core
+/// is this crate's own thread and registers with nothing, so under `nvs run`
+/// a child placed there would be charged nowhere. Its receptionist registers
+/// with the watchdog that came with the placement ([`Self::adopt`]) and keeps
+/// that registration for as long as the core runs.
+#[derive(Clone, Debug)]
+pub(crate) struct Watcher(Arc<Shared>);
+
+impl Watcher {
+    /// The watchdog this thread is registered with, or `None`.
+    pub(crate) fn here() -> Option<Self> {
+        METER.with_borrow(|local| local.as_ref().map(|local| Self(Arc::clone(&local.shared))))
+    }
+
+    /// Registers this thread with this watchdog, unless it is registered with
+    /// it already, keeping the registration in `held`.
+    ///
+    /// A registration in `held` for another watchdog is dropped first. A
+    /// process runs one watchdog, so that happens only where tests build
+    /// several. A thread registered with this watchdog some other way, as a
+    /// serving core is, is left as it is.
+    pub(crate) fn adopt(&self, held: &mut Option<Registration>) {
+        let registered = METER.with_borrow(|local| {
+            local
+                .as_ref()
+                .is_some_and(|local| Arc::ptr_eq(&local.shared, &self.0))
+        });
+        if registered {
+            return;
+        }
+        *held = None;
+        *held = Some(enroll(&self.0, None));
+    }
 }
 
 /// One registered thread, and what has already been said about it.
@@ -574,46 +678,7 @@ impl Watchdog {
     }
 
     fn watch(&self, core: Option<(CpuId, DeadlineView)>) -> Registration {
-        let mut state = lock(&self.shared.state);
-        let id = state.next_id;
-        state.next_id += 1;
-        state.watching.push(Watched {
-            id,
-            core,
-            // A core registers when it installs its reactor, which is before it
-            // has a request to be running — so the requests arrive later, by
-            // publication, and never as a second argument here.
-            running: Vec::new(),
-            reported: None,
-        });
-        if state.thread.is_none() && state.running {
-            let shared = Arc::clone(&self.shared);
-            state.thread = std::thread::Builder::new()
-                .name("nvs-watchdog".to_owned())
-                .spawn(move || watch(&shared))
-                .ok();
-        }
-        drop(state);
-        // On the registering thread's own stack, which is the one thing this
-        // call can be sure of: `register` is called from the core it watches,
-        // so the clock every publication through this handle is charged
-        // against is that core's. [`Registration::meter`] owns the rest.
-        let meter = ThreadClock::current().map(|clock| {
-            Rc::new(RefCell::new(Meter {
-                clock,
-                charges: HashMap::new(),
-                running: NO_TREE,
-            }))
-        });
-        let outer_meter = meter
-            .as_ref()
-            .and_then(|meter| METER.replace(Some(Rc::clone(meter))));
-        Registration {
-            shared: Arc::clone(&self.shared),
-            id,
-            meter,
-            outer_meter,
-        }
+        enroll(&self.shared, core)
     }
 
     /// How many threads are registered.
@@ -707,16 +772,66 @@ impl Drop for Watchdog {
 pub struct Registration {
     shared: Arc<Shared>,
     id: u64,
-    /// This thread's [`Meter`], or `None` on a platform with no per-thread
+    /// This thread's [`Local`] and the [`Meter`] in it, or `None` on a platform with no per-thread
     /// clock a stranger may read, where nothing is published and nothing is
     /// sampled. Built from a clock taken once, where the registration is made,
     /// because [`ThreadClock::current`] measures its caller and nothing else: a
     /// clock taken where a request is *built* would measure whichever thread
     /// built it.
-    meter: Option<Rc<RefCell<Meter>>>,
-    /// The meter [`METER`] held before this registration replaced it, put back
+    meter: Option<Rc<Local>>,
+    /// The registration [`METER`] held before this one replaced it, put back
     /// when this one is dropped.
-    outer_meter: Option<Rc<RefCell<Meter>>>,
+    outer_meter: Option<Rc<Local>>,
+}
+
+/// Registers the calling thread with `shared`: [`Watchdog::register`] and
+/// [`Watchdog::register_requests`] with the watchdog in hand, and
+/// [`Watcher::adopt`] with a handle another thread carried here.
+fn enroll(shared: &Arc<Shared>, core: Option<(CpuId, DeadlineView)>) -> Registration {
+    let mut state = lock(&shared.state);
+    let id = state.next_id;
+    state.next_id += 1;
+    state.watching.push(Watched {
+        id,
+        core,
+        // A core registers when it installs its reactor, which is before it
+        // has a request to be running — so the requests arrive later, by
+        // publication, and never as a second argument here.
+        running: Vec::new(),
+        reported: None,
+    });
+    if state.thread.is_none() && state.running {
+        let shared = Arc::clone(shared);
+        state.thread = std::thread::Builder::new()
+            .name("nvs-watchdog".to_owned())
+            .spawn(move || watch(&shared))
+            .ok();
+    }
+    drop(state);
+    // On the registering thread's own stack, which is the one thing this
+    // call can be sure of: a thread registers itself, so the clock every
+    // publication through this handle is charged against is that thread's.
+    // [`Registration::meter`] owns the rest.
+    let meter = ThreadClock::current().map(|clock| {
+        Rc::new(Local {
+            shared: Arc::clone(shared),
+            id,
+            meter: RefCell::new(Meter {
+                clock,
+                charges: HashMap::new(),
+                running: NO_TREE,
+            }),
+        })
+    });
+    let outer_meter = meter
+        .as_ref()
+        .and_then(|meter| METER.replace(Some(Rc::clone(meter))));
+    Registration {
+        shared: Arc::clone(shared),
+        id,
+        meter,
+        outer_meter,
+    }
 }
 
 impl Registration {
@@ -740,11 +855,39 @@ impl Registration {
     /// the ceiling is charged against *that* thread's clock, so publishing a
     /// request running anywhere else would charge it to a stranger.
     pub fn publish(&self, view: SafepointView) {
-        let Some(meter) = &self.meter else {
-            return;
-        };
+        if let Some(local) = &self.meter {
+            local.publish(view);
+        }
+    }
+
+    /// Takes back one publication of `view`'s request tree, and stops sampling
+    /// that tree when it was the last.
+    ///
+    /// What a request owes when it ends: the entry outlives the request, and a
+    /// publication left standing would hold a finished tree's handle for as
+    /// long as the core runs. Every other tree published here keeps standing,
+    /// with its charge. A tree published outside any task hands the thread
+    /// back to the tree it was running before.
+    pub fn withdraw(&self, view: &SafepointView) {
+        if let Some(local) = &self.meter {
+            local.withdraw(view);
+        }
+    }
+
+    /// Withdraws every request this thread has published, leaving it
+    /// registered and sampled against no ceiling until it publishes again.
+    pub fn clear(&self) {
+        if let Some(local) = &self.meter {
+            local.clear();
+        }
+    }
+}
+
+impl Local {
+    /// [`Registration::publish`], which owns what a publication is.
+    fn publish(&self, view: SafepointView) {
         let tree = view.tree_key();
-        let mut meter = meter.borrow_mut();
+        let mut meter = self.meter.borrow_mut();
         if let Some(charging) = meter.charges.get_mut(&tree) {
             charging.publications += 1;
             return;
@@ -779,20 +922,10 @@ impl Registration {
         }
     }
 
-    /// Takes back one publication of `view`'s request tree, and stops sampling
-    /// that tree when it was the last.
-    ///
-    /// What a request owes when it ends: the entry outlives the request, and a
-    /// publication left standing would hold a finished tree's handle for as
-    /// long as the core runs. Every other tree published here keeps standing,
-    /// with its charge. A tree published outside any task hands the thread
-    /// back to the tree it was running before.
-    pub fn withdraw(&self, view: &SafepointView) {
-        let Some(meter) = &self.meter else {
-            return;
-        };
+    /// [`Registration::withdraw`], which owns what a withdrawal does.
+    fn withdraw(&self, view: &SafepointView) {
         let tree = view.tree_key();
-        let mut meter = meter.borrow_mut();
+        let mut meter = self.meter.borrow_mut();
         let Some(charging) = meter.charges.get_mut(&tree) else {
             return;
         };
@@ -817,13 +950,9 @@ impl Registration {
         }
     }
 
-    /// Withdraws every request this thread has published, leaving it
-    /// registered and sampled against no ceiling until it publishes again.
-    pub fn clear(&self) {
-        let Some(meter) = &self.meter else {
-            return;
-        };
-        meter.borrow_mut().charges.clear();
+    /// [`Registration::clear`].
+    fn clear(&self) {
+        self.meter.borrow_mut().charges.clear();
         let mut state = lock(&self.shared.state);
         if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
             watched.running.clear();
@@ -884,7 +1013,12 @@ impl Shared {
         let mut state = lock(&self.state);
         let margin = self.margin;
         let mut stalls = Vec::new();
-        for watched in &mut state.watching {
+        // What each tree under a ceiling has spent, summed over every thread
+        // it is published on: a child placed on another core is charged
+        // there, and its time counts against the tree's one ceiling
+        // (`rule:security/isolate-budget-is-the-trees`).
+        let mut spent: HashMap<usize, u64> = HashMap::new();
+        for watched in &state.watching {
             // Read once per core, at the first request under a ceiling, and
             // before any charge is: the module doc's *Charging a request*
             // section owns why that order never reads high.
@@ -892,14 +1026,26 @@ impl Shared {
             for running in &watched.running {
                 // The ceiling first, so a request under no cap costs this walk
                 // one load and no reading of its core's clock.
-                let Some(limit) = running.limit() else {
+                if running.limit().is_none() {
                     continue;
-                };
+                }
                 let Some(now) = *clock.get_or_insert_with(|| running.clock.burned().map(nanos))
                 else {
                     break;
                 };
-                if Duration::from_nanos(running.charge.at(now)) < limit {
+                let total = spent.entry(running.view.tree_key()).or_default();
+                *total = total.saturating_add(running.charge.at(now));
+            }
+        }
+        for watched in &mut state.watching {
+            for running in &watched.running {
+                let Some(limit) = running.limit() else {
+                    continue;
+                };
+                let Some(&total) = spent.get(&running.view.tree_key()) else {
+                    continue;
+                };
+                if Duration::from_nanos(total) < limit {
                     continue;
                 }
                 // Both halves, because they are two different polls: the flag
@@ -1702,6 +1848,148 @@ mod tests {
             charged(&second),
             second_left,
             "a published request was charged for time spent on an unpublished one"
+        );
+    }
+
+    /// What `view`'s tree has been charged on the thread it is published on,
+    /// read the way the walk reads it.
+    fn charged_on(shared: &Shared, view: &SafepointView) -> Option<Duration> {
+        lock(&shared.state)
+            .watching
+            .iter()
+            .flat_map(|watched| &watched.running)
+            .find(|running| running.view().same_tree(view))
+            .and_then(RunningRequest::burned)
+    }
+
+    /// A tree published on two threads is stopped when the two charges add up
+    /// to its ceiling, though neither reaches it alone: a parent and the child
+    /// it placed on another core spend one `cpu_time` between them —
+    /// `rule:security/isolate-budget-is-the-trees`.
+    #[test]
+    fn a_tree_charged_on_two_threads_is_stopped_at_the_sum_of_both() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+        if ThreadClock::current().is_none() {
+            // No per-thread clock here, so nothing is sampled at all —
+            // `crate::cpuclock`'s docs own that answer.
+            return;
+        }
+        // Above one spin and below two, so only the sum crosses it.
+        let ceiling = Duration::from_millis(35);
+        let parent = capped(u64::try_from(ceiling.as_nanos()).expect("35 ms fits a u64"));
+        // Published outside any task, so this thread is charged from here on.
+        registered.publish(parent.safepoint_view());
+        burn_a_charge();
+        assert!(dog.shared.sweep(Instant::now()).is_empty());
+        assert!(
+            !parent.safepoint_flags().contains(SafepointFlags::CPU_LIMIT),
+            "one thread's share of a tree was stopped below the tree's ceiling"
+        );
+        // The parent stops running here, as a parked parent does.
+        switch_to(NO_TREE);
+
+        let seed = parent.placed_isolate();
+        let watchdog = &dog;
+        std::thread::scope(|scope| {
+            scope.spawn(move || {
+                let far = watchdog.register_requests();
+                let child = seed.build(OutputSink::Sink);
+                far.publish(child.safepoint_view());
+                burn_a_charge();
+                assert!(watchdog.shared.sweep(Instant::now()).is_empty());
+                far.withdraw(&child.safepoint_view());
+            });
+        });
+        assert!(
+            parent.safepoint_flags().contains(SafepointFlags::CPU_LIMIT),
+            "a tree whose two threads together spent its ceiling ran on"
+        );
+    }
+
+    /// A child placed on another core runs in a task spawned with that core's
+    /// own context. `crate::placed` moves the task to the child's tree and
+    /// publishes the tree there, which is what is done by hand below. The
+    /// watchdog's own thread then stops the tree at its ceiling, through a
+    /// park with no context in between, and the request beside the child on
+    /// that core is charged only for the time it runs itself.
+    #[test]
+    fn a_placed_child_is_charged_on_its_core_and_a_request_beside_it_is_not() {
+        use crate::scheduler::{
+            Scheduler, Waiting, charge_running_task_to, suspend, suspend_current,
+        };
+        use std::cell::Cell;
+
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        if ThreadClock::current().is_none() {
+            return;
+        }
+        let ceiling = Duration::from_millis(50);
+        let parent = capped(u64::try_from(ceiling.as_nanos()).expect("50 ms fits a u64"));
+        let seed = parent.placed_isolate();
+        let shared = Arc::clone(&dog.shared);
+        let watchdog = &dog;
+
+        let (child_charge, neighbour_charge) = std::thread::scope(|scope| {
+            scope
+                .spawn(move || {
+                    let _installed = install(Reactor::new().expect("the OS refused a poll"));
+                    let _far = watchdog.register_requests();
+                    let mut sched = Scheduler::new();
+                    let neighbour = capped(a_minute());
+                    let neighbour_view = neighbour.safepoint_view();
+                    let finished = Rc::new(Cell::new(false));
+                    let charges = Rc::new(Cell::new((None, None)));
+
+                    let done = Rc::clone(&finished);
+                    sched.spawn(neighbour, TaskRoot::Request, move |ctx| {
+                        let _published = publish_here(ctx.safepoint_view());
+                        while !done.get() {
+                            let _ = suspend(ctx, Waiting::Yielded);
+                        }
+                    });
+                    let done = Rc::clone(&finished);
+                    let read = Rc::clone(&charges);
+                    sched.spawn(ctx(), TaskRoot::Request, move |_| {
+                        let child = seed.build(OutputSink::Sink);
+                        charge_running_task_to(child.tree_key());
+                        let _published = publish_here(child.safepoint_view());
+                        let _ = suspend_current(Waiting::Yielded);
+                        let began = Instant::now();
+                        while !child.safepoint_flags().contains(SafepointFlags::CPU_LIMIT)
+                            && began.elapsed() < Duration::from_secs(10)
+                        {
+                            crate::cpuclock::burn_at_least(Duration::from_millis(1));
+                        }
+                        read.set((
+                            charged_on(&shared, &child.safepoint_view()),
+                            charged_on(&shared, &neighbour_view),
+                        ));
+                        done.set(true);
+                    });
+                    run_until_idle(&mut sched).expect("the loop failed");
+                    charges.get()
+                })
+                .join()
+                .expect("the far core panicked")
+        });
+
+        assert!(
+            parent.safepoint_flags().contains(SafepointFlags::CPU_LIMIT),
+            "a child that spent its tree's ceiling on another core was not stopped"
+        );
+        let child_charge = child_charge.expect("the child's tree was not published on its core");
+        assert!(
+            child_charge >= ceiling && child_charge < ceiling + Duration::from_secs(2),
+            "the child was stopped after {child_charge:?} of a {ceiling:?} ceiling"
+        );
+        let neighbour_charge =
+            neighbour_charge.expect("the request beside the child was not published");
+        assert!(
+            neighbour_charge < ceiling / 2,
+            "the request beside the child was charged {neighbour_charge:?} for the child's loop"
         );
     }
 

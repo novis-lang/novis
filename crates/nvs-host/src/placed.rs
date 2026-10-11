@@ -220,6 +220,14 @@ fn cross(crossing: Crossing) -> Crossed {
     } else {
         seed.build(OutputSink::Buffer(Vec::new()))
     };
+    // The child's CPU time is its request tree's, on this core as on the
+    // parent's (`rule:security/isolate-budget-is-the-trees`). The task this
+    // runs in was spawned with the receptionist's context, so it is moved to
+    // the child's tree first, and the tree is then published on this core
+    // until the child's answer is encoded below. `crate::watchdog`'s
+    // *Charging a request* section owns how the two cores' time adds up.
+    crate::scheduler::charge_running_task_to(child.tree_key());
+    let _charged = crate::watchdog::publish_here(child.safepoint_view());
     // The receiving table for both crossings on this side, taken before the
     // context is moved into the run below. It is the table that crossed, so a
     // class in the answer is the same descriptor the parent will compare against

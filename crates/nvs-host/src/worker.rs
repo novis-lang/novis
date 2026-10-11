@@ -217,6 +217,11 @@ impl Placed {
 /// keep of it.
 struct Start {
     placed: Arc<Placed>,
+    /// The watchdog the placing thread is registered with, which the core
+    /// that runs the work registers with too if it is not already
+    /// ([`crate::watchdog::Watcher::adopt`]). `None` from a thread the
+    /// watchdog does not charge, where the child is charged nowhere either.
+    watcher: Option<crate::watchdog::Watcher>,
     /// The work itself, with its own answer slot and wake captured inside it —
     /// the same shape [`crate::blocking::run`] hands its pool, and for the same
     /// reason: dropping this job answers the placement rather than losing it.
@@ -1025,6 +1030,7 @@ where
     };
     let start = Start {
         placed: Arc::clone(&placed),
+        watcher: crate::watchdog::Watcher::here(),
         job: Box::new(move || {
             // `run_task` rather than a bare `catch_unwind`: it is the boundary
             // that knows a forced unwind from a panic, so a child cancelled
@@ -1098,9 +1104,22 @@ fn receive(inbox: &Arc<Inbox>, ending: Option<&Drain>) {
     // returns, and the test below reads on this first turn either way.
     let _woken_at_drain = ending.and_then(reactor::wake_at_drain);
     let mut live: Vec<Arc<Placed>> = Vec::new();
+    // This core's registration with the watchdog its placements came from,
+    // made at the first one and kept while the core runs. A serving core is
+    // registered already and never makes one: `crate::watchdog`'s *Charging a
+    // request* section owns why a started core needs it.
+    let mut watched = None;
     loop {
         arm(inbox);
-        for Start { placed, job } in inbox.take() {
+        for Start {
+            placed,
+            watcher,
+            job,
+        } in inbox.take()
+        {
+            if let Some(watcher) = watcher {
+                watcher.adopt(&mut watched);
+            }
             // A child of the receptionist rather than a bare root, which is what
             // makes this core's teardown its children's: the receptionist
             // returning cancels everything still placed here, and nothing else

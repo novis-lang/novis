@@ -622,8 +622,9 @@ struct Task {
     told: bool,
     /// The request tree this task runs for, as [`nvs_runtime::Ctx::tree_key`]
     /// names it: taken from the context it was spawned with, and taken again
-    /// at each suspension that hands one over, because a connection's context
-    /// starts a new tree for each request it serves (`Ctx::reroot`).
+    /// at each suspension, because a connection's context starts a new tree
+    /// for each request it serves (`Ctx::reroot`) and a placed child's task
+    /// moves to its child's tree ([`charge_running_task_to`]).
     /// [`Scheduler::run`] hands it to [`crate::watchdog::switch_to`] before
     /// every resume, so the CPU time the task spends is charged to its own
     /// request.
@@ -871,7 +872,11 @@ impl Scheduler {
             // The same pointer, published a second time for code that was handed
             // no `Ctx` at all — a `std::io::Read` on a socket. `RUNNING`'s docs
             // own why the task maintains this rather than the scheduler.
-            RUNNING.set(Some(Running { id, yielder: raw }));
+            RUNNING.set(Some(Running {
+                id,
+                yielder: raw,
+                tree: ctx.tree_key(),
+            }));
             let outcome = nvs_runtime::run_task(root, || body(&mut ctx));
             // Cleared on both paths, the contained-panic one included, so no
             // pointer to a stack that is about to go away can escape in the
@@ -1368,6 +1373,33 @@ struct Running {
     /// same place in the same statement, so there is one source and two readers
     /// rather than two sources.
     yielder: *const (),
+    /// The request tree this task runs for: [`Task::tree`] as the task itself
+    /// last stated it. [`yield_on`] hands it out in every suspension, so a
+    /// park made through [`suspend_current`], which has no context to name a
+    /// tree, keeps the tree [`charge_running_task_to`] moved the task to.
+    tree: usize,
+}
+
+/// Charges the running task, from this instant on, to `tree`, as
+/// [`nvs_runtime::Ctx::tree_key`] names it.
+///
+/// For a task that runs a request it was not spawned with:
+/// a child placed `on: "worker"` runs in a task the receptionist on that core
+/// spawned with a context of its own, and builds the child's context inside
+/// it (`crate::placed`). Without this, every resume of that task would charge
+/// the receptionist's empty tree and never the child's.
+///
+/// The thread is charged to `tree` at once ([`crate::watchdog::switch_to`]),
+/// and every later resume of the task is charged to it too: the next
+/// suspension hands the tree to the scheduler, whatever the park site.
+/// Off a task, it does nothing.
+pub(crate) fn charge_running_task_to(tree: usize) {
+    let Some(mut running) = RUNNING.get() else {
+        return;
+    };
+    running.tree = tree;
+    RUNNING.set(Some(running));
+    crate::watchdog::switch_to(tree);
 }
 
 /// The task running on this core right now, if there is one.
@@ -1448,7 +1480,9 @@ pub fn suspend_current(waiting: Waiting) -> Resumed {
 /// which is what its own doc records.
 ///
 /// `tree` is the request tree of the context that suspended, where the park
-/// site has one, and travels out in the suspension for [`Task::tree`].
+/// site has one. What travels out in the suspension for [`Task::tree`] is that
+/// tree, or the running task's own ([`Running::tree`]) where the park site has
+/// none.
 fn yield_on(raw: *const (), waiting: Waiting, tree: Option<usize>) -> Resumed {
     // SAFETY: a non-null erased yielder is written in exactly one place —
     // `Scheduler::spawn`'s coroutine body, from `&Yielder` — into the task's
@@ -1466,7 +1500,15 @@ fn yield_on(raw: *const (), waiting: Waiting, tree: Option<usize>) -> Resumed {
     // Off the thread before the switch and back on after it. An unwind through
     // the switch — a suspended coroutine dropped during teardown — therefore
     // leaves `RUNNING` empty rather than naming a task whose stack is gone.
-    let running = RUNNING.replace(None);
+    let mut running = RUNNING.replace(None);
+    // The tree this suspension hands the scheduler: the one the park site
+    // named, or else the one the task last stated. Whichever it is, the task
+    // keeps it, so a later park with no context to name one does not hand
+    // back a tree the task has left.
+    let tree = tree.or(running.map(|running| running.tree));
+    if let (Some(running), Some(tree)) = (running.as_mut(), tree) {
+        running.tree = tree;
+    }
     // Off the thread beside `RUNNING` and for the same reason: the count
     // belongs to this stack, which is about to stop being the one the thread is
     // running. A task that never comes back leaves it at zero, and its own
