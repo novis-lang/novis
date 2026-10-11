@@ -7,6 +7,7 @@
 // hostile: timeout-ms 20000
 // hostile: ends-early 4 FATAL
 
+// `Level` stays outside the classes, because `Endless` and `Runaway` both use it.
 enum Level { Low = 1, Mid = 5, High = 9 }
 
 enum Far { End = 9223372036854775807, Start = -9223372036854775807 }

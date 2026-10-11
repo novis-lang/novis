@@ -3,9 +3,9 @@
 // a parameter and of a return value. Each of them accepts the three cases of
 // `Level` and no other value.
 
-enum Level { Low = 1, Mid = 5, High = 9 }
-
 class Gate {
+    enum Level { Low = 1, Mid = 5, High = 9 }
+
     // This property stores one case of `Level`.
     public Level $level;
 
@@ -22,10 +22,10 @@ class Gate {
     }
 }
 
-var $gate = new Gate(Level::Low);
+var $gate = new Gate(Gate::Level::Low);
 
 // This prints 5. `Mid` is higher than `Low`, so the gate moves up to `Mid`.
-echo $gate->raise(Level::Mid) as int, "\n";
+echo $gate->raise(Gate::Level::Mid) as int, "\n";
 
 // This prints 5 again. `Low` is lower, so the gate stays at `Mid`.
-echo $gate->raise(Level::Low) as int, "\n";
+echo $gate->raise(Gate::Level::Low) as int, "\n";

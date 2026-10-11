@@ -2,6 +2,7 @@
 // Shows a parameter that accepts two of an enum's four cases. Writing the cases
 // with `|` between them makes a type of its own.
 
+// `Mode` stays outside the classes, because `File` and `Log` both use it.
 enum Mode { Read, Write, Append, Exec }
 
 class File {

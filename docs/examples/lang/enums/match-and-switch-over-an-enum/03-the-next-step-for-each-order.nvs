@@ -3,9 +3,9 @@
 // statements instead of returning a value, and `break` ends an arm. An arm
 // without `break` runs on into the arm below it.
 
-enum Stage { Placed, Paid, Shipped }
-
 class Work {
+    enum Stage { Placed, Paid, Shipped }
+
     public static function next(Stage $stage): string {
         string $todo = "";
         switch ($stage) {
@@ -23,10 +23,10 @@ class Work {
     }
 }
 
-array<Stage> $orders = [Stage::Placed, Stage::Paid, Stage::Shipped];
+array<Work::Stage> $orders = [Work::Stage::Placed, Work::Stage::Paid, Work::Stage::Shipped];
 
 // This prints `take the payment; pack the box`, then `pack the box`, then
 // `send the tracking number`.
-foreach ($orders as Stage $stage) {
+foreach ($orders as Work::Stage $stage) {
     echo Work::next($stage), "\n";
 }

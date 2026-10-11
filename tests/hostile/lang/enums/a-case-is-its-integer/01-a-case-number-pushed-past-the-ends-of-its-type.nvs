@@ -7,7 +7,6 @@
 // hostile: timeout-ms 20000
 
 enum Mask: uint { None = 0, All = 18446744073709551615 }
-enum Depth { Floor = -9223372036854775807, Ground = 0, Step = 1 }
 
 // 1. The largest number a `uint` enum can carry, raised by one.
 uint $top = Mask::All as uint;
@@ -20,7 +19,7 @@ try {
 }
 
 // 2. The most negative number an `int` enum can carry, lowered by two.
-int $floor = Depth::Floor as int;
+int $floor = Runaway::Depth::Floor as int;
 echo '2: ', $floor, "\n";
 try {
     int $under = $floor - 2;
@@ -34,7 +33,7 @@ class Grind
 {
     public static function run(int $rounds): int
     {
-        array<Depth> $steps = [Depth::Ground, Depth::Step];
+        array<Runaway::Depth> $steps = [Runaway::Depth::Ground, Runaway::Depth::Step];
         int $total = 0;
         int $i = 0;
         while ($i < $rounds) {
@@ -50,6 +49,8 @@ echo '3: ', Grind::run(500000), "\n";
 // 4. A function that converts a case and then calls itself, with no end.
 class Runaway
 {
+    enum Depth { Floor = -9223372036854775807, Ground = 0, Step = 1 }
+
     public static function down(Depth $step, int $n): int
     {
         return Runaway::down($step, $n + ($step as int));
@@ -57,7 +58,7 @@ class Runaway
 }
 
 try {
-    int $reached = Runaway::down(Depth::Step, 0);
+    int $reached = Runaway::down(Runaway::Depth::Step, 0);
     echo '4: BAD, the call returned ', $reached, "\n";
 } catch (Throwable $e) {
     echo '4: caught ', $e->message, "\n";

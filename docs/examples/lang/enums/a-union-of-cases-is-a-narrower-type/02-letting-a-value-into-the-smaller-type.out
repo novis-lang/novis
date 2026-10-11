@@ -1,3 +1,3 @@
 opened in mode 1
-stopped: `3` is not one of `Mode::Read`, `Mode::Write`
+stopped: `3` is not one of `File::Mode::Read`, `File::Mode::Write`
 no mode

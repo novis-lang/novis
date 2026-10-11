@@ -6,8 +6,6 @@
 // covers: lang:enums/match-and-switch-over-an-enum
 // hostile: timeout-ms 20000
 
-enum Mode: uint { Read = 0, Write = 1, Huge = 18446744073709551615 }
-
 // 1. A `match` with one arm that the subject never fits, one million times. The
 // throw is caught each round, so the program keeps going.
 class Missed
@@ -18,7 +16,7 @@ class Missed
         int $i = 0;
         while ($i < $rounds) {
             try {
-                string $unreached = match (Mode::Huge) { Mode::Read => 'read' };
+                string $unreached = match (Runaway::Mode::Huge) { Runaway::Mode::Read => 'read' };
                 $caught = $caught + (Core\Str::length($unreached) as int);
             } catch (Throwable $e) {
                 $caught = $caught + 1;
@@ -40,12 +38,12 @@ class Through
         int $steps = 0;
         int $i = 0;
         while ($i < $rounds) {
-            switch (Mode::Read) {
-                case Mode::Read:
+            switch (Runaway::Mode::Read) {
+                case Runaway::Mode::Read:
                     $steps = $steps + 1;
-                case Mode::Write:
+                case Runaway::Mode::Write:
                     $steps = $steps + 1;
-                case Mode::Huge:
+                case Runaway::Mode::Huge:
                     $steps = $steps + 1;
                 default:
                     $steps = $steps + 1;
@@ -60,13 +58,15 @@ echo '2: steps ', Through::walk(2000000), "\n";
 
 // 3. The largest number a `uint` case can carry, matched against its own arm
 // and against the arm below it.
-Mode $end = Mode::Huge;
-echo '3: ', match ($end) { Mode::Read => 'read', Mode::Huge => 'huge', default => 'other' }, "\n";
-echo '3: ', match ($end) { Mode::Read => 'read', Mode::Write => 'write', default => 'other' }, "\n";
+Runaway::Mode $end = Runaway::Mode::Huge;
+echo '3: ', match ($end) { Runaway::Mode::Read => 'read', Runaway::Mode::Huge => 'huge', default => 'other' }, "\n";
+echo '3: ', match ($end) { Runaway::Mode::Read => 'read', Runaway::Mode::Write => 'write', default => 'other' }, "\n";
 
 // 4. A `match` whose arm calls the method it is written in, with no end.
 class Runaway
 {
+    enum Mode: uint { Read = 0, Write = 1, Huge = 18446744073709551615 }
+
     public static function down(Mode $m): int
     {
         return match ($m) {
@@ -77,7 +77,7 @@ class Runaway
 }
 
 try {
-    int $reached = Runaway::down(Mode::Read);
+    int $reached = Runaway::down(Runaway::Mode::Read);
     echo '4: BAD, the call returned ', $reached, "\n";
 } catch (Throwable $e) {
     echo '4: caught ', $e->message, "\n";

@@ -1,13 +1,13 @@
 <?nvs
-enum Rank
-{
-    Bronze,
-    Silver,
-    Gold,
-}
-
 class Player implements Comparable
 {
+    enum Rank
+    {
+        Bronze,
+        Silver,
+        Gold,
+    }
+
     public string $playerName;
     public Rank $rank;
 
@@ -23,14 +23,14 @@ class Player implements Comparable
     }
 }
 
-var $ana = new Player('ana', Rank::Gold);
-var $bo = new Player('bo', Rank::Silver);
+var $ana = new Player('ana', Player::Rank::Gold);
+var $bo = new Player('bo', Player::Rank::Silver);
 
 if ($ana > $bo) {
     echo "ana outranks bo\n";
 }
 
-echo 'gold=' . (Rank::Gold as int) . "\n";
+echo 'gold=' . (Player::Rank::Gold as int) . "\n";
 
 var $copy = clone $ana;
 $copy->playerName = 'clone';

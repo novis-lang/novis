@@ -8,8 +8,6 @@
 
 enum Mask: uint { None = 0, All = 18446744073709551615 }
 
-enum Signal { Stop = -9223372036854775807, Idle = 0, Go = 9223372036854775807 }
-
 // 1. Four million comparisons at the ends of a `uint`-backed enum. Every round
 // checks that `==` agrees with the numbers.
 class Ends
@@ -42,12 +40,12 @@ class Across
 {
     public static function sweep(int $rounds): int
     {
-        array<Signal> $signals = [Signal::Stop, Signal::Idle, Signal::Go];
+        array<Runaway::Signal> $signals = [Runaway::Signal::Stop, Runaway::Signal::Idle, Runaway::Signal::Go];
         int $wrong = 0;
         int $i = 0;
         while ($i < $rounds) {
-            Signal $a = $signals[$i % 3];
-            Signal $b = $signals[($i + 2) % 3];
+            Runaway::Signal $a = $signals[$i % 3];
+            Runaway::Signal $b = $signals[($i + 2) % 3];
             if (($a == $b) != (($a as int) == ($b as int))) {
                 $wrong = $wrong + 1;
             }
@@ -65,12 +63,12 @@ class Pairs
 {
     public static function count(int $rounds): int
     {
-        array<Signal> $signals = [Signal::Stop, Signal::Idle, Signal::Go];
+        array<Runaway::Signal> $signals = [Runaway::Signal::Stop, Runaway::Signal::Idle, Runaway::Signal::Go];
         int $lower = 0;
         int $i = 0;
         while ($i < $rounds) {
-            foreach ($signals as Signal $a) {
-                foreach ($signals as Signal $b) {
+            foreach ($signals as Runaway::Signal $a) {
+                foreach ($signals as Runaway::Signal $b) {
                     if (($a as int) < ($b as int)) {
                         $lower = $lower + 1;
                     }
@@ -87,6 +85,8 @@ echo '3: ', Pairs::count(200000), "\n";
 // 4. A method that compares a case and then calls itself, with no end.
 class Runaway
 {
+    enum Signal { Stop = -9223372036854775807, Idle = 0, Go = 9223372036854775807 }
+
     public static function down(Signal $s): int
     {
         if ($s == Signal::Go) {
@@ -97,7 +97,7 @@ class Runaway
 }
 
 try {
-    int $reached = Runaway::down(Signal::Go);
+    int $reached = Runaway::down(Runaway::Signal::Go);
     echo '4: BAD, the call returned ', $reached, "\n";
 } catch (Throwable $e) {
     echo '4: caught ', $e->message, "\n";

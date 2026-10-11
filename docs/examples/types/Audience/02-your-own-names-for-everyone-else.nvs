@@ -2,8 +2,6 @@
 // Novis names one audience only: everyone. Every other answer belongs to your
 // program, so this one writes its own names for the routes that are not open.
 
-enum Role { Admin, Member }
-
 class Plan {
     public const string PAID = "paid";
 }
@@ -15,7 +13,7 @@ class Site {
 
     // A case of your own enum. Novis checks that the name exists, nothing more.
     #[Core\Route(path: "/account", method: Core\Http\Method::Get, name: "Site::account")]
-    #[Core\Access(allow: Role::Member)]
+    #[Core\Access(allow: Gate::Role::Member)]
     public function account(): string { return "account"; }
 
     // A class constant is a name too, so it works here just as well.
@@ -27,6 +25,8 @@ class Site {
 // What your own names mean is your program's decision, and this is where it
 // gets made. Novis never makes it for you.
 class Gate {
+    enum Role { Admin, Member }
+
     public static function sees(Role $role): string {
         return match ($role) {
             Role::Admin => "every account",
@@ -37,5 +37,5 @@ class Gate {
 
 echo Core\Router::url("Site::home", []), "\n";
 echo Core\Router::url("Site::account", []), "\n";
-echo "admin sees ", Gate::sees(Role::Admin), "\n";
-echo "member sees ", Gate::sees(Role::Member), "\n";
+echo "admin sees ", Gate::sees(Gate::Role::Admin), "\n";
+echo "member sees ", Gate::sees(Gate::Role::Member), "\n";

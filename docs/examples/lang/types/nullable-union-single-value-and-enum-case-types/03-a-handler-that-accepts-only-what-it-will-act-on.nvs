@@ -1,12 +1,12 @@
 <?nvs
 // A handler converts each field of a request to the exact type it needs, once, at the top.
-// The account is an `int` or a `string`, and the action is a case of the enum `Action`.
-// `grant` accepts only `Action::Read` and `Action::Write`. Converting `Action::Delete`
+// The account is an `int` or a `string`, and the action is a case of the enum `Gate::Action`.
+// `grant` accepts only the cases `Read` and `Write`. Converting `Delete`
 // to that type throws an error, so `grant` is never called with it.
 
-enum Action { Read, Write, Delete }
-
 class Gate {
+    enum Action { Read, Write, Delete }
+
     public static function grant(Action::Read|Action::Write $action, int|string $account): string {
         array<string> $verbs = ["read", "write", "delete"];
         return "account " . ($account as string) . " may " . $verbs[$action as int];
@@ -23,8 +23,8 @@ foreach ($requests as array<string> $request) {
     try {
         string $raw = $request["account"];
         int|string $account = ($raw as ?int) ?? $raw;
-        Action $asked = ($request["action"] as int) as Action;
-        echo Gate::grant($asked as Action::Read|Action::Write, $account), "\n";
+        Gate::Action $asked = ($request["action"] as int) as Gate::Action;
+        echo Gate::grant($asked as Gate::Action::Read|Gate::Action::Write, $account), "\n";
     } catch (Throwable $e) {
         echo "refused: this gate grants nothing else\n";
     }

@@ -2,9 +2,9 @@
 // Shows how to get the name of a case. A case has no `->name`, so the names
 // live in a `match` inside a class of your own.
 
-enum Level { Debug, Info, Warn }
-
 class Levels {
+    enum Level { Debug, Info, Warn }
+
     // Returns the name of a level. The `match` covers every case of `Level`,
     // so adding a case to the enum stops this method at compile time.
     public static function name(Level $l): string {
@@ -17,8 +17,8 @@ class Levels {
 }
 
 // This prints `info` and `warn`.
-echo Levels::name(Level::Info), "\n";
-echo Levels::name(Level::Warn), "\n";
+echo Levels::name(Levels::Level::Info), "\n";
+echo Levels::name(Levels::Level::Warn), "\n";
 
 // The number behind a case needs no class. This prints 2.
-echo Level::Warn as int, "\n";
+echo Levels::Level::Warn as int, "\n";

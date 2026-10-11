@@ -2,9 +2,9 @@
 // Shows a page that decides what a visitor may do. The role arrives as an enum.
 // `==` tests for one role, and `as int` compares two roles by their number.
 
-enum Role { Guest = 0, Member = 10, Editor = 20, Owner = 30 }
-
 class Page {
+    enum Role { Guest = 0, Member = 10, Editor = 20, Owner = 30 }
+
     public static function actions(Role $role): string {
         // A guest is a single case, so `==` is the test for it.
         if ($role == Role::Guest) {
@@ -18,9 +18,9 @@ class Page {
     }
 }
 
-array<Role> $visitors = [Role::Guest, Role::Member, Role::Owner];
+array<Page::Role> $visitors = [Page::Role::Guest, Page::Role::Member, Page::Role::Owner];
 
 // This prints `read`, then `read, comment`, then `read, comment, publish`.
-foreach ($visitors as Role $role) {
+foreach ($visitors as Page::Role $role) {
     echo Page::actions($role), "\n";
 }

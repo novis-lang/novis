@@ -6,6 +6,7 @@
 // covers: lang:enums/what-an-enum-does-not-have
 // hostile: timeout-ms 20000
 
+// `Level` stays outside the classes, because `Levels` and `Runaway` both use it.
 enum Level { Debug, Info, Warn, Error }
 
 class Levels

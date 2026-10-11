@@ -3,6 +3,7 @@
 // request arrives as the whole enum, and `as ?` decides whether this cache can
 // handle it.
 
+// `Method` stays outside the classes, because `Cache` and `Router` both use it.
 enum Method { Get, Head, Post, Put, Delete }
 
 class Cache {
