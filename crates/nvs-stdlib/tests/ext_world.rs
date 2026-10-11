@@ -276,7 +276,7 @@ use Place::{Export, Novis, Output, Source, Step};
 /// Every member of `Novis\Image`, with where it runs
 /// (`rule:core-classes/image-pipeline`,
 /// `rule:core-classes/image-one-entry-point-per-job`). `measureText` and `fromRaw` start a pipeline from a `source`
-/// case and `raw` is an `output` of `run`, as ADR 0276 decides.
+/// case and `raw` is an `output` of `run`.
 const IMAGE_MEMBERS: &[(&str, &[Place])] = &[
     ("Image::open", &[Source("encoded")]),
     ("Image::create", &[Source("canvas")]),

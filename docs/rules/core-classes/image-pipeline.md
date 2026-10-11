@@ -26,6 +26,21 @@ encoded file (`encode`), the RGBA8 pixels behind a size header (`raw`), or the s
 position, because WIT has no recursive types. `hashDistance`, `Color` and `Font::fromBytes` are Novis
 source and call no export.
 
+`fromRaw` and `measureText` are pipeline starts, so each is a `source` case and not an export of its
+own: both stay inside `run`, and a text source can be resized, padded and composited like any other
+start. A `fromRaw` buffer that is not exactly `width * height * 4` bytes returns `invalid`, and the
+pixel cap applies to `width * height` as it does to a header's declared size. A text source lays the
+text out exactly as a `text` step does, so the size `measureText` returns is the box that step draws;
+it rasterises the text to size it, which costs one glyph run. `run` returns `list<u8>` for every
+output: the size header is width, then height, each a big-endian `u64`, and the host reads it into
+the `Raw` shape or the size it returns. `hashDistance` counts the differing bits between two hashes
+of one kind, which needs no decoder. A row's own `composite` steps name only earlier rows, so the
+table is in dependency order and no overlay contains itself; the guest returns `invalid` for a
+position that is not earlier, and the host flattens a nested Novis pipeline into rows when it builds
+the plan.
+
+- **Memory:** the `raw` output adds 16 bytes to the pixel buffer it returns.
+
 A `Format` carries no members, because an enum declares only cases (`rule:enums/no-class-machinery`):
 `Image::mime(Format)` and `Image::extension(Format)` name a format's MIME type and file extension. The
 plan's option shapes that the builder fills in for the caller — `format`'s, `rotate`'s and
@@ -61,3 +76,9 @@ pixel source is held to the default pixel cap, not the `[image]` one.
 - **ImageMagick or libvips compiled to wasm wholesale.** A surface that large is the long tail the
   component declines to own, and a C codebase that size is still one to build and audit inside the
   sandbox.
+- **An export of its own for `fromRaw` and for `measureText`.** Each would carry the same input as a
+  `source` case, add a boundary entry point for a job that is one more pipeline start, and break the
+  closed export count.
+- **A `variant` result for `run`.** It changes `run`'s signature to carry one case that two members
+  use, where a size header on the same `list<u8>` carries it.
+- **`hashDistance` as a call into the component.** It pays the boundary for a loop over a few bytes.

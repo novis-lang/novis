@@ -1,9 +1,7 @@
 {
   "title": "An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it",
   "status": "designed",
-  "because": [
-    "0276"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/image-pixel-model",
     "core-classes/image-pixel-cap",
