@@ -1521,7 +1521,7 @@ gates a build. A regression is a row with a delta on it.
 - **A column for PHP or another engine.** This ledger compares Novis with itself
   ([`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks) owns the comparison).
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0224](../decisions/0224.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks).</sub>
 
 <a id="testing-userland-benchmarks"></a>
 

@@ -11,3 +11,7 @@ name as allowed, and on a document that tells a reader to run a Python tool.
 
 This is the repository's tooling, not the language's: nothing here reaches the `nvs` binary, a Novis
 program or a request.
+
+**Declined:**
+- **Reading Rust source with regular expressions over lexed text.** A wrong match there does not fail
+  loudly: it gives two different programs one digest, and a check that should run is skipped.
