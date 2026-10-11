@@ -8,7 +8,6 @@
 // real ones an emitter wrote.
 // covers: Core\Db\Plan\Step::grade
 use Core\Db;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 use Core\Db\Schema;
 
@@ -38,11 +37,11 @@ uint $safe = 0;
 uint $locking = 0;
 uint $destructive = 0;
 foreach ($steps as Step $step) {
-    if ($step->grade() == Grade::Safe) {
+    if ($step->grade() == Step::Grade::Safe) {
         $safe = $safe + 1;
-    } else if ($step->grade() == Grade::Locking) {
+    } else if ($step->grade() == Step::Grade::Locking) {
         $locking = $locking + 1;
-    } else if ($step->grade() == Grade::Destructive) {
+    } else if ($step->grade() == Step::Grade::Destructive) {
         $destructive = $destructive + 1;
     }
 }

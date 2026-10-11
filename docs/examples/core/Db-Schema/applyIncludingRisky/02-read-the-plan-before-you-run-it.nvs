@@ -3,7 +3,6 @@
 // first, print what each step will do, then run the plan.
 
 use Core\Db;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 use Core\Db\Schema;
 
@@ -31,7 +30,7 @@ uint $toRun = 0;
 foreach ($schema->planAgainst($db)->steps() as Step $step) {
     if ($step->isRefused() == false) {
         $toRun = $toRun + 1;
-        if ($step->grade() == Grade::Safe) {
+        if ($step->grade() == Step::Grade::Safe) {
             echo "step is safe\n";
         } else {
             echo "step needs applyIncludingRisky\n";

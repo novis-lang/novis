@@ -40,9 +40,7 @@ The `Core` enums that move:
 | `Core\IO\FileMode` | `Core\IO::FileMode` |
 | `Core\Cldr\PluralCategory` | `Core\Cldr::PluralCategory` |
 | `Core\Script\ExitReason` | `Core\Script\ExitReport::Reason` |
-| `Core\Db\Driver` | `Core\Db\Connection::Driver` |
 | `Core\Db\Tls` | `Core\Db::Tls` |
-| `Core\Db\Isolation` | `Core\Db\Connection::Isolation` |
 | `Core\Db\ErrorKind` | `Core\Db\DbError::Kind` |
 | `Core\Db\ColumnType` | `Core\Db\Column::Type` |
 | `Core\Db\Plan\Grade` | `Core\Db\Plan\Step::Grade` |
@@ -55,9 +53,11 @@ The `Core` enums that move:
 The `Core` enums that stay, each with the classes that share it: `Core\RoundMode` (`Math`,
 `Decimal`), `Core\Charset` (`Encoding`, `IO`), `Core\Unit` (`DateTime`, `Date`, `TimeOfDay`),
 `Core\Crypto\KeyKind` (four classes), `Core\Http\Method` (seven classes and `#[Route]`),
-and `Core\Audience` (`#[Access]` alone). A use site this table missed is placed by the rule, and
-the table is corrected here. `crates/nvs-stdlib/tests/enum_owners.rs` is what decides: a class uses
-an enum when a parameter, an option, a return type or a constant of one of its members names it.
+`Core\Db\Driver` (`Db`, `Db\Connection`), `Core\Db\Isolation` (`Db\Connection`,
+`Db\Transaction`) and `Core\Audience` (`#[Access]` alone). A use site this table missed is placed by
+the rule, and the table is corrected here. `crates/nvs-stdlib/tests/enum_owners.rs` is what decides:
+a class uses an enum when a parameter, an option, a field of a settings shape, a return type or a
+constant of one of its members names it.
 
 The built-in components follow the same rule. In `Novis\Image`, every enum but `Format` moves into
 `Image` (`Gravity`, `Fit`, `Filter`, `Axis`, `Blend`, `Align`, `Output`, `HashKind`,

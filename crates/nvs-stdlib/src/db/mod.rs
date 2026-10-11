@@ -503,7 +503,7 @@ const STEP_REPORT_AT: usize = 3;
 
 /// [`GRADE`]'s fully-qualified name, written once so the enum, the slot that
 /// holds one of its cases and every message quoting it cannot drift apart.
-pub(crate) const GRADE_NAME: &str = r"Core\Db\Plan\Grade";
+pub(crate) const GRADE_NAME: &str = r"Core\Db\Plan\Step::Grade";
 
 /// The one slot a [`ROW`] holds: that row's own columns, string-keyed and in
 /// the server's order — **the very array [`ROWS_SLOT`] already holds one of per

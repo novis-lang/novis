@@ -4,12 +4,12 @@
 // program decides once per column instead of looking at every cell.
 
 class Table {
-    public static function alignment(Core\Db\ColumnType $type): string {
+    public static function alignment(Core\Db\Column::Type $type): string {
         return match ($type) {
-            Core\Db\ColumnType::Int => "right",
-            Core\Db\ColumnType::Uint => "right",
-            Core\Db\ColumnType::Float => "right",
-            Core\Db\ColumnType::Decimal => "right",
+            Core\Db\Column::Type::Int => "right",
+            Core\Db\Column::Type::Uint => "right",
+            Core\Db\Column::Type::Float => "right",
+            Core\Db\Column::Type::Decimal => "right",
             default => "left",
         };
     }
@@ -18,11 +18,11 @@ class Table {
 // What the description of a `select id, customer, total, placed_on` would
 // hand back.
 array<string> $names = ["id", "customer", "total", "placed_on"];
-array<Core\Db\ColumnType> $types = [
-    Core\Db\ColumnType::Uint,
-    Core\Db\ColumnType::Text,
-    Core\Db\ColumnType::Decimal,
-    Core\Db\ColumnType::Date,
+array<Core\Db\Column::Type> $types = [
+    Core\Db\Column::Type::Uint,
+    Core\Db\Column::Type::Text,
+    Core\Db\Column::Type::Decimal,
+    Core\Db\Column::Type::Date,
 ];
 
 foreach (Core\Arr::range(0, 3) as int $column) {

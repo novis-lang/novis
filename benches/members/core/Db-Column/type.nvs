@@ -17,7 +17,7 @@ class Bench {
         while ($i < $rounds) {
             // The count so far chooses the column, so the loop cannot be left
             // out. One column is a number and the other is text.
-            if ($described[($total % 2) as int]->type() == Core\Db\ColumnType::Int) {
+            if ($described[($total % 2) as int]->type() == Core\Db\Column::Type::Int) {
                 $total = $total + 1;
             } else {
                 $total = $total + 3;

@@ -85,7 +85,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$step->grade(): Db\Plan\Grade` — `rule:core-classes/schema-plan`'s worst cost of this
+    /// `$step->grade(): Db\Plan\Step::Grade` — `rule:core-classes/schema-plan`'s worst cost of this
     /// step.
     fn nvs_core_db_plan_step_grade(_ctx, args: [1]) {
         let receiver = crate::instance::receiver(args[0], &STEP, "grade")?;

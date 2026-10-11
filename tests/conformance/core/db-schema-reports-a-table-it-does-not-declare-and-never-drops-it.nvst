@@ -10,7 +10,6 @@ A table the schema value does not declare is reported with the SQL that would dr
 // in full, and left alone.
 use Core\Db;
 use Core\Db\Schema;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 
 var $db = Db::connect("main");
@@ -35,7 +34,7 @@ foreach ($schema->planAgainst($db)->steps() as Step $step) {
         $reports = $reports + 1;
         // Graded for what it *would* cost, not for what will happen to it: a
         // drop is destructive whether or not anything will run it.
-        if ($step->grade() == Grade::Destructive) {
+        if ($step->grade() == Step::Grade::Destructive) {
             echo "report is destructive\n";
         } else {
             echo "report is something else\n";

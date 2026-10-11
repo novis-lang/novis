@@ -1,5 +1,8 @@
 How much of a server's identity is established before a password is sent to it.
 
+`Core\Db::Tls` is declared in the class `Core\Db`. The `tls` field of the settings that `Core\Db::open`
+takes is one of its cases.
+
 Before a connection hands over a credential it can check the certificate the server presented, and
 these four cases name the choices databases usually offer for that. `VerifyFull` is the strongest:
 the certificate has to be signed by an authority the machine trusts, and it has to be issued for the

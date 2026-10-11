@@ -236,7 +236,7 @@ fn planned(conn: &mut Connection, want: &Schema, named: &str) -> Result<Plan, Ex
 
 /// The plan's grades, as the trailer under the document.
 ///
-/// The words are `Core\Db\Plan\Grade`'s own case names, so what an operator
+/// The words are `Core\Db\Plan\Step::Grade`'s own case names, so what an operator
 /// reads here is what a program written against the same plan matches on. The
 /// leading comment marker is the caller's, because `apply` puts its own count in
 /// front of this one.

@@ -4,7 +4,6 @@
 // it has the grade it has.
 
 use Core\Db;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 use Core\Db\Schema;
 
@@ -31,7 +30,7 @@ var $schema = Schema::fromArray([
 // The schema adds two columns. A column that is allowed to have no value is
 // safe to add, and a column that must have one is not.
 foreach ($schema->planAgainst($db)->steps() as Step $step) {
-    if ($step->grade() == Grade::Safe) {
+    if ($step->grade() == Step::Grade::Safe) {
         echo 'safe: ', $step->reason(), "\n";
     } else {
         echo 'not safe: ', $step->reason(), "\n";

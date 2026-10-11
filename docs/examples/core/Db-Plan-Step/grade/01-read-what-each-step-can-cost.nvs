@@ -1,9 +1,8 @@
 <?nvs
 // Shows what each step of a plan can cost. `Core\Db\Plan\Step::grade` returns
-// a `Core\Db\Plan\Grade` case, so the program compares it with `==`.
+// a `Core\Db\Plan\Step::Grade` case, so the program compares it with `==`.
 
 use Core\Db;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 use Core\Db\Schema;
 
@@ -27,9 +26,9 @@ var $schema = Schema::fromArray([
 
 // Every step carries a grade, and `reason()` is the sentence behind it.
 foreach ($schema->planAgainst($db)->steps() as Step $step) {
-    if ($step->grade() == Grade::Safe) {
+    if ($step->grade() == Step::Grade::Safe) {
         echo 'safe: ', $step->reason(), "\n";
-    } else if ($step->grade() == Grade::Locking) {
+    } else if ($step->grade() == Step::Grade::Locking) {
         echo 'locking: ', $step->reason(), "\n";
     } else {
         // Dropping a table can lose data, so it is graded `Destructive`.

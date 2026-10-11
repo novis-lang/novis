@@ -2,7 +2,7 @@
 `applySafe` refuses a plan holding a step that is not `Safe` and names it, and `applyIncludingRisky` runs the same plan — `rule:core-classes/schema-plan` and `rule:core-classes/schema-apply-capability`
 --FILE--
 <?nvs
-// covers: Core\Db\Plan\Grade
+// covers: Core\Db\Plan\Step::Grade
 // covers: Core\Db\Schema::applySafe
 // covers: Core\Db\Schema::applyIncludingRisky
 // `rule:core-classes/schema-apply-capability` names the two entry points for what they risk, at the call site, rather
@@ -10,7 +10,6 @@
 // a reviewer reading the call and greppable across a repository.
 use Core\Db;
 use Core\Db\Schema;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 
 var $db = Db::connect("main");
@@ -46,9 +45,9 @@ $wide->applySafe($db);
 foreach ($narrow->planAgainst($db)->steps() as Step $step) {
     // `rule:core-classes/schema-plan`: SQLite cannot express this alter, so it is a create-copy-drop-rename
     // rebuild — a data copy, and destructive unconditionally.
-    if ($step->grade() == Grade::Safe) {
+    if ($step->grade() == Step::Grade::Safe) {
         echo "graded safe\n";
-    } else if ($step->grade() == Grade::Locking) {
+    } else if ($step->grade() == Step::Grade::Locking) {
         echo "graded locking\n";
     } else {
         echo "graded destructive\n";

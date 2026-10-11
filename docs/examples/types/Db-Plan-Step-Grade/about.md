@@ -1,5 +1,8 @@
 What one step of a schema change can cost you, at worst.
 
+`Core\Db\Plan\Step::Grade` is declared in the class `Core\Db\Plan\Step`. The method `grade` returns
+it.
+
 A schema plan is the list of steps that would bring a database in line with the schema your code
 declares, and every step carries one of these grades. `Safe` means the step cannot lose data, cannot
 fail because of rows that are already there, and cannot hold a long lock — that is the half a

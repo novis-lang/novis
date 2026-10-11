@@ -4,30 +4,30 @@
 // mode its connection uses.
 
 class Opens {
-    public static function verdict(Core\Db\Tls $mode): string {
-        if ($mode == Core\Db\Tls::VerifyFull) {
+    public static function verdict(Core\Db::Tls $mode): string {
+        if ($mode == Core\Db::Tls::VerifyFull) {
             return "opens the connection";
         }
         return "refused at the call, and the message says which mode it was";
     }
 
-    public static function name(Core\Db\Tls $mode): string {
+    public static function name(Core\Db::Tls $mode): string {
         return match ($mode) {
-            Core\Db\Tls::Disabled => "Disabled",
-            Core\Db\Tls::Required => "Required",
-            Core\Db\Tls::VerifyCa => "VerifyCa",
-            Core\Db\Tls::VerifyFull => "VerifyFull",
+            Core\Db::Tls::Disabled => "Disabled",
+            Core\Db::Tls::Required => "Required",
+            Core\Db::Tls::VerifyCa => "VerifyCa",
+            Core\Db::Tls::VerifyFull => "VerifyFull",
         };
     }
 }
 
-array<Core\Db\Tls> $modes = [
-    Core\Db\Tls::Disabled,
-    Core\Db\Tls::Required,
-    Core\Db\Tls::VerifyCa,
-    Core\Db\Tls::VerifyFull,
+array<Core\Db::Tls> $modes = [
+    Core\Db::Tls::Disabled,
+    Core\Db::Tls::Required,
+    Core\Db::Tls::VerifyCa,
+    Core\Db::Tls::VerifyFull,
 ];
 
-foreach ($modes as Core\Db\Tls $mode) {
+foreach ($modes as Core\Db::Tls $mode) {
     echo Opens::name($mode), ": ", Opens::verdict($mode), "\n";
 }

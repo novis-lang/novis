@@ -962,7 +962,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$column->type(): Db\ColumnType` — what the column was declared as, as
+    /// `$column->type(): Db\Column::Type` — what the column was declared as, as
     /// the case [`COLUMN_TYPE`] registers rather than the vendor type name
     /// `getColumnMeta` answers.
     ///

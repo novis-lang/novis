@@ -10,7 +10,7 @@ var $rows = $db->query('select price, price * 2 as total from notes', []);
 
 // This prints `price is a column of the table` and `total is worked out`.
 foreach ($rows->columns() as Core\Db\Column $column) {
-    if ($column->type() == Core\Db\ColumnType::Other) {
+    if ($column->type() == Core\Db\Column::Type::Other) {
         echo $column->name(), " is worked out\n";
     } else {
         echo $column->name(), " is a column of the table\n";

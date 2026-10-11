@@ -10,7 +10,7 @@ var $rows = $db->query("select id, owner from accounts", []);
 // readable whether or not there is a single one of the first.
 foreach ($rows->columns() as Core\Db\Column $column) {
     string $name = $column->name();
-    Core\Db\ColumnType $type = $column->type();
+    Core\Db\Column::Type $type = $column->type();
     bool $nullable = $column->nullable();
 }
 

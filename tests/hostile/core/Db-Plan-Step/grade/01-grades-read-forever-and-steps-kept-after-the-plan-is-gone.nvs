@@ -5,7 +5,6 @@
 // hostile: timeout-ms 120000
 
 use Core\Db;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 use Core\Db\Schema;
 
@@ -46,7 +45,7 @@ try {
     uint $safe = 0;
     uint $i = 0;
     while ($i < 10000000) {
-        if ($first->grade() == Grade::Safe) {
+        if ($first->grade() == Step::Grade::Safe) {
             $safe = $safe + 1;
         }
         $i = $i + 1;
@@ -62,7 +61,7 @@ try {
     }
     uint $graded = 0;
     foreach ($kept as Step $step) {
-        if ($step->grade() != Grade::Destructive) {
+        if ($step->grade() != Step::Grade::Destructive) {
             $graded = $graded + 1;
         }
     }
@@ -71,7 +70,7 @@ try {
     // 4. Every step of the whole plan, graded once more, after all of that.
     uint $counted = 0;
     foreach ($steps as Step $step) {
-        if ($step->grade() == Grade::Safe) {
+        if ($step->grade() == Step::Grade::Safe) {
             $counted = $counted + 1;
         }
     }

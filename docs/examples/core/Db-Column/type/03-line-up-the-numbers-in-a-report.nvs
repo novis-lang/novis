@@ -16,7 +16,7 @@ foreach ($rows as Core\Db\Row $row) {
     tainted string $line = '';
     foreach ($columns as Core\Db\Column $column) {
         tainted string $cell = $row->get($column->name()) as ?string ?? '';
-        if ($column->type() == Core\Db\ColumnType::Int) {
+        if ($column->type() == Core\Db\Column::Type::Int) {
             $line = $line . Core\Str::padStart($cell, 5);
         } else {
             $line = $line . Core\Str::padEnd($cell, 20);

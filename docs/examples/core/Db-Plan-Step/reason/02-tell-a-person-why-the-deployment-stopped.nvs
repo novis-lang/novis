@@ -3,7 +3,6 @@
 // `Safe` waits for somebody to decide, and its reason is the whole message.
 
 use Core\Db;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 use Core\Db\Schema;
 
@@ -37,7 +36,7 @@ var $schema = Schema::fromArray([
 uint $ran = 0;
 uint $waiting = 0;
 foreach ($schema->planAgainst($db)->steps() as Step $step) {
-    if ($step->grade() == Grade::Safe) {
+    if ($step->grade() == Step::Grade::Safe) {
         $db->execute($step->sql(), []);
         $ran = $ran + 1;
         continue;

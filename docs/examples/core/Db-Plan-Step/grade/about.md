@@ -1,6 +1,6 @@
 Tells you what one step of a schema plan can cost, at worst.
 
-`Core\Db\Plan\Step::grade` returns a `Core\Db\Plan\Grade` case, and there are three of them. `Safe`
+`Core\Db\Plan\Step::grade` returns a `Core\Db\Plan\Step::Grade` case, and there are three of them. `Safe`
 cannot lose data, cannot fail on rows that are already there, and cannot hold a long lock. `Locking`
 cannot lose data, but it can fail on existing rows or block writes for a long time. `Destructive`
 can lose data. Every drop is `Destructive`, and so is any change SQLite has to make by copying the

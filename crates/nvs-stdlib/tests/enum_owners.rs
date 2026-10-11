@@ -3,8 +3,8 @@
 //! declared in that class, and an enum several classes use, or none, stays in
 //! its namespace.
 //!
-//! A class *uses* an enum when a parameter, an option, a return type or a
-//! constant of one of its members names it. An enum no class names is one an
+//! A class *uses* an enum when a parameter, an option, a field of a settings
+//! shape, a return type or a constant of one of its members names it. An enum no class names is one an
 //! attribute takes — `Core\Http\Method` through `#[Route]`, `Core\Audience`
 //! through `#[Access]` — and that has no class to live in.
 
@@ -14,11 +14,9 @@ use nvs_stdlib::registry::{CLASSES, Const, CoreEnum, CoreTy, ENUMS};
 /// their current name. Each rename slice deletes its rows, and the list is
 /// empty when every move has landed.
 const NOT_YET_MOVED: &[&str] = &[
-    r"Core\Db\Driver",
-    r"Core\Db\ColumnType",
-    r"Core\Db\Plan\Grade",
     r"Core\Ldap\Scope",
     r"Core\Ldap\Ad\AccountType",
+    r"Core\Ldap\Tls",
     r"Core\Queue\State",
 ];
 
@@ -36,6 +34,14 @@ fn walk(ty: &CoreTy, into: &mut Vec<&'static str>) {
         CoreTy::CallableSig(params, ret) => {
             params.iter().for_each(|param| walk(param, into));
             walk(ret, into);
+        }
+        CoreTy::Shape(arms) => {
+            for field in arms.iter().flat_map(|arm| arm.iter()) {
+                walk(&field.ty, into);
+                if let Some(Const::EnumCase(name, _)) = field.default {
+                    into.push(name);
+                }
+            }
         }
         CoreTy::Options(options) => {
             for option in *options {

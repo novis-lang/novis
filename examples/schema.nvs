@@ -36,7 +36,6 @@
 // table in the database.
 
 use Core\Db;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 use Core\Db\Schema;
 
@@ -79,9 +78,9 @@ var $locking = 0;
 var $destructive = 0;
 foreach ($plan->steps() as Step $step) {
     $total = $total + 1;
-    if ($step->grade() == Grade::Safe) {
+    if ($step->grade() == Step::Grade::Safe) {
         $safe = $safe + 1;
-    } else if ($step->grade() == Grade::Locking) {
+    } else if ($step->grade() == Step::Grade::Locking) {
         $locking = $locking + 1;
     } else {
         $destructive = $destructive + 1;

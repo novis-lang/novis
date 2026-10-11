@@ -888,7 +888,7 @@ pub(super) const DRIVER_DOC: EnumDoc = EnumDoc {
 
 /// [`TLS`]'s fully-qualified name, written once for the same reason
 /// [`DRIVER_NAME`] is.
-pub(crate) const TLS_NAME: &str = r"Core\Db\Tls";
+pub(crate) const TLS_NAME: &str = r"Core\Db::Tls";
 
 /// Spec § 18's `Tls` — how much of the server's certificate a TCP connection
 /// checks.
@@ -1129,7 +1129,7 @@ pub(super) const ERROR_KIND_DOC: EnumDoc = EnumDoc {
 
 /// [`COLUMN_TYPE`]'s fully-qualified name, written once so the row, the member
 /// that answers with it and every message quoting it cannot drift apart.
-pub(crate) const COLUMN_TYPE_NAME: &str = r"Core\Db\ColumnType";
+pub(crate) const COLUMN_TYPE_NAME: &str = r"Core\Db\Column::Type";
 
 /// Spec § 18's `ColumnType` — the fourteen types a result column can be
 /// declared as, as the registry half of [`nvs_db::ColumnType`].
@@ -2736,7 +2736,7 @@ pub(super) const COLUMN_LABEL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Db\Column::type`'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_DECLARED_DOC: MethodDoc = MethodDoc {
-    short: "What the column was declared as, as a `Core\\Db\\ColumnType` case rather than the \
+    short: "What the column was declared as, as a `Core\\Db\\Column::Type` case rather than the \
             vendor type name `getColumnMeta` hands back — so a program branches on something the \
             backends agree about.",
     params: &[],

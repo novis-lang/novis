@@ -5,32 +5,32 @@
 class Export {
     // `rule` returns how a column of this type is written. It uses the column
     // type and not the first row, so an empty result still gets a correct header.
-    public static function rule(Core\Db\ColumnType $type): string {
+    public static function rule(Core\Db\Column::Type $type): string {
         return match ($type) {
-            Core\Db\ColumnType::Bytes => "left out, with the size written instead",
-            Core\Db\ColumnType::Date => "written as 2026-09-18",
-            Core\Db\ColumnType::DateTime => "written as 2026-09-18 14:05:00",
-            Core\Db\ColumnType::Instant => "written in the reader's own time zone",
-            Core\Db\ColumnType::Json => "flattened to one line",
-            Core\Db\ColumnType::Other => "left out, because nothing here knows what it is",
+            Core\Db\Column::Type::Bytes => "left out, with the size written instead",
+            Core\Db\Column::Type::Date => "written as 2026-09-18",
+            Core\Db\Column::Type::DateTime => "written as 2026-09-18 14:05:00",
+            Core\Db\Column::Type::Instant => "written in the reader's own time zone",
+            Core\Db\Column::Type::Json => "flattened to one line",
+            Core\Db\Column::Type::Other => "left out, because nothing here knows what it is",
             default => "written as it reads",
         };
     }
 
     // `carried` returns `true` if the column goes into the file.
     // The last line prints how many columns do. Here it prints `4 of 5`.
-    public static function carried(Core\Db\ColumnType $type): bool {
-        return $type != Core\Db\ColumnType::Bytes && $type != Core\Db\ColumnType::Other;
+    public static function carried(Core\Db\Column::Type $type): bool {
+        return $type != Core\Db\Column::Type::Bytes && $type != Core\Db\Column::Type::Other;
     }
 }
 
 array<string> $names = ["invoice_no", "issued_on", "total", "meta", "scan"];
-array<Core\Db\ColumnType> $types = [
-    Core\Db\ColumnType::Text,
-    Core\Db\ColumnType::Date,
-    Core\Db\ColumnType::Decimal,
-    Core\Db\ColumnType::Json,
-    Core\Db\ColumnType::Bytes,
+array<Core\Db\Column::Type> $types = [
+    Core\Db\Column::Type::Text,
+    Core\Db\Column::Type::Date,
+    Core\Db\Column::Type::Decimal,
+    Core\Db\Column::Type::Json,
+    Core\Db\Column::Type::Bytes,
 ];
 
 uint $carried = 0;

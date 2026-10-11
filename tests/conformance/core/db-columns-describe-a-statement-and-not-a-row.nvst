@@ -19,7 +19,7 @@ array<Core\Db\Column> $described = $rows->columns();
 // array whose keys differ per driver, and this is three members that do not.
 foreach ($described as Core\Db\Column $column) {
     string $name = $column->name();
-    Core\Db\ColumnType $type = $column->type();
+    Core\Db\Column::Type $type = $column->type();
     bool $nullable = $column->nullable();
 }
 

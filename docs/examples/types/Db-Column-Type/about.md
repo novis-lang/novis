@@ -1,5 +1,7 @@
 Says what a result column was declared as in the database.
 
+`Core\Db\Column::Type` is declared in the class `Core\Db\Column`. The method `type` returns it.
+
 Every read hands back a description of its columns beside the rows, and this is the type half of that
 description. It describes the column rather than the values: a column declared as JSON and one declared
 as text both read back as text, and this is what tells them apart. There is one case for each kind of

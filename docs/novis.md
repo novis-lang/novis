@@ -25043,7 +25043,7 @@ Keywords: connect, open, inList, quoteIdentifier
 | Member | Signature |
 |---|---|
 | [`Core\Db::connect`](#core-core-db-connect) | `connect(string $name, {shared?: bool, timeout?: Core\Time\Duration}): Core\Db\Connection` |
-| [`Core\Db::open`](#core-core-db-open) | `open({driver: Core\Db\Driver::MySql\|Core\Db\Driver::MariaDb\|Core\Db\Driver::Postgres\|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db\Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}\|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration} $settings, {shared?: bool}): Core\Db\Connection` |
+| [`Core\Db::open`](#core-core-db-open) | `open({driver: Core\Db\Driver::MySql\|Core\Db\Driver::MariaDb\|Core\Db\Driver::Postgres\|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db::Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}\|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration} $settings, {shared?: bool}): Core\Db\Connection` |
 | [`Core\Db::inList`](#core-core-db-inlist) | `inList(array<mixed> $values): Core\Db\InList` |
 | [`Core\Db::quoteIdentifier`](#core-core-db-quoteidentifier) | `quoteIdentifier(string $name): string` |
 
@@ -25070,14 +25070,14 @@ Opens the connection an operator named in a `[db.<name>]` block of `nvs.toml`, a
 #### `Core\Db::open`
 
 ```nvs skip
-Core\Db::open({driver: Core\Db\Driver::MySql|Core\Db\Driver::MariaDb|Core\Db\Driver::Postgres|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db\Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration} $settings, {shared?: bool}): Core\Db\Connection
+Core\Db::open({driver: Core\Db\Driver::MySql|Core\Db\Driver::MariaDb|Core\Db\Driver::Postgres|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db::Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration} $settings, {shared?: bool}): Core\Db\Connection
 ```
 
 Opens a connection to a server the program itself names, for the case a `[db.<name>]` block cannot cover — a tenant whose database is a row in another one, or an administration tool a human types a host into. Needs the `db.open` capability for that host, and unlike `connect` the address is checked against the denied ranges in full.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$settings` | `{driver: Core\Db\Driver::MySql\|Core\Db\Driver::MariaDb\|Core\Db\Driver::Postgres\|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db\Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}\|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration}` | Everything the connection is made of. It is one of two shapes and the `driver` decides which: four of the five backends take a host, and SQLite takes a file path instead. Keys: `driver` (Driver) Which backend this is, and so which of the two shapes the rest of the object has to be.; `host` (string) The server to open, and the name its certificate is checked against. It is a sink with no launderer: no check on a string can establish that a host is safe to send a credential to.; `port` (uint) The port to open. Left out, the driver's own — 5432 for PostgreSQL, 3306 for MySQL and MariaDB.; `database` (tainted string) The database or schema to attach to. `tainted` is accepted: it is a length-prefixed protocol field and never parsed text.; `user` (tainted string) The role to log in as, accepted `tainted` for the same reason.; `password` (secret tainted string) The role's password. It is `secret`, so it cannot reach a log line, a message or a trace.; `tls` (Tls) How much of the certificate is checked. Only `VerifyFull` runs, and it is what an absent key means; the weaker three are refused.; `timeZone` (Core\Time\Zone) The zone a column with no zone of its own is read in, and the one the server is told to use. UTC where it is absent.; `timeout` (Core\Time\Duration) How long the handshake may take, resolution and TLS included.; `statementCache` (uint) How many prepared statements this connection may keep on the server. `0` turns the cache off.; `path` (string) SQLite's file, in place of a host. It is a path sink, and reaching it needs `fs.read` and `fs.write` as well. |
+| `$settings` | `{driver: Core\Db\Driver::MySql\|Core\Db\Driver::MariaDb\|Core\Db\Driver::Postgres\|Core\Db\Driver::SqlServer, host: string, port?: uint, database: tainted string, user: tainted string, password: secret tainted string, tls?: Core\Db::Tls, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration, statementCache?: uint}\|{driver: Core\Db\Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Core\Time\Duration}` | Everything the connection is made of. It is one of two shapes and the `driver` decides which: four of the five backends take a host, and SQLite takes a file path instead. Keys: `driver` (Driver) Which backend this is, and so which of the two shapes the rest of the object has to be.; `host` (string) The server to open, and the name its certificate is checked against. It is a sink with no launderer: no check on a string can establish that a host is safe to send a credential to.; `port` (uint) The port to open. Left out, the driver's own — 5432 for PostgreSQL, 3306 for MySQL and MariaDB.; `database` (tainted string) The database or schema to attach to. `tainted` is accepted: it is a length-prefixed protocol field and never parsed text.; `user` (tainted string) The role to log in as, accepted `tainted` for the same reason.; `password` (secret tainted string) The role's password. It is `secret`, so it cannot reach a log line, a message or a trace.; `tls` (Tls) How much of the certificate is checked. Only `VerifyFull` runs, and it is what an absent key means; the weaker three are refused.; `timeZone` (Core\Time\Zone) The zone a column with no zone of its own is read in, and the one the server is told to use. UTC where it is absent.; `timeout` (Core\Time\Duration) How long the handshake may take, resolution and TLS included.; `statementCache` (uint) How many prepared statements this connection may keep on the server. `0` turns the cache off.; `path` (string) SQLite's file, in place of a host. It is a path sink, and reaching it needs `fs.read` and `fs.write` as well. |
 | `{shared: …}` | `bool` (default `true`) | Whether this call may answer with the connection an earlier one opened from the same settings. `false` opens a dedicated connection instead. |
 
 **Returns** `Core\Db\Connection` — A `Core\Db\Connection`, closed when the request ends. Two calls with settings that agree in every field answer the same object unless `shared` is `false`.
@@ -25884,7 +25884,7 @@ Keywords: name, type, nullable
 | Member | Signature |
 |---|---|
 | [`Core\Db\Column->name`](#core-core-db-column-name) | `name(): string` |
-| [`Core\Db\Column->type`](#core-core-db-column-type) | `type(): Core\Db\ColumnType` |
+| [`Core\Db\Column->type`](#core-core-db-column-type) | `type(): Core\Db\Column::Type` |
 | [`Core\Db\Column->nullable`](#core-core-db-column-nullable) | `nullable(): bool` |
 
 <a id="core-core-db-column-name"></a>
@@ -25902,12 +25902,12 @@ The column's label, as the server described it — `getColumnMeta`'s `name`. It 
 #### `Core\Db\Column->type`
 
 ```nvs skip
-$column->type(): Core\Db\ColumnType
+$column->type(): Core\Db\Column::Type
 ```
 
-What the column was declared as, as a `Core\Db\ColumnType` case rather than the vendor type name `getColumnMeta` hands back — so a program branches on something the backends agree about.
+What the column was declared as, as a `Core\Db\Column::Type` case rather than the vendor type name `getColumnMeta` hands back — so a program branches on something the backends agree about.
 
-**Returns** `Core\Db\ColumnType` — The case. It describes the column rather than summarising the value a read of it produces — a `JSON` column and a `TEXT` one both read back as `tainted string` and are told apart here — and a type with no Novis type of its own is `Other`, which includes every array and, on PostgreSQL, every `ENUM`.
+**Returns** `Core\Db\Column::Type` — The case. It describes the column rather than summarising the value a read of it produces — a `JSON` column and a `TEXT` one both read back as `tainted string` and are told apart here — and a type with no Novis type of its own is `Other`, which includes every array and, on PostgreSQL, every `ENUM`.
 
 <a id="core-core-db-column-nullable"></a>
 #### `Core\Db\Column->nullable`
@@ -26047,7 +26047,7 @@ Keywords: grade, reason, sql, isRefused
 
 | Member | Signature |
 |---|---|
-| [`Core\Db\Plan\Step->grade`](#core-core-db-plan-step-grade) | `grade(): Core\Db\Plan\Grade` |
+| [`Core\Db\Plan\Step->grade`](#core-core-db-plan-step-grade) | `grade(): Core\Db\Plan\Step::Grade` |
 | [`Core\Db\Plan\Step->reason`](#core-core-db-plan-step-reason) | `reason(): string` |
 | [`Core\Db\Plan\Step->sql`](#core-core-db-plan-step-sql) | `sql(): string` |
 | [`Core\Db\Plan\Step->isRefused`](#core-core-db-plan-step-isrefused) | `isRefused(): bool` |
@@ -26056,12 +26056,12 @@ Keywords: grade, reason, sql, isRefused
 #### `Core\Db\Plan\Step->grade`
 
 ```nvs skip
-$step->grade(): Core\Db\Plan\Grade
+$step->grade(): Core\Db\Plan\Step::Grade
 ```
 
 What this step can cost, at worst.
 
-**Returns** `Core\Db\Plan\Grade` — `Safe`, `Locking` or `Destructive`. A grade is the worst case rather than the likely one: an emitter with no rule for a case grades up, because over-reporting risk costs a confirmation and under-reporting it costs an outage.
+**Returns** `Core\Db\Plan\Step::Grade` — `Safe`, `Locking` or `Destructive`. A grade is the worst case rather than the likely one: an emitter with no rule for a case grades up, because over-reporting risk costs a confirmation and under-reporting it costs an outage.
 
 <a id="core-core-db-plan-step-reason"></a>
 #### `Core\Db\Plan\Step->reason`
@@ -29570,16 +29570,16 @@ Which database a connection uses. It is the first field of the settings object t
 | `Core\Db\Driver::SqlServer` | Microsoft SQL Server, over TDS. |
 
 <a id="enum-core-db-tls"></a>
-#### `Core\Db\Tls`
+#### `Core\Db::Tls`
 
 How much of a server's identity a TCP connection establishes before it sends a credential. `VerifyFull` is what every connection does and what a settings object that names nothing gets; the weaker three are refused rather than honoured, because a connection that verified less than it promised is the hole this enum exists to close.
 
 | Case | Meaning |
 |---|---|
-| `Core\Db\Tls::Disabled` | No TLS at all. Refused. |
-| `Core\Db\Tls::Required` | TLS, with the certificate unchecked. Refused. |
-| `Core\Db\Tls::VerifyCa` | The certificate must chain to a trusted anchor, but its name is not checked. Refused. |
-| `Core\Db\Tls::VerifyFull` | The certificate must chain to a trusted anchor and must be issued for the host that was written. The default, and the only mode a connection runs in. |
+| `Core\Db::Tls::Disabled` | No TLS at all. Refused. |
+| `Core\Db::Tls::Required` | TLS, with the certificate unchecked. Refused. |
+| `Core\Db::Tls::VerifyCa` | The certificate must chain to a trusted anchor, but its name is not checked. Refused. |
+| `Core\Db::Tls::VerifyFull` | The certificate must chain to a trusted anchor and must be issued for the host that was written. The default, and the only mode a connection runs in. |
 
 <a id="enum-core-db-isolation"></a>
 #### `Core\Db\Isolation`
@@ -29595,26 +29595,26 @@ What a transaction is allowed to see of the work running beside it — the `isol
 | `Core\Db\Isolation::Serializable` | Concurrent transactions produce a result some serial order of them would have produced, and a transaction that cannot is rolled back for the caller to retry. |
 
 <a id="enum-core-db-columntype"></a>
-#### `Core\Db\ColumnType`
+#### `Core\Db\Column::Type`
 
 What a result column was declared as, which is a description of the column and not a summary of the value a read of it produces: a `JSON` column and a `TEXT` one both read back as `tainted string` and are told apart here, wherever the backend has a type of its own to tell them apart by.
 
 | Case | Meaning |
 |---|---|
-| `Core\Db\ColumnType::Int` | A signed integer column — `SMALLINT`, `INTEGER` or `BIGINT`. MySQL's and MariaDB's `TINYINT(1)` is one of these rather than a `Bool`. |
-| `Core\Db\ColumnType::Uint` | An unsigned integer column: an `UNSIGNED` integer on MySQL and MariaDB, an `oid` on PostgreSQL. |
-| `Core\Db\ColumnType::Float` | `FLOAT`, `REAL` or `DOUBLE`. |
-| `Core\Db\ColumnType::Decimal` | An exact numeric column — `DECIMAL`, `NUMERIC` or `MONEY`. |
-| `Core\Db\ColumnType::Text` | A text-family column: `CHAR`, `VARCHAR`, `TEXT` or `ENUM`, and a JSON column on a backend where JSON is an aliased text type rather than a type of its own. |
-| `Core\Db\ColumnType::Bytes` | A binary column — `BINARY`, `BLOB` or `BYTEA`, including the `BINARY(16)` a MySQL schema stores a UUID in. |
-| `Core\Db\ColumnType::Bool` | `BOOLEAN`, and `BIT(1)`. |
-| `Core\Db\ColumnType::Date` | A `DATE`, which a read answers with a `Core\Time\Date`. |
-| `Core\Db\ColumnType::Time` | A `TIME`, which a read answers with a `Core\Time\TimeOfDay`. |
-| `Core\Db\ColumnType::DateTime` | A zone-less `DATETIME` or `TIMESTAMP`, which a read answers with a `Core\Time\DateTime` in the zone the connection declared. |
-| `Core\Db\ColumnType::Instant` | A column carrying its own offset — `TIMESTAMPTZ`, or SQL Server's `datetimeoffset` — which a read answers with a `Core\Time\Instant`. |
-| `Core\Db\ColumnType::Uuid` | A `UUID` or a `uniqueidentifier`, which a read answers with a `Core\Uuid`. |
-| `Core\Db\ColumnType::Json` | A column the backend types as JSON. The value still reads back as a `tainted string`, since JSON is never decoded for you; a backend that has no JSON type of its own reports the column as `Text` instead. |
-| `Core\Db\ColumnType::Other` | Every other column: one with no Novis type of its own, and every array. This is the total case rather than a failure, so a column list describes every column a server can send. |
+| `Core\Db\Column::Type::Int` | A signed integer column — `SMALLINT`, `INTEGER` or `BIGINT`. MySQL's and MariaDB's `TINYINT(1)` is one of these rather than a `Bool`. |
+| `Core\Db\Column::Type::Uint` | An unsigned integer column: an `UNSIGNED` integer on MySQL and MariaDB, an `oid` on PostgreSQL. |
+| `Core\Db\Column::Type::Float` | `FLOAT`, `REAL` or `DOUBLE`. |
+| `Core\Db\Column::Type::Decimal` | An exact numeric column — `DECIMAL`, `NUMERIC` or `MONEY`. |
+| `Core\Db\Column::Type::Text` | A text-family column: `CHAR`, `VARCHAR`, `TEXT` or `ENUM`, and a JSON column on a backend where JSON is an aliased text type rather than a type of its own. |
+| `Core\Db\Column::Type::Bytes` | A binary column — `BINARY`, `BLOB` or `BYTEA`, including the `BINARY(16)` a MySQL schema stores a UUID in. |
+| `Core\Db\Column::Type::Bool` | `BOOLEAN`, and `BIT(1)`. |
+| `Core\Db\Column::Type::Date` | A `DATE`, which a read answers with a `Core\Time\Date`. |
+| `Core\Db\Column::Type::Time` | A `TIME`, which a read answers with a `Core\Time\TimeOfDay`. |
+| `Core\Db\Column::Type::DateTime` | A zone-less `DATETIME` or `TIMESTAMP`, which a read answers with a `Core\Time\DateTime` in the zone the connection declared. |
+| `Core\Db\Column::Type::Instant` | A column carrying its own offset — `TIMESTAMPTZ`, or SQL Server's `datetimeoffset` — which a read answers with a `Core\Time\Instant`. |
+| `Core\Db\Column::Type::Uuid` | A `UUID` or a `uniqueidentifier`, which a read answers with a `Core\Uuid`. |
+| `Core\Db\Column::Type::Json` | A column the backend types as JSON. The value still reads back as a `tainted string`, since JSON is never decoded for you; a backend that has no JSON type of its own reports the column as `Text` instead. |
+| `Core\Db\Column::Type::Other` | Every other column: one with no Novis type of its own, and every array. This is the total case rather than a failure, so a column list describes every column a server can send. |
 
 <a id="enum-core-db-errorkind"></a>
 #### `Core\Db\ErrorKind`
@@ -29636,15 +29636,15 @@ Why the server refused a statement, normalised across the drivers so that a prog
 | `Core\Db\ErrorKind::Other` | Anything the driver's own table does not name, including a condition one backend has and the others do not. It is also what a `Core\Db\DbError` constructed by hand carries, no server having classified it. |
 
 <a id="enum-core-db-plan-grade"></a>
-#### `Core\Db\Plan\Grade`
+#### `Core\Db\Plan\Step::Grade`
 
 What one step of a schema plan can cost at worst, so that a deployment can run the half it is willing to run unattended.
 
 | Case | Meaning |
 |---|---|
-| `Core\Db\Plan\Grade::Safe` | Cannot lose data, cannot fail on rows that already exist, and cannot hold a long lock. |
-| `Core\Db\Plan\Grade::Locking` | Cannot lose data, but can fail on existing rows or block writes for a long time — a unique key over data that already collides, `NOT NULL` on a populated column, a type change that rewrites the table. |
-| `Core\Db\Plan\Grade::Destructive` | Can lose data. Every drop is here, and so is SQLite's create-copy-drop-rename rebuild, which is a data copy however it is spelled. |
+| `Core\Db\Plan\Step::Grade::Safe` | Cannot lose data, cannot fail on rows that already exist, and cannot hold a long lock. |
+| `Core\Db\Plan\Step::Grade::Locking` | Cannot lose data, but can fail on existing rows or block writes for a long time — a unique key over data that already collides, `NOT NULL` on a populated column, a type change that rewrites the table. |
+| `Core\Db\Plan\Step::Grade::Destructive` | Can lose data. Every drop is here, and so is SQLite's create-copy-drop-rename rebuild, which is a data copy however it is spelled. |
 
 <a id="enum-core-ldap-errorkind"></a>
 #### `Core\Ldap\ErrorKind`

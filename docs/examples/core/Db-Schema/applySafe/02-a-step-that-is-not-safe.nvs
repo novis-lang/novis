@@ -3,7 +3,6 @@
 // no part of the plan and throws a `LogicError`. The plan says why.
 
 use Core\Db;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 use Core\Db\Schema;
 
@@ -39,7 +38,7 @@ try {
 // Every step carries the grade that decided this. This prints
 // `the step is destructive`.
 foreach ($schema->planAgainst($db)->steps() as Step $step) {
-    if ($step->grade() == Grade::Destructive) {
+    if ($step->grade() == Step::Grade::Destructive) {
         echo "the step is destructive\n";
     }
 }

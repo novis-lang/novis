@@ -3,7 +3,6 @@
 // now, and the SQL a person runs in the next maintenance window.
 
 use Core\Db;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 use Core\Db\Schema;
 
@@ -37,7 +36,7 @@ var $schema = Schema::fromArray([
 array<string> $now = [];
 array<string> $window = [];
 foreach ($schema->planAgainst($db)->steps() as Step $step) {
-    if ($step->grade() == Grade::Safe) {
+    if ($step->grade() == Step::Grade::Safe) {
         $now[] = $step->sql();
     } else {
         $window[] = $step->sql();

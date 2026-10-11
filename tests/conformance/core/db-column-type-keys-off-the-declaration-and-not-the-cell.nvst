@@ -25,18 +25,18 @@ $db->execute(
 
 // One word per case, so the claim below is the list and not a `match` per row.
 class Kind {
-    public static function of(Core\Db\ColumnType $declared): string {
+    public static function of(Core\Db\Column::Type $declared): string {
         return match ($declared) {
-            Core\Db\ColumnType::Int => "Int",
-            Core\Db\ColumnType::Float => "Float",
-            Core\Db\ColumnType::Decimal => "Decimal",
-            Core\Db\ColumnType::Text => "Text",
-            Core\Db\ColumnType::Bytes => "Bytes",
-            Core\Db\ColumnType::Bool => "Bool",
-            Core\Db\ColumnType::Date => "Date",
-            Core\Db\ColumnType::DateTime => "DateTime",
-            Core\Db\ColumnType::Uuid => "Uuid",
-            Core\Db\ColumnType::Other => "Other",
+            Core\Db\Column::Type::Int => "Int",
+            Core\Db\Column::Type::Float => "Float",
+            Core\Db\Column::Type::Decimal => "Decimal",
+            Core\Db\Column::Type::Text => "Text",
+            Core\Db\Column::Type::Bytes => "Bytes",
+            Core\Db\Column::Type::Bool => "Bool",
+            Core\Db\Column::Type::Date => "Date",
+            Core\Db\Column::Type::DateTime => "DateTime",
+            Core\Db\Column::Type::Uuid => "Uuid",
+            Core\Db\Column::Type::Other => "Other",
             default => "unnamed",
         };
     }

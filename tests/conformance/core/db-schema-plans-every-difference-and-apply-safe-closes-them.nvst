@@ -9,7 +9,6 @@
 // covers: Core\Db\Schema::planAgainst
 use Core\Db;
 use Core\Db\Schema;
-use Core\Db\Plan\Grade;
 use Core\Db\Plan\Step;
 
 var $db = Db::connect("main");
@@ -34,7 +33,7 @@ echo "steps ", Core\Arr::count($plan->steps()), "\n";
 foreach ($plan->steps() as Step $step) {
     // A table the database does not have is created, which cannot lose data
     // and cannot fail on rows that are not there.
-    if ($step->grade() == Grade::Safe) {
+    if ($step->grade() == Step::Grade::Safe) {
         echo "grade safe\n";
     } else {
         echo "grade not safe\n";
