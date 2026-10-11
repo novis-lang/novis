@@ -14,7 +14,7 @@ stages:
         shapes: []
   - id: 3
     title: the member
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Writing a test case > a `Core` member row cannot land"]
@@ -324,20 +324,18 @@ One file set: the files the two searches below print.
 
 ### State
 
-**Goal `env-context`: Stage 2 is done.** Every `Ctx` now knows its kind of run. `nvs_runtime::RunKind` has the seven kinds in the echo table's order (`crates/nvs-runtime/src/ctx/isolate.rs`, the top of the file). `Ctx::run_kind()` reads `Request` from the inbound and `Connection` from a peer or a connection event stream before it reads the stored byte. `Ctx::new` stores `Command`. `Ctx::isolate`, and through it `method_isolate`, `handler_isolate` and `PlacedIsolate::build`, store `Isolate`. `Ctx::child` (a `Core\Task`) copies its parent's `run_kind()`, so a task of a request reads `Request`. `nvs_host::Isolate::running_as` is the one writer for a host: `serve.rs` stores `Schedule`, `worker.rs` stores `Job`, and `runner.rs`'s test isolate stores `Test`. `spawn script` (`crates/nvs-host/src/group.rs:257`) needs no writer. Both Stage 2 checks pass. Nothing is blocked.
+**Goal `env-context`: Stages 2 and 3 are done.** `Core\Env::context(): Core\Env::Context` exists (`crates/nvs-stdlib/src/env.rs`, the `context` row beside `mode`, the `CONTEXT` enum and `nvs_core_env_context`). The enum's values are `nvs_runtime::RunKind`'s discriminants, and `context_cases_are_run_kinds_in_order` holds the two together. The enum is registered beside `MODE` in `crates/nvs-stdlib/src/registry.rs`. The rule is `rule:core-classes/env-context`, and `rule:tooling/echo-always-has-a-sink` points at it. The spec row names the member and both enums. All three Stage 3 checks pass: the three `.nvst` cases and the seven host tests in `crates/nvs-cli/tests/env_context.rs` (the schedule one waits for the next minute's fire). A `match` over the seven cases compiles with no default arm. Nothing is blocked.
 
 The § *Standing decisions* calls stand as written. No session re-decides one.
 
 ### Next
 
-**Stage 3: the member.** One file set: `crates/nvs-stdlib/src/env.rs`, `docs/spec/01-core-library.md`, `docs/rules/core-classes/`, `docs/rules/tooling/echo-always-has-a-sink.md`, `tests/conformance/core/`, and a new `crates/nvs-cli/tests/env_context.rs`.
+**Stage 4: `Core\Env::OS` is a `Core\Env::Platform` case.** One file set: `crates/nvs-stdlib/src/env.rs`, `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-types/src/core_lib.rs`, `tools/nv/cmd/reference.ts`, `docs/spec/01-core-library.md`, and the readers of `Core\Env::OS`.
 
-- [ ] **The member and its enum, whole in one slice** (the § 3 text in this file). Add the `context` row beside `mode` (`crates/nvs-stdlib/src/env.rs:138`). Add a `Core\Env::Context` enum registered the way `MODE` is (`crates/nvs-stdlib/src/env.rs:282`). Add a helper that returns `ctx.run_kind() as i64`, shaped like `nvs_core_env_mode` (`crates/nvs-stdlib/src/env.rs:416`), and its `address` arm (`crates/nvs-stdlib/src/env.rs:311`). `RunKind`'s discriminants are already the case order. Land the three `.nvst` cases the `env-context-conformance` check names in the same slice. Add the spec row beside `mode` (`docs/spec/01-core-library.md:1184`).
-- [ ] **`crates/nvs-cli/tests/env_context.rs`**: the seven tests the `nvs-cli-env-context-in-every-kind-of-run` check names, each through the real host that starts that kind of run. The hosts store the kind at `crates/nvs-cli/src/serve.rs:1822` (`Schedule`), `crates/nvs-cli/src/worker.rs:1462` (`Job`) and `crates/nvs-cli/src/runner.rs:1328` (`Test`).
-- [ ] **The rule** `core-classes/env-context` from § *Standing decisions*, with the tradeoffs. Add the one sentence to `docs/rules/tooling/echo-always-has-a-sink.md:1` that § *Stage 0* describes. The reader it states is `Ctx::run_kind` (`crates/nvs-runtime/src/ctx/isolate.rs:62`).
+- [ ] **The enum and the typed constant** (§ 4 in this file). Add `PLATFORM` beside `CONTEXT` in `crates/nvs-stdlib/src/env.rs`, register it beside `crate::env::CONTEXT` in `registry.rs`, and turn the `OS` row (`crates/nvs-stdlib/src/env.rs:185`) and the mapping (`crates/nvs-stdlib/src/env.rs:212`) into `Const::EnumCase`. The guard `every_registered_constant_matches_its_declared_type` (`crates/nvs-stdlib/src/registry.rs:6166`) gains the `(CoreTy::Enum(e), Const::EnumCase(e, _))` arm; check the fold at `crates/nvs-types/src/core_lib.rs:285` and `:452`. Add the other two tests the `nvs-stdlib-os-is-a-platform-case` check names.
+- [ ] **The readers**: the placeholder at `tools/nv/cmd/reference.ts:95`, the spec row (`docs/spec/01-core-library.md:1185`), the `env-the-three-constants-…` case, and the 25 Process files `git grep -l 'Core\\Env::OS'` prints. Add the two new cases the `env-os-conformance` check names.
 
 ### Backlog
 
-- Stage 4: `Core\Env::OS` as a `Core\Env::Platform` case. This covers the guard at `crates/nvs-stdlib/src/registry.rs:6140`, the mapping at `crates/nvs-stdlib/src/env.rs:193`, `tools/nv/cmd/reference.ts:97`, the spec row, the `env-the-three-constants-…` case and the 25 Process files (§ 4 in this file).
-- Stage 5: the feature proofs for `Core\Env::context`: `about.md`, three examples, one attack and one bench (§ 5 in this file).
+- Stage 5: the feature proofs for `Core\Env::context`: `about.md`, three examples, one attack and one bench (§ 5 in this file). The `Kind::of` match in `crates/nvs-cli/tests/env_context.rs` is the shape the seven-case example needs.
 - Stage 6: move the 59 `catch (LogicError $noRequest)` files and the 19 `catch (RuntimeError $inside…)` files to `Core\Env::context()`. The three files whose subject is the throw stay (§ 6 in this file).
