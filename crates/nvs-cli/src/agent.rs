@@ -15,7 +15,8 @@
 //! per call from compile-time tables, so the answer cannot describe a version
 //! that is not installed — which is the failure the whole surface exists to
 //! remove. `init` is the one command here that writes a file, and what it writes
-//! is a pointer at the four above rather than anything they would have said.
+//! is a pointer at the four above, and at `nvs code` for the project's own code,
+//! rather than anything either would have said.
 //!
 //! ## The install
 //!
@@ -24,9 +25,9 @@
 //! row whose environment variable is set, the `--agent` names, or every row
 //! with `--all`. An agent that reads `AGENTS.md` itself gets nothing more; the
 //! Claude Code skill and the Copilot instructions file are the two pointers,
-//! each naming those commands and the `nvs check` loop. A pointer an earlier run
-//! wrote is kept current whichever agent runs now, and one this binary no
-//! longer writes ([`RETIRED`]) is deleted while nobody has edited it.
+//! each naming those commands, `nvs code` and the `nvs check` loop. A pointer
+//! an earlier run wrote is kept current whichever agent runs now, and one this
+//! binary no longer writes ([`RETIRED`]) is deleted while nobody has edited it.
 //! `rule:tooling/an-adapter-carries-protocol-and-never-language` is why none of
 //! them names anything else: a language fact written into a pointer is a copy
 //! that goes stale the day the member changes, and every copy is read by an
@@ -1195,7 +1196,8 @@ fn owned(before: &str, after: &str) -> String {
     format!("{before}{MARK}, fingerprint {print} -->\n{after}")
 }
 
-/// What every pointer says, in every harness: where to ask, and the check loop.
+/// What every pointer says, in every harness: where to ask about the language,
+/// where to ask about the project's own code, and the check loop.
 ///
 /// Not a signature, not a type, not a refusal —
 /// `rule:tooling/an-adapter-carries-protocol-and-never-language` is why this is
@@ -1216,7 +1218,19 @@ the installed version. That is why nothing about the language itself is written 
 - `nvs agent show <symbol>` — one card: a member's signature, prose, parameters and errors, a
   reference section, a key, a command's help, or an error code, as in `nvs agent show E0621`.
 
-`index`, `find` and `show` take `--json` when a tool reads the answer instead of a person.
+Questions about this project's own code go to `nvs code`. It reads the project the way the editor
+does, so it finds only the uses that really are the name you asked about. Use it instead of grep.
+Write a name in full, with its namespace, in single quotes: `nvs code refs 'Shop\\Cart::addItem'`.
+
+- `nvs code refs <name>` — every place the project writes a name: its declaration first, then each
+  use, with its position and its line.
+- `nvs code show <name>` — where the project declares a name, its signature and its doc comment.
+- `nvs code outline <file>` — what one file declares, one line each.
+- `nvs code impls <name>` and `nvs code types <file>` — the types that extend or implement a type,
+  and the type of each variable in a file.
+
+`index`, `find`, `show` and every `nvs code` command take `--json` when a tool reads the answer
+instead of a person.
 
 Then check what you wrote. `nvs check <file>` names what is wrong and where, `nvs check --json <file>`
 prints the same diagnostics as JSON, and `nvs test` runs the tests. That is the loop: read the primer

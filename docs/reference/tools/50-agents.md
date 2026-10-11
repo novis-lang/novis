@@ -1,8 +1,8 @@
 ---
 id: agents
 title: "Coding agents: nvs agent, and what nvs agent init installs"
-summary: the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, and states no language fact
-keywords: nvs agent, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
+summary: the four commands a coding agent reads the language through — `primer`, `index`, `find` and `show` — over the `Core` registry and the chapters of this reference, the `nvs check` loop that closes them, and `nvs agent init`, which writes an `AGENTS.md` stanza and what the coding agent you run needs beside it, naming these commands and `nvs code` for the project's own code, and states no language fact
+keywords: nvs agent, nvs code, nvs agent primer, nvs agent index, nvs agent find, nvs agent show, nvs agent init, nvs agent hook, --agent, --all, --force, --check, --no-hooks, --json, hook, check hook, check on edit, PostToolUse, postToolUse, settings.json, .claude/settings.json, hooks.json, .cursor/hooks.json, JSON, fingerprint, coding agent, LLM, AI assistant, agent instructions, AGENTS.md, SKILL.md, .claude, Claude Code, skill, Cursor, Codex, OpenCode, GitHub Copilot, .instructions.md, adapter, pointer, stale documentation, hallucinated member, nvs check loop
 ---
 
 <!-- primer -->
@@ -129,8 +129,8 @@ compiles, and a section that stops being true stops being printed rather than be
     nvs agent init [--agent <name>]... [--all] [--force | --check] [--no-hooks]
 
 Writes the files that tell a coding agent these commands exist, into the project in the working
-directory. It is the only command here that writes a file. Each file points at the commands above
-and says nothing else.
+directory. It is the only command here that writes a file. Each file names the commands above. It
+also names `nvs code`, which answers questions about your own project's code. It says nothing else.
 
 Two kinds of file, and both say the same thing:
 
@@ -142,7 +142,7 @@ Two kinds of file, and both say the same thing:
 
       ## Novis
 
-      … the four commands, and the check loop …
+      … the four commands, the nvs code commands, and the check loop …
 
       <!-- /nvs agent -->
 

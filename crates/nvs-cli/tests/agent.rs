@@ -448,6 +448,35 @@ fn nvs_agent_find_reaches_every_nvs_ext_command() {
     }
 }
 
+/// `nvs code` and each of its verbs are on the index, read off the `clap`
+/// definition like every other command, so a verb added there is listed at the
+/// next call and an agent finds it with `find`.
+// covers: tools:agents/nvs-agent
+#[test]
+fn the_index_lists_nvs_code_and_each_of_its_verbs() {
+    let lines = index();
+    let mut words = vec!["nvs code".to_owned()];
+    for verb in ["show", "refs", "impls", "outline", "types"] {
+        words.push(format!("nvs code {verb}"));
+    }
+    for words in words {
+        let command = format!("command: {words}");
+        assert!(lines.contains(&command), "the index lists `{command}`");
+        let (card, _, ok) = agent(&["show", &words]);
+        assert!(ok, "`nvs agent show {words}` succeeds");
+        assert!(
+            card.lines().count() > 2,
+            "the command's card carries its help: {card}"
+        );
+    }
+    assert!(
+        lines
+            .iter()
+            .any(|line| line == "flag: nvs code refs --json"),
+        "a verb's flags are listed under it"
+    );
+}
+
 /// A chapter's own name resolves too, and answers with where to go next instead
 /// of with the whole chapter: its summary, and the line of every heading in it.
 #[test]
@@ -1503,6 +1532,25 @@ fn no_adapter_contains_a_member_signature_a_type_name_or_a_refusal() {
     }
 }
 
+/// A question about the project's own code is answered by `nvs code`, so every
+/// pointer names the three verbs an agent reaches for first and says to use
+/// them instead of grep. It names commands and states nothing about the
+/// language, which the test above holds it to.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn the_protocol_names_nvs_code_for_questions_about_the_project() {
+    for (path, text) in pointers("names-nvs-code") {
+        for command in ["nvs code refs", "nvs code show", "nvs code outline"] {
+            assert!(text.contains(command), "{path} names `{command}`");
+        }
+        let at = text.find("nvs code").expect("the pointer names `nvs code`");
+        assert!(
+            text[at..].contains("instead of grep"),
+            "{path} says to ask `nvs code` instead of grep"
+        );
+    }
+}
+
 /// The skill is found and summarised by its front matter, so a missing key makes
 /// it invisible to the harness rather than wrong — which is a failure nothing
 /// else in this suite would see.
@@ -1816,6 +1864,91 @@ fn init_updates_a_file_it_wrote_that_nobody_edited() {
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
+}
+
+/// The protocol an `init` from before `nvs code` wrote, verbatim. It names the
+/// four `nvs agent` commands and the check loop, and nothing about the project.
+const PROTOCOL_BEFORE_NVS_CODE: &str = "\
+Novis is the language this project is written in, and the `nvs` binary installed on this machine is
+its documentation. It answers from the registry it compiles against, so an answer always describes
+the installed version. That is why nothing about the language itself is written here.
+
+- `nvs agent primer` — read once, before writing anything. The short document that makes a coding
+  agent productive.
+- `nvs agent index` — one line per standard library member, reference heading, configuration key,
+  command, flag and error code.
+- `nvs agent find <query>` — the index lines whose name matches: a member, a keyword such as
+  `autoload`, a configuration key, a command, a flag or an error code. Use it instead of grep: the
+  shell removes the backslash from a namespaced name before grep sees it.
+- `nvs agent show <symbol>` — one card: a member's signature, prose, parameters and errors, a
+  reference section, a key, a command's help, or an error code, as in `nvs agent show E0621`.
+
+`index`, `find` and `show` take `--json` when a tool reads the answer instead of a person.
+
+Then check what you wrote. `nvs check <file>` names what is wrong and where, `nvs check --json <file>`
+prints the same diagnostics as JSON, and `nvs test` runs the tests. That is the loop: read the primer
+once, `find` a name, `show` its card, `nvs check`.
+
+`nvs agent init` wrote this text, and running it again updates it to the installed `nvs`.
+";
+
+/// A stanza and a skill written before `nvs code`, untouched since, still
+/// match the fingerprint in their markers. So the fingerprint alone marks them
+/// outdated, and the next `init` rewrites both to name `nvs code`.
+// covers: tools:agents/nvs-agent-init
+#[test]
+fn a_pointer_written_before_nvs_code_is_outdated_and_rewritten() {
+    let skill = ".claude/skills/novis/SKILL.md";
+    let dir = tree("before-nvs-code");
+    let (_, _, err, ok) = init_as(&dir, CLAUDE, &[]);
+    assert!(ok, "the first run succeeds: {err}");
+
+    let current_skill = read(&dir, skill);
+    let at = current_skill
+        .find("Novis is the language")
+        .expect("the skill carries the protocol");
+    let older_skill = refingerprint(&format!(
+        "{}{PROTOCOL_BEFORE_NVS_CODE}",
+        &current_skill[..at]
+    ));
+    std::fs::write(dir.join(skill), &older_skill).expect("the older skill is written");
+
+    // The stanza is one unit from its marker to its close marker, and the
+    // fingerprint covers all of it.
+    let close = "<!-- /nvs agent -->";
+    let current_agents = read(&dir, "AGENTS.md");
+    let start = current_agents
+        .find(MARK)
+        .expect("the stanza opens on its marker");
+    let end = current_agents.find(close).expect("the stanza closes") + close.len();
+    let older_stanza = refingerprint(&format!(
+        "{MARK} -->\n\n## Novis\n\n{PROTOCOL_BEFORE_NVS_CODE}\n{close}"
+    ));
+    let older_agents = format!(
+        "{}{older_stanza}{}",
+        &current_agents[..start],
+        &current_agents[end..]
+    );
+    std::fs::write(dir.join("AGENTS.md"), &older_agents).expect("the older stanza is written");
+    assert!(!older_agents.contains("nvs code") && !older_skill.contains("nvs code"));
+
+    let (out, err, ok) = init(&dir, &["--check"]);
+    assert!(!ok, "`--check` fails on the older pointers: {out}{err}");
+    assert_eq!(
+        out.lines().collect::<Vec<_>>(),
+        ["outdated AGENTS.md".to_owned(), format!("outdated {skill}")]
+    );
+
+    let (out, err, ok) = init(&dir, &[]);
+    assert!(ok, "untouched older pointers are updated: {err}");
+    assert_eq!(
+        out.lines().collect::<Vec<_>>(),
+        ["updated AGENTS.md".to_owned(), format!("updated {skill}")]
+    );
+    assert_eq!(read(&dir, "AGENTS.md"), current_agents);
+    assert_eq!(read(&dir, skill), current_skill);
+    assert!(read(&dir, skill).contains("nvs code refs"));
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// The stanza and the skill the `init` before fingerprints wrote carry no

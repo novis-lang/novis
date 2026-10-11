@@ -42,6 +42,14 @@ reference is far larger than a context window while the flattened `Core` surface
 agent can hold every name the language has and still have room to work; what it cannot hold is the
 prose around them. A primer read once and a lookup of a few hundred tokens each is the cost that fits.
 
+A question about the project's own code is not a question about the language: who calls a method,
+which classes implement an interface, what a file declares. The registry cannot answer it, and `grep`
+answers it wrongly, so the protocol `nvs agent init` writes sends it to `nvs code refs`, `show` and
+`outline` (`rule:tooling/nvs-code-answers-about-the-project`), which read the project through the
+editor's own index. That is a command of its own and not a fifth verb here, so the four stay four, and
+the pointer names its verbs as commands and states nothing about the language
+(`rule:tooling/an-adapter-carries-protocol-and-never-language`).
+
 - **Memory:** nothing on the request path. `nvs agent` is a CLI-only path over the document the binary
   already builds for `nvs meta --json`, and no server, isolate or request reaches it. What it spends is
   simplicity: one subcommand and one renderer in the binary.
