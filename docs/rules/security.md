@@ -1687,6 +1687,14 @@ so it cannot reach any other line. The event name and the id are **sinks**: a cl
 the name and echoes the id back in its next request's `Last-Event-ID`, so an attacker-chosen one is
 the cross-tenant hazard a tainted topic name is.
 
+**Every way a call could corrupt an event's framing throws a `LogicError`, and none is repaired.** An
+event name or id carrying `\n`, `\r` or NUL is refused: stripping the byte would change the name a
+client dispatches on, and a client discards an id containing a NUL outright. An empty payload is
+refused, because a client does not dispatch an event whose data buffer is empty, so the send could
+never arrive. A status set on a path that opens an event stream is refused, because an event stream
+is `200` by protocol. The streaming member takes any status, so that refusal is the event stream's
+alone.
+
 The JSON member accepts a tainted value freely, because the framing belongs to the serializer and
 never to concatenation — a tainted string becomes a JSON string value and cannot escape it. The text
 member accepts one only because a no-sniff header is on by default with nothing configured, so
@@ -1727,7 +1735,7 @@ is the static-file policy's media-type table, which also owns its `Range` and co
   members, but it makes [`security/assert-trusted`](security.md#security-assert-trusted) the ordinary way to write an API handler, which
   trains the escape hatch on the most common handler there is.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0177](../decisions/0177.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
 <a id="security-db-pool-reset-is-a-boundary"></a>
 

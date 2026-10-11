@@ -1,9 +1,7 @@
 {
   "title": "A response body is written by one typed member, and mixing `echo` with one of them does not compile",
   "status": "shipped",
-  "because": [
-    "0177"
-  ],
+  "because": [],
   "seeAlso": [
     "security/sink-predicate",
     "security/capture-answers-the-carrier",
@@ -13,6 +11,7 @@
   "guardedBy": [
     "tests/conformance/core/a-response-json-body-frames-a-tainted-value.nvst",
     "tests/conformance/core/a-response-text-body-accepts-a-tainted-argument.nvst",
-    "crates/nvs-types/tests/response.rs"
+    "crates/nvs-types/tests/response.rs",
+    "tests/conformance/core/an-event-stream-refuses-what-a-client-could-not-act-on.nvst"
   ]
 }
