@@ -6,7 +6,7 @@ context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/index.rs, crates/nvs-
 stages:
   - id: 2
     title: "the keystone: one workspace, and queries by name"
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Tooling > `nvs-lsp`'s one-construction-site", "Writing a test case > a structural \"exactly one construction site\""]
@@ -301,22 +301,20 @@ One file set: `docs/reference/tools/10-cli.md` (a new `# nvs code` section after
 
 ### State
 
-**Goal `nvs-code` — `nvs code` answers questions about a project from the editor's own index — has just started; nothing of it has landed yet.** Stage 1's floor is whatever the chain carries.
+**Stage 2 is done and its check is green.** `nvs_lsp::workspace(root)` (`crates/nvs-lsp/src/server.rs:1305`) surveys and indexes every `.nvs` file under a root and returns a `Workspace` (`:1267`) that owns the `Documents` and the index. `nvs_lsp::query` (`crates/nvs-lsp/src/query.rs`) reads it by name: `references` (`:74`, kinds `declared`/`import`/`use` via `UseKind::label`), `implementations` (`:125`, `below` transitive subtypes or overriders, `above` direct supertypes or overridden), `declaration` (`:167`, the `///` run as hover renders it), `outline` (`:215`), `types` (`:259`, 1-based inclusive lines, `$name` and the type without `: `) and `nearest` (`:301`, case- and backslash-blind, also by last part). `uses_of` and `implementation` in `server.rs` call it, so the editor's Go to Implementation now lists subtypes at every depth and a method's overriders. `nvs_hir::members::edit_distance` is public for `nearest`. `crates/nvs-lsp/tests/query.rs` holds the eight tests.
 
-The user asked for it on 2026-10-08, chose the name `nvs code`, made it a command of its own rather than a fifth `nvs agent` verb, and placed it after goal `class-scoped-enums`. The goal file's § *Standing decisions* holds those calls and the writer's own calls (symbol spelling, positions, output, exit status, escaping, the project root). No session re-decides one.
-
-Facts about the tree as the goal was written. Analysis is a plain function: `analyse_file` (`crates/nvs-lsp/src/document.rs:661`) needs only a `Documents`, and `Documents::survey` (`document.rs:272`) is what makes an autoloaded name resolve. The index is queried by symbol string through `declaration`, `occurrences`, `imports_of`, `subtypes`, `overriders`, `overridden` and `declarations_in` (`crates/nvs-lsp/src/index.rs:611`, `:618`, `:633`, `:519`, `:577`, `:537`, `:644`). A `Declaration` has no signature and no doc text. `SymbolIndex::build` may be called from `server.rs` alone (`crates/nvs-lsp/tests/index.rs:159`), and `server.rs` already builds a one-shot index per `.lspt` case (`lenses_of_case`, `server.rs:1292`; `case_settings`, `:1276`). References are `uses_of` (`server.rs:907`) and implementations `implementation` (`server.rs:1532`), both private and cursor-based. `nvs meta` writes a program member's signature at `crates/nvs-cli/src/meta.rs:937` but takes its own front-end path and fails on a program with errors. `nvs-cli` already depends on `nvs-lsp`.
+What Stage 3 needs to know. A `Site` carries byte offsets and the canonical path (on Windows a `\\?\` path), so the CLI turns it into a working-directory-relative path and a character column itself. The `Workspace` does not count files with errors yet: Stage 3 needs that count for its stderr line, and `analyse_file`'s diagnostics are where it lives (`crates/nvs-lsp/src/document.rs:661`). A `Declaration` still has no signature: `nvs meta` builds a program method's in `user_method_json` (`crates/nvs-cli/src/meta.rs:924`, `param_signature` `:958`) from a parsed `MethodMember`, which `query::declaration`'s analysis can reach through `crate::definition::site_of`.
 
 ### Next
 
-**Stage 2: the keystone: one workspace, and queries by name**, one file set: `crates/nvs-lsp/src/server.rs`, `crates/nvs-lsp/src/index.rs`, `crates/nvs-lsp/src/query.rs`, `crates/nvs-lsp/src/lib.rs`, `crates/nvs-lsp/src/hints.rs`, `crates/nvs-lsp/tests/query.rs`, `crates/nvs-lsp/tests/index.rs`, `docs/rules/ide/five-features-are-one-reference-index.md`.
+**Stage 3: the command**, one file set: a new `crates/nvs-cli/src/code.rs`, `crates/nvs-cli/src/main.rs`, `crates/nvs-cli/src/meta.rs`, a new `crates/nvs-cli/tests/code.rs`, `docs/rules/tooling/`, `docs/rules/ide/one-server-two-thin-clients.md`.
 
-- [ ] **The one-shot workspace** — a `pub fn` in `crates/nvs-lsp/src/server.rs` beside `lenses_of_case` (`:1292`) that takes a root, makes a `Documents`, runs `survey` at `CheckScope::Workspace` and builds the index, returning one value that owns both. Update the comment at `crates/nvs-lsp/tests/index.rs:153-158`, and the readers paragraph of `ide/five-features-are-one-reference-index` (`:21-27`).
-- [ ] **The readers by name** — a new `crates/nvs-lsp/src/query.rs`: references (and `uses_of`, `server.rs:907`, rewritten to call it), implementations (and `implementation`, `server.rs:1532`), declaration with its `///` run, outline, types over a line range from `hints::for_document` (`crates/nvs-lsp/src/hints.rs:88`), and nearest names. Export it from `lib.rs`; mind the construction-site guard's rule on naming `SymbolIndex`.
-- [ ] **The tests** — `crates/nvs-lsp/tests/query.rs` with the eight tests the Stage 2 check names, over a small `Shop` project written to a temporary directory under `.agent-tmp/` and deleted by the test. `crates/nvs-lsp/src/server.rs:1`
+- [ ] **The command and its five verbs** — `nvs code show|refs|impls|outline|types`, each with `--json`, beside `Agent` in the `Command` enum (`crates/nvs-cli/src/main.rs:915`), over `nvs_lsp::workspace` (`crates/nvs-lsp/src/server.rs:1305`) and `nvs_lsp::query` (`crates/nvs-lsp/src/query.rs:74`). Output, exit status, escaping and the project root are § *Standing decisions*'; `show` of a `Core` name prints `nvs agent show`'s card.
+- [ ] **The signature, one builder** — what `user_method_json` writes (`crates/nvs-cli/src/meta.rs:924`, `:958`) moves to one function `show` and `nvs meta` both call.
+- [ ] **The rule** — create `tooling/nvs-code-answers-about-the-project` with the tradeoffs and the Declined list from § *Standing decisions*; rewrite `ide/one-server-two-thin-clients` (`docs/rules/ide/one-server-two-thin-clients.md:1`).
+- [ ] **The tests** — `crates/nvs-cli/tests/code.rs` with the ten tests the Stage 3 check names, over the `Shop` fixture `crates/nvs-lsp/tests/query.rs:18` writes.
 
 ### Backlog
 
-- Stage 3: the command — `crates/nvs-cli/src/code.rs`, the five verbs, text and JSON, the signature shared with `nvs meta`, the rule `tooling/nvs-code-answers-about-the-project`, and the `ide/one-server-two-thin-clients` rewrite.
 - Stage 4: agents learn of it — the `PROTOCOL` text, the fingerprint upgrade of older pointers, the index lines, and the `tooling/an-agent-asks-the-binary` rewrite.
 - Stage 5: the `# nvs code` reference section, the feature proofs for `tools:cli/nvs-code`, and the Stage 0 search.
