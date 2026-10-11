@@ -1,7 +1,6 @@
 {
   "title": "A fetched package is reached by an ordinary `autoload` line in a committed, generated `vendor/packages.nvs`",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "programs/no-runtime-autoload",
     "programs/autoload",

@@ -1,7 +1,6 @@
 {
   "title": "A constructor's `return` carries no value; a bare `return;` may still leave early",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "classes/constructor-is-a-method-named-constructor",
     "classes/definite-property-initialization"

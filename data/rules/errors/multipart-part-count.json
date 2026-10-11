@@ -1,7 +1,6 @@
 {
   "title": "A multipart body is capped by part count, not only by size",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/ambiguous-input-refused"
   ],

@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Process` is the one way to run another program, and there is no shell string anywhere in it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/process-run",
     "core-classes/process-refuses-a-shell-target",

@@ -1,7 +1,6 @@
 {
   "title": "The sink in force picks the rendering, and no call site may name one",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "errors/diagnostic-record",
     "errors/debug-dump",

@@ -1,7 +1,6 @@
 {
   "title": "An include cycle is refused with the chain named, and nesting past eight is refused as depth",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/include-takes-a-path-or-a-dir",
     "config/app-keys-are-canonicalized-before-matching"

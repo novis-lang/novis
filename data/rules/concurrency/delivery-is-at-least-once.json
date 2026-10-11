@@ -1,7 +1,6 @@
 {
   "title": "Delivery is at-least-once, and idempotency is the job's own obligation",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/claiming-is-one-statement",
     "concurrency/attempts-are-finite-and-a-dead-letter-is-kept"

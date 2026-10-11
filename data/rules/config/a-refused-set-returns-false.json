@@ -1,7 +1,6 @@
 {
   "title": "A refused `Core\\Config::set` returns `false` and leaves the value unchanged; it is never clamped",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/three-changeability-classes",
     "config/ceilings-are-their-own-directives",

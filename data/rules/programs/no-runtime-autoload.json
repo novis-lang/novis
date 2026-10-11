@@ -1,7 +1,6 @@
 {
   "title": "A name reaches its file while compiling; there is no runtime loader of any kind",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "programs/autoload",
     "programs/implementing",

@@ -1,7 +1,6 @@
 {
   "title": "A refused `for` header is one diagnostic, never a cascade",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "iteration/for-init-clause",
     "iteration/for-counter-scope"

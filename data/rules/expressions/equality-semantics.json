@@ -1,7 +1,6 @@
 {
   "title": "Equality has one row per type, and every row is the strict reading",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/one-equality-operator",
     "expressions/object-identity-equality",

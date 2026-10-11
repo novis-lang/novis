@@ -1,7 +1,6 @@
 {
   "title": "`require` is the only file-inclusion construct, and it runs every time it is reached",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/a-required-file-shares-declarations-not-locals",
     "statements/a-require-expression-is-mixed",

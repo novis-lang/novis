@@ -1,7 +1,6 @@
 {
   "title": "A signature is taken over a structured payload, never over assembled text, and a URL is signed through the canonical form its class already defines",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/a-lifetime-is-written",
     "core-api/one-refusal-except-expiry",

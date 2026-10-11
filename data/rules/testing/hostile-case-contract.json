@@ -1,7 +1,6 @@
 {
   "title": "A hostile case passes when nothing came apart, and a compile diagnostic is never a pass",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/feature-proofs",
     "testing/a-failing-proof-is-fixed-or-recorded",

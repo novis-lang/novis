@@ -1,7 +1,6 @@
 {
   "title": "One `DbError` carries a normalised kind across every driver, and never a bound parameter",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/db-transactions",
     "errors/throwable-hierarchy",

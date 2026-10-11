@@ -1,7 +1,6 @@
 {
   "title": "`#[Property]` derives its generators from the parameters' declared types",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "testing/data-rows",
     "testing/assertions-are-typed"

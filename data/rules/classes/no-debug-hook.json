@@ -1,7 +1,6 @@
 {
   "title": "A debug dump shows a class's real declared properties and their real values, and no class can change that",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/no-magic-methods",
     "errors/debug-dump",

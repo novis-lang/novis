@@ -1,7 +1,6 @@
 {
   "title": "`->` on a receiver that can hold no object is refused where it is written",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/erased-member-access",
     "types/unions-and-mixed",

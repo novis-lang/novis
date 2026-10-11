@@ -1,7 +1,6 @@
 {
   "title": "There is no `trait`: shared behaviour is an interface method with a body, shared state is `by` delegation",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/interface-default-methods",
     "classes/interface-private-methods",

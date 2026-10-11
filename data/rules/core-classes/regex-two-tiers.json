@@ -1,7 +1,6 @@
 {
   "title": "A pattern runs on the linear engine unless it cannot, and the backtracking tier's step budget throws when exhausted",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/regex-compile-time-tiering",
     "core-classes/regex-syntax",

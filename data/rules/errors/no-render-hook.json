@@ -1,7 +1,6 @@
 {
   "title": "A class cannot change how it is dumped",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/diagnostic-record",
     "errors/debug-dump"

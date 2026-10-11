@@ -1,7 +1,6 @@
 {
   "title": "The router stops at matching: a match is a name and typed parameters, and nothing here dispatches",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "routing/link-name-and-params-are-checked",
     "routing/routes-are-compiled-not-registered",

@@ -1,7 +1,6 @@
 {
   "title": "No userland mechanism loads native code into the process",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/closed-doors",
     "security/extension-manifest-only-tightens"

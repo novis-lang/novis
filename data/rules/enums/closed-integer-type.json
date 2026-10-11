@@ -1,7 +1,6 @@
 {
   "title": "An enum declares a new, closed, named integer type",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "enums/declaration",
     "enums/one-backing-type",

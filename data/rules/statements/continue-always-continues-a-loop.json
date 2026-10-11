@@ -1,7 +1,6 @@
 {
   "title": "`continue` always continues a loop, and a written level counts the way PHP counts",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/switch-match-equality"
   ],

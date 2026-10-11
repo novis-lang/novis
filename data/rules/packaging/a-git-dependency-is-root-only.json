@@ -1,7 +1,6 @@
 {
   "title": "A git dependency pins an exact commit, and only the root application may declare one",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "packaging/the-lockfile-holds-every-digest",

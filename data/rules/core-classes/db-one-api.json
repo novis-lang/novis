@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Db` is the only database API, and every statement it runs is prepared",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/db-parameters",
     "core-classes/db-statement-members",

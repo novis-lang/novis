@@ -1,7 +1,6 @@
 {
   "title": "`[mode] ceiling` is `System`-class, bounds a runtime flip and not the startup value, and unset equals the mode the server started in",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/a-program-may-read-and-flip-its-mode",
     "config/ceilings-are-their-own-directives",

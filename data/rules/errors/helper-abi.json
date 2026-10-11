@@ -1,7 +1,6 @@
 {
   "title": "A runtime helper never unwinds, and a panic dies inside one request",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/propagation",
     "errors/panics-bypass-user-code"

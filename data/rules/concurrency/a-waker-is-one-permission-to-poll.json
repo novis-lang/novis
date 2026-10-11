@@ -1,7 +1,6 @@
 {
   "title": "A waker decides nothing; it is permission to make one more poll happen",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/one-future-per-connection",
     "concurrency/one-permission-per-drive"

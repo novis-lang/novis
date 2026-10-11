@@ -1,7 +1,6 @@
 {
   "title": "A code action that writes may write only text the type system has already fully determined, and never makes a choice",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/narrowing-is-a-diff-never-a-save-time-fix",
     "classes/property-observer",

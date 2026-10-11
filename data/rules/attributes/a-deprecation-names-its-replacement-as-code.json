@@ -1,7 +1,6 @@
 {
   "title": "`#[Core\\Deprecated]` names its replacement as a Novis expression checked where it is declared, and every use is warning `W1003` carrying that replacement as its fix",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "attributes/attach-sites-and-forms",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",

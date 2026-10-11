@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Uri` spends the omitted-versus-null distinction on three components and on one query parameter at a time",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/signature"
   ],

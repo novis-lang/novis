@@ -1,7 +1,6 @@
 {
   "title": "A `push` on a connection other than the queue's is not transactional, and is counted rather than assumed away",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "concurrency/enqueue-commits-with-your-write",
     "concurrency/queue-four-members"

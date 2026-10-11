@@ -1,7 +1,6 @@
 {
   "title": "A member's verb predicts its return type, and `…OrNull`, `…Safe`, `…Ex` and every `try…` but `tryParse` are banned",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/failure-throws",
     "core-api/symmetric-names",

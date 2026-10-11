@@ -1,7 +1,6 @@
 {
   "title": "Past `max_series` a new series is refused and an existing one is never evicted",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/a-registry-is-per-core-and-nothing-reads-it",
     "observability/default-series",

@@ -1,7 +1,6 @@
 {
   "title": "`Cli\\Text` is the terminal's one raw path, and both of its constructors neutralize their input",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/terminal-output-is-a-sink",
     "tooling/styling-is-a-value-not-a-grammar",

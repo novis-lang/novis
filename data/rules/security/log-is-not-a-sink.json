@@ -1,7 +1,6 @@
 {
   "title": "A log field is data, so it takes a tainted value and wants one",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/sink-predicate",
     "security/secret-sinks-refuse",

@@ -1,7 +1,6 @@
 {
   "title": "`==` and `!=` are the whole of equality, and `===`, `!==` and `<>` do not parse",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/disjoint-comparison-refused",
     "expressions/equality-semantics",

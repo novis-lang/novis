@@ -1,7 +1,6 @@
 {
   "title": "A `type` alias is also a member of a class, interface or enum, reached as `Owner::Name` and as a bare `Name` inside its owner",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/type-alias",
     "types/alias-is-never-a-bare-class",

@@ -1,7 +1,6 @@
 {
   "title": "Every matching `[[app]]` block applies, least-specific `root` first, and two blocks on one canonical path are a duplicate",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/an-application-is-its-entry-file-path",
     "config/later-wins-and-every-override-is-recorded",

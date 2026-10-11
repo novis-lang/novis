@@ -1,7 +1,6 @@
 {
   "title": "CORS is closed until `[http.cors] origins` names one: no header is emitted and a preflight is answered `403`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/a-wildcard-origin-with-credentials-is-refused",
     "http-server/policy-headers-are-runtime-class-and-setheader-wins"

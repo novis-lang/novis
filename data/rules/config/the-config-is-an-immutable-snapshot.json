@@ -1,7 +1,6 @@
 {
   "title": "The configuration is one immutable snapshot a request clones at start, and a reload replaces it whole after validating everything",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/a-runtime-set-is-request-local",
     "config/reloadability-is-its-own-field",

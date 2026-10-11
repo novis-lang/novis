@@ -1,7 +1,6 @@
 {
   "title": "Nothing a request does is observable by another request except through an explicit, capability-gated store",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/closed-doors",
     "security/isolate-shares-nothing",

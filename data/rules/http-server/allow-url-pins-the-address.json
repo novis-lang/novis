@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Http::allowUrl` resolves, checks and pins: it answers a `Target` carrying the URL and every approved address, and the connection is made to one of them",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/outbound-url-is-a-sink",
     "security/net-address-policy",

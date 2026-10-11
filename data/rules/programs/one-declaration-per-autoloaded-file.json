@@ -1,7 +1,6 @@
 {
   "title": "A file reached by autoload declares exactly one thing, under the name the map finds it by",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "programs/autoload",
     "programs/no-runtime-autoload"

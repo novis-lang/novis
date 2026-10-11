@@ -1,7 +1,6 @@
 {
   "title": "An outbound URL or address is a sink, and a tainted one is refused where it is written",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/net-address-policy",
     "security/the-policy-lives-in-the-capability",

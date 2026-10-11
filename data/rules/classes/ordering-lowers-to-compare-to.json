@@ -1,7 +1,6 @@
 {
   "title": "`<`, `>`, `<=`, `>=` and `<=>` on two objects lower to one `compareTo` call",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/comparable",
     "types/arithmetic",

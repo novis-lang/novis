@@ -1,7 +1,6 @@
 {
   "title": "A span is rejected when it ends with a directional scope still open, decided by two counters",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/bidi-boundaries",
     "security/bidi-scope-is-the-whole-target",

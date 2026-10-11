@@ -1,7 +1,6 @@
 {
   "title": "The viewer renders the correlated request stream and hands every artifact with an existing viewer to it",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/the-extension-builds-no-ui-the-editor-already-has",
     "observability/speedscope-timeline-export",

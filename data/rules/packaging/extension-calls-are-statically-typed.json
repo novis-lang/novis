@@ -1,7 +1,6 @@
 {
   "title": "An extension's classes are registered from its manifest at load, and a call into one is type-checked at compile time and emitted as a direct call",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "classes/no-free-functions-or-constants",
     "config/the-extension-set-is-in-every-unit-key",

@@ -1,7 +1,6 @@
 {
   "title": "Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/rejected-syntax-gets-no-colour",
     "ide/semantic-tokens-carry-the-qualifiers",

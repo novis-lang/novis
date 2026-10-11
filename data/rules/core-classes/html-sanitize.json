@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Html::sanitize` answers a `Markup` by rebuilding the document, never by filtering it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/html-escape-answers-markup",
     "core-classes/html-parsing",

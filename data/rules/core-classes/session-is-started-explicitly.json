@@ -1,7 +1,6 @@
 {
   "title": "A session is opened by calling `Core\\Session::start`, and there is no ambient session array",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/no-host-populated-variables",
     "core-classes/cli-arguments",

@@ -1,7 +1,6 @@
 {
   "title": "Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/debug-surface",
     "testing/debug-mode-directive",

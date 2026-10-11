@@ -1,7 +1,6 @@
 {
   "title": "A buffering body reader keeps what it read so another may follow it, and a streaming one consumes the body and is the only reader of it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/the-body-is-read-on-demand-under-two-caps",
     "http-server/a-part-is-a-file-iff-it-carries-a-filename",

@@ -1,7 +1,6 @@
 {
   "title": "A `Core\\Net` socket closes with the request that opened it, so there is no persistent connection and no pool across requests",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/net-one-api-three-transports",
     "security/no-cross-request-state",

@@ -1,7 +1,6 @@
 {
   "title": "The opinionated half is `nvs/web`, a first-party package providing the `Web` namespace",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "programs/first-party-framework",
     "programs/framework-core-half",

@@ -1,7 +1,6 @@
 {
   "title": "A unit's cache key covers every autoload path it probed, misses included, and every directory a discovery query listed",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "programs/autoload",
     "programs/implementing",

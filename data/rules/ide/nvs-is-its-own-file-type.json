@@ -1,7 +1,6 @@
 {
   "title": "`.nvs` is registered as its own language in every editor, activates nothing on `.php`, and is never handed to a PHP plugin",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/vscode-is-the-reference-client",
     "ide/phpstorm-bridges-to-the-same-server",

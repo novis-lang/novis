@@ -1,7 +1,6 @@
 {
   "title": "A token another party issued verifies against a key found by `kid`, never one that is tried, and its claims come back as a `tainted` shape",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/algorithm-comes-from-the-key",
     "security/jwt-expiry-is-mandatory",

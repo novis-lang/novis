@@ -1,7 +1,6 @@
 {
   "title": "An anonymous function may carry a self-name, visible only inside its own body",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/anonymous-function",
     "types/implicit-capture",

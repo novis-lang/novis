@@ -1,7 +1,6 @@
 {
   "title": "An extension loads only from an `[[extension]]` entry in the root-owned `nvs.toml`, pinned by its `sha256`",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "config/ownership-is-the-trust-boundary",
     "config/lists-are-arrays-and-repeated-records-are-arrays-of-tables",

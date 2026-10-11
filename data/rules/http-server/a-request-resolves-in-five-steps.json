@@ -1,7 +1,6 @@
 {
   "title": "A request resolves by longest mount match, prefix strip, static file, path dispatch, then the entry — and production runs only match, strip, entry",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/a-mount-table-expands-at-boot",
     "http-server/static-serving-is-one-policy",

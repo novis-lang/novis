@@ -1,7 +1,6 @@
 {
   "title": "Ambiguous input is refused whole, never repaired",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/http-message-defects",
     "errors/cookie-name-bytes",

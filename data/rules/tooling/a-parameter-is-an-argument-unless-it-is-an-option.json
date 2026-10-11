@@ -1,7 +1,6 @@
 {
   "title": "A command parameter is a positional argument unless it carries `#[Option]`, and its type converts and launders the word",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/commands-are-compiled",
     "security/route-capture-is-laundered-by-its-type",

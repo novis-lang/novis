@@ -1,7 +1,6 @@
 {
   "title": "Regex syntax is PCRE's with no `u` modifier, and a construct neither engine supports is diagnosed by name",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/regex-two-tiers",
     "types/string-is-utf8",

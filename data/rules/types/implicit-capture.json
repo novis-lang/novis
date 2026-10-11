@@ -1,7 +1,6 @@
 {
   "title": "An anonymous function captures by value exactly the outer names its body reads, and there is no `use` clause",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/anonymous-function",
     "types/anonymous-function-self-name",

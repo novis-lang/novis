@@ -1,7 +1,6 @@
 {
   "title": "PDF generation is a first-party extension that performs no I/O, and an unresolved asset throws",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "core-classes/pdf-one-engine",
     "core-classes/pdf-output-is-inert",

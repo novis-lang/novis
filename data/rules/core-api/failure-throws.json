@@ -1,7 +1,6 @@
 {
   "title": "A `Core` member throws on failure and returns `?T` for absence; `false` is never an answer",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/verb-lexicon",
     "core-api/one-refusal-except-expiry",

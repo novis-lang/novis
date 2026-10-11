@@ -1,7 +1,6 @@
 {
   "title": "The prepared path and the runtime path are one implementation, so preparation is only earlier and never different",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/intrinsic-constant-arguments",
     "expressions/intrinsic-list-is-closed"

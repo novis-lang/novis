@@ -1,7 +1,6 @@
 {
   "title": "A `callable` type may name its parameters, and must then name its return type",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/callable-arity",
     "types/callable-variance",

@@ -1,7 +1,6 @@
 {
   "title": "A package that breaks its API publishes under a new name carrying `supersedes`",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "packaging/resolution-takes-the-highest-minimum",
     "packaging/a-dependency-break-is-absorbed-never-forwarded",

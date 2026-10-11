@@ -1,7 +1,6 @@
 {
   "title": "Scheduled work is a `[[schedule]]` entry firing a `spawn script`, checked at boot, with no runtime API",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/scope-has-no-default",
     "config/cron-is-five-fields-and-nothing-more",

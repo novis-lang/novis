@@ -1,7 +1,6 @@
 {
   "title": "`cron` is five-field POSIX plus five named shorthands, parsed at boot with the line named",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/scheduled-work-is-a-config-block",
     "config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once"

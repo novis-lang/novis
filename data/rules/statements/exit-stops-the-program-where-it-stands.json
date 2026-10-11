@@ -1,7 +1,6 @@
 {
   "title": "`exit` ends the program where it stands: no `catch` sees it, no `finally` runs, and a clean exit is not a failure",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/exit-is-the-only-termination-keyword",
     "errors/propagation",

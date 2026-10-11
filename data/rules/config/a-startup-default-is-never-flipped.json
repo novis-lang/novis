@@ -1,7 +1,6 @@
 {
   "title": "A mode also selects three startup defaults, chosen when a configuration is published, never re-derived by a mode flip, and never flippable from code",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/a-mode-is-five-defaults",
     "config/opcache-revalidation-is-system-class",

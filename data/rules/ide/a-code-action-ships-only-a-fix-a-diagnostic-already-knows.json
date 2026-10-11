@@ -1,7 +1,6 @@
 {
   "title": "A quick fix ships only where its replacement text is already in a diagnostic's suggestions, and the actions the server computes for itself are the html-template rewrite and splitting or joining a list",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "core-api/identifier-casing",
     "types/no-legacy-cast",

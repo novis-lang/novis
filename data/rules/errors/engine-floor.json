@@ -1,7 +1,6 @@
 {
   "title": "Tier 4 — the floor is native, bounded, and gives up rather than escalating",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/escalation-ladder",
     "errors/handler-script",

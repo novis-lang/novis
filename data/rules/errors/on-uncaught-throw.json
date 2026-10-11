@@ -1,7 +1,6 @@
 {
   "title": "Tier 2 — an uncaught throw reaches the request root as itself",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/escalation-ladder",
     "errors/handler-script"

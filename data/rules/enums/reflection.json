@@ -1,7 +1,6 @@
 {
   "title": "Reflection describes an enum's shape and grants it nothing a class has",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "enums/no-class-machinery",
     "enums/closed-integer-type"

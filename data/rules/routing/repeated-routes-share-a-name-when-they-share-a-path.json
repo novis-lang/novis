@@ -1,7 +1,6 @@
 {
   "title": "One method's repeated routes may share a `name` only when they share a `path`; every other duplicate name is a compile error",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "routing/a-shared-name-is-one-endpoint-everywhere",
     "routing/no-wildcard-verb",

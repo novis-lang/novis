@@ -1,7 +1,6 @@
 {
   "title": "Attempts are finite, backoff is exponential and jittered, and an exhausted job is kept rather than discarded",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/delivery-is-at-least-once",
     "concurrency/a-budget-overrun-is-a-failed-attempt",

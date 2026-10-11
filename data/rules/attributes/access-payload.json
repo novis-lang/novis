@@ -1,7 +1,6 @@
 {
   "title": "`#[Access]` names one resolvable decision in `allow`, and one of them covers a method",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "attributes/access-is-a-required-sibling",
     "attributes/payload-is-a-compile-time-constant",

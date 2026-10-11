@@ -1,7 +1,6 @@
 {
   "title": "A record names the file, line and member it was produced at, and a `Throwable`'s location is that same datum",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/diagnostic-record",
     "errors/record-producers",

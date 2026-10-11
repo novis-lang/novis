@@ -1,7 +1,6 @@
 {
   "title": "A non-`void` body hands back a value at every exit; nothing returns `null` for a declaration it did not make",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/declaration",
     "iteration/generators",

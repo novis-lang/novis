@@ -1,7 +1,6 @@
 {
   "title": "A scalar class constant used as a type folds to the single-value type of its own value",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/single-value-types",
     "types/enum-case-type"

@@ -1,7 +1,6 @@
 {
   "title": "A function holds no state of its own, and `global` does not exist",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/static-is-a-member-modifier",
     "statements/storage-that-outlives-a-call"

@@ -1,7 +1,6 @@
 {
   "title": "A regex pattern is a sink with no launderer; the subject is data and may be tainted",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/sink-predicate",
     "security/every-grammar-is-a-sink",

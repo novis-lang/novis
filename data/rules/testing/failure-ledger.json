@@ -1,7 +1,6 @@
 {
   "title": "A failed assertion is a catchable `Throwable` and a ledger entry the test cannot erase",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/assertions-are-typed",
     "testing/runner-is-strict",

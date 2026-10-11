@@ -1,7 +1,6 @@
 {
   "title": "A metric label value refuses `tainted`, and there is deliberately no launderer for one",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/sink-predicate",
     "security/assert-trusted",

@@ -1,7 +1,6 @@
 {
   "title": "A `.nvsx` the program depends on is embedded as one opaque entry of the same flat list",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "packaging/a-bundle-carries-source-not-artifacts",
     "packaging/an-extension-is-a-sandboxed-wasm-component"

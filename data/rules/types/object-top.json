@@ -1,7 +1,6 @@
 {
   "title": "`object` is the opaque top of every class type",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/shape-type",
     "types/anonymous-object",

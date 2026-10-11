@@ -1,7 +1,6 @@
 {
   "title": "The whole temporary-file surface is one member handing out an owned directory",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/one-name-one-signature",
     "core-api/one-paradigm-per-operation"

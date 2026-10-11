@@ -1,7 +1,6 @@
 {
   "title": "A fact a repository tool reads is one JSON record under `data/`, its type declared once and its text written by one writer",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/the-repository-tools-are-one-bun-program",
     "tooling/a-rendered-file-is-committed-and-never-edited"

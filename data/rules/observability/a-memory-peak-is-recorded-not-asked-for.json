@@ -1,7 +1,6 @@
 {
   "title": "The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/memory-is-three-numbers-on-core-budget",
     "observability/memory-high-water-writes-a-warn",

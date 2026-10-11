@@ -1,7 +1,6 @@
 {
   "title": "One workflow holds every job, and three lanes decide which of them a run needs",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/lane-table",
     "testing/the-deep-lane",

@@ -1,7 +1,6 @@
 {
   "title": "A bundled executable is one trust domain: a program, never a service",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "programs/compile-target",
     "programs/audience"

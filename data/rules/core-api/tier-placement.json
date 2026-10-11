@@ -1,7 +1,6 @@
 {
   "title": "A library candidate is placed by six ordered tests, not by PHP's extension list",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/five-placements",
     "core-api/tier-roster",

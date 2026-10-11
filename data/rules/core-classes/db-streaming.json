@@ -1,7 +1,6 @@
 {
   "title": "A streaming result holds its connection until it is drained, and a second statement on it throws",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/db-statement-members",
     "core-classes/db-connection-busy-state",

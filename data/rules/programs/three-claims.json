@@ -1,7 +1,6 @@
 {
   "title": "Novis claims three things, and \"faster than PHP\" is not one of them",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "programs/audience",
     "programs/no-compatibility-promise",

@@ -1,7 +1,6 @@
 {
   "title": "An interface declares no property: one written there is `E0254`, and the value comes from a method or a constant",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/no-traits",
     "classes/interface-default-methods",

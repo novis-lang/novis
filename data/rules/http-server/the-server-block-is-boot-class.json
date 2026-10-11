@@ -1,7 +1,6 @@
 {
   "title": "Only `listen`, `socket_mode` and `workers` in `[server]` need a restart, `listen` is one flat array defaulting to `127.0.0.1:8000` in both modes, and the flag is the last word",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/four-idle-waits-all-finite",
     "http-server/max-in-flight-refuses-before-allocating",

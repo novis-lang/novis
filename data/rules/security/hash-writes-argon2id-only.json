@@ -1,7 +1,6 @@
 {
   "title": "`hash` writes Argon2id and nothing else, and no member takes an algorithm argument",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/bcrypt-read-roster",
     "security/needs-rehash-answers-weaker"

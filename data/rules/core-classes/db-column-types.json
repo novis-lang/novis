@@ -1,7 +1,6 @@
 {
   "title": "Every column has one natural Novis type, and the requested type converts losslessly or throws",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/db-statement-members",
     "core-classes/schema-vocabulary-is-closed",

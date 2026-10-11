@@ -1,7 +1,6 @@
 {
   "title": "`open` orients and converts to sRGB, and `encode` strips metadata unless the plan kept it",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/image-one-entry-point-per-job"

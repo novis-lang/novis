@@ -1,7 +1,6 @@
 {
   "title": "`namespace X;` is the only namespace statement, once per file and before any declaration",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/authority-is-the-enclosing-namespace",
     "statements/a-qualified-name-is-absolute"

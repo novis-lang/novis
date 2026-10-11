@@ -1,7 +1,6 @@
 {
   "title": "`max_in_flight` is a process-wide valve that answers a fixed `503` with `Retry-After` before an isolate exists",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "errors/on-limit",

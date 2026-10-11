@@ -1,7 +1,6 @@
 {
   "title": "A stored bcrypt cost above 17 is refused before any work is done",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/bcrypt-read-roster",
     "security/an-unreadable-stored-hash-throws",

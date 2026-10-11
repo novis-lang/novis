@@ -1,7 +1,6 @@
 {
   "title": "Verification is relaxed only where a `capabilities.tls` grant names the host and the call asks for it, and no such grant has a `true` spelling",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/one-tls-client",
     "security/capability-question-is-grant-and-scope",

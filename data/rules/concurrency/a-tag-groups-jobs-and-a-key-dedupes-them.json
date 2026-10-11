@@ -1,7 +1,6 @@
 {
   "title": "A `tag` names a group of jobs and a `key` admits one pending job, and they are two columns because they are opposites",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/queue-four-members",
     "concurrency/queue-deletion-is-explicit-and-bounded",

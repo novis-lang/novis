@@ -1,7 +1,6 @@
 {
   "title": "A file with a lexer or parser diagnostic publishes those and its declaration diagnostics, and suppresses its own resolution and type diagnostics",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "errors/diagnostic-record",
     "ide/the-request-set-is-closed",

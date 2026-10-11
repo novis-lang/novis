@@ -1,7 +1,6 @@
 {
   "title": "A WebSocket is opened by `Core\\Http\\Client::openSocket` under every rule an outbound call obeys, `ws` and `wss` serve that row alone, and a socket is never pooled",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/allow-url-pins-the-address",
     "security/outbound-url-is-a-sink",

@@ -1,7 +1,6 @@
 {
   "title": "A reported core stops accepting and `max_in_flight` counts its share as unavailable; a wedged worker is never killed in-process",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "http-server/a-wedged-core-is-detected-by-its-deadline",
     "http-server/admission-is-arithmetic-not-a-number",

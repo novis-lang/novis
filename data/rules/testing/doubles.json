@@ -1,7 +1,6 @@
 {
   "title": "A double is a shape of callables, structurally checked against an interface",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/interaction-after-the-fact",
     "testing/assertions-are-typed"

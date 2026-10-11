@@ -1,7 +1,6 @@
 {
   "title": "A bad cache entry is a miss the script never sees, and only a corrupt one is deleted",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "packaging/an-artifact-is-verified-whole-before-a-page-is-executable",
     "errors/propagation"

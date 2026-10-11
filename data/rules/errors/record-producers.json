@@ -1,7 +1,6 @@
 {
   "title": "Five producers build the one record",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "errors/diagnostic-record",
     "errors/log-write",

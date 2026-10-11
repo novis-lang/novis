@@ -1,7 +1,6 @@
 {
   "title": "`instanceof` is refused where it is written, and `is` is the one type test",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/type-test",
     "types/narrowing",

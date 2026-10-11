@@ -1,7 +1,6 @@
 {
   "title": "`Core\\IO::writeStream` is where every stream reaches disk, and a failed write removes its partial file",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/temporary-dir-sweep",
     "core-classes/process-run"

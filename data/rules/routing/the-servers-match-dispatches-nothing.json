@@ -1,7 +1,6 @@
 {
   "title": "The server's match dispatches nothing, and a request the table does not claim is served by the program",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "routing/matched-once-before-the-handler",
     "routing/a-match-is-not-invocable",

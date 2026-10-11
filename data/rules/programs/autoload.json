@@ -1,7 +1,6 @@
 {
   "title": "`autoload` maps a prefix to roots, resolved relative to the file that declares it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "programs/no-runtime-autoload",
     "programs/one-declaration-per-autoloaded-file",

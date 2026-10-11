@@ -1,7 +1,6 @@
 {
   "title": "A run on `main` is never cancelled by the next commit",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/ci-lanes",
     "testing/lane-table"

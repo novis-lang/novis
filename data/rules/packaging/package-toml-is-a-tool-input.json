@@ -1,7 +1,6 @@
 {
   "title": "`package.toml` is read by the `nvs` CLI, never by the runtime and never by name resolution",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "packaging/a-fetched-package-is-an-autoload-line",
     "config/nvs-toml-is-not-a-project-manifest",

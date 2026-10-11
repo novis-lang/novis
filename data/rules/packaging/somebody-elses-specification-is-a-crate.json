@@ -1,7 +1,6 @@
 {
   "title": "Somebody else's specification is implemented by an existing first-class crate, and the compiler and scheduler are written here",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "packaging/a-c-dependency-answers-two-questions",
     "core-classes/db-crate-boundary",

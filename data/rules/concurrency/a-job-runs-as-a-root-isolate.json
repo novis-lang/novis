@@ -1,7 +1,6 @@
 {
   "title": "A job runs as a root isolate, and there is no second execution path",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/a-job-names-a-file",
     "concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue"

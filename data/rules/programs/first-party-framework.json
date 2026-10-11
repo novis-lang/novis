@@ -1,7 +1,6 @@
 {
   "title": "Novis ships the framework, split by the standard-library placement tests",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "programs/framework-core-half",
     "programs/framework-web-package",

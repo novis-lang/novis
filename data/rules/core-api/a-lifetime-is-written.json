@@ -1,7 +1,6 @@
 {
   "title": "A signature's lifetime is a required key and `null` is the forever spelling",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/signing-is-over-a-payload",
     "core-api/a-written-null-removes",

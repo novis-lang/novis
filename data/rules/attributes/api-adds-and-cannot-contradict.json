@@ -1,7 +1,6 @@
 {
   "title": "`#[Api]` may add to the generated document and may not contradict the code",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "attributes/access-is-a-required-sibling",
     "attributes/inert-metadata"

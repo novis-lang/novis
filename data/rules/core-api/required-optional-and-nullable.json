@@ -1,7 +1,6 @@
 {
   "title": "Required, optional and nullable are three separate questions: nullability belongs to the type and optionality to the default",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "core-api/written-participation",
     "core-api/omission-is-not-a-written-null",

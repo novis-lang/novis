@@ -1,7 +1,6 @@
 {
   "title": "`Novis\\Intl` is eight classes, one per job, over one manifest class, and message formatting is not in it",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "core-classes/intl-batch-shape",
     "core-classes/intl-locale-is-an-argument",

@@ -1,7 +1,6 @@
 {
   "title": "Two members are not a second spelling when each takes a different thing and answers a different thing",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/one-paradigm-per-operation",
     "core-api/one-name-one-signature",

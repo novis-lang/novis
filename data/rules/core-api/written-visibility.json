@@ -1,7 +1,6 @@
 {
   "title": "Every member declaration writes exactly one visibility keyword, and there is no implicit `public`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/a-parameter-is-not-a-member",
     "core-api/asymmetric-visibility-is-a-pair",

@@ -1,7 +1,6 @@
 {
   "title": "Only the leading character's case is checked, so `HTTPClient` and `HttpClient` both pass",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/identifier-casing",
     "core-api/casing-has-no-suppression"

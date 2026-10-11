@@ -1,7 +1,6 @@
 {
   "title": "The graph copy is one recursive, cycle-safe walk with two carriers, and it refuses what has no meaning on the other side",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/two-copy-depths",
     "classes/serialize-is-a-closed-format",

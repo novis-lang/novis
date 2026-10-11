@@ -1,7 +1,6 @@
 {
   "title": "A store an operator configured is authorized by the configuring — `cache.shared` is the grant, unscoped, and asks no address",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/net-address-policy",
     "security/capability-question-is-grant-and-scope",

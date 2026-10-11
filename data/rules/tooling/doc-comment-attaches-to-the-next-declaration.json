@@ -1,7 +1,6 @@
 {
   "title": "A `///` run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/doc-comment-is-three-slashes",
     "tooling/strict-docs"

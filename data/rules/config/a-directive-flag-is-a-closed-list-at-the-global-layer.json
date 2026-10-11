@@ -1,7 +1,6 @@
 {
   "title": "A CLI flag that sets a directive is one of a closed list, wins over every file, and there is no `--set`",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "config/later-wins-and-every-override-is-recorded",
     "config/every-matching-app-block-applies-least-specific-first",

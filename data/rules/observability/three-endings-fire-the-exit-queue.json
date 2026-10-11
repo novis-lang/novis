@@ -1,7 +1,6 @@
 {
   "title": "The exit queue drains once — at a normal end, at `exit`, at an uncaught throw and at `Core\\Script::finish()` — and the report says which ending it was",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/script-on-exit",
     "observability/a-fatal-and-a-cancellation-run-no-exit-hook",

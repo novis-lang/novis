@@ -1,7 +1,6 @@
 {
   "title": "Tier 3 — the configured handler is an ordinary isolate on the engine's own budget",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/escalation-ladder",
     "errors/engine-floor",

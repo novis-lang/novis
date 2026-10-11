@@ -1,7 +1,6 @@
 {
   "title": "An isolate ends by draining its roots through the one release worklist and then sweeping what a cycle held up",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/arena-is-an-ownership-root",
     "programs/memory-priority"

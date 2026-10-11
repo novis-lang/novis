@@ -1,7 +1,6 @@
 {
   "title": "Every bound on an open connection is finite with nothing configured",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/a-connection-is-a-root-isolate",
     "concurrency/a-drain-closes-a-connection-cleanly",

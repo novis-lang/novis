@@ -1,7 +1,6 @@
 {
   "title": "A trace event carries one of five kinds — `call`, `gc`, `spawn`, `query`, `http` — and a `call` keeps its probe shape",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/debug-probes",
     "security/secret-qualifier",

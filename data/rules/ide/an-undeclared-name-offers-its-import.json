@@ -1,7 +1,6 @@
 {
   "title": "An unqualified name that resolves to nothing carries one `use` line per type it could have meant, and the editor offers each as a quick fix",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
     "ide/a-code-action-writes-only-what-is-already-determined",

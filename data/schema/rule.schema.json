@@ -13,14 +13,6 @@
         "designed"
       ]
     },
-    "because": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1,
-        "x-references": "decision"
-      }
-    },
     "seeAlso": {
       "type": "array",
       "items": {
@@ -39,7 +31,6 @@
   "required": [
     "title",
     "status",
-    "because",
     "seeAlso",
     "guardedBy"
   ],

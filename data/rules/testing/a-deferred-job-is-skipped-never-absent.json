@@ -1,7 +1,6 @@
 {
   "title": "A job a lane defers is skipped by its own `if:`, never filtered out of the workflow",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/ci-lanes",
     "testing/lane-table"

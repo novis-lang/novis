@@ -1,7 +1,6 @@
 {
   "title": "A compiled-unit cache entry is read into memory, never mapped",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "errors/panics-bypass-user-code",
     "config/the-extension-set-is-in-every-unit-key",

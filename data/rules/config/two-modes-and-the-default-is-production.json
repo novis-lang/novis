@@ -1,7 +1,6 @@
 {
   "title": "A run mode is one of exactly two closed values, and with nothing configured it is `production`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/a-mode-is-five-defaults",
     "config/a-program-may-read-and-flip-its-mode",

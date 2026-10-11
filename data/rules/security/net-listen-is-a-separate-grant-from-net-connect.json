@@ -1,7 +1,6 @@
 {
   "title": "The grant follows what the program is doing rather than the transport: reaching out is `net.connect`, binding is `net.listen`, and neither widens the other",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/net-address-policy",
     "config/net-local-is-named-and-not-on-the-roster",

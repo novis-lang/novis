@@ -1,7 +1,6 @@
 {
   "title": "`nvs fmt` has one style, takes no configuration, and its output is a pure function of the file it is given",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/fmt-base-style-is-per",
     "tooling/fmt-never-reflows",

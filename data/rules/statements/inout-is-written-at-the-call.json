@@ -1,7 +1,6 @@
 {
   "title": "An argument that binds an `inout` parameter says so at the call",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/inout-is-the-by-reference-spelling",
     "statements/an-inout-argument-is-a-local"

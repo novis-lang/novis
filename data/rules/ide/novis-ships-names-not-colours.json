@@ -1,7 +1,6 @@
 {
   "title": "Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/highlighting-is-two-layers",
     "ide/semantic-tokens-carry-the-qualifiers",

@@ -1,7 +1,6 @@
 {
   "title": "No `Core` member reads ambient state: there is no default timezone, locale, array pointer or error global",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/removals",
     "core-api/tier-placement",

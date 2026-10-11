@@ -1,7 +1,6 @@
 {
   "title": "A property access runs its hook or its storage first and the observer second, and the observer cannot change the answer",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/property-observer",
     "classes/property-hooks",

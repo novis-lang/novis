@@ -1,7 +1,6 @@
 {
   "title": "A fixed-key shape parameter is one type carrying its arms, and it is only ever a whole parameter",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/shape-arms-are-disjoint",
     "core-api/shape-flattens-at-the-abi",

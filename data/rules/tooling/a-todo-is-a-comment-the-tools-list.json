@@ -1,7 +1,6 @@
 {
   "title": "A `// TODO:` comment is a list the editor and `nvs check --todos` print, never a diagnostic, and `nvs check` gains `--deny` and `--fix`",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "tooling/doc-comment-is-three-slashes",
     "attributes/a-deprecation-names-its-replacement-as-code",

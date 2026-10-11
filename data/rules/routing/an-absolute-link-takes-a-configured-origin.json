@@ -1,7 +1,6 @@
 {
   "title": "`urlAbsolute` prepends a configured origin and never one sniffed from a request header",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "routing/a-leftover-link-key-is-a-query-string",
     "routing/an-origin-is-per-mount-and-checked-at-boot",

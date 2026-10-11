@@ -1,7 +1,6 @@
 {
   "title": "Exactly four things become a span, and a `call` event never does",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/a-query-is-a-trace-event",
     "observability/a-trace-id-exists-for-every-request",

@@ -1,7 +1,6 @@
 {
   "title": "A capability question is a grant and a scope, asked of the request's own configuration snapshot",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/capability-check-at-the-door",
     "security/path-scope-canonicalise-then-prefix",

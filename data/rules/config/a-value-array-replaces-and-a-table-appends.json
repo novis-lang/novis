@@ -1,7 +1,6 @@
 {
   "title": "A value array is replaced wholesale by a later file; `[[table]]` entries accumulate across the tree",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/later-wins-and-every-override-is-recorded",
     "config/lists-are-arrays-and-repeated-records-are-arrays-of-tables",

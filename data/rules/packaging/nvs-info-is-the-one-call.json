@@ -1,7 +1,6 @@
 {
   "title": "`nvs info` is the one call for build, host and licensing facts, and the one spelling of it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "packaging/the-notice-is-embedded-in-the-binary",
     "packaging/a-build-records-no-timestamp",

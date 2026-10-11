@@ -1,7 +1,6 @@
 {
   "title": "The root of the tree is every `--config` in order, else `./nvs.toml`, else the data folder's `nvs.toml`, else the shipped defaults",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/no-configuration-file-is-a-complete-configuration",
     "config/the-resolved-root-is-announced-and-stored",

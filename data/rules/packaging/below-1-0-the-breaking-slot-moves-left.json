@@ -1,7 +1,6 @@
 {
   "title": "One `MAJOR.MINOR.PATCH` for the whole workspace, and below 1.0 the breaking slot moves left",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "packaging/the-version-contract-starts-at-0-1-0",
     "packaging/who-can-see-it-decides-the-release-slot"

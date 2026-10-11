@@ -1,7 +1,6 @@
 {
   "title": "`cancel` answers whether it won the race, and it changes the job's state rather than deleting the row",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/claiming-is-one-statement",
     "concurrency/queue-four-members"

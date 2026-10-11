@@ -1,7 +1,6 @@
 {
   "title": "A `class`, `interface` or `enum` is declared at file scope, or not at all",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/no-free-functions-or-constants",
     "types/class-scoped-alias"

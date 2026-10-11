@@ -1,7 +1,6 @@
 {
   "title": "An asymmetric property writes both halves, so a bare `private(set)` does not compile",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/written-visibility"
   ],

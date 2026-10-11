@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Task::all` answers a shape with the argument's own field names, each field keeping its own type",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/object-top",
     "core-api/shape-rules"

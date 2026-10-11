@@ -1,7 +1,6 @@
 {
   "title": "The performance history is an append-only NDJSON file in the repository",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/perf-two-mechanisms",
     "testing/perf-secondary-figures",

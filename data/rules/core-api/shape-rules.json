@@ -1,7 +1,6 @@
 {
   "title": "Every `Core` member obeys the same twenty shape rules, R1–R20",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/subject-first",
     "core-api/options-bag",

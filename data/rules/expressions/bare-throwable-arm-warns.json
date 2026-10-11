@@ -1,7 +1,6 @@
 {
   "title": "An unbound `catch (Throwable)` arm that supplies a value is warned about",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/catch-arm-is-an-expression",
     "expressions/catch-expression",

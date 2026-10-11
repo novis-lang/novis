@@ -1,7 +1,6 @@
 {
   "title": "A worker claims a job with one statement the database arbitrates, so a fleet needs no lease protocol",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/db-one-api",
     "concurrency/delivery-is-at-least-once"

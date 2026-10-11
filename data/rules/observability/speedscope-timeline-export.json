@@ -1,7 +1,6 @@
 {
   "title": "The four event kinds export as one speedscope evented timeline, beside Callgrind, Clover/lcov and NDJSON",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "observability/trace-events-carry-a-kind",
     "testing/debug-surface"

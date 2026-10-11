@@ -1,7 +1,6 @@
 {
   "title": "Every property a class declares is definitely assigned on every path out of every constructor",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/an-unwritten-property-read-throws",
     "classes/no-undefined-value",

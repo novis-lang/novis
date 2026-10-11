@@ -1,7 +1,6 @@
 {
   "title": "The terminal profile resolves once per process, and a stream that is not a terminal gets no styling",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/styling-is-a-value-not-a-grammar",
     "tooling/display-width-measures-what-the-sink-writes",

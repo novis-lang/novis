@@ -1,7 +1,6 @@
 {
   "title": "The configuration file is `nvs.toml`, and it is TOML",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",

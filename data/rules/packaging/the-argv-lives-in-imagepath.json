@@ -1,7 +1,6 @@
 {
   "title": "On Windows the argv is encoded into the SCM's one `ImagePath` string, the binary path is always quoted, and nothing else holds it",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "core-classes/process-is-argv-only",
     "packaging/a-service-is-one-stored-argv"

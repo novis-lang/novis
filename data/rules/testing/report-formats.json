@@ -1,7 +1,6 @@
 {
   "title": "One verdict, three renderings, a machine format owns stdout alone, and the JSON one locates every test it reports",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/runner-is-strict",
     "testing/data-rows",

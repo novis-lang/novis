@@ -1,7 +1,6 @@
 {
   "title": "`scope` is mandatory with no default, and `fleet` with no shared store refuses to boot",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/a-fleet-entry-fires-at-most-once-under-a-lease",
     "config/scheduled-work-is-a-config-block",

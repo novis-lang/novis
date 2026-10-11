@@ -1,7 +1,6 @@
 {
   "title": "An LDAP bind without TLS needs `tls = \"none\"` in the block and the host on `[capabilities.ldap] cleartext`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/tls-trust-is-relaxed-only-under-a-host-grant",
     "security/ldap-empty-password-is-refused",

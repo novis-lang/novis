@@ -1,7 +1,6 @@
 {
   "title": "There is no REPL and none is planned; `nvs run`, `nvs test` and `Core\\Debug::dump` are the answer",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/python-claims",
     "testing/nvst-is-separate",

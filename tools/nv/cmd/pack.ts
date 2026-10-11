@@ -23,7 +23,6 @@ import { fill, pyRepr } from "../lib/py.ts";
 import { load } from "../lib/store.ts";
 import { planStatus } from "../schema/plan-status.ts";
 import { rule as ruleType } from "../schema/rule.ts";
-import { topic as topicType } from "../schema/topic.ts";
 import { bodyOf, leadParagraph, milestones, verifyParagraph } from "./plan.ts";
 
 export const summary = "the orientation pack's Novis-only sections for one goal and stage: nv pack [--goal <slug>] [--stage <n>]";
@@ -282,20 +281,13 @@ export interface BookRule {
   id: string;
   title: string;
   status: string;
-  because: string[];
   guardedBy: string[];
-  topicOrder: number;
-  order: number;
 }
 
 export function rulebook(): Map<string, BookRule> {
-  const topics = load(topicType, root);
-  const place = new Map<string, [number, number]>();
-  for (const t of topics) t.value.rules.forEach((id, i) => place.set(id, [t.value.order, i]));
   const book = new Map<string, BookRule>();
   for (const r of load(ruleType, root)) {
-    const [topicOrder, order] = place.get(r.id) ?? [Number.MAX_SAFE_INTEGER, 0];
-    book.set(r.id, { id: r.id, title: r.value.title, status: r.value.status, because: r.value.because, guardedBy: r.value.guardedBy, topicOrder, order });
+    book.set(r.id, { id: r.id, title: r.value.title, status: r.value.status, guardedBy: r.value.guardedBy });
   }
   return book;
 }
@@ -309,38 +301,15 @@ function capped(label: string, items: string[], tail: string, indent = "  "): vo
 export function runRules(m: Manifest): void {
   section("THE RULES THIS GOAL LIVES INSIDE", `docs/rules/, selected by [context] rules = ${m.rules.length ? pyList(m.rules) : "[]"}`);
   emit("AGENTS.md's priority ordering and its numbered rules are already in your context. These are");
-  emit("the rules this goal's own work sits inside. A rule named by id is printed whole, because");
-  emit("the fragment IS the rule; a record number expands to the rules it created or changed.");
-  emit(`A short changed list is named whole; a long one is only its count, and \`${tool("brief")} --where\``);
-  emit("routes a topic to the chapter that holds the rest.");
+  emit("the rules this goal's own work sits inside. Each is printed whole, because the fragment IS");
+  emit(`the rule, and \`${tool("brief")} --where\` routes a topic to the chapter that holds the rest.`);
   emit();
   if (m.rules.length === 0) {
-    warn("[context] rules is empty, so no rule and no decision is named as binding this goal");
+    warn("[context] rules is empty, so no rule is named as binding this goal");
     return;
   }
   const book = rulebook();
-  const byPlace = (a: BookRule, b: BookRule) => a.topicOrder - b.topicOrder || a.order - b.order;
-  for (const entry of m.rules) {
-    if (entry.includes("/")) {
-      runOneRule(book, entry);
-      continue;
-    }
-    const all = [...book.values()];
-    const created = all.filter((r) => r.because[0] === entry).sort(byPlace);
-    const changed = all.filter((r) => r.because.slice(1).includes(entry)).sort(byPlace);
-    if (created.length === 0 && changed.length === 0) {
-      warn(`[context] rules names ${entry}, but no rule's \`because\` names that record and the rulebook has no rule with that id`);
-      continue;
-    }
-    emit(`ADR ${entry} -- ${created.length} rule(s) created, ${changed.length} changed:`);
-    for (const r of created) emit(`- \`rule:${r.id}\` -- ${r.title}${r.status === "shipped" ? "" : "  (designed)"}`);
-    const guards = new Set(created.flatMap((r) => r.guardedBy));
-    if (guards.size > 0) emit(`  guarded by ${guards.size} path(s) (\`${tool("rules")} --show <id>\` lists a rule's own)`);
-    if (changed.length > 0 && changed.length <= NAMED_BEFORE_COUNT) {
-      emit(indentedFill("changed: " + changed.map((r) => `rule:${r.id}`).join(", "), "  "));
-    }
-    emit();
-  }
+  for (const entry of m.rules) runOneRule(book, entry);
 }
 
 function runOneRule(book: Map<string, BookRule>, id: string): void {
@@ -351,9 +320,6 @@ function runOneRule(book: Map<string, BookRule>, id: string): void {
   }
   emit(`---- rule:${r.id}${r.status === "shipped" ? "" : "  (designed, not yet shipped)"}`);
   emit(`     ${r.title}`);
-  if (r.because.length > 0) {
-    emit(`     decided in ${r.because.join(", ")}${r.because.length === 1 ? "" : " (first created it, the rest amended it)"}`);
-  }
   capped("guarded by", r.guardedBy, `\`${tool("rules")} --show\` lists them all`, "     ");
   emit();
   emit(read(`docs/rules/${id}.md`).replace(/^\n+|\n+$/g, ""));

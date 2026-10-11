@@ -1,7 +1,6 @@
 {
   "title": "`::class` answers the class the value is, and folding is an optimization of that",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/class-reference",
     "types/conversion",

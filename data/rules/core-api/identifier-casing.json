@@ -1,7 +1,6 @@
 {
   "title": "An identifier's casing is fixed by its category and a mismatch is a hard compile error",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/casing-checks-the-leading-character",
     "core-api/casing-has-no-suppression",

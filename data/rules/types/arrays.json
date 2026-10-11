@@ -1,7 +1,6 @@
 {
   "title": "An array is PHP's ordered hash with `string` keys and a declared element type",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/mixed-subscript",
     "types/array-combination",

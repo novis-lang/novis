@@ -1,7 +1,6 @@
 {
   "title": "A development-mode server binding a non-loopback address prints a banner, writes one `Warn` record naming the address, and serves",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "config/the-mode-flag-wins-over-the-file",

@@ -1,7 +1,6 @@
 {
   "title": "Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/db-streaming",
     "core-classes/db-statement-members",

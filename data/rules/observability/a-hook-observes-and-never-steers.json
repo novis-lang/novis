@@ -1,7 +1,6 @@
 {
   "title": "A hook observes the ending and never steers it: the report is fixed first, a throw is logged and abandoned, `exit` inside a hook throws, and the drain continues",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/script-on-exit",
     "observability/a-fatal-and-a-cancellation-run-no-exit-hook",

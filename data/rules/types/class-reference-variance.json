@@ -1,7 +1,6 @@
 {
   "title": "`class<T>` widens wherever `T` widens, and never narrows without an `as`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/class-reference",
     "types/property-key-variance",

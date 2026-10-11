@@ -1,7 +1,6 @@
 {
   "title": "`[session] backend` admits `shared` and `db`, and writing `local` is a boot refusal naming the file it was written in",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/the-local-tier-cannot-hold-what-must-be-coherent",
     "http-server/no-session-block-means-no-store",

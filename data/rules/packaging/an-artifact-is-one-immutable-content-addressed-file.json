@@ -1,7 +1,6 @@
 {
   "title": "A compiled unit is one immutable file whose address is its content and its environment",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/the-extension-set-is-in-every-unit-key",
     "config/opcache-file-cache-directives-are-system",

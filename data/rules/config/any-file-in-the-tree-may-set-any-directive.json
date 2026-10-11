@@ -1,7 +1,6 @@
 {
   "title": "Any file in the tree may set any directive, `System` class included",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/ownership-is-the-trust-boundary",
     "config/later-wins-and-every-override-is-recorded",

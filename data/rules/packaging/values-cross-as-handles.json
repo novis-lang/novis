@@ -1,7 +1,6 @@
 {
   "title": "A value crosses the guest boundary as a bounds-checked handle, never as a pointer",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "packaging/the-boundary-is-the-cost",
     "core-api/a-lifetime-is-an-object"

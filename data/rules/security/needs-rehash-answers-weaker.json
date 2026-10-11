@@ -1,7 +1,6 @@
 {
   "title": "`needsRehash` measures weaker rather than different, so every bcrypt hash asks to be rewritten",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/bcrypt-read-roster",
     "security/hash-writes-argon2id-only"

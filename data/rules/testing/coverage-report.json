@@ -1,7 +1,6 @@
 {
   "title": "`nvs test` writes line, function and branch coverage as lcov, Clover and Cobertura, from one hit table every context of the run counts into",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/debug-probes",
     "testing/report-formats"

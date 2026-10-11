@@ -1,7 +1,6 @@
 {
   "title": "An isolate's class statics are its own, and a child cannot reach its parent's",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/storage-that-outlives-a-call",
     "statements/no-host-populated-variables"

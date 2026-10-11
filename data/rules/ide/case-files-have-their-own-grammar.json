@@ -1,7 +1,6 @@
 {
   "title": "`.nvst` and `.lspt` get a grammar of their own, with Novis embedded in the sections that hold a program",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/highlighting-is-two-layers",
     "ide/an-lsp-answer-is-frozen-as-an-lspt-case",

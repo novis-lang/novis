@@ -1,7 +1,6 @@
 {
   "title": "A leading separator does not parse, in any of the three positions PHP writes one",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/a-qualified-name-is-absolute"
   ],

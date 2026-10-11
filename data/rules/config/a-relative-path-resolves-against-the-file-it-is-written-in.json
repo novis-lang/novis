@@ -1,7 +1,6 @@
 {
   "title": "A relative path resolves against the directory of the file it is written in; a command-line path against the working directory",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/include-takes-a-path-or-a-dir",
     "config/app-keys-are-canonicalized-before-matching",

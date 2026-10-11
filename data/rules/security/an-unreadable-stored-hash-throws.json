@@ -1,7 +1,6 @@
 {
   "title": "A stored value outside the read roster throws, and the message never quotes the bytes",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/bcrypt-read-roster",
     "security/secret-sinks-refuse",

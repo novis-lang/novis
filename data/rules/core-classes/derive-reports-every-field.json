@@ -1,7 +1,6 @@
 {
   "title": "A generated decoder reports every failed field at once, before the constructor runs",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/derive-field-list",
     "core-classes/db-error",

@@ -1,7 +1,6 @@
 {
   "title": "Every binding declares its type, and no binding's type ever changes",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/var-inference",
     "types/conversion",

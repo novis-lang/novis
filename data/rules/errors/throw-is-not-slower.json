@@ -1,7 +1,6 @@
 {
   "title": "A throw costs no more than a return, and only its raise allocates",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/propagation"
   ],

@@ -1,7 +1,6 @@
 {
   "title": "The lexer refuses an unterminated control and the sinks substitute it, and nobody writes a second predicate",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/bidi-predicate",
     "security/launderers-are-sink-named",

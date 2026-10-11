@@ -1,7 +1,6 @@
 {
   "title": "The parser always returns a tree, a node it invented says so, and an offset maps to the innermost node even inside a malformed region",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/one-grammar-one-tree",
     "ide/the-first-server-answers-a-closed-list",

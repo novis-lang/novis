@@ -1,7 +1,6 @@
 {
   "title": "The roster of features is read from the registry and the reference chapters, never kept as a list",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/feature-proofs",
     "testing/proof-attribution"

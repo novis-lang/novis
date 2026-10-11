@@ -1,7 +1,6 @@
 {
   "title": "A test request is dispatched in-process through the compiled route table, and its input arrives `tainted`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/isolate-per-test",
     "testing/task-tree-and-virtual-clock"

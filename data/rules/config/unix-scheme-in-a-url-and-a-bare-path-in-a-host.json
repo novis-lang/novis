@@ -1,7 +1,6 @@
 {
   "title": "A socket is `unix:` where the key is a URL and a bare absolute path where the key is a host",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it",
     "core-classes/db-unix-socket-path",

@@ -1,7 +1,6 @@
 {
   "title": "There are no user-declared generic functions or classes",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/arrays",
     "types/shape-type",

@@ -1,7 +1,6 @@
 {
   "title": "A queue row is removed by `delete` or `purge`, never while claimed, and never dead-lettered or pending unless the call says so",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/queue-four-members",
     "concurrency/cancel-is-a-race-it-can-lose",

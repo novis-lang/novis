@@ -1,7 +1,6 @@
 {
   "title": "`nvs config check` and `nvs config dump` resolve the tree with no server, and `dump --origin` names where every value came from",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/later-wins-and-every-override-is-recorded",
     "config/the-ownership-check-runs-where-it-can-be-answered",

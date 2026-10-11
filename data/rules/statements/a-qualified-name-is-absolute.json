@@ -1,7 +1,6 @@
 {
   "title": "A name containing a separator is read from the root, and one without it through the imports",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/no-fallback-to-the-root-namespace",
     "statements/a-leading-separator-does-not-parse",

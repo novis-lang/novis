@@ -1,7 +1,6 @@
 {
   "title": "Resolution selects the highest minimum any package asked for, and nothing upgrades itself",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "packaging/a-breaking-release-is-a-new-name",
     "packaging/a-known-bad-version-is-retracted-not-deleted",

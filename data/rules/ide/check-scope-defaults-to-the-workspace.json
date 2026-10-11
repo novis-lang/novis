@@ -1,7 +1,6 @@
 {
   "title": "The symbol index covers every file under the workspace folder by default, and `\"open\"` narrows it to the open documents and their require graph",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "ide/five-features-are-one-reference-index",
     "ide/check-json-is-the-diagnostic-record-as-a-document",

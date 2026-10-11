@@ -1,7 +1,6 @@
 {
   "title": "Deferred work may read the request but not write the response, and its uncaught throw reaches the log alone",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "errors/escalation-ladder",
     "errors/on-uncaught-throw",

@@ -1,7 +1,6 @@
 {
   "title": "A program may read the mode and may flip it for its own request, bounded by a `System` ceiling",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/a-mode-is-five-defaults",
     "config/a-runtime-set-is-request-local",

@@ -1,7 +1,6 @@
 {
   "title": "A `switch` label and a `match` arm compare by the equality rule and by nothing else",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/one-equality-operator",
     "expressions/disjoint-comparison-refused",

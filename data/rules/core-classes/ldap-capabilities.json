@@ -1,7 +1,6 @@
 {
   "title": "Three deny-by-default capabilities gate naming an LDAP block, dialling a directory, and binding without TLS, and nothing is read from `ldap.conf` or the environment",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/db-capabilities",
     "security/ldap-cleartext-bind-is-granted-per-host",

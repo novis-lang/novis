@@ -1,7 +1,6 @@
 {
   "title": "Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/perf-two-mechanisms",
     "testing/perf-history-file",

@@ -1,7 +1,6 @@
 {
   "title": "Every file the configuration reads, and its directory, must be owned by the runtime account or root and writable by nobody else",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/optional-covers-absence-and-moves-the-check-to-the-directory",
     "config/any-file-in-the-tree-may-set-any-directive",

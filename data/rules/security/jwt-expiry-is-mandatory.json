@@ -1,7 +1,6 @@
 {
   "title": "A JWT without an expiry, or past one, fails verification, and no flag disables the check",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/algorithm-comes-from-the-key",
     "security/protocol-roster",

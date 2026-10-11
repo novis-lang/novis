@@ -1,7 +1,6 @@
 {
   "title": "The tty belongs to the main task of a CLI program, so a `Core\\Cli` member throws in a request and in a spawned isolate",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "tooling/echo-always-has-a-sink",
     "tooling/the-terminal-is-restored-on-every-exit-path",

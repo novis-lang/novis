@@ -1,7 +1,6 @@
 {
   "title": "`clone` copies an object's declared storage one level deep and shares every object it reaches",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/two-copy-depths",
     "classes/graph-copy",

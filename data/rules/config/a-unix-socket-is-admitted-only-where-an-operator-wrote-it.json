@@ -1,7 +1,6 @@
 {
   "title": "A Unix socket is admitted in `[cache.shared] url` and `[db.<name>] host`, and refused from any program-supplied endpoint",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "config/cache-shared-is-the-grant-over-the-configured-store",
     "config/unix-scheme-in-a-url-and-a-bare-path-in-a-host",

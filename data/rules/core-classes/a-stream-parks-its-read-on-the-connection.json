@@ -1,7 +1,6 @@
 {
   "title": "A stream's read state is parked on the connection on every driver, and a buffer is never the answer",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/db-streaming",
     "core-classes/db-connection-busy-state",

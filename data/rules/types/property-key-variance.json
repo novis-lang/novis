@@ -1,7 +1,6 @@
 {
   "title": "`property<T>` widens as `T` narrows, because the argument bounds the receiver",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/property-key",
     "types/class-reference-variance",

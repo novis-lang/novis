@@ -1,7 +1,6 @@
 {
   "title": "Four waits bound a connection, all finite with nothing configured and all idle rather than total",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "concurrency/connection-bounds-are-finite"

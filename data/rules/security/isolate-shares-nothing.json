@@ -1,7 +1,6 @@
 {
   "title": "Running another script is an in-process isolate that shares nothing with its parent but compiled code",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/isolate-values-cross-by-copy",
     "security/isolate-budget-is-the-trees",

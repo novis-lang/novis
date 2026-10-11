@@ -1,7 +1,6 @@
 {
   "title": "A verified signature proves origin, not safety: claims come back `tainted`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/launderers-are-sink-named",
     "security/tainted-sources",

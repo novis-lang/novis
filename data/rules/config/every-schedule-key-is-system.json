@@ -1,7 +1,6 @@
 {
   "title": "Every `[[schedule]]` key is `System`, and not even `RuntimeTighten` reaches one",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/scheduled-work-is-a-config-block",
     "statements/static-is-a-member-modifier",

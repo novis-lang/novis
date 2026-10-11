@@ -1,7 +1,6 @@
 {
   "title": "A guest's error result throws its mapped class, a trap throws `ExtensionError`, and only a CPU or memory limit is a `FATAL`",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "packaging/a-guest-runs-under-the-requests-budget",
     "errors/on-limit",

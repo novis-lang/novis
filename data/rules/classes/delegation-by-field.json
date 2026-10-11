@@ -1,7 +1,6 @@
 {
   "title": "`implements I by $field` forwards every member `I` requires to that property",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/no-traits",
     "classes/member-conflict-is-an-error",

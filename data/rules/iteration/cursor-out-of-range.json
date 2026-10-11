@@ -1,7 +1,6 @@
 {
   "title": "`current()` outside the protocol throws rather than answering",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "iteration/two-interfaces",
     "iteration/generators"

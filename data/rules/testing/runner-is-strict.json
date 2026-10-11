@@ -1,7 +1,6 @@
 {
   "title": "A test that asserts nothing fails, a skip states a reason, and a retry is reported flaky rather than green",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/failure-ledger",
     "testing/report-formats",

@@ -1,7 +1,6 @@
 {
   "title": "A `readonly` property declares no default; a value known at the declaration is a `const`",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "types/class-constant",
     "classes/lateinit",

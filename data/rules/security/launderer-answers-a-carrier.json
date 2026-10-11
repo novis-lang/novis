@@ -1,7 +1,6 @@
 {
   "title": "A launderer answers its sink's carrier when that sink launders on its own and the transform is not idempotent, and a plain type otherwise",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/launderers-are-sink-named",
     "security/capture-answers-the-carrier",

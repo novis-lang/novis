@@ -1,7 +1,6 @@
 {
   "title": "Declarations cross a `require` and variables do not",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/require-is-the-only-inclusion-construct",
     "statements/storage-that-outlives-a-call"

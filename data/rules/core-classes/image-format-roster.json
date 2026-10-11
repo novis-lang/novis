@@ -1,7 +1,6 @@
 {
   "title": "The format roster is a closed table of decoders and encoders, each naming what implements it",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/pdf-page-is-an-image-source",

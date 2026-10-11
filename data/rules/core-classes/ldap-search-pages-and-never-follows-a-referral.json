@@ -1,7 +1,6 @@
 {
   "title": "An LDAP search reads one page at a time, throws at a server limit and never follows a referral, and every control is a named option",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/ldap-capabilities",
     "core-classes/ldap-filter-is-a-value",

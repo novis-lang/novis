@@ -1,7 +1,6 @@
 {
   "title": "A cookie name is bytes, and a prefix is enforced once",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/ambiguous-input-refused",
     "errors/http-message-defects"

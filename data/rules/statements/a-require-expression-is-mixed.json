@@ -1,7 +1,6 @@
 {
   "title": "A `require` used for its value hands back `mixed`, and converts like any other boundary",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/require-is-the-only-inclusion-construct"
   ],

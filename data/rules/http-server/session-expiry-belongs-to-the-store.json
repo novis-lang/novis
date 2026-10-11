@@ -1,7 +1,6 @@
 {
   "title": "`[session] ttl` is written onto the record and the store expires it; there is no sweeper and no probability of one",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/a-session-store-answers-four-operations",
     "http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot",

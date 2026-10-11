@@ -1,7 +1,6 @@
 {
   "title": "The update-check and telemetry endpoints are compiled-in defaults overridable by `NVS_UPDATE_URL` and `NVS_TELEMETRY_URL`",
   "status": "designed",
-  "because": [],
   "seeAlso": [],
   "guardedBy": []
 }

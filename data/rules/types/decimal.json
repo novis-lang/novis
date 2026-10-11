@@ -1,7 +1,6 @@
 {
   "title": "`decimal` is an exact scalar of 96 mantissa bits and a scale of 0 to 28",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/numeric-literal-placement",
     "types/arithmetic",

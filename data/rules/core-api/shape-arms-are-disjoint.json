@@ -1,7 +1,6 @@
 {
   "title": "A shape's arms are pairwise disjoint, so exactly one accepts a written anonymous object and no field is declared a discriminant",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/shape-parameter",
     "core-api/shape-reuses-the-option-diagnostics",

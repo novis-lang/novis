@@ -1,7 +1,6 @@
 {
   "title": "`bytes` is a primitive peer to `string` for data that carries no encoding",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/string-is-utf8",
     "types/conversion",

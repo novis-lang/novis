@@ -1,7 +1,6 @@
 {
   "title": "There is no null-skipping pipeline step",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/pipeline-substitution",
     "expressions/pipeline-hole-once"

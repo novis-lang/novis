@@ -1,7 +1,6 @@
 {
   "title": "An `&&`, `||`, `??` or `.` chain is on one line or has one operand per line with the operator first, and a broken control-structure condition puts its parentheses on lines of their own",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/fmt-never-reflows",
     "tooling/fmt-base-style-is-per",

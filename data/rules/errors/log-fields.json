@@ -1,7 +1,6 @@
 {
   "title": "A record's fields are named and typed, not a stringly bag",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/log-write",
     "errors/diagnostic-record"

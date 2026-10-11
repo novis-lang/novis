@@ -1,7 +1,6 @@
 {
   "title": "`ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/process-run",
     "core-classes/secret-reveal"

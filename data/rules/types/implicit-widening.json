@@ -1,7 +1,6 @@
 {
   "title": "An `int` or `uint` widening into a `float` position is the only implicit conversion in the language",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/conversion",
     "types/arithmetic",

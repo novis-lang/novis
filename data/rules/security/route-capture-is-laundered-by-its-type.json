@@ -1,7 +1,6 @@
 {
   "title": "A route capture is laundered by the parameter's own type, and a `string` capture stays tainted",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/taint-propagation",
     "security/access-is-checked-for-presence-not-meaning",

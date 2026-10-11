@@ -1,7 +1,6 @@
 {
   "title": "There is no `eval`, and no `Core` member compiles a string produced at run time",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/closed-doors",
     "security/reflection-needs-no-capability",

@@ -1,7 +1,6 @@
 {
   "title": "`#[Fixture]` is built once per class and injected into a test by the type it returns",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/data-rows",
     "testing/constructor-is-setup",

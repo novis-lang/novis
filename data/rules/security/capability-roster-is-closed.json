@@ -1,7 +1,6 @@
 {
   "title": "Every capability name that exists is on one roster, and a name outside it is refused where it is written",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/capability-declaration-is-one-table",
     "security/grants-are-keyed-on-a-namespace",

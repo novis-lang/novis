@@ -1,7 +1,6 @@
 {
   "title": "`nvs ext` creates, builds, inspects, tests, verifies and pins an extension, with Rust and C templates",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "packaging/an-nvsx-is-one-file-carrying-its-manifest",
     "packaging/extension-loading-is-root-controlled"

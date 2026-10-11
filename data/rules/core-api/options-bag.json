@@ -1,7 +1,6 @@
 {
   "title": "A member's optional knobs are one trailing anonymous object, never a flag or a bitmask",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/parameters-are-callable-by-name",
     "core-api/shape-parameter",

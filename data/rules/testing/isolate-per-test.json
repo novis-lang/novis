@@ -1,7 +1,6 @@
 {
   "title": "Every test runs in its own isolate and shares nothing but compiled code with its siblings",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/test-attribute",
     "testing/fixtures",

@@ -1,7 +1,6 @@
 {
   "title": "A trace id exists for every request whatever the sampling decision, and it is the only request identifier",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/an-inbound-traceparent-is-continued",
     "observability/a-log-record-carries-trace-ids-when-a-trace-is-active",

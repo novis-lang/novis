@@ -1,7 +1,6 @@
 {
   "title": "A path scope is canonicalise-then-prefix over whole components, and a path that does not exist yet is its deepest existing ancestor",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/capability-question-is-grant-and-scope",
     "security/a-path-is-not-a-url",

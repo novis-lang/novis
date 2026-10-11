@@ -1,7 +1,6 @@
 {
   "title": "A `mixed` or union operand resolves at run time, and a mismatched pair answers `false`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/disjoint-comparison-refused",
     "expressions/equality-semantics",

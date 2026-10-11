@@ -1,7 +1,6 @@
 {
   "title": "`{preserveKeys: false}` discards every key, whatever shape the key has",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/array-combination",
     "types/arrays"

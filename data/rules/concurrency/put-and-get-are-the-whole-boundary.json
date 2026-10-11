@@ -1,7 +1,6 @@
 {
   "title": "The cache boundary is a copy in and a copy out, so nothing a program can reach is read-modify-write",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/a-cached-value-is-copied-across-the-boundary",
     "core-classes/ratelimit-two-members",

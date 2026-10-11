@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Program::constructors<T, C>()` lists the enumeration's classes with one callable each, typed by `C`, and it expands while compiling",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "programs/implementing",
     "programs/implementing-with",

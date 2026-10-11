@@ -1,7 +1,6 @@
 {
   "title": "A scheduled run is a root isolate that spends a root's budget, and only `nvs serve` fires one",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/isolate-budget-is-the-trees",
     "security/request-state-throws-in-an-isolate",

@@ -1,7 +1,6 @@
 {
   "title": "A compile failure is catchable mid-execution and reaches the ladder at entry",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/throwable-hierarchy",
     "errors/escalation-ladder"

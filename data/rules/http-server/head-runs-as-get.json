@@ -1,7 +1,6 @@
 {
   "title": "`HEAD` runs as `GET` with the body discarded and `Content-Length` kept; `method()` reports `Get` and `isHead()` tells the truth",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/a-preflight-is-answered-before-any-code-runs",
     "http-server/a-trailing-slash-is-never-normalised",

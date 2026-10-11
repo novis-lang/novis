@@ -1,7 +1,6 @@
 {
   "title": "Both sides of an `[[app]]` match are canonicalized first, and a key naming nothing examinable refuses the boot",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/an-application-is-its-entry-file-path",
     "config/every-matching-app-block-applies-least-specific-first",

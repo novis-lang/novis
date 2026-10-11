@@ -1,7 +1,6 @@
 {
   "title": "Wherever a `Core` member admits a written `null` it means remove, and `\"\"` is never a removal spelling",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/omission-is-not-a-written-null",
     "core-api/a-lifetime-is-written",

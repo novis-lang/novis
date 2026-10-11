@@ -1,7 +1,6 @@
 {
   "title": "`property<T>` is a type whose values are `T`'s public property names, and `as` is its only source",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/property-key-variance",
     "types/property-key-access",

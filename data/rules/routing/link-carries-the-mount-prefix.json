@@ -1,7 +1,6 @@
 {
   "title": "A link carries the mount prefix the request arrived under, so one table serves at any mount",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "routing/link-name-and-params-are-checked",
     "routing/a-request-reads-its-mount"

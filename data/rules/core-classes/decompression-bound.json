@@ -1,7 +1,6 @@
 {
   "title": "Every decompression runs under an output ceiling and a ratio, and there is no spelling for turning either off",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/tier-roster",
     "config/three-changeability-classes",

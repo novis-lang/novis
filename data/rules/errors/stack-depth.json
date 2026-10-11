@@ -1,7 +1,6 @@
 {
   "title": "Recursion is bounded twice: a catchable error, then a fatal",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/on-limit",
     "errors/propagation"

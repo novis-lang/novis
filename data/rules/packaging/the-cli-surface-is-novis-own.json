@@ -1,7 +1,6 @@
 {
   "title": "No flag on `nvs` is inherited from PHP; `-h` and `-V` are the Unix baseline and `-o` the only short flag Novis declares",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "packaging/nvs-info-is-the-one-call",
     "packaging/the-banner-states-the-build",

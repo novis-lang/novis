@@ -1,7 +1,6 @@
 {
   "title": "One name has one signature, and two behaviours need two names",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/verb-lexicon",
     "core-api/two-cache-tiers",

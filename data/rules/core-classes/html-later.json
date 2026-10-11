@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Html::later` runs a part of a page as a child of the request, and the route decides whether the page waits for it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/html-auto-escape",
     "concurrency/nothing-is-still-running-when-a-call-returns",

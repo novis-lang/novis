@@ -1,7 +1,6 @@
 {
   "title": "A guest is instantiated fresh for each request that calls it, so extension state cannot leak between requests",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "security/no-cross-request-state",
     "concurrency/cross-request-state-is-explicit",

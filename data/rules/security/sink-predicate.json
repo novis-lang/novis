@@ -1,7 +1,6 @@
 {
   "title": "A `string` or `bytes` parameter is a sink when its content becomes an instruction a parser executes",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/unclassified-parameter-refuses-tainted",
     "security/log-is-not-a-sink",

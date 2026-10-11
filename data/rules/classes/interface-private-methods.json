@@ -1,7 +1,6 @@
 {
   "title": "A `private` interface method is visible only to that interface's own bodies",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/interface-default-methods",
     "classes/no-traits"

@@ -1,7 +1,6 @@
 {
   "title": "The options bag and the shape parameter are two registry spellings of one checked type",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/shape-parameter",
     "core-api/options-bag",

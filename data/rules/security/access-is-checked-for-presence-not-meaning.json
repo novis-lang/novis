@@ -1,7 +1,6 @@
 {
   "title": "The compiler proves a route's access decision was written, never that it was honoured",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "attributes/access-is-a-required-sibling",
     "attributes/access-payload",

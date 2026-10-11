@@ -1,7 +1,6 @@
 {
   "title": "Every accessor that hands a program bytes from outside answers the `tainted` form, and the list of them is enumerable",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/tainted-qualifier",
     "security/secret-has-no-ambient-source",

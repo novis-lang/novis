@@ -1,7 +1,6 @@
 {
   "title": "A child isolate's failure arrives as data on the result and never unwinds into its parent",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/propagation",
     "security/isolate-shares-nothing",

@@ -1,7 +1,6 @@
 {
   "title": "Where a drive parks is decided once when it starts, and off a core it blocks the thread",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/one-future-per-connection",
     "concurrency/a-waker-is-one-permission-to-poll"

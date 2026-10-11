@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Validate` carries no predicate that names a type, because `as ?T` already is one",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/nullable-conversion",
     "expressions/try-parse",

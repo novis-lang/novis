@@ -1,7 +1,6 @@
 {
   "title": "A task still running when a test returns fails that test",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/determinism-declared-on-the-test",
     "testing/runner-is-strict",

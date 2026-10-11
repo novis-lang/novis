@@ -1,7 +1,6 @@
 {
   "title": "Absent storage never reads as a zero value: an unassigned variable and `[]` in a read position are refused, and an absent key throws",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/arrays",
     "types/declaration",

@@ -1,7 +1,6 @@
 {
   "title": "A `return` never leaves a `finally` block, and neither does a `break` or `continue` whose target lies outside it",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "statements/a-body-never-falls-off-its-end"
   ],

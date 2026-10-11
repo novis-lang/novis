@@ -1,7 +1,6 @@
 {
   "title": "Ten series exist the moment an exporter is configured, with no application code written",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/the-runtime-exports-what-it-already-measures",
     "observability/route-label-is-the-declared-name",

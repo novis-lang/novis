@@ -1,7 +1,6 @@
 {
   "title": "Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/language-configuration-is-content",
     "tooling/doc-comment-is-three-slashes",

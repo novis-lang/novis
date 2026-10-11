@@ -1,7 +1,6 @@
 {
   "title": "An enum case is always truthy, whatever integer backs it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "enums/representation",
     "enums/no-class-machinery",

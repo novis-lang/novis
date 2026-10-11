@@ -1,7 +1,6 @@
 {
   "title": "`expr as T` is the only conversion, and it produces a `T` or throws",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/no-legacy-cast",
     "types/implicit-widening",

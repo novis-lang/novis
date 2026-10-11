@@ -1,7 +1,6 @@
 {
   "title": "A reserved word is offered only where the token before it and the nodes around it let the compiler accept it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "ide/the-index-answers-the-cursor",
     "ide/the-request-set-is-closed"

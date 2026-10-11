@@ -1,7 +1,6 @@
 {
   "title": "A case with no written value counts on from the one before it, starting at zero",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "enums/closed-integer-type",
     "enums/one-backing-type",

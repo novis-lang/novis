@@ -1,7 +1,6 @@
 {
   "title": "The historical leg runs under callgrind on Linux or WSL, and nowhere else",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/perf-two-mechanisms",
     "testing/perf-history-file",

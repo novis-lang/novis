@@ -1,7 +1,6 @@
 {
   "title": "No `Core` member mutates its argument and none takes a reference",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/shape-rules",
     "core-api/no-mutable-immutable-twins",

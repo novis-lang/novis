@@ -1,7 +1,6 @@
 {
   "title": "A method carrying `#[Route]` carries `#[Access]`, and an omission does not compile",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "attributes/access-payload",
     "attributes/api-adds-and-cannot-contradict"

@@ -1,7 +1,6 @@
 {
   "title": "An outbound request carries at most one body, named by which of four flat keys it is written under, and a second key or a body on `get` is a compile-time diagnostic",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/shape-rules",
     "core-api/options-bag",

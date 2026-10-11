@@ -1,7 +1,6 @@
 {
   "title": "A program-supplied socket path needs `net.local`, a path-scoped grant carrying no address policy and governing both ends",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it",
     "security/net-listen-is-a-separate-grant-from-net-connect",

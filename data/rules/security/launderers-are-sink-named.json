@@ -1,7 +1,6 @@
 {
   "title": "The only way out of `tainted` is a `Core` member whose contract names the one sink it is safe for",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/assert-trusted",
     "security/launderer-answers-a-carrier",

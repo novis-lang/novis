@@ -1,7 +1,6 @@
 {
   "title": "The effective in-flight ceiling is the smaller of `max_in_flight` and what the memory budget affords, and a clamp is logged at boot and by every reload",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/upload-total-is-enforced-on-the-wire",
     "http-server/a-wedged-core-is-shed-never-killed",

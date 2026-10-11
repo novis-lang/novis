@@ -1,7 +1,6 @@
 {
   "title": "The OTLP and Prometheus paths are somebody else's specification, implemented here; the wiring and the registry are ours",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
     "observability/an-exporter-brings-no-second-scheduler-and-no-second-client",

@@ -1,7 +1,6 @@
 {
   "title": "An upgrade names compiled code — a file or a static method — and never a callable",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/isolate-shares-nothing",
     "classes/graph-copy",

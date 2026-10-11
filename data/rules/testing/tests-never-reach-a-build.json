@@ -1,7 +1,6 @@
 {
   "title": "`nvs run` and `nvs build` lower no test, and `nvs check` type-checks every one",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "testing/test-attribute",
     "testing/determinism-declared-on-the-test"

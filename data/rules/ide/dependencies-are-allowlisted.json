@@ -1,7 +1,6 @@
 {
   "title": "The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "ide/contributions-are-frozen-and-only-ever-added",
     "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",

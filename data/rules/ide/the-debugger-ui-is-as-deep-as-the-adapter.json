@@ -1,7 +1,6 @@
 {
   "title": "The debugger UI is only as deep as the capabilities `nvs dap` reports, so the adapter's capability list is the debugger's scope",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "errors/escalation-ladder",
     "security/isolate-shares-nothing",

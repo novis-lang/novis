@@ -1,7 +1,6 @@
 {
   "title": "An application is its entry file path, and an `[[app]]` block is keyed on a `root` directory or one `entry` file",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/app-keys-are-canonicalized-before-matching",
     "config/origin-is-a-block-key-and-there-is-no-app-table",

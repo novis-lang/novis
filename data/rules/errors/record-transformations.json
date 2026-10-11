@@ -1,7 +1,6 @@
 {
   "title": "Redaction, control bytes, bidi and elision are decided in the record",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/diagnostic-record",
     "errors/renderings",

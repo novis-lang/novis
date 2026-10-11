@@ -1,7 +1,6 @@
 {
   "title": "`catch` sits between assignment and the ternary, so one arm guards a whole `??` chain",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/catch-expression",
     "expressions/catch-arm-is-an-expression",

@@ -1,7 +1,6 @@
 {
   "title": "A generator does not cross a boundary and does not clone",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "iteration/generators"
   ],

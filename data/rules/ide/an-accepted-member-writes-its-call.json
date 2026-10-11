@@ -1,7 +1,6 @@
 {
   "title": "Accepting a method writes `name()` with the cursor inside where it takes a parameter, and a property, constant, case or alias writes the name alone",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "ide/an-accepted-type-writes-what-follows-it",
     "ide/a-completion-row-reads-as-a-declaration"

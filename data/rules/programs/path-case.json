@@ -1,7 +1,6 @@
 {
   "title": "A `require` path is compared against the on-disk entry exactly, on every OS",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "programs/autoload"
   ],

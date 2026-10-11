@@ -1,8 +1,6 @@
 // A rule: `data/rules/<topic>/<slug>.json`, whose id `<topic>/<slug>` is the `rule:` citation token.
-// Its prose is `docs/rules/<topic>/<slug>.md`, which opens on the sentence `ground-rules.md` quotes.
-//
-// `because` lists the decision records still on disk whose reasons have not been merged into the
-// fragment yet, and may be empty. A record's number leaves every list when the record is merged.
+// Its prose, reasons included, is `docs/rules/<topic>/<slug>.md`, which opens on the sentence
+// `ground-rules.md` quotes.
 
 import { defineRecord, s } from "../lib/schema.ts";
 
@@ -12,8 +10,6 @@ export const rule = defineRecord({
   schema: s.object({
     title: s.string(),
     status: s.enum("shipped", "designed"),
-    /** The decision records still on disk that this rule's reasons have not been merged from yet. */
-    because: s.array(s.string()),
     seeAlso: s.array(s.ref("rule")),
     /** Repo-rooted paths of what fails when the rule is broken. */
     guardedBy: s.array(s.string()),

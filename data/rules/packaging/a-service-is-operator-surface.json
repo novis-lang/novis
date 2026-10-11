@@ -1,7 +1,6 @@
 {
   "title": "There is no `Core\\Service`: only an operator installs a service, from the command line, and nothing about it is on the request path",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/no-runtime-grant",
     "core-api/tier-placement",

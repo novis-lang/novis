@@ -1,7 +1,6 @@
 {
   "title": "The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/the-first-server-answers-a-closed-list",
     "ide/a-quick-fix-is-a-diagnostics-own-suggestion",

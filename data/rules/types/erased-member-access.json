@@ -1,7 +1,6 @@
 {
   "title": "A member reached through an erased receiver is answered at run time, and a failure is a throw",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/mixed-subscript",
     "types/shape-type",

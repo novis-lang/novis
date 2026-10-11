@@ -1,7 +1,6 @@
 {
   "title": "`opcache.validate`, its rate cap and `opcache.settle` are `System`, `validate` has no `never`, and `settle`'s startup default is chosen by the run mode",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/system-means-a-request-may-not-set-it",
     "config/a-startup-default-is-never-flipped",

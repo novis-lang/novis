@@ -1,7 +1,6 @@
 {
   "title": "The application's grant table is keyed on namespace prefixes, and a capability it names must be on the roster",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "security/authority-is-the-enclosing-namespace",
     "security/capability-roster-is-closed",

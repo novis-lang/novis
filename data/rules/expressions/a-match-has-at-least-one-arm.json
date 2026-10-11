@@ -1,7 +1,6 @@
 {
   "title": "A `match` has at least one arm",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/switch-match-equality"
   ],

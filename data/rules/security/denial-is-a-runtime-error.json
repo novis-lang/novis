@@ -1,7 +1,6 @@
 {
   "title": "A denied capability is a catchable `RuntimeError` naming the capability, never a fatal",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/capability-check-at-the-door",
     "errors/escalation-ladder",

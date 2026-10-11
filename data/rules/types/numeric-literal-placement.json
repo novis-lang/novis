@@ -1,7 +1,6 @@
 {
   "title": "A numeric literal is untyped until it is placed, and `as T` is a placing position",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/decimal",
     "types/integer-literals",

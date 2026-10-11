@@ -1,7 +1,6 @@
 {
   "title": "The server refuses an unsafe verb without a valid CSRF token, and the opt-out is written on the route itself",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/access-is-checked-for-presence-not-meaning",
     "security/protocol-roster",

@@ -1,7 +1,6 @@
 {
   "title": "`net.connect` carries an address policy that denies the private ranges, and an exception is one written IP address",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/outbound-url-is-a-sink",
     "http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise",

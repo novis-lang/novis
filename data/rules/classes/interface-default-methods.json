@@ -1,7 +1,6 @@
 {
   "title": "A `public` interface method with a body is a default method, and `$this` inside it is the interface",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/no-traits",
     "classes/interface-private-methods",

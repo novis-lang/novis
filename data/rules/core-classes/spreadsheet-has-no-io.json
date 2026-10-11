@@ -1,7 +1,6 @@
 {
   "title": "The spreadsheet component is a first-party extension that fetches nothing and executes nothing it reads",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "core-classes/spreadsheet-formula-is-a-value",
     "core-classes/spreadsheet-bulk-boundary",

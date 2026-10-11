@@ -1,7 +1,6 @@
 {
   "title": "The prebuilt libwebp wasm library is committed beside its source hash, and CI rebuilds it and fails on a difference",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "packaging/a-c-dependency-answers-two-questions",
     "packaging/the-first-party-components-are-built-in"

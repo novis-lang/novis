@@ -1,7 +1,6 @@
 {
   "title": "A redirect from `https` to `http` needs `net.downgrade` for its host and `redirectToHttp` at the call; a plain `http` URL asked for directly stays allowed",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/redirects-are-off-and-every-hop-is-re-pinned",
     "security/capability-question-is-grant-and-scope",

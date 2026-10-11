@@ -1,7 +1,6 @@
 {
   "title": "A per-PR guard and the historical dashboard are separate measurements, and never one",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/perf-secondary-figures",
     "testing/perf-history-file",

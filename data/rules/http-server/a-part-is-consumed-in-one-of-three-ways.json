@@ -1,7 +1,6 @@
 {
   "title": "A part is consumed by `readAll`, by walking `content()`, or by `saveTo`, and each way is bounded",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/an-upload-is-received-only-through-files",
     "http-server/request-body-and-upload-total-are-two-caps",

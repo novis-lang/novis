@@ -1,7 +1,6 @@
 {
   "title": "The closed list of what makes an HTTP message ambiguous",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/ambiguous-input-refused",
     "errors/cookie-name-bytes"

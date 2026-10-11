@@ -1,7 +1,6 @@
 {
   "title": "`resolve` is mandatory: `local` tunnels to the address Novis approved and keeps the pin, `proxy` narrows the policy to the URL's text and warns at every boot",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/an-outbound-proxy-is-operator-configured",
     "http-server/allow-url-pins-the-address",

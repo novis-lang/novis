@@ -1,7 +1,6 @@
 {
   "title": "A writer publishes by one atomic rename, and a path that already exists wins",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "packaging/an-artifact-is-one-immutable-content-addressed-file"
   ],

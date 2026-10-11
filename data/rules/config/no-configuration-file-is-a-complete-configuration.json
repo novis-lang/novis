@@ -1,7 +1,6 @@
 {
   "title": "A host with no configuration file runs on the shipped defaults, which are a complete configuration and not an error",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
     "config/ini-set-is-core-config-set",

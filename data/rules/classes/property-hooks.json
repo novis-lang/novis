@@ -1,7 +1,6 @@
 {
   "title": "A property's own `get`/`set` hook is PHP 8.4's, unchanged, and every read or write of that property is a call to it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/property-observer-pipeline",
     "classes/definite-property-initialization",

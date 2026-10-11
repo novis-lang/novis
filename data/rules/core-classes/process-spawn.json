@@ -1,7 +1,6 @@
 {
   "title": "`spawn` answers a handle whose reads and writes suspend, covering `proc_open` and `passthru` in one type",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/process-run",
     "core-classes/process-is-argv-only"

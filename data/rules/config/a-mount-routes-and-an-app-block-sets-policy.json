@@ -1,7 +1,6 @@
 {
   "title": "A `[[server.mount]]` routes and carries no `mode`; an `[[app]]` block sets policy",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/an-application-is-its-entry-file-path",
     "config/origin-is-a-block-key-and-there-is-no-app-table",

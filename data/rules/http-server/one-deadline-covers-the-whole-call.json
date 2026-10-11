@@ -1,7 +1,6 @@
 {
   "title": "One `deadline` covers the whole call: the connection, every redirect hop, every retry attempt and every backoff between them",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/no-spelling-for-an-unbounded-wait",
     "http-server/retry-is-opt-in-jittered-and-closed",

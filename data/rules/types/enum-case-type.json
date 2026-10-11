@@ -1,7 +1,6 @@
 {
   "title": "An enum case used as a type is a narrowed subtype of its enum, never its backing integer",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/single-value-types",
     "types/conversion",

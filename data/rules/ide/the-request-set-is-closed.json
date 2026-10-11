@@ -1,7 +1,6 @@
 {
   "title": "M4B answers nine standard requests and exactly one of Novis's own, M10 adds eight more on the same test, and that test keeps the list from growing",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/redaction-ranges-come-from-the-server",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",

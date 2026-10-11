@@ -1,7 +1,6 @@
 {
   "title": "`#[Test(db:)]` opens a transaction on the test's own context and rolls it back",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/isolate-per-test",
     "testing/runner-is-strict"

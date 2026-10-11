@@ -1,7 +1,6 @@
 {
   "title": "A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/scope-has-no-default",
     "config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once",

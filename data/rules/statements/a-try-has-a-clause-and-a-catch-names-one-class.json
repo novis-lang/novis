@@ -1,7 +1,6 @@
 {
   "title": "A `try` has a `catch` or a `finally`, and a `catch` clause names exactly one class",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/catch-expression",
     "types/declaration"

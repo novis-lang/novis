@@ -1,7 +1,6 @@
 {
   "title": "A short name resolves through the imports and then the enclosing namespace, and stops",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/a-qualified-name-is-absolute",
     "statements/storage-that-outlives-a-call"

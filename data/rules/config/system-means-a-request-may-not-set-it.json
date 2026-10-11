@@ -1,7 +1,6 @@
 {
   "title": "A directive is `System` when changing it from inside a request would affect something other than that request, and that is all `System` means",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/three-changeability-classes",
     "config/reloadability-is-its-own-field",

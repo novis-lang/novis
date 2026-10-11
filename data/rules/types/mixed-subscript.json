@@ -1,7 +1,6 @@
 {
   "title": "A subscript through a `mixed` is the tag's question; every other base answers it where it is written",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/arrays",
     "types/erased-member-access",

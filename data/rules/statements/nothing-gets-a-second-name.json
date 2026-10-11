@@ -1,7 +1,6 @@
 {
   "title": "A declaration is reachable under exactly the name it was declared with",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/a-qualified-name-is-absolute",
     "statements/no-fallback-to-the-root-namespace"

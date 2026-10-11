@@ -1,7 +1,6 @@
 {
   "title": "One table decides what a diff runs, and the platform matrix is never one of the gates",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/ci-lanes",
     "testing/unknown-base-runs-everything",

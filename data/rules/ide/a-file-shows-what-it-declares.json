@@ -1,7 +1,6 @@
 {
   "title": "A file that declares one class, interface, enum or `type` alias and nothing else shows that kind beside its name as a letter, a file decoration with no colour that the server's `nvs/fileKinds` feeds",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "programs/one-declaration-per-autoloaded-file",
     "ide/the-request-set-is-closed",

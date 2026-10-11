@@ -1,7 +1,6 @@
 {
   "title": "The session roster is `start` and the members that work on the record it loaded, and a member called before `start` throws naming it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/failure-throws",
     "core-api/reserved-namespace",

@@ -1,7 +1,6 @@
 {
   "title": "The privileged half of the framework is `Core`, compiled into the binary",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "programs/first-party-framework",
     "programs/framework-web-package",

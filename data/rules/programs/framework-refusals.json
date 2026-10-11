@@ -1,7 +1,6 @@
 {
   "title": "The framework has no ORM, no runtime container, and no second way to do anything",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "programs/first-party-framework",
     "programs/implementing"

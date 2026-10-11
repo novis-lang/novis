@@ -1,7 +1,6 @@
 {
   "title": "A part is a file part iff its `Content-Disposition` carries `filename`; every other part is buffered into `post()`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/an-upload-is-received-only-through-files",
     "http-server/request-body-and-upload-total-are-two-caps",

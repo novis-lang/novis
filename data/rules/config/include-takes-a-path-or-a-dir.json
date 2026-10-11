@@ -1,7 +1,6 @@
 {
   "title": "`[[include]]` takes a `path` or a `dir`, never both and never neither, and a `dir` is not a glob",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/an-include-cycle-is-refused-and-nesting-is-capped-at-eight",
     "config/later-wins-and-every-override-is-recorded",

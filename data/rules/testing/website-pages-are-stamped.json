@@ -1,7 +1,6 @@
 {
   "title": "A website page lists the features it covers, and the session that changes one rereads and re-stamps its pages",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/examples-live-in-the-repository",
     "testing/feature-proofs",

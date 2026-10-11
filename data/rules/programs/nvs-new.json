@@ -1,7 +1,6 @@
 {
   "title": "`nvs new` writes an application that runs before it is edited",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "programs/first-party-framework",
     "programs/framework-web-package",

@@ -1,7 +1,6 @@
 {
   "title": "A limit report is not a Throwable, and the type checker knows it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/escalation-ladder",
     "errors/on-limit",

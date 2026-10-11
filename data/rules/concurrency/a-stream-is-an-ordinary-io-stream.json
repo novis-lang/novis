@@ -1,7 +1,6 @@
 {
   "title": "A parking stream is a plain `Read` and `Write`, so nothing up the call chain is coloured",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/try-the-syscall-then-park",
     "concurrency/a-task-stack-is-reserved-wide-and-pooled"

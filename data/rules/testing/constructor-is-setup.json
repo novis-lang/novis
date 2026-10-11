@@ -1,7 +1,6 @@
 {
   "title": "The constructor is the test's setup, and there is no second before-hook",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/after-hook",
     "testing/fixtures",

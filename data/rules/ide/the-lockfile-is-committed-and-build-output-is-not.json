@@ -1,7 +1,6 @@
 {
   "title": "`package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
     "ide/the-extension-runs-where-the-binary-is"

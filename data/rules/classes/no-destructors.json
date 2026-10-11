@@ -1,7 +1,6 @@
 {
   "title": "There are no destructors: cleanup is an explicit method call the holder makes",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/no-magic-methods",
     "iteration/generators",

@@ -1,7 +1,6 @@
 {
   "title": "`nvs.toml` states defaults, not ceilings, and every directive carries one of three changeability classes",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/ceilings-are-their-own-directives",
     "config/a-refused-set-returns-false",

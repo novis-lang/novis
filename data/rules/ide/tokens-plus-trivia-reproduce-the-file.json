@@ -1,7 +1,6 @@
 {
   "title": "Every token and every trivium, concatenated in offset order, reproduce the file byte for byte",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "ide/one-grammar-one-tree",
     "tooling/doc-comment-is-three-slashes",

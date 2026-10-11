@@ -1,7 +1,6 @@
 {
   "title": "A value outlives the request that made it only by being put into a named store",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/no-cross-request-state",
     "security/closed-doors",

@@ -1,7 +1,6 @@
 {
   "title": "Every developer-facing output is one closed record",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/renderings",
     "errors/record-transformations",

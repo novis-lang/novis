@@ -1,7 +1,6 @@
 {
   "title": "A `readonly` property is written once, by its own class's constructor through `$this`, and every other write is refused or throws",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/lateinit-restrictions",
     "classes/property-hooks",

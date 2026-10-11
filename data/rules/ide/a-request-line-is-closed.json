@@ -1,7 +1,6 @@
 {
   "title": "`--REQUEST--` is one line whose argument set is closed per request, and an unknown request or argument fails the case",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/an-lsp-answer-is-frozen-as-an-lspt-case",
     "ide/diagnostics-are-phase-gated"

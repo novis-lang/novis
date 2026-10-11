@@ -1,7 +1,6 @@
 {
   "title": "One wake permission is installed per drive, and a fresh one is issued only after it fires",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/a-waker-is-one-permission-to-poll",
     "concurrency/a-wake-never-moves-a-task",

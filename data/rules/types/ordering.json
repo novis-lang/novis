@@ -1,7 +1,6 @@
 {
   "title": "Only the types the table orders may be ordered, and two objects need `Comparable`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/arithmetic",
     "types/conversion",

@@ -1,7 +1,6 @@
 {
   "title": "`exit` is the only process-termination keyword; `die` is refused",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/nvs-is-the-only-open-tag",
     "statements/exit-stops-the-program-where-it-stands"

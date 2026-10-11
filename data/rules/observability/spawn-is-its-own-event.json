@@ -1,7 +1,6 @@
 {
   "title": "A spawn and its join are one `spawn` event naming the form it was, with an overhead split where the child reports its own time, and a child's own stream never crosses live",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/trace-events-carry-a-kind",
     "security/isolate-shares-nothing",

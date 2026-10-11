@@ -1,7 +1,6 @@
 {
   "title": "The registry publishes an append-only transparency log, and a client verifies inclusion and consistency before using an artifact",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "packaging/the-lockfile-holds-every-digest",
     "packaging/a-known-bad-version-is-retracted-not-deleted",

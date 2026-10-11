@@ -1,7 +1,6 @@
 {
   "title": "Each dependency bump is its own commit, classified in its message",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "packaging/who-can-see-it-decides-the-release-slot",
     "packaging/a-dependency-move-proves-two-things",

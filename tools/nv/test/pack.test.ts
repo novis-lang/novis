@@ -36,8 +36,8 @@ beforeEach(() => {
   s.put("docs/goals/g.md", goalFile({ rules: ["alpha/one"], shapes: ["A commit message"], plan: ["Open now"], milestones: ["M1:verify"] }, { rules: ["alpha/two"] }));
   s.put("docs/goals/bare.md", goalFile({}));
   write(topic, "alpha", { title: "Alpha", order: 1, rules: ["alpha/one", "alpha/two"] }, s.root);
-  write(rule, "alpha/one", { title: "The first rule", status: "shipped", because: [], seeAlso: [], guardedBy: [] }, s.root);
-  write(rule, "alpha/two", { title: "The second rule", status: "shipped", because: [], seeAlso: [], guardedBy: [] }, s.root);
+  write(rule, "alpha/one", { title: "The first rule", status: "shipped", seeAlso: [], guardedBy: [] }, s.root);
+  write(rule, "alpha/two", { title: "The second rule", status: "shipped", seeAlso: [], guardedBy: [] }, s.root);
   s.put("docs/rules/alpha/one.md", "The first rule's fragment.\n");
   s.put("docs/rules/alpha/two.md", "The second rule's fragment.\n");
   s.put("docs/agent/conventions.md", "# Conventions\n\n## A commit message\n\nThe commit shape.\n\n## A code comment\n\nNot asked for.\n");

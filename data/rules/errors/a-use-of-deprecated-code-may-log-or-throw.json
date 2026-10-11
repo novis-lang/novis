@@ -1,7 +1,6 @@
 {
   "title": "`[errors] deprecated` makes a use of deprecated code write a log record or throw while it runs, and is `\"ignore\"` by default in every mode",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "attributes/a-deprecation-names-its-replacement-as-code",
     "config/every-block-is-argued-where-it-is-added",

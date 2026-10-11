@@ -1,7 +1,6 @@
 {
   "title": "`static` marks a class member and names a class-relative type, and nothing else",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/no-function-static-and-no-global",
     "statements/an-anonymous-function-captures-this-only-where-it-uses-it",

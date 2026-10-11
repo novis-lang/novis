@@ -1,7 +1,6 @@
 {
   "title": "A stop drains, no control reloads, and the process's console and its lifecycle records go to the event log",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/a-drain-closes-a-connection-cleanly",
     "packaging/a-service-runs-as-a-virtual-account",

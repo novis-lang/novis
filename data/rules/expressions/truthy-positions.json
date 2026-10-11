@@ -1,7 +1,6 @@
 {
   "title": "Six syntax positions test truthiness; every other `bool` position stays checked",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "expressions/truthy-table",
     "expressions/nullable-condition-lint",

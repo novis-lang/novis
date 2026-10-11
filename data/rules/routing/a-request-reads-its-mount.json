@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Request::mount()` answers the prefix the door stripped and the tainted host captures, and it is never `null`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "routing/matched-once-before-the-handler",
     "routing/an-origin-is-per-mount-and-checked-at-boot",

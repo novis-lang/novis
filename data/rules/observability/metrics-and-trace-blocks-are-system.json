@@ -1,7 +1,6 @@
 {
   "title": "`[metrics]` and `[trace]` are `System` blocks, and a value neither exporter accepts is refused at boot",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/system-means-a-request-may-not-set-it",
     "config/three-changeability-classes",

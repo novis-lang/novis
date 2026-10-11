@@ -1,7 +1,6 @@
 {
   "title": "Terminal output is a sink, and every control byte is substituted visibly regardless of qualifier or tty",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/text-is-the-one-raw-path",
     "tooling/an-escape-in-source-text-is-a-compile-error",

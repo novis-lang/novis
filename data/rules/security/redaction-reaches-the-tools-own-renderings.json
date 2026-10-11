@@ -1,7 +1,6 @@
 {
   "title": "No rendering the toolchain itself produces prints a `secret` in the clear, the AST dump included",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "security/secret-sinks-refuse",
     "errors/record-transformations",

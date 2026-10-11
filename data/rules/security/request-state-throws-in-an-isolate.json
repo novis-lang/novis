@@ -1,7 +1,6 @@
 {
   "title": "Request, server and session state throws where there is no inbound request, rather than answering empty",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/no-host-populated-variables",
     "security/isolate-shares-nothing",

@@ -1,7 +1,6 @@
 {
   "title": "A build records its target, host, profile, compiler, commit and the commit's own date, and never a build date",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "packaging/nvs-info-is-the-one-call",
     "packaging/the-banner-states-the-build"

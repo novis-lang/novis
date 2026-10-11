@@ -1,7 +1,6 @@
 {
   "title": "An inbound request is the root isolate of its own tree, and there is one isolate implementation",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/isolate-shares-nothing",
     "security/arena-is-an-ownership-root"

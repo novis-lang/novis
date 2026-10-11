@@ -1,7 +1,6 @@
 {
   "title": "A `listen` entry beginning with a separator is a Unix socket, Unix-only, with `socket_mode`, and it is the transport a proxy should prefer",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "http-server/trusted-proxies-is-empty-and-empty-reads-nothing",

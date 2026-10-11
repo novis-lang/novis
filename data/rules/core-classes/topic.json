@@ -1,7 +1,6 @@
 {
   "title": "`Core\\Topic` is the only way two connections meet, and a slow subscriber is closed rather than tolerated",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/ratelimit-two-members",
     "core-classes/queue-storage-is-a-table"

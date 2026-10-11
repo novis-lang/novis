@@ -1,7 +1,6 @@
 {
   "title": "Only an explicit `Formula` value writes a formula cell, so an export built from user data is inert",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "core-classes/spreadsheet-has-no-io",
     "core-classes/spreadsheet-evaluation-and-roster"

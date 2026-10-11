@@ -1,7 +1,6 @@
 {
   "title": "A dump goes to the log, and reaches a response body only in development",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/renderings",
     "errors/record-transformations",

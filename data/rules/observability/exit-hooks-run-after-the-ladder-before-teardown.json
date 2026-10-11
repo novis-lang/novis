@@ -1,7 +1,6 @@
 {
   "title": "Exit hooks run after every `finally` and after the failure hooks, and before native teardown, with the heap alive and output where it was",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/three-endings-fire-the-exit-queue",
     "errors/on-uncaught-throw",

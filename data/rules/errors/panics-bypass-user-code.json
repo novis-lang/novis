@@ -1,7 +1,6 @@
 {
   "title": "An internal panic never runs the failing request's own code",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "errors/on-limit",
     "errors/helper-abi",

@@ -1,7 +1,6 @@
 {
   "title": "Being current has a schedule, a stale dependency is a defect, and a human fires every pass — never an agent, cron or CI",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "packaging/a-dependency-break-is-absorbed-never-forwarded",
     "packaging/a-dependency-move-proves-two-things",

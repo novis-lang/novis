@@ -1,7 +1,6 @@
 {
   "title": "The extension activates on `.nvs`, never claims `.php` or TOML, and offers completion in a file named `nvs.toml`",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/contributions-are-frozen-and-only-ever-added",
     "ide/the-extension-runs-where-the-binary-is"

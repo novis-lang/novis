@@ -1,7 +1,6 @@
 {
   "title": "A class that implements no `PropertyObserver` pays nothing for one",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/property-observer-pipeline",
     "programs/memory-priority"

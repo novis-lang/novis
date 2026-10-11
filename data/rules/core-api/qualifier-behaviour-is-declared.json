@@ -1,7 +1,6 @@
 {
   "title": "Every `Core` member declares whether it is a sink, a launderer, contagious or neutral",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/shape-flattens-at-the-abi",
     "core-api/tier-placement"

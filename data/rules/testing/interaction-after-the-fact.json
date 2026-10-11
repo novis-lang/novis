@@ -1,7 +1,6 @@
 {
   "title": "A call to a double is asserted after the exercise, never expected before it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/doubles",
     "testing/assertions-are-typed"

@@ -1,7 +1,6 @@
 {
   "title": "Past `[deferred] max_concurrent`, `afterResponse` throws at the call site rather than queueing",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "concurrency/deferred-is-bounded-by-two-directives",
     "core-classes/queue-storage-is-a-table"

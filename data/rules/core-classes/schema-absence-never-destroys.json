@@ -1,7 +1,6 @@
 {
   "title": "Something in the database and not in the schema value is reported with its SQL, and never dropped",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/schema-plan",
     "core-classes/schema-converges",

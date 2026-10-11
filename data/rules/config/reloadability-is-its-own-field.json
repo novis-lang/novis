@@ -1,7 +1,6 @@
 {
   "title": "Reloadability is a second registry field, `Reload` or `Boot`, orthogonal to the changeability class",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/three-changeability-classes",
     "config/system-means-a-request-may-not-set-it",

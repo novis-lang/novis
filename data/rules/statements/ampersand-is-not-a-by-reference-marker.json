@@ -1,7 +1,6 @@
 {
   "title": "`&` in a by-reference position is refused at parse time",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/inout-is-the-by-reference-spelling",
     "statements/inout-is-written-at-the-call"

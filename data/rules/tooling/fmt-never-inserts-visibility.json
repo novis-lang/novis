@@ -1,7 +1,6 @@
 {
   "title": "`nvs fmt` never inserts a visibility keyword",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/written-visibility",
     "tooling/fmt-base-style-is-per"

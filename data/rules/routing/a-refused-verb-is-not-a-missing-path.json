@@ -1,7 +1,6 @@
 {
   "title": "A missing path and a refused verb are different answers, and `methodsFor` is what tells them apart",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "routing/matched-once-before-the-handler",
     "routing/a-trailing-segment-may-be-absent",

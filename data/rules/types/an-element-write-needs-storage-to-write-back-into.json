@@ -1,7 +1,6 @@
 {
   "title": "An element write through a temporary is refused, because the separated copy has nowhere to be written back",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "types/arrays"
   ],

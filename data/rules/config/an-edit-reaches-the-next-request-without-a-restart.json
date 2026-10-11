@@ -1,7 +1,6 @@
 {
   "title": "A source change reaches the next request in every mode: every file a program reached is checked in the background, and a change is compiled whole from a quiet tree before one pointer swap",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/a-request-keeps-the-unit-it-resolved",
     "config/a-broken-edit-fails-the-requests-that-resolve-it",

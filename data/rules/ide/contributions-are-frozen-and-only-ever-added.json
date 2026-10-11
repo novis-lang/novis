@@ -1,7 +1,6 @@
 {
   "title": "A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "ide/reveal-is-explicit-and-window-local",
     "ide/tainted-has-no-default-decoration",

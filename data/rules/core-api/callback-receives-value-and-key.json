@@ -1,7 +1,6 @@
 {
   "title": "A callback always receives `($value, $key)`, and may declare fewer parameters than the call site passes",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/no-mode-strings",
     "types/callable-arity",

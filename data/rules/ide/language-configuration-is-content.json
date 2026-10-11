@@ -1,7 +1,6 @@
 {
   "title": "`language-configuration.json` carries comments, pairs, indentation, folding and a `wordPattern` that includes `$`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "ide/doc-comment-authoring-is-the-editors-own",
     "ide/contributions-are-frozen-and-only-ever-added",

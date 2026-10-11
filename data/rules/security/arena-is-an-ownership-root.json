@@ -1,7 +1,6 @@
 {
   "title": "An isolate's arena is an ownership root, not an address range",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/isolate-teardown-is-a-drain-then-a-sweep",
     "security/isolate-values-cross-by-copy",

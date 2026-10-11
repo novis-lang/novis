@@ -10,17 +10,16 @@
 //     bun nv rules --citations         every `rule:` citation in the tree, with its resolution
 //     bun nv rules --stats             one line per topic: rules, bytes, status split
 //
-// A rule's structure is its record `data/rules/<topic>/<slug>.json`: status, the decisions behind it,
-// flags, and no prose. A rule's prose is the markdown fragment `docs/rules/<topic>/<slug>.md`, which a
-// person edits. A rule id is that path: `types/conversion` is `docs/rules/types/conversion.md`, and the
-// citation token everywhere is `rule:` and the id. A chapter's place is its topic record's `order`,
-// and a rule's place is its position in that record's `rules` list.
+// A rule's structure is its record `data/rules/<topic>/<slug>.json`: its title, status, related rules
+// and guarding paths, and no prose. A rule's prose is the markdown fragment
+// `docs/rules/<topic>/<slug>.md`, which a person edits. A rule id is that path: `types/conversion` is
+// `docs/rules/types/conversion.md`, and the citation token everywhere is `rule:` and the id. A
+// chapter's place is its topic record's `order`, and a rule's place is its position in that record's
+// `rules` list.
 //
-// `docs/rules/<topic>.md` and `docs/ground-rules.md` are rendered from the two and never edited.
-// `because` names the decision records on disk not yet merged into the rule, and may be empty; each
-// one must be a file under `docs/decisions/`. A file that teaches the citation syntax rather than using it carries the marker
-// `rules-py:examples`, and its `rule:` tokens are then examples rather than citations. This file
-// carries it.
+// `docs/rules/<topic>.md` and `docs/ground-rules.md` are rendered from the two and never edited. A
+// file that teaches the citation syntax rather than using it carries the marker `rules-py:examples`,
+// and its `rule:` tokens are then examples rather than citations. This file carries it.
 //
 // A generated file is written with LF endings. `--render --check` compares text, so a checkout with
 // CRLF endings is not stale.
@@ -65,19 +64,12 @@ const CITATION_GLOBS: [string, string[] | null][] = [
 /** A file that explains the citation format rather than using it carries this marker. */
 const EXAMPLES_ONLY = "rules-py:examples";
 
-/**
- * Where a decision record lives, relative to a generated page in `docs/rules/`. A chapter is written
- * to `docs/rules/<topic>.md`, so a bare `decisions/NNNN.md` would resolve under `docs/rules/`.
- */
-const decisionLink = (record: string) => `../decisions/${record}.md`;
-
 interface Rule {
   id: string;
   topic: string;
   slug: string;
   title: string;
   status: string;
-  because: string[];
   seeAlso: string[];
   guardedBy: string[];
   bodyPath: string;
@@ -155,8 +147,6 @@ export class Rulebook {
           slug,
           title: r.value.title,
           status: r.value.status,
-          because: r.value.because,
-
           seeAlso: r.value.seeAlso,
           guardedBy: r.value.guardedBy,
           bodyPath: join(RULES_DIR, topic, `${slug}.md`),
@@ -181,10 +171,6 @@ export class Rulebook {
         if (!existsSync(r.bodyPath)) out.push({ where, what: `body fragment ${rel(r.bodyPath)} is absent` });
         else if (body(r).trim() === "") out.push({ where, what: "body fragment is empty" });
         seen.add(rel(r.bodyPath).toLowerCase());
-        for (const dec of r.because) {
-          if (!/^\d{4}$/.test(dec)) out.push({ where, what: `because ${pyRepr(dec)} is not a four-digit record id` });
-          else if (!existsSync(join(ROOT, "docs", "decisions", `${dec}.md`))) out.push({ where, what: `because ${dec} names no record on disk` });
-        }
         for (const other of r.seeAlso) {
           if (!this.byId.has(other)) out.push({ where, what: `seeAlso ${pyRepr(other)} resolves to nothing` });
           else if (other === r.id) out.push({ where, what: "seeAlso names itself" });
@@ -231,14 +217,11 @@ export class Rulebook {
       lines.push(`<a id="${anchor(r)}"></a>`, `\n## ${r.title}${mark}\n`, `\`rule:${r.id}\`\n`);
       const text = body(r);
       if (text) lines.push(this.linkify(text) + "\n");
-      const trailer: string[] = [];
       if (r.seeAlso.length > 0) {
         // Linked, not bare: the trailer's whole job is getting the reader to the next rule.
         const links = r.seeAlso.map((s) => (this.byId.has(s) ? link(this.byId.get(s)!) : `\`rule:${s}\``));
-        trailer.push(`See also ${links.join(", ")}.`);
+        lines.push(`<sub>See also ${links.join(", ")}.</sub>\n`);
       }
-      if (r.because.length > 0) trailer.push(`Decided in ${r.because.map((b) => `[${b}](${decisionLink(b)})`).join(", ")}.`);
-      if (trailer.length > 0) lines.push(`<sub>${trailer.join(" ")}</sub>\n`);
     }
     return lines.join("\n").replace(/\n+$/, "") + "\n";
   }
@@ -419,8 +402,7 @@ export async function run(args: string[]): Promise<number> {
       console.error(`no such rule: ${show}`);
       return 1;
     }
-    out.push(`# ${r.title}   rule:${r.id}`, `status:   ${r.status}`, `because:  ${r.because.join(", ") || "-"}`);
-
+    out.push(`# ${r.title}   rule:${r.id}`, `status:   ${r.status}`);
     if (r.seeAlso.length > 0) out.push(`seeAlso:  ${r.seeAlso.join(", ")}`);
     out.push("", body(r));
     flush();

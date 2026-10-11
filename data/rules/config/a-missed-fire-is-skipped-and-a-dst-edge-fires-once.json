@@ -1,7 +1,6 @@
 {
   "title": "A missed fire is never caught up, `timezone` defaults to UTC, and a DST gap or repeat fires exactly once",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/overlap-is-skip-queue-or-kill",
     "config/cron-is-five-fields-and-nothing-more",

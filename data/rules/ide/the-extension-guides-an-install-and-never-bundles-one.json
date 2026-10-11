@@ -1,7 +1,6 @@
 {
   "title": "The extension ships no `nvs` binary: a missing one is a guided install the user starts, verified against the release's own `SHA256SUMS`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "ide/the-extension-runs-where-the-binary-is",
     "ide/the-extension-refuses-a-binary-it-does-not-understand",

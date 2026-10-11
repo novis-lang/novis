@@ -1,7 +1,6 @@
 {
   "title": "`docs/examples/` is the only copy of every example, and the website reads it in place",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "testing/feature-proofs",
     "testing/proof-attribution",

@@ -1,7 +1,6 @@
 {
   "title": "`Cli::displayWidth` measures the string the sink will write, in grapheme-cluster columns",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/the-terminal-profile-resolves-once",
     "tooling/terminal-output-is-a-sink",

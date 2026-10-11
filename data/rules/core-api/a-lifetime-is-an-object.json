@@ -1,7 +1,6 @@
 {
   "title": "Anything with a lifetime is an object, and `Core` never hands back a handle",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/one-paradigm-per-operation",
     "classes/no-destructors",

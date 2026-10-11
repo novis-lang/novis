@@ -1,7 +1,6 @@
 {
   "title": "`var $x;` and a bare `int $x;` in a class body report the missing visibility, not a statement error",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-api/written-visibility",
     "classes/no-dynamic-properties",

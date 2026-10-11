@@ -1,7 +1,6 @@
 {
   "title": "Eviction rides the cold miss at a configured probability, and a warm hit pays nothing for it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "config/opcache-file-cache-directives-are-system",
     "packaging/nvs-cache-gc-and-clear-are-the-deterministic-escape"

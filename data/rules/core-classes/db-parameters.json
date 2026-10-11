@@ -1,7 +1,6 @@
 {
   "title": "One placeholder is one value, and expanding a list into `IN` is written with `Core\\Db::inList`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/db-one-api",
     "core-classes/db-statement-members"

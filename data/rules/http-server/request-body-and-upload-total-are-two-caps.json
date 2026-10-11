@@ -1,7 +1,6 @@
 {
   "title": "`request_body` caps bytes parsed into memory and `upload_total` caps a streamed multipart body, and both are `[limits]` rows",
   "status": "designed",
-  "because": [],
   "seeAlso": [
     "http-server/upload-total-is-enforced-on-the-wire",
     "http-server/a-part-is-consumed-in-one-of-three-ways",

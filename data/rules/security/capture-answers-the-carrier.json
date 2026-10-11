@@ -1,7 +1,6 @@
 {
   "title": "Capturing a sink yields that sink's carrier, never a plain `string`",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "security/isolate-output-is-captured",
     "security/launderer-answers-a-carrier",

@@ -1,7 +1,6 @@
 {
   "title": "A collector pause is a `gc` event recorded from the collector's run routine, never from the safepoint poll",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "observability/trace-events-carry-a-kind",
     "testing/debug-probes",

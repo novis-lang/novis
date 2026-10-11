@@ -1,7 +1,6 @@
 {
   "title": "HTML parses by the WHATWG algorithm onto `Core\\Xml`'s own tree, and that parse never fails",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/html-sanitize",
     "core-classes/pdf-one-engine",

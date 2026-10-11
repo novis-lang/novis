@@ -1,7 +1,6 @@
 {
   "title": "A file rendered from the records is committed, marked generated and never edited, and a conflict in one is resolved by rendering it again",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "tooling/a-repository-fact-is-one-json-record"
   ],

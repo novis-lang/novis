@@ -1,7 +1,6 @@
 {
   "title": "Five members run a statement, results are buffered by default, and only one of them streams",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/db-streaming",
     "core-classes/db-column-types",

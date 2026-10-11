@@ -1,7 +1,6 @@
 {
   "title": "A temporary directory lives under a Novis-owned root and is deleted when its script ends, and the sweep never throws",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/temporary-dir-orphan-sweep",
     "core-classes/io-write-stream",

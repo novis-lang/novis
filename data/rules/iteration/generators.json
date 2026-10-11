@@ -1,7 +1,6 @@
 {
   "title": "A body that yields is a generator, and calling one returns a state object without running a line of it",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "iteration/yield-lexical-confinement",
     "iteration/one-way-only",

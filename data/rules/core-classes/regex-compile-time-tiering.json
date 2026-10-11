@@ -1,7 +1,6 @@
 {
   "title": "A pattern given as a string literal is validated and tiered while checking, and a malformed one is a compile error",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/regex-two-tiers",
     "expressions/intrinsic-constant-arguments",

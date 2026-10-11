@@ -1,7 +1,6 @@
 {
   "title": "A reveal is per range, window-local, and does not survive the editor closing",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "ide/redaction-ranges-come-from-the-server",
     "ide/redaction-does-not-reach"

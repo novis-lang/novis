@@ -1,7 +1,6 @@
 {
   "title": "Every enum is backed by exactly one integer type, and nothing else backs one",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "enums/declaration",
     "enums/closed-integer-type",

@@ -1,7 +1,6 @@
 {
   "title": "`compareTo` fixes the other operand to `self`, so two different classes are never ordered against each other",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "classes/comparable",
     "classes/ordering-lowers-to-compare-to"

@@ -1,7 +1,6 @@
 {
   "title": "There is no write-only `out` mode",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "statements/inout-is-the-by-reference-spelling"
   ],

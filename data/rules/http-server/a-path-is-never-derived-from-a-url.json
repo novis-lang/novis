@@ -1,7 +1,6 @@
 {
   "title": "A filesystem path is never derived from a URL at request time",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "http-server/a-mount-table-expands-at-boot",
     "security/a-path-is-not-a-url",

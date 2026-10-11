@@ -1,7 +1,6 @@
 {
   "title": "A target only a second command-line parser could run is refused, on every platform",
   "status": "shipped",
-  "because": [],
   "seeAlso": [
     "core-classes/process-is-argv-only",
     "core-classes/process-run"
