@@ -15,9 +15,9 @@ class Render {
 array<string> $names = ["pear", "apple", "fig"];
 
 echo Render::of(Core\Arr::sort($names)), "\n";
-echo Render::of(Core\Arr::sort($names, {order: Core\Order::Desc})), "\n";
+echo Render::of(Core\Arr::sort($names, {order: Core\Arr::Order::Desc})), "\n";
 echo Render::of(Core\Arr::sort($names, {by: fn(string $s): uint => Core\Str::length($s)})), "\n";
-echo Render::of(Core\Arr::sort($names, {by: fn(string $s): uint => Core\Str::length($s), order: Core\Order::Desc})), "\n";
+echo Render::of(Core\Arr::sort($names, {by: fn(string $s): uint => Core\Str::length($s), order: Core\Arr::Order::Desc})), "\n";
 echo Render::of($names), "\n";
 
 array<string> $one = ["only"];

@@ -159,7 +159,7 @@ It is a different suite from `nvs test`, and shares no summary with it: one numb
 a `Core`-owned enum answers its cases off its name alone
 --FILE--
 <?nvs
-var $o = Core\Order::<|>
+var $o = Core\Arr::Order::<|>
 if (true) {
 --REQUEST--
 completion

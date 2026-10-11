@@ -74,9 +74,10 @@ export function slugify(text: string): string {
   return out || "unnamed";
 }
 
-/** `Core\Db\Row` -> `Db-Row`, the spelling every tree and the website use. */
+/** `Core\Db\Row` -> `Db-Row` and the class-owned enum `Core\Arr::Order` -> `Arr-Order`, the spelling
+ * every tree and the website use. */
 export function classTail(name: string): string {
-  return (name.startsWith("Core\\") ? name.slice(5) : name).replaceAll("\\", "-");
+  return (name.startsWith("Core\\") ? name.slice(5) : name).replaceAll("\\", "-").replaceAll("::", "-");
 }
 
 /** A class member's path: `Core\Db\Row::get` -> `core/Db-Row/get`, and a built-in component's

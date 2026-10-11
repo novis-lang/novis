@@ -106,7 +106,7 @@ fn the_worked_program_shows_a_typed_local_a_foreach_binding_and_an_options_bag()
     let primer = primer();
     for wanted in [
         "array<string> $amounts = [\"3\", \"11\", \"7\"];",
-        "Core\\Arr::sort($amounts, {order: Core\\Order::Asc})",
+        "Core\\Arr::sort($amounts, {order: Core\\Arr::Order::Asc})",
         "foreach ($ordered as string $each) {",
         "($each as int)",
         "```output",
@@ -188,10 +188,17 @@ fn the_index_has_exactly_one_line_for_every_registered_member() {
         }
     }
 
+    // A class-owned enum's line names it `Core\Arr::Order`, which is not a member.
+    let enums: Vec<&str> = document["enums"]
+        .as_array()
+        .expect("`enums`")
+        .iter()
+        .map(|e| e["name"].as_str().expect("an enum names itself"))
+        .collect();
     let printed: Vec<String> = index()
         .iter()
         .map(|line| symbol_of(line).to_owned())
-        .filter(|symbol| symbol.contains("::"))
+        .filter(|symbol| symbol.contains("::") && !enums.contains(&symbol.as_str()))
         .collect();
 
     let missing: Vec<&String> = registered

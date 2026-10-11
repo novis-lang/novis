@@ -29,7 +29,7 @@ are this member over what a request carried.
 array<int> $scores = ["ada" => 92, "bo" => 67, "cy" => 85, "di" => 74];
 var $passed = Core\Arr::filter($scores, fn(int $n): bool => $n >= 70);
 echo Core\Json::encode($passed), "\n";
-var $ranked = Core\Arr::sort($passed, {order: Core\Order::Desc, preserveKeys: true});
+var $ranked = Core\Arr::sort($passed, {order: Core\Arr::Order::Desc, preserveKeys: true});
 echo Core\Json::encode(Core\Arr::keys($ranked)), "\n";
 echo Core\Arr::first($ranked) ?? 0, " ", Core\Arr::firstKey($ranked) ?? "-", "\n";
 var $labels = Core\Arr::map($scores, fn(int $n, string $k): string => $k . ":" . ($n as string));

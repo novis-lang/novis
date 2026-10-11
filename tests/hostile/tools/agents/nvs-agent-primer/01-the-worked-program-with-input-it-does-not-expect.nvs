@@ -65,8 +65,8 @@ while ($i < 300000) {
     $i = $i + 1;
 }
 try {
-    array<string> $up = Core\Arr::sort($many, { order: Core\Order::Asc });
-    array<string> $down = Core\Arr::sort($up, { order: Core\Order::Desc });
+    array<string> $up = Core\Arr::sort($many, { order: Core\Arr::Order::Asc });
+    array<string> $down = Core\Arr::sort($up, { order: Core\Arr::Order::Desc });
     echo '4: ', Core\Str::length(Core\Json::encode($down)), "\n";
 } catch (Throwable $error) {
     echo '4: ', $error->message, "\n";
@@ -76,7 +76,7 @@ try {
 array<string> $none = [];
 try {
     echo '5: ', Core\Json::encode(Core\Arr::sort($none, {})), "\n";
-    echo '5: ', Core\Json::encode(Core\Arr::sort([''], { order: Core\Order::Desc })), "\n";
+    echo '5: ', Core\Json::encode(Core\Arr::sort([''], { order: Core\Arr::Order::Desc })), "\n";
 } catch (Throwable $error) {
     echo '5: ', $error->message, "\n";
 }
@@ -84,7 +84,7 @@ try {
 // 6. Strings that JSON writes with an escape: a NUL character, quotes and 100,000 backslashes.
 array<string> $odd = ["\u{0}", "\"\"\"", Core\Str::repeat("\\", 100000), "\u{FFFF}", "\u{10FFFF}"];
 try {
-    array<string> $ordered = Core\Arr::sort($odd, { order: Core\Order::Asc });
+    array<string> $ordered = Core\Arr::sort($odd, { order: Core\Arr::Order::Asc });
     echo '6: ', Core\Str::length(Core\Json::encode($ordered)), "\n";
 } catch (Throwable $error) {
     echo '6: ', $error->message, "\n";

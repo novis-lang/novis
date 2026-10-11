@@ -33,8 +33,8 @@ in the chapter that owns it — types, statements, expressions — and named in 
 array<string> $amounts = ["3", "11", "7"];
 
 // A member's optional knobs are one trailing anonymous object, `{key: value}`. They are not named
-// arguments and there are no flag parameters: this signature spells the bag `{order?: Core\Order}`.
-array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
+// arguments and there are no flag parameters: this signature spells the bag `{order?: Core\Arr::Order}`.
+array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Arr::Order::Asc});
 
 int $total = 0;
 // Every `foreach` binding declares its type; an untyped `as $each` does not parse.

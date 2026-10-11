@@ -7,8 +7,8 @@ array<int> $mine = ["x" => 1, "y" => 2, "z" => 3];
 array<int> $theirs = ["p" => 2, "z" => 9];
 
 echo "values:  ", Core\Json::encode(Core\Arr::diff($mine, $theirs)), "\n";
-echo "names:   ", Core\Json::encode(Core\Arr::diff($mine, $theirs, {on: Core\SetOn::Keys})), "\n";
-echo "both:    ", Core\Json::encode(Core\Arr::diff($mine, $theirs, {on: Core\SetOn::Both})), "\n";
+echo "names:   ", Core\Json::encode(Core\Arr::diff($mine, $theirs, {on: Core\Arr::SetOn::Keys})), "\n";
+echo "both:    ", Core\Json::encode(Core\Arr::diff($mine, $theirs, {on: Core\Arr::SetOn::Both})), "\n";
 
 // With `Both`, the result has every entry. No entry matches on key and value together.
 // `z` is in both arrays, but its value is `3` in one and `9` in the other.

@@ -36,7 +36,7 @@
 //! | all `bool` | `bool` | `false` before `true` |
 //! | all `null` | none | every pair is equal, so the permutation is already the answer |
 //!
-//! `Core\Order::Desc` wraps the key in [`brainsort::Desc`], which reverses the
+//! `Core\Arr::Order::Desc` wraps the key in [`brainsort::Desc`], which reverses the
 //! comparison and not the result — the same rule the merge sort applies, so
 //! equal keys keep their input order under either order.
 //!

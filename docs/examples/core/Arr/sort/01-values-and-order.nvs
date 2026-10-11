@@ -7,7 +7,7 @@ foreach ($sorted as int $n) {
 }
 echo "\n";
 
-var $reversed = Core\Arr::sort($numbers, {order: Core\Order::Desc});
+var $reversed = Core\Arr::sort($numbers, {order: Core\Arr::Order::Desc});
 foreach ($reversed as int $n) {
     echo $n, " ";
 }

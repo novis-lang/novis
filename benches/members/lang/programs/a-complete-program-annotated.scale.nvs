@@ -17,7 +17,7 @@ class Bench {
         int $r = 0;
         while ($r < 64) {
             $amounts[0] = "" . ($total % 1000);
-            array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
+            array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Arr::Order::Asc});
             foreach ($ordered as string $each) {
                 $total = $total + ($each as int);
             }

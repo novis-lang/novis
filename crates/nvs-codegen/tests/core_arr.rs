@@ -119,13 +119,13 @@ echo Core\\Str::join(Core\\Arr::sort($words), \",\");
     assert_eq!(output_of(source), "Apple,banana,fig,pear");
 }
 
-/// `{order: Core\Order::Desc}` — a `Core`-owned enum reaching a running
+/// `{order: Core\Arr::Order::Desc}` — a `Core`-owned enum reaching a running
 /// program, and PHP's `rsort` in one option rather than a second member name.
 #[test]
 fn a_core_enum_case_selects_the_descending_order() {
     let source = "<?nvs
 array<string> $words = [\"pear\", \"Apple\", \"fig\", \"banana\"];
-echo Core\\Str::join(Core\\Arr::sort($words, {order: Core\\Order::Desc}), \",\");
+echo Core\\Str::join(Core\\Arr::sort($words, {order: Core\\Arr::Order::Desc}), \",\");
 ";
     assert_eq!(output_of(source), "pear,fig,banana,Apple");
 }
@@ -157,7 +157,7 @@ echo Core\\Str::join(Core\\Arr::map($down, fn(int $n): string => $n as string), 
     assert_eq!(output_of(source), "9|5|3|1");
 }
 
-/// `{preserveKeys: true}` is PHP's `asort`, and with `Core\Order::Desc` its
+/// `{preserveKeys: true}` is PHP's `asort`, and with `Core\Arr::Order::Desc` its
 /// `arsort` — the eight extra names that half of PHP's roster spends on this
 /// one option.
 #[test]
@@ -176,7 +176,7 @@ class Show {
 array<int> $scores = [\"c\" => 3, \"a\" => 1, \"b\" => 2];
 echo Show::render(Core\\Arr::sort($scores, {preserveKeys: true}));
 echo \"|\";
-echo Show::render(Core\\Arr::sort($scores, {preserveKeys: true, order: Core\\Order::Desc}));
+echo Show::render(Core\\Arr::sort($scores, {preserveKeys: true, order: Core\\Arr::Order::Desc}));
 echo \"|\";
 echo Show::render(Core\\Arr::sort($scores));
 ";

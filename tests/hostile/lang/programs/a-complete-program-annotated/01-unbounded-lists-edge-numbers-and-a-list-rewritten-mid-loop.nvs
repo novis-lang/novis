@@ -17,7 +17,7 @@ class Attack
             $amounts[] = (($i % 977) as string);
             $i = $i + 1;
         }
-        array<string> $ordered = Core\Arr::sort($amounts, { order: Core\Order::Asc });
+        array<string> $ordered = Core\Arr::sort($amounts, { order: Core\Arr::Order::Asc });
         int $total = 0;
         foreach ($ordered as string $each) {
             $total = $total + ($each as int);

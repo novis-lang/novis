@@ -6,8 +6,8 @@ array<int> $stock = ["pears" => 4, "apples" => 12, "plums" => 7];
 
 // By how many are in stock, most first. `preserveKeys` keeps each number with
 // its key.
-echo Core\Json::encode(Core\Arr::sort($stock, {order: Core\Order::Desc, preserveKeys: true})), "\n";
+echo Core\Json::encode(Core\Arr::sort($stock, {order: Core\Arr::Order::Desc, preserveKeys: true})), "\n";
 
 // By key, first from A to Z and then from Z to A.
 echo Core\Json::encode(Core\Arr::sortByKey($stock)), "\n";
-echo Core\Json::encode(Core\Arr::sortByKey($stock, {order: Core\Order::Desc})), "\n";
+echo Core\Json::encode(Core\Arr::sortByKey($stock, {order: Core\Arr::Order::Desc})), "\n";

@@ -3,18 +3,18 @@
 // text a visitor sent into a case, and the case then chooses the sort order.
 
 class Listing {
-    // Returns the order the text names. Returns `Core\Order::Asc` for any other
+    // Returns the order the text names. Returns `Core\Arr::Order::Asc` for any other
     // text, so a visitor cannot send something the sort has no answer for.
-    public static function order(string $wanted): Core\Order {
+    public static function order(string $wanted): Core\Arr::Order {
         return match ($wanted) {
-            "desc" => Core\Order::Desc,
-            default => Core\Order::Asc,
+            "desc" => Core\Arr::Order::Desc,
+            default => Core\Arr::Order::Asc,
         };
     }
 }
 
 array<int> $prices = [30, 10, 20];
-Core\Order $order = Listing::order("desc");
+Core\Arr::Order $order = Listing::order("desc");
 
 // This prints 30, 20 and 10.
 foreach (Core\Arr::sort($prices, {order: $order}) as int $p) {
@@ -22,4 +22,4 @@ foreach (Core\Arr::sort($prices, {order: $order}) as int $p) {
 }
 
 // A case of a `Core` enum is compared with `==`. This prints `largest first`.
-echo $order == Core\Order::Desc ? "largest first" : "smallest first", "\n";
+echo $order == Core\Arr::Order::Desc ? "largest first" : "smallest first", "\n";

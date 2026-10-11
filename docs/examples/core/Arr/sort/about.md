@@ -1,7 +1,7 @@
 Returns the values of an array in order, from the smallest to the largest.
 
 The keys are renumbered from `0`, so the result is a plain list. Write `{preserveKeys: true}` to keep
-every value under its own key. Write `{order: Core\Order::Desc}` for the largest value first. Values
+every value under its own key. Write `{order: Core\Arr::Order::Desc}` for the largest value first. Values
 that count as equal keep the order they were added in.
 
 Two numbers are compared as numbers. Two strings are compared character by character, so `"10"` comes

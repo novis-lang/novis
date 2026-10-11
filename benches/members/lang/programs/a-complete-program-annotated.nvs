@@ -12,7 +12,7 @@ class Bench {
         int $i = 0;
         while ($i < $rounds) {
             array<string> $amounts = [$pool[$total % 4], "11", "7"];
-            array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
+            array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Arr::Order::Asc});
             foreach ($ordered as string $each) {
                 $total = $total + ($each as int);
             }

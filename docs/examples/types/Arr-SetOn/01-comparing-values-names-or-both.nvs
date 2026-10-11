@@ -10,8 +10,8 @@ array<int> $theirs = ["p" => 2, "z" => 9];
 echo "values:  ", Core\Json::encode(Core\Arr::intersect($mine, $theirs)), "\n";
 
 // The names alone. Both lists have a `z`, whatever is stored under it.
-echo "names:   ", Core\Json::encode(Core\Arr::intersect($mine, $theirs, {on: Core\SetOn::Keys})), "\n";
+echo "names:   ", Core\Json::encode(Core\Arr::intersect($mine, $theirs, {on: Core\Arr::SetOn::Keys})), "\n";
 
 // The name and the value together. Nothing matches on both, so the answer is
 // empty.
-echo "both:    ", Core\Json::encode(Core\Arr::intersect($mine, $theirs, {on: Core\SetOn::Both})), "\n";
+echo "both:    ", Core\Json::encode(Core\Arr::intersect($mine, $theirs, {on: Core\Arr::SetOn::Both})), "\n";

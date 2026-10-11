@@ -26,7 +26,7 @@ An index line opens with the symbol `show` resolves and continues with that memb
 ```text
 Core\IO::read(string $path): string  [fs.read]
 Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T
-Core\Order  enum {Asc, Desc}
+Core\Arr::Order  enum {Asc, Desc}
 RuntimeError  exception extends Throwable
 programs  chapter: Programs, files and names
 programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace

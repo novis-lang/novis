@@ -52,7 +52,7 @@ describe("the keys a verdict reads of `nvs meta --json`", () => {
   });
 
   test("an enum, exception, interface or directive, and the whole roster, depend on every class and card", async () => {
-    expect(await noted([entry("Core\\Str::length", "member", "Core\\Str"), entry("Core\\Order", "enum", "types:enum")], false)).toEqual(["card:*", "class:*"]);
+    expect(await noted([entry("Core\\Str::length", "member", "Core\\Str"), entry("Core\\Arr::Order", "enum", "types:enum")], false)).toEqual(["card:*", "class:*"]);
     expect(await noted([entry("directive:cache.local", "directive", "config:directives")], false)).toEqual(["card:*", "class:*"]);
     expect(await noted([], true)).toEqual(["card:*", "class:*"]);
   });
@@ -63,7 +63,7 @@ describe("the keys a verdict reads of `nvs meta --json`", () => {
     const scope = [
       { ...entry("Core\\Json::decode", "member", "Core\\Json"), anchor: "crates/nvs-stdlib/src/json.rs:1" },
       { ...entry("Core\\Str::length", "member", "Core\\Str"), anchor: "crates/nvs-stdlib/src/str.rs:1" },
-      entry("Core\\Order", "enum", "types:enum"),
+      entry("Core\\Arr::Order", "enum", "types:enum"),
     ];
     // `collect.ts` is loaded after `install`, so its file reads are noted as a `bun nv` command's are.
     const script = [
@@ -84,7 +84,7 @@ describe("the keys a verdict reads of `nvs meta --json`", () => {
     expect((str.keys ?? []).filter((k) => /json|\*/i.test(k))).toEqual([]);
     expect(str.files).not.toContain("crates/nvs-stdlib/src/json.rs");
     // The enum's group depends on every class and card, and that stays its own.
-    expect(readLog(LOG, "types:enum")!.keys).toEqual(expect.arrayContaining(["card:*", "class:*", "covers:#Core\\Order"]));
+    expect(readLog(LOG, "types:enum")!.keys).toEqual(expect.arrayContaining(["card:*", "class:*", "covers:#Core\\Arr::Order"]));
     // The process as a whole read all three.
     expect(readLog(LOG)!.keys).toEqual(expect.arrayContaining(["card:*", "class:core\\json", "class:core\\str"]));
   }, 120_000);

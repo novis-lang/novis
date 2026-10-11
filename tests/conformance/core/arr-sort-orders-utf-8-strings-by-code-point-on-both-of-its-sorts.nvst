@@ -36,7 +36,7 @@ echo Core\Str::join(Core\Arr::map($sorted, $hex), " "), "\n";
 var $cmp = fn(string $x, string $y): int => Core\Str::compare($x, $y);
 int $agreed = 0;
 if ($sorted == Core\Arr::sort($vocabulary, {comparator: $cmp})) { $agreed = $agreed + 1; }
-if (Core\Arr::sort($vocabulary, {order: Core\Order::Desc}) == Core\Arr::sort($vocabulary, {order: Core\Order::Desc, comparator: $cmp})) { $agreed = $agreed + 1; }
+if (Core\Arr::sort($vocabulary, {order: Core\Arr::Order::Desc}) == Core\Arr::sort($vocabulary, {order: Core\Arr::Order::Desc, comparator: $cmp})) { $agreed = $agreed + 1; }
 echo "vocabulary ", $agreed as string, "/2\n";
 
 // And at size: random draws from the vocabulary with a random suffix from
@@ -65,7 +65,7 @@ foreach ($sizes as int $n) {
     }
     $calls = $calls + 3;
     if (Core\Arr::sort($a) == Core\Arr::sort($a, {comparator: $cmp})) { $agreedAtSize = $agreedAtSize + 1; }
-    if (Core\Arr::sort($a, {order: Core\Order::Desc}) == Core\Arr::sort($a, {order: Core\Order::Desc, comparator: $cmp})) { $agreedAtSize = $agreedAtSize + 1; }
+    if (Core\Arr::sort($a, {order: Core\Arr::Order::Desc}) == Core\Arr::sort($a, {order: Core\Arr::Order::Desc, comparator: $cmp})) { $agreedAtSize = $agreedAtSize + 1; }
     if (Core\Str::join(Core\Arr::keys(Core\Arr::sort($a, {preserveKeys: true})), ",") == Core\Str::join(Core\Arr::keys(Core\Arr::sort($a, {preserveKeys: true, comparator: $cmp})), ",")) { $agreedAtSize = $agreedAtSize + 1; }
 }
 echo "at size ", $agreedAtSize as string, "/", $calls as string, "\n";

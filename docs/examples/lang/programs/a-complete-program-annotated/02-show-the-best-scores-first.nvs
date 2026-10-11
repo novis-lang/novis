@@ -5,7 +5,7 @@
 // out of the list.
 
 array<int> $scores = [1420, 880, 2310, 1105];
-array<int> $ranked = Core\Arr::sort($scores, {order: Core\Order::Desc});
+array<int> $ranked = Core\Arr::sort($scores, {order: Core\Arr::Order::Desc});
 
 int $place = 1;
 foreach ($ranked as int $score) {

@@ -1,5 +1,5 @@
 --TEST--
-Spec § 2: `Core\Arr::sort` answers a permutation of its subject under every combination of its four options, and equal keys keep their input order — which `Core\Order::Desc` therefore does not reverse
+Spec § 2: `Core\Arr::sort` answers a permutation of its subject under every combination of its four options, and equal keys keep their input order — which `Core\Arr::Order::Desc` therefore does not reverse
 --FILE--
 <?nvs
 // The tables this member answers are already pinned one option at a time by
@@ -62,15 +62,15 @@ array<int> $bag = [3, 1, 2, 1, 3, 1];
 array<int> $vocabulary = [1, 2, 3];
 array<array<int>> $answers = [
     Core\Arr::sort($bag),
-    Core\Arr::sort($bag, {order: Core\Order::Asc}),
-    Core\Arr::sort($bag, {order: Core\Order::Desc}),
+    Core\Arr::sort($bag, {order: Core\Arr::Order::Asc}),
+    Core\Arr::sort($bag, {order: Core\Arr::Order::Desc}),
     Core\Arr::sort($bag, {by: fn(int $n): int => 0 - $n}),
-    Core\Arr::sort($bag, {by: fn(int $n): int => 0 - $n, order: Core\Order::Desc}),
+    Core\Arr::sort($bag, {by: fn(int $n): int => 0 - $n, order: Core\Arr::Order::Desc}),
     Core\Arr::sort($bag, {comparator: fn(int $x, int $y): int => $x - $y}),
     Core\Arr::sort($bag, {comparator: fn(int $x, int $y): int => $y - $x}),
     Core\Arr::sort($bag, {by: fn(int $n): int => 0 - $n, comparator: fn(int $x, int $y): int => $x - $y}),
     Core\Arr::sort($bag, {preserveKeys: true}),
-    Core\Arr::sort($bag, {preserveKeys: true, order: Core\Order::Desc}),
+    Core\Arr::sort($bag, {preserveKeys: true, order: Core\Arr::Order::Desc}),
 ];
 int $swept = 0;
 int $permutations = 0;
@@ -89,7 +89,7 @@ echo $swept as string, "|", $permutations as string, "|", $lists as string, "|\n
 // A member that returned its subject untouched would satisfy the count above,
 // so one line says the sweep is not vacuous: the entries do move, and the two
 // orders are the two the options name.
-echo Core\Str::join(Core\Arr::map(Core\Arr::sort($bag), fn(int $n): string => $n as string), ","), "|", Core\Str::join(Core\Arr::map(Core\Arr::sort($bag, {order: Core\Order::Desc}), fn(int $n): string => $n as string), ","), "|\n";
+echo Core\Str::join(Core\Arr::map(Core\Arr::sort($bag), fn(int $n): string => $n as string), ","), "|", Core\Str::join(Core\Arr::map(Core\Arr::sort($bag, {order: Core\Arr::Order::Desc}), fn(int $n): string => $n as string), ","), "|\n";
 
 // Second property: the sort is stable, so entries with equal sort keys come
 // out in the order they went in. The subject's entries are all distinct and
@@ -98,7 +98,7 @@ echo Core\Str::join(Core\Arr::map(Core\Arr::sort($bag), fn(int $n): string => $n
 array<string> $rows = ["b1", "a1", "b2", "a2", "b3", "a3"];
 array<array<string>> $stable = [
     Core\Arr::sort($rows, {by: fn(string $r): string => Core\Str::slice($r, 0, 1)}),
-    Core\Arr::sort($rows, {by: fn(string $r): string => Core\Str::slice($r, 0, 1), order: Core\Order::Desc}),
+    Core\Arr::sort($rows, {by: fn(string $r): string => Core\Str::slice($r, 0, 1), order: Core\Arr::Order::Desc}),
     Core\Arr::sort($rows, {by: fn(string $r): string => Core\Str::slice($r, 0, 1), preserveKeys: true}),
     Core\Arr::sort($rows, {comparator: fn(string $x, string $y): int => Core\Str::compare(Core\Str::slice($x, 0, 1), Core\Str::slice($y, 0, 1))}),
     Core\Arr::sort($rows, {comparator: fn(string $x, string $y): int => Core\Str::compare(Core\Str::slice($y, 0, 1), Core\Str::slice($x, 0, 1))}),
@@ -113,12 +113,12 @@ foreach ($stable as array<string> $ordered) {
 }
 echo $sweptRows as string, "|", $keptOrder as string, "|\n";
 
-// The two together are what makes `Core\Order::Desc` reverse the *comparison*
+// The two together are what makes `Core\Arr::Order::Desc` reverse the *comparison*
 // and not the result: the groups swap places while the entries inside each one
 // do not, so the descending answer is not the ascending one read backwards.
 // Reversing the result — the obvious implementation — would fail this line.
 array<string> $asc = Core\Arr::sort($rows, {by: fn(string $r): string => Core\Str::slice($r, 0, 1)});
-array<string> $desc = Core\Arr::sort($rows, {by: fn(string $r): string => Core\Str::slice($r, 0, 1), order: Core\Order::Desc});
+array<string> $desc = Core\Arr::sort($rows, {by: fn(string $r): string => Core\Str::slice($r, 0, 1), order: Core\Arr::Order::Desc});
 echo Core\Str::join($asc, ","), "|", Core\Str::join($desc, ","), "|\n";
 echo ($desc == Core\Arr::reverse($asc)) ? "reversed" : "not a reversal", "|\n";
 --EXPECT--

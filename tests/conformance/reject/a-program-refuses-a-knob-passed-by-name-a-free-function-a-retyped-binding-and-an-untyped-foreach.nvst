@@ -8,7 +8,7 @@ array<string> $amounts = ["3", "11", "7"];
 // `rule:core-api/options-bag`: a knob is a key inside the one trailing
 // literal, never a parameter of its own, so there is no parameter named
 // `order` for this to fill.
-array<string> $ordered = Core\Arr::sort($amounts, order: Core\Order::Asc);
+array<string> $ordered = Core\Arr::sort($amounts, order: Core\Arr::Order::Asc);
 
 // `rule:classes/no-free-functions-or-constants`: every callable is a member of
 // a class, so the PHP habit finds no name to call.

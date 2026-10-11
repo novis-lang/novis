@@ -4,8 +4,8 @@ The entries you get keep their own keys, and they stay in the order the first ar
 are the same when their values are identical: the same type and the same content, with no conversion.
 The number 3 and the text "3" are different values here.
 
-You can change what is compared. The `on` option takes `Core\SetOn::Values` (the default),
-`Core\SetOn::Keys` or `Core\SetOn::Both`. The `by` option is a function that maps the part being
+You can change what is compared. The `on` option takes `Core\Arr::SetOn::Values` (the default),
+`Core\Arr::SetOn::Keys` or `Core\Arr::SetOn::Both`. The `by` option is a function that maps the part being
 compared, and it changes the comparison only, never the entries you get back. The `comparator` option
 replaces the comparison itself.
 

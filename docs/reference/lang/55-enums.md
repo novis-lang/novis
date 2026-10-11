@@ -2,7 +2,7 @@
 id: enums
 title: Enums
 summary: `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have
-keywords: enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Order
+keywords: enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order
 ---
 
 # Declaring an enum
@@ -347,17 +347,17 @@ has no method named `cases`
 
 # `Core` enums
 
-The enums under `Core` — `Core\Order`, `Core\RoundMode`, `Core\Weekday` and the rest, each
-listed in Part B — are ordinary enums: a case is named `Core\Order::Desc`, passed where a
+The enums under `Core` — `Core\Arr::Order`, `Core\RoundMode`, `Core\Weekday` and the rest, each
+listed in Part B — are ordinary enums: a case is named `Core\Arr::Order::Desc`, passed where a
 member asks for it, compared with `==`, and converted with `as int`.
 
 ```nvs
 <?nvs
 array<int> $xs = [3, 1, 2];
-foreach (Core\Arr::sort($xs, {order: Core\Order::Desc}) as int $v) {
+foreach (Core\Arr::sort($xs, {order: Core\Arr::Order::Desc}) as int $v) {
     echo $v;
 }
-echo " ", Core\Order::Desc as int, "\n";
+echo " ", Core\Arr::Order::Desc as int, "\n";
 ```
 ```output
 321 1

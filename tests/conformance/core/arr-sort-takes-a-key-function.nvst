@@ -8,7 +8,7 @@ var $byLength = Core\Arr::sort($words, {by: fn(string $w) => Core\Str::length($w
 echo Core\Str::join($byLength, ","), "\n";
 echo Core\Str::join($words, ","), "\n";
 
-var $descending = Core\Arr::sort($words, {by: fn(string $w) => Core\Str::length($w), order: Core\Order::Desc});
+var $descending = Core\Arr::sort($words, {by: fn(string $w) => Core\Str::length($w), order: Core\Arr::Order::Desc});
 echo Core\Str::join($descending, ","), "\n";
 
 array<int> $numbers = [5, 3, 9, 1];

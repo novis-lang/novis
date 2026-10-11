@@ -7,7 +7,7 @@ Each thing the comments of the worked program `nvs agent primer` prints say this
 // language does not have, each written the way the comment says not to.
 
 array<string> $amounts = ["3", "11", "7"];
-array<string> $ordered = Core\Arr::sort($amounts, order: Core\Order::Asc);
+array<string> $ordered = Core\Arr::sort($amounts, order: Core\Arr::Order::Asc);
 echo (int)$amounts[0], "\n";
 echo json_encode($ordered), "\n";
 $amounts = 3;
@@ -15,7 +15,7 @@ $amounts = 3;
 error[E0486]: no parameter of this call can be filled by the name `order`
   --> %s:7:51
   |
-7 | array<string> $ordered = Core\Arr::sort($amounts, order: Core\Order::Asc);
+7 | array<string> $ordered = Core\Arr::sort($amounts, order: Core\Arr::Order::Asc);
   |                                                   ^^^^^ no such parameter
   = help: the parameters are: `a:`, `options:`
 

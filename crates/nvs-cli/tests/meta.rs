@@ -150,16 +150,16 @@ fn the_options_and_errors_of_the_proof_members_are_emitted() {
     assert_eq!(errors[0]["error"], "RuntimeError");
 }
 
-/// § 2's enum golden: `Core\Order`, top-level beside `classes`, a `short` and
+/// § 2's enum golden: `Core\Arr::Order`, top-level beside `classes`, a `short` and
 /// one `cases` entry per case in declaration order.
 #[test]
 fn the_golden_for_order_matches_the_contract() {
     let (doc, _) = meta(&["--json"]);
     let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
     assert_eq!(
-        core_enum(&document, r"Core\Order"),
+        core_enum(&document, r"Core\Arr::Order"),
         serde_json::json!({
-            "name": r"Core\Order",
+            "name": r"Core\Arr::Order",
             "doc": {
                 "short": "The direction `Core\\Arr::sort` and `sortByKey` put elements in — spec \
                           § 2's `{order: …}` option, which is `Asc` when omitted.",
@@ -192,7 +192,7 @@ fn the_golden_for_math_pi_matches_the_contract() {
 }
 
 /// Every enum and every constant carries its card too — the same guard, on
-/// the rosters a member's card points at. `Core\SetOn` and `Core\Math::TAU` are
+/// the rosters a member's card points at. `Core\Arr::SetOn` and `Core\Math::TAU` are
 /// named outright beside the walk, so one entry of each roster is asserted
 /// directly and a roster that emptied would fail here rather than pass over
 /// nothing.
@@ -200,7 +200,7 @@ fn the_golden_for_math_pi_matches_the_contract() {
 fn every_enum_and_constant_carries_a_doc_key() {
     let (doc, _) = meta(&["--json"]);
     let document: serde_json::Value = serde_json::from_str(&doc).expect("the document is JSON");
-    assert!(core_enum(&document, r"Core\SetOn")["doc"]["short"].is_string());
+    assert!(core_enum(&document, r"Core\Arr::SetOn")["doc"]["short"].is_string());
     assert!(constant(&document, r"Core\Math", "TAU")["doc"].is_string());
     let mut undocumented = Vec::new();
     for declared in document["enums"].as_array().expect("`enums` is an array") {

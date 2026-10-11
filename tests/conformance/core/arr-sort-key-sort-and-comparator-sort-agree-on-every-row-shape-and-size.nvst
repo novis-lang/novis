@@ -76,7 +76,7 @@ class Agree {
         var $cmp = fn(int $x, int $y): int => ($x < $y) ? -1 : (($x > $y) ? 1 : 0);
         int $n = 0;
         if (Core\Arr::sort($a) == Core\Arr::sort($a, {comparator: $cmp})) { $n = $n + 1; }
-        if (Core\Arr::sort($a, {order: Core\Order::Desc}) == Core\Arr::sort($a, {order: Core\Order::Desc, comparator: $cmp})) { $n = $n + 1; }
+        if (Core\Arr::sort($a, {order: Core\Arr::Order::Desc}) == Core\Arr::sort($a, {order: Core\Arr::Order::Desc, comparator: $cmp})) { $n = $n + 1; }
         if (Keys::of(Core\Arr::sort($a, {preserveKeys: true})) == Keys::of(Core\Arr::sort($a, {preserveKeys: true, comparator: $cmp}))) { $n = $n + 1; }
         return $n;
     }
@@ -84,7 +84,7 @@ class Agree {
         var $cmp = fn(float $x, float $y): int => ($x < $y) ? -1 : (($x > $y) ? 1 : 0);
         int $n = 0;
         if (Core\Arr::sort($a) == Core\Arr::sort($a, {comparator: $cmp})) { $n = $n + 1; }
-        if (Core\Arr::sort($a, {order: Core\Order::Desc}) == Core\Arr::sort($a, {order: Core\Order::Desc, comparator: $cmp})) { $n = $n + 1; }
+        if (Core\Arr::sort($a, {order: Core\Arr::Order::Desc}) == Core\Arr::sort($a, {order: Core\Arr::Order::Desc, comparator: $cmp})) { $n = $n + 1; }
         if (Keys::ofFloats(Core\Arr::sort($a, {preserveKeys: true})) == Keys::ofFloats(Core\Arr::sort($a, {preserveKeys: true, comparator: $cmp}))) { $n = $n + 1; }
         return $n;
     }
@@ -92,7 +92,7 @@ class Agree {
         var $cmp = fn(string $x, string $y): int => Core\Str::compare($x, $y);
         int $n = 0;
         if (Core\Arr::sort($a) == Core\Arr::sort($a, {comparator: $cmp})) { $n = $n + 1; }
-        if (Core\Arr::sort($a, {order: Core\Order::Desc}) == Core\Arr::sort($a, {order: Core\Order::Desc, comparator: $cmp})) { $n = $n + 1; }
+        if (Core\Arr::sort($a, {order: Core\Arr::Order::Desc}) == Core\Arr::sort($a, {order: Core\Arr::Order::Desc, comparator: $cmp})) { $n = $n + 1; }
         if (Keys::ofStrings(Core\Arr::sort($a, {preserveKeys: true})) == Keys::ofStrings(Core\Arr::sort($a, {preserveKeys: true, comparator: $cmp}))) { $n = $n + 1; }
         return $n;
     }
@@ -100,7 +100,7 @@ class Agree {
         var $cmp = fn(bool $x, bool $y): int => ($x == $y) ? 0 : ($x ? 1 : -1);
         int $n = 0;
         if (Core\Arr::sort($a) == Core\Arr::sort($a, {comparator: $cmp})) { $n = $n + 1; }
-        if (Core\Arr::sort($a, {order: Core\Order::Desc}) == Core\Arr::sort($a, {order: Core\Order::Desc, comparator: $cmp})) { $n = $n + 1; }
+        if (Core\Arr::sort($a, {order: Core\Arr::Order::Desc}) == Core\Arr::sort($a, {order: Core\Arr::Order::Desc, comparator: $cmp})) { $n = $n + 1; }
         if (Keys::ofBools(Core\Arr::sort($a, {preserveKeys: true})) == Keys::ofBools(Core\Arr::sort($a, {preserveKeys: true, comparator: $cmp}))) { $n = $n + 1; }
         return $n;
     }
@@ -167,7 +167,7 @@ foreach ($sizes as int $n) {
     var $cmp = fn(string $x, string $y): int => Core\Str::compare($x, $y);
     $keyCalls = $keyCalls + 2;
     if (Core\Arr::sortByKey($m) == Core\Arr::sortByKey($m, {comparator: $cmp})) { $keyAgreed = $keyAgreed + 1; }
-    if (Core\Arr::sortByKey($m, {order: Core\Order::Desc}) == Core\Arr::sortByKey($m, {order: Core\Order::Desc, comparator: $cmp})) { $keyAgreed = $keyAgreed + 1; }
+    if (Core\Arr::sortByKey($m, {order: Core\Arr::Order::Desc}) == Core\Arr::sortByKey($m, {order: Core\Arr::Order::Desc, comparator: $cmp})) { $keyAgreed = $keyAgreed + 1; }
 }
 echo "byKey ", $keyAgreed as string, "/", $keyCalls as string, "\n";
 

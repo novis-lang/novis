@@ -10,5 +10,5 @@ array<string> $known = ["name" => "", "email" => ""];
 
 // `name` and `email` are left, with the values the form sent. `isAdmin` is
 // gone, because it is not a key the second array has.
-array<string> $clean = Core\Arr::intersect($submitted, $known, {on: Core\SetOn::Keys});
+array<string> $clean = Core\Arr::intersect($submitted, $known, {on: Core\Arr::SetOn::Keys});
 echo Core\Json::encode($clean), "\n";

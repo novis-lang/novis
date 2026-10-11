@@ -447,7 +447,7 @@ fn lower_const(value: &Const) -> ConstArg {
         Const::EmptyArray => ConstArg::EmptyArray,
         // `rule:enums/no-class-machinery`: the case *is* its integer constant, so what a call
         // site materializes is that constant — the same value the enum table
-        // hands `nvs-ir` for a written `Core\Order::Asc`. Resolved here rather
+        // hands `nvs-ir` for a written `Core\Arr::Order::Asc`. Resolved here rather
         // than written into the row so the two cannot disagree.
         Const::EnumCase(name, case) => ConstArg::Int(
             nvs_stdlib::registry::core_enum(name)

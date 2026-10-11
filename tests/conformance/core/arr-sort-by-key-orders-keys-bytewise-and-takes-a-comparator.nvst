@@ -22,7 +22,7 @@ class Render {
 
 array<int> $scores = ["carol" => 3, "alice" => 1, "bob" => 2];
 echo Render::pairs(Core\Arr::sortByKey($scores)), "\n";
-echo Render::pairs(Core\Arr::sortByKey($scores, {order: Core\Order::Desc})), "\n";
+echo Render::pairs(Core\Arr::sortByKey($scores, {order: Core\Arr::Order::Desc})), "\n";
 
 // `rule:types/arrays` makes every stored key a `string`, so the natural order is a
 // byte compare and "10" precedes "9". That is PHP's `ksort($a, SORT_STRING)`,

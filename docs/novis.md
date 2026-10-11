@@ -42,7 +42,7 @@ Conventions the whole file uses:
 - A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable)*
 - A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
-- A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have *(enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Order)*
+- A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have *(enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order)*
 - A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, IteratorAggregate, Traversable, ArrayAccess, Countable, iterator_to_array, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel)*
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, set_error_handler, set_exception_handler, trigger_error, error_reporting, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, var_dump, print_r, assert, Core\Test\Failure)*
 - A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, usleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, Fiber, pcntl, pcntl_fork, pthreads, parallel, curl_multi, threads, workers, shared state)*
@@ -287,8 +287,8 @@ in the chapter that owns it — types, statements, expressions — and named in 
 array<string> $amounts = ["3", "11", "7"];
 
 // A member's optional knobs are one trailing anonymous object, `{key: value}`. They are not named
-// arguments and there are no flag parameters: this signature spells the bag `{order?: Core\Order}`.
-array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
+// arguments and there are no flag parameters: this signature spells the bag `{order?: Core\Arr::Order}`.
+array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Arr::Order::Asc});
 
 int $total = 0;
 // Every `foreach` binding declares its type; an untyped `as $each` does not parse.
@@ -4347,7 +4347,7 @@ a class or an interface is not declared in a class body
 <a id="lang-enums"></a>
 ## A.6 Enums
 
-Keywords: enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Order
+Keywords: enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order
 
 ### Declaring an enum
 
@@ -4689,17 +4689,17 @@ has no method named `cases`
 
 ### `Core` enums
 
-The enums under `Core` — `Core\Order`, `Core\RoundMode`, `Core\Weekday` and the rest, each
-listed in Part B — are ordinary enums: a case is named `Core\Order::Desc`, passed where a
+The enums under `Core` — `Core\Arr::Order`, `Core\RoundMode`, `Core\Weekday` and the rest, each
+listed in Part B — are ordinary enums: a case is named `Core\Arr::Order::Desc`, passed where a
 member asks for it, compared with `==`, and converted with `as int`.
 
 ```nvs
 <?nvs
 array<int> $xs = [3, 1, 2];
-foreach (Core\Arr::sort($xs, {order: Core\Order::Desc}) as int $v) {
+foreach (Core\Arr::sort($xs, {order: Core\Arr::Order::Desc}) as int $v) {
     echo $v;
 }
-echo " ", Core\Order::Desc as int, "\n";
+echo " ", Core\Arr::Order::Desc as int, "\n";
 ```
 ```output
 321 1
@@ -8102,7 +8102,7 @@ are this member over what a request carried.
 array<int> $scores = ["ada" => 92, "bo" => 67, "cy" => 85, "di" => 74];
 var $passed = Core\Arr::filter($scores, fn(int $n): bool => $n >= 70);
 echo Core\Json::encode($passed), "\n";
-var $ranked = Core\Arr::sort($passed, {order: Core\Order::Desc, preserveKeys: true});
+var $ranked = Core\Arr::sort($passed, {order: Core\Arr::Order::Desc, preserveKeys: true});
 echo Core\Json::encode(Core\Arr::keys($ranked)), "\n";
 echo Core\Arr::first($ranked) ?? 0, " ", Core\Arr::firstKey($ranked) ?? "-", "\n";
 var $labels = Core\Arr::map($scores, fn(int $n, string $k): string => $k . ":" . ($n as string));
@@ -8168,8 +8168,8 @@ ada 92 no note
 | [`Core\Arr::flatten`](#core-core-arr-flatten) | `flatten(array<array<T>> $a): array<T>` |
 | [`Core\Arr::flattenDeep`](#core-core-arr-flattendeep) | `flattenDeep(array<mixed> $a): array<mixed>` |
 | [`Core\Arr::column`](#core-core-arr-column) | `column(array<array<T>> $a, int\|string $column, {indexBy?: int\|string}): array<T>` |
-| [`Core\Arr::sort`](#core-core-arr-sort) | `sort(array<T> $a, {by?: callable, order?: Core\Order, comparator?: callable, preserveKeys?: bool}): array<T>` |
-| [`Core\Arr::sortByKey`](#core-core-arr-sortbykey) | `sortByKey(array<T> $a, {order?: Core\Order, comparator?: callable}): array<T>` |
+| [`Core\Arr::sort`](#core-core-arr-sort) | `sort(array<T> $a, {by?: callable, order?: Core\Arr::Order, comparator?: callable, preserveKeys?: bool}): array<T>` |
+| [`Core\Arr::sortByKey`](#core-core-arr-sortbykey) | `sortByKey(array<T> $a, {order?: Core\Arr::Order, comparator?: callable}): array<T>` |
 | [`Core\Arr::fill`](#core-core-arr-fill) | `fill(uint $count, T $value): array<T>` |
 | [`Core\Arr::fillKeys`](#core-core-arr-fillkeys) | `fillKeys(array<int\|string> $keys, T $value): array<T>` |
 | [`Core\Arr::range`](#core-core-arr-range) | `range(int $start, int $end, {step?: int}): array<int>` |
@@ -8179,8 +8179,8 @@ ada 92 no note
 | [`Core\Arr::overlayDeep`](#core-core-arr-overlaydeep) | `overlayDeep(array<T> $base, array<U> ...$layers): array<T\|U>` |
 | [`Core\Arr::underlay`](#core-core-arr-underlay) | `underlay(array<T> $base, array<U> ...$layers): array<T\|U>` |
 | [`Core\Arr::appendAll`](#core-core-arr-appendall) | `appendAll(array<T> $a, array<U> ...$others): array<T\|U>` |
-| [`Core\Arr::diff`](#core-core-arr-diff) | `diff(array<T> $a, array<T> $b, {on?: Core\SetOn, by?: callable, comparator?: callable}): array<T>` |
-| [`Core\Arr::intersect`](#core-core-arr-intersect) | `intersect(array<T> $a, array<T> $b, {on?: Core\SetOn, by?: callable, comparator?: callable}): array<T>` |
+| [`Core\Arr::diff`](#core-core-arr-diff) | `diff(array<T> $a, array<T> $b, {on?: Core\Arr::SetOn, by?: callable, comparator?: callable}): array<T>` |
+| [`Core\Arr::intersect`](#core-core-arr-intersect) | `intersect(array<T> $a, array<T> $b, {on?: Core\Arr::SetOn, by?: callable, comparator?: callable}): array<T>` |
 | [`Core\Arr::countBy`](#core-core-arr-countby) | `countBy(array<T> $a, {by?: callable}): array<uint>` |
 | [`Core\Arr::unique`](#core-core-arr-unique) | `unique(array<T> $a, {by?: callable}): array<T>` |
 | [`Core\Arr::min`](#core-core-arr-min) | `min(array<T> $a): ?T` |
@@ -8755,7 +8755,7 @@ One named cell out of every row, as `array_column` does.
 #### `Core\Arr::sort`
 
 ```nvs skip
-Core\Arr::sort(array<T> $a, {by?: callable, order?: Core\Order, comparator?: callable, preserveKeys?: bool}): array<T>
+Core\Arr::sort(array<T> $a, {by?: callable, order?: Core\Arr::Order, comparator?: callable, preserveKeys?: bool}): array<T>
 ```
 
 The entries in order, stably — `sort`, `rsort`, `asort`, `arsort`, `usort`, `uasort`, `natsort`, `natcasesort` and `array_multisort` as one member and four options.
@@ -8764,7 +8764,7 @@ The entries in order, stably — `sort`, `rsort`, `asort`, `arsort`, `usort`, `u
 |---|---|---|
 | `$a` | `array<T>` | The array to sort. |
 | `{by: …}` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters; what it answers is compared in the entry's place. |
-| `{order: …}` | `Core\Order` (default `Core\Order::Asc`) | `Order::Asc` (the default) or `Order::Desc`, which reverses the comparison rather than the result, so equal entries keep their relative order either way. |
+| `{order: …}` | `Core\Arr::Order` (default `Core\Arr::Order::Asc`) | `Core\Arr::Order::Asc` (the default) or `Core\Arr::Order::Desc`. `Desc` reverses the comparison, so equal entries keep their relative order. |
 | `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two values — or on two `by` answers — and answering a negative, zero or positive number, as `usort`'s callback does; it replaces the natural order. |
 | `{preserveKeys: …}` | `bool` (default `false`) | Keep each entry's own key, as `asort` does; the default renumbers from `"0"`, as `sort` does. |
 
@@ -8776,7 +8776,7 @@ The entries in order, stably — `sort`, `rsort`, `asort`, `arsort`, `usort`, `u
 #### `Core\Arr::sortByKey`
 
 ```nvs skip
-Core\Arr::sortByKey(array<T> $a, {order?: Core\Order, comparator?: callable}): array<T>
+Core\Arr::sortByKey(array<T> $a, {order?: Core\Arr::Order, comparator?: callable}): array<T>
 ```
 
 The entries in key order, stably, every key kept — `ksort`, `krsort` and `uksort` as one member.
@@ -8784,7 +8784,7 @@ The entries in key order, stably, every key kept — `ksort`, `krsort` and `ukso
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to sort. |
-| `{order: …}` | `Core\Order` (default `Core\Order::Asc`) | `Order::Asc` (the default) or `Order::Desc`, which reverses the comparison rather than the result, so equal keys keep their insertion order either way. |
+| `{order: …}` | `Core\Arr::Order` (default `Core\Arr::Order::Asc`) | `Core\Arr::Order::Asc` (the default) or `Core\Arr::Order::Desc`. `Desc` reverses the comparison, so equal keys keep their insertion order. |
 | `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two keys, both `string`s, and answering a negative, zero or positive number, as `uksort`'s callback does; it replaces the natural order. |
 
 **Returns** `array<T>` — The same entries under the same keys, ordered by key; the natural order is bytewise, so `"10"` precedes `"9"`.
@@ -8946,7 +8946,7 @@ Every value of `$a`, then of each of `$others`, under fresh keys — `array_merg
 #### `Core\Arr::diff`
 
 ```nvs skip
-Core\Arr::diff(array<T> $a, array<T> $b, {on?: Core\SetOn, by?: callable, comparator?: callable}): array<T>
+Core\Arr::diff(array<T> $a, array<T> $b, {on?: Core\Arr::SetOn, by?: callable, comparator?: callable}): array<T>
 ```
 
 The entries of `$a` that `$b` does not have, under strict identity — `array_diff`, `array_diff_key`, `array_diff_assoc` and their three `u` variants as one member.
@@ -8955,8 +8955,8 @@ The entries of `$a` that `$b` does not have, under strict identity — `array_di
 |---|---|---|
 | `$a` | `array<T>` | The array whose entries are kept. |
 | `$b` | `array<T>` | The array whose entries exclude. |
-| `{on: …}` | `Core\SetOn` (default `Core\SetOn::Values`) | Which part of an entry is compared: `SetOn::Values` (the default), `SetOn::Keys` or `SetOn::Both`. |
-| `{by: …}` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters; what it answers stands in for the part `on` selected — the key, under `SetOn::Keys`. |
+| `{on: …}` | `Core\Arr::SetOn` (default `Core\Arr::SetOn::Values`) | Which part of an entry is compared: `Core\Arr::SetOn::Values` (the default), `Core\Arr::SetOn::Keys` or `Core\Arr::SetOn::Both`. |
+| `{by: …}` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters. Its result replaces the part `on` selected. Under `Core\Arr::SetOn::Keys`, that part is the key. |
 | `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two selected parts and answering a negative, zero or positive number, as `array_udiff`'s callback does; it replaces identity, and makes the walk pairwise. |
 
 **Returns** `array<T>` — The kept entries of `$a` under their own keys, in `$a`'s order.
@@ -8967,7 +8967,7 @@ The entries of `$a` that `$b` does not have, under strict identity — `array_di
 #### `Core\Arr::intersect`
 
 ```nvs skip
-Core\Arr::intersect(array<T> $a, array<T> $b, {on?: Core\SetOn, by?: callable, comparator?: callable}): array<T>
+Core\Arr::intersect(array<T> $a, array<T> $b, {on?: Core\Arr::SetOn, by?: callable, comparator?: callable}): array<T>
 ```
 
 The entries of `$a` that `$b` also has, under strict identity — `array_intersect` and its five variants as one member.
@@ -8976,8 +8976,8 @@ The entries of `$a` that `$b` also has, under strict identity — `array_interse
 |---|---|---|
 | `$a` | `array<T>` | The array whose entries are kept. |
 | `$b` | `array<T>` | The array an entry must also be in. |
-| `{on: …}` | `Core\SetOn` (default `Core\SetOn::Values`) | Which part of an entry is compared: `SetOn::Values` (the default), `SetOn::Keys` or `SetOn::Both`. |
-| `{by: …}` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters; what it answers stands in for the part `on` selected — the key, under `SetOn::Keys`. |
+| `{on: …}` | `Core\Arr::SetOn` (default `Core\Arr::SetOn::Values`) | Which part of an entry is compared: `Core\Arr::SetOn::Values` (the default), `Core\Arr::SetOn::Keys` or `Core\Arr::SetOn::Both`. |
+| `{by: …}` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters. Its result replaces the part `on` selected. Under `Core\Arr::SetOn::Keys`, that part is the key. |
 | `{comparator: …}` | `callable` (default `null`) | Called as `($a, $b)` on two selected parts and answering a negative, zero or positive number, as `array_uintersect`'s callback does; it replaces identity, and makes the walk pairwise. |
 
 **Returns** `array<T>` — The kept entries of `$a` under their own keys, in `$a`'s order.
@@ -29195,28 +29195,28 @@ Returns the best of the offered locales for an `Accept-Language` header value. I
 <a id="core-enums"></a>
 ### `Core` enums
 
-Every enum `Core` declares. A case is written `Core\Order::Asc` and is an `int` underneath (see the enums chapter); a member's signature names the enum it takes.
+Every enum `Core` declares. A case is written `Core\Arr::Order::Asc` and is an `int` underneath (see the enums chapter); a member's signature names the enum it takes.
 
-<a id="enum-core-order"></a>
-#### `Core\Order`
+<a id="enum-core-arr-order"></a>
+#### `Core\Arr::Order`
 
 The direction `Core\Arr::sort` and `sortByKey` put elements in — spec § 2's `{order: …}` option, which is `Asc` when omitted.
 
 | Case | Meaning |
 |---|---|
-| `Core\Order::Asc` | Smallest first — what an omitted `{order: …}` means. |
-| `Core\Order::Desc` | Largest first — `rsort`, `arsort` and `krsort` as one option rather than three names. |
+| `Core\Arr::Order::Asc` | Smallest first — what an omitted `{order: …}` means. |
+| `Core\Arr::Order::Desc` | Largest first — `rsort`, `arsort` and `krsort` as one option rather than three names. |
 
-<a id="enum-core-seton"></a>
-#### `Core\SetOn`
+<a id="enum-core-arr-seton"></a>
+#### `Core\Arr::SetOn`
 
 Which part of an entry `Core\Arr::diff` and `intersect` compare — spec § 2's `{on: …}` option, which is `Values` when omitted; `by` and `comparator` apply to the part it selects.
 
 | Case | Meaning |
 |---|---|
-| `Core\SetOn::Values` | The value alone — `array_diff`, `array_intersect` and their `u` forms. |
-| `Core\SetOn::Keys` | The key alone — `array_diff_key`, `array_intersect_key` and their `u` forms; a `by` here maps the key. |
-| `Core\SetOn::Both` | The key and the value together — `array_diff_assoc`, `array_intersect_assoc` and their `u` forms. |
+| `Core\Arr::SetOn::Values` | The value alone — `array_diff`, `array_intersect` and their `u` forms. |
+| `Core\Arr::SetOn::Keys` | The key alone — `array_diff_key`, `array_intersect_key` and their `u` forms; a `by` here maps the key. |
+| `Core\Arr::SetOn::Both` | The key and the value together — `array_diff_assoc`, `array_intersect_assoc` and their `u` forms. |
 
 <a id="enum-core-normalform"></a>
 #### `Core\NormalForm`
@@ -32303,7 +32303,7 @@ It is a different suite from `nvs test`, and shares no summary with it: one numb
 a `Core`-owned enum answers its cases off its name alone
 --FILE--
 <?nvs
-var $o = Core\Order::<|>
+var $o = Core\Arr::Order::<|>
 if (true) {
 --REQUEST--
 completion
@@ -32600,7 +32600,7 @@ An index line opens with the symbol `show` resolves and continues with that memb
 ```text
 Core\IO::read(string $path): string  [fs.read]
 Core\Json::decodeAs<T>(string $json, {maxDepth?: uint}): T
-Core\Order  enum {Asc, Desc}
+Core\Arr::Order  enum {Asc, Desc}
 RuntimeError  exception extends Throwable
 programs  chapter: Programs, files and names
 programs#autoload-find-a-class-by-its-namespace  section: `autoload`: find a class by its namespace

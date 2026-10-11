@@ -15,7 +15,7 @@ class Render {
 array<int> $scores = ["carol" => 3, "alice" => 1, "bob" => 2];
 echo Render::of(Core\Arr::sort($scores)), "\n";
 echo Render::of(Core\Arr::sort($scores, {preserveKeys: true})), "\n";
-echo Render::of(Core\Arr::sort($scores, {preserveKeys: true, order: Core\Order::Desc})), "\n";
+echo Render::of(Core\Arr::sort($scores, {preserveKeys: true, order: Core\Arr::Order::Desc})), "\n";
 --EXPECT--
 0=1;1=2;2=3;
 alice=1;bob=2;carol=3;

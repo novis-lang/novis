@@ -363,7 +363,7 @@ removes the by-reference mutation that was their only reason to exist
 | `sort` | `sort(array<T> $a, {by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}): array<T>` | |
 | `sortByKey` | `sortByKey(array<T> $a, {order?: Order, comparator?: callable}): array<T>` | |
 
-Eleven sort functions plus `array_multisort` become two members. Descending is `{order: Order::Desc}`,
+Eleven sort functions plus `array_multisort` become two members. Descending is `{order: Arr::Order::Desc}`,
 key-preservation is an option rather than a letter in the name, and `by` — a key-extractor callable — is
 the thing `usort` callbacks are written to emulate. Both sorts are stable.
 
@@ -371,9 +371,10 @@ the thing `usort` callbacks are written to emulate. Both sorts are stable.
 decides *what* is compared and `comparator` decides *how*, so a comparator given beside an extractor sees
 the extracted keys. No combination of the options is refused — one rule fewer to remember, at no cost to
 implement. On `diff`/`intersect`, `on` selects the part of an entry that is compared — the value, the key,
-or both — and `by`/`comparator` apply to the part it selected, so a `by` under `SetOn::Keys` maps the key.
+or both — and `by`/`comparator` apply to the part it selected, so a `by` under `Arr::SetOn::Keys` maps the key.
 
-Enums: `Order { Asc, Desc }`, `SetOn { Values, Keys, Both }`.
+Enums: `Order { Asc, Desc }`, `SetOn { Values, Keys, Both }`, both declared in the class, so a program
+writes `Core\Arr::Order::Desc`.
 
 ## 3. `Core\Math`
 

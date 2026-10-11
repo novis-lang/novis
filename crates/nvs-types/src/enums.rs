@@ -186,7 +186,7 @@ pub(crate) fn build_enum_table(
 /// `ClassConstAccess` arm, not `nvs-ir` — learns that a `Core` enum is
 /// different from a declared one.
 ///
-/// Seeded first so a *declared* `Core\Order` would overwrite it rather than
+/// Seeded first so a *declared* `Core\Arr::Order` would overwrite it rather than
 /// the other way round. That cannot happen today: `Core` is the reserved
 /// namespace (`rule:classes/no-free-functions-or-constants`),
 /// and a program declaring into it is a question for `nvs-hir`'s resolver,

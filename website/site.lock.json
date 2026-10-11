@@ -214,7 +214,7 @@
     "lang:programs/require-run-another-file-in-this-frame": "98d1a4cb56a45eeb"
   },
   "syntax/start-here.mdx": {
-    "lang:programs/a-complete-program-annotated": "4125ead9d5e1ee0a",
+    "lang:programs/a-complete-program-annotated": "e1f971c506f5adbe",
     "lang:types/what-does-not-exist": "a7033148ac6b1dad"
   },
   "syntax/testing/fixtures-and-assertions.mdx": {
@@ -240,6 +240,8 @@
     "lang:types/truthiness": "cde4ed2f260d7d7c"
   },
   "syntax/values/enums.mdx": {
+    "Core\\Arr::Order": "d5be8754a1824a75",
+    "Core\\Arr::SetOn": "2dc1a8b8dd83af18",
     "Core\\Audience": "690d2a6edc2eb591",
     "Core\\Charset": "2a993835856562a7",
     "Core\\Cldr\\PluralCategory": "5a76f2386d9371c0",
@@ -263,14 +265,12 @@
     "Core\\Log\\Level": "d8db2f410fc2697e",
     "Core\\Mime\\Type": "65708e2482ad4f8e",
     "Core\\NormalForm": "2a7f4d239a0330f1",
-    "Core\\Order": "4595f4191bdb28f9",
     "Core\\Queue\\State": "1e124e915d5e5234",
     "Core\\Reflect\\TypeKind": "fa47a143a9fbfa68",
     "Core\\Response\\Redirect": "20235b5b589d8229",
     "Core\\Response\\SameSite": "36c681ae41db640d",
     "Core\\RoundMode": "debc7e6b1729c8c7",
     "Core\\Script\\ExitReason": "76691588cdc22e1b",
-    "Core\\SetOn": "a200841d5048a9d5",
     "Core\\Unit": "325e36d708bf2e5a",
     "Core\\Weekday": "2f056b0af834e8c0",
     "Core\\Xml\\NodeKind": "cba861cdab59f2c5",
@@ -278,7 +278,7 @@
     "lang:enums/a-union-of-cases-is-a-narrower-type": "0204f352d260f5b0",
     "lang:enums/an-enum-as-a-type": "4aedddc5b4996f6c",
     "lang:enums/comparing-cases": "e01ffe788609eebf",
-    "lang:enums/core-enums": "59e5a98b342e1c52",
+    "lang:enums/core-enums": "2c5a77b9d5a7b682",
     "lang:enums/declaring-an-enum": "cc9e120a5a174683",
     "lang:enums/from-an-integer-back-to-a-case": "a61ca2711a8f3f88",
     "lang:enums/match-and-switch-over-an-enum": "5eef5c6c9dc56195",

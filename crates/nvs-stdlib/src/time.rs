@@ -1416,10 +1416,10 @@ pub const DATETIME_NAME: &str = r"Core\Time\DateTime";
 /// the half of § 4's two arithmetics a DST boundary or a short month can
 /// lengthen.
 ///
-/// Flat under `Core` rather than under `Core\Time`, following `Core\Order`:
-/// [`crate::registry::ENUMS`] states the rule. The values are the CLDR-free ascending order the spec
-/// writes them in, smallest first, so a comparison between two of them means
-/// what it reads as.
+/// Flat under `Core`, where `rule:enums/an-enum-lives-in-the-class-that-uses-it`
+/// places an enum no single class owns. The values are the CLDR-free ascending
+/// order the spec writes them in, smallest first, so a comparison between two
+/// of them means what it reads as.
 pub const UNIT: CoreEnum = CoreEnum {
     name: r"Core\Unit",
     cases: &[

@@ -60,7 +60,7 @@ interface Registry {
   classes: { name: string; short: string; members: RegistryMember[] }[];
   /** `Core\Str::length` to that member's card. */
   docs: Map<string, MemberCard>;
-  /** `Core\Order` to its short card and each case's description. */
+  /** `Core\Arr::Order` to its short card and each case's description. */
   enumDocs: Map<string, { short: string; cases: Map<string, string> }>;
   /** `Core\Math::PI` to its one sentence. */
   constDocs: Map<string, string>;
@@ -666,9 +666,12 @@ export function addRegistryMembers(classes: Class[], reg: Pick<Registry, "classe
 
 function attachCards(classes: Class[], reg: Registry, site: Site): void {
   const asHtml = (s: unknown) => inlineHtml(site, String(s));
-  // The spec's `Enums:` line names an enum by its last segment (`Order`), and the registry in full.
-  const enumDocFor = (shortName: string) =>
-    reg.enumDocs.get(`Core\\${shortName}`) ?? [...reg.enumDocs.entries()].find(([full]) => full.endsWith(`\\${shortName}`))?.[1];
+  // The spec's `Enums:` line names an enum by its last segment (`Order`), and the registry in full: as
+  // `Core\Arr::Order` when the class the line sits under owns it, or under its namespace otherwise.
+  const enumDocFor = (owner: string, shortName: string) =>
+    reg.enumDocs.get(`${owner}::${shortName}`) ??
+    reg.enumDocs.get(`Core\\${shortName}`) ??
+    [...reg.enumDocs.entries()].find(([full]) => full.endsWith(`\\${shortName}`))?.[1];
 
   for (const cls of classes) {
     const registered = reg.implemented.get(cls.name) ?? [];
@@ -676,7 +679,7 @@ function attachCards(classes: Class[], reg: Registry, site: Site): void {
     for (const m of cls.members) m.implemented = registered.includes(m.name);
 
     for (const e of cls.enums) {
-      const doc = enumDocFor(e.name);
+      const doc = enumDocFor(cls.name, e.name);
       if (!doc) continue;
       e.doc = {
         ...(doc.short ? { shortHtml: asHtml(doc.short) } : {}),

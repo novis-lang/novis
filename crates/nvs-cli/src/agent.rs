@@ -72,7 +72,7 @@
 //! ```text
 //! Core\IO::read(string $path): string  [fs.read]
 //! Core\Json::decodeAs<T>(string $json): T
-//! Core\Order  enum {Asc, Desc}
+//! Core\Arr::Order  enum {Asc, Desc}
 //! RuntimeError  exception extends Error
 //! ```
 //!

@@ -1,8 +1,8 @@
 --TEST--
-Core\Arr::sort's `{order}` takes a Core\Order case, so descending is an option rather than a member name
+Core\Arr::sort's `{order}` takes a Core\Arr::Order case, so descending is an option rather than a member name
 --FILE--
 <?nvs
-// covers: Core\Order
+// covers: Core\Arr::Order
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";
@@ -15,8 +15,8 @@ class Render {
 
 array<int> $nums = [3, 1, 2];
 echo Render::of(Core\Arr::sort($nums)), "\n";
-echo Render::of(Core\Arr::sort($nums, {order: Core\Order::Asc})), "\n";
-echo Render::of(Core\Arr::sort($nums, {order: Core\Order::Desc})), "\n";
+echo Render::of(Core\Arr::sort($nums, {order: Core\Arr::Order::Asc})), "\n";
+echo Render::of(Core\Arr::sort($nums, {order: Core\Arr::Order::Desc})), "\n";
 echo Render::of($nums), "\n";
 --EXPECT--
 0=1;1=2;2=3;

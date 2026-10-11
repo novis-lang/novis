@@ -46,7 +46,7 @@
 //! those three interact. The rule, spec § 2's *Ordering* paragraph: **`on`
 //! selects the part of an entry that is compared — the value, the key, or
 //! both — and `by` and `comparator` apply to the part it selected.** So a
-//! `by` under `SetOn::Keys` replaces the *key*, not the
+//! `by` under `Arr::SetOn::Keys` replaces the *key*, not the
 //! value; it is never an option that could not change the answer.
 //! [`comparison_subject`] and [`set_member`] hold the mechanics and the cost.
 //!
@@ -1443,9 +1443,8 @@ const SORT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "order",
-            desc: "`Order::Asc` (the default) or `Order::Desc`, which reverses the comparison \
-                   rather than the result, so equal entries keep their relative order either \
-                   way.",
+            desc: "`Core\\Arr::Order::Asc` (the default) or `Core\\Arr::Order::Desc`. `Desc` \
+                   reverses the comparison, so equal entries keep their relative order.",
             shape: &[],
         },
         ParamDoc {
@@ -1484,8 +1483,8 @@ const SORT_BY_KEY_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "order",
-            desc: "`Order::Asc` (the default) or `Order::Desc`, which reverses the comparison \
-                   rather than the result, so equal keys keep their insertion order either way.",
+            desc: "`Core\\Arr::Order::Asc` (the default) or `Core\\Arr::Order::Desc`. `Desc` \
+                   reverses the comparison, so equal keys keep their insertion order.",
             shape: &[],
         },
         ParamDoc {
@@ -1725,15 +1724,15 @@ const DIFF_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "on",
-            desc: "Which part of an entry is compared: `SetOn::Values` (the default), \
-                   `SetOn::Keys` or `SetOn::Both`.",
+            desc: "Which part of an entry is compared: `Core\\Arr::SetOn::Values` (the \
+                   default), `Core\\Arr::SetOn::Keys` or `Core\\Arr::SetOn::Both`.",
             shape: &[],
         },
         ParamDoc {
             name: "by",
-            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters; \
-                   what it answers stands in for the part `on` selected — the key, under \
-                   `SetOn::Keys`.",
+            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters. \
+                   Its result replaces the part `on` selected. Under `Core\\Arr::SetOn::Keys`, \
+                   that part is the key.",
             shape: &[],
         },
         ParamDoc {
@@ -1768,15 +1767,15 @@ const INTERSECT_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "on",
-            desc: "Which part of an entry is compared: `SetOn::Values` (the default), \
-                   `SetOn::Keys` or `SetOn::Both`.",
+            desc: "Which part of an entry is compared: `Core\\Arr::SetOn::Values` (the \
+                   default), `Core\\Arr::SetOn::Keys` or `Core\\Arr::SetOn::Both`.",
             shape: &[],
         },
         ParamDoc {
             name: "by",
-            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters; \
-                   what it answers stands in for the part `on` selected — the key, under \
-                   `SetOn::Keys`.",
+            desc: "Called once per entry as `($value, $key)`, and may declare fewer parameters. \
+                   Its result replaces the part `on` selected. Under `Core\\Arr::SetOn::Keys`, \
+                   that part is the key.",
             shape: &[],
         },
         ParamDoc {
@@ -1967,14 +1966,14 @@ const SHAPE_AS_DOC: MethodDoc = MethodDoc {
 /// reason this is a union rather than plain `float`.
 const QUOTIENT: &[CoreTy] = &[CoreTy::Float, CoreTy::Decimal];
 
-/// `Core\Order` — the enum [`nvs_core_arr_sort`]'s `{order: ...}` option takes.
+/// `Core\Arr::Order` — the enum [`nvs_core_arr_sort`]'s `{order: ...}` option takes.
 ///
 /// Declared here, beside its only consumer, for the same reason [`CLASS`] is.
 /// [`crate::registry`]'s `ENUMS` lists it; the value of each case is written
 /// out rather than auto-incremented, and `Asc` is `0` so it is also what an
 /// omitted `{order: ...}` ends up meaning.
 pub const ORDER: CoreEnum = CoreEnum {
-    name: r"Core\Order",
+    name: r"Core\Arr::Order",
     cases: &[("Asc", 0), ("Desc", 1)],
     doc: Some(&ORDER_DOC),
 };
@@ -1996,7 +1995,7 @@ const ORDER_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Core\SetOn` — the enum [`nvs_core_arr_diff`] and [`nvs_core_arr_intersect`]
+/// `Core\Arr::SetOn` — the enum [`nvs_core_arr_diff`] and [`nvs_core_arr_intersect`]
 /// take, and the whole of what twelve PHP `array_diff*`/`array_intersect*`
 /// functions differed by.
 ///
@@ -2005,7 +2004,7 @@ const ORDER_DOC: EnumDoc = EnumDoc {
 /// This module's own docs hold what each case compares and how `by` and
 /// `comparator` compose with it.
 pub const SET_ON: CoreEnum = CoreEnum {
-    name: r"Core\SetOn",
+    name: r"Core\Arr::SetOn",
     cases: &[("Values", 0), ("Keys", 1), ("Both", 2)],
     doc: Some(&SET_ON_DOC),
 };
@@ -2122,8 +2121,8 @@ const BY_OPTION: &[CoreOption] = &[CoreOption {
 const SET_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "on",
-        ty: CoreTy::Enum(r"Core\SetOn"),
-        default: Const::EnumCase(r"Core\SetOn", "Values"),
+        ty: CoreTy::Enum(r"Core\Arr::SetOn"),
+        default: Const::EnumCase(r"Core\Arr::SetOn", "Values"),
     },
     CoreOption {
         name: "by",
@@ -2167,7 +2166,7 @@ const FROM_OPTIONS: &[CoreOption] = &[CoreOption {
 /// `{by?: callable, order?: Order, comparator?: callable, preserveKeys?: bool}`
 /// — the eleven PHP sort functions plus `array_multisort` in one bag, which is
 /// what the spec's § 2 *Ordering* note means by "descending is
-/// `{order: Order::Desc}`, key-preservation is an option rather than a letter
+/// `{order: Arr::Order::Desc}`, key-preservation is an option rather than a letter
 /// in the name."
 ///
 /// [`nvs_core_arr_sort`]'s own docs own what each option does and which
@@ -2183,8 +2182,8 @@ const SORT_OPTIONS: &[CoreOption] = &[
     },
     CoreOption {
         name: "order",
-        ty: CoreTy::Enum(r"Core\Order"),
-        default: Const::EnumCase(r"Core\Order", "Asc"),
+        ty: CoreTy::Enum(r"Core\Arr::Order"),
+        default: Const::EnumCase(r"Core\Arr::Order", "Asc"),
     },
     CoreOption {
         name: "comparator",
@@ -2209,8 +2208,8 @@ const SORT_OPTIONS: &[CoreOption] = &[
 const SORT_BY_KEY_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "order",
-        ty: CoreTy::Enum(r"Core\Order"),
-        default: Const::EnumCase(r"Core\Order", "Asc"),
+        ty: CoreTy::Enum(r"Core\Arr::Order"),
+        default: Const::EnumCase(r"Core\Arr::Order", "Asc"),
     },
     CoreOption {
         name: "comparator",
@@ -4413,7 +4412,7 @@ nvs_runtime::nvs_helper! {
     ///   exactly once per entry, before any comparison — decorate-sort-
     ///   undecorate — so an expensive extractor costs `n` calls rather than
     ///   the `n log n` a comparator doing the same work would.
-    /// * **`order`** is `Core\Order::Asc` (the default) or `Core\Order::Desc`.
+    /// * **`order`** is `Core\Arr::Order::Asc` (the default) or `Core\Arr::Order::Desc`.
     ///   `Desc` reverses the *comparison*, not the result, so equal entries
     ///   keep their original relative order either way.
     /// * **`comparator`** replaces the natural ordering with `($a, $b): int`,
@@ -4472,15 +4471,15 @@ nvs_runtime::nvs_helper! {
             Some(1) => true,
             _ => {
                 // Unreachable from source: `order` is
-                // `CoreTy::Enum(r"Core\Order")` in `SORT_OPTIONS`, so a value
-                // that is no case is `E0401: expected 'Core\Order', found …`
+                // `CoreTy::Enum(r"Core\Arr::Order")` in `SORT_OPTIONS`, so a value
+                // that is no case is `E0401: expected 'Core\Arr::Order', found …`
                 // at the checker — probed with a `mixed` binding and with the
                 // bare `int` literal `1`, which is the near miss worth
                 // checking because the discriminant compiled code writes for a
                 // case is exactly an integer. `Core\Str::normalize`'s
                 // `normal_form_of` is the same judgement, stated in full.
                 return Err(Fault::fatal(format!(
-                    "Core\\Arr::sort expected a `Core\\Order` case for `order`, got tag {} \
+                    "Core\\Arr::sort expected a `Core\\Arr::Order` case for `order`, got tag {} \
                      value {}",
                     args[2].tag_byte(),
                     args[2].bits()
@@ -4658,11 +4657,11 @@ nvs_runtime::nvs_helper! {
             _ => {
                 // Unreachable from source for the reason `nvs_core_arr_sort`'s
                 // own `order` arm states, on the same two probes: this
-                // option is `CoreTy::Enum(r"Core\Order")` in
+                // option is `CoreTy::Enum(r"Core\Arr::Order")` in
                 // `SORT_BY_KEY_OPTIONS`, and both a `mixed` binding and the
                 // bare `int` literal `1` are `E0401` at the checker.
                 return Err(Fault::fatal(format!(
-                    "Core\\Arr::sortByKey expected a `Core\\Order` case for `order`, got tag {} \
+                    "Core\\Arr::sortByKey expected a `Core\\Arr::Order` case for `order`, got tag {} \
                      value {}",
                     args[1].tag_byte(),
                     args[1].bits()
@@ -5566,7 +5565,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// Which part of an entry a set member compares — spec § 2's `Core\SetOn`,
+/// Which part of an entry a set member compares — spec § 2's `Core\Arr::SetOn`,
 /// decoded from the `{on: ...}` option's integer case.
 ///
 /// [`SET_ON`] is where the cases and their values are stated; this is the
@@ -5586,7 +5585,7 @@ fn on_of(value: &Value, member: &str) -> Result<On, Fault> {
         Some(1) => Ok(On::Keys),
         Some(2) => Ok(On::Both),
         _ => Err(Fault::fatal(format!(
-            "Core\\Arr::{member} expected a `Core\\SetOn` case for `on`, got tag {} value {}",
+            "Core\\Arr::{member} expected a `Core\\Arr::SetOn` case for `on`, got tag {} value {}",
             value.tag_byte(),
             value.bits()
         ))),
@@ -7519,7 +7518,7 @@ mod tests {
         }
     }
 
-    /// An `order` argument that is not one of `Core\Order`'s two cases is a
+    /// An `order` argument that is not one of `Core\Arr::Order`'s two cases is a
     /// contained `FATAL`: the checker refuses an `int` there
     /// (`E_TYPE_MISMATCH`), so reaching this means the compiler let through a
     /// call it should not have.
@@ -7539,7 +7538,7 @@ mod tests {
                 Value::bool(false),
             ],
         )
-        .expect_err("7 is not a Core\\Order case");
+        .expect_err("7 is not a Core\\Arr::Order case");
         assert_eq!(status, nvs_runtime::FATAL);
         #[expect(
             unsafe_code,
@@ -7831,7 +7830,7 @@ mod tests {
     /// `rule:types/preserve-keys`'s identity rule from Rust: `diff` keeps `$a`'s own keys
     /// and `$a`'s order, and compares under strict identity, so the text `"3"`
     /// is not removed by the number 3. A call site fills the options it was not
-    /// given, so `on` arrives as `Core\SetOn::Values`' own number and the two
+    /// given, so `on` arrives as `Core\Arr::SetOn::Values`' own number and the two
     /// callbacks arrive as null.
     // covers: Core\Arr::diff
     #[test]

@@ -14,8 +14,8 @@ class Values
         int $wrong = 0;
         int $i = 0;
         while ($i < $rounds) {
-            Core\Order $order = ($i % 2) as Core\Order;
-            if (($order == Core\Order::Desc) != (($order as int) == 1)) {
+            Core\Arr::Order $order = ($i % 2) as Core\Arr::Order;
+            if (($order == Core\Arr::Order::Desc) != (($order as int) == 1)) {
                 $wrong = $wrong + 1;
             }
             if ((Core\RoundMode::HalfUp as int) != (Core\RoundMode::HalfUp as int)) {
@@ -29,8 +29,8 @@ class Values
 
 echo '1: wrong ', Values::sweep(4000000), "\n";
 
-// 2. Numbers that match no case of `Core\Order`. `as ?Core\Order` should give
-// `null`, and `as Core\Order` should throw an error.
+// 2. Numbers that match no case of `Core\Arr::Order`. `as ?Core\Arr::Order` should give
+// `null`, and `as Core\Arr::Order` should throw an error.
 class Outside
 {
     public static function sweep(int $rounds): int
@@ -39,14 +39,14 @@ class Outside
         int $low = -9223372036854775807;
         int $i = 0;
         while ($i < $rounds) {
-            if (($low as ?Core\Order) == null) {
+            if (($low as ?Core\Arr::Order) == null) {
                 $caught = $caught + 1;
             }
-            if ((($i + 2) as ?Core\Order) == null) {
+            if ((($i + 2) as ?Core\Arr::Order) == null) {
                 $caught = $caught + 1;
             }
             try {
-                Core\Order $bad = ($i + 2) as Core\Order;
+                Core\Arr::Order $bad = ($i + 2) as Core\Arr::Order;
                 return -1;
             } catch (RuntimeError $e) {
                 $caught = $caught + 1;
@@ -69,7 +69,7 @@ class Handed
         int $i = 0;
         while ($i < $rounds) {
             array<int> $xs = [3, 1, 2];
-            array<int> $sorted = Core\Arr::sort($xs, { order: ($i % 2) as Core\Order });
+            array<int> $sorted = Core\Arr::sort($xs, { order: ($i % 2) as Core\Arr::Order });
             $first = $first + $sorted[0];
             $i = $i + 1;
         }
@@ -82,9 +82,9 @@ echo '3: sum of firsts ', Handed::sweep(200000), "\n";
 // 4. A method takes a case and then calls itself without end.
 class Runaway
 {
-    public static function down(Core\Order $o): int
+    public static function down(Core\Arr::Order $o): int
     {
-        if ($o == Core\Order::Desc) {
+        if ($o == Core\Arr::Order::Desc) {
             return Runaway::down($o);
         }
         return 0;
@@ -92,7 +92,7 @@ class Runaway
 }
 
 try {
-    int $reached = Runaway::down(Core\Order::Desc);
+    int $reached = Runaway::down(Core\Arr::Order::Desc);
     echo '4: BAD, the call returned ', $reached, "\n";
 } catch (Throwable $e) {
     echo '4: caught ', $e->message, "\n";

@@ -321,7 +321,7 @@ function renderEnums(enums: Json[], lines: string[]): void {
     anchor("core-enums"),
     "### `Core` enums",
     "",
-    "Every enum `Core` declares. A case is written `Core\\Order::Asc` and is an `int` underneath (see the enums chapter); a member's signature names the enum it takes.",
+    "Every enum `Core` declares. A case is written `Core\\Arr::Order::Asc` and is an `int` underneath (see the enums chapter); a member's signature names the enum it takes.",
     "",
   );
   for (const e of enums) {

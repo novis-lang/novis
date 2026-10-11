@@ -970,16 +970,16 @@ fn a_list_carries_keys_and_resolving_an_item_reads_its_card() {
         card.starts_with(length.short),
         "the card opens with the row's `short`"
     );
-    let order = registry::core_enum(r"Core\Order")
+    let order = registry::core_enum(r"Core\Arr::Order")
         .and_then(|core| core.doc)
-        .expect("Core\\Order carries a card");
+        .expect("Core\\Arr::Order carries a card");
     let asc = order
         .cases
         .iter()
         .find(|case| case.name == "Asc")
         .map_or(order.short, |case| case.desc);
     assert_eq!(
-        card_of("<?nvs\nCore\\Order::", "Asc").as_deref(),
+        card_of("<?nvs\nCore\\Arr::Order::", "Asc").as_deref(),
         Some(asc),
         "a case resolves to its own line, or its enum's"
     );

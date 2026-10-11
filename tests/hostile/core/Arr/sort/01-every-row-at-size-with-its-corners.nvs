@@ -35,10 +35,10 @@ while ($i < $n) {
     $i = $i + 1;
 }
 array<int> $sortedInts = Core\Arr::sort($ints);
-array<int> $reversedInts = Core\Arr::sort($ints, { order: Core\Order::Desc });
+array<int> $reversedInts = Core\Arr::sort($ints, { order: Core\Arr::Order::Desc });
 array<int> $again = Core\Arr::sort($sortedInts);
 array<int> $back = Core\Arr::sort($reversedInts);
-array<int> $kept = Core\Arr::sort($ints, { preserveKeys: true, order: Core\Order::Desc });
+array<int> $kept = Core\Arr::sort($ints, { preserveKeys: true, order: Core\Arr::Order::Desc });
 echo 'ints ', Core\Arr::count($sortedInts) as string, ' ', (Core\Arr::first($sortedInts) ?? 0) as string, ' ', (Core\Arr::last($again) ?? 0) as string, ' ', (Core\Arr::first($back) ?? 0) as string, ' ', Core\Arr::count($kept) as string, "\n";
 
 // Floats: NaN with both signs, `0.0` and `-0.0`, both infinities, the smallest
@@ -70,7 +70,7 @@ while ($i < $n) {
     $i = $i + 1;
 }
 array<float> $sortedFloats = Core\Arr::sort($floats);
-array<float> $reversedFloats = Core\Arr::sort($floats, { order: Core\Order::Desc });
+array<float> $reversedFloats = Core\Arr::sort($floats, { order: Core\Arr::Order::Desc });
 echo 'floats ', Core\Arr::count($sortedFloats) as string, ' ', Core\Arr::count($reversedFloats) as string, "\n";
 
 // Strings: empty strings, 300 `x` characters with and without one more letter,
@@ -104,7 +104,7 @@ while ($i < $n) {
     $i = $i + 1;
 }
 array<string> $sortedStrings = Core\Arr::sort($strings);
-array<string> $reversedStrings = Core\Arr::sort($strings, { order: Core\Order::Desc });
+array<string> $reversedStrings = Core\Arr::sort($strings, { order: Core\Arr::Order::Desc });
 echo 'strings ', Core\Arr::count($sortedStrings) as string, ' ', Core\Arr::count($reversedStrings) as string, "\n";
 
 // Bools, and a large array with string keys sorted by `Core\Arr::sortByKey`.
@@ -118,7 +118,7 @@ foreach ($ints as int $v) {
     $i = $i + 1;
 }
 array<int> $byKey = Core\Arr::sortByKey($keyed);
-array<int> $byKeyDesc = Core\Arr::sortByKey($keyed, { order: Core\Order::Desc });
+array<int> $byKeyDesc = Core\Arr::sortByKey($keyed, { order: Core\Arr::Order::Desc });
 echo 'bools ', Core\Arr::count($sortedBools) as string, ' keyed ', Core\Arr::count($byKey) as string, ' ', Core\Arr::count($byKeyDesc) as string, "\n";
 
 // 41 ints and one string at the end. The sort must check every value to find the string.

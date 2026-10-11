@@ -5,24 +5,24 @@ A `Core` enum is an ordinary enum at every site a declared one reaches: a bindin
 // covers: lang:enums/core-enums
 // `rule:enums/closed-integer-type`: the enums the library ships are declared the same way a
 // program's own are, so nothing here is a site a declared enum could not reach.
-Core\Order $dir = Core\Order::Desc;
+Core\Arr::Order $dir = Core\Arr::Order::Desc;
 echo $dir as int, "\n";
-echo $dir == Core\Order::Asc ? "asc" : "desc", "\n";
+echo $dir == Core\Arr::Order::Asc ? "asc" : "desc", "\n";
 
 // A number converts back into a case, and one no case names is `null` under the
 // nullable spelling rather than a case picked by default.
-Core\Order $back = 0 as Core\Order;
-echo $back == Core\Order::Asc ? "asc" : "desc", "\n";
-?Core\Order $missing = 9 as ?Core\Order;
+Core\Arr::Order $back = 0 as Core\Arr::Order;
+echo $back == Core\Arr::Order::Asc ? "asc" : "desc", "\n";
+?Core\Arr::Order $missing = 9 as ?Core\Arr::Order;
 echo $missing == null ? "null" : "some", "\n";
 
 // An element type and a `match` subject, the match exhaustive over the two
 // cases the library declares rather than over a subset named here.
-array<Core\Order> $both = [Core\Order::Asc, Core\Order::Desc];
-foreach ($both as Core\Order $o) {
+array<Core\Arr::Order> $both = [Core\Arr::Order::Asc, Core\Arr::Order::Desc];
+foreach ($both as Core\Arr::Order $o) {
     echo match ($o) {
-        Core\Order::Asc => "up",
-        Core\Order::Desc => "down",
+        Core\Arr::Order::Asc => "up",
+        Core\Arr::Order::Desc => "down",
     }, "\n";
 }
 

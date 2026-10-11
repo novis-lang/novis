@@ -6,7 +6,7 @@ The program the primer annotates runs as written: each binding names its type on
 // The primer's own program, so the output printed beside it in the chapter is
 // pinned here rather than only read.
 array<string> $amounts = ["3", "11", "7"];
-array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
+array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Arr::Order::Asc});
 
 int $total = 0;
 foreach ($ordered as string $each) {
@@ -17,7 +17,7 @@ echo Core\Json::encode($ordered), " ", $total, "\n";
 
 // `rule:core-api/options-bag`: the knobs are keys in one trailing anonymous object, so
 // the other order is the same call with one key written differently.
-echo Core\Json::encode(Core\Arr::sort($amounts, {order: Core\Order::Desc})), "\n";
+echo Core\Json::encode(Core\Arr::sort($amounts, {order: Core\Arr::Order::Desc})), "\n";
 
 // The object is optional, and leaving it out is the member's own default —
 // which has to agree with the bag that names that default outright.

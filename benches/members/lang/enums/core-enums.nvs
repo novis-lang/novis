@@ -14,8 +14,8 @@ class Bench {
         while ($i < $rounds) {
             // Chained: the case held this round is picked by the number the last
             // round produced, so the comparison stays inside the loop.
-            Core\Order $held = $total % 3 == 0 ? Core\Order::Desc : Core\Order::Asc;
-            if ($held == Core\Order::Desc) {
+            Core\Arr::Order $held = $total % 3 == 0 ? Core\Arr::Order::Desc : Core\Arr::Order::Asc;
+            if ($held == Core\Arr::Order::Desc) {
                 $total = $total + ($held as int) + 1;
             } else {
                 $total = $total + 1;

@@ -7,7 +7,7 @@ The shapes of the worked program `nvs agent primer` prints answer what its comme
 // that the output the primer prints beside it does not show.
 
 array<string> $amounts = ["3", "11", "7"];
-array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
+array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Arr::Order::Asc});
 
 int $total = 0;
 foreach ($ordered as string $each) {
@@ -16,7 +16,7 @@ foreach ($ordered as string $each) {
 echo Core\Json::encode($ordered), " ", $total, "\n";
 
 // The bag is what orders the strings: the other case reverses them.
-echo Core\Json::encode(Core\Arr::sort($amounts, {order: Core\Order::Desc})), "\n";
+echo Core\Json::encode(Core\Arr::sort($amounts, {order: Core\Arr::Order::Desc})), "\n";
 
 // "a string that is not an integer throws", once per string, and a `catch`
 // sees each one. `as ?int` is the conversion that answers `null` instead.

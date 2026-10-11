@@ -1251,9 +1251,9 @@ const CONSTANTS: &[CoreConst] = &[
 /// `PHP_ROUND_HALF_*` global constants plus the two whole-direction rules
 /// `ceil`/`floor` only cover for a precision of zero.
 ///
-/// Flat under `Core`, following `Core\Order`: an enum a `Core` member takes is
-/// part of `Core`'s surface, and nesting it under the class that takes it
-/// would be the only nested name in the roster.
+/// Flat under `Core`, where `rule:enums/an-enum-lives-in-the-class-that-uses-it`
+/// places an enum no single class owns; `crates/nvs-stdlib/tests/enum_owners.rs`
+/// holds that placement.
 pub const ROUND_MODE: CoreEnum = CoreEnum {
     name: r"Core\RoundMode",
     cases: &[
