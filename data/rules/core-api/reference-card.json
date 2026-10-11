@@ -2,7 +2,6 @@
   "title": "An implemented `Core` member carries its reference card in the registry declaration beside its code",
   "status": "shipped",
   "because": [
-    "0203",
     "0214"
   ],
   "seeAlso": [

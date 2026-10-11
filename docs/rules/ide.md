@@ -1554,7 +1554,7 @@ the cursor is not written twice, a client without snippet support gets `name()` 
 command runs only on a client that lists it. A property, a constant, an enum case and a type alias write
 the name alone — none of them is a call.
 
-<sub>See also [`ide/an-accepted-type-writes-what-follows-it`](ide.md#ide-an-accepted-type-writes-what-follows-it), [`ide/a-completion-row-reads-as-a-declaration`](ide.md#ide-a-completion-row-reads-as-a-declaration). Decided in [0203](../decisions/0203.md).</sub>
+<sub>See also [`ide/an-accepted-type-writes-what-follows-it`](ide.md#ide-an-accepted-type-writes-what-follows-it), [`ide/a-completion-row-reads-as-a-declaration`](ide.md#ide-a-completion-row-reads-as-a-declaration).</sub>
 
 <a id="ide-a-completion-row-reads-as-a-declaration"></a>
 
@@ -1579,9 +1579,20 @@ member's name, and the document's URI stamped on by the server — and `completi
 card for the one item the editor shows: a `Core` member's reference card from its registry row, a `Core`
 class's, enum's, constant's or case's own line from the same registry, a user declaration's `///` run.
 It is the text hovering the declaration shows, rendered once, so a list and a hover never disagree about
-a name. An item nobody documented resolves to itself.
+a name. An item nobody documented resolves to itself. A `.lspt` case freezes the row and never the
+card, because `nvs_lsp::render` draws no documentation, so the card is held by a Rust test.
 
-<sub>See also [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0203](../decisions/0203.md).</sub>
+- **Memory:** a list carries a few bytes of key per row instead of a card per row. The round trip a
+  resolve costs is paid once per highlighted item, never per keystroke.
+
+**Declined:**
+- **Cards on the list.** It is simpler on the wire, but the bare-name list names every type in reach, so
+  every keystroke would carry every card.
+- **The namespace at the right of a type's row.** The name sits at one end of the row and what it is at
+  the other, with the width of the list between them. The namespace in brackets after the name reads in
+  one run.
+
+<sub>See also [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`core-api/reference-card`](core-api.md#core-api-reference-card).</sub>
 
 <a id="ide-keywords-are-offered-where-the-compiler-accepts-them"></a>
 
@@ -1783,7 +1794,7 @@ directly after it, the kind, the text at the right ([`ide/a-completion-row-reads
 sorted by label; semantic tokens as
 `L:C+len type modifiers`; symbols as an indented outline.
 
-<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0203](../decisions/0203.md).</sub>
+<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
 
 <a id="ide-lspt-coverage-is-inferred"></a>
 

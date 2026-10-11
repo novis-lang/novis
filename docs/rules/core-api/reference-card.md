@@ -42,3 +42,6 @@ moves into Rust.
   a registry row is a struct literal rather than an item, so a doc comment does not attach to it.
 - **A sidecar documentation file in the crate.** It is a second home beside the declaration, the same
   problem at a shorter distance.
+- **A class's card taken from its page under `docs/reference/core/`.** Not every class has a page, and a
+  page is not data the runtime dispatches on. The card goes where the members' cards already are, and
+  the page is shown beneath it.
