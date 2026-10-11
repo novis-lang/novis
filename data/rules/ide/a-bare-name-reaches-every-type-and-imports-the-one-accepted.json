@@ -9,6 +9,8 @@
   ],
   "guardedBy": [
     "crates/nvs-lsp/tests/completion_edits.rs",
-    "tests/lsp/completion/a-bare-name-reaches-a-core-class-by-its-last-segment.lspt"
+    "tests/lsp/completion/a-bare-name-reaches-a-core-class-by-its-last-segment.lspt",
+    "tests/lsp/completion/the-end-of-an-unresolved-receiver-offers-the-types.lspt",
+    "tests/lsp/completion/an-argument-position-in-a-static-call-offers-the-position-list.lspt"
   ]
 }

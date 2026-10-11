@@ -1,9 +1,7 @@
 {
   "title": "A type name pasted from one file into another brings the `use` line that resolves it, read at copy time from the file it came from",
   "status": "shipped",
-  "because": [
-    "0201"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/the-request-set-is-closed",
     "ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted",
@@ -12,6 +10,7 @@
     "ide/one-server-two-thin-clients"
   ],
   "guardedBy": [
-    "crates/nvs-lsp/tests/imports.rs"
+    "crates/nvs-lsp/tests/imports.rs",
+    "editors/vscode/test/protocol/requests.test.ts"
   ]
 }

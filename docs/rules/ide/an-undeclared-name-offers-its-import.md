@@ -22,3 +22,10 @@ one.
 
 What it spends is a walk over the symbol table and the registry on the checker's error path, and
 nothing on a program that compiles.
+
+**Declined:**
+- **A fix the server computes from the diagnostic's span.** It is a fix no diagnostic carries
+  (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`), and it would be a second
+  implementation of the name resolution `definition` already applies.
+- **Replacing the written name with its qualified spelling.** It is determined and cheap, but a developer
+  who wrote a short name wanted a `use` line, not a file full of qualified names.

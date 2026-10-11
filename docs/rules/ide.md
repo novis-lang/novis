@@ -490,7 +490,7 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 - **Call hierarchy.** It needs a second index of call-site edges that nothing else reads
   ([`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)).
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -676,7 +676,7 @@ them, and the server computes each from the expression under the cursor alone, w
 question. Neither is ever under `source.fixAll.nvs` or `quickfix`. Any further action the server
 computes for itself is still M10's.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0201](../decisions/0201.md), [0259](../decisions/0259.md), [0267](../decisions/0267.md), [0275](../decisions/0275.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0259](../decisions/0259.md), [0267](../decisions/0267.md), [0275](../decisions/0275.md).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
@@ -813,7 +813,14 @@ one.
 What it spends is a walk over the symbol table and the registry on the checker's error path, and
 nothing on a program that compiles.
 
-<sub>See also [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/a-pasted-type-carries-its-use-line`](ide.md#ide-a-pasted-type-carries-its-use-line), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0201](../decisions/0201.md).</sub>
+**Declined:**
+- **A fix the server computes from the diagnostic's span.** It is a fix no diagnostic carries
+  ([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)), and it would be a second
+  implementation of the name resolution `definition` already applies.
+- **Replacing the written name with its qualified spelling.** It is determined and cheap, but a developer
+  who wrote a short name wanted a `use` line, not a file full of qualified names.
+
+<sub>See also [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/a-pasted-type-carries-its-use-line`](ide.md#ide-a-pasted-type-carries-its-use-line), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
 
 <a id="ide-a-pasted-type-carries-its-use-line"></a>
 
@@ -858,7 +865,11 @@ of documents the server already holds, and nothing between the two. The two answ
 spelling — a list of name pairs and a text edit — and are held by a Rust test on the wire shapes instead
 ([`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case)).
 
-<sub>See also [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/an-undeclared-name-offers-its-import`](ide.md#ide-an-undeclared-name-offers-its-import), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0201](../decisions/0201.md).</sub>
+**Declined:**
+- **One request at paste time that re-reads the source.** By then the source may be closed, edited or
+  in another window. The clipboard is the only place the copy-time fact survives.
+
+<sub>See also [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/an-undeclared-name-offers-its-import`](ide.md#ide-an-undeclared-name-offers-its-import), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="ide-a-code-action-writes-only-what-is-already-determined"></a>
 
@@ -1401,6 +1412,12 @@ body declared, imported types, types in the namespace in force, types already wr
 file, the rest of `Core`, the rest of the workspace, and the reserved words last. Every tier
 is read off a table an arm already reads — the body's scope, the file's imports, the index's occurrences.
 A member list after `->` or `::` has no tiers.
+
+**Two cursors inside an access are bare positions.** A cursor touching the end of an access's receiver
+is writing the receiver, so `Request|` is offered the type list with its `use` line rather than the
+members of a class that does not resolve. A cursor past the member name with a `(` between the receiver
+and itself is in the arguments or past the call, so `Core\Debug::dump(|)` is offered what `f(|)` is,
+although the access node spans its own arguments.
 
 - **Memory:** one item per type on every bare-position request, a few hundred for the registry alone, and
   one more lexing of the document. Both are built and dropped with the answer.

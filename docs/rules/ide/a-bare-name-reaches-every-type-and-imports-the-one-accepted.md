@@ -22,6 +22,12 @@ file, the rest of `Core`, the rest of the workspace, and the reserved words last
 is read off a table an arm already reads — the body's scope, the file's imports, the index's occurrences.
 A member list after `->` or `::` has no tiers.
 
+**Two cursors inside an access are bare positions.** A cursor touching the end of an access's receiver
+is writing the receiver, so `Request|` is offered the type list with its `use` line rather than the
+members of a class that does not resolve. A cursor past the member name with a `(` between the receiver
+and itself is in the arguments or past the call, so `Core\Debug::dump(|)` is offered what `f(|)` is,
+although the access node spans its own arguments.
+
 - **Memory:** one item per type on every bare-position request, a few hundred for the registry alone, and
   one more lexing of the document. Both are built and dropped with the answer.
 
