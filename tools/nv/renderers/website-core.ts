@@ -113,15 +113,12 @@ function registry(root: string): Registry {
 
 interface Site {
   githubFile(path: string): string;
-  decisionRecord(number: string): string;
 }
 
 const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** A spec link target on the site: a repo-relative one goes to GitHub, and so does a decision record. */
+/** A spec link target on the site: a repo-relative one goes to GitHub. */
 function rewriteTarget(site: Site, target: string): string {
-  const record = /(?:^|\/)(\d{4})-[^/]*\.md(?:#.*)?$/.exec(target);
-  if (record && target.includes("adr")) return site.decisionRecord(record[1]!);
   if (/^[a-z]+:/i.test(target) || target.startsWith("/")) return target;
   const repoPath = posix.normalize(posix.join("docs/spec", target)).split("#")[0]!;
   if (repoPath.startsWith("..")) return target;
@@ -344,7 +341,6 @@ interface Class {
   section: string;
   summary: string;
   surface: string;
-  adrs: string[];
   enums: SpecEnum[];
   constants: (string | { name: string; descHtml: string })[];
   members: Member[];
@@ -378,7 +374,7 @@ export function parseSpec(text: string, tables: SpecTable[], overrides: Override
     const full = clean.startsWith("Core\\") ? clean : `Core\\${clean}`;
     let rec = classes.get(full);
     if (!rec) {
-      rec = { id: classIdOf(full), name: full, section: "", summary: "", surface: "", adrs: [], enums: [], constants: [], members: [], unparsed: [] };
+      rec = { id: classIdOf(full), name: full, section: "", summary: "", surface: "", enums: [], constants: [], members: [], unparsed: [] };
       classes.set(full, rec);
     }
     return rec;
@@ -501,7 +497,6 @@ export function parseSpec(text: string, tables: SpecTable[], overrides: Override
           const rec = classRecord(n);
           if (!rec.section) rec.section = currentSection;
           if (!rec.surface) rec.surface = unescapeCell(row[1] ?? "");
-          for (const am of (row[2] ?? "").matchAll(/\b(\d{4})\b/g)) if (!rec.adrs.includes(am[1]!)) rec.adrs.push(am[1]!);
         }
       }
       return;
@@ -638,7 +633,7 @@ export function addRegistryMembers(classes: Class[], reg: Pick<Registry, "classe
     if (hidden.has(rc.name) || rc.name === "Core\\Unknown") continue;
     let cls = byName.get(rc.name);
     if (!cls) {
-      cls = { id: classIdOf(rc.name), name: rc.name, section: "", summary: rc.short, surface: "", adrs: [], enums: [], constants: [], members: [], unparsed: [] };
+      cls = { id: classIdOf(rc.name), name: rc.name, section: "", summary: rc.short, surface: "", enums: [], constants: [], members: [], unparsed: [] };
       byName.set(rc.name, cls);
     }
     const last = rc.name.slice(rc.name.lastIndexOf("\\") + 1);

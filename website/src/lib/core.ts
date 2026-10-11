@@ -80,7 +80,6 @@ export interface CoreClass {
   section: string
   summary: string
   surface: string
-  adrs: string[]
   enums: { name: string; cases: string[]; raw: string; doc?: CoreEnumDoc }[]
   constants: { name: string; descHtml: string }[]
   members: CoreMember[]

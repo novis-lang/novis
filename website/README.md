@@ -99,9 +99,9 @@ Four areas, in the order a reader learns them: Guides (`/guides/`), Syntax (`/sy
 Reference (`/reference/`) and In-Depth (`/in-depth/`), plus Install (`/install/`). Each
 has its own sidebar: `astro.config.ts` holds one top-level sidebar group per area, and
 `src/routeData.ts` shows a page only its own area's group. A page outside every area has
-no sidebar. There are no previous and next links. The site does not publish the rulebook
-or the decision records; a page that wants the reasoning links to the record on GitHub
-(`config/site.mjs` § `decisionRecord`). A removed page simply stops existing, with no
+no sidebar. There are no previous and next links. The site does not publish the rulebook;
+a page that wants the reasoning links to the rule's fragment under `docs/rules/` on GitHub
+(`config/site.mjs` § `githubFile`). A removed page simply stops existing, with no
 redirect.
 
 ## Machine-facing surface

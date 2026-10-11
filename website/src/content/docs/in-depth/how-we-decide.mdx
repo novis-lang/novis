@@ -4,7 +4,7 @@ covers: []
 description: The four priorities Novis uses to choose between two designs, in order.
 ---
 
-import { decisionRecord } from '@config/site.mjs'
+import { githubFile } from '@config/site.mjs'
 
 Most design questions have two good answers. Novis chooses with four priorities. They are always
 used in the same order. Novis gives up a lower priority to get a higher one. It never gives up a higher priority to get
@@ -36,4 +36,4 @@ Memory is last, but it is never unlimited. Every request has a memory limit that
 memory a server uses grows with the requests it runs at the same time. It does not grow with the
 number of requests it has served in total. Growth of that kind is a bug.
 
-<a href={decisionRecord('0004')}>Read the full reasoning behind the order.</a>
+<a href={githubFile('docs/rules/programs/memory-priority.md')}>Read the full reasoning behind the order.</a>

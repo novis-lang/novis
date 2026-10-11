@@ -4,7 +4,7 @@ covers: []
 description: Four ideas that are in every part of Novis.
 ---
 
-import { decisionRecord, githubFile } from '@config/site.mjs'
+import { githubFile } from '@config/site.mjs'
 
 Most of the language follows four ideas. When a part of Novis works in a way you did not expect,
 one of these is usually the reason.
@@ -15,7 +15,7 @@ Each job has one syntax. You convert a value with `as`. You query a database wit
 receive an uploaded file as a stream. Code from another team then looks like your own code, and a
 security review has one pattern to check.
 
-<a href={decisionRecord('0034')}>Read why `as` is the only way to convert.</a>
+<a href={githubFile('docs/rules/types/no-legacy-cast.md')}>Read why `as` is the only way to convert.</a>
 
 ## Safe by default
 

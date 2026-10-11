@@ -4,7 +4,7 @@ covers: []
 description: The things Novis does not do and will not add, and the reason for each.
 ---
 
-import { decisionRecord, githubFile } from '@config/site.mjs'
+import { githubFile } from '@config/site.mjs'
 
 Some features make a language easier for one program and less safe for every other program. Novis
 leaves these features out. This page lists them, so you know before you start.
@@ -25,7 +25,7 @@ locale. A function that needs a time zone or a language gets it as an argument.
 With global state, one part of a program can change the result of another part. Nothing in the code
 shows this. On a
 server, it can also carry a value from one request into the next.
-<a href={decisionRecord('0012')}>Read the full reasoning.</a>
+<a href={githubFile('docs/rules/core-api/no-ambient-state.md')}>Read the full reasoning.</a>
 
 ## PHP that runs unchanged
 
@@ -37,7 +37,7 @@ conversion is checked. [Start here](/syntax/start-here/) lists the differences.
 
 Novis uses memory to make requests safe and fast. Each request has its own memory, and compiled
 code stays in memory. A Novis server can use more memory than a server written in another language. Every
-request still has a memory limit that you set. <a href={decisionRecord('0004')}>Read the full reasoning.</a>
+request still has a memory limit that you set. <a href={githubFile('docs/rules/programs/memory-priority.md')}>Read the full reasoning.</a>
 
 ## A language with many ways to do one thing
 
