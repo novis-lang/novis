@@ -1,7 +1,8 @@
 `Core\Config::set` writes into the request's own copy-on-write overlay over the published snapshot,
 and the overlay is discarded when the request ends. `Core\Config::get` reads the effective value —
-the overlay, then the snapshot — and `Core\Config::restore` drops only what this request set,
-returning a directive to the file's value.
+the overlay, then the snapshot, then the built-in default — and `Core\Config::restore` drops only
+what this request set, returning a directive to the file's value or, where the file writes none, to
+its default.
 
 A widened limit is therefore never observable to another request and cannot outlive the one that
 set it, which is what makes widening a question about *this* request's share of the host rather

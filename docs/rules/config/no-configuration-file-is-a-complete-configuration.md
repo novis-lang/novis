@@ -16,18 +16,34 @@ that was handed no configuration at all takes neither default: it has no tree to
 after `[app.limits]` folded into it, or the default above — so a program narrows its own limit with
 `Core\Config::set` and raises it only once the operator writes a ceiling above the start
 (`rule:config/ceilings-are-their-own-directives`). Under `nvs run` an unwritten `cpu_time` has no
-start value, so nothing bounds a set of it either. The two numbers are constants in the config crate
-that the runtime, the `Core\Config::set` bound and the admission arithmetic all read.
+start value, so nothing bounds a set of it either.
+
+**Every built-in default has one home: the config crate's table of defaults.** Each key the shipped
+`nvs.toml` marks `# default` has its value there, and every piece of code that enforces the value
+reads it from there — the runtime, the `Core\Config::set` bound and the admission arithmetic among
+them. A test holds every `# default` line of the shipped file to the table, so the file and the code
+cannot disagree. A default that is not one value is computed when it is read: `cpu_time` by the kind
+of run, the mode table's rows by the mode in force, `[server] dispatch`, `static` and
+`[opcache] settle` by the mode the run started in, `[mode] ceiling` as that mode, and
+`[server] workers` as this machine's cores.
 
 - **Memory:** up to 128 MiB per request in flight where no `[limits] memory` is written, and that is
   the per-request cap admission divides by (`rule:http-server/admission-is-arithmetic-not-a-number`).
   It is spent to buy **Security and request isolation**: a host nobody configured can no longer be
   exhausted by one request.
 
-Every reader has to answer on such a host. `Core\Config::get` is `null`, `all` is empty, `set` is
-`false` and `restore` does nothing — none of them throws, because "no configuration file anywhere" is
-a valid host and a program has to be able to ask on one. That is every test context and every
-embedder that has not built a snapshot.
+Every reader has to answer on such a host, and none of them throws, because "no configuration file
+anywhere" is a valid host and a program has to be able to ask on one. **`Core\Config::get` and `all`
+give the value in force**: what the request set, then a secret, then what the file wrote, then the
+built-in default, rendered the way the shipped file writes it (`128M`, `30s`, `1000000`). A key with
+no default (`wall_time`) is `null`, and so is a key whose default is nothing for this run
+(`cpu_time` under `nvs run`). An unwritten `[log] target` is `null` too, because it is not one
+destination: a `Core\Log::write` record is the program's output and a floor record goes to stderr
+(`rule:errors/engine-floor`). A default inside a named block (`[db.<name>]`) is in force only where
+that block is written. `set` and `restore` behave as on any host: `set` is bounded as above, and
+`restore` brings back the written value or the default. A context that was handed no configuration
+at all — a test context, an embedder that has not built a snapshot — has no tree and no defaults:
+`get` is `null`, `all` is empty, `set` is `false` and `restore` does nothing.
 
 The one distinction the shipped defaults keep is between *no tree* and *a tree that grants nothing*:
 a program checked outside any project root has no configuration to be measured against, while a tree

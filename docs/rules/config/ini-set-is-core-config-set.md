@@ -16,6 +16,7 @@ copy-on-write overlay, invisible to the next request on the same core. A bare li
 Values cross this API as `string` in both directions even where the file is typed, because the
 directive *name* is dynamic here and one return type is what makes that possible. The registry parses
 the string with the parser the boot path uses
-(`rule:config/one-parser-for-the-boot-path-and-config-set`). On a host with no configuration at all
-`get` is `null`, `all` is empty, `set` is `false` and nothing throws
-(`rule:config/no-configuration-file-is-a-complete-configuration`).
+(`rule:config/one-parser-for-the-boot-path-and-config-set`). `get` and `all` give the value in force,
+built-in defaults included, and on a host with no configuration file they give the defaults; a
+context handed no configuration at all has `get` `null`, `all` empty, `set` `false`, and nothing
+throws (`rule:config/no-configuration-file-is-a-complete-configuration`).

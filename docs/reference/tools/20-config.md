@@ -536,15 +536,19 @@ replacements for `ini_get`, `ini_set`, `ini_restore` and `ini_get_all`.
 - A name is the dotted path the file writes: `limits.hard.memory`, `log.level`, `mode.default`. A
   **bare limit name** — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` — is the
   `[limits]` entry.
-- `get` answers the value as text, spelled the way the file spelled it, or `null` for a name
-  nothing set and for a name that holds a table or a list (a capability grant, an `[[app]]` block).
+- `get` returns the value in force as text. A value the file writes is spelled the way the file
+  spelled it. A key the file does not write gives its built-in default, spelled the way the shipped
+  `nvs.toml` shows it: `128M`, `30s`. `get` returns `null` for a key with no default, such as
+  `wall_time`, for an unwritten `[log] target`, and for a name that holds a table or a list (a
+  capability grant, an `[[app]]` block).
 - `set` writes an overlay **for this request only**. It is gone when the request ends and is
   invisible to every other request, including a script this one spawns. It returns `false` and
   changes nothing — it never throws — for a `System` directive (only the file may set it), a name no
   directive governs, a value that does not parse in the name's unit, and a value above the
   `[limits.hard]` ceiling. Every directive's class is in the table below.
-- `restore` drops the overlay for one name; `all` answers every value in force, keyed by dotted
-  name in name order, with the overlay folded over the file.
+- `restore` removes the overlay for one name, so the file's value or the default is in force again.
+  `all` returns every value in force, keyed by dotted name in name order. That is the built-in
+  defaults, then the file, then the overlay. The example below prints three of them.
 
 ```toml file=nvs.toml
 [limits]
@@ -567,7 +571,9 @@ echo "unknown: ", Config::set("no.such.key", "1") ? "ok" : "refused", "\n";
 Config::set("log.level", "debug");
 
 foreach (Config::all() as string $name => string $value) {
-    echo $name, " = ", $value, "\n";
+    if ($name == "limits.memory" || $name == "log.level" || $name == "session.ttl") {
+        echo $name, " = ", $value, "\n";
+    }
 }
 
 Config::restore("memory");
@@ -578,9 +584,9 @@ echo "restored: ", Config::get("memory"), "\n";
 1G: refused
 file_cache_dir: refused
 unknown: refused
-limits.hard.memory = 256M
 limits.memory = 256M
 log.level = debug
+session.ttl = 2h
 restored: 128M
 ```
 
