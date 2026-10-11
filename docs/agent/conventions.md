@@ -24,7 +24,7 @@ unless the content is genuinely a list.
 ```
 
 `type` is `feat`, `fix`, `docs`, `refactor`, `perf` or `test`. `scope` is the subsystem, not the crate
-path — `lang`, `types`, `ir`, `runtime`, `stdlib`, `codegen`, `syntax`, `test`, `adr`, `loop`, `agent`,
+path — `lang`, `types`, `ir`, `runtime`, `stdlib`, `codegen`, `syntax`, `test`, `loop`, `agent`,
 `abi-probe`. The subject is one line, lower case after the colon, no trailing period, and it reads as a
 statement of what is now true rather than an instruction. Two clauses joined by `, and ` is the house
 style when a commit does two things; one clause is fine when it does one.
@@ -361,10 +361,10 @@ repository, `bun nv rules --check` reports one that resolves to nothing, and the
 chapters linkify it on the way out. A rule id is its fragment's path — `types/conversion` is
 `docs/rules/types/conversion.md` — so the token also says where the prose is.
 
-**A decision record is never cited.** The records under `docs/decisions/` are being merged into the rules
-and deleted, so a line that needs a record's reasoning cites the rule the reasoning moved to, or states
-the reason in place. `bun nv records --check` fails on a citation of a record that is no longer on disk,
-and `bun nv brief --where <keyword>` routes a topic to the rule that owns it.
+**A reason is cited by the rule that holds it.** There are no decision records, so a line that needs a
+reason cites the rule or states the reason in place, and `bun nv brief --where <keyword>` routes a topic
+to the rule that owns it. A new decision becomes a goal or goes into the plan, and when it lands, what
+it decided, why, what it spends and what it declined go into its rule fragment.
 
 **A link to another document depends on whether a renderer resolves it, and there are exactly two
 forms.**
@@ -375,7 +375,7 @@ forms.**
 | a `.rs`, `.nvs` or `.nvst` file | absolute from the repository root — `](/docs/plan/m8.md)` | nothing renders it, so the readers are people, agents and `grep` |
 
 A source file's link had a `../` prefix until it was measured: 465 of 1,640 were dead — 442 with the
-wrong number of `../`, 23 naming a filename the record no longer had. A prefix encodes the **citing**
+wrong number of `../`, 23 naming a filename the target no longer had. A prefix encodes the **citing**
 file's depth, so every split, rename and new directory level silently invalidated every link in the
 half that moved, and nothing looked. The root-absolute form has one spelling per target and survives
 the move, which is the whole reason it is worth two rules instead of one.
@@ -405,7 +405,6 @@ The record, `data/rules/core-classes/schema-plan.json`:
 {
   "title": "Every plan step carries a grade and its complete SQL, and an unknown grade grades up",
   "status": "shipped",
-  "because": [],
   "seeAlso": ["core-classes/schema-converges"],
   "guardedBy": ["tests/conformance/core/db-schema-plans-every-difference.nvst"]
 }
@@ -414,14 +413,10 @@ The record, `data/rules/core-classes/schema-plan.json`:
 - **The id is the path.** `core-classes/schema-plan` is `docs/rules/core-classes/schema-plan.md`, and
   the citation token everywhere is `rule:core-classes/schema-plan`. The topic half namespaces it, so two
   topics cannot collide, and `bun nv peek rule:core-classes/schema-plan` reads it.
-- **The `title` is the rule as one statement of what is now true** — the same voice as a record's H1 and a
-  commit subject, and the line `ground-rules.md` prints. Not a topic ("Plan grades"), not an instruction.
+- **The `title` is the rule as one statement of what is now true** — the same voice as a commit subject, and the line `ground-rules.md` prints. Not a topic ("Plan grades"), not an instruction.
 - **`status` is `shipped` or `designed`**, and `designed` is the honest answer for a rule the tree does
   not hold yet. `docs/novis.md` filters to `shipped` so every line in it runs; the rulebook carries both,
   and the pack marks a designed rule where it prints one.
-- **`because` is the decision records on disk not yet merged into this rule**, and it may be empty.
-  A record's number leaves every `because` when the record is merged, and a new rule writes `[]`.
-  `bun nv rules --check` refuses a `because` that names a record not on disk.
 - **`guardedBy` is what holds the rule** — a test path, not a description. It is how a reader gets from
   the rule to the thing that fails when it is broken, and the pack samples it rather than printing it all.
 
@@ -432,7 +427,7 @@ paragraph where one is enough, four where the rule has a table of cases in it.
 
 **A rule keeps its own reasons.** After the statement of what is true, the fragment says why it holds,
 in the same present-tense voice: the bound it sets, the attack it closes, the cost it avoids. It never
-says where a reason came from: no record number, no report, no date, no "the rule used to say". A
+says where a reason came from: no report, no date, no "the rule used to say". A
 reason the code or a test contradicts is not written; a still-wanted change becomes a gap under
 `data/gaps/`. Why a crate is built the way it is goes into the crate's module doc instead.
 
@@ -491,26 +486,6 @@ same principle repeats one level down:
 
 Nothing checks this, because no tool can read whether one rule explains another. It is the reason a
 reorder is cheap: moving an entry changes no content, and `--render` rewrites the chapters from it.
-
-## A decision record
-
-**No decision record is written.** A new decision becomes a goal right away, or it goes into the plan.
-When it lands, what is now true, why, what it spends and what it declined go into its rule fragment, in
-the shape § *A rule fragment* gives. A decision about how a crate is built goes into the crate's module
-doc. `git log` keeps the history.
-
-**Merging a record that is still on disk.** `bun nv records --left <from>-<to>` lists the records in a
-range with the rules whose `because` names each one. For one record:
-
-1. Read it once, beside the fragment of every rule that names it.
-2. Write into those fragments what is still true and not there yet: reasons, the memory cost, bounds,
-   and every declined alternative. Drop the story, the dates, the scope and dependency lines, the
-   option numbering, and any claim the code or a test contradicts.
-3. Move the test paths from its *Validated by* and *Verification* into the rules' `guardedBy`.
-4. Rewrite every citation of it outside `docs/decisions/`, and unlink each link to it in the records
-   left. `git grep -n -E 'ADR NNNN|decisions/NNNN|NNNN §'` finds them.
-5. Remove its number from each `because`, delete it, and run `bun nv rules --render` and
-   `bun nv records --check`.
 
 ## A diagnostic
 

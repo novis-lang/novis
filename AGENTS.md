@@ -32,15 +32,16 @@ Those three route to everything else. The five files behind them, none of which 
 - **[docs/agent/doc-style.md](docs/agent/doc-style.md)** — how to write anything in `docs/`, and the length
   targets nothing enforces.
 - **[docs/agent/conventions.md](docs/agent/conventions.md)** — the *shape* of a commit message, a `.nvst`
-  case, a `Core` member, a decision record, a diagnostic. Read this instead of opening an example to
+  case, a `Core` member, a rule fragment, a diagnostic. Read this instead of opening an example to
   copy.
 - **[docs/agent/grounding.md](docs/agent/grounding.md)** — what an answer owes the person who asked for
   it: how a claim carries its evidence, and why a proposal is verified before it is offered rather than
   when it is questioned.
 
-**A rule's fragment under `docs/rules/` is the rule, and it is always currently true.** A record under
-`docs/decisions/` is frozen rationale, reached through a rule's `because`, and is never edited to track a
-later decision. If a fragment and a record disagree, the fragment is the rule and the record is history.
+**A rule's fragment under `docs/rules/` is the rule, and it is always currently true.**
+There are no decision records. A rule holds its reasons and its Declined list, and a new decision becomes
+a goal or goes into the plan. `git log` is the only history, and `bun nv rules --check` fails on a record
+or a citation of one.
 
 ## The priority ordering
 
@@ -60,7 +61,7 @@ When choosing between designs:
 - Prefer the safer, faster or simpler one even when it holds more memory. Novis is **not** a low-footprint
   runtime; "allocates less" is not on its own a reason to change anything.
 - If a change spends memory, **say what it spends** — per request or per task — in the doc comment or
-  decision record that records it.
+  rule fragment that records it.
 - Memory must stay attributable to a request and under an enforceable cap, and must be O(in-flight) rather
   than O(requests served). Growth with total traffic is a leak, not a trade-off.
 - Bytes *moved* are not cheap. An allocation or extra cache miss on a hot path is a latency question,
@@ -128,7 +129,7 @@ which are whole where they stand.
    forced form: one of them refusing means work would be lost, and that is a question for the user.
 11. **Nothing a reporter told you is written into the tree under its own name.** A bug report, a pasted
    configuration or a log names somebody's modules, namespaces, directories, hosts, URLs and counts, and
-   all of it is theirs: the test, the decision record, the rule, the example, the comment and the commit
+   all of it is theirs: the test, the rule, the example, the comment and the commit
    message that come out of the report use neutral names instead — `Blog`, `Shop`, `Framework`,
    `example.com` — and say "many" where the report gave a figure. Reproduce the *shape* of what was
    reported, never its words: this repository is public, and a name copied from a report publishes a
@@ -152,7 +153,7 @@ website, every `about.md`, every `Core` reference card (`rule:core-api/reference
 in a `.nvs` file the website publishes — under `docs/examples/`, `tests/hostile/`, `benches/members/`
 and `website/snippets/` — the help text `nvs` prints for a command or a flag, and the message of every
 diagnostic. Help text and diagnostics are held to it when they are written or changed. The docs only
-agents read stay out of it: the rules, the decision records, the goals, the files under `docs/agent/`
+agents read stay out of it: the rules, the goals, the files under `docs/agent/`
 and this file. Everything it covers is read by somebody who looked a feature up and has never seen this
 repository. **A beginner and an expert should both read it once and come away with the same picture.**
 
@@ -201,7 +202,7 @@ language, and the text has to work for them on the first read.
   migration guide. "now that casts are gone" is history and tells them nothing they can use. The
   comparison page under *In depth* is the one exception: it names PHP, Bun and Go wherever its tables
   and results need them.
-- **No internals and no history.** No ADR numbers, no rule ids, no crate or Rust names, no
+- **No internals and no history.** No rule ids, no crate or Rust names, no
   milestone, nothing about how the behaviour came to be.
 - **Keep it short.** Up to four lines at the top of the file, one or two lines above a step. A
   configuration example may also show the block it is about. What does not fit belongs in
@@ -332,7 +333,7 @@ Step 5 above, in detail:
   memory, usability and simplicity for developers using the language. If there are large tradeoffs, notify
   the user and ask for agreement before proceeding. If there are only benefits, go ahead.
 - **The plan** is [docs/implementation-plan.md](docs/implementation-plan.md), an index whose status block
-  has a fixed field set — `Status`, `Done`, `On disk`, `Toolchain`, `ADR slices landed`, `Open now`,
+  has a fixed field set — `Status`, `Done`, `On disk`, `Toolchain`, `Open now`,
   `Blocking` — plus one file per milestone under [docs/plan/](docs/plan/) and the frozen design in
   [docs/plan/design.md](docs/plan/design.md). Overwrite a field in place; never append a paragraph or add
   a field. Known-gap detail belongs in the crate's module doc. `bun nv plan --show M8` prints a milestone,

@@ -243,14 +243,14 @@ rule, and [docs/ground-rules.md](docs/ground-rules.md) lists every rule.
 ### Making a change
 
 - [docs/agent/conventions.md](docs/agent/conventions.md) is the *shape* of what you are about to
-  write — a commit message, a `.nvst` case, a `Core` member, a decision record, a diagnostic code. Read it instead of
+  write — a commit message, a `.nvst` case, a `Core` member, a rule fragment, a diagnostic code. Read it instead of
   opening an example to copy.
 - [docs/agent/playbook.md](docs/agent/playbook.md) is the trap list: the things that look like they should
   work and do not. Add a bullet when one costs you time.
 - Keep each change small and commit it on its own, so `git log` reads a slice at a time.
-- A decision that would be expensive to reverse earns a record under `docs/decisions/`, written by hand to
-  the shape [docs/agent/conventions.md](docs/agent/conventions.md) § *A decision record* gives, and the rule
-  it changes under `docs/rules/` is edited in the same slice.
+- There are no decision records. A new decision becomes a goal or goes into the plan, and the rule it
+  changes under `docs/rules/` takes its reasons and its Declined list in the same slice, in the shape
+  [docs/agent/conventions.md](docs/agent/conventions.md) § *A rule fragment* gives.
 - Every added, changed or removed feature owes a statement of its tradeoffs in performance, memory,
   usability and simplicity. Where they are large, raise them before building.
 
