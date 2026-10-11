@@ -233,6 +233,10 @@ impl<T: Send + 'static> Worker<T> {
                 // seam is per thread, for the reason
                 // `nvs_runtime::capability::install_resolver` gives.
                 nvs_runtime::capability::install_resolver(resolve_off_core);
+                // This core's share of what the process holds, which admission
+                // sums across every core (`nvs_runtime::budget::held_by_cores`).
+                // Held for the thread's whole run and given back as it ends.
+                let _gauge = nvs_runtime::budget::CoreGauge::claim();
                 // Built here, on this thread, which is the whole reason
                 // `Scheduler` never has to be `Send`.
                 let mut sched = Scheduler::new();

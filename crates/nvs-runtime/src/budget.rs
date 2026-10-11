@@ -185,10 +185,20 @@
 //! already makes, plus one relaxed load per reading taken on its root core and
 //! one read-modify-write per poll taken by a member off it. Nothing on the
 //! allocation path reads or writes them.
+//!
+//! The per-core gauge admission reads is `gauge`'s, and its module doc says
+//! what it spends: one compare per balance change on the allocation path, and
+//! a relaxed store once the balance has moved a mebibyte.
 
 #[cfg(not(test))]
 use std::alloc::{GlobalAlloc, Layout};
 use std::cell::Cell;
+
+mod gauge;
+
+pub use gauge::{
+    CoreGauge, STEP as GAUGE_STEP, held_by_cores, process_limit, publish_held, set_process_limit,
+};
 
 /// What [`Accounting`] forwards to: Novis's own pooled allocator wherever it is
 /// registered, and the platform heap everywhere else.
@@ -413,8 +423,9 @@ pub(crate) struct Armed {
 
 impl Armed {
     /// Nothing armed: no threshold, and no word to publish a crossing into —
-    /// what a request under no ceiling arms, and the state a thread running no
-    /// request is left in.
+    /// the state a thread running no request is left in. A request under no
+    /// ceiling arms a threshold of `0` with its word, so the server's memory
+    /// running out can still stop it (`gauge`'s module doc).
     pub(crate) const NONE: Self = Self {
         ceiling: 0,
         word: std::ptr::null(),
@@ -509,26 +520,42 @@ fn publish() {
 fn refuse(asked: isize, live: isize) {
     REFUSED.with(|refused| {
         if refused.get().is_none() {
-            refused.set(Some(Refusal { asked, live }));
+            refused.set(Some(Refusal {
+                asked,
+                live,
+                full: false,
+            }));
         }
     });
     publish();
 }
 
-/// An allocation [`affords`] refused: what was asked for, and the thread's
-/// [`live_bytes`] balance at that moment.
+/// Why the running request was stopped by the allocator: an allocation
+/// [`affords`] refused, or the server's memory running out while it grew. It
+/// carries what was asked for and the thread's [`live_bytes`] balance at that
+/// moment.
 ///
 /// Kept because the poll that reports the breach comes after the refusal, and
 /// by then the reading has moved — an operation refused half way, such as a
 /// concatenation, has already given back the operand it was growing. The
-/// `FATAL` names these two numbers instead, which is what tells an operator
+/// `FATAL` names these numbers instead, which is what tells an operator
 /// how close the program was to fitting.
+///
+/// The server's memory running out is kept here rather than in a cell of its
+/// own because it travels exactly as a refusal does: a context takes the
+/// thread's verdict as it starts, gives it back as it ends, and a limit handler
+/// runs without it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Refusal {
-    /// The bytes the refused allocation asked for, saturated at `isize::MAX`.
+    /// The bytes the refused allocation asked for, saturated at `isize::MAX`,
+    /// and `0` where `full` is set.
     pub(crate) asked: isize,
     /// The thread's absolute balance when it asked.
     pub(crate) live: isize,
+    /// Whether what ran out was the server's memory and not the request's own
+    /// ceiling: a publish took the sum of every core's balance past
+    /// [`set_process_limit`]'s limit while this request was growing.
+    pub(crate) full: bool,
 }
 
 /// Whether the running request has been refused an allocation.
@@ -539,6 +566,12 @@ pub(crate) struct Refusal {
 /// that ends and the handler that is lent a slice to report with.
 pub(crate) fn refused() -> bool {
     REFUSED.with(Cell::get).is_some()
+}
+
+/// Whether the running request was stopped because the server's memory is
+/// full — the verdict [`Refusal::full`] names. Sticky as [`refused`] is.
+pub(crate) fn server_full() -> bool {
+    REFUSED.with(Cell::get).is_some_and(|refusal| refusal.full)
 }
 
 /// The first allocation the running request was refused, or `None` while it
@@ -827,7 +860,14 @@ pub(crate) fn add(bytes: isize) {
 /// `nvs_host::blocking::run` is the caller.
 pub fn carry(bytes: isize) {
     if DETACHING.with(Cell::get) {
-        DETACHED.with(|held| held.set(held.get().wrapping_add(bytes)));
+        let held = DETACHED.with(|held| {
+            let now = held.get().wrapping_add(bytes);
+            held.set(now);
+            now
+        });
+        if gauge::far_from(held, &gauge::DETACHED_MARK) {
+            gauge::report(bytes > 0);
+        }
         return;
     }
     let live = LIVE.with(|live| {
@@ -835,6 +875,12 @@ pub fn carry(bytes: isize) {
         live.set(now);
         now
     });
+    // The core's published balance, which admission sums across cores
+    // (`gauge`'s module doc). One compare here, and a publish only once the
+    // balance has moved a whole step.
+    if gauge::far_from(live, &gauge::LIVE_MARK) {
+        gauge::report(bytes > 0);
+    }
     if bytes > 0 {
         PEAK.with(|peak| {
             if live > peak.get() {

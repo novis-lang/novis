@@ -430,8 +430,8 @@ where
     // runs past the ceiling.
     //
     // What it costs an uncapped request — every context with no configuration,
-    // which is every test's — is one compare against a zero field: see
-    // [`Ctx::over_memory_limit`].
+    // which is every test's — is one compare against a zero field and one
+    // thread-local load: see [`Ctx::over_memory_limit`].
     #[expect(
         unsafe_code,
         reason = "the caller guarantees `ctx` is valid for this call; this \

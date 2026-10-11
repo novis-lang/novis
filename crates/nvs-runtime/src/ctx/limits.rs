@@ -236,12 +236,14 @@ impl Ctx {
     /// by the counter its own polls read, exactly as every request was before
     /// this existed.
     ///
-    /// A request under no ceiling arms nothing at all: [`crate::budget`]'s
-    /// sentinel is `0`, and short-circuiting on it is what keeps the uncapped
-    /// case to one compare per allocation.
+    /// A request under no ceiling arms the threshold `0`: [`crate::budget`]'s
+    /// sentinel, and short-circuiting on it is what keeps the uncapped case to
+    /// one compare per allocation. It still arms its word, because the server's
+    /// memory running out stops an uncapped request as well
+    /// (`crate::budget::held_by_cores`).
     pub(super) fn arm_memory_ceiling(&mut self) {
         crate::budget::arm(if self.memory_limit == 0 {
-            crate::budget::Armed::NONE
+            crate::budget::Armed::new(0, self.safepoint)
         } else {
             // Absolute, and saturating for the reason [`Self::memory_used`]
             // floors at zero: the threshold is a balance rather than a size, so
@@ -281,13 +283,16 @@ impl Ctx {
     /// [`crate::run_helper`] ahead of every `Core` member — report the refusal
     /// as the breach it is.
     ///
-    /// Both sit behind the ceiling's own compare, which is what keeps an
-    /// uncapped request to one: it can be refused nothing, because
-    /// [`crate::budget`] arms it no threshold to be refused against.
+    /// An uncapped request can be refused nothing, because [`crate::budget`]
+    /// arms it no threshold to be refused against. It asks one thing: whether
+    /// the server's memory ran out while it grew, which stops a capped request
+    /// too and is recorded as a refusal.
     #[must_use]
     pub fn over_memory_limit(&self) -> bool {
-        self.memory_limit != 0
-            && (crate::budget::refused() || self.memory_used() > self.memory_limit)
+        if self.memory_limit == 0 {
+            return crate::budget::server_full();
+        }
+        crate::budget::refused() || self.memory_used() > self.memory_limit
     }
 
     /// How many bytes this request has written to its response, in the sense
@@ -420,6 +425,15 @@ impl Ctx {
         self.publish_off_core();
         if !self.over_memory_limit() {
             return None;
+        }
+        // The server's memory ran out while this request grew: its own ceiling
+        // was not reached, so the message names neither the ceiling nor a
+        // refused size.
+        if let Some(refusal) = crate::budget::refusal().filter(|refusal| refusal.full) {
+            return Some(crate::Fault::fatal(format!(
+                "the server's memory is full, so the request was stopped while it held {} bytes",
+                self.memory_share(refusal.live),
+            )));
         }
         // The ceiling named is the request's **whole** budget, not the reduced
         // one it was measured against: `[limits] memory` is the number the
