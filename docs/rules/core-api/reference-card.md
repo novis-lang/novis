@@ -29,7 +29,8 @@ Extended prose — long descriptions, examples, tips — stays in the website's 
 moves into Rust.
 
 - **Memory:** per process, never per request: static strings in read-only data, on the order of a few
-  hundred bytes per documented member and a few tens per enum case or constant. That is the cheap side
+  hundred bytes per documented member and a few tens per enum case or constant, plus each compiler
+  attribute's card and each compiled-in intro page. That is the cheap side
   of the trade, and a build feature can strip it if a deployment ever cares.
 
 **Declined:**
@@ -42,6 +43,9 @@ moves into Rust.
   a registry row is a struct literal rather than an item, so a doc comment does not attach to it.
 - **A sidecar documentation file in the crate.** It is a second home beside the declaration, the same
   problem at a shorter distance.
+- **An `intro` field on every class literal.** Each literal would carry `None` or a hand-typed path
+  to its own page, a copy kept by hand. A lookup in a table the build generates from the pages
+  keeps the literals and the pages as they are.
 - **A class's card taken from its page under `docs/reference/core/`.** Not every class has a page, and a
   page is not data the runtime dispatches on. The card goes where the members' cards already are, and
   the page is shown beneath it.

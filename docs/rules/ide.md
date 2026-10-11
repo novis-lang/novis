@@ -3,7 +3,7 @@
 
 # The editor
 
-*49 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
+*48 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -389,7 +389,39 @@ way a `--FILE lib/user.nvs--` section's is. Real files rather than virtual docum
 location works unchanged in every client and a cursor inside a stub keeps every answer
 ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0214](../decisions/0214.md), [0281](../decisions/0281.md).</sub>
+A hover on a `Core` name shows the card the stub carries, through the one renderer a completion row
+uses too: a class, an enum, a case, a constant and a compiler attribute each show their own. A cursor
+on the class half of a member access shows the class, not the member. A cursor on a namespace segment
+in front of the type, `Core\Http` in `Core\Http\Method::Get`, shows what that namespace contains: the
+classes, enums, interfaces and attributes directly under it, and the namespaces below it. A namespace
+has no file to open, so a jump from a segment opens the type at the end of the path. Inside an
+attribute's payload a name resolves as it does in a body, so a case written there hovers and jumps the
+same way.
+
+Nothing here is on a request path. A hover is a registry lookup. The first jump of a process renders
+the whole tree and writes it at most once per version; every later jump is a map lookup and one
+stamp read. A stub is rendered from the registry's own prose, so a card that reads badly reads badly
+in its stub too, and is fixed in the card. Read-only holds on disk only: an editor may still let the
+reader type into a stub, a save then fails with the editor's own message, and the file is written over
+at the next stamp change either way.
+
+**Memory:** the rendered tree and its line table, a few hundred kilobytes of text, held for the
+server process's life after its first `Core` jump, and one copy on disk per server version.
+
+**Declined:**
+- **Virtual documents under a URI scheme of the server's.** Every client would have to learn the
+  scheme and register a content provider for it, and every request would need extra code for a cursor
+  inside such a document. Real files cost one directory.
+- **Parsing a stub to find a member's line.** It is a second reading of text the generator wrote a
+  moment before, and one parse per jump. The generator knows every line as it writes it.
+- **A `.lspt` stub location written as an absolute path.** An absolute path in a frozen expectation
+  is a path no other checkout has. Under the case's own directory it is written like every other
+  location in another file.
+- **Attribute payload values as nodes of the syntax walk.** The formatter and `Core\Ast` read that
+  walk, and a payload node under a method changes what both print. The server walks a payload itself
+  instead.
+
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="ide-the-request-set-is-closed"></a>
 
@@ -1142,7 +1174,7 @@ HTML outside `<?nvs`.
 
 <a id="ide-semantic-tokens-carry-the-qualifiers"></a>
 
-## Semantic tokens use LSP's standard types plus two modifiers of Novis's own, `tainted` and `secret`, and the client's legend must equal the server's  *(designed — not yet in the compiler)*
+## Semantic tokens use LSP's standard types plus two modifiers of Novis's own, `tainted` and `secret`, and the client's legend must equal the server's
 
 `rule:ide/semantic-tokens-carry-the-qualifiers`
 
@@ -1171,7 +1203,7 @@ proves it.
 - **The TextMate grammar alone, with semantic tokens left for later.** A regex grammar cannot produce the
   qualifier modifiers at any price, and they are the reason this layer exists.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0214](../decisions/0214.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration).</sub>
 
 <a id="ide-novis-ships-names-not-colours"></a>
 

@@ -1699,7 +1699,10 @@ impl CoreClass {
     /// Shown under the card's `short` by a class hover and at the head of the
     /// class's stub. It is prose in the repository's own voice, rendered as it
     /// is written: the page is the website's, and rewriting one is the page's
-    /// business rather than a renderer's.
+    /// business rather than a renderer's. It is a lookup in the table
+    /// `build.rs` generates rather than a field on every class literal, so no
+    /// class carries a hand-typed path to its own page, and a page is compiled
+    /// in the build after it is written.
     #[must_use]
     pub fn intro(&self) -> Option<&'static str> {
         intros::INTROS

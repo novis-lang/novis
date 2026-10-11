@@ -2,7 +2,6 @@
   "title": "A `Core` class, enum, interface or compiler attribute is declared in a generated stub file the server writes once per version, which is what a jump to a `Core` name opens, and which is read-only and never diagnosed",
   "status": "shipped",
   "because": [
-    "0214",
     "0281"
   ],
   "seeAlso": [
@@ -14,6 +13,10 @@
   "guardedBy": [
     "crates/nvs-lsp/src/stubs.rs",
     "tests/lsp/definition/a-core-method-answers-its-stub.lspt",
-    "tests/lsp/definition/a-compiler-attribute-answers-its-stub.lspt"
+    "tests/lsp/definition/a-compiler-attribute-answers-its-stub.lspt",
+    "tests/lsp/definition/an-import-of-a-core-type-answers-its-stub.lspt",
+    "tests/lsp/hover/a-namespace-segment-answers-what-it-contains.lspt",
+    "tests/lsp/hover/an-attribute-name-answers-the-attributes-card.lspt",
+    "editors/vscode/test/client/stubs.test.ts"
   ]
 }
