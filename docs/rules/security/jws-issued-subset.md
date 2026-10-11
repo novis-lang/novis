@@ -22,8 +22,10 @@ anything, the key having already decided the algorithm. The token is length-capp
 
 **The clock and the claims are reached only under a signature that held.** `exp` is required and `nbf` is
 checked when present, both under a `leeway` that is `60s` by default and a `LogicError` when negative or
-above `5m`. `iss` equals the issuer asked for; `aud` is the audience asked for or a list holding it, and
-a list of more than one requires `azp` equal to that audience. A `nonce` asked for is compared in
+above `5m`, because a leeway large enough to matter is an expiry policy the caller did not mean to
+write. `iss` equals the issuer asked for; `aud` is the audience asked for or a list holding it, and
+a list of more than one requires `azp` equal to that audience, which is OpenID Connect's own rule and
+stops a token minted for another client being replayed at this one. A `nonce` asked for is compared in
 constant time and an absent one is refused; `typ` is compared case-insensitively with any `application/`
 prefix removed; `maxAge` requires an `auth_time` no older than `maxAge + leeway`.
 
@@ -48,4 +50,22 @@ are a flow and therefore a package, not `Core` (`rule:security/protocol-admissio
 
 **Structured claims are signed only under a key pair**, by a member whose key parameter is a
 `Crypto\KeyPair` alone, so a token this program signs under a shared key still carries only what
-`Jwt::verify` reads back.
+`Jwt::verify` reads back. `signObject` is a second member rather than a union arm on `sign` because a
+shape may not be a union member and the only union that admits both a shape and an object also admits
+an `int`. The split keeps `sign`'s `array<string>` claims typed, and it makes structured claims under a
+shared key a type mismatch the compiler reports rather than a runtime `LogicError`. Both members write
+their header canonically, sorted with no whitespace, so an RS256 or EdDSA token is reproducible byte for
+byte and the frozen vector set can hold it. `embedKey` writes the pair's public half as RFC 7638's JWK
+under `jwk`, which is what a DPoP proof carries.
+
+- **Memory:** a `Jwt\KeySet` holds at most 16 public keys for as long as the program holds it, and a
+  verification costs at most one signature check. Nothing is held between calls.
+
+**Declined:**
+- **Trying every key in a `Jwt\KeySet`.** It would let a token with no `kid` verify against a large set,
+  and it makes verification cost linear in a number the token's sender influences. A single-key set for
+  a token with no `kid` gives the same guarantee without the loop.
+- **The JWS JSON serialization, and a detached or unencoded payload.** `b64` is refused in a header for
+  that reason, and compact serialization is the one form read.
+- **JWE-encrypted ID tokens.** They are rare and opt-in at every provider, and they need RSA-OAEP
+  (`rule:core-classes/crypto-interop-tier`).

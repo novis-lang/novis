@@ -724,7 +724,7 @@ chacha20poly1305 = { version = "0.11", default-features = false, features = [
     "alloc",
 ] }
 
-# --- the interoperable half of `Core\Crypto` (ADR 0179's roster) ---
+# --- the interoperable half of `Core\Crypto` (`rule:core-classes/crypto-interop-tier`'s roster) ---
 # Every crate here is in this tree because the other end is a browser or a token
 # issuer, not because Novis needs a second way to do what `chacha20poly1305`
 # above already does better. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" for all of
@@ -745,9 +745,10 @@ chacha20poly1305 = { version = "0.11", default-features = false, features = [
 # never a member: PBES2 wraps a content key with it and nothing else does.
 # `p256` is the one curve every WebCrypto implementation ships, and it is here
 # for agreement and for key validation and encoding — **its curve arithmetic has
-# never been independently audited**, which its own README states and ADR 0179
-# § 8 accepts, because the alternative is not a better implementation but no
-# P-256 at all, and the crate is written constant-time. `x25519-dalek` is the
+# never been independently audited**, which its own README states and this tree
+# accepts, because the alternative is not a better implementation but no P-256
+# at all (the C libraries are refused), and the crate is written constant-time.
+# An independent audit of it, or of another Rust P-256, reopens this choice. `x25519-dalek` is the
 # agreement half of the curve `ed25519-dalek` already signs on in this tree's
 # lock file, so it shares that crate's `curve25519-dalek` and adds nothing else.
 # `hkdf` and `pbkdf2` are generic over the digest family's 0.11 line, which is
@@ -778,7 +779,7 @@ hkdf = { version = "0.13", default-features = false }
 pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
 sha2-v11 = { package = "sha2", version = "0.11", default-features = false }
 
-# --- JWS's signature algorithms (ADR 0179 § 8) ---
+# --- JWS's signature algorithms (`rule:core-classes/crypto-interop-tier`) ---
 # This row adds no crate: `ring` is already linked as the `rustls` provider
 # above, and this is `nvs-stdlib` reaching it directly for RSASSA-PKCS1-v1_5,
 # RSASSA-PSS, ECDSA over P-256 and Ed25519 — the four algorithms a JWS verifier

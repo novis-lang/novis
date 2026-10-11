@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Jwe` speaks compact JWE with `A256GCM` alone, and the static that built the key picks the algorithm",
   "status": "shipped",
-  "because": [
-    "0179"
-  ],
+  "because": [],
   "seeAlso": [
     "security/algorithm-comes-from-the-key",
     "security/jws-issued-subset",

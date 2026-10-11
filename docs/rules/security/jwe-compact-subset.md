@@ -31,3 +31,14 @@ The payload is `string` in and **`tainted string`** out, as `Core\Signature::ver
 Every refusal is one `RuntimeError` with one sentence. Decrypt's key ring is tried in order, except that
 a ring holding a password key holds exactly one key, because every try costs a full derivation and an
 attacker choosing the ring's length is the iteration ceiling defeated one layer up.
+
+- **Memory:** per call, the token's bytes, one derived key and one output buffer charged to the
+  request's budget. A `Jwe\Key` holds its material for as long as the program holds it, and nothing is
+  held between calls.
+
+**Declined:**
+- **One union parameter for the key** (`secret bytes|Crypto\PublicKey|secret string`). A union carries
+  no classification for `tainted` arguments, so it would refuse every password, and it would leave the
+  algorithm to whichever arm the argument matched (above).
+- **RSA-OAEP and RSA1_5 key management, and the `A*CBC-HS*` content encryptions.**
+  `rule:core-classes/crypto-interop-tier` keeps RSA encryption and CBC off the roster.

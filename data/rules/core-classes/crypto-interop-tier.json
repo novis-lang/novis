@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Crypto`'s algorithm roster is closed, every algorithm argument is required, and the sealed layout is what a browser reads",
   "status": "shipped",
-  "because": [
-    "0179"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/tier-roster",
     "security/algorithm-comes-from-the-key",

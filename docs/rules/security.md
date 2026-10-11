@@ -2446,7 +2446,7 @@ stateless over the key it is handed.
   framework, and every entry is a permanent compatibility obligation
   ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
 
-<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0179](../decisions/0179.md).</sub>
+<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension).</sub>
 
 <a id="security-protocol-admission-test"></a>
 
@@ -2591,7 +2591,18 @@ Every refusal is one `RuntimeError` with one sentence. Decrypt's key ring is tri
 a ring holding a password key holds exactly one key, because every try costs a full derivation and an
 attacker choosing the ring's length is the iteration ceiling defeated one layer up.
 
-<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jws-issued-subset`](security.md#security-jws-issued-subset), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound). Decided in [0179](../decisions/0179.md).</sub>
+- **Memory:** per call, the token's bytes, one derived key and one output buffer charged to the
+  request's budget. A `Jwe\Key` holds its material for as long as the program holds it, and nothing is
+  held between calls.
+
+**Declined:**
+- **One union parameter for the key** (`secret bytes|Crypto\PublicKey|secret string`). A union carries
+  no classification for `tainted` arguments, so it would refuse every password, and it would leave the
+  algorithm to whichever arm the argument matched (above).
+- **RSA-OAEP and RSA1_5 key management, and the `A*CBC-HS*` content encryptions.**
+  [`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier) keeps RSA encryption and CBC off the roster.
+
+<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jws-issued-subset`](security.md#security-jws-issued-subset), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound).</sub>
 
 <a id="security-jws-issued-subset"></a>
 
@@ -2623,8 +2634,10 @@ anything, the key having already decided the algorithm. The token is length-capp
 
 **The clock and the claims are reached only under a signature that held.** `exp` is required and `nbf` is
 checked when present, both under a `leeway` that is `60s` by default and a `LogicError` when negative or
-above `5m`. `iss` equals the issuer asked for; `aud` is the audience asked for or a list holding it, and
-a list of more than one requires `azp` equal to that audience. A `nonce` asked for is compared in
+above `5m`, because a leeway large enough to matter is an expiry policy the caller did not mean to
+write. `iss` equals the issuer asked for; `aud` is the audience asked for or a list holding it, and
+a list of more than one requires `azp` equal to that audience, which is OpenID Connect's own rule and
+stops a token minted for another client being replayed at this one. A `nonce` asked for is compared in
 constant time and an absent one is refused; `typ` is compared case-insensitively with any `application/`
 prefix removed; `maxAge` requires an `auth_time` no older than `maxAge + leeway`.
 
@@ -2649,9 +2662,27 @@ are a flow and therefore a package, not `Core` ([`security/protocol-admission-te
 
 **Structured claims are signed only under a key pair**, by a member whose key parameter is a
 `Crypto\KeyPair` alone, so a token this program signs under a shared key still carries only what
-`Jwt::verify` reads back.
+`Jwt::verify` reads back. `signObject` is a second member rather than a union arm on `sign` because a
+shape may not be a union member and the only union that admits both a shape and an object also admits
+an `int`. The split keeps `sign`'s `array<string>` claims typed, and it makes structured claims under a
+shared key a type mismatch the compiler reports rather than a runtime `LogicError`. Both members write
+their header canonically, sorted with no whitespace, so an RS256 or EdDSA token is reproducible byte for
+byte and the frozen vector set can hold it. `embedKey` writes the pair's public half as RFC 7638's JWK
+under `jwk`, which is what a DPoP proof carries.
 
-<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/derived-codec-qualifiers`](security.md#security-derived-codec-qualifiers), [`security/jwe-compact-subset`](security.md#security-jwe-compact-subset). Decided in [0179](../decisions/0179.md).</sub>
+- **Memory:** a `Jwt\KeySet` holds at most 16 public keys for as long as the program holds it, and a
+  verification costs at most one signature check. Nothing is held between calls.
+
+**Declined:**
+- **Trying every key in a `Jwt\KeySet`.** It would let a token with no `kid` verify against a large set,
+  and it makes verification cost linear in a number the token's sender influences. A single-key set for
+  a token with no `kid` gives the same guarantee without the loop.
+- **The JWS JSON serialization, and a detached or unencoded payload.** `b64` is refused in a header for
+  that reason, and compact serialization is the one form read.
+- **JWE-encrypted ID tokens.** They are rare and opt-in at every provider, and they need RSA-OAEP
+  ([`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier)).
+
+<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/derived-codec-qualifiers`](security.md#security-derived-codec-qualifiers), [`security/jwe-compact-subset`](security.md#security-jwe-compact-subset).</sub>
 
 <a id="security-csrf-is-on-by-default"></a>
 

@@ -161,7 +161,7 @@ describe("nv audit python", () => {
     const paths = [
       "AGENTS.md",
       "CHANGELOG.md",
-      "docs/decisions/0179.md",
+      "docs/decisions/README.md",
       "docs/goals/webcrypto.md",
       "docs/goals/tooling-overhaul.md",
       "docs/goals/restart-free.md",
