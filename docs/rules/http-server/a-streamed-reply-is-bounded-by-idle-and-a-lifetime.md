@@ -20,3 +20,16 @@ Every piece a reader yields is `tainted`, a line and one event's accumulated `da
 length-capped as a constant rather than a directive, and **a stream is retried only before its head**:
 after the first byte of body a failure ends the stream, because the caller has already seen a prefix of
 one answer and re-requesting would hand it the prefix of another.
+
+`idle` ships at `30s`, longer than any server-sent-events heartbeat in common use and short enough that a
+dead server is noticed inside one request's patience. `max_duration` ships at `5m` to bound a stream the
+program did not bound itself; a long-lived consumer names its own `maxDuration`. Both are `Runtime` class
+for `deadline`'s reason: each bounds one call, and a change made by a request ends with it.
+
+- **Memory:** a streamed reply holds one chunk, plus at most one line or one event's `data` under its
+  cap, and for a compressed reply its decoder's window. All of it is charged to the request and freed
+  with the stream.
+
+**Declined:**
+- **A `Response` whose `text()` throws until the body is read some other way.** A class whose members
+  throw depending on how it was obtained is the worse surface, so a streamed reply is a class of its own.

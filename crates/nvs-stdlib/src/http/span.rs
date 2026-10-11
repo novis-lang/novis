@@ -1,4 +1,4 @@
-//! [ADR 0180 § 15](/docs/decisions/0180.md)'s `http` trace event: the facts one
+//! `rule:observability/trace-events-carry-a-kind`'s `http` trace event: the facts one
 //! outbound call contributes to a trace, and why a header value is not one of
 //! them.
 //!

@@ -79,7 +79,7 @@ pub fn require(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Result<()
 /// `RuntimeError`: the operator said no to something the program set out to do, and a program that
 /// degrades instead is a reasonable program. A grant that unlocks a **relaxation** —
 /// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s four — is a `LogicError`, which
-/// is where [ADR 0180 § *Diagnostics*](/docs/decisions/0180.md) files it: the program asked
+/// is the class for a program's own mistake: the program asked
 /// for its own guarantee to be weakened at a host nobody said it could be, and that is a mistake in
 /// the program rather than a verdict on the world.
 ///

@@ -5380,7 +5380,7 @@ pub(crate) mod tests {
     /// `verified` is the member the reporting slot exists for: a pinned call and
     /// a `tlsVerify: false` one both answer `false`, while `tlsCa` — which
     /// replaces the trust set and then checks the chain and the name against it —
-    /// still answers `true` (ADR 0180 § 13).
+    /// still answers `true` (`rule:http-server/a-reply-reports-its-tls-session`).
     ///
     /// All three against an origin no configured root vouches for, so every
     /// relaxation here is load-bearing: the same call under the default policy is

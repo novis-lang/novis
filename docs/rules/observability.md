@@ -379,7 +379,7 @@ at once, and a kind is added only for a routine whose cost the existing ones can
 - **An allocation or heap-snapshot timeline.** No probe records an allocation, and adding one is a
   larger design than a further kind on this stream.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event).</sub>
 
 <a id="observability-a-query-is-a-trace-event"></a>
 

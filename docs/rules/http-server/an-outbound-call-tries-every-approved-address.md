@@ -19,3 +19,17 @@ bound. Every address failing is one `IOError` naming each, because an error nami
 sends the reader to the wrong host. The lookup itself runs on the blocking pool per
 `rule:http-server/a-core-is-never-blocked-on-a-syscall`, with the grant asked on the core before it and
 the address check back on the core after it.
+
+The attempt delay is `250ms`, RFC 8305's own recommendation, and a constant rather than a directive
+because it trades against nothing an operator can see. Shorter spends a second socket on a set whose
+first address was about to answer; longer leaves a call waiting on an unreachable address for most of
+its budget.
+
+- **Memory:** a `Target` holds at most eight addresses, charged to the request that laundered it. A call
+  falling back holds at most one socket per address until one connects, and a lookup holds one job on
+  the blocking pool under that pool's own bound.
+
+**Declined:**
+- **Keeping one pinned address and letting the connect fail.** One address is a single point of failure
+  for a name that answers several, and it gains no security: the security is in checking every address,
+  not in discarding all but one.

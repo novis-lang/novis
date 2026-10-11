@@ -1,9 +1,7 @@
 {
   "title": "Every address a name resolves to is checked, one denied refuses the host, and the call falls back across the approved set without ever resolving twice",
   "status": "shipped",
-  "because": [
-    "0180"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/allow-url-pins-the-address",
     "security/net-address-policy",

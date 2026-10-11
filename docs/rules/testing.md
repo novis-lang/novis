@@ -462,7 +462,7 @@ everything below the table — the pool, the framing, a content coding, a redire
 is proved against a loopback origin instead. A described session is what a handshake *reports*, not a
 handshake: nothing verifies its chain and no anchor trusts its CA.
 
-<sub>See also [`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/doubles`](testing.md#testing-doubles), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address). Decided in [0180](../decisions/0180.md), [0217](../decisions/0217.md).</sub>
+<sub>See also [`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/doubles`](testing.md#testing-doubles), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address). Decided in [0217](../decisions/0217.md).</sub>
 
 <a id="testing-an-outbound-socket-is-answered-by-a-scripted-peer"></a>
 

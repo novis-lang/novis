@@ -818,7 +818,7 @@ pub(crate) fn compress_to(codec: Codec, data: &[u8]) -> Result<Vec<u8>, Fault> {
 /// hundred megabytes — which is what the backend allows by default — and a
 /// frame that then decompresses to nothing never reaches [`Bound`] at all. 8
 /// MiB is the window every real encoder stays under at every level, and the
-/// number ADR 0180 fixes for what one decode may hold.
+/// ceiling RFC 9659 sets for the `zstd` content coding.
 const ZSTD_WINDOW: u64 = 8 << 20;
 
 /// `data` decompressed under `codec`, refusing rather than truncating at

@@ -2352,7 +2352,7 @@ are not the bytes on the socket.
 - **A second `rustls` session inside the database crate for TDS.** Two answers to the trust-anchor
   question, one of which nobody would remember to update.
 
-<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary).</sub>
 
 <a id="security-tls-trust-is-relaxed-only-under-a-host-grant"></a>
 
@@ -2386,10 +2386,11 @@ a caller still cannot hand in a session — it hands in a policy value the modul
 policy is part of the pool key
 ([`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned)), so a connection opened
 under `tlsVerify: false` never serves a call that verifies. `tlsMinVersion: "1.3"` needs no grant,
-because it can only tighten. And the boot prints every relaxed grant, every start, one line per grant and
+because it can only tighten, and a value under `[http.client.tls] min_version` throws a `LogicError`
+rather than being raised silently. And the boot prints every relaxed grant, every start, one line per grant and
 host: a weakening nobody is reminded of outlives the incident it was added for.
 
-<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/a-reply-reports-its-tls-session`](http-server.md#http-server-a-reply-reports-its-tls-session). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/a-reply-reports-its-tls-session`](http-server.md#http-server-a-reply-reports-its-tls-session).</sub>
 
 <a id="security-protocol-roster"></a>
 

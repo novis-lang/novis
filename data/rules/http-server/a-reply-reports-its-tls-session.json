@@ -2,7 +2,6 @@
   "title": "`Response::tls()` reports the session a reply arrived over — version, cipher, whether the peer was verified, and its chain — and is `null` when there was none",
   "status": "shipped",
   "because": [
-    "0180",
     "0217"
   ],
   "seeAlso": [

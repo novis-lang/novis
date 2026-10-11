@@ -263,7 +263,8 @@ impl<T: Read + Write> NvsTls<T> {
     /// `[capabilities.tls]` grant already allows for the host it is calling.
     ///
     /// A [`CallPolicy`] and never a session: what a caller may say is *which*
-    /// of ADR 0180 § 11's four relaxations it wants, and every verifier that
+    /// of `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s four
+    /// relaxations it wants, and every verifier that
     /// answers one is built here (`rule:security/one-tls-client`). A default
     /// policy asks for nothing, so this is also the plain door for a caller
     /// holding a policy it has not looked at — that call gets the process's own
@@ -335,7 +336,8 @@ impl<T: Read + Write> NvsTls<T> {
 /// with a session that has since served somebody else's request.
 ///
 /// The chain is **DER**, leaf first, because that is what `rustls` hands over.
-/// Which encoding a program reads it in — PEM, per ADR 0180 § 13 — is
+/// Which encoding a program reads it in — PEM, per
+/// `rule:http-server/a-reply-reports-its-tls-session` — is
 /// `Core\Http\TlsInfo`'s question, and what the leaf's fields say is [`leaf`]'s,
 /// beside this type rather than on it: what the handshake settled is a snapshot
 /// taken at the framing, and what one certificate inside it says is a reading
@@ -417,9 +419,10 @@ fn named_suite(suite: CipherSuite) -> String {
 /// Read in this crate rather than in the standard library because the parser is
 /// already here — [`spki_sha256`] walks the same DER for `tlsPin` — and a second
 /// crate linking an ASN.1 reader to answer three members is the copy that comes
-/// to disagree about what a certificate says. ADR 0180 § 13 is the record, and
-/// the alternative it rejects is handing a program PEM alone and expecting it to
-/// write an ASN.1 parser in Novis to learn when a certificate expires.
+/// to disagree about what a certificate says. The alternative,
+/// `rule:http-server/a-reply-reports-its-tls-session` says, is handing a program
+/// PEM alone and expecting it to write an ASN.1 parser in Novis to learn when a
+/// certificate expires.
 ///
 /// The two names are written as [`written`] writes one: `KEY=value` pairs in
 /// the certificate's order with each value escaped per RFC 4514 § 2.4, which is
@@ -1077,7 +1080,7 @@ pub struct ClientPolicy {
 ///
 /// `Eq` and `Hash` because a connection is pooled under it, so a socket opened
 /// for a call that verifies nothing never serves one that verifies
-/// (ADR 0180 § 6).
+/// (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct CallPolicy {
     /// `tlsCa` — the PEM certificates to trust *in place of* the configured
@@ -1109,8 +1112,9 @@ impl CallPolicy {
     ///
     /// `anchors` is not a relaxation and answers `true`: `tlsCa` replaces the
     /// trust set and then builds and checks the chain against it exactly as the
-    /// configured roots are, which is ADR 0180 § 13's *against `roots` or
-    /// `tlsCa`*. `min_version` only tightens. Each of the other three drops one
+    /// configured roots are, which is
+    /// `rule:http-server/a-reply-reports-its-tls-session`'s *the chain and the
+    /// name were checked*. `min_version` only tightens. Each of the other three drops one
     /// of the two checks — a pin accepts a key with no chain built at all — so
     /// any of them answers `false`.
     ///
@@ -2560,7 +2564,7 @@ mod tests {
     /// Which of the five option fields is a relaxation, as one table: `tlsCa`
     /// and `tlsMinVersion` still check the chain and the name, and each of the
     /// other three drops one of them
-    /// (`rule:http-server/a-reply-reports-its-tls-session`, ADR 0180 § 13).
+    /// (`rule:http-server/a-reply-reports-its-tls-session`).
     ///
     /// Every field, in one case, because the answer is a statement about the
     /// *set*: a reading that missed one would report a call as verified that

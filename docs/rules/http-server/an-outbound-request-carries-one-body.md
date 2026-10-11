@@ -19,4 +19,18 @@ that exemption applied rather than handed to `Core\Json::encode`. `Core\Http\Par
 without being held: `Part::file` streams from disk under `fs.read` with `Content-Length` from the file's
 size. `Content-Length` is always written — every body's size is known before the first byte — so there is
 no chunked request body. The body is built once per call and resent unchanged on every attempt, and a
-file part is re-read per attempt.
+file part is re-read per attempt: encoding once keeps a retry from paying for the encode again, and
+re-reading keeps a retry from holding the file.
+
+A verb chosen at run time goes through `Client::request(Core\Http\Method $method, $url, {…})`, which
+takes the same bag as `get`, `post`, `put`, `patch`, `delete` and `head`. The verb is the one thing those
+members cannot express, so widening one member to take it is the whole of what is needed.
+
+- **Memory:** a body is built once per call, charged to the request and held until its last attempt is
+  done. A `Part::file`, whether it is the whole `body` or one multipart field, holds a descriptor and one
+  chunk rather than the file.
+
+**Declined:**
+- **A `Core\Http\Request` class sent with `send(Request)`.** It is a second place a call is described,
+  with its own construction, its own mutability and its own way for a body to disagree with the bag.
+  `request(Method, …)` is one member.

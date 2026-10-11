@@ -1,9 +1,7 @@
 {
   "title": "`[http.client.tls]` is the operator's alone: the bundled roots unless files are named, TLS 1.2 unless the floor is raised, and no key log in `production`",
   "status": "shipped",
-  "because": [
-    "0180"
-  ],
+  "because": [],
   "seeAlso": [
     "security/one-tls-client",
     "security/tls-trust-is-relaxed-only-under-a-host-grant",

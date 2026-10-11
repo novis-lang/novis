@@ -1,9 +1,7 @@
 {
   "title": "`connectTo` names an outbound call's address only where `net.connect_to` names the host, and the address policy and the certificate's host check still apply",
   "status": "shipped",
-  "because": [
-    "0180"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/an-outbound-call-tries-every-approved-address",
     "security/net-address-policy",

@@ -213,7 +213,8 @@ pub type NvsTcp = NvsStream<mio::net::TcpStream>;
 /// How far apart [`NvsTcp::connect_racing`] starts its attempts.
 ///
 /// RFC 8305's own recommendation, and a constant rather than a directive
-/// because it trades against nothing an operator can see — ADR 0180 § 14.
+/// because it trades against nothing an operator can see
+/// (`rule:http-server/an-outbound-call-tries-every-approved-address`).
 /// Shorter spends a second socket on a set whose first address was about to
 /// answer; longer leaves a call sitting on a black hole for most of its budget.
 pub const ATTEMPT_DELAY: Duration = Duration::from_millis(250);

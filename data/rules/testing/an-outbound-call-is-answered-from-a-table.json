@@ -2,7 +2,6 @@
   "title": "One registered answer makes every outbound call in that test come from the table, and an unmatched one throws rather than reaching the network",
   "status": "shipped",
   "because": [
-    "0180",
     "0217"
   ],
   "seeAlso": [

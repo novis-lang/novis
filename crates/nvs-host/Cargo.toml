@@ -46,7 +46,8 @@ mio.workspace = true
 # `rule:packaging/a-c-dependency-answers-two-questions`, including the part that is spent rather than met.
 rustls.workspace = true
 webpki-roots.workspace = true
-# ADR 0180 § 11's `tlsPin`, which is the SHA-256 of the peer's
+# `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s `tlsPin`,
+# which is the SHA-256 of the peer's
 # SubjectPublicKeyInfo and reaches `src/tls.rs` as the `sha256//<base64>`
 # spelling `curl --pinnedpubkey` already made the one an operator knows:
 # `x509-parser` finds the field in a certificate `rustls` hands over as raw

@@ -26,3 +26,11 @@ later failure is an attempt under `rule:http-server/retry-is-opt-in-jittered-and
 are `[http.client] pool_idle`, the idle connections one core may hold, and `pool_idle_timeout`, how long
 one may sit idle before it is closed — both `System` class, because they bound a core's memory rather
 than a request's (`rule:config/three-changeability-classes`).
+
+`pool_idle` ships at `16`, enough for a handful of upstream APIs per core without a footprint worth
+stating, and `0` keeps none. `pool_idle_timeout` ships at `30s`, under the idle timeout of every common
+proxy and load balancer, so this client is normally the side that closes an idle connection, which is
+the side that cannot lose a request to the race.
+
+- **Memory:** per core, at most `pool_idle` idle connections, each a socket and a TLS session, held
+  between requests and charged to the core: O(cores × `pool_idle`), never O(requests served).

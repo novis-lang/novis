@@ -11,6 +11,10 @@ session the test described with `Core\Test::tlsSession`.
 production telemetry, that every *other* call still verified — and without a reply-side answer the grant
 is unobservable from inside the language.
 
+The leaf's subject, issuer and expiry are answered as values because when a certificate expires is the
+check an operator most wants a program to make, and the chain as PEM alone would leave a program to parse
+ASN.1 itself to learn it.
+
 The chain is `tainted` and the timings are not here: where a call's time went is the `http` trace event's
 (`rule:observability/trace-events-carry-a-kind`), and a second surface for one measurement is the copy
 that disagrees.

@@ -310,7 +310,8 @@ rustls = { version = "0.23", default-features = false, features = [
     "tls12",
 ] }
 webpki-roots = "1"
-# `x509-parser` is the one thing `rustls` does not hand back. ADR 0180 § 11's
+# `x509-parser` is the one thing `rustls` does not hand back.
+# `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s
 # `tlsPin` is the SHA-256 of a peer's SubjectPublicKeyInfo, and a custom
 # verifier is given the certificate as raw DER, so something has to find that
 # field: the alternative is a hand-written DER walk over attacker-controlled

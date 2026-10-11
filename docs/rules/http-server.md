@@ -1102,9 +1102,23 @@ that exemption applied rather than handed to `Core\Json::encode`. `Core\Http\Par
 without being held: `Part::file` streams from disk under `fs.read` with `Content-Length` from the file's
 size. `Content-Length` is always written — every body's size is known before the first byte — so there is
 no chunked request body. The body is built once per call and resent unchanged on every attempt, and a
-file part is re-read per attempt.
+file part is re-read per attempt: encoding once keeps a retry from paying for the encode again, and
+re-reading keeps a retry from holding the file.
 
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse). Decided in [0180](../decisions/0180.md).</sub>
+A verb chosen at run time goes through `Client::request(Core\Http\Method $method, $url, {…})`, which
+takes the same bag as `get`, `post`, `put`, `patch`, `delete` and `head`. The verb is the one thing those
+members cannot express, so widening one member to take it is the whole of what is needed.
+
+- **Memory:** a body is built once per call, charged to the request and held until its last attempt is
+  done. A `Part::file`, whether it is the whole `body` or one multipart field, holds a descriptor and one
+  chunk rather than the file.
+
+**Declined:**
+- **A `Core\Http\Request` class sent with `send(Request)`.** It is a second place a call is described,
+  with its own construction, its own mutability and its own way for a body to disagree with the bag.
+  `request(Method, …)` is one member.
+
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse).</sub>
 
 <a id="http-server-one-deadline-covers-the-whole-call"></a>
 
@@ -1160,7 +1174,20 @@ length-capped as a constant rather than a directive, and **a stream is retried o
 after the first byte of body a failure ends the stream, because the caller has already seen a prefix of
 one answer and re-requesting would hand it the prefix of another.
 
-<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0180](../decisions/0180.md).</sub>
+`idle` ships at `30s`, longer than any server-sent-events heartbeat in common use and short enough that a
+dead server is noticed inside one request's patience. `max_duration` ships at `5m` to bound a stream the
+program did not bound itself; a long-lived consumer names its own `maxDuration`. Both are `Runtime` class
+for `deadline`'s reason: each bounds one call, and a change made by a request ends with it.
+
+- **Memory:** a streamed reply holds one chunk, plus at most one line or one event's `data` under its
+  cap, and for a compressed reply its decoder's window. All of it is charged to the request and freed
+  with the stream.
+
+**Declined:**
+- **A `Response` whose `text()` throws until the body is read some other way.** A class whose members
+  throw depending on how it was obtained is the worse surface, so a streamed reply is a class of its own.
+
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
 
 <a id="http-server-retry-is-opt-in-jittered-and-closed"></a>
 
@@ -1200,7 +1227,7 @@ retried at all without a key ([`http-server/a-non-idempotent-retry-needs-an-idem
   territory, and its interaction with [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)'s approximate
   member is argued once for both.
 
-<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait).</sub>
 
 <a id="http-server-a-non-idempotent-retry-needs-an-idempotency-key"></a>
 
@@ -1230,7 +1257,7 @@ it would buy nothing.
 - **A key generated automatically when none is given.** One minted per call is a different key on
   the next request, which makes the header present and useless, and that is worse than absent.
 
-<sub>See also [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag).</sub>
 
 <a id="http-server-allow-url-pins-the-address"></a>
 
@@ -1268,7 +1295,7 @@ questions at the member that connects, so there is one implementation of the pol
 and it lives in the capability rather than the client
 ([`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability)).
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0180](../decisions/0180.md), [0183](../decisions/0183.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0183](../decisions/0183.md).</sub>
 
 <a id="http-server-an-outbound-call-tries-every-approved-address"></a>
 
@@ -1298,7 +1325,21 @@ sends the reader to the wrong host. The lookup itself runs on the blocking pool 
 [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), with the grant asked on the core before it and
 the address check back on the core after it.
 
-<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0180](../decisions/0180.md).</sub>
+The attempt delay is `250ms`, RFC 8305's own recommendation, and a constant rather than a directive
+because it trades against nothing an operator can see. Shorter spends a second socket on a set whose
+first address was about to answer; longer leaves a call waiting on an unreachable address for most of
+its budget.
+
+- **Memory:** a `Target` holds at most eight addresses, charged to the request that laundered it. A call
+  falling back holds at most one socket per address until one connects, and a lookup holds one job on
+  the blocking pool under that pool's own bound.
+
+**Declined:**
+- **Keeping one pinned address and letting the connect fail.** One address is a single point of failure
+  for a name that answers several, and it gains no security: the security is in checking every address,
+  not in discarding all but one.
+
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned).</sub>
 
 <a id="http-server-an-outbound-call-names-its-address-only-under-a-grant"></a>
 
@@ -1321,7 +1362,7 @@ A `Core\Http\Target` already carries the addresses its laundering approved
 `LogicError` rather than a silent override of the pin: the two are answers to the same question, and a
 call that supplies both has not decided which one it meant.
 
-<sub>See also [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address).</sub>
 
 <a id="http-server-redirects-are-off-and-every-hop-is-re-pinned"></a>
 
@@ -1369,7 +1410,7 @@ is not being attacked by the code that asked for it — and because the address 
 same way either scheme is. Two conditions rather than one for [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)'s
 reason: the deployment says where a downgrade may happen, and the call says it expects one here.
 
-<sub>See also [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/a-cross-origin-redirect-drops-credentials`](http-server.md#http-server-a-cross-origin-redirect-drops-credentials). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/a-cross-origin-redirect-drops-credentials`](http-server.md#http-server-a-cross-origin-redirect-drops-credentials).</sub>
 
 <a id="http-server-a-cross-origin-redirect-drops-credentials"></a>
 
@@ -1403,7 +1444,7 @@ No header value is written into a trace span, an access log record or an error m
 header guard that names the header and never the value is already how the transport reports a refusal,
 and this is what makes that a tested property rather than a habit.
 
-<sub>See also [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`http-server/an-https-redirect-never-becomes-plaintext`](http-server.md#http-server-an-https-redirect-never-becomes-plaintext). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`http-server/an-https-redirect-never-becomes-plaintext`](http-server.md#http-server-an-https-redirect-never-becomes-plaintext).</sub>
 
 <a id="http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned"></a>
 
@@ -1440,7 +1481,15 @@ are `[http.client] pool_idle`, the idle connections one core may hold, and `pool
 one may sit idle before it is closed — both `System` class, because they bound a core's memory rather
 than a request's ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)).
 
-<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0180](../decisions/0180.md).</sub>
+`pool_idle` ships at `16`, enough for a handful of upstream APIs per core without a footprint worth
+stating, and `0` keeps none. `pool_idle_timeout` ships at `30s`, under the idle timeout of every common
+proxy and load balancer, so this client is normally the side that closes an idle connection, which is
+the side that cannot lose a request to the race.
+
+- **Memory:** per core, at most `pool_idle` idle connections, each a socket and a TLS session, held
+  between requests and charged to the core: O(cores × `pool_idle`), never O(requests served).
+
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
 
 <a id="http-server-an-outbound-proxy-is-operator-configured"></a>
 
@@ -1565,7 +1614,11 @@ configuration mistake a warning improves — the process must not start with it.
 own* call's verification only through [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), and
 never through any of these three keys.
 
-<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0180](../decisions/0180.md).</sub>
+- **Memory:** per process, the `roots` files, parsed once beside or in place of the bundled set. A call
+  naming any per-call TLS option builds its own client configuration and frees it with the call, so that
+  cost is O(in-flight).
+
+<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect).</sub>
 
 <a id="http-server-a-reply-reports-its-tls-session"></a>
 
@@ -1586,11 +1639,15 @@ session the test described with `Core\Test::tlsSession`.
 production telemetry, that every *other* call still verified — and without a reply-side answer the grant
 is unobservable from inside the language.
 
+The leaf's subject, issuer and expiry are answered as values because when a certificate expires is the
+check an operator most wants a program to make, and the chain as PEM alone would leave a program to parse
+ASN.1 itself to learn it.
+
 The chain is `tainted` and the timings are not here: where a call's time went is the `http` trace event's
 ([`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind)), and a second surface for one measurement is the copy
 that disagrees.
 
-<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0180](../decisions/0180.md), [0217](../decisions/0217.md).</sub>
+<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0217](../decisions/0217.md).</sub>
 
 <a id="http-server-an-outbound-socket-is-opened-like-an-outbound-call"></a>
 
