@@ -679,7 +679,7 @@
   },
   "/in-depth/": {
     "feature": "in-depth/index.mdx",
-    "hash": "db2cb7a073c4f7ac",
+    "hash": "7e190bb835aba0a4",
     "questions": [
       "Why does Novis work the way it does?",
       "Where can I read about the design decisions behind Novis?",
@@ -768,6 +768,17 @@
       "Why does a Novis server use more memory than others?",
       "Does Novis have many third-party packages?",
       "Why must I pass the locale to every date or sort function?"
+    ]
+  },
+  "/in-depth/how-novis-is-written/": {
+    "feature": "in-depth/how-novis-is-written.mdx",
+    "hash": "33b728a48299ca47",
+    "questions": [
+      "Is Novis written with AI coding agents?",
+      "Is Novis AI slop?",
+      "How is the code quality of Novis checked?",
+      "Who makes the design decisions in Novis?",
+      "How many tests does the Novis project have?"
     ]
   },
   "/in-depth/how-we-decide/": {

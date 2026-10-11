@@ -609,6 +609,7 @@ export const IN_DEPTH_SECTIONS: [slug: string, least: number][] = [
   ["what-for", 0],
   ["never", 0],
   ["how-we-decide", 0],
+  ["how-novis-is-written", 0],
   ["design-principles", 0],
   ["concepts", 5],
   ["falls-behind", 0],

@@ -1,0 +1,114 @@
+---
+title: How Novis is written
+covers: []
+description: Novis is written with coding agents. This page shows the rules, the tests and the human decisions behind every change.
+---
+
+import { githubFile } from '@config/site.mjs'
+
+Novis is written with coding agents. A coding agent is a program that reads and changes code with
+the help of a large language model (LLM). We use today's top coding agents and models. We say this
+openly, and this page explains why.
+
+Some people call careless code from a language model "AI slop". Nobody planned it, nobody checked
+it, and nobody can maintain it. Novis is built in the opposite way. Each claim on this page links to
+a file in the repository, so you can check it yourself.
+
+## Why we use agents
+
+**Speed.** Novis is a compiler, a runtime, a web server, a large standard library and editor
+support. One person cannot write all of this alone. With agents, one person can. The repository has
+more than 700,000 lines of Rust and more than 10,000 commits. The first commit is from August 2026.
+
+**Consistency.** In a large project written by many people, each person has their own style,
+knowledge and skills. Over time, the parts of the project become different from each other. In
+Novis, every agent reads the same rules before every task. So all 21 parts of Novis follow the
+same conventions for code, comments, tests, error messages and commit messages.
+
+## People decide, agents build
+
+An agent does not decide what Novis becomes. People make every design decision that can be made
+in advance. Agents write the code that follows those decisions.
+
+- **Every decision is a written rule.** The rulebook has more than 1,000 rules. Each rule says what
+  is true and why. More than 550 rules also list the alternatives we did not take, with the reason
+  for each. That is more than 2,700 rejected alternatives.
+  <a href={githubFile('docs/ground-rules.md')}>Read the rulebook.</a>
+- **Work is planned before it starts.** Each large piece of work is a goal with numbered stages.
+  Each goal lists the decisions people made for it, under "The user's calls".
+  <a href={githubFile('docs/goals/README.md')}>Read the current goals.</a>
+- **The agent stops when a person must decide.** A change can cost speed, memory or simplicity.
+  If the cost is large, the agent describes it and waits for a person to agree. If a decision is
+  hard to undo, the agent stops and reports that it is blocked.
+- **The priorities are fixed.** Every choice follows the order on [How we decide](/in-depth/how-we-decide/).
+
+## Clear rules for every agent
+
+Every agent reads one file before it starts: `AGENTS.md`. It is public, like the rest of the
+repository. It contains the priorities, the rules that are easy to break, and the steps of every
+work session. <a href={githubFile('AGENTS.md')}>Read AGENTS.md.</a>
+
+- **Every fact has one home.** If two documents say different things, the home is correct. The
+  other document is a bug, and it is fixed.
+- **Each kind of text has a fixed form.** A commit message, a test, a code comment and an error
+  message each follow a written convention.
+  <a href={githubFile('docs/agent/conventions.md')}>Read the conventions.</a>
+- **A claim needs evidence.** An agent names the file and line for each claim, or says that it did
+  not check. <a href={githubFile('docs/agent/grounding.md')}>Read the rule.</a>
+- **Unsafe Rust is limited.** It is forbidden in 14 of the 21 parts. In the other 7, each unsafe
+  block has a written reason, and a check reviews them every night.
+- **A mistake is written down once.** When a problem costs an agent time, it writes a short note
+  for the next agent. There are more than 1,200 of these notes.
+  <a href={githubFile('docs/agent/playbook.md')}>Read them.</a>
+- **The text you read follows writing rules.** Sentences are short, have one idea each and use
+  common words. A check in CI measures every sentence on this website.
+
+## Tested from every direction
+
+A feature is finished when its proofs exist, not when it works. Every feature needs all of these:
+
+- a page that describes it
+- tests written in Novis, and tests written in Rust
+- three examples that run, with their output compared to a saved file
+- a benchmark that shows how its cost grows with the size of the input
+- an attack: a program that tries to break it
+- its help text in the `nvs` command
+
+CI stops when a feature is missing one of them.
+<a href={githubFile('docs/rules/testing.md')}>Read the rule.</a>
+
+| Kind of test | Count | What it checks |
+|---|---|---|
+| Language tests | more than 2,700 | each rule of the language, with the exact output or error |
+| Rust tests | more than 6,800 | the compiler, the runtime and the library, from the inside |
+| Examples | more than 3,800 | each example runs, and its output matches a saved file |
+| Attacks | more than 1,300 | the runtime does not crash, hang or leak memory |
+| Benchmarks | more than 1,500 | the speed of each feature, and how its cost grows |
+| Editor tests | more than 370 | completion, hover and errors in the editor |
+
+Each push builds and tests Novis on Linux, Windows and macOS. Every night, more checks run:
+
+- **Fuzzing** sends random input to the lexer, the parser and the URL parser.
+- **Miri, AddressSanitizer and ThreadSanitizer** look for memory errors and data races.
+- **Valgrind** runs the attacks and looks for memory leaks.
+- **A dependency check** tests every library Novis uses for its licence and for known security problems.
+
+Before any commit, one command builds Novis, checks the formatting and runs every test the change
+can affect. It also runs the Rust linter, with every warning treated as an error. The commit is made
+only when all of this passes. <a href={githubFile('.github/workflows/ci.yml')}>See the CI setup.</a>
+
+Speed is measured too. The same programs run in Novis, PHP, Bun and Go on one machine.
+[See the results.](/in-depth/compare/)
+
+## Every change can be traced
+
+Each commit is one small step. Its message says what is true after the change. You can read the
+full history of every line on GitHub. Nothing is merged in one large, unexplained block.
+
+## Agents make mistakes too
+
+Agents make mistakes, as people do. That is the reason for every check on this page. When a
+mistake passes the checks, a test was missing. We add that test, so the same mistake fails next time.
+
+Novis is still new, and it has had no independent security audit yet.
+[Where Novis is weaker](/in-depth/falls-behind/) lists this and the other costs.
