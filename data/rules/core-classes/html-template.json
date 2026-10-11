@@ -2,7 +2,6 @@
   "title": "``html`…` `` is a `Core\\Html\\Markup` whose segments are trusted and whose holes are escaped",
   "status": "shipped",
   "because": [
-    "0202",
     "0213"
   ],
   "seeAlso": [
@@ -21,6 +20,9 @@
     "tests/conformance/core/markup-join-over-an-empty-list-answers-markup-that-writes-nothing.nvst",
     "tests/conformance/core/markup-join-escapes-nothing-because-every-part-is-already-a-carrier.nvst",
     "tests/conformance/reject/an-unterminated-html-template-is-named-where-it-opened.nvst",
-    "tests/conformance/reject/a-secret-value-in-an-html-template-hole-is-refused.nvst"
+    "tests/conformance/reject/a-secret-value-in-an-html-template-hole-is-refused.nvst",
+    "tests/conformance/core/an-html-template-takes-an-output-tag-hole-for-any-expression.nvst",
+    "tests/conformance/reject/a-code-block-inside-an-html-template-is-e0010.nvst",
+    "tests/conformance/reject/a-secret-value-in-an-html-template-tag-hole-is-refused.nvst"
   ]
 }

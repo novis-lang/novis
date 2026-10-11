@@ -554,10 +554,14 @@ The second is the output tag a page already uses: `<?= expr ?>` opens a hole tha
 expression and closes on the first `?>` outside a nested string or template, so a constant, a static
 call and a nested template reach the page without a local — `<?= App::VERSION ?>`,
 `<?= Money::format($c) ?>`, `<?= $on ? html`<b>on</b>` : html`<i>off</i>` ?>` — and a `}` inside it
-is an ordinary brace. Both holes are escaped by the same rule;
+is an ordinary brace. `<?=` occurs in no HTML, CSS or JavaScript, so no page text needs an escape
+to make room for it. Both holes are escaped by the same rule;
 the tag differs from the brace only in what it lets in. A double-quoted string takes no `<?=`: a
-string is not a page, and a `<?=` in one is text. A `<?nvs` tag inside a template is `E0010`, since a
-template is one expression and a loop around markup is code mode outside it.
+string is not a page, a `<?=` in one is text, and a code generator that writes PHP into a string
+would break if it were a hole. A `<?nvs` tag inside a template is `E0010`, reported once at the tag
+with `<?= expr ?>` and composition named, and is then text: a template is one expression, a code
+block inside it would need a new mechanism to capture statements' output as a value, and a loop
+around markup is code mode outside it.
 
 A `secret` value in either hole is refused where it is written ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)); a
 `tainted` one is accepted, because the sink never distinguishes the two. An unterminated template or hole
@@ -577,6 +581,9 @@ pool, as a duration is ([`types/duration`](types.md#types-duration)), so it allo
 `as Core\Html\Markup` allocates one object per lift. A template with holes in a sink position lowers to
 a run of writes — segment, escaped hole, segment — with no carrier materialised, since a value born and
 consumed at one sink is unobservable. In value position it is one `Markup` holding the joined bytes.
+A hole whose value is a constant is still escaped on every execution, as every hole is. Scanning
+for `<?=` is one three-byte test beside the two-byte test for `{$`, in the template body only, and a
+tag hole reaches the parser as the same part a brace hole does.
 
 `Core\Html::join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator): Core\Html\Markup`
 concatenates a list of fragments; every element is already a carrier, so it neither trusts nor escapes
@@ -610,8 +617,14 @@ write into: ``html`<a href="{$url}">` `` lets a `javascript:` URL through exactl
   renders a page ([`programs/first-party-framework`](programs.md#programs-first-party-framework)); a function returning a table row or a
   component is expression position, which is where the ceremony was.
 - **A ``text`…` `` form for `Core\Cli\Text`, for symmetry.** It fails the predicate above.
+- **`{Name::…}` opening a brace hole.** It covers a constant and a static call and nothing else, so
+  `{new App()}` and `{1 + 2}` stay text, and it adds a clause to the string grammar that a string
+  does not have.
+- **A second brace opener, `{= … }`, `{> … }` or `{{ … }}`.** Each collides with a template language
+  a page may embed: `{{` is Vue, Twig and Handlebars, `{>` is a Handlebars partial and `{=` is
+  Mustache's delimiter tag. Each would force `\{` escapes into client-side templates.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration`](types.md#types-duration), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0202](../decisions/0202.md), [0213](../decisions/0213.md).</sub>
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration`](types.md#types-duration), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0213](../decisions/0213.md).</sub>
 
 <a id="core-classes-html-later"></a>
 
