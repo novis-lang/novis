@@ -2,10 +2,16 @@ A file whose only declaration is one class, interface, enum or `type` alias, bes
 `namespace` and `use`, shows that kind in the editor's file list as a letter beside its name: `C`, `I`,
 `E` or `T`. That is the shape every autoloaded file
 has (`rule:programs/one-declaration-per-autoloaded-file`), and `nvs_hir::autoload::sole_declaration` is
-the one scan both the shape check and this list read. A file reached by `require` with the same shape is
-listed as well.
+the one scan both the shape check and this list read, so the shape the editor shows and the shape the
+compiler accepts cannot disagree. A file reached by `require` with the same shape is listed as well: it
+declares one thing just as plainly, and asking how a file was reached would need an edge the loaded
+file does not keep.
 
-The server answers `nvs/fileKinds` with every such file its index holds and the kind of each, and the
+The server answers `nvs/fileKinds` with every such file its index holds and the kind of each. The
+request takes no parameters and answers `[{uri, kind}]`, `kind` being `class`, `interface`, `enum` or
+`type`. The index records the kind as it reads the file, so an answer is one pass over its file map and
+no analysis. The client never finds the kind itself by matching `class` or `enum` in the text, because
+every judgement about the language stays in the server (`rule:ide/one-server-two-thin-clients`). The
 VS Code client draws the answer as a file decoration, the editor's own surface for a badge on a file
 (`rule:ide/the-extension-builds-no-ui-the-editor-already-has`). The icon is unchanged: an editor picks
 a file's icon from its name and language, never from its content. The decoration carries no colour,
@@ -14,5 +20,11 @@ harder to read than the names alone. With no colour the editor draws the letter 
 colour, dimmed.
 
 The list is what the index holds. The client asks when a server starts answering, after
-`nvs.checkWorkspace`, and when a Novis document is opened or saved; a file changed outside the editor
-shows its old kind until one of those happens.
+`nvs.checkWorkspace`, and when a Novis document is opened or saved, and several asks close together are
+one, since the server does not watch `.nvs` files on disk. A file changed outside the editor shows its
+old kind until one of those happens, the same staleness every reader of the index has. The badge shares
+the decoration slot with source control, so a modified file may show the source-control badge in place
+of its kind. No setting is added.
+
+- **Memory:** one more field per indexed file in the server, for the life of the server process.
+  Nothing at run time.

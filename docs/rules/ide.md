@@ -576,7 +576,7 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 - **Resolving the string of `as class<T>` through the file's `use` lines.** The conversion does not, so
   the editor would jump to a class the program then fails to find.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0268](../decisions/0268.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -1343,7 +1343,7 @@ warm index is what keeps references and highlight inside [`ide/a-full-reanalysis
   correct at workspace scope. It would also make the scope a property of the index rather than of the
   query, so the fifth reader would need a second construction site.
 
-<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0268](../decisions/0268.md).</sub>
+<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-completion-offers-only-what-the-compiler-derived"></a>
 
@@ -2455,10 +2455,16 @@ A file whose only declaration is one class, interface, enum or `type` alias, bes
 `namespace` and `use`, shows that kind in the editor's file list as a letter beside its name: `C`, `I`,
 `E` or `T`. That is the shape every autoloaded file
 has ([`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file)), and `nvs_hir::autoload::sole_declaration` is
-the one scan both the shape check and this list read. A file reached by `require` with the same shape is
-listed as well.
+the one scan both the shape check and this list read, so the shape the editor shows and the shape the
+compiler accepts cannot disagree. A file reached by `require` with the same shape is listed as well: it
+declares one thing just as plainly, and asking how a file was reached would need an edge the loaded
+file does not keep.
 
-The server answers `nvs/fileKinds` with every such file its index holds and the kind of each, and the
+The server answers `nvs/fileKinds` with every such file its index holds and the kind of each. The
+request takes no parameters and answers `[{uri, kind}]`, `kind` being `class`, `interface`, `enum` or
+`type`. The index records the kind as it reads the file, so an answer is one pass over its file map and
+no analysis. The client never finds the kind itself by matching `class` or `enum` in the text, because
+every judgement about the language stays in the server ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)). The
 VS Code client draws the answer as a file decoration, the editor's own surface for a badge on a file
 ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). The icon is unchanged: an editor picks
 a file's icon from its name and language, never from its content. The decoration carries no colour,
@@ -2467,10 +2473,16 @@ harder to read than the names alone. With no colour the editor draws the letter 
 colour, dimmed.
 
 The list is what the index holds. The client asks when a server starts answering, after
-`nvs.checkWorkspace`, and when a Novis document is opened or saved; a file changed outside the editor
-shows its old kind until one of those happens.
+`nvs.checkWorkspace`, and when a Novis document is opened or saved, and several asks close together are
+one, since the server does not watch `.nvs` files on disk. A file changed outside the editor shows its
+old kind until one of those happens, the same staleness every reader of the index has. The badge shares
+the decoration slot with source control, so a modified file may show the source-control badge in place
+of its kind. No setting is added.
 
-<sub>See also [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0268](../decisions/0268.md), [0269](../decisions/0269.md).</sub>
+- **Memory:** one more field per indexed file in the server, for the life of the server process.
+  Nothing at run time.
+
+<sub>See also [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0269](../decisions/0269.md).</sub>
 
 <a id="ide-the-test-tree-is-discovered-and-run-through-the-cli"></a>
 
