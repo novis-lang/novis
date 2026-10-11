@@ -762,7 +762,7 @@ them, and the server computes each from the expression under the cursor alone, w
 question. Neither is ever under `source.fixAll.nvs` or `quickfix`. Any further action the server
 computes for itself is still M10's.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0259](../decisions/0259.md), [0267](../decisions/0267.md), [0275](../decisions/0275.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md), [0275](../decisions/0275.md).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
@@ -800,7 +800,7 @@ an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-str
 under its own `refactor.rewrite.htmlTemplate` kind and never under `source.fixAll.nvs`, since it
 changes what the line prints.
 
-<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0258](../decisions/0258.md), [0259](../decisions/0259.md).</sub>
+<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0258](../decisions/0258.md).</sub>
 
 <a id="ide-a-string-converts-to-an-html-template"></a>
 
@@ -823,6 +823,7 @@ echo html`<b>{$name}</b> is <?= Core\Str::upper("here") ?>!`;
 | a double-quoted string | its text and its `$name` and `{$…}` holes as written, `\"` as `"`, every escape both grammars share kept |
 | a single-quoted string | its text, with each `$` that would open a hole written `\$` |
 | a backtick, a `{` that would open a hole or draw `W1012`, a `<` that would open `<?=`, `<?nvs` or `<?php` | `` \` ``, `\{`, `\x3C` |
+| a bare `$name` or `$name->prop` hole that ends its string, with another operand after it | a `{$…}` hole, so it does not run on into that operand's text |
 | a variable, or a property or offset read on one, as a chain operand | a `{$…}` hole |
 | any other chain operand | a `<?= … ?>` hole |
 
@@ -834,14 +835,35 @@ not asked: the preview is the review.
 
 Before it is offered, the template written is parsed back, and its segments must cook to the original
 text and its holes must be the original expressions, in order — so a string the conversion cannot
-write exactly is offered nothing rather than something else. The server computes it from the
+write exactly is offered nothing rather than something else. The comparison uses the lexer's and the
+cooker's own code, so a later change to either grammar is checked here without the conversion learning
+it. The server computes it from the
 expression alone, so every client gets the same edit, and the VS Code command
 `nvs.convertToHtmlTemplate` only asks the editor to apply the action by its kind. It is never under
 `source.fixAll.nvs`: a plain string echoed is escaped as text and a template's segments are markup, so
 applying it changes what the line prints, which is why it is a refactor and not a fix
-([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)).
+([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)). The kind is a sub-kind narrow
+enough that a client asking for it gets this action alone, and the server advertises it in
+`codeActionKinds`.
 
-<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor). Decided in [0259](../decisions/0259.md).</sub>
+- **Memory:** nothing at run time, since the action edits source and writes nothing new to the
+  compiler. Per code-action request on a string: one parse of the expression under the cursor for each
+  `.` above it, one of the template written, and one per enclosing array or `match` checked for a key
+  position, each the size of that expression and dropped with the answer.
+
+**Declined:**
+
+- **A command in the VS Code extension that rewrites the text itself.** It would need its own copy of
+  the lexer's escape and hole rules, and PhpStorm would need a third.
+- **Converting only the string under the cursor inside a chain.** The result is a `Core\Html\Markup`
+  concatenated with a string, which is not what anybody converting a chain wants.
+- **Re-encoding each string from its cooked value.** It is simpler, and it turns every `\n` into a
+  real line break and every `\x41` into its character, so the source changes more than the conversion
+  needs.
+- **Converting a heredoc by re-indenting its body.** The dedent and the escapes interact, and the case
+  is rare next to strings and chains; it can be added under this rule if it is wanted.
+
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor).</sub>
 
 <a id="ide-a-list-splits-onto-lines-and-joins-onto-one"></a>
 
