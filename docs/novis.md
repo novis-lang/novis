@@ -17862,12 +17862,12 @@ Keywords: arguments, write, escape, isTty, width, height, colorDepth, displayWid
 | Member | Signature |
 |---|---|
 | [`Core\Cli::arguments`](#core-core-cli-arguments) | `arguments(): array<tainted string>` |
-| [`Core\Cli::write`](#core-core-cli-write) | `write(string\|Core\Cli\Text $value, {stream?: Core\Cli\Stream, newline?: bool}): void` |
+| [`Core\Cli::write`](#core-core-cli-write) | `write(string\|Core\Cli\Text $value, {stream?: Core\Cli::Stream, newline?: bool}): void` |
 | [`Core\Cli::escape`](#core-core-cli-escape) | `escape(string $text): string` |
-| [`Core\Cli::isTty`](#core-core-cli-istty) | `isTty(Core\Cli\Stream $stream): bool` |
+| [`Core\Cli::isTty`](#core-core-cli-istty) | `isTty(Core\Cli::Stream $stream): bool` |
 | [`Core\Cli::width`](#core-core-cli-width) | `width(): uint` |
 | [`Core\Cli::height`](#core-core-cli-height) | `height(): uint` |
-| [`Core\Cli::colorDepth`](#core-core-cli-colordepth) | `colorDepth(): Core\Cli\ColorDepth` |
+| [`Core\Cli::colorDepth`](#core-core-cli-colordepth) | `colorDepth(): Core\Cli::ColorDepth` |
 | [`Core\Cli::displayWidth`](#core-core-cli-displaywidth) | `displayWidth(string $value): uint` |
 | [`Core\Cli::ask`](#core-core-cli-ask) | `ask(string $question, {default?: string, validate?: callable}): tainted string` |
 | [`Core\Cli::confirm`](#core-core-cli-confirm) | `confirm(string $question, {default?: bool}): bool` |
@@ -17892,7 +17892,7 @@ Returns the arguments this program was started with, without the program name. A
 #### `Core\Cli::write`
 
 ```nvs skip
-Core\Cli::write(string|Core\Cli\Text $value, {stream?: Core\Cli\Stream, newline?: bool}): void
+Core\Cli::write(string|Core\Cli\Text $value, {stream?: Core\Cli::Stream, newline?: bool}): void
 ```
 
 Writes `$value` to a standard stream, replacing `fwrite(STDOUT, …)` and `print`. A `string` has every control byte replaced by the visible glyph `Core\Cli::escape` gives it; a `Core\Cli\Text` is written through unchanged, because it is the sink's own carrier and its bytes have already been neutralized.
@@ -17900,12 +17900,12 @@ Writes `$value` to a standard stream, replacing `fwrite(STDOUT, …)` and `print
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$value` | `string\|Core\Cli\Text` (neutral) | The text to write. A `tainted` one is written like any other — the substitution is what makes the terminal safe, so nothing has to be laundered first — while a `secret` one is refused at compile time. |
-| `{stream: …}` | `Core\Cli\Stream` (default `Core\Cli\Stream::Out`) | Which standard stream to write to. `Out` when omitted; `Err` writes to this request's diagnostic channel, which a `Core\Out::capture` does not take. `In` throws. |
+| `{stream: …}` | `Core\Cli::Stream` (default `Core\Cli::Stream::Out`) | Which standard stream to write to. `Out` when omitted; `Err` writes to this request's diagnostic channel, which a `Core\Out::capture` does not take. `In` throws. |
 | `{newline: …}` | `bool` (default `false`) | Whether to append one `LF` after the value. `false` when omitted, so the member writes exactly what it was handed. |
 
 **Returns** `void` — Nothing. The bytes are on the stream, or the write failed and the request is over.
 
-**Throws** `LogicError` — `$stream` is `Core\Cli\Stream::In`, which a program reads and never writes. The case exists for `Core\Cli::isTty`, which asks its question about all three.
+**Throws** `LogicError` — `$stream` is `Core\Cli::Stream::In`, which a program reads and never writes. The case exists for `Core\Cli::isTty`, which asks its question about all three.
 
 <a id="core-core-cli-escape"></a>
 #### `Core\Cli::escape`
@@ -17926,14 +17926,14 @@ Answers `$text` with every control byte replaced by a visible, inert glyph — `
 #### `Core\Cli::isTty`
 
 ```nvs skip
-Core\Cli::isTty(Core\Cli\Stream $stream): bool
+Core\Cli::isTty(Core\Cli::Stream $stream): bool
 ```
 
 Checks whether one standard stream is attached to a terminal. The check is made once for the process, so two calls in one run always give the same result.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$stream` | `Core\Cli\Stream` | Which stream to ask about. It is a parameter rather than a single process-wide answer because colour on standard output while standard input is a pipe is the common case, and one `isTty()` cannot express it. |
+| `$stream` | `Core\Cli::Stream` | Which stream to ask about. It is a parameter rather than a single process-wide answer because colour on standard output while standard input is a pipe is the common case, and one `isTty()` cannot express it. |
 
 **Returns** `bool` — `true` when that stream is a terminal, `false` when it is a pipe, a file or closed.
 
@@ -17963,12 +17963,12 @@ The controlling terminal's height in rows — `tput lines`. Resolved once for th
 #### `Core\Cli::colorDepth`
 
 ```nvs skip
-Core\Cli::colorDepth(): Core\Cli\ColorDepth
+Core\Cli::colorDepth(): Core\Cli::ColorDepth
 ```
 
 How much colour standard output can show, honouring `NO_COLOR`, `CLICOLOR_FORCE`, `FORCE_COLOR`, `COLORTERM` and `TERM`. A program does not normally ask: it writes `Cli\Text` and the sink degrades to what the terminal has. Resolved once for the process.
 
-**Returns** `Core\Cli\ColorDepth` — The depth as a `Core\Cli\ColorDepth` case — `None` whenever standard output is not a terminal and nothing forced colour on, which is what makes `myprog | grep` and a CI log plain.
+**Returns** `Core\Cli::ColorDepth` — The depth as a `Core\Cli::ColorDepth` case — `None` whenever standard output is not a terminal and nothing forced colour on, which is what makes `myprog | grep` and a CI log plain.
 
 <a id="core-core-cli-displaywidth"></a>
 #### `Core\Cli::displayWidth`
@@ -29466,27 +29466,27 @@ Which cross-site requests carry a cookie. The three cases are the attribute's ow
 | `Core\Response::SameSite::None` | Sent cross-site. Requires `Secure`, and is refused without it here and at boot alike, because a browser drops the pair rather than honouring it. |
 
 <a id="enum-core-cli-stream"></a>
-#### `Core\Cli\Stream`
+#### `Core\Cli::Stream`
 
 One of the three standard streams a process begins with. It exists because "is a terminal" is always a question about one of them and never about the process.
 
 | Case | Meaning |
 |---|---|
-| `Core\Cli\Stream::In` | Standard input — what a prompt reads and what a pipeline feeds. |
-| `Core\Cli\Stream::Out` | Standard output — what `echo` writes, and the stream the colour depth is decided for. |
-| `Core\Cli\Stream::Err` | Standard error — diagnostics, which stay visible when output is redirected. |
+| `Core\Cli::Stream::In` | Standard input — what a prompt reads and what a pipeline feeds. |
+| `Core\Cli::Stream::Out` | Standard output — what `echo` writes, and the stream the colour depth is decided for. |
+| `Core\Cli::Stream::Err` | Standard error — diagnostics, which stay visible when output is redirected. |
 
 <a id="enum-core-cli-colordepth"></a>
-#### `Core\Cli\ColorDepth`
+#### `Core\Cli::ColorDepth`
 
 How much colour standard output can show. The cases ascend, so a sink degrading to what a terminal has is a comparison rather than a lookup.
 
 | Case | Meaning |
 |---|---|
-| `Core\Cli\ColorDepth::None` | No colour at all — a pipe, a file, `NO_COLOR`, or `TERM=dumb`. Styling is dropped entirely rather than approximated. |
-| `Core\Cli\ColorDepth::Ansi16` | The eight ANSI colours and their bright halves, which every terminal has. |
-| `Core\Cli\ColorDepth::Ansi256` | The 256-entry indexed palette, reported by a `TERM` naming `256color`. |
-| `Core\Cli\ColorDepth::TrueColor` | 24-bit colour, reported by `COLORTERM=truecolor` and by a Windows console that accepted virtual terminal processing. |
+| `Core\Cli::ColorDepth::None` | No colour at all — a pipe, a file, `NO_COLOR`, or `TERM=dumb`. Styling is dropped entirely rather than approximated. |
+| `Core\Cli::ColorDepth::Ansi16` | The eight ANSI colours and their bright halves, which every terminal has. |
+| `Core\Cli::ColorDepth::Ansi256` | The 256-entry indexed palette, reported by a `TERM` naming `256color`. |
+| `Core\Cli::ColorDepth::TrueColor` | 24-bit colour, reported by `COLORTERM=truecolor` and by a Windows console that accepted virtual terminal processing. |
 
 <a id="enum-core-cli-shell"></a>
 #### `Core\Cli\Shell`

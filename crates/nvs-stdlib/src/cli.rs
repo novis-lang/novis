@@ -25,7 +25,7 @@
 //!
 //! What is left here is the surface: six rows, three enums, and the mapping
 //! between the runtime's Rust `ColorDepth` and the ordinals
-//! [`crate::registry::ENUMS`] gives `Core\Cli\ColorDepth`. The mapping is the
+//! [`crate::registry::ENUMS`] gives `Core\Cli::ColorDepth`. The mapping is the
 //! one thing this file can get wrong on its own, so
 //! `tests::the_two_enums_agree_with_the_runtimes_own` holds the two rosters
 //! together. Named rather than linked because this module is public — `rule:tooling/styling-is-a-value-not-a-grammar`
@@ -407,7 +407,7 @@ const COLOR_DEPTH_MEMBER_DOC: MethodDoc = MethodDoc {
             `Cli\\Text` and the sink degrades to what the terminal has. Resolved once for the \
             process.",
     params: &[],
-    ret: "The depth as a `Core\\Cli\\ColorDepth` case — `None` whenever standard output is not \
+    ret: "The depth as a `Core\\Cli::ColorDepth` case — `None` whenever standard output is not \
           a terminal and nothing forced colour on, which is what makes `myprog | grep` and a CI \
           log plain.",
     errors: &[],
@@ -445,7 +445,7 @@ const DISPLAY_WIDTH_DOC: MethodDoc = MethodDoc {
 const WRITABLE: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Instance(NAME)];
 
 /// `Core\Cli::write`'s trailing options — `rule:tooling/the-terminal-profile-resolves-once`'s
-/// `{stream?: Cli\Stream, newline?: bool}`.
+/// `{stream?: Cli::Stream, newline?: bool}`.
 ///
 /// Both carry a value rather than [`Const::Null`], unlike every other bag in
 /// this file: neither option has an "absent" meaning distinct from its default.
@@ -511,7 +511,7 @@ const WRITE_DOC: MethodDoc = MethodDoc {
     ret: "Nothing. The bytes are on the stream, or the write failed and the request is over.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "`$stream` is `Core\\Cli\\Stream::In`, which a program reads and never writes. The \
+        desc: "`$stream` is `Core\\Cli::Stream::In`, which a program reads and never writes. The \
                case exists for `Core\\Cli::isTty`, which asks its question about all three.",
     }],
 };
@@ -945,12 +945,12 @@ const ADVANCE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Cli\Stream`'s fully-qualified name, written once — [`STREAM`] declares
+/// `Core\Cli::Stream`'s fully-qualified name, written once — [`STREAM`] declares
 /// it and the [`CoreTy::Enum`] naming it resolves against
 /// [`crate::registry::ENUMS`], so the two cannot drift apart.
-pub(crate) const STREAM_NAME: &str = r"Core\Cli\Stream";
+pub(crate) const STREAM_NAME: &str = r"Core\Cli::Stream";
 
-/// `rule:tooling/the-terminal-profile-resolves-once`'s `Cli\Stream` — which standard stream a question is about.
+/// `rule:tooling/the-terminal-profile-resolves-once`'s `Cli::Stream` — which standard stream a question is about.
 ///
 /// The ordinals are [`nvs_runtime::terminal::Stream`]'s own declaration order,
 /// which is what [`stream_of`] converts between.
@@ -981,10 +981,10 @@ const STREAM_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Core\Cli\ColorDepth`'s fully-qualified name — see [`STREAM_NAME`].
-pub(crate) const COLOR_DEPTH_NAME: &str = r"Core\Cli\ColorDepth";
+/// `Core\Cli::ColorDepth`'s fully-qualified name — see [`STREAM_NAME`].
+pub(crate) const COLOR_DEPTH_NAME: &str = r"Core\Cli::ColorDepth";
 
-/// `rule:tooling/the-terminal-profile-resolves-once`'s `Cli\ColorDepth` — how much colour a terminal can show.
+/// `rule:tooling/the-terminal-profile-resolves-once`'s `Cli::ColorDepth` — how much colour a terminal can show.
 ///
 /// Ordered from least to most, so the sink's `truecolor → 256 → 16 → none`
 /// degradation is a comparison on the ordinal rather than a table.
@@ -1099,7 +1099,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// The runtime's [`Stream`] a `Core\Cli\Stream` argument names.
+/// The runtime's [`Stream`] a `Core\Cli::Stream` argument names.
 ///
 /// # Errors
 ///
@@ -1116,7 +1116,7 @@ fn stream_of(value: &Value, member: &str) -> Result<Stream, Fault> {
         // one of the three cases before a single instruction of this body runs,
         // and compiled code writes the ordinal itself.
         _ => Err(Fault::fatal(format!(
-            "Core\\Cli::{member} expected a `Core\\Cli\\Stream` case, got tag {} value {:?}",
+            "Core\\Cli::{member} expected a `Core\\Cli::Stream` case, got tag {} value {:?}",
             value.tag_byte(),
             value.as_int()
         ))),
@@ -1176,7 +1176,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::write(string|Cli\Text $value, {stream?: Cli\Stream, newline?: bool}): void`
+    /// `Core\Cli::write(string|Cli\Text $value, {stream?: Cli::Stream, newline?: bool}): void`
     /// — `rule:tooling/the-terminal-profile-resolves-once`'s first row, replacing `fwrite(STDOUT, …)` and `print`.
     ///
     /// # It is the sink `echo` already is, reached with a stream named
@@ -1200,7 +1200,7 @@ nvs_runtime::nvs_helper! {
     /// two channels; there is no third for a member to invent.
     ///
     /// `Stream::In` throws rather than being absent from the option's type:
-    /// `Cli\Stream` is one enum because `rule:tooling/the-terminal-profile-resolves-once` wants `isTty` to ask about
+    /// `Cli::Stream` is one enum because `rule:tooling/the-terminal-profile-resolves-once` wants `isTty` to ask about
     /// all three, and a second two-case enum spelled only for this parameter
     /// would be the "no operation is reachable two ways" rule broken sideways —
     /// two rosters of the same three streams, disagreeing the first time one
@@ -1224,7 +1224,7 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 "Core\\Cli::write(): standard input is not a stream a program writes to — \
-                 `Core\\Cli\\Stream::In` is a case so that `Core\\Cli::isTty` can ask its \
+                 `Core\\Cli::Stream::In` is a case so that `Core\\Cli::isTty` can ask its \
                  question about all three",
             ));
         }
@@ -1333,7 +1333,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::isTty(Cli\Stream $stream): bool` — replacing `posix_isatty`
+    /// `Core\Cli::isTty(Cli::Stream $stream): bool` — replacing `posix_isatty`
     /// and `stream_isatty`, which answer the same question from two extensions.
     ///
     /// Reads the cached profile; `nvs_runtime::terminal` owns why there is one.
@@ -1398,7 +1398,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Cli::colorDepth(): Cli\ColorDepth` — a question PHP has no
+    /// `Core\Cli::colorDepth(): Cli::ColorDepth` — a question PHP has no
     /// spelling for at all, which is why every CLI package ships its own
     /// heuristic.
     ///
@@ -4143,7 +4143,7 @@ mod tests {
     // covers: Core\Cli::write
     #[test]
     fn write_sends_each_stream_to_its_own_channel_and_names_itself_on_a_value_no_source_can_pass() {
-        // A `Core\Cli\Stream` case arrives as its ordinal, which is what
+        // A `Core\Cli::Stream` case arrives as its ordinal, which is what
         // compiled code writes for the option's `Const::EnumCase` default.
         const OUT: i64 = 1;
         const ERR: i64 = 2;
@@ -4234,7 +4234,7 @@ mod tests {
             .expect("the refusal says nothing at all")
             .into_owned();
         assert!(
-            refusal.starts_with("Core\\Cli::isTty expected a `Core\\Cli\\Stream` case"),
+            refusal.starts_with("Core\\Cli::isTty expected a `Core\\Cli::Stream` case"),
             "the message does not say which member was handed what: {refusal}"
         );
     }
@@ -5111,10 +5111,10 @@ mod tests {
 
     /// The registry's two enums and the runtime's are separate declarations in
     /// separate crates, and this is the one place they are held together: the
-    /// ordinals a compiled `Core\Cli\Stream::Out` writes are what [`stream_of`]
+    /// ordinals a compiled `Core\Cli::Stream::Out` writes are what [`stream_of`]
     /// decodes, and the ones [`depth_ordinal`] answers are what a
-    /// `== Core\Cli\ColorDepth::None` compares against.
-    // covers: Core\Cli\ColorDepth
+    /// `== Core\Cli::ColorDepth::None` compares against.
+    // covers: Core\Cli::ColorDepth
     #[test]
     fn the_two_enums_agree_with_the_runtimes_own() {
         for (ordinal, (name, declared)) in STREAM.cases.iter().enumerate() {

@@ -11,7 +11,7 @@ Text that can control the terminal is made safe first. A control character in a 
 by a visible character that does nothing, the same replacement `Core\Cli::escape` makes. A
 `Core\Cli\Text` is written as it is, because its styling is there on purpose.
 
-**Good to know:** standard input is not a stream a program writes to. `Core\Cli\Stream::In` throws an
+**Good to know:** standard input is not a stream a program writes to. `Core\Cli::Stream::In` throws an
 error.
 
 **The examples below** build a line from pieces, send progress to standard error, and print a report

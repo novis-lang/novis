@@ -6,7 +6,7 @@ tainted string $branch = "main";
 
 // Standard input is not a terminal when a build server runs the program, or
 // when the input comes from a file. Nobody can answer, so do not ask.
-if (Core\Cli::isTty(Core\Cli\Stream::In)) {
+if (Core\Cli::isTty(Core\Cli::Stream::In)) {
     $branch = Core\Cli::ask("Which branch?", {default: "main"});
 }
 

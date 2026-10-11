@@ -6,8 +6,8 @@
 
 // 1. The depth is decided one time for the whole program. This first read is
 //    what every later read must give.
-Core\Cli\ColorDepth $first = Core\Cli::colorDepth();
-echo 'step 1 no colour ', $first == Core\Cli\ColorDepth::None ? 'yes' : 'no', "\n";
+Core\Cli::ColorDepth $first = Core\Cli::colorDepth();
+echo 'step 1 no colour ', $first == Core\Cli::ColorDepth::None ? 'yes' : 'no', "\n";
 
 // 2. The program tries to set colour settings of its own. These are not
 //    settings a program may change, so the depth must not move.

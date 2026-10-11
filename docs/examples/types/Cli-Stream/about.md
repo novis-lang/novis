@@ -1,9 +1,11 @@
 Names which of a program's three standard streams a call is about.
 
+`Core\Cli::Stream` is declared in the class `Core\Cli`. The methods `isTty` and `write` take it.
+
 Every command-line program starts with three connections to the world outside it: standard input,
 which carries what somebody types or what an earlier program in a pipeline produced; standard output,
 which carries the answer; and standard error, which carries the notes, warnings and progress a person
-reads while the program runs. `Core\Cli\Stream` has one case for each — `In`, `Out` and `Err` — so a
+reads while the program runs. `Core\Cli::Stream` has one case for each — `In`, `Out` and `Err` — so a
 call that is about one stream names it, instead of there being three members or a piece of text to
 misspell.
 

@@ -1,31 +1,31 @@
 <?nvs
 // This program picks how many shades of one colour a heat map uses for each
-// `Core\Cli\ColorDepth` case.
+// `Core\Cli::ColorDepth` case.
 
 class HeatMap {
-    public static function shades(Core\Cli\ColorDepth $depth): int {
+    public static function shades(Core\Cli::ColorDepth $depth): int {
         return match ($depth) {
-            Core\Cli\ColorDepth::None => 1,
-            Core\Cli\ColorDepth::Ansi16 => 4,
-            Core\Cli\ColorDepth::Ansi256 => 24,
-            Core\Cli\ColorDepth::TrueColor => 256,
+            Core\Cli::ColorDepth::None => 1,
+            Core\Cli::ColorDepth::Ansi16 => 4,
+            Core\Cli::ColorDepth::Ansi256 => 24,
+            Core\Cli::ColorDepth::TrueColor => 256,
         };
     }
 }
 
 // The cases in the order they are declared: least colour first.
-array<Core\Cli\ColorDepth> $everything = [
-    Core\Cli\ColorDepth::None,
-    Core\Cli\ColorDepth::Ansi16,
-    Core\Cli\ColorDepth::Ansi256,
-    Core\Cli\ColorDepth::TrueColor,
+array<Core\Cli::ColorDepth> $everything = [
+    Core\Cli::ColorDepth::None,
+    Core\Cli::ColorDepth::Ansi16,
+    Core\Cli::ColorDepth::Ansi256,
+    Core\Cli::ColorDepth::TrueColor,
 ];
 
-foreach ($everything as Core\Cli\ColorDepth $depth) {
+foreach ($everything as Core\Cli::ColorDepth $depth) {
     echo HeatMap::shades($depth), " shade(s)\n";
 }
 
 // `Core\Cli::colorDepth()` returns the colour depth of the current terminal.
 // This note goes to standard error, because it is not part of the result.
 Core\Cli::write("this run has " . HeatMap::shades(Core\Cli::colorDepth()) . " shade(s)",
-                {stream: Core\Cli\Stream::Err, newline: true});
+                {stream: Core\Cli::Stream::Err, newline: true});

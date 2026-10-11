@@ -7,7 +7,7 @@ class Changes {
     public static function show(array<string> $removed, array<string> $added): void {
         // `None` means the text goes somewhere that shows no colour, such as a
         // file or another program.
-        bool $plain = Core\Cli::colorDepth() == Core\Cli\ColorDepth::None;
+        bool $plain = Core\Cli::colorDepth() == Core\Cli::ColorDepth::None;
 
         foreach ($removed as string $line) {
             echo $plain ? "-" : " ", $line, "\n";

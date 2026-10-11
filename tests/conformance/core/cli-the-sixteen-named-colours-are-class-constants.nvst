@@ -40,7 +40,7 @@ var $viaRgb = Core\Cli\Style::of({color: Core\Cli\Color::rgb(255, 0, 0)});
 // while what an actual terminal is *sent* is pinned by `nvs-stdlib`'s own
 // `styling_is_a_value_type_and_never_a_grammar`, which can ask about a colour
 // depth this process does not have.
-if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
+if (Core\Cli::colorDepth() == Core\Cli::ColorDepth::None) {
     echo Core\Cli\Text::styled("0", $black);
     echo Core\Cli\Text::styled("1", $red);
     echo Core\Cli\Text::styled("2", $green);

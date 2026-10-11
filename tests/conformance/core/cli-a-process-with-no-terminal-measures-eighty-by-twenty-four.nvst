@@ -12,7 +12,7 @@ With no controlling terminal the width and height are exactly the documented `80
 // punched card, and a program that subtracts a margin from `width` must be
 // able to do it without checking for zero first.
 
-if (Core\Cli::isTty(Core\Cli\Stream::Out)) {
+if (Core\Cli::isTty(Core\Cli::Stream::Out)) {
     echo "a terminal is attached", "\n";
 } else {
     echo "no terminal", "\n";
@@ -23,7 +23,7 @@ uint $rows = Core\Cli::height();
 echo "width=", $columns, "\n";
 echo "height=", $rows, "\n";
 
-if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
+if (Core\Cli::colorDepth() == Core\Cli::ColorDepth::None) {
     echo "depth=None", "\n";
 } else {
     echo "depth=some", "\n";

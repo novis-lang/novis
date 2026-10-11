@@ -1,8 +1,10 @@
 Says how much colour a terminal can show, so a program can pick a palette that will actually arrive.
 
+`Core\Cli::ColorDepth` is declared in the class `Core\Cli`. The method `colorDepth` returns it.
+
 Terminals differ. A log collector or a pipe shows no colour at all, an old console shows the sixteen
 ANSI colours, most terminals today show a 256-entry palette, and a modern one shows all 24-bit
-colours. `Core\Cli\ColorDepth` has one case for each of those — `None`, `Ansi16`, `Ansi256` and
+colours. `Core\Cli::ColorDepth` has one case for each of those — `None`, `Ansi16`, `Ansi256` and
 `TrueColor` — and `Core\Cli::colorDepth()` answers with the one this run has, after reading `NO_COLOR`,
 `TERM` and the rest.
 

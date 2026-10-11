@@ -14,7 +14,7 @@ var $raw = "<red>" . Core\Str::fromCodePoint(27) . "[31m</red>";
 // § 3: a conformance case's output is captured, so no stream is a terminal and
 // the styling is dropped entirely. What is left is the text, and it must be
 // exactly what the raw path already produces for the same bytes.
-if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
+if (Core\Cli::colorDepth() == Core\Cli::ColorDepth::None) {
     echo Core\Cli\Text::styled($raw, $style), "\n";
     echo Core\Cli\Text::plain($raw), "\n";
 } else {
@@ -27,7 +27,7 @@ if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
 // option. None of these is a string a program could have typed by accident.
 var $indexed = Core\Cli\Style::of({color: Core\Cli\Color::index(160)});
 var $true = Core\Cli\Style::of({background: Core\Cli\Color::rgb(255, 0, 0), underline: true});
-if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
+if (Core\Cli::colorDepth() == Core\Cli::ColorDepth::None) {
     echo Core\Cli\Text::styled("indexed", $indexed), " ";
     echo Core\Cli\Text::styled("true", $true), "\n";
 } else {

@@ -1,8 +1,8 @@
 Whether each standard stream is a terminal, the colour depth — honouring `NO_COLOR`,
 `CLICOLOR_FORCE`, `FORCE_COLOR` and `TERM=dumb`, and enabling Windows virtual terminal processing
 where it exists — and the width and height are **resolved once per process, not per call**.
-`Cli::isTty(Cli\Stream)`, `Cli::width()`, `Cli::height()` and `Cli::colorDepth()` read that profile;
-`80`/`24` is the answer when there is no controlling terminal. `Cli\Stream` is an enum of `In`, `Out`
+`Cli::isTty(Cli::Stream)`, `Cli::width()`, `Cli::height()` and `Cli::colorDepth()` read that profile;
+`80`/`24` is the answer when there is no controlling terminal. `Cli::Stream` is an enum of `In`, `Out`
 and `Err`, because "is a tty" is always a question about one stream and *colour on stdout while stdin
 is a pipe* is the common case a single `isTty()` cannot express.
 

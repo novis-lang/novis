@@ -15,15 +15,15 @@ class Bench {
             // round can be left out.
             uint $pick = ($terminals + $i) % 3;
             if ($pick == 0) {
-                if (Core\Cli::isTty(Core\Cli\Stream::In)) {
+                if (Core\Cli::isTty(Core\Cli::Stream::In)) {
                     $terminals = $terminals + 1;
                 }
             } elseif ($pick == 1) {
-                if (Core\Cli::isTty(Core\Cli\Stream::Out)) {
+                if (Core\Cli::isTty(Core\Cli::Stream::Out)) {
                     $terminals = $terminals + 1;
                 }
             } else {
-                if (Core\Cli::isTty(Core\Cli\Stream::Err)) {
+                if (Core\Cli::isTty(Core\Cli::Stream::Err)) {
                     $terminals = $terminals + 1;
                 }
             }

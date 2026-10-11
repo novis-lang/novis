@@ -3,17 +3,17 @@
 // to see what yours can do. Text sent to a file has no colour, so this prints
 // `no colour` here.
 
-Core\Cli\ColorDepth $depth = Core\Cli::colorDepth();
+Core\Cli::ColorDepth $depth = Core\Cli::colorDepth();
 
-if ($depth == Core\Cli\ColorDepth::None) {
+if ($depth == Core\Cli::ColorDepth::None) {
     echo "no colour\n";
 }
-if ($depth == Core\Cli\ColorDepth::Ansi16) {
+if ($depth == Core\Cli::ColorDepth::Ansi16) {
     echo "16 colours\n";
 }
-if ($depth == Core\Cli\ColorDepth::Ansi256) {
+if ($depth == Core\Cli::ColorDepth::Ansi256) {
     echo "256 colours\n";
 }
-if ($depth == Core\Cli\ColorDepth::TrueColor) {
+if ($depth == Core\Cli::ColorDepth::TrueColor) {
     echo "every colour\n";
 }

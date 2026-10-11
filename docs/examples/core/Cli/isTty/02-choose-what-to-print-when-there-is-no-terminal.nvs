@@ -3,7 +3,7 @@
 // A separator line as wide as the window is useful on screen. In a log file it
 // is noise.
 
-if (Core\Cli::isTty(Core\Cli\Stream::Out)) {
+if (Core\Cli::isTty(Core\Cli::Stream::Out)) {
     // There is a terminal, so draw a line across it.
     echo Core\Str::repeat("-", Core\Cli::width()), "\n";
     echo "working\n";

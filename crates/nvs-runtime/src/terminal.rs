@@ -127,7 +127,7 @@ pub const FALLBACK_WIDTH: u32 = 80;
 /// sentence.
 pub const FALLBACK_HEIGHT: u32 = 24;
 
-/// Which standard stream a question is about — `rule:tooling/the-terminal-profile-resolves-once`'s `Cli\Stream`,
+/// Which standard stream a question is about — `rule:tooling/the-terminal-profile-resolves-once`'s `Cli::Stream`,
 /// as the Rust half of it.
 ///
 /// A stream rather than one process-wide answer because "colour on stdout while
@@ -142,7 +142,7 @@ pub enum Stream {
     Err,
 }
 
-/// How much colour standard output can show — `rule:tooling/the-terminal-profile-resolves-once`'s `Cli\ColorDepth`.
+/// How much colour standard output can show — `rule:tooling/the-terminal-profile-resolves-once`'s `Cli::ColorDepth`.
 ///
 /// Ordered least to most, so the sink's `truecolor → 256 → 16 → none`
 /// degradation is a comparison rather than a table.

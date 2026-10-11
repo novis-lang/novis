@@ -93,7 +93,7 @@ var $style = Core\Cli\Style::of({
     bold: true,
     underline: true
 });
-bool $bare = Core\Cli::colorDepth() == Core\Cli\ColorDepth::None;
+bool $bare = Core\Cli::colorDepth() == Core\Cli::ColorDepth::None;
 echo Styled::counts($style, $bare), "\n";
 
 // The empty style is the same constructor with nothing to emit, and it is

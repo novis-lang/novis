@@ -2,7 +2,7 @@
 A standard output that is not a terminal reports no colour at all, so a piped run and a CI log are plain — the agreement between `isTty` and `colorDepth` that `rule:tooling/the-terminal-profile-resolves-once` states
 --FILE--
 <?nvs
-// covers: Core\Cli\Stream
+// covers: Core\Cli::Stream
 //
 // § 3: "When the stream is not a terminal, styling is dropped entirely", so
 // `myprog | grep` and a CI log are plain. That makes these two members answer
@@ -14,16 +14,16 @@ A standard output that is not a terminal reports no colour at all, so a piped ru
 // A conformance case's own output is captured, so none of the three streams is
 // a terminal while this runs.
 
-bool $in = Core\Cli::isTty(Core\Cli\Stream::In);
-bool $out = Core\Cli::isTty(Core\Cli\Stream::Out);
-bool $err = Core\Cli::isTty(Core\Cli\Stream::Err);
+bool $in = Core\Cli::isTty(Core\Cli::Stream::In);
+bool $out = Core\Cli::isTty(Core\Cli::Stream::Out);
+bool $err = Core\Cli::isTty(Core\Cli::Stream::Err);
 
 // The implication, one direction only: colour requires a terminal, but a
 // terminal does not require colour (`NO_COLOR` and `TERM=dumb` both refuse).
 if ($out) {
     echo "held (a terminal may or may not colour)", "\n";
 } else {
-    if (Core\Cli::colorDepth() == Core\Cli\ColorDepth::None) {
+    if (Core\Cli::colorDepth() == Core\Cli::ColorDepth::None) {
         echo "held (no terminal, no colour)", "\n";
     } else {
         echo "broken: colour without a terminal", "\n";

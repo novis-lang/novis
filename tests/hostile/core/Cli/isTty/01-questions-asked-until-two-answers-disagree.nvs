@@ -12,7 +12,7 @@ class Deep
     public static function ask(uint $left, bool $first): uint
     {
         uint $wrong = 0;
-        if (Core\Cli::isTty(Core\Cli\Stream::Out) != $first) {
+        if (Core\Cli::isTty(Core\Cli::Stream::Out) != $first) {
             $wrong = $wrong + 1;
         }
         if ($left > 0) {
@@ -24,9 +24,9 @@ class Deep
 
 // 1. The first answer for each stream. Every answer below is compared with one
 //    of these three.
-bool $in = Core\Cli::isTty(Core\Cli\Stream::In);
-bool $out = Core\Cli::isTty(Core\Cli\Stream::Out);
-bool $err = Core\Cli::isTty(Core\Cli\Stream::Err);
+bool $in = Core\Cli::isTty(Core\Cli::Stream::In);
+bool $out = Core\Cli::isTty(Core\Cli::Stream::Out);
+bool $err = Core\Cli::isTty(Core\Cli::Stream::Err);
 echo "step 1 answered\n";
 
 // 2. Three hundred thousand questions in a row. Nothing the program does may
@@ -34,13 +34,13 @@ echo "step 1 answered\n";
 uint $disagreements = 0;
 uint $i = 0;
 while ($i < 100000) {
-    if (Core\Cli::isTty(Core\Cli\Stream::In) != $in) {
+    if (Core\Cli::isTty(Core\Cli::Stream::In) != $in) {
         $disagreements = $disagreements + 1;
     }
-    if (Core\Cli::isTty(Core\Cli\Stream::Out) != $out) {
+    if (Core\Cli::isTty(Core\Cli::Stream::Out) != $out) {
         $disagreements = $disagreements + 1;
     }
-    if (Core\Cli::isTty(Core\Cli\Stream::Err) != $err) {
+    if (Core\Cli::isTty(Core\Cli::Stream::Err) != $err) {
         $disagreements = $disagreements + 1;
     }
     $i = $i + 1;

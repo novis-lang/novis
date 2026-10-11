@@ -17,7 +17,7 @@ Core\Cli::write(Core\Cli\Text::plain($paint), { newline: true });
 
 // 3. Standard input is not a stream a program writes to, so this throws.
 try {
-    Core\Cli::write('nobody reads this', { stream: Core\Cli\Stream::In });
+    Core\Cli::write('nobody reads this', { stream: Core\Cli::Stream::In });
     echo "step 3 written\n";
 } catch (Throwable $refused) {
     echo "step 3 refused\n";
@@ -26,14 +26,14 @@ try {
 // 4. Half a million escape characters in one call. Each one is replaced by a
 //    wider character, so the text grows while it is written.
 string $many = Core\Str::repeat("\u{1B}", 500000);
-Core\Cli::write($many, { stream: Core\Cli\Stream::Err, newline: true });
+Core\Cli::write($many, { stream: Core\Cli::Stream::Err, newline: true });
 echo "step 4 written\n";
 
 // 5. A hundred thousand small writes, changing stream every time.
 uint $i = 0;
 while ($i < 100000) {
     Core\Cli::write('o');
-    Core\Cli::write('e', { stream: Core\Cli\Stream::Err });
+    Core\Cli::write('e', { stream: Core\Cli::Stream::Err });
     $i = $i + 1;
 }
 echo "\nstep 5 written\n";

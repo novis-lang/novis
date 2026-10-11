@@ -5640,7 +5640,7 @@
       "name": "Core\\Cli",
       "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
       "summary": "",
-      "surface": "the terminal surface, owned by `rule:tooling/terminal-output-is-a-sink` — `arguments(): array<tainted string>`, `write`, `escape`, `isTty(Cli\\Stream)`, `width`, `height`, `colorDepth`, `displayWidth`; the prompts `ask`, `confirm`, `select<T>`, `multiSelect<T>` and `secret(): secret tainted string`; and the scoped regions `live<T>` and `progress<T>`. Its value types are `Cli\\Text` — built by `plain`/`styled`, composed with `+`, and read back by `text(): string` — `Cli\\Style` and `Cli\\Color`, its enums `Cli\\Stream`, `Cli\\ColorDepth` and `Cli\\Shell`. Replaces `$argv`, `$argc`, `readline`, `mb_strwidth`, `posix_isatty`. **Terminal output is a `tainted` sink** that substitutes every control byte with a visible glyph; `Cli\\Text` is the only thing that writes raw. The byte-and-line side of standard input is `Core\\IO` (§ 14), not here; process exit is the `exit` keyword (`rule:statements/nvs-is-the-only-open-tag`).",
+      "surface": "the terminal surface, owned by `rule:tooling/terminal-output-is-a-sink` — `arguments(): array<tainted string>`, `write`, `escape`, `isTty(Cli::Stream)`, `width`, `height`, `colorDepth`, `displayWidth`; the prompts `ask`, `confirm`, `select<T>`, `multiSelect<T>` and `secret(): secret tainted string`; and the scoped regions `live<T>` and `progress<T>`. Its value types are `Cli\\Text` — built by `plain`/`styled`, composed with `+`, and read back by `text(): string` — `Cli\\Style` and `Cli\\Color`, its enums `Cli::Stream`, `Cli::ColorDepth` and `Cli\\Shell`. Replaces `$argv`, `$argc`, `readline`, `mb_strwidth`, `posix_isatty`. **Terminal output is a `tainted` sink** that substitutes every control byte with a visible glyph; `Cli\\Text` is the only thing that writes raw. The byte-and-line side of standard input is `Core\\IO` (§ 14), not here; process exit is the `exit` keyword (`rule:statements/nvs-is-the-only-open-tag`).",
       "enums": [],
       "constants": [],
       "members": [
@@ -5673,7 +5673,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "write(string|Core\\Cli\\Text $value, {stream?: Core\\Cli\\Stream, newline?: bool}): void",
+          "signature": "write(string|Core\\Cli\\Text $value, {stream?: Core\\Cli::Stream, newline?: bool}): void",
           "params": [
             {
               "kind": "param",
@@ -5687,7 +5687,7 @@
           "options": [
             {
               "name": "stream",
-              "type": "Core\\Cli\\Stream"
+              "type": "Core\\Cli::Stream"
             },
             {
               "name": "newline",
@@ -5720,7 +5720,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>$stream</code> is <code>Core\\Cli\\Stream::In</code>, which a program reads and never writes. The case exists for <code>Core\\Cli::isTty</code>, which asks its question about all three."
+                "descHtml": "<code>$stream</code> is <code>Core\\Cli::Stream::In</code>, which a program reads and never writes. The case exists for <code>Core\\Cli::isTty</code>, which asks its question about all three."
               }
             ]
           },
@@ -5772,12 +5772,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "isTty(Core\\Cli\\Stream $stream): bool",
+          "signature": "isTty(Core\\Cli::Stream $stream): bool",
           "params": [
             {
               "kind": "param",
               "name": "stream",
-              "type": "Core\\Cli\\Stream",
+              "type": "Core\\Cli::Stream",
               "default": null,
               "optional": false,
               "variadic": false
@@ -5856,10 +5856,10 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "colorDepth(): Core\\Cli\\ColorDepth",
+          "signature": "colorDepth(): Core\\Cli::ColorDepth",
           "params": [],
           "options": [],
-          "returnType": "Core\\Cli\\ColorDepth",
+          "returnType": "Core\\Cli::ColorDepth",
           "notes": "",
           "qualifier": "",
           "section": "15. Request-facing: `Core\\Server`, `Core\\Request`, `Core\\Response`, `Core\\Session`, `Core\\Env`, `Core\\Cap`, `Core\\Cli`",
@@ -5867,7 +5867,7 @@
           "notesHtml": "",
           "doc": {
             "shortHtml": "How much colour standard output can show, honouring <code>NO_COLOR</code>, <code>CLICOLOR_FORCE</code>, <code>FORCE_COLOR</code>, <code>COLORTERM</code> and <code>TERM</code>. A program does not normally ask: it writes <code>Cli\\Text</code> and the sink degrades to what the terminal has. Resolved once for the process.",
-            "returnHtml": "The depth as a <code>Core\\Cli\\ColorDepth</code> case — <code>None</code> whenever standard output is not a terminal and nothing forced colour on, which is what makes <code>myprog | grep</code> and a CI log plain."
+            "returnHtml": "The depth as a <code>Core\\Cli::ColorDepth</code> case — <code>None</code> whenever standard output is not a terminal and nothing forced colour on, which is what makes <code>myprog | grep</code> and a CI log plain."
           },
           "slug": "colordepth",
           "url": "/reference/core/cli/colordepth/",
@@ -6309,7 +6309,7 @@
       "slug": "cli",
       "url": "/reference/core/cli/",
       "summaryHtml": "",
-      "surfaceHtml": "the terminal surface, owned by <code>rule:tooling/terminal-output-is-a-sink</code> — <code>arguments(): array&lt;tainted string&gt;</code>, <code>write</code>, <code>escape</code>, <code>isTty(Cli\\Stream)</code>, <code>width</code>, <code>height</code>, <code>colorDepth</code>, <code>displayWidth</code>; the prompts <code>ask</code>, <code>confirm</code>, <code>select&lt;T&gt;</code>, <code>multiSelect&lt;T&gt;</code> and <code>secret(): secret tainted string</code>; and the scoped regions <code>live&lt;T&gt;</code> and <code>progress&lt;T&gt;</code>. Its value types are <code>Cli\\Text</code> — built by <code>plain</code>/<code>styled</code>, composed with <code>+</code>, and read back by <code>text(): string</code> — <code>Cli\\Style</code> and <code>Cli\\Color</code>, its enums <code>Cli\\Stream</code>, <code>Cli\\ColorDepth</code> and <code>Cli\\Shell</code>. Replaces <code>$argv</code>, <code>$argc</code>, <code>readline</code>, <code>mb_strwidth</code>, <code>posix_isatty</code>. <strong>Terminal output is a <code>tainted</code> sink</strong> that substitutes every control byte with a visible glyph; <code>Cli\\Text</code> is the only thing that writes raw. The byte-and-line side of standard input is <code>Core\\IO</code> (§ 14), not here; process exit is the <code>exit</code> keyword (<code>rule:statements/nvs-is-the-only-open-tag</code>)."
+      "surfaceHtml": "the terminal surface, owned by <code>rule:tooling/terminal-output-is-a-sink</code> — <code>arguments(): array&lt;tainted string&gt;</code>, <code>write</code>, <code>escape</code>, <code>isTty(Cli::Stream)</code>, <code>width</code>, <code>height</code>, <code>colorDepth</code>, <code>displayWidth</code>; the prompts <code>ask</code>, <code>confirm</code>, <code>select&lt;T&gt;</code>, <code>multiSelect&lt;T&gt;</code> and <code>secret(): secret tainted string</code>; and the scoped regions <code>live&lt;T&gt;</code> and <code>progress&lt;T&gt;</code>. Its value types are <code>Cli\\Text</code> — built by <code>plain</code>/<code>styled</code>, composed with <code>+</code>, and read back by <code>text(): string</code> — <code>Cli\\Style</code> and <code>Cli\\Color</code>, its enums <code>Cli::Stream</code>, <code>Cli::ColorDepth</code> and <code>Cli\\Shell</code>. Replaces <code>$argv</code>, <code>$argc</code>, <code>readline</code>, <code>mb_strwidth</code>, <code>posix_isatty</code>. <strong>Terminal output is a <code>tainted</code> sink</strong> that substitutes every control byte with a visible glyph; <code>Cli\\Text</code> is the only thing that writes raw. The byte-and-line side of standard input is <code>Core\\IO</code> (§ 14), not here; process exit is the <code>exit</code> keyword (<code>rule:statements/nvs-is-the-only-open-tag</code>)."
     },
     {
       "id": "Cli.Color",

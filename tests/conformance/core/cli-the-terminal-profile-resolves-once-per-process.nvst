@@ -37,12 +37,12 @@ if ($firstDepth == $secondDepth) {
 
 // Per stream, because § 3 makes tty-ness a question about one stream and never
 // about the process — and each of the three has to be as stable as the others.
-bool $firstIn = Core\Cli::isTty(Core\Cli\Stream::In);
-bool $firstOut = Core\Cli::isTty(Core\Cli\Stream::Out);
-bool $firstErr = Core\Cli::isTty(Core\Cli\Stream::Err);
-if ($firstIn == Core\Cli::isTty(Core\Cli\Stream::In)) {
-    if ($firstOut == Core\Cli::isTty(Core\Cli\Stream::Out)) {
-        if ($firstErr == Core\Cli::isTty(Core\Cli\Stream::Err)) {
+bool $firstIn = Core\Cli::isTty(Core\Cli::Stream::In);
+bool $firstOut = Core\Cli::isTty(Core\Cli::Stream::Out);
+bool $firstErr = Core\Cli::isTty(Core\Cli::Stream::Err);
+if ($firstIn == Core\Cli::isTty(Core\Cli::Stream::In)) {
+    if ($firstOut == Core\Cli::isTty(Core\Cli::Stream::Out)) {
+        if ($firstErr == Core\Cli::isTty(Core\Cli::Stream::Err)) {
             echo "all three streams agree", "\n";
         }
     }

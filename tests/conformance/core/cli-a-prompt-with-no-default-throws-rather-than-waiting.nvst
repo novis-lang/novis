@@ -36,7 +36,7 @@ echo Core\Cli::ask(
     "Your name?",
     {
         default: "ada",
-        validate: fn(string $answer): bool => Core\Cli::isTty(Core\Cli\Stream::In),
+        validate: fn(string $answer): bool => Core\Cli::isTty(Core\Cli::Stream::In),
     }
 ), "\n";
 --EXPECT--
