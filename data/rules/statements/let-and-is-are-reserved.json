@@ -1,9 +1,7 @@
 {
   "title": "`let` and `is` cannot name anything; `var` declares, `as` converts, and `is` is the type test",
   "status": "designed",
-  "because": [
-    "0192"
-  ],
+  "because": [],
   "seeAlso": [
     "types/var-inference",
     "types/narrowing",

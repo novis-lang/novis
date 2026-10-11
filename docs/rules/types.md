@@ -1318,7 +1318,7 @@ A guarded branch is cheaper with `is` than without it: the `as` a program wrote 
 - **An `integer`-style spelling matching both integer tags.** It adds surface to hide the `int` and
   `uint` split rather than stating it, and `int|uint` already says it in the grammar a reader knows.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0192](../decisions/0192.md), [0261](../decisions/0261.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0261](../decisions/0261.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-narrowing"></a>
 
@@ -1369,7 +1369,7 @@ Narrowing never changes a binding's declared type ([`types/declaration`](types.m
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0192](../decisions/0192.md), [0270](../decisions/0270.md).</sub>
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0270](../decisions/0270.md).</sub>
 
 <a id="types-conversion"></a>
 
@@ -2317,7 +2317,7 @@ the reference already promised. No second operator tests a class ([`types/one-ty
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
 member" ([`types/property-key-access`](types.md#types-property-key-access)).
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0192](../decisions/0192.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`types/one-type-test`](types.md#types-one-type-test).</sub>
 
 <a id="types-class-constant"></a>
 
@@ -2441,7 +2441,7 @@ subject, and an answer its declaration settles folds to a constant rather than r
 defers to [`types/erased-member-access`](types.md#types-erased-member-access)'s name-keyed fetch, which throws for a receiver that turns
 out not to be an object and for a name its class does not carry.
 
-<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-test`](types.md#types-type-test), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0192](../decisions/0192.md).</sub>
+<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-test`](types.md#types-type-test), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused).</sub>
 
 <a id="types-one-type-test"></a>
 
@@ -2469,6 +2469,27 @@ every other token after `is` starts a type.
 
 The shapes a pattern grammar would need — object and array patterns, comparison patterns, pinning,
 `match ($x) is {…}` — keep refusing as syntax Novis does not have. Any future pattern syntax is a
-Novis design question, opened by its own record and decided on Novis's priorities.
+Novis design question, decided on Novis's priorities. What PHP does with its own pattern-matching
+proposal or with `instanceof` is not a reason to revisit this rule.
 
-<sub>See also [`types/type-test`](types.md#types-type-test), [`types/narrowing`](types.md#types-narrowing), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`statements/let-and-is-are-reserved`](statements.md#statements-let-and-is-are-reserved). Decided in [0192](../decisions/0192.md).</sub>
+**Two operators would split one question, and the seam is where the cost is.** A class reference and a
+written class name would be tested with different words; a subject that can hold no object would be
+refused by one and answered `false` by the other, so rewriting one into the other would change
+answers; and every rule touching either would explain why the other exists. Diverging from PHP here
+costs one mechanical rewrite, `$x instanceof C` to `$x is C`, and a PHP program's `instanceof` never
+compiles to something else.
+
+**Memory:** none. `is C`, `is $cls`, `is callable`, `is iterable` and a `catch` chain all emit the
+same class-test instruction and the same descriptor walk.
+
+**Declined:**
+- **`Core\Reflect::isInstance($x, $cls)` for the dynamic test.** It asks the question `$x is Request`
+  asks in another vocabulary, cannot narrow, because the checker does not read a library call's result
+  as a type, and leaves two ways to ask.
+- **`instanceof` kept for the dynamic form alone.** It keeps a keyword and its whole path through the
+  parser, the checker, codegen and the language server alive for one form, and keeps two spellings
+  whose answers differ for a subject that can hold no object.
+- **Waiting for PHP to settle pattern matching.** It would shape the surface around an undecided
+  proposal, a cost paid by every later change, where diverging is paid once.
+
+<sub>See also [`types/type-test`](types.md#types-type-test), [`types/narrowing`](types.md#types-narrowing), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`statements/let-and-is-are-reserved`](statements.md#statements-let-and-is-are-reserved).</sub>
