@@ -100,8 +100,17 @@ deployment that did not intend that must not put an unexpected directory under `
   with one process, one unit cache and one resident footprint per module, giving up the shared
   compiled-code cache, to defend an invariant ([`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url))
   that a table of any size already keeps.
+- **A `case = "lower"` key on the mount block.** It reopens the closed key set
+  ([`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy)), and it cannot say "lower in the prefix, verbatim in
+  the origin's path"; a transform on the reference can.
+- **Lower-casing every capture in a prefix unasked.** It would move the URLs of every existing
+  mixed-case deployment.
+- **An `upper` transform.** No deployment asks for it, and the closed set is one line to extend.
+- **A brace that is not a reference, read as a literal brace.** A host name never carries a brace and a
+  URL path carries one only percent-encoded, while the prefix is compared with the path as sent, so such
+  a mount boots and nothing reaches it.
 
-<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0197](../decisions/0197.md), [0200](../decisions/0200.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0200](../decisions/0200.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
 
 <a id="http-server-a-mount-carries-no-policy"></a>
 
@@ -340,11 +349,16 @@ An `accept` that fails with `EMFILE`/`ENFILE` returns immediately and will fail 
 
 In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip, run the entry. In development the sequence is `try_files $uri /index.nvs`, the front-controller pattern web servers already deploy. Both directives are `System`-class startup defaults a mode selects and no request may flip ([`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped)), because a flip would appear to change `dispatch` for a request already dispatched. Both reload: a request reads them from the snapshot it cloned, so a reload reaches the next request, and a request already dispatched keeps the table it was dispatched by.
 
-**No step takes its case rule from the filesystem.** A prefix is matched exactly, and in steps 3 and 4 a remainder that differs from the file on disk only in case is a file that is not there: `/STYLE.CSS` does not serve `style.css` on Windows or macOS, because it would not on Linux. It is [`programs/path-case`](programs.md#programs-path-case)'s comparison, at the same cost — the canonical path is already in hand. The host is the one part that folds ([`http-server/host-matching-is-on-the-host-part-only`](http-server.md#http-server-host-matching-is-on-the-host-part-only)), because its specification says it does.
+**No step takes its case rule from the filesystem.** A prefix is matched exactly, and in steps 3 and 4 a remainder that differs from the file on disk only in case is a file that is not there: `/STYLE.CSS` does not serve `style.css` on Windows or macOS, because it would not on Linux. It is [`programs/path-case`](programs.md#programs-path-case)'s comparison, at the same cost — the canonical path is already in hand, and the comparison allocates only when the two paths already differ. A symlink whose own name is its target's in another case is declined with the rest, because nothing at hand tells it from the filesystem folding the name. The host is the one part that folds ([`http-server/host-matching-is-on-the-host-part-only`](http-server.md#http-server-host-matching-is-on-the-host-part-only)), because its specification says it does.
 
 `[server] static` is a boolean and the *path* is each mount's own root, which is what makes assets work for a fleet of modules rather than for one. What serving a file means in either mode is [`http-server/static-serving-is-one-policy`](http-server.md#http-server-static-serving-is-one-policy). A URL that maps to a file in production too is rejected: production has a front controller and a compiled route table, and every extra URL-to-file resolution is surface on the hot path bought for a scratch workflow.
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/static-serving-is-one-policy`](http-server.md#http-server-static-serving-is-one-policy), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler). Decided in [0197](../decisions/0197.md), [0219](../decisions/0219.md).</sub>
+**Declined:**
+- **Case-insensitive prefix matching.** One resource gains many URLs, and every request pays a fold;
+  `{n:lower}` lets an operator choose the lower-case URL instead ([`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)).
+- **A redirect to the canonical case.** It still does not let an operator choose which case is canonical.
+
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/static-serving-is-one-policy`](http-server.md#http-server-static-serving-is-one-policy), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler). Decided in [0219](../decisions/0219.md).</sub>
 
 <a id="http-server-trusted-proxies-is-empty-and-empty-reads-nothing"></a>
 
@@ -421,7 +435,7 @@ A deployment that declares only host mounts gets a `404` for an unknown host, wi
 
 The proxy note that belongs in the operator documentation: nginx's `proxy_pass` sends `Host: $proxy_host` unless told otherwise, so a host-mounted deployment must set `proxy_set_header Host $host;` or every request arrives with the wrong name and lands on the fallback — silently.
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0197](../decisions/0197.md).</sub>
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="http-server-a-path-is-never-derived-from-a-url"></a>
 

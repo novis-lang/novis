@@ -31,3 +31,12 @@ deployment that did not intend that must not put an unexpected directory under `
   with one process, one unit cache and one resident footprint per module, giving up the shared
   compiled-code cache, to defend an invariant (`rule:http-server/a-path-is-never-derived-from-a-url`)
   that a table of any size already keeps.
+- **A `case = "lower"` key on the mount block.** It reopens the closed key set
+  (`rule:http-server/a-mount-carries-no-policy`), and it cannot say "lower in the prefix, verbatim in
+  the origin's path"; a transform on the reference can.
+- **Lower-casing every capture in a prefix unasked.** It would move the URLs of every existing
+  mixed-case deployment.
+- **An `upper` transform.** No deployment asks for it, and the closed set is one line to extend.
+- **A brace that is not a reference, read as a literal brace.** A host name never carries a brace and a
+  URL path carries one only percent-encoded, while the prefix is compared with the path as sent, so such
+  a mount boots and nothing reaches it.
