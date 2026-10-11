@@ -100,7 +100,7 @@ checks:
   - id: class-scoped-enums-the-editor-knows-an-owned-enum
     stage: 6
     name: "the language server outlines, completes, defines and hovers an owned enum from both spellings"
-    run: [bun, nv, suite, lsp-test, tests/lsp/, --case, tests/lsp/symbols/a-class-scoped-enum-nests-under-its-class.lspt, --case, tests/lsp/completion/after-a-class-name-its-enum-is-offered.lspt, --case, tests/lsp/completion/after-a-class-scoped-enum-its-cases-are-offered.lspt, --case, tests/lsp/completion/inside-its-owner-a-class-scoped-enum-completes-bare.lspt, --case, tests/lsp/definition/a-class-scoped-enum-case-jumps-to-its-declaration.lspt, --case, tests/lsp/definition/a-bare-class-scoped-enum-jumps-to-its-declaration.lspt, --case, tests/lsp/hover/a-class-scoped-enum-shows-its-owner.lspt]
+    run: [bun, nv, suite, tests/lsp/, --case, tests/lsp/symbols/a-class-scoped-enum-nests-under-its-class.lspt, --case, tests/lsp/completion/after-a-class-name-its-enum-is-offered.lspt, --case, tests/lsp/completion/after-a-class-scoped-enum-its-cases-are-offered.lspt, --case, tests/lsp/completion/inside-its-owner-a-class-scoped-enum-completes-bare.lspt, --case, tests/lsp/definition/a-class-scoped-enum-case-jumps-to-its-declaration.lspt, --case, tests/lsp/definition/a-bare-class-scoped-enum-jumps-to-its-declaration.lspt, --case, tests/lsp/hover/a-class-scoped-enum-shows-its-owner.lspt]
     tests: [tests/lsp/symbols/a-class-scoped-enum-nests-under-its-class.lspt, tests/lsp/completion/after-a-class-name-its-enum-is-offered.lspt, tests/lsp/completion/after-a-class-scoped-enum-its-cases-are-offered.lspt, tests/lsp/completion/inside-its-owner-a-class-scoped-enum-completes-bare.lspt, tests/lsp/definition/a-class-scoped-enum-case-jumps-to-its-declaration.lspt, tests/lsp/definition/a-bare-class-scoped-enum-jumps-to-its-declaration.lspt, tests/lsp/hover/a-class-scoped-enum-shows-its-owner.lspt]
   - id: nvs-fmt-an-owned-enum-is-laid-out
     stage: 6
@@ -526,24 +526,26 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 5 are done, both Stage 5 checks pass, and `bun nv verify` is green.**
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 5 are done. Stage 6 has its outline, definition, hover, completion and `nvs fmt` halves, both Stage 6 checks pass, and `bun nv verify` is green.**
 
-Stage 5 needed two code changes. Lowering, codegen, the runtime, `EnumInfo`, the conversion error and the route capture already used the `Shop\Order::Status` key unchanged.
-- `check_class_name_const` (`crates/nvs-types/src/expr/members.rs`) folds `Order::Status::class` through `resolve_class_expr`'s nested arm. A bare `Status::class` inside the owner already worked.
-- `nvs meta --json` lists an owned enum under its owner's `enums` key (`body_json`, `crates/nvs-cli/src/meta.rs`). Its `///` card sits on the `ClassMember` and not on the `EnumDecl`, as an alias's does, so `user_enum_json` takes the doc as a parameter.
+- An owned enum is no `Stmt`, so `declared_type` misses it. `owned_enum_decl` (`crates/nvs-lsp/src/definition.rs`) finds it through its owner by the name span the symbol recorded, and `site_of`, `owned_cases` (completion) and hover's `owned_enum` read it from there. Its `///` card is on the `ClassMember`.
+- A bare name inside the owner goes through `class_at` (`definition.rs`) and `nvs_hir::owned_enum_in_scope`: `type_name_at` for a type, `owned_named` (completion) for a `Status::` access.
+- `nvs fmt` needed no code: `a_class_scoped_enum_is_laid_out_like_a_file_scope_one` passes on the walker node Stage 3 added.
+- The Stage 6 LSP check ran `bun nv suite lsp-test tests/lsp/`, which `nv suite` refuses. The goal file now runs `bun nv suite tests/lsp/`.
 
-Both rules stay `designed`. The key and the lookups: `QName::member` (`crates/nvs-hir/src/qname.rs:107`), `owned_enum` / `owned_enum_in_scope` (`crates/nvs-hir/src/resolve.rs:312`), `collect_owned` (`crates/nvs-types/src/enums.rs:271`). `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
+Both rules stay `designed`. `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
 
 ### Next
 
-**Stage 6: the language server, starting with outline and definition** (`rule:enums/class-scoped-enum`). One file set: `crates/nvs-lsp/src/symbols.rs`, `crates/nvs-lsp/src/definition.rs`, `tests/lsp/symbols/`, `tests/lsp/definition/`.
+**Stage 6, the rest: semantic tokens, folding, hints and the grammar** (`rule:enums/class-scoped-enum`). One file set: `crates/nvs-lsp/src/semantic.rs`, `folding.rs`, `hints.rs`, `index.rs`, `editors/vscode/syntaxes/nvs.tmLanguage.json`, `tests/lsp/`.
 
-- [ ] **Outline** nests an owned enum and its cases under its class, beside the alias arm at `crates/nvs-lsp/src/symbols.rs:215`. Write `tests/lsp/symbols/a-class-scoped-enum-nests-under-its-class.lspt`.
-- [ ] **Go to definition** from `Order::Status::Paid` and from a bare `Status` inside the owner: `declared_type` (`crates/nvs-lsp/src/definition.rs:479`), the member match at `crates/nvs-lsp/src/definition.rs:552` and `:589`, `type_member_at` (`crates/nvs-lsp/src/definition.rs:982`), `type_name_at` (`crates/nvs-lsp/src/definition.rs:1132`). Write the two `tests/lsp/definition/` cases the Stage 6 check names.
-- [ ] **Hover** shows the owner (`hover::at`, `crates/nvs-lsp/src/hover.rs:132`; the card run at `crates/nvs-lsp/src/hover.rs:336`). An owned enum's `///` card is on its `ClassMember`, not its `EnumDecl`. Write `tests/lsp/hover/a-class-scoped-enum-shows-its-owner.lspt`.
+- [ ] **Semantic tokens** colour an owned enum's name and its cases as a file-scope enum's: the member match at `crates/nvs-lsp/src/semantic.rs:790` has no `ClassMemberKind::Enum` arm.
+- [ ] **Folding and hints** descend into an owned enum: `crates/nvs-lsp/src/folding.rs:272` and `crates/nvs-lsp/src/hints.rs:249`. A multi-line owned enum folds as a file-scope one does. Write one `tests/lsp/folding/` and one `tests/lsp/semantic/` case. A new construct column owes a case for every request (the coverage-matrix trap).
+- [ ] **The index**: `crates/nvs-lsp/src/index.rs:833` and `:1169` call `declared_type` on every symbol, which misses an owned enum. Use `owned_enum_decl` there, and check references from both spellings.
+- [ ] **The grammar** colours `enum` inside a class body as the declaration rule at `editors/vscode/syntaxes/nvs.tmLanguage.json:108` does at file scope; check whether that rule is reached inside a class body. Then mark Stage 6 done.
 
 ### Backlog
 
-- The rest of Stage 6 (this goal's Stage 6 section): completion, semantic tokens, folding, hints, `nvs fmt` (`a_class_scoped_enum_is_laid_out_like_a_file_scope_one` beside `crates/nvs-fmt/tests/novis_constructs.rs:213`) and the grammar. `crates/nvs-lsp/src/index.rs` iterates `module.symbols`, so an owned enum already appears there under its `::` key.
 - Stages 7 and 8: every `Core` enum, then every built-in component enum, moved by the rename table in `rule:enums/an-enum-lives-in-the-class-that-uses-it`. A registry name `Core\Arr::Order` parses to the same key `QName::member` builds.
+- Completion of a case after `Order::Status::` in **type** position: `owner_written` (`crates/nvs-lsp/src/completion.rs`) reads one name before `::`, so it sees `Status` alone. Value position works.
 - Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs (this goal's file).
