@@ -546,8 +546,8 @@
 # on an event stream; `max_lifetime` the longest one connection may stay open, however busy; and
 # `send_timeout` the longest one `send` may take before it throws.
 #max_open = 10000                     # default
-#max_frame = "1MB"                    # default
-#max_message = "4MB"                  # default
+#max_frame = "1M"                     # default
+#max_message = "4M"                   # default
 #idle_timeout = "5m"                  # default
 #max_lifetime = "24h"                 # default
 #send_timeout = "30s"                 # default
@@ -1110,7 +1110,7 @@
 #dir = "conf.d"                       # example
 # Absence is fine; unreadable, unowned or unparseable is not. With it, the ownership check moves to
 # the directory that would have held the file.
-#optional = true                      # default
+#optional = false                     # default
 
 
 # ----------------------------------------------------------------------------------------------

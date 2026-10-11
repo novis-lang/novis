@@ -61,8 +61,8 @@
 // headers are refused: a setting that is the same TOML key as a live header, and a setting under a
 // commented-out header whose name is also a key of the live header above it. Every setting line ends
 // with a trailer saying what leaving the key unset does -- `# default`, `# default: <what unset gives>`
-// or `# example` -- two keys that are one field carry one trailer, and where the config crate ships the
-// default itself (`CODE_DEFAULTS`) the value on a `# default` line is compared with the code.
+// or `# example` -- and two keys that are one field carry one trailer. Whether a `# default` line shows
+// the value the code ships is `nvs-config`'s `tests/defaults.rs`, against the one table of defaults.
 
 import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
@@ -111,30 +111,6 @@ const UNIMPLEMENTED = "NOT IMPLEMENTED";
  */
 const NOTE = /^(?<kind>default|example)(?::\s*(?<text>\S.*?))?(?:\s*;\s*restart required)?\s*$/;
 
-/** The defaults the config crate ships itself, and the setting each field of them is. */
-const CODE_DEFAULTS: { rel: string; struct: string; fields: Record<string, string> }[] = [
-  {
-    rel: "crates/nvs-config/src/db.rs",
-    struct: "PoolBounds",
-    fields: { max: "db.<name>.pool.max", idle: "db.<name>.pool.idle", lifetime: "db.<name>.pool.lifetime", acquire: "db.<name>.pool.acquire" },
-  },
-  {
-    rel: "crates/nvs-config/src/server.rs",
-    struct: "Waits",
-    fields: {
-      header: "server.header_timeout",
-      body_idle: "server.body_idle_timeout",
-      write_idle: "server.write_idle_timeout",
-      keepalive: "server.keepalive_timeout",
-      drain: "server.drain_timeout",
-    },
-  },
-  { rel: "crates/nvs-config/src/cache.rs", struct: "Revalidation", fields: { freq: "opcache.revalidate_freq" } },
-];
-
-/** A duration as the file writes one: `"30m"`, `"50ms"`, or a bare number of seconds. */
-const DURATION = /^"?(?<n>\d+(?:\.\d+)?)\s*(?<unit>ms|s|m|h|d)?"?$/;
-const UNITS: Record<string, number> = { ms: 0.001, s: 1.0, m: 60.0, h: 3600.0, d: 86400.0 };
 
 /** A line comment, dropped where the question is whether a file's *code* names a block. */
 const COMMENT = /\/\/.*/g;
@@ -775,80 +751,14 @@ function splitValue(rest: string): [string, string | null] {
   return [rest.trim(), null];
 }
 
-/** A duration as the file or the code spells it, in seconds, or `null` for anything else. */
-function seconds(text: string): number | null {
-  text = text.trim();
-  const code = /^Duration::from_(?<unit>secs|millis)\((?<expr>[\d\s*]+)\)$/.exec(text);
-  if (code) {
-    let product = 1;
-    for (const factor of code.groups!.expr!.split("*")) product *= Number.parseInt(factor.trim(), 10);
-    return code.groups!.unit === "millis" ? product / 1000 : product;
-  }
-  const plain = DURATION.exec(text);
-  if (plain) return Number.parseFloat(plain.groups!.n!) * (plain.groups!.unit ? UNITS[plain.groups!.unit]! : 1.0);
-  return null;
-}
-
-/** Whether a setting line shows the value the code spells: the same text, or the same number of seconds. */
-function sameValue(written: string, expr: string): boolean {
-  if (written.trim() === expr.trim()) return true;
-  const left = seconds(written);
-  const right = seconds(expr);
-  return left !== null && right !== null && left === right;
-}
-
 /**
- * Every default the config crate ships itself, by the setting it is: the value as the code spells it,
- * and the `file:line` it is spelled at. Read out of the struct literal under `impl Default for <Type>`
- * or `pub const DEFAULT: <Type>`, one `field: expr,` per line; a default written any other way is an
- * error here rather than a comparison quietly skipped.
- */
-function codeDefaults(): Map<string, [string, string]> {
-  const found = new Map<string, [string, string]>();
-  for (const { rel, struct, fields } of CODE_DEFAULTS) {
-    let opened = false;
-    let literal = false;
-    const lines = read(rel).split("\n");
-    for (let index = 0; index < lines.length; index++) {
-      const line = lines[index]!.trim();
-      if (!opened) {
-        if (line === `impl Default for ${struct} {`) opened = true;
-        else if (line === `pub const DEFAULT: ${struct} = ${struct} {`) opened = literal = true;
-        continue;
-      }
-      if (!literal) {
-        literal = line === "Self {" || line === `${struct} {`;
-        continue;
-      }
-      const pair = /^(?<field>\w+): (?<expr>.+),$/.exec(line);
-      if (pair && Object.hasOwn(fields, pair.groups!.field!)) {
-        found.set(fields[pair.groups!.field!]!, [pair.groups!.expr!, `${rel}:${index + 1}`]);
-      } else if (line.startsWith("}")) {
-        break;
-      }
-    }
-    const missing = Object.entries(fields)
-      .filter(([, dotted]) => !found.has(dotted))
-      .map(([field]) => field);
-    if (missing.length > 0) {
-      throw new Fatal(
-        `nv directives: ${rel}: \`${struct}\`'s default no longer spells ${missing.join(", ")} as \`field: expr,\` under its ` +
-          "struct literal, so `--check-template` cannot compare the default file with it. Teach `codeDefaults` the new " +
-          "shape, or write the literal that way.",
-      );
-    }
-  }
-  return found;
-}
-
-/**
- * The trailer every setting line owes, in the three ways it goes wrong: missing or malformed, two
- * spellings of one field disagreeing, and a `# default` value the config crate does not ship.
+ * The trailer every setting line owes, in the two ways it goes wrong here: missing or malformed, and
+ * two spellings of one field disagreeing. A `# default` value the config crate does not ship is
+ * `nvs-config`'s `tests/defaults.rs`.
  */
 function checkNotes(keys: Key[], entries: Entry[], rel: string): string[] {
   const problems: string[] = [];
   const first = new Map<Field, [Entry, string]>();
-  const shipped = codeDefaults();
   for (const entry of entries) {
     const key = findKey(keys, entry.dotted);
     if (key === null) continue;
@@ -879,17 +789,6 @@ function checkNotes(keys: Key[], entries: Entry[], rel: string): string[] {
         `${rel}:${entry.line}: \`${entry.dotted}\` says \`# ${spelled}\`, and \`${earlier[0].dotted}\` at line ` +
           `${earlier[0].line} says \`# ${earlier[1]}\`. They are one field (${anchor(key)}) read by one piece of code, ` +
           "so unset means one thing.",
-      );
-    }
-    const code = shipped.get(key.dotted);
-    if (code === undefined) continue;
-    const [expr, at] = code;
-    if (text) {
-      problems.push(`${rel}:${entry.line}: \`${entry.dotted}\` says \`# ${spelled}\`, and ${at} ships \`${expr}\` for it. Show that value and say \`# default\`.`);
-    } else if (!sameValue(entry.value, expr)) {
-      problems.push(
-        `${rel}:${entry.line}: \`${entry.dotted} = ${entry.value}\` is marked \`# default\`, and ${at} ships \`${expr}\`. ` +
-          "Show the value the code ships: the file must not carry a number the crate stopped shipping.",
       );
     }
   }
