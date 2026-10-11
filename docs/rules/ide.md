@@ -2470,7 +2470,10 @@ VS Code client draws the answer as a file decoration, the editor's own surface f
 a file's icon from its name and language, never from its content. The decoration carries no colour,
 because a decoration's colour is drawn on the file's name too, and a list of recoloured names is
 harder to read than the names alone. With no colour the editor draws the letter in the name's own
-colour, dimmed.
+colour, dimmed, the way a source-control letter looks on a file with no change colour. The letter and
+the tooltip are the whole signal: a theme or a user cannot tell the kinds apart by colour. The stable
+API takes a badge of one or two characters and draws no shape around it, and no API changes how the
+Explorer shows a file's name.
 
 The list is what the index holds. The client asks when a server starts answering, after
 `nvs.checkWorkspace`, and when a Novis document is opened or saved, and several asks close together are
@@ -2482,7 +2485,20 @@ of its kind. No setting is added.
 - **Memory:** one more field per indexed file in the server, for the life of the server process.
   Nothing at run time.
 
-<sub>See also [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0269](../decisions/0269.md).</sub>
+**Declined:**
+
+- **The theme's symbol colour for each kind** (`symbolIcon.classForeground` and its siblings). The
+  editor draws it on the name as well as the badge, so in a directory of autoloaded files nearly every
+  name turned one of three colours, and the colours no longer marked anything out.
+- **A circled or filled letter** (`Ⓒ`, `Ⓘ`, `Ⓔ`, `Ⓣ` and the negative circled letters). The circled
+  ones looked worse than a plain letter, and the filled ones were too small to tell apart.
+- **A badge drawn as an icon.** It is the proposed `codiconDecoration` API, which an extension published
+  to the marketplace cannot use.
+- **The kind in the file's name**, such as `Status.enum.nvs`. It would let an icon theme give each kind
+  its own icon, but it changes how autoload finds a file, which every program's layout depends on, so it
+  is a language decision and not an editor one.
+
+<sub>See also [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="ide-the-test-tree-is-discovered-and-run-through-the-cli"></a>
 
