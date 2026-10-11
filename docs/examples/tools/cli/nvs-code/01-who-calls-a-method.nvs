@@ -1,0 +1,39 @@
+<?nvs
+// Shows the `nvs code` commands that find who calls a method and which classes implement an interface.
+
+namespace Shop;
+
+interface Priced
+{
+    public function price(): int;
+}
+
+class Book implements Priced
+{
+    public function price(): int
+    {
+        return 12;
+    }
+}
+
+class Lamp implements Priced
+{
+    public function price(): int
+    {
+        return 30;
+    }
+}
+
+// `nvs code impls 'Shop\Priced'` prints one line for `Shop\Book` and one for `Shop\Lamp`.
+// Each line starts with the file, the line and the column of the class.
+array<Priced> $basket = [new Book(), new Lamp(), new Book()];
+
+// `nvs code refs 'Shop\Priced::price'` prints the line where `Priced` declares `price`.
+// Then it prints the call below, with its file, line and column.
+int $total = 0;
+foreach ($basket as Priced $item) {
+    $total += $item->price();
+}
+
+// This prints `54`.
+echo $total, "\n";

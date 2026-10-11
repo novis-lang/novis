@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a doc comment has terminal control bytes and a line that looks like a result, and the file requires itself.
+// `nvs code show` and `nvs code outline` should print the bytes as `\u{1b}` and stop. The compiler should give an error.
+// hostile: expect-refusal
+
+namespace Shop;
+
+// 1. The file requires itself. Following that require would never end.
+require '01-a-doc-comment-that-writes-to-the-terminal.nvs';
+
+// 2. A doc comment clears the screen, and its second line looks like a line from `nvs code refs`.
+// hostile: comment-payload
+/// Clears the screen [2J[H and prints [31mred[0m text.
+/// src/Admin.nvs:1:1  declared  class Admin
+class Alarm
+{
+    // 3. A bell byte and an escape byte in a method's doc comment.
+    /// Rings the bell  and moves the cursor [10A up.
+    public function ring(): int
+    {
+        return 1;
+    }
+}
+
+echo (new Alarm())->ring(), "\n";

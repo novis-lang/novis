@@ -611,6 +611,50 @@ methods is a child of the class. A consumer wanting only the grammar's own nodes
 which is what makes the output useful on the file that does not compile. `--strict` prints no tree
 at all once an error is reported. The two are refused together.
 
+# nvs code
+
+    nvs code show [--json] <symbol>
+    nvs code refs [--json] <symbol>
+    nvs code impls [--json] <symbol>
+    nvs code outline [--json] <file>
+    nvs code types [--json] <file>[:<line>[-<line>]]
+
+Answers questions about the project you are in, from the same index the editor uses. The project is
+the folder of the nearest `nvs.toml` at or above the working directory, or the working directory
+when there is none. Every `.nvs` file in it is read, and nothing is written.
+
+- `show` prints where a name is declared, its signature and its `///` comment. For a `Core` name it
+  prints the card `nvs agent show` prints.
+- `refs` prints every place a name is written: the declaration first, then each `use` line and each
+  use, in file and line order. A `Core` name lists the places the project uses it.
+- `impls` prints the types that extend or implement a type, or the methods that override a method.
+- `outline` prints what a file declares, one line each, with a class's members indented under it.
+- `types` prints the type of each variable a file declares with `var`. `:10` limits it to line 10,
+  and `:10-20` to lines 10 to 20.
+
+A name is written in full, with its namespace: `Shop\Cart`, `Shop\Cart::addItem`,
+`Shop\Cart::$total` or `Shop\Cart::MAX`. Put it in single quotes, so the shell keeps the
+backslashes. A position is `path:line:column`, the path relative to the working directory and the
+line and column counted from 1, the column in characters. For a project with an interface `Priced`
+and a call `$item->price()`:
+
+```text
+$ nvs code refs 'Shop\Priced::price'
+src/Priced.nvs:5:21    declared  public function price(): int;
+public/index.nvs:9:22  use       $total += $item->price();
+```
+
+A file with errors still answers, from what the analysis recovered. Standard error then gets one
+line with the number of files that have errors, because a use inside one of them may be missing,
+and the exit status is `0`. An empty answer exits `0` too. A name or a file the project does not
+have exits `1` and lists the nearest names.
+
+`--json` prints one document with `schemaVersion: 1` and every key present, the way `nvs check
+--json` does, and adds the byte `start` and `end` of each position. A failure prints its document
+too, with `error` and `nearest`, on standard output. Every control character but tab in text from
+the project is printed as `\u{..}`, in the text and in the JSON, so a file's bytes never reach the
+terminal as anything but text.
+
 # The compile cache
 
 A compiled unit is stored on disk under a name derived from the hash of its source and of the build

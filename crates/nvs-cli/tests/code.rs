@@ -87,6 +87,7 @@ fn parsed(out: &str) -> Value {
     serde_json::from_str(out).unwrap_or_else(|err| panic!("{err}: {out}"))
 }
 
+// covers: tools:cli/nvs-code
 #[test]
 fn refs_prints_the_declaration_first_then_each_use_with_its_position_and_line() {
     let dir = project("refs", &[]);
@@ -115,6 +116,7 @@ fn refs_prints_the_declaration_first_then_each_use_with_its_position_and_line() 
     assert!(kinds.contains(&"import"), "{class}");
 }
 
+// covers: tools:cli/nvs-code
 #[test]
 fn refs_of_a_name_nothing_uses_prints_nothing_and_exits_zero() {
     let dir = project("unused", &[]);
@@ -127,6 +129,7 @@ fn refs_of_a_name_nothing_uses_prints_nothing_and_exits_zero() {
     assert_eq!(parsed(&out)["references"], Value::Array(Vec::new()));
 }
 
+// covers: tools:cli/nvs-code
 #[test]
 fn show_prints_the_signature_nvs_meta_writes_and_the_doc_comment() {
     let dir = project("show", &[]);
@@ -171,6 +174,7 @@ fn show_prints_the_signature_nvs_meta_writes_and_the_doc_comment() {
     );
 }
 
+// covers: tools:cli/nvs-code
 #[test]
 fn show_of_a_core_name_prints_the_card_nvs_agent_show_prints() {
     let dir = project("core", &[]);
@@ -183,6 +187,7 @@ fn show_of_a_core_name_prints_the_card_nvs_agent_show_prints() {
     }
 }
 
+// covers: tools:cli/nvs-code
 #[test]
 fn an_unknown_name_fails_and_lists_the_nearest_names_with_their_backslashes() {
     let dir = project("nearest", &[]);
@@ -205,6 +210,7 @@ fn an_unknown_name_fails_and_lists_the_nearest_names_with_their_backslashes() {
     assert!(err.contains("  src/Cart.nvs"), "{err}");
 }
 
+// covers: tools:cli/nvs-code
 #[test]
 fn every_verb_json_follows_the_check_json_conventions() {
     let dir = project("json", &[]);
@@ -272,6 +278,7 @@ fn every_verb_json_follows_the_check_json_conventions() {
     }
 }
 
+// covers: tools:cli/nvs-code
 #[test]
 fn a_project_with_errors_still_answers_and_counts_them_on_stderr() {
     let broken = "<?nvs\nnamespace Shop;\n\nclass Broken {\n    \
@@ -293,6 +300,7 @@ fn a_project_with_errors_still_answers_and_counts_them_on_stderr() {
     assert_eq!(err, "");
 }
 
+// covers: tools:cli/nvs-code
 #[test]
 fn the_project_is_the_nearest_nvs_toml_at_or_above_the_working_directory() {
     let lib = "<?nvs\nnamespace Lib;\n\nclass Tool {\n}\n";
@@ -314,6 +322,7 @@ fn the_project_is_the_nearest_nvs_toml_at_or_above_the_working_directory() {
     assert!(out.contains("declared at Tool.nvs:4:7"), "{out}");
 }
 
+// covers: tools:cli/nvs-code
 #[test]
 fn a_position_is_one_based_and_counts_characters() {
     let till = "<?nvs\nnamespace Shop;\n\nclass Till {\n    \
@@ -344,6 +353,7 @@ fn a_position_is_one_based_and_counts_characters() {
     );
 }
 
+// covers: tools:cli/nvs-code
 #[test]
 fn control_characters_from_the_project_are_printed_escaped() {
     let noisy = "<?nvs\nnamespace Shop;\n\n/// Rings \u{1b}[31mred\u{1b}[0m.\nclass Noisy {\n    \
@@ -361,4 +371,59 @@ fn control_characters_from_the_project_are_printed_escaped() {
 
     let (out, _, _) = code(&dir, &["show", r"Shop\Noisy", "--json"]);
     assert_eq!(parsed(&out)["doc"], r"Rings \u{1b}[31mred\u{1b}[0m.");
+}
+
+/// The attack under `tests/hostile/tools/cli/nvs-code/`, as one file of the
+/// project: a file that requires itself, whose doc comments carry escape and
+/// bell bytes and a second line spelled like a `refs` line. `show` and
+/// `outline` answer and stop, every control byte is escaped, and the fake line
+/// is the doc comment's text, never a position of its own.
+// covers: tools:cli/nvs-code
+#[test]
+fn a_doc_comment_that_writes_to_the_terminal_is_printed_as_text() {
+    let name = "01-a-doc-comment-that-writes-to-the-terminal.nvs";
+    let attack = fs::read_to_string(nvs_repo::path(&format!(
+        "tests/hostile/tools/cli/nvs-code/{name}"
+    )))
+    .expect("the attack is in the tree");
+    let dir = project("hostile", &[(&format!("src/{name}"), &attack)]);
+
+    let (out, err, ok) = code(&dir, &["show", r"Shop\Alarm"]);
+    assert!(ok, "{err}");
+    assert!(
+        out.contains(
+            r"Clears the screen \u{1b}[2J\u{1b}[H and prints \u{1b}[31mred\u{1b}[0m text."
+        ),
+        "{out}"
+    );
+    assert!(!out.contains('\u{1b}'), "{out}");
+
+    let (out, _, _) = code(&dir, &["show", r"Shop\Alarm", "--json"]);
+    let doc = parsed(&out)["doc"]
+        .as_str()
+        .expect("a doc string")
+        .to_owned();
+    assert!(
+        doc.ends_with("\nsrc/Admin.nvs:1:1  declared  class Admin"),
+        "{doc}"
+    );
+
+    let (out, _, ok) = code(&dir, &["show", r"Shop\Alarm::ring"]);
+    assert!(ok);
+    assert!(
+        out.contains(r"Rings the bell \u{7} and moves the cursor \u{1b}[10A up."),
+        "{out}"
+    );
+    assert!(!out.contains('\u{1b}') && !out.contains('\u{7}'), "{out}");
+
+    let (out, err, ok) = code(&dir, &["outline", &format!("src/{name}")]);
+    assert!(ok, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(
+        lines.len(),
+        2,
+        "the class and its method, and nothing else: {out}"
+    );
+    assert!(lines[0].ends_with(r"class  Shop\Alarm"), "{out}");
+    assert!(!out.contains("Admin"), "{out}");
 }
