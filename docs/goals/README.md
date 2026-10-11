@@ -18,7 +18,7 @@ The chain holds 6 goal(s). `decision-records-retired` is live.
 | 5 | [`pdf`](pdf.md) | The third component built into every `nvs` binary, and the image component's second wave beside it. | **2 the fragments, `wit/pdf.wit` and the font licence** · 3 SVG and PDF open as images · 4 shaping and barcodes in `Novis\Image` · 5 the PDF component is built in · 6 the cascade · 7 text, blocks, lists and images · 8 flex, grid, floats and positioning · 9 pagination · 10 header and footer functions · 11 tables across pages · 12 standards, Factur-X and passwords · 13 existing PDFs: placing, merging and reading · 14 the growth, the benches and a bundle · 15 completion and hover in the editor · 16 the feature proofs |
 | 6 | [`spreadsheet`](spreadsheet.md) | The fourth component built into every `nvs` binary. | **2 the fragments and `wit/spreadsheet.wit`** · 3 the component is built in, and the streaming writer · 4 columns, styles, defaults and sheets · 5 the sheet-end parts, formulas, tables, conditional formats and images · 6 charts · 7 the reader · 8 the number-format renderer · 9 CSV through the same API · 10 template fill · 11 limits and hostile files · 12 100 MB, the growth and the benches · 13 what opens in Excel · 14 the feature proofs |
 
-Off the chain (side goals): [`compare-page`](compare-page.md), [`search-questions`](search-questions.md).
+Off the chain (side goals): [`search-questions`](search-questions.md).
 
 The floor holds 0 check(s) carried from reached goals; every goal keeps them green.
 The format is `docs/goal-format.md`.
