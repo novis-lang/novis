@@ -57,8 +57,14 @@ read records `*`, which every change reaches until a twin is read again. A check
 is never answered from the store, and
 `bun nv loop --goal-only --full` runs every atom of every check.
 
-**Every third goal end runs every heavy check and both legs**, whatever changed. That is the safety net
-for the twins' keys. The goal-end sweeps between those run what their goal reached.
+A heavy check keyed on every file of every crate it builds would be reached by almost any Rust change,
+so the goal-end sweep would pay for all of them at nearly every goal end; the twin is what keeps a
+change that reaches none of its code from running it. A twin is paid only when its heavy check runs.
+
+**Every third goal end runs every heavy check and both legs**, whatever changed, and so does a store
+with no count yet. That is the safety net for the twins' keys, and it is what holds the code no twin
+observes: a path only a release build takes, and server-only dialect code outside `nvs-db` that the
+SQLite leg never calls. The goal-end sweeps between those run what their goal reached.
 
 **The full run is the safety net.** `bun nv select --full` runs and records every atom that is not
 heavy, whatever changed, and the loop runs it when the floor gate opens by its count. An atom red there
@@ -82,4 +88,14 @@ reverts the edits.
   edges that matter, so the graph is unsound exactly where the runtime is interesting.
 - **Judging proof programs on an instrumented optimized build.** Instrumentation slows an attack
   severalfold and some far more, which changes what an attack's time limit means. Recording on a
-  second debug run costs no build and leaves the verdict on the uninstrumented one.
+  second debug run costs no build and leaves the verdict on the uninstrumented one. A perf guard's
+  margins would change meaning the same way, so no release test is recorded on an instrumented build.
+- **Keying a Linux leg on a copy of its fixtures' footprints.** The copy goes stale between leg runs
+  when a fixture's own footprint grows. Selecting the leg through the fixtures' own atoms reads the
+  live footprints.
+- **Running a Linux leg over only the fixtures the change reached.** A fixture reached while the floor
+  gate is shut would need a Linux owed state of its own. The leg's cost is fixed, so what is cut is how
+  often it runs.
+- **Running every heavy check at every goal end, or at a much longer interval.** Every goal end is the
+  cost the twins remove. A long interval lets a missed heavy regression wait too long, and one in three
+  is about as often as the floor gate's full run.
