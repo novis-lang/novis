@@ -1,0 +1,63 @@
+---
+/**
+ * The comparison page's feature table: one row per recorded scenario, one
+ * column per peer. Every cell links to the folder on GitHub with the programs
+ * the row runs, so a reader can check the result.
+ */
+import { peers, record, rows } from '~/lib/compare'
+---
+
+{
+  record?.scenarios ? (
+    <table class="compare-features">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          {peers.map((p) => (
+            <th>{p.label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr id={`row-${r.id}`}>
+            <td>{r.text}</td>
+            {r.cells.map((c) =>
+              c ? (
+                <td class={`verdict-${c.verdict}`}>
+                  <a href={r.url}>{c.text}</a>
+                  {c.setting && (
+                    <>
+                      <br />
+                      <code>{c.setting}</code>
+                    </>
+                  )}
+                </td>
+              ) : (
+                <td>-</td>
+              ),
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ) : (
+    <p class="compare-empty">No run of the feature table is recorded yet.</p>
+  )
+}
+
+<style>
+  .compare-features td,
+  .compare-features th {
+    vertical-align: top;
+  }
+  .compare-features code {
+    font-size: var(--sl-text-xs);
+  }
+  .compare-features .verdict-built-in a {
+    color: var(--sl-color-green-high);
+  }
+  .compare-features .verdict-no a {
+    color: var(--sl-color-red-high);
+  }
+</style>

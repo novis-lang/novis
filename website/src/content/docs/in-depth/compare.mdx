@@ -1,0 +1,71 @@
+---
+title: Novis, PHP, Bun and Go compared
+covers: []
+description: The same small web programs in Novis, PHP, Bun and Go, measured on one machine with one command.
+---
+
+import Machine from '@components/compare/Machine.astro'
+import CaseCharts from '@components/compare/CaseCharts.astro'
+import FeatureTable from '@components/compare/FeatureTable.astro'
+
+This page compares Novis with PHP, Bun and Go. Each language runs the same small web programs. One
+command measures all four on one machine, and anybody can run it.
+
+## How the test works
+
+Each language runs as a web server in its own container. The same nginx server is in front of each
+one. nginx handles TLS, so every request is sent over HTTPS. Each server gets the same number of CPU
+cores, and only one server runs at a time.
+
+- Novis runs with `nvs serve`.
+- PHP runs with PHP-FPM, with opcache turned on.
+- Bun runs with `Bun.serve`.
+- Go runs with the `net/http` package.
+
+Each program is written the way the documentation of its language shows. Before a test is timed, the
+four servers must return the same answer for the same request. A server that returns a different
+answer gets no number.
+
+## Speed
+
+The absolute numbers depend on the machine. A faster machine gives bigger numbers for all four. The
+result is the relation between the four servers. Each bar shows a server's requests per second as a
+share of the fastest server in that test. The fastest server has the full bar. The measured numbers
+are under each bar.
+
+This is the machine and the run:
+
+<Machine />
+
+<CaseCharts />
+
+`p99` is the time within which 99 of 100 requests were answered. Peak memory is the most memory the
+server's container used during the test.
+
+## Features
+
+Each row tests one thing a web server needs. A small program for each language tries it, and the
+result comes from what the server did. Each result is one of four values:
+
+- **Built in**: the server does it with no setting and no extra code.
+- **One setting**: the server does it after you change one setting. The cell names the setting.
+- **Your code**: you must write the code yourself, or add a library.
+- **No**: the server does not do it.
+
+Click a result to see the four programs for that row. The table shows every result, also the rows
+where another language does better than Novis.
+
+<FeatureTable />
+
+## Run it yourself
+
+You need [Bun](https://bun.sh) and [Docker](https://www.docker.com). Clone the Novis repository and
+run this command in it:
+
+```sh
+bun nv bench-compare
+```
+
+The command builds each server, runs each test and prints the results. It takes several minutes. To
+run the feature table, add `--scenarios`. To check that everything works with a short run, add
+`--smoke`.
