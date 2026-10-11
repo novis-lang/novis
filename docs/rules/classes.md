@@ -716,7 +716,16 @@ implementor overrides, read as `static::NAME` from a default method, which
 `implements I by $field;` ([`classes/delegation-by-field`](classes.md#classes-delegation-by-field)), never a slot the interface owns: an
 interface names a contract, and its implementors hold the values.
 
-<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0210](../decisions/0210.md).</sub>
+**Declined:**
+- **Admitting the property.** A property read is a fixed slot offset keyed on the receiver's static
+  class, and through an interface-typed receiver that class is unknown until run time. Every such read
+  would pay a name-keyed lookup, every implementor a conformance check of the property's type, and the
+  contract would need an answer for hooks and `readonly`, all for a value the constant already gives.
+  PHP admits only a hooked property in an interface, so the plain form is not a PHP construct either.
+- **Refusing it in the checker.** The checker sees the same declaration one pass later with nothing
+  more to say about it, and the parser is where the enum body's refusal of a method already sits.
+
+<sub>See also [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier).</sub>
 
 <a id="classes-delegation-by-field"></a>
 
