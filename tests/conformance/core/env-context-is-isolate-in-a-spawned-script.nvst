@@ -1,0 +1,25 @@
+--TEST--
+A `spawn script` child is `Core\Env::Context::Isolate` while its parent stays `Core\Env::Context::Command`, and the child's answer crosses back as a case of the same enum — `rule:core-classes/env-context`, `rule:security/request-state-throws-in-an-isolate`
+--FILE nvs.toml--
+# `spawn script` needs the `script.spawn` capability, and a case with no
+# configuration has none. This grants it and nothing else.
+[capabilities.script]
+spawn = true
+--FILE child.nvs--
+<?nvs
+echo "child=", Core\Env::context() == Core\Env::Context::Isolate ? "Isolate" : "moved", "\n";
+return Core\Env::context();
+--FILE--
+<?nvs
+echo "parent=", Core\Env::context() == Core\Env::Context::Command ? "Command" : "moved", "\n";
+var $result = await spawn script "child.nvs" with(output: "capture");
+echo "ok=", $result->ok ? "true" : "false", "\n";
+echo $result->output;
+echo "returned=", $result->value == Core\Env::Context::Isolate ? "Isolate" : "moved", "\n";
+echo "parent=", Core\Env::context() == Core\Env::Context::Command ? "Command" : "moved", "\n";
+--EXPECT--
+parent=Command
+ok=true
+child=Isolate
+returned=Isolate
+parent=Command

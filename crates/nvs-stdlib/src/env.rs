@@ -3,9 +3,11 @@
 //! `rule:statements/no-host-populated-variables`'s replacement
 //! for `$_ENV` and `getenv()`.
 //!
-//! All three members — `get`, `all` and `mode` — and all three of § 15's
+//! Four members — `get`, `all`, `mode` and `context` — and § 15's three
 //! constants, `EOL`, `OS` and `VERSION`, whose one shared decision is on
-//! [`CONSTANTS`]. The class is complete.
+//! [`CONSTANTS`]. `mode` and `context` read no environment variable; the
+//! section on `mode` below says why they sit on this class anyway, and
+//! `rule:core-classes/env-context` owns the second.
 //!
 //! # It is not a capability door, and that is decided rather than skipped
 //!
@@ -142,6 +144,15 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Enum(MODE_NAME),
             symbol: "nvs_core_env_mode",
             doc: Some(&MODE_MEMBER_DOC),
+        },
+        CoreMethod {
+            name: "context",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Enum(CONTEXT_NAME),
+            symbol: "nvs_core_env_context",
+            doc: Some(&CONTEXT_MEMBER_DOC),
         },
     ],
     instance: &[],
@@ -306,6 +317,80 @@ const MODE_DOC: EnumDoc = EnumDoc {
     ],
 };
 
+/// `Core\Env::context`'s reference card — `rule:core-api/reference-card`.
+const CONTEXT_MEMBER_DOC: MethodDoc = MethodDoc {
+    short: "Which kind of run the code is in: an HTTP request, a command-line program, a spawned \
+            script, a scheduled script, a queued job, a test or a connection. Use it to choose \
+            what a program does in each one.",
+    params: &[],
+    ret: "The kind of run as a `Core\\Env::Context` case. It is the same value for the whole run \
+          and for every task the run starts.",
+    errors: &[],
+};
+
+/// `Core\Env::Context`'s fully-qualified name, written once so the registry
+/// row and every message quoting it cannot drift apart.
+pub(crate) const CONTEXT_NAME: &str = r"Core\Env::Context";
+
+/// `rule:core-classes/env-context`'s kinds of run, one case per row of
+/// `rule:tooling/echo-always-has-a-sink`'s table. Each value is
+/// [`nvs_runtime::RunKind`]'s discriminant for the case of the same name, so
+/// [`nvs_core_env_context`] answers with the cast and nothing maps between
+/// them; `context_cases_are_run_kinds_in_order` holds the two together.
+pub(crate) const CONTEXT: CoreEnum = CoreEnum {
+    name: CONTEXT_NAME,
+    cases: &[
+        ("Request", 0),
+        ("Command", 1),
+        ("Isolate", 2),
+        ("Schedule", 3),
+        ("Job", 4),
+        ("Test", 5),
+        ("Connection", 6),
+    ],
+    doc: Some(&CONTEXT_DOC),
+};
+
+/// [`CONTEXT`]'s reference card — `rule:core-api/reference-card`.
+const CONTEXT_DOC: EnumDoc = EnumDoc {
+    short: "The kind of run the code is in. `Core\\Env::context()` returns one of these seven \
+            cases.",
+    cases: &[
+        CaseDoc {
+            name: "Request",
+            desc: "The code answers an HTTP request, under `nvs serve` or inside \
+                   `Core\\Test::request`. `echo` writes to the response body.",
+        },
+        CaseDoc {
+            name: "Command",
+            desc: "The code runs from the command line: a script started with `nvs run`, or a \
+                   `#[Command]` method. `echo` writes to stdout.",
+        },
+        CaseDoc {
+            name: "Isolate",
+            desc: "The code runs in a script started with `spawn script`. A spawned script has no \
+                   request, even when a request started it.",
+        },
+        CaseDoc {
+            name: "Schedule",
+            desc: "The code runs as a `[[schedule]]` entry that the server started at its time.",
+        },
+        CaseDoc {
+            name: "Job",
+            desc: "The code runs as a queued job, in a worker.",
+        },
+        CaseDoc {
+            name: "Test",
+            desc: "The code runs in a `#[Test]` method under `nvs test`.",
+        },
+        CaseDoc {
+            name: "Connection",
+            desc: "The code serves a connection that a request upgraded, a socket or an event \
+                   stream. The request that upgraded it has already ended.",
+        },
+    ],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -313,6 +398,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_env_get" => (nvs_core_env_get as *const ()).cast(),
         "nvs_core_env_all" => (nvs_core_env_all as *const ()).cast(),
         "nvs_core_env_mode" => (nvs_core_env_mode as *const ()).cast(),
+        "nvs_core_env_context" => (nvs_core_env_context as *const ()).cast(),
         _ => return None,
     })
 }
@@ -433,6 +519,18 @@ nvs_runtime::nvs_helper! {
             None => mode_ordinal(nvs_config::mode::PRODUCTION),
         };
         Ok(Value::int(ordinal))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Env::context(): Core\Env::Context` — `rule:core-classes/env-context`'s
+    /// kind of run, one read of [`nvs_runtime::Ctx::run_kind`].
+    ///
+    /// The ordinal is the discriminant, because [`CONTEXT`] lists its cases in
+    /// [`nvs_runtime::RunKind`]'s order. It never throws and asks no
+    /// capability: like `mode`, it is a fact about the run and not an effect.
+    fn nvs_core_env_context(ctx, _args: [0]) {
+        Ok(Value::int(i64::from(ctx.run_kind() as u8)))
     }
 }
 
@@ -618,5 +716,35 @@ mod tests {
             0,
             "a misspelled mode loosens nothing"
         );
+    }
+
+    /// [`super::CONTEXT`]'s values are `RunKind`'s discriminants, so the
+    /// member's cast and the enum a program compares against name one case.
+    #[test]
+    fn context_cases_are_run_kinds_in_order() {
+        use nvs_runtime::RunKind;
+        let kinds = [
+            ("Request", RunKind::Request),
+            ("Command", RunKind::Command),
+            ("Isolate", RunKind::Isolate),
+            ("Schedule", RunKind::Schedule),
+            ("Job", RunKind::Job),
+            ("Test", RunKind::Test),
+            ("Connection", RunKind::Connection),
+        ];
+        let cases: Vec<(&str, i64)> = super::CONTEXT.cases.to_vec();
+        let expected: Vec<(&str, i64)> = kinds
+            .iter()
+            .map(|(name, kind)| (*name, i64::from(*kind as u8)))
+            .collect();
+        assert_eq!(cases, expected);
+    }
+
+    /// A context nobody built for anything else is a command.
+    #[test]
+    fn context_answers_command_for_a_new_context() {
+        let answered =
+            call(super::nvs_core_env_context, &mut Ctx::buffered(), &[]).expect("never throws");
+        assert_eq!(answered.as_int(), Some(1));
     }
 }

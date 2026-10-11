@@ -1,0 +1,37 @@
+--TEST--
+A program run from the command line is `Core\Env::Context::Command`, in its main task and in a task it starts, and asking twice gives the same case — `rule:core-classes/env-context`
+--FILE--
+<?nvs
+// A `.nvst` program runs as a script, so this is the command-line row of
+// `rule:tooling/echo-always-has-a-sink`'s table and not the `#[Test]` one.
+class Kind {
+    public static function of(Core\Env::Context $context): string {
+        return match ($context) {
+            Core\Env::Context::Request => "Request",
+            Core\Env::Context::Command => "Command",
+            Core\Env::Context::Isolate => "Isolate",
+            Core\Env::Context::Schedule => "Schedule",
+            Core\Env::Context::Job => "Job",
+            Core\Env::Context::Test => "Test",
+            Core\Env::Context::Connection => "Connection",
+        };
+    }
+}
+
+echo "main=", Kind::of(Core\Env::context()), "\n";
+echo "again=", Core\Env::context() == Core\Env::Context::Command ? "Command" : "moved", "\n";
+
+// A task shares its parent's kind of run: it is a second line of the same
+// program, not a run of its own.
+var $tasks = Core\Task::all({
+    child: fn(): string => Kind::of(Core\Env::context()),
+});
+echo "task=", $tasks->child, "\n";
+
+// The answer is an ordinary enum value, so it compares by case and not by text.
+echo "is=", Core\Env::context() is Core\Env::Context ? "yes" : "no", "\n";
+--EXPECT--
+main=Command
+again=Command
+task=Command
+is=yes

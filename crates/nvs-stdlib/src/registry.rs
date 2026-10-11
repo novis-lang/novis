@@ -3155,6 +3155,7 @@ pub const ENUMS: &[CoreEnum] = &[
     crate::xml::KIND,
     crate::log::LEVEL,
     crate::env::MODE,
+    crate::env::CONTEXT,
     crate::router::METHOD,
     crate::router::AUDIENCE,
     // The one enum whose case values are not numbered from zero: they are the

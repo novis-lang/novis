@@ -1181,8 +1181,10 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   session door's own domain byte and carrying no lifetime of its own, because a session value lives as long
   as its session. `set` still refuses a `secret` and `get` answers `null` for a sealed value
   (`rule:http-server/a-session-holds-a-secret-only-sealed`).
-- `Core\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env::Mode`, and the constants `EOL`, `OS`,
-  `VERSION`; its one enum is `Env::Mode` — `Production`, `Development`. Read-only —
+- `Core\Env`: `get(string): ?tainted string`, `all()`, `mode(): Env::Mode`, `context(): Env::Context`, and
+  the constants `EOL`, `OS`, `VERSION`; its two enums are `Env::Mode` — `Production`, `Development` — and
+  `Env::Context` — `Request`, `Command`, `Isolate`, `Schedule`, `Job`, `Test`, `Connection`, one per kind of
+  run (`rule:core-classes/env-context`). Read-only —
   `putenv` has no equivalent, because a process-global mutation is unsound across cores. `mode` reads the
   run mode (`rule:config/two-modes-and-the-default-is-production`); it is set
   through `Core\Config`, like every other directive, and no environment variable is consulted for it.
