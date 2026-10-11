@@ -194,7 +194,10 @@ never a figure left over from an earlier case. The proxy and the generator are n
 ## One record, and no arithmetic with the proxied leg's
 
 `benches/compare.json` is one JSON object, overwritten by each `--record` run: the page shows one run,
-and the machine it was taken on is part of it. It shares the proxied leg's images but none of its
+and the machine it was taken on is part of it. The feature rows are a second run into the same file:
+`--scenarios --record` replaces the record's `scenarios` key with every row, under its own date and
+commit, and a case run keeps the rows already there. So the two halves are re-run apart, and neither
+needs the other's minutes. `--row` records nothing, because a recorded table is one run of every row. It shares the proxied leg's images but none of its
 inputs — TLS, four peers, other cases and concurrencies — so no figure in it is ever divided by one in
 `benches/serve-proxied.json`.
 
@@ -207,6 +210,7 @@ so the page can say which, and the page shows each peer against the best in each
 bun nv bench-compare --smoke                          # every peer and case, a few hundred requests
 bun nv bench-compare --scenarios --smoke              # every feature row against every peer
 bun nv bench-compare --record benches/compare.json    # the fair arm, one cpu per backend
+bun nv bench-compare --scenarios --record benches/compare.json   # the feature rows, into that record
 bun nv bench-compare --arm deployed --record PATH     # four cpus per backend
 bun nv bench-compare --down                           # tear every stack down
 ```

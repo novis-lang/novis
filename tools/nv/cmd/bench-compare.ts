@@ -4,6 +4,7 @@
 //     bun nv bench-compare --scenarios --smoke                   # every feature row against every peer
 //     bun nv bench-compare --scenarios --smoke --row config      # one row
 //     bun nv bench-compare --record benches/compare.json         # the fair arm, recorded
+//     bun nv bench-compare --scenarios --record benches/compare.json   # the feature rows, into that record
 //     bun nv bench-compare --arm deployed --record PATH          # four cpus to each backend
 //     bun nv bench-compare --down                                # tear every stack down
 //
@@ -1074,7 +1075,7 @@ export interface RunInfo {
   backendCpus: number;
   requests: number;
   reps: number;
-  machine: Record<string, unknown>;
+  host: Record<string, unknown>;
   digests: Record<string, string>;
 }
 
@@ -1095,11 +1096,12 @@ export function resultOf(arm: Arm, memory: { idle: number | null; peak: number |
 }
 
 /**
- * The whole record `--record` writes: the machine, every peer's image, and per case every peer's figures
- * in `PEERS` order. Stage 5's scenario rows join it under their own key; nothing joins it to
- * `benches/serve-proxied.json`.
+ * The whole record `--record` writes: the machine under `host`, as `bench-proxied`'s record names it,
+ * every peer's image, and per case every peer's figures
+ * in `PEERS` order. The scenario rows sit under `scenarios`, from their own run; nothing joins the
+ * record to `benches/serve-proxied.json`.
  */
-export function buildRecord(run: RunInfo, results: Map<string, Map<string, PeerResult>>) {
+export function buildRecord(run: RunInfo, results: Map<string, Map<string, PeerResult>>, scenarios: RecordedScenarios | null = null) {
   const cases: Record<string, { concurrency: number; peers: Record<string, PeerResult> }> = {};
   for (const c of CASES) {
     const byPeer = results.get(c.id);
@@ -1120,12 +1122,61 @@ export function buildRecord(run: RunInfo, results: Map<string, Map<string, PeerR
     tls: "TLSv1.3",
     requests: run.requests,
     reps: run.reps,
-    machine: run.machine,
+    host: run.host,
     peers: Object.fromEntries(PEERS.map((p) => [p.id, { label: p.label, image: p.image }])),
     images: { nginx: NGINX_IMAGE, oha: OHA_IMAGE },
     cases,
+    scenarios,
     config_digests: run.digests,
   };
+}
+
+/** One row as the record keeps it: the repo-relative folder its four programs are in, and each peer's result in `PEERS` order. */
+export interface RecordedRow {
+  folder: string;
+  peers: Record<string, RowResult>;
+}
+
+/** One `--scenarios` run: when, at which commit, and every row in `SCENARIOS` order. */
+export interface RecordedScenarios {
+  date: string;
+  commit: string;
+  rows: Record<string, RecordedRow>;
+}
+
+/** The folder a row's programs are in, which the page links each cell to. */
+export const scenarioFolder = (s: Scenario) => `benches/compare/${s.tree}/${s.case}`;
+
+export function buildScenarios(date: string, commit: string, results: Map<string, Map<string, RowResult>>): RecordedScenarios {
+  const rows: Record<string, RecordedRow> = {};
+  for (const s of SCENARIOS) {
+    const byPeer = results.get(s.id);
+    if (byPeer === undefined) continue;
+    const peers: Record<string, RowResult> = {};
+    for (const p of PEERS) {
+      const r = byPeer.get(p.id);
+      if (r !== undefined) peers[p.id] = r;
+    }
+    rows[s.id] = { folder: scenarioFolder(s), peers };
+  }
+  return { date, commit, rows };
+}
+
+/** `prior`, a record the cases wrote, with its `scenarios` replaced and its keys in `buildRecord`'s order. */
+export function withScenarios(prior: Record<string, unknown>, scenarios: RecordedScenarios): Record<string, unknown> {
+  if (typeof prior.cases !== "object" || prior.cases === null) throw new Fail("the record has no cases; record them first with bun nv bench-compare --record PATH");
+  const { scenarios: _, config_digests, ...rest } = prior;
+  return { ...rest, scenarios, config_digests };
+}
+
+/** The record at `path`, or `null` when there is none yet. */
+function readRecord(path: string): Record<string, unknown> | null {
+  return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>) : null;
+}
+
+function writeRecord(path: string, record: unknown) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`, "utf8");
 }
 
 /** Every file whose contents could move a number, digested into the record. */
@@ -1404,13 +1455,15 @@ function help(): string {
     "  --smoke               every peer and case at a few hundred requests: check the answers agree,",
     "                        print one line per case, record nothing",
     "  --scenarios           run the feature rows instead of the cases: every row against every peer,",
-    "                        one line per row with each peer's result, record nothing",
+    "                        one line per row with each peer's result. With --record, the rows replace",
+    "                        the scenarios of the record the cases already wrote to PATH",
     "  --arm {fair,deployed}",
     "                        fair: one cpu to each backend. deployed: --backend-cpus to each backend",
     "  --backend-cpus N      the CPU budget of EACH backend container (default 1 for fair, 4 for deployed)",
     "  --requests REQUESTS   requests per timed pass (default 20000, 300 with --smoke)",
     "  --reps REPS           timed passes per arm, best wins (default 3, 1 with --smoke)",
-    "  --record PATH         write this run to PATH as one JSON object",
+    "  --record PATH         write this run to PATH as one JSON object. A case run keeps the scenarios",
+    "                        already recorded there",
     "  --row ID              with --scenarios, run only the row ID",
     "  --down                tear every peer's stack down and stop",
     "",
@@ -1421,11 +1474,14 @@ function help(): string {
 /** Connections a probed row's stack is sized for: a probe puts no load on the backend. A timed row uses its case's. */
 const SCENARIO_CONCURRENCY = 8;
 
-/** `--scenarios`: every row against every peer, one fresh stack per pair, one line per row. */
+/** `--scenarios`: every row against every peer, one fresh stack per pair, one line per row, then the record. */
 async function scenarios(o: Options, cpus: number, commit: string, load: Load): Promise<number> {
-  if (o.record !== null) throw new Fail("--scenarios records nothing; drop --record or --scenarios");
+  if (o.record !== null && o.row !== null) throw new Fail("--record keeps every row of one run; drop --row or --record");
+  const prior = o.record === null ? null : readRecord(resolve(o.record));
+  if (o.record !== null && prior === null) throw new Fail(`${o.record}: no record yet; record the cases first with bun nv bench-compare --record ${o.record}`);
   const rows = SCENARIOS.filter((s) => o.row === null || s.id === o.row);
   if (rows.length === 0) throw new Fail(`--row ${o.row}: no such row; the rows are ${SCENARIOS.map((s) => s.id).join(", ")}`);
+  const results = new Map<string, Map<string, RowResult>>();
   for (const s of rows) {
     const byPeer = new Map<string, RowResult>();
     for (const peer of PEERS) {
@@ -1433,11 +1489,15 @@ async function scenarios(o: Options, cpus: number, commit: string, load: Load): 
       byPeer.set(peer.id, await scenarioPass(peer, s, { cpus: s.cpus ?? cpus, concurrency: SCENARIO_CONCURRENCY, tree: s.tree, case: s.case, commit, memory: s.memory }, load));
     }
     console.log(rowLine(s.id, byPeer));
+    results.set(s.id, byPeer);
     for (const peer of PEERS) {
       const evidence = Object.entries(byPeer.get(peer.id)!.evidence).map(([k, v]) => `${k} ${v}`);
       console.log(`    ${peer.label.padEnd(6)} ${evidence.join(", ")}`);
     }
   }
+  if (o.record === null || prior === null) return 0;
+  writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results)));
+  console.log(`  recorded the rows to ${o.record}`);
   return 0;
 }
 
@@ -1509,14 +1569,13 @@ async function main(o: Options): Promise<number> {
 
   if (o.smoke) return 0;
   const machine = { ...host(), docker: version("docker", ["version", "--format", "{{.Server.Version}}"]) };
-  const record = buildRecord({ date: stamp(), commit, arm: o.arm, backendCpus: cpus, requests, reps, machine, digests: digests() }, results);
   if (o.record === null) {
     console.log("  not recorded: pass --record PATH to write this run");
     return 0;
   }
   const full = resolve(o.record);
-  mkdirSync(dirname(full), { recursive: true });
-  writeFileSync(full, `${JSON.stringify(record, null, 2)}\n`, "utf8");
+  const kept = (readRecord(full)?.scenarios ?? null) as RecordedScenarios | null;
+  writeRecord(full, buildRecord({ date: stamp(), commit, arm: o.arm, backendCpus: cpus, requests, reps, host: machine, digests: digests() }, results, kept));
   console.log(`  recorded to ${o.record}`);
   return 0;
 }

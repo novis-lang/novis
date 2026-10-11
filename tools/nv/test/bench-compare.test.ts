@@ -5,6 +5,7 @@ import {
   type Answer,
   agreement,
   buildRecord,
+  buildScenarios,
   CASES,
   COMPARE_DIR,
   CONFIG_CHANGES,
@@ -38,6 +39,8 @@ import {
   type RowResult,
   runawayResult,
   SCENARIOS,
+  scenarioFolder,
+  withScenarios,
   stackEnv,
   steadyResult,
   type TableEdit,
@@ -410,7 +413,7 @@ describe("the record shape", () => {
     backendCpus: 1,
     requests: 300,
     reps: 1,
-    machine: { processor: "cpu", cpus: 16, docker: "28.0.0" },
+    host: { processor: "cpu", cpus: 16, docker: "28.0.0" },
     digests: { "benches/compare/nginx/http.conf": "0123456789abcdef" },
   };
 
@@ -426,14 +429,15 @@ describe("the record shape", () => {
       "tls",
       "requests",
       "reps",
-      "machine",
+      "host",
       "peers",
       "images",
       "cases",
+      "scenarios",
       "config_digests",
     ]);
     expect(record.tls).toBe("TLSv1.3");
-    expect(record.machine).toEqual(run.machine);
+    expect(record.host).toEqual(run.host);
     expect(Object.keys(record.peers)).toEqual(["nvs", "php", "bun", "go"]);
     expect(record.cases.hello!.concurrency).toBe(64);
     expect(Object.keys(record.cases.hello!.peers)).toEqual(["nvs", "php", "bun", "go"]);
@@ -447,5 +451,45 @@ describe("the record shape", () => {
   test("survives a round trip through JSON", () => {
     const record = buildRecord(run, new Map([["hello", new Map([["nvs", result(1)]])]]));
     expect(JSON.parse(JSON.stringify(record))).toEqual(record);
+  });
+
+  const built: RowResult = { result: "built-in", evidence: { status: 500 } };
+  const setting: RowResult = { result: "one-setting", setting: "pm.max_children", evidence: { status: 503 } };
+
+  test("a case run with no scenarios recorded yet says so with null", () => {
+    expect(buildRecord(run, new Map()).scenarios).toBeNull();
+  });
+
+  test("the rows keep SCENARIOS order and PEERS order, and each names the folder its programs are in", () => {
+    const rows = buildScenarios("2026-10-10T08:00:00", "def5678", new Map([
+      ["config", new Map([["php", setting], ["nvs", built]])],
+      ["runaway", new Map([["go", built], ["nvs", built]])],
+    ]));
+    expect(rows.date).toBe("2026-10-10T08:00:00");
+    expect(rows.commit).toBe("def5678");
+    expect(Object.keys(rows.rows)).toEqual(["runaway", "config"]);
+    expect(Object.keys(rows.rows.config!.peers)).toEqual(["nvs", "php"]);
+    expect(rows.rows.config!.peers.php).toEqual(setting);
+    expect(rows.rows.runaway!.folder).toBe("benches/compare/scenarios/runaway");
+    expect(rows.rows.config!.folder).toBe("benches/compare/cases/hello");
+  });
+
+  test("every row's folder is on disk", () => {
+    for (const s of SCENARIOS) expect(existsSync(join(COMPARE_DIR, "..", "..", scenarioFolder(s)))).toBe(true);
+  });
+
+  test("the rows replace a record's scenarios and keep its keys in buildRecord's order", () => {
+    const rows = buildScenarios("2026-10-10T08:00:00", "def5678", new Map([["crash", new Map([["nvs", built]])]]));
+    const prior = JSON.parse(JSON.stringify(buildRecord(run, new Map([["hello", new Map([["nvs", result(1)]])]]))));
+    const merged = withScenarios(prior, rows);
+    expect(Object.keys(merged)).toEqual(Object.keys(prior));
+    expect(merged.scenarios).toEqual(rows);
+    expect(merged.cases).toEqual(prior.cases);
+    expect(Object.keys(withScenarios({ ...prior, scenarios: undefined }, rows))).toEqual(Object.keys(prior));
+  });
+
+  test("the rows go into no record that has no cases", () => {
+    const rows = buildScenarios("2026-10-10T08:00:00", "def5678", new Map());
+    expect(() => withScenarios({ date: "x" }, rows)).toThrow("record them first");
   });
 });
