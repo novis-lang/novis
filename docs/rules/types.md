@@ -359,7 +359,7 @@ Everything else is a diagnostic. `mixed` never absorbs implicitly in either dire
 ([`types/conversion`](types.md#types-conversion)). A numeric literal is not a conversion at all: it is untyped until placed,
 so it takes `int`, `uint`, `float` or `decimal` from its target ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)).
 
-<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0236](../decisions/0236.md), [0238](../decisions/0238.md), [0239](../decisions/0239.md).</sub>
+<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0238](../decisions/0238.md), [0239](../decisions/0239.md).</sub>
 
 <a id="types-decimal"></a>
 
@@ -2092,7 +2092,14 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
   declared type, when its value fits it: `{w: 2}` and `{w: $count}` at `{w: float}` are `{w: float}`,
   and the literal stores `2.0`. An array literal in a field is placed the same way, so `{xs: [1, 2]}`
   at `{xs: array<float>}` stores two floats ([`types/arrays`](types.md#types-arrays)). A field the declaration does not
-  name keeps the type of its value.
+  name keeps the type of its value. So does a value that does not fit, which the assignment then
+  reports, and a value with a `secret` or `tainted` qualifier the declared type lacks, so the
+  qualifier stays visible. A `?{…}` position declares its shape, and so does a union with exactly
+  one shape member; a union with two or more shape members declares none.
+- **The refusal stays `E0401`.** When the only reason a field fails is the missing widening of an
+  `int` or `uint`, the help line names the field and says to build a new value, such as
+  `{w: $value->w}`. A field built that way is converted where the new value stores it, so its slot
+  is a `float` slot and a later `2.5` write into it is accepted.
 - **An optional key** is written `{name?: T}`, and that is not nullability: `{a?: int}` accepts a value
   with no `a`, `{a: ?int}` demands an `a` that may hold `null`, and the two accept different values so
   they intern apart. A source missing an *optional* field satisfies the shape; missing a *required* one
@@ -2127,7 +2134,8 @@ The optional key exists for request input. Without it, a field the client may om
 which is the ambiguity [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) refuses everywhere else.
 
 **Memory:** one `bool` per shape field, in the interned type descriptor. That is one per distinct type
-in the program, and nothing per value or per request.
+in the program, and nothing per value or per request. An anonymous object at a declared shape costs
+one map entry per declared field at check time, and at run time only the conversion it performs.
 
 **Declined:**
 - **A read of an optional field that answers `?T`.** It merges optionality into nullability at exactly
@@ -2147,8 +2155,12 @@ in the program, and nothing per value or per request.
   behaviours is a flag [`core-api/shape-rules`](core-api.md#core-api-shape-rules) refuses.
 - **A shape that requires a method.** A shape is data only. Behaviour belongs to a declared class or
   interface.
+- **Converting an existing value's `int` field when it meets a `float` field.** The value is shared,
+  so a conversion would change what every other reference to it reads.
+- **Copying an existing value at the widening.** It breaks the same sharing, and it makes a shape
+  assignment cost a copy.
 
-<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0236](../decisions/0236.md), [0238](../decisions/0238.md).</sub>
+<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0238](../decisions/0238.md).</sub>
 
 <a id="types-erased-member-access"></a>
 

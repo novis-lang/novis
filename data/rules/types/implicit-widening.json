@@ -2,7 +2,6 @@
   "title": "An `int` or `uint` widening into a `float` position is the only implicit conversion in the language",
   "status": "shipped",
   "because": [
-    "0236",
     "0238",
     "0239"
   ],
