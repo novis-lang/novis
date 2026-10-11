@@ -7,7 +7,7 @@ component encodes. QR codes stay `Novis\Image\QrCode`'s, which gains SVG output 
 | `Barcode::render(string $data, Barcode::Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format} $options = null): bytes` | the code as an encoded image, PNG by default |
 | `Barcode::svg(string $data, Barcode::Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool} $options = null): string` | the code as an SVG document |
 | `QrCode::svg(string $data, ?{margin?: uint, level?: QrCode::Level} $options = null): string` | a QR code as an SVG document |
-| `QrCode::giroCode({name: string, iban: string, amount?: Core\Decimal, bic?: string, reference?: string, text?: string}): string` | the EPC payment text (GiroCode) a banking app reads, for `QrCode::render` or `QrCode::svg` |
+| `QrCode::giroCode({name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string}): string` | the EPC payment text (GiroCode) a banking app reads, for `QrCode::render` or `QrCode::svg` |
 
 A wrong check digit, or a character the symbology cannot carry, throws `LogicError` naming it; a code
 is never repaired by computing a digit the program did not write. `giroCode` checks the IBAN's checksum
@@ -20,9 +20,11 @@ sandbox. Every code a test writes is read back by a reader that is a dev-depende
 
 - **Memory:** a code is at most a few thousand modules, so a render is far under the pixel cap.
 
-**Not shipped.** `wit/image.wit` declares the `barcode` export, and the component returns `runtime`
-from it: no symbology draws yet, and `Barcode`, `QrCode::svg` and `QrCode::giroCode` are not in the
-binary.
+**Shipped.** The `barcode` export draws every symbology, `qr` writes `svg`, and `Barcode`,
+`QrCode::svg` and `QrCode::giroCode` are in the binary. `extensions/image/src/barcode.rs` says what
+each symbology takes and what each option's default is. `crates/nvs-ext/tests/image_barcode.rs`
+reads every code back with `rxing`, and `crates/nvs-cli/tests/image_barcode.rs` pins the GiroCode
+layout.
 
 **Declined:**
 - **PDF417 and Aztec.** Each is a large encoder for documents almost no web application produces.

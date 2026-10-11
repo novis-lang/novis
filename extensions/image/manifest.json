@@ -74,6 +74,16 @@
       ],
       "returns": "bytes",
       "help": "Returns a text as an encoded QR code image. Data too long for the level, or a size too small for the code, throws a `LogicError`."
+    },
+    {
+      "name": "barcode",
+      "params": [
+        {"name": "data", "type": "string"},
+        {"name": "symbology", "type": "Symbology"},
+        {"name": "options", "type": "{height: ?uint, module: ?uint, margin: ?uint, text: ?bool, format: ?Format}"}
+      ],
+      "returns": "bytes",
+      "help": "Returns a text as an encoded barcode image. A wrong check digit, or a character the barcode type cannot hold, throws a `LogicError`."
     }
   ],
   "enums": [
@@ -87,7 +97,8 @@
     {"name": "Output", "owner": "Image", "cases": ["Encoded", "Raw", "Size"], "help": "What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone."},
     {"name": "HashKind", "owner": "Image", "cases": ["Perceptual", "Difference", "Average"], "help": "The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Difference` hash is 16 bytes and an `Average` hash is 32 bytes."},
     {"name": "PlaceholderKind", "owner": "Image", "cases": ["BlurHash", "ThumbHash"], "help": "The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 characters. A `ThumbHash` is base64 text and also keeps transparency."},
-    {"name": "Level", "owner": "QrCode", "cases": ["Low", "Medium", "Quartile", "High"], "help": "How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 percent. A higher level makes a bigger code for the same data."}
+    {"name": "Level", "owner": "QrCode", "cases": ["Low", "Medium", "Quartile", "High"], "help": "How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 percent. A higher level makes a bigger code for the same data."},
+    {"name": "Symbology", "owner": "Barcode", "cases": ["Code128", "Gs1128", "Ean13", "Ean8", "UpcA", "Code39", "Itf14", "DataMatrix"], "help": "The type of barcode `Barcode::render` and `Barcode::svg` draw. `DataMatrix` is a square code. The others are lines of bars."}
   ],
   "unions": [
     {"name": "Source", "cases": [

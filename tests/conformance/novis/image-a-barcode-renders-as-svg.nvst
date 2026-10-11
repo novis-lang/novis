@@ -1,0 +1,31 @@
+--TEST--
+`Barcode::svg` draws a Code 128 and an EAN-13 as SVG documents that open as images, and a wrong check digit throws `LogicError` naming it: rule:core-classes/image-barcode-roster
+--FILE--
+<?nvs
+// covers: Novis\Image\Barcode::svg
+use Novis\Image\Barcode;
+use Novis\Image\Image;
+
+// A Code 128 of an order number. The result is an SVG document.
+string $code128 = Barcode::svg("Shop-42", Barcode::Symbology::Code128);
+echo Core\Str::slice($code128, 0, 40), "\n";
+
+// The SVG opens as an image. 112 bars of 2 pixels, and 10 empty bars on each side.
+var $raw = Image::open($code128 as bytes)->raw();
+echo $raw->width, "x", $raw->height, "\n";
+
+// An EAN-13 with its number printed under the bars.
+string $ean = Barcode::svg("4006381333931", Barcode::Symbology::Ean13, {text: true});
+echo Core\Str::contains($ean, ">4006381333931</text>") ? "text" : "no text", "\n";
+
+// The last digit of an EAN-13 is a check digit. Here it should be 1, so this throws an error.
+try {
+    Barcode::svg("4006381333932", Barcode::Symbology::Ean13);
+} catch (LogicError $error) {
+    echo "LogicError: ", $error->message, "\n";
+}
+--EXPECT--
+<svg xmlns="http://www.w3.org/2000/svg"
+264x120
+text
+LogicError: the check digit of the EAN-13 4006381333932 is 1, and the data ends in 2

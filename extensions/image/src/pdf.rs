@@ -125,6 +125,11 @@ fn substitute(font: &StandardFont) -> &'static [u8] {
     }
 }
 
+/// Liberation Sans Regular, the font `barcode` prints a code's text in.
+pub(crate) fn sans() -> &'static [u8] {
+    substitute(&StandardFont::Helvetica)
+}
+
 /// The interpreter's settings: the Liberation fonts, no CMap, and every warning kept in `seen`.
 fn settings(seen: &Arc<Mutex<Option<InterpreterWarning>>>) -> InterpreterSettings {
     let sink = Arc::clone(seen);

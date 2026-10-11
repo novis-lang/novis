@@ -83,6 +83,8 @@ rustls.workspace = true
 nvs-image.workspace = true
 # The QR checks of `image_analysis` read each code back to its data.
 rqrr.workspace = true
+# The 1D and DataMatrix checks of `image_barcode` read each code back to its data.
+rxing.workspace = true
 
 # Times both arms of `image_guest` in a release build and, with `--record`,
 # writes `benches/results/image-guest.json`. Its own loop rather than

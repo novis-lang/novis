@@ -5,8 +5,8 @@
 //! tests run under an ordinary `cargo test` in this directory. The WIT glue in `guest` is compiled
 //! only for a wasm target, and maps each export onto the core and the core's types onto WIT's.
 //!
-//! `info`, `run`, `variants`, `compare`, `hash`, `placeholder`, `palette` and `qr` are the
-//! exports that are implemented; `compare`, `hash`, `summary` and `qr` are their modules' docs.
+//! `info`, `run`, `variants`, `compare`, `hash`, `placeholder`, `palette`, `qr` and `barcode` are
+//! the exports; `compare`, `hash`, `summary`, `qr` and `barcode` are their modules' docs.
 //! `run` starts
 //! from an
 //! [`Input`] — encoded bytes it decodes (`decode`'s module doc), a blank canvas or RGBA8 rows —
@@ -31,6 +31,7 @@
 //! binary carries. The 12 Liberation fonts under `extensions/fonts/` are 4.3 MiB of it.
 
 mod avif;
+pub mod barcode;
 pub mod compare;
 mod decode;
 mod encode;
@@ -802,11 +803,29 @@ mod guest {
         }
 
         fn barcode(
-            _data: String,
-            _symbology: Symbology,
-            _options: BarcodeOptions,
+            data: String,
+            symbology: Symbology,
+            options: BarcodeOptions,
         ) -> Result<Vec<u8>, Error> {
-            Err(Error::Runtime("`barcode` is not implemented yet".into()))
+            use crate::barcode::Symbology as Sym;
+            let symbology = match symbology {
+                Symbology::Code128 => Sym::Code128,
+                Symbology::Gs1128 => Sym::Gs1128,
+                Symbology::Ean13 => Sym::Ean13,
+                Symbology::Ean8 => Sym::Ean8,
+                Symbology::UpcA => Sym::UpcA,
+                Symbology::Code39 => Sym::Code39,
+                Symbology::Itf14 => Sym::Itf14,
+                Symbology::DataMatrix => Sym::DataMatrix,
+            };
+            let options = crate::barcode::Options {
+                height: options.height,
+                module: options.module,
+                margin: options.margin,
+                text: options.text.unwrap_or(false),
+                format: options.format.map(from_format),
+            };
+            crate::barcode::render(&data, symbology, options).map_err(error)
         }
     }
 

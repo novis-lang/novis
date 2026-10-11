@@ -83,6 +83,10 @@ nvs-image = { path = "extensions/image", version = "0.1.0" }
 # Dev-only: reads a QR code the image component drew back to its data, in `nvs-ext`'s
 # `image_analysis` test. Its `image` feature is off: the test hands it grey pixels.
 rqrr = { version = "0.11", default-features = false }
+# Dev-only: reads the 1D codes and the DataMatrix the image component drew back to their data, in
+# `nvs-ext`'s `image_barcode` test. Only its readers for those codes are on: the test hands it grey
+# pixels, so its `image` feature is off.
+rxing = { version = "0.9", default-features = false, features = ["decoders", "oned", "datamatrix", "encoding_rs"] }
 # What an `nvs` process resolved and read, written when `NVS_FOOTPRINT_LOG` names a log.
 nvs-footprint = { path = "crates/nvs-footprint", version = "0.0.1" }
 nvs-lsp = { path = "crates/nvs-lsp", version = "0.0.1" }

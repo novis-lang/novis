@@ -10,14 +10,16 @@
 //! as even as `size` allows; a `size` that is not a whole multiple of the modules makes some one
 //! pixel wider than others. A `size` below the module count, margin included, returns `invalid`,
 //! and so does a `size` whose square is over the default pixel cap. Dark modules are opaque
-//! black and light ones opaque white, written as PNG unless the options name another format;
-//! a decode-only format returns `encode`'s `invalid`.
+//! black and light ones opaque white, written as PNG unless the options name another format.
+//! `svg` is an SVG document `size` pixels square whose user unit is one module, written by
+//! `barcode`'s `svg`; any other decode-only format returns `encode`'s `invalid`.
 //!
 //! The export allocates the code's modules and one RGBA8 frame of `size`², and frees both when
 //! it returns.
 
 use qrcode::{Color, EcLevel, QrCode};
 
+use crate::barcode::{self, Grid};
 use crate::{DEFAULT_MAX_PIXELS, Encoding, Error, Format, Pixels, encode};
 
 /// The four error correction levels, the WIT `qr-level`: the share of the code a reader can
@@ -58,11 +60,23 @@ impl Default for Options {
 
 /// `data` as a QR code, encoded as the module doc says.
 pub fn render(data: &str, options: Options) -> Result<Vec<u8>, Error> {
+    if options.format == Format::Svg {
+        let grid = modules(data, options)?;
+        let side = grid.width + options.margin * 2;
+        return Ok(barcode::svg(
+            (options.size, options.size),
+            (side, side),
+            &grid,
+            (options.margin, options.margin),
+            (1, 1),
+            "",
+        ));
+    }
     encode(frame(data, options)?, options.format, Encoding::default())
 }
 
-/// The RGBA8 frame of `data`'s QR code, before it is encoded.
-pub fn frame(data: &str, options: Options) -> Result<Pixels, Error> {
+/// The modules of `data`'s QR code, after `options`' size and level are checked.
+fn modules(data: &str, options: Options) -> Result<Grid, Error> {
     let level = match options.level {
         Level::Low => EcLevel::L,
         Level::Medium => EcLevel::M,
@@ -90,6 +104,19 @@ pub fn frame(data: &str, options: Options) -> Result<Pixels, Error> {
             "a QR code of size {size} has more pixels than the cap of {DEFAULT_MAX_PIXELS}"
         )));
     }
+    Ok(Grid {
+        width: modules,
+        height: modules,
+        dark: colors.iter().map(|&color| color == Color::Dark).collect(),
+    })
+}
+
+/// The RGBA8 frame of `data`'s QR code, before it is encoded.
+pub fn frame(data: &str, options: Options) -> Result<Pixels, Error> {
+    let grid = modules(data, options)?;
+    let modules = grid.width;
+    let size = options.size;
+    let side = modules + options.margin * 2;
     let width = u32::try_from(size).expect("the pixel cap holds `size` to a u32");
     // The module each pixel's centre falls in, counted from the margin's outer edge.
     let module = |pixel: u64| (pixel * 2 + 1) * side / (size * 2);
@@ -103,9 +130,7 @@ pub fn frame(data: &str, options: Options) -> Result<Pixels, Error> {
                 .checked_sub(options.margin)
                 .filter(|&m| m < modules);
             let dark = match (row, column) {
-                (Some(row), Some(column)) => {
-                    colors[(row * modules + column) as usize] == Color::Dark
-                }
+                (Some(row), Some(column)) => grid.dark[(row * modules + column) as usize],
                 _ => false,
             };
             let value = if dark { 0 } else { 255 };
@@ -173,5 +198,20 @@ mod tests {
     fn render_returns_a_png() {
         let png = render("https://example.com/", Options::default()).unwrap();
         assert!(png.starts_with(b"\x89PNG"));
+    }
+
+    #[test]
+    fn svg_is_size_square_in_module_units() {
+        let options = Options {
+            format: Format::Svg,
+            ..Options::default()
+        };
+        // "Shop" is 21 modules wide, and 29 with its margin.
+        let svg = String::from_utf8(render("Shop", options).unwrap()).unwrap();
+        assert!(
+            svg.contains(r#"width="256" height="256" viewBox="0 0 29 29""#),
+            "{svg}"
+        );
+        assert!(svg.contains(r#"<path d="M4 4h7v1h-7z"#), "{svg}");
     }
 }
