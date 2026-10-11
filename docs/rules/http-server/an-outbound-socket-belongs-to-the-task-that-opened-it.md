@@ -16,3 +16,16 @@ resource — so there is no question of who closes one. A program that wants a s
 opens it in something that outlives a request: a command, a queue job, a spawned script. Two `receive`s
 waiting at once on one socket is a `LogicError`, because one message has one recipient and the alternative
 is a fan-out policy invented for what is a program bug.
+
+**`close` sends its frame and waits for the peer's under the send wait.** A peer that never answers
+is closed anyway, and that is not an error: the connection is gone either way, and a throw would put a
+`catch` around every normal ending. This end does not reconnect on its own either
+(`rule:http-server/an-outbound-socket-has-no-compression-and-no-reconnect`).
+
+- **Memory:** an open socket holds one connection, a TLS session for `wss`, `tungstenite`'s read and
+  write buffers, and at most `maxMessage` for a message being reassembled, all charged to the task that
+  opened it and released when it closes. Nothing is held per core or per process.
+
+**Declined:**
+- **A socket handed to another isolate.** Who closes it and whose budget holds it would become runtime
+  questions, for a pattern a program writes by opening the socket where it reads it.

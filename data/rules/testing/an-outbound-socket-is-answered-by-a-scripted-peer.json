@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Test`'s table answers a WebSocket handshake, plays the frames it was given and records what the program sent, and an unmatched socket throws rather than connecting",
   "status": "shipped",
-  "because": [
-    "0183"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/an-outbound-call-is-answered-from-a-table",
     "testing/determinism-declared-on-the-test",

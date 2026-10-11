@@ -52,8 +52,8 @@ nvs-syntax.workspace = true
 # no third option, so this stays a two-entry list. `nvs-host` depends on
 # `nvs-runtime` and on nothing this crate exports, so the graph stays a tree.
 nvs-host.workspace = true
-# ADR 0183 § 4: the opening handshake of `Core\Http\Client::openSocket` is an
-# outbound call, and what runs over the connection it leaves behind is
+# `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`: the
+# opening handshake of `Core\Http\Client::openSocket` is an outbound call, and what runs over the connection it leaves behind is
 # `tungstenite`'s client half — the same crate the server's half already speaks,
 # over the same parking stream and with no adapter. Masking, fragmentation,
 # UTF-8 validation and the close handshake are that crate's; a second

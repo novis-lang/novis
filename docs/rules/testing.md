@@ -490,7 +490,7 @@ What a scripted peer cannot reach is proved against a loopback peer in Rust, not
 masking, fragmentation, the close handshake and a ping are `tungstenite`'s behaviour rather than Novis's
 surface, and a table that pretended to them would be asserting its own implementation.
 
-<sub>See also [`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call). Decided in [0183](../decisions/0183.md).</sub>
+<sub>See also [`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call).</sub>
 
 <a id="testing-property-testing"></a>
 

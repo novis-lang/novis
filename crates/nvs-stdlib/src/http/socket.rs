@@ -1,5 +1,5 @@
-//! `Core\Http\Socket` — [ADR 0183](/docs/decisions/0183.md)'s outbound
-//! WebSocket: a conversation the program opened through the door every outbound
+//! `Core\Http\Socket` — the outbound WebSocket
+//! (`rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`): a conversation the program opened through the door every outbound
 //! call passes, and holds until its own task ends.
 //!
 //! # Decision: a row on `Core\Http\Client`, and no door of its own
@@ -44,9 +44,9 @@
 //! that runs against a host.
 //!
 //! **What it spends:** five slots per open socket, and against a real host what
-//! [ADR 0183](/docs/decisions/0183.md) § 10 prices — one connection, a TLS
-//! session for `wss`, and `tungstenite`'s own buffers — charged to the task
-//! that opened it.
+//! `rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`
+//! prices — one connection, a TLS session for `wss`, and `tungstenite`'s own
+//! buffers — charged to the task that opened it.
 
 use super::*;
 use tungstenite::protocol::CloseFrame;
@@ -90,7 +90,8 @@ const HELD_AT: usize = 4;
 /// carries is a key and what the key names is this
 /// ([`nvs_runtime::Ctx::hold_open_socket`] argues why a handle is a number).
 /// The table is the request's, so the connection is closed when the task that
-/// opened it ends whatever the program did with the socket — which is § 5's
+/// opened it ends whatever the program did with the socket — which is
+/// `rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`'s
 /// lifetime with nothing here to remember it.
 ///
 /// **The bounds are held beside the connection because every wait is one of
@@ -558,7 +559,8 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
         idempotency_key: None,
         body: None,
         // Two ceilings nothing on this path reads: a socket is never pooled
-        // (ADR 0183 § 4) and nothing here arrives under a content coding. They
+        // (`rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`)
+        // and nothing here arrives under a content coding. They
         // are the call's fields, so they are answered rather than left out.
         pool: super::pool_of(ctx),
         compress: crate::compress::Bound::ceiling(ctx),
@@ -569,7 +571,9 @@ fn connected(ctx: &mut Ctx, args: &[Value]) -> Result<(Option<String>, Value), F
         proxy: super::proxy_of(ctx),
     };
 
-    // The framing carries § 7's message cap rather than `tungstenite`'s own
+    // The framing carries the message cap
+    // `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`
+    // sets, rather than `tungstenite`'s own
     // 64 MiB: how much of the opening task's memory a peer may make this
     // process hold is the deployment's decision and then the program's, and a
     // library default is neither. Every step of it is finite, so nothing here
@@ -952,8 +956,9 @@ fn ending(code: &Value, reason: &Value) -> CloseFrame {
 }
 
 /// The peer's own close, waited for under the send wait — the other half of
-/// [ADR 0183](/docs/decisions/0183.md) § 5's close handshake, and the reason
-/// `close` is a member that takes a wait at all.
+/// the close handshake
+/// `rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`
+/// states, and the reason `close` is a member that takes a wait at all.
 ///
 /// Whatever the peer says before its close is read and dropped: this end has
 /// ended the conversation, and a program that ended it is not owed the frames
@@ -1388,7 +1393,7 @@ mod tests {
         served.join().expect("the origin thread");
     }
 
-    /// ADR 0183 § 7's close codes, as the frame a program's own `close` sends:
+    /// The close codes, as the frame a program's own `close` sends:
     /// an omitted code is a normal ending, and a number that is no close code
     /// is not turned into one that is.
     // covers: Core\Http\Socket::close
@@ -1480,8 +1485,9 @@ mod tests {
         );
     }
 
-    /// [ADR 0183](/docs/decisions/0183.md) § 5: a `close` sends its frame and
-    /// then waits for the peer's own, rather than writing one and walking away.
+    /// `rule:http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`:
+    /// a `close` sends its frame and then waits for the peer's own, rather than
+    /// writing one and walking away.
     ///
     /// What says the handshake happened is the peer's side of it: an end that
     /// hung up on its own frame would leave the origin's read failing on a

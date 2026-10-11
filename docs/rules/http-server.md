@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*7 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -1295,7 +1295,7 @@ questions at the member that connects, so there is one implementation of the pol
 and it lives in the capability rather than the client
 ([`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability)).
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0183](../decisions/0183.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned).</sub>
 
 <a id="http-server-an-outbound-call-tries-every-approved-address"></a>
 
@@ -1669,6 +1669,12 @@ among them — and the operator's proxy tunnel
 A door of its own would be a second implementation of the same policy, and the second copy is the one that
 comes to be missing a check.
 
+**The row is named `openSocket`** because [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon) narrows it to one name. `connect`
+is unavailable: every other row on the class is named for an HTTP method, `CONNECT` is one, and
+`connectTimeout` and `connectTo` already spend the word on reaching a host. Bare `open` is this
+language's verb for a resource a program then holds and closes, but alone on this class it does not say
+what is opened, and this is the only row whose result outlives the call.
+
 `ws` and `wss` join the scheme roster for this row alone
 ([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)): the request rows refuse them, and `openSocket` refuses
 `http` and `https`, so what a URL is *for* is written in the row that takes it. `ws` is admitted as plain
@@ -1679,7 +1685,7 @@ What the row answers is `Core\Http\Socket`, and what that answers is `Core\Socke
 server-side connection already answers in ([`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate)), because one
 RFC 6455 frame gets one shape in this language. `protocols` offers subprotocols as
 `Sec-WebSocket-Protocol`, a `101` choosing one that was not offered is refused, and the socket reports the
-one chosen. The bag carries the connection keys and not the exchange keys: there is no `body`, no
+one chosen; any other answer than a `101` is a `RuntimeError` naming the status. The bag carries the connection keys and not the exchange keys: there is no `body`, no
 `followRedirects` and no retry trio, because a bag is a closed set and a key that could never do anything
 is one a program would write and then wait for.
 
@@ -1687,7 +1693,25 @@ is one a program would write and then wait for.
 [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned)'s pool, because a connection
 that has been upgraded can no longer carry a request.
 
-<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned). Decided in [0183](../decisions/0183.md).</sub>
+**The conversation is `receive`, `send`, `sendBytes`, `close` and `protocol`.** `send(string)` and
+`sendBytes(bytes)` are two classified parameters, as on `Core\Socket`, because a `string|bytes` union
+carries no classification, so it would refuse a `tainted` argument and make `send` a sink by accident.
+`receive` answers `?Core\Socket\Message` with `text` or `bytes` filled and `tainted`, and `null` once the
+peer has closed. A sent frame is not a sink ([`security/sink-predicate`](security.md#security-sink-predicate)): it is no instruction on
+this side of the wire, so a program may forward what it received without laundering it. RFC 6455's
+masking, fragmentation, UTF-8 validation and close handshake are `tungstenite`'s client half, run over
+the stream the transport already holds.
+
+**Declined:**
+- **A door of its own, `Core\Socket::connect`.** It groups the socket surface in one namespace, and asks
+  every question the pin, the grant, the TLS options and the proxy answer a second time.
+- **A second message class for the outbound direction.** It would differ from `Core\Socket\Message` only
+  in where the bytes came from, and the two would disagree the first time either was touched.
+- **WebSocket over HTTP/2 (RFC 8441).** The outbound client speaks HTTP/1.1, and this changes with it.
+- **STOMP, Socket.IO and GraphQL over WebSocket in the runtime.** Each is frames with a convention on
+  top, which is what a package is for ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)).
+
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned).</sub>
 
 <a id="http-server-an-outbound-socket-belongs-to-the-task-that-opened-it"></a>
 
@@ -1714,7 +1738,20 @@ opens it in something that outlives a request: a command, a queue job, a spawned
 waiting at once on one socket is a `LogicError`, because one message has one recipient and the alternative
 is a fan-out policy invented for what is a program bug.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`classes/graph-copy`](classes.md#classes-graph-copy), [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call). Decided in [0183](../decisions/0183.md).</sub>
+**`close` sends its frame and waits for the peer's under the send wait.** A peer that never answers
+is closed anyway, and that is not an error: the connection is gone either way, and a throw would put a
+`catch` around every normal ending. This end does not reconnect on its own either
+([`http-server/an-outbound-socket-has-no-compression-and-no-reconnect`](http-server.md#http-server-an-outbound-socket-has-no-compression-and-no-reconnect)).
+
+- **Memory:** an open socket holds one connection, a TLS session for `wss`, `tungstenite`'s read and
+  write buffers, and at most `maxMessage` for a message being reassembled, all charged to the task that
+  opened it and released when it closes. Nothing is held per core or per process.
+
+**Declined:**
+- **A socket handed to another isolate.** Who closes it and whose budget holds it would become runtime
+  questions, for a pattern a program writes by opening the socket where it reads it.
+
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`classes/graph-copy`](classes.md#classes-graph-copy), [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call).</sub>
 
 <a id="http-server-an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap"></a>
 
@@ -1734,7 +1771,8 @@ Four bounds cover an outbound socket, and none of them has a spelling for "forev
 `idle` and `maxDuration` are the two bounds and the two directives a streamed reply already reads
 ([`http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`](http-server.md#http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime)), for the same reason one level
 down: an idle check alone never ends a peer that dribbles, and a lifetime alone lets a dead connection sit
-until it expires. A message past `maxMessage` closes the socket with `1009`. `ping` is the one knob with an
+until it expires. A message past `maxMessage` closes the socket with `1009`, and the pending `receive`
+throws naming the cap. `ping` is the one knob with an
 off position and it is off by default, because a ping is traffic the peer did not ask for; a program that
 sets it is choosing to have `idle` end a *dead* peer rather than a quiet one. A peer's ping is always
 answered regardless — that is the protocol, not a policy.
@@ -1748,13 +1786,38 @@ comes from the absence of a spelling, exactly as it does for a call
 
 `[http.client.socket]` carries `max_message` and `send_timeout`, both `Runtime`
 ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)), as `[http.client] deadline` is and for its reason: each
-bounds one call, and neither is a shared resource one request could spend on another's behalf. Shipped:
+bounds one call, and neither is a shared resource one request could spend on another's behalf. They sit in
+a block of their own because they mean nothing to a row that is not `openSocket`. A zero or a `false` in
+either is refused while the file is read, because neither is a bound. Shipped:
 `max_message` is four mebibytes and `send_timeout` is thirty seconds — the numbers this process already
 applies to the other half of RFC 6455, because one process holding two opinions about the size of one
 message is how a program comes to work in one direction and not the other. Neither ships unbounded, which
 [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect) requires of exactly this kind of wait.
 
-<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`](http-server.md#http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0183](../decisions/0183.md).</sub>
+<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`](http-server.md#http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
+
+<a id="http-server-an-outbound-socket-has-no-compression-and-no-reconnect"></a>
+
+## An outbound socket negotiates no `permessage-deflate` and never reconnects on its own
+
+`rule:http-server/an-outbound-socket-has-no-compression-and-no-reconnect`
+
+An outbound socket offers no `permessage-deflate` in its handshake, and a socket that ends stays ended:
+it reports why, and what to do next is the program's.
+
+**There is no compression extension** for two reasons that are not about effort. Context takeover holds
+a compression window per socket for the socket's whole life, which is memory held per peer rather than
+per message. And inflating a peer's frames is a decompression bomb with no length known in advance,
+which is a security question of its own. It can be added later as an option, and nothing in the socket's
+surface rules it out.
+
+**There is no reconnect.** A reconnect policy is backoff, jitter, resumption tokens and a replay
+question, all of them the application's, and no two APIs answer them the same way.
+
+Compression is reconsidered when measurement on a real gateway shows a chatty peer's bytes dominating
+a program's cost.
+
+<sub>See also [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call), [`http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`](http-server.md#http-server-an-outbound-socket-belongs-to-the-task-that-opened-it), [`http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`](http-server.md#http-server-an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap).</sub>
 
 <a id="http-server-a-requests-blast-radius-is-bounded-at-four-tiers"></a>
 

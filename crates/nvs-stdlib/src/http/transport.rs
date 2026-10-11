@@ -1690,7 +1690,8 @@ pub(crate) struct Upgraded {
     pub(crate) protocol: Option<String>,
 }
 
-/// An outbound WebSocket's opening handshake — [ADR 0183](/docs/decisions/0183.md) § 4.
+/// An outbound WebSocket's opening handshake —
+/// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`.
 ///
 /// **The `Call` is the value a request carries**, and its exchange half is what
 /// an upgrade is: `GET`, no body, one attempt and no hop. That is not a
@@ -5856,8 +5857,8 @@ pub(crate) mod tests {
         );
     }
 
-    /// [ADR 0183](/docs/decisions/0183.md) § 4: an outbound socket is opened
-    /// like an outbound call, so the handshake is dialled at an address the
+    /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`:
+    /// an outbound socket is opened like an outbound call, so the handshake is dialled at an address the
     /// door approved and asks for the URL's own path.
     ///
     /// Asserted on the octets the origin read rather than on what [`asked`]
@@ -5892,7 +5893,8 @@ pub(crate) mod tests {
         );
     }
 
-    /// [ADR 0183](/docs/decisions/0183.md) § 4: the headers are the call's and
+    /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`:
+    /// the headers are the call's and
     /// the offered subprotocols are the socket's, and one handshake carries
     /// both.
     ///
@@ -5941,7 +5943,8 @@ pub(crate) mod tests {
         assert_eq!(fields, 1, "the offers are one field, not one each: {asked}");
     }
 
-    /// [ADR 0183](/docs/decisions/0183.md) § 4: a `101` naming a subprotocol
+    /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`:
+    /// a `101` naming a subprotocol
     /// the call never offered is refused, and the connection it arrived on is
     /// dropped rather than handed back.
     ///
@@ -5995,7 +5998,8 @@ pub(crate) mod tests {
     }
 
     /// `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`, as
-    /// [ADR 0183](/docs/decisions/0183.md) § 4 reads it for a socket: there is
+    /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+    /// reads it for a socket: there is
     /// no spelling for following a hop here, so a `3xx` answering the
     /// handshake is the end of the call.
     ///
@@ -6032,8 +6036,9 @@ pub(crate) mod tests {
         assert_eq!(asked.len(), 1, "nothing followed the hop: {asked:?}");
     }
 
-    /// `rule:security/one-tls-client`, as [ADR 0183](/docs/decisions/0183.md)
-    /// § 4 reads it for a socket: a `wss` handshake is a `ws` handshake inside
+    /// `rule:security/one-tls-client`, as
+    /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+    /// reads it for a socket: a `wss` handshake is a `ws` handshake inside
     /// a session the process's one outbound client established, built from the
     /// policy the `Call` carries, and what it leaves is the same [`Upgraded`].
     ///
@@ -6102,8 +6107,8 @@ pub(crate) mod tests {
     }
 
     /// `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`,
-    /// as [ADR 0183](/docs/decisions/0183.md) § 4 reads it for a socket: the
-    /// operator's tunnel is the call's, so a handshake goes through `CONNECT`
+    /// as `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+    /// reads it for a socket: the operator's tunnel is the call's, so a handshake goes through `CONNECT`
     /// to the address the door approved and the `101` comes back over it.
     ///
     /// The bypassed half is asserted beside it, because an end that tunnelled
