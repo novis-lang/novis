@@ -1,9 +1,7 @@
 {
   "title": "Both tiers run on every acceptance sweep: the headless suites with no editor, and the extension-host run in a pinned build with a throwaway profile",
   "status": "shipped",
-  "because": [
-    "0226"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/highlighting-is-two-layers",
     "ide/dependencies-are-allowlisted",

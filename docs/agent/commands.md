@@ -310,7 +310,7 @@ bun nv select --mutate FILE       # apply each batch of breaking edits FILE list
 bun nv select --mutate FILE --batch N --jobs 16   # one batch only, 16 runs at once
 ```
 
-**The full run catches what the keys missed.** `--full` is the safety net ADR 0226 § 6 names: an atom
+**The full run catches what the keys missed.** `--full` is the safety net `rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint` names: an atom
 red in it whose last verdict was green and which the selection did not pick is a selection miss. It is
 kept in the store under `select-miss:<platform>:<atom>` until a full run finds the atom green, and the
 command exits 1 while there is one. The loop runs it when the floor gate opens by its count. `--mutate

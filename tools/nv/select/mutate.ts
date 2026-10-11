@@ -1,4 +1,5 @@
-// `bun nv select --mutate <file>`: proof that the selection loses no coverage (ADR 0226, § Verification).
+// `bun nv select --mutate <file>`: proof that the selection loses no coverage
+// (`rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint`).
 //
 // The file is JSON under `tools/data/`: `{ "about": "...", "batches": [[edit, ...], ...] }`, where an edit
 // is `{ "file", "find", "replace", "note" }`. `find` must occur exactly once in `file`; an empty `find`

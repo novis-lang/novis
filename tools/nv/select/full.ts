@@ -1,5 +1,6 @@
 // `bun nv select --full`: every atom that is not heavy runs and records, whatever changed, and a red one
-// the selection should have picked is a selection miss (ADR 0226, § 6).
+// the selection should have picked is a selection miss
+// (`rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint`).
 //
 // The run takes the selection the change since the store's tree makes before anything runs, then runs:
 //

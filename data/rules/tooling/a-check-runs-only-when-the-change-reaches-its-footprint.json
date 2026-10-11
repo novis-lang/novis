@@ -2,7 +2,6 @@
   "title": "A check runs only when the change reaches what its green runs were observed to use, and the pipeline runs and records on the one `covws` debug build",
   "status": "shipped",
   "because": [
-    "0226",
     "0227"
   ],
   "seeAlso": [

@@ -3,8 +3,7 @@
   "status": "shipped",
   "because": [
     "0220",
-    "0224",
-    "0226"
+    "0224"
   ],
   "seeAlso": [
     "testing/feature-proofs",
