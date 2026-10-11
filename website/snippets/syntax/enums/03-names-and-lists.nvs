@@ -1,8 +1,8 @@
 <?nvs
-enum Level { Debug, Info, Warn }
+// An enum has no methods. The class that contains the enum gives each case a name.
+class Logger {
+    enum Level { Debug, Info, Warn }
 
-// An enum has no methods. A class that takes the enum gives each case a name.
-class Levels {
     public static function name(Level $level): string {
         return match ($level) {
             Level::Debug => "debug",
@@ -16,7 +16,7 @@ class Levels {
     }
 }
 
-foreach (Levels::all() as Level $level) {
-    echo Levels::name($level), " ";
+foreach (Logger::all() as Logger::Level $level) {
+    echo Logger::name($level), " ";
 }
 echo "\n";

@@ -15,10 +15,10 @@
   },
   "syntax/attributes/routes.mdx": {
     "lang:attributes/core-api-and-the-openapi-document": "8c75e2694eee0d72",
-    "lang:attributes/core-route-and-core-access-the-route-table": "9b71e3e6be4d82a8"
+    "lang:attributes/core-route-and-core-access-the-route-table": "96e327a67a3917ea"
   },
   "syntax/attributes/writing-and-reading.mdx": {
-    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "916df2da45a454a5",
+    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "b3d77df2e31a1a39",
     "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "35a626022762a6ba",
     "lang:attributes/the-names-the-compiler-acts-on": "655b2f6d62b9effb"
   },
@@ -54,7 +54,7 @@
     "lang:classes/nullable-objects-and": "95b0936d37e271ee",
     "lang:classes/object-the-top-of-every-class-type": "73f013ceceb14939",
     "lang:classes/objects-are-handles": "cdafefedd67c6e81",
-    "lang:classes/what-a-class-cannot-declare": "1f8b7b8ccf4b7aba",
+    "lang:classes/what-a-class-cannot-declare": "32210d606a24e5ee",
     "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "14e32bbf60f56171",
     "lang:types/callable-classes-object-shapes": "1e05f17eee622431"
   },
@@ -139,7 +139,7 @@
   "syntax/errors/error-types.mdx": {
     "ArithmeticError": "fc4903c59062fa25",
     "Core\\Cli\\NotInteractive": "0a53529b7f05636f",
-    "Core\\Db\\DbError": "563bb55ceeee5be9",
+    "Core\\Db\\DbError": "0be50c7f4eaed6ed",
     "Core\\Db\\RolledBack": "e253aa9c8bdbe69f",
     "Core\\Script\\Finished": "d67e0a8d12713160",
     "IOError": "dcea56a0ab16c5c1",
@@ -178,7 +178,7 @@
     "lang:types/void-never-self-static": "656a82389884795e"
   },
   "syntax/functions/parameters.mdx": {
-    "lang:types/parameters": "b717ae73a872b8ae"
+    "lang:types/parameters": "95d4fc8716a909d9"
   },
   "syntax/operators/arithmetic.mdx": {
     "lang:expressions/arithmetic": "ff67c48497b119e0",
@@ -242,7 +242,7 @@
   "syntax/values/enums.mdx": {
     "Core\\Arr::Order": "d5be8754a1824a75",
     "Core\\Arr::SetOn": "2dc1a8b8dd83af18",
-    "Core\\Audience": "690d2a6edc2eb591",
+    "Core\\Audience": "563cd38183dc8ae6",
     "Core\\Charset": "2a993835856562a7",
     "Core\\Cldr::PluralCategory": "ec3ee07e5dc9b804",
     "Core\\Cli::ColorDepth": "51d0c97d3a5c74c2",
@@ -274,21 +274,21 @@
     "Core\\Time\\DateTime::Weekday": "b77632265389b080",
     "Core\\Unit": "325e36d708bf2e5a",
     "Core\\Xml\\Node::Kind": "f35464494f865164",
-    "lang:enums/a-case-is-its-integer": "c8ba40a8e393513e",
-    "lang:enums/a-union-of-cases-is-a-narrower-type": "0204f352d260f5b0",
-    "lang:enums/an-enum-as-a-type": "4aedddc5b4996f6c",
-    "lang:enums/comparing-cases": "e01ffe788609eebf",
+    "lang:enums/a-case-is-its-integer": "689ec76a8163f43f",
+    "lang:enums/a-union-of-cases-is-a-narrower-type": "d2b41c4e9db443a2",
+    "lang:enums/an-enum-as-a-type": "713d9f99c9595379",
+    "lang:enums/comparing-cases": "b6bb716b655f4dfe",
     "lang:enums/core-enums": "343d5748cddffbb9",
-    "lang:enums/declaring-an-enum": "cc9e120a5a174683",
-    "lang:enums/from-an-integer-back-to-a-case": "a61ca2711a8f3f88",
-    "lang:enums/match-and-switch-over-an-enum": "5eef5c6c9dc56195",
-    "lang:enums/what-an-enum-does-not-have": "1a593c3c2647e2dd"
+    "lang:enums/declaring-an-enum": "6b0e5dc99c50280d",
+    "lang:enums/from-an-integer-back-to-a-case": "58dacf94f022e093",
+    "lang:enums/match-and-switch-over-an-enum": "3154630c28c6169b",
+    "lang:enums/what-an-enum-does-not-have": "5db640958c9eecb5"
   },
   "syntax/values/is.mdx": {
     "lang:types/narrowing": "ef73bd2a55f6926e"
   },
   "syntax/values/nullable.mdx": {
-    "lang:types/nullable-union-single-value-and-enum-case-types": "572dc4590c11810c"
+    "lang:types/nullable-union-single-value-and-enum-case-types": "56bf641e632fee17"
   },
   "syntax/values/numbers.mdx": {
     "lang:types/numbers-bool-int-uint-float-decimal": "d6c129f570f1b22b",
@@ -303,7 +303,7 @@
   },
   "syntax/values/union-types.mdx": {
     "lang:types/mixed": "ec3d3184189db579",
-    "lang:types/nullable-union-single-value-and-enum-case-types": "572dc4590c11810c",
-    "lang:types/type-aliases": "26400907c53f9ddd"
+    "lang:types/nullable-union-single-value-and-enum-case-types": "56bf641e632fee17",
+    "lang:types/type-aliases": "a74c10267bf5e323"
   }
 }

@@ -1,8 +1,8 @@
 <?nvs
 // This program gives each task a priority from an enum, and prints a label for it.
-enum Priority { Low, Normal, High }
-
 class Task {
+    enum Priority { Low, Normal, High }
+
     public string $title;
     public Priority $priority;
 
@@ -22,6 +22,7 @@ class Task {
     }
 }
 
-echo (new Task("Pay rent", Priority::High))->line(), "\n";
+// Outside `Task`, the enum is `Task::Priority`.
+echo (new Task("Pay rent", Task::Priority::High))->line(), "\n";
 echo (new Task("Buy milk"))->line(), "\n";
-echo (new Task("Sort photos", Priority::Low))->line(), "\n";
+echo (new Task("Sort photos", Task::Priority::Low))->line(), "\n";

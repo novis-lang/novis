@@ -1,8 +1,8 @@
 <?nvs
 // Each property has a type. A default value must be a value written directly in the code, `[]`, an enum case or a constant.
-enum Mode { Off, On }
-
 class Config {
+    enum Mode { Off, On }
+
     public const int DEFAULT_SIZE = 8;
     public Mode $mode = Mode::On;
     public int $size = self::DEFAULT_SIZE;

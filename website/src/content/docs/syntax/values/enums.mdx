@@ -14,6 +14,19 @@ An enum is a type with a fixed list of named cases. Each case is a whole number.
 - Two cases can have the same number.
 - An enum contains only cases. It has no methods and no constants.
 
+## Declare an enum in the class that uses it
+
+When only one class uses an enum, declare the enum inside that class.
+
+<Snippet src="syntax/enums/06-in-a-class.nvs" />
+
+- Inside `Order`, the enum is `Status`. Outside `Order`, it is `Order::Status`.
+- A case outside the class is `Order::Status::Paid`.
+- An interface can declare an enum in the same way.
+- An enum in a class has no `public` or `private`. A class that extends `Order` does not get
+  `Status`.
+- When several classes use an enum, declare it at the top level of the file.
+
 ## Convert between a case and a number
 
 `as int` gives the number of a case. `as Status` gives the case for a number.
@@ -41,8 +54,8 @@ A type can list some cases of an enum: `Mode::Read|Mode::Write`.
 
 <Snippet src="syntax/enums/04-some-cases.nvs" />
 
-Passing `Mode::Delete` to `Files::open` does not compile. `as Mode::Read|Mode::Write` throws an error
-when the value is a different case.
+Passing `Files::Mode::Delete` to `Files::open` does not compile. `as Files::Mode::Read|Files::Mode::Write`
+throws an error when the value is a different case.
 
 ## Enums from Core
 
@@ -57,3 +70,4 @@ Many `Core` methods take an enum from `Core`, such as `Core\Arr::Order`, `Core\R
 - Do use `as ?Status` for a number from outside the program. You then handle `null`.
 - Don't use a case as an array key. Use its number: `$names[$status as int]`.
 - Don't add behaviour to an enum. Put it in a class that takes the enum.
+- Do declare an enum inside the class that uses it. Write `Status`, not `OrderStatus`.
