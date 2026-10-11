@@ -687,7 +687,7 @@ accepts these in any order, which is exactly why the formatter must fix one — 
 `public static $x;` both compile and would otherwise never converge. A missing modifier is never
 supplied: a formatter that changes meaning is not a formatter ([`core-api/written-visibility`](core-api.md#core-api-written-visibility)).
 
-<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/lateinit`](classes.md#classes-lateinit). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`tooling/fmt-sorts-the-use-block`](tooling.md#tooling-fmt-sorts-the-use-block), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`classes/lateinit`](classes.md#classes-lateinit).</sub>
 
 <a id="tooling-fmt-never-reflows"></a>
 
@@ -710,6 +710,12 @@ There is deliberately no line-length rule anywhere, soft or hard. With no width 
 width limit would be advisory prose with nothing in the tool to enforce it, and the editor's own ruler
 already shows a column.
 
+A width-fitting printer breaks at places nobody would choose and packs as much onto a line as fits, so
+its output is often less readable than its input. Leaving every byte of an expression as written gives
+the author no help either: a list wrapped two items to a line, or closed on its last item's line,
+would stay exactly as typed. The fixed layout of a broken construct is the help, and the author's line
+break is the only decision it needs.
+
 The cost is stated and accepted: the formatter cannot decide by itself that a line is too long, and a
 human still chooses when a construct is long enough to break, with one keystroke or with
 [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). What that buys is a formatter that walks the
@@ -717,7 +723,15 @@ existing parse tree rather than a width-fitting printer this project has no othe
 breaks a line at a place nobody would choose, and stays byte-for-byte deterministic as the parser
 evolves ([`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent)).
 
-<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0267](../decisions/0267.md).</sub>
+**Declined:**
+- **A width-fitting printer, as Prettier, php-cs-fixer and rustfmt are.** The tool chooses every
+  break, at places nobody would choose.
+- **A trailing comma as the signal to keep a list broken, as Black and dart format use.** It is a
+  second, less visible way to say what a line break already says.
+- **A line-length limit that only reports.** It is a diagnostic about layout, which
+  [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic) excludes, and the editor's ruler already shows a column.
+
+<sub>See also [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`tooling/fmt-a-broken-call-chain-is-one-call-per-line`](tooling.md#tooling-fmt-a-broken-call-chain-is-one-call-per-line), [`tooling/fmt-a-broken-operator-chain-is-one-operand-per-line`](tooling.md#tooling-fmt-a-broken-operator-chain-is-one-operand-per-line), [`tooling/fmt-is-idempotent`](tooling.md#tooling-fmt-is-idempotent), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution).</sub>
 
 <a id="tooling-fmt-a-list-is-one-line-or-one-item-per-line"></a>
 
@@ -778,7 +792,13 @@ A comment inside a broken list stays on the line of the item it follows, or keep
 when it was written on one. A line comment breaks the list it sits in, because a line break follows
 it. `match` arms keep their own rule ([`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs)).
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`enums/declaration`](enums.md#enums-declaration), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md).</sub>
+**Declined:**
+- **Keeping several items per line in a broken list.** That is the packing a width-fitting printer
+  does, and it gives a list a third layout.
+- **One enum case per line always.** It needs no exception to the Allman brace, but turns every
+  two-case enum into four lines.
+
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`enums/declaration`](enums.md#enums-declaration), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one).</sub>
 
 <a id="tooling-fmt-a-broken-call-chain-is-one-call-per-line"></a>
 
@@ -810,7 +830,7 @@ $rows = $query
 
 The first statement formats to the second. A chain written on one line stays on one line.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one).</sub>
 
 <a id="tooling-fmt-a-broken-operator-chain-is-one-operand-per-line"></a>
 
@@ -850,7 +870,7 @@ if (
 The first statement formats to the second. A condition written on one line stays on one line, and
 an unbroken chain anywhere else does too.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-a-list-is-one-line-or-one-item-per-line`](tooling.md#tooling-fmt-a-list-is-one-line-or-one-item-per-line).</sub>
 
 <a id="tooling-fmt-quotes"></a>
 
@@ -905,7 +925,7 @@ preserves; the comma follows from that decision mechanically. This removes the o
 leaves a genuinely free stylistic choice with no way to derive the right answer from context, and it is
 what makes adding an element to a multi-line list a one-line diff.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-novis-constructs`](tooling.md#tooling-fmt-novis-constructs).</sub>
 
 <a id="tooling-fmt-sorts-the-use-block"></a>
 
@@ -961,7 +981,7 @@ Each construct with no PER precedent has one layout, chosen once:
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template).</sub>
 
 <a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
 
@@ -1055,7 +1075,7 @@ layout. A formatter whose output depended only on the AST
 would have to choose every line break itself, which is exactly the width-fitting printer this design
 declines to build. What converges is one file, run twice — never two semantically identical files.
 
-<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-never-reflows`](tooling.md#tooling-fmt-never-reflows), [`tooling/fmt-check-writes-nothing`](tooling.md#tooling-fmt-check-writes-nothing), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="tooling-fmt-is-never-a-diagnostic"></a>
 

@@ -1,9 +1,7 @@
 {
   "title": "The base style is PER: four-space indentation, K&R braces on control structures, Allman braces on declarations, and one canonical modifier order",
   "status": "shipped",
-  "because": [
-    "0267"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/fmt-is-one-canonical-style",
     "tooling/fmt-sorts-the-use-block",

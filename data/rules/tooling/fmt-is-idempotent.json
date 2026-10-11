@@ -1,9 +1,7 @@
 {
   "title": "`nvs fmt` is a fixed point over the input bytes: byte-stable on every machine, and deliberately not source-independent",
   "status": "shipped",
-  "because": [
-    "0267"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/fmt-never-reflows",
     "tooling/fmt-check-writes-nothing",

@@ -1,9 +1,7 @@
 {
   "title": "A list is on one line or has one item per line, and a line break its author wrote at the list's own level is what breaks it",
   "status": "designed",
-  "because": [
-    "0267"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/fmt-never-reflows",
     "tooling/fmt-base-style-is-per",
@@ -12,5 +10,7 @@
     "tooling/fmt-novis-constructs",
     "ide/a-list-splits-onto-lines-and-joins-onto-one"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-fmt/tests/list_layout.rs"
+  ]
 }
