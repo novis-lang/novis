@@ -1238,6 +1238,10 @@ implements a method of the same name that has one, on its parent class, on an in
 on any class or interface those extend or implement in turn. The override says what its ancestor already
 says, and `nvs doc` shows the ancestor's comment under it, naming where it comes from. A property and a
 constant inherit nothing, and a method that overrides an undocumented one is reported like any other.
+A property or constant redeclared on a subclass is a new declaration with its own value, so it needs its
+own sentence. The ancestors are walked over the class graph the compiler already built, and the member
+table records which method names were declared with a doc comment, so the check is a walk over names it
+already has.
 
 Why this cannot become the failure mode it is modelled against: an editor that demands a docblock is
 answered with a generated one, and a generated docblock is noise nobody reads and everybody deletes. Here
@@ -1253,7 +1257,17 @@ Until a package manager exists, `--strict-docs` is opt-in only and nothing fires
 publishing turns out to want more than "a public member has a comment" — a minimum length, a required first
 sentence — that is a lint's design and belongs with the publisher.
 
-<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0234](../decisions/0234.md).</sub>
+**Memory:** nothing at run time. The member table holds one more set of method names per class, and
+`--strict-docs` pays one walk up the class graph per undocumented public method.
+
+**Declined:**
+- **An explicit marker such as `/// @inheritdoc`.** It is a third tag, which
+  [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example) refuses, and it is a line that says nothing, which
+  is what this rule exists to prevent.
+- **Inheriting only from interfaces.** Overriding a documented parent method has the same problem, and
+  one rule for both is simpler.
+
+<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
 
 <a id="tooling-a-todo-is-a-comment-the-tools-list"></a>
 
@@ -1307,7 +1321,9 @@ own ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-
 What it adds to the document is reading, never deciding. A page names the class's parent and interfaces
 from the document's `extends` and `implements`, and a method with no doc comment of its own shows the one
 it inherits by following those same keys to the nearest documented method of the same name — the comment
-[`tooling/strict-docs`](tooling.md#tooling-strict-docs) accepts for it. A name with a page in the same run becomes a link, and one
+[`tooling/strict-docs`](tooling.md#tooling-strict-docs) accepts for it, after a line `Inherited from <Owner::name>.` naming where it
+comes from. A method inherited from a `Core` class or interface shows no inherited comment, because a
+`Core` member has no page in the run. A name with a page in the same run becomes a link, and one
 without stays code. `parent::` in a `@see` names the page's `extends`, and a member whose `kind` is
 `static` is printed with `static ` in front of its signature.
 
@@ -1316,7 +1332,12 @@ It renders text the lexer has already accepted, so it needs no bidi check of its
 website already cover every in-tree consumer — and it exists for a user's own project and for the package
 ecosystem that does not exist yet, which is why it is kept cheap to replace.
 
-<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program). Decided in [0234](../decisions/0234.md).</sub>
+**Declined:**
+- **Copying an inherited comment into the `nvs meta --json` document.** The document would then say a
+  member has a doc comment it does not have, and a consumer could not tell the two apart. The renderer
+  follows the `extends` and `implements` edges the document already carries.
+
+<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program).</sub>
 
 <a id="tooling-one-json-several-renderers"></a>
 
