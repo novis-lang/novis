@@ -15,7 +15,7 @@ command-line switches that change a setting. The settings in the file are the se
 2. `nvs.toml` in the folder you run `nvs` in.
 3. `nvs.toml` in the data folder. This is the folder `.nvsdata` next to the `nvs` program, or the
    folder that `--data` names.
-4. the built-in defaults. Nothing is limited, and nothing is allowed.
+4. the built-in defaults. Each request may use up to 128M of memory, and no capability is granted.
 
 When `nvs run`, `nvs serve`, `nvs test`, `nvs build` or `nvs check` finds no file, it writes
 `nvs.toml` into the data folder. It never writes into your project. `--no-init` stops it from
@@ -81,8 +81,10 @@ in a key always gives an error message.
 - `nvs config check` reads the file and reports every error.
 - `nvs config dump --origin` prints every key that is set, and the file that set it.
 
-A program can read a setting with `Core\Config::get`. It can change some settings for one request
-with `Core\Config::set`. Read [Limits](/guides/how-to-use/limits/) for an example.
+A program can read a setting with `Core\Config::get`. It returns the value in force. For a key the
+file does not set, that is the built-in default, such as `128M` for `memory`. A program can change
+some settings for one request with `Core\Config::set`. Read [Limits](/guides/how-to-use/limits/)
+for an example.
 
 ## Do and don't
 

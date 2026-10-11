@@ -62,7 +62,9 @@ A log file never grows past `max_size`. When it reaches that size, Novis renames
 and starts a new file. `keep` is the number of old files that are kept. When nothing is set,
 `max_size` is `10M` and `keep` is `5`.
 
-`level` is the lowest level that is written. `format` is `json` when nothing is set. Only the person
+`level` is the lowest level that is written. When nothing is set, `level` is `Info` in production, so
+a `Debug` record is not written. In development it is `Debug`. `format` is `json` in production and
+`text` in development when nothing is set. Only the person
 who runs the server can change `target`. A program can change `level` and `format` for one request,
 for example to write more detail.
 

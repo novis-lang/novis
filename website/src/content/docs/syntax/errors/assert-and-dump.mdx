@@ -19,7 +19,9 @@ a readable view of any value as a string.
 ## Use this when the output must stay clean
 
 `Core\Debug::dump($value)` writes the same view to standard error. It never goes into the normal
-output, so a web page or a captured output does not change.
+output, so a web page or a captured output does not change. Inside a web request, it writes a log
+record at the `Debug` level. In production, that record is not kept unless `[log] level` is
+`"Debug"`.
 
 ## Do and don't
 

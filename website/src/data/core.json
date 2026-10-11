@@ -7392,14 +7392,14 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "The configuration value in force for this request, replacing <code>ini_get</code>. A directive this request set with <code>set</code> answers with that value; everything else answers with what the configuration file resolved to.",
+            "shortHtml": "Returns the value of one setting for this request. It replaces <code>ini_get</code>. A setting this request changed with <code>set</code> gives the new value. Any other setting gives the value from the configuration file, or its built-in default.",
             "params": [
               {
                 "name": "name",
                 "descHtml": "The directive's dotted name, <code>log.level</code>. A bare limit name — <code>memory</code>, <code>cpu_time</code>, <code>wall_time</code>, <code>max_tasks</code>, <code>max_output</code>, <code>max_regex_steps</code> — names the <code>[limits]</code> entry."
               }
             ],
-            "returnHtml": "The value as text, however the file spelled it, or <code>null</code> where nothing set one and for a name that holds a table or a list rather than a value."
+            "returnHtml": "The value as text, written the way the configuration file writes it, such as <code>128M</code> or <code>30s</code>. The result is <code>null</code> for a setting with no default, such as <code>wall_time</code>. It is also <code>null</code> for a name that has a group of settings or a list."
           },
           "slug": "get",
           "url": "/reference/core/config/get/",
@@ -7480,14 +7480,14 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Drops what this request set for a directive, putting the configuration file's own value back in force — <code>ini_restore</code>.",
+            "shortHtml": "Deletes this request's change to one setting. The value from the configuration file is in force again, or the built-in default when the file does not write the setting. It replaces <code>ini_restore</code>.",
             "params": [
               {
                 "name": "name",
                 "descHtml": "The directive's name, read exactly as <code>get</code> reads it."
               }
             ],
-            "returnHtml": "Nothing. A name this request never set is not an error: there is nothing to undo."
+            "returnHtml": "Nothing. A name this request never changed is not an error. There is nothing to undo."
           },
           "slug": "restore",
           "url": "/reference/core/config/restore/",
@@ -7509,8 +7509,8 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Every directive in force for this request, keyed by dotted name, with what this request set folded over the file — <code>ini_get_all</code>.",
-            "returnHtml": "An <code>array&lt;string, string&gt;</code> in name order, one entry per value; a name holding a table contributes its leaves and a name holding a list contributes nothing, on <code>get</code>'s rule."
+            "shortHtml": "Returns every setting in force for this request, with the dotted names as keys. It replaces <code>ini_get_all</code>. A setting this request changed has the new value. A setting the configuration file does not write has its built-in default.",
+            "returnHtml": "An <code>array&lt;string, string&gt;</code> sorted by name, with one entry per value. A name that has a group of settings gives one entry for each setting in it. A name that has a list gives no entry."
           },
           "slug": "all",
           "url": "/reference/core/config/all/",
@@ -11603,7 +11603,7 @@
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Writes one rendered node per argument where the sink in force sends it: the diagnostic channel outside a request — stderr in a CLI program, never stdout — and a log record at <code>Debug</code> inside one, which <code>[debug] inline</code> additionally appends to an HTML response body. This is what <code>var_dump</code> is for, minus its writing to output.",
+            "shortHtml": "Writes each value in a readable form, for debugging. It replaces <code>var_dump</code>, but it never writes to standard output. Outside a web request, it writes to standard error. Inside a web request, it writes a log record at the <code>Debug</code> level. In production, that record is not kept unless <code>[log] level</code> is <code>&quot;Debug&quot;</code>. With <code>[debug] inline</code>, the dump is also added to an HTML response.",
             "params": [
               {
                 "name": "values",
