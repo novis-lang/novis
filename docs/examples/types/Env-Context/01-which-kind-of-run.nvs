@@ -1,0 +1,7 @@
+<?nvs
+// Shows how to keep the kind of run in a variable and compare it with one case.
+
+Core\Env::Context $context = Core\Env::context();
+
+// You run this file from the command line, so this prints `in a request: no`.
+echo "in a request: ", $context == Core\Env::Context::Request ? "yes" : "no", "\n";

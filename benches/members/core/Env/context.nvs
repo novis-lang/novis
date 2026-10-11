@@ -1,0 +1,22 @@
+<?nvs
+// Measures reading the kind of run the program is in. A program does this when
+// one file serves pages and also runs from the command line.
+// bench: iterations 2048
+// bench: allocations 0
+// bench: calls 0
+// bench: complexity constant
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Each round adds a number that depends on the kind of run, so no round can be left out.
+            $total = $total + (Core\Env::context() == Core\Env::Context::Command ? 1 : 2);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2048), "\n";

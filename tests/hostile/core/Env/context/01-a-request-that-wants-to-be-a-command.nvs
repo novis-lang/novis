@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a request tries to look like a program run from the command line.
+// The request must always be `Request`, and a child script it starts must be `Isolate`.
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // 1. The request was sent with a header that names the command line.
+    echo 'header: ', Core\Request::header('x-run-as') ?? 'none', "\n";
+    echo 'after the header: ', Core\Env::context() == Core\Env::Context::Request ? 'Request' : 'moved', "\n";
+
+    // 2. The request reads every environment variable. Reading them changes nothing.
+    uint $variables = Core\Arr::count(Core\Env::all());
+    echo 'variables read: ', $variables > 0 ? 'some' : 'none', "\n";
+    echo 'after the environment: ', Core\Env::context() == Core\Env::Context::Request ? 'Request' : 'moved', "\n";
+
+    // 3. The request tries to change settings with names like a kind of run.
+    // No such setting exists, so each change is not allowed.
+    array<string> $keys = ['context', 'env.context', 'run.context', 'app.context'];
+    foreach ($keys as string $key) {
+        echo 'setting ', $key, ' allowed: ', Core\Config::set($key, 'Command') ? 'yes' : 'no', "\n";
+    }
+    echo 'after the settings: ', Core\Env::context() == Core\Env::Context::Request ? 'Request' : 'moved', "\n";
+
+    // 4. The request starts a child script, and the child returns its own kind of run.
+    // The path starts at the folder of this file.
+    try {
+        var $result = await spawn script 'scripts/child.nvs';
+        echo 'child: ', $result->ok && $result->value == Core\Env::Context::Isolate ? 'Isolate' : 'moved', "\n";
+    } catch (Throwable $error) {
+        echo 'child: ', $error->message, "\n";
+    }
+    echo 'after the child: ', Core\Env::context() == Core\Env::Context::Request ? 'Request' : 'moved', "\n";
+} else {
+    // 5. The program sends the request 1000 times. Every answer must be the same.
+    string $first = '';
+    uint $different = 0;
+    uint $round = 0;
+    while ($round < 1000) {
+        var $answer = Core\Test::request(Core\Http\Method::Get, '/', { headers: ['x-run-as' => 'Command'] });
+        if ($round == 0) {
+            $first = $answer->body();
+        } else if ($answer->body() != $first) {
+            $different = $different + 1;
+        }
+        $round = $round + 1;
+    }
+    echo $first;
+    echo 'answers that were different: ', $different, "\n";
+    echo 'outside: ', Core\Env::context() == Core\Env::Context::Command ? 'Command' : 'moved', "\n";
+}

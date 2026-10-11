@@ -772,6 +772,7 @@ mod tests {
 
     /// [`super::CONTEXT`]'s values are `RunKind`'s discriminants, so the
     /// member's cast and the enum a program compares against name one case.
+    // covers: Core\Env::Context
     #[test]
     fn context_cases_are_run_kinds_in_order() {
         use nvs_runtime::RunKind;
@@ -795,6 +796,7 @@ mod tests {
     /// `Core\Env::OS` is the `Core\Env::Platform` case of the platform this
     /// test was built for, written out per `cfg` so a wrong mapping fails on
     /// the platform it is wrong for.
+    // covers: Core\Env::Platform
     #[test]
     fn the_os_constant_is_the_platform_case_of_this_build() {
         use crate::registry::{Const, CoreTy};
@@ -820,6 +822,7 @@ mod tests {
     }
 
     /// A context nobody built for anything else is a command.
+    // covers: Core\Env::context
     #[test]
     fn context_answers_command_for_a_new_context() {
         let answered =
