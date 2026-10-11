@@ -53,6 +53,7 @@
     "tooling/a-diagnostic-code-carries-its-card",
     "tooling/a-primer-claim-is-executed",
     "tooling/an-adapter-carries-protocol-and-never-language",
+    "tooling/nvs-code-answers-about-the-project",
     "tooling/bench-engine-list-is-data",
     "tooling/telemetry-is-two-opt-ins",
     "tooling/telemetry-counters-are-a-closed-set",

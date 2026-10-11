@@ -1335,6 +1335,12 @@ One more reader reads the same index and is not a reference feature: `nvs/fileKi
 recorded as it read each file. It asks what a file declares rather than where a name is used, and it
 builds no walk of its own either.
 
+The same index answers a question asked by name. `nvs_lsp::query` holds the readers that take a
+fully-qualified name instead of a cursor, and the editor feature that asks the same question calls the
+same function: `textDocument/references` and `textDocument/implementation` read the cursor's name and
+call `query`. A caller outside the server, such as `nvs code`, gets a `Workspace` from `server.rs`, which
+builds the index for one question and drops it with the answer.
+
 The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all six
 readers read it. Five features that would each walk the workspace cost one walk between them, and the
 warm index is what keeps references and highlight inside [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound).
@@ -2088,16 +2094,20 @@ that did not run. Nothing changes at run time: no byte of the binary, the server
 
 `rule:ide/one-server-two-thin-clients`
 
-`nvs-lsp` and `nvs-fmt` are the only place completion, hover, diagnostics, rename, go-to-definition
-and formatting of Novis are implemented. An editor client is a thin adapter: it starts the server or the
-formatter, translates its own editor's events into LSP requests, and renders what comes back. It
-decides nothing about the language — not what a name resolves to, not where a line breaks, not even
-which range is a `secret` ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)).
+`nvs-lsp` and `nvs-fmt` are the only place completion, hover, diagnostics, rename, go-to-definition,
+references and formatting of Novis are implemented. Every client of them is a thin adapter that decides
+nothing about the language — not what a name resolves to, not where a line breaks, not even which range
+is a `secret` ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)). An editor client starts the server or
+the formatter, translates its own editor's events into LSP requests, and renders what comes back.
+`nvs code` builds `nvs-lsp`'s workspace index for one call and renders what `nvs_lsp::query` returns
+([`tooling/nvs-code-answers-about-the-project`](tooling.md#tooling-nvs-code-answers-about-the-project)).
 
 The reason is the same one that gives every fact one home in the documentation, applied to executable
 behaviour: two implementations of the formatting rules drift the first time one editor's plugin fixes a
 bug the other's has not, and the verification that both editors produce byte-identical diagnostics and
-formatted output for one file only holds while there is one implementation to agree with.
+formatted output for one file only holds while there is one implementation to agree with. A command
+line that answered "who calls this" with a walk of its own would drift from the editor's references the
+same way.
 
 **Markup is the one exception, and it belongs to the editor rather than to the client.** Inside an
 inline-HTML region the services and the formatter are the editor's own HTML ones
@@ -2108,8 +2118,9 @@ client's format pass is its most intricate code, chunks, stand-ins, the base col
 that reaches a hole, and all of it is over text the server delimited and none of it is language logic.
 
 The VS Code extension ([`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client)) and the PhpStorm plugin
-([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)) are the two clients, and a dependency-allowlist test on
-the extension is what enforces "holds no language logic" rather than review.
+([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)) are the two editor clients, and `nvs code` is the
+third client, in the `nvs` binary. A dependency-allowlist test on the extension is what enforces "holds
+no language logic" for an editor client rather than review.
 
 <sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
