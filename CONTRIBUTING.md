@@ -181,12 +181,11 @@ docker/             the container image
 website/            the Astro site
 editors/            the VS Code extension, and where a second editor's would sit
 tools/              how this repository is driven; docs/agent/commands.md is the full set
-data/               the JSON records `bun nv` reads and writes: goals, gaps, rules, decisions, playbook
+data/               the JSON records `bun nv` reads and writes: goals, gaps, rules, playbook
 docs/
   setup.md          what a development machine installs, and what a clone does not carry
   novis.md          the one-file reference to everything Novis has (generated)
   implementation-plan.md   the milestone index, and the status block a session overwrites
-  adr/              one decision per file, plus the topic routing table
   agent/            how agents work here: loop, goals, prompts, conventions, live handoff
   plan/             one file per milestone, plus the frozen pre-M0 design
   spec/             the normative language reference

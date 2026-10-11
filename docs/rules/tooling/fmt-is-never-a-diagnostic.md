@@ -13,5 +13,9 @@ target editors are already shaped. Each fix is a diagnostic-backed code action �
 the fix — applied against the resilient tree, to a file that may not parse at all.
 
 Keeping the two contracts apart is what `--check` needs: it fails for exactly one reason, so a CI job
-never has to tell "laid out differently" from "semantically wrong". A separate `nvs fix` batch verb was
-declined for the same reason — a second rule table beside the formatter's, which no one has asked for.
+never has to tell "laid out differently" from "semantically wrong".
+
+**Declined:**
+- **An `nvs fix` verb that rewrites a program for a later Novis.** It would be a second rule table
+  beside the formatter's, and no one needs it while the language makes no breaking change. A breaking
+  surface change after 1.0 ships its own automated rewrite, as part of that change's cost.

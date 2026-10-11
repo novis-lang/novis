@@ -26,10 +26,9 @@ The docs are optimised for an agent that reads one file and starts working. Keep
   overlaid, and carrying no date and no measured number it does not own.
   [conventions.md](conventions.md) § *A code comment* is the home of the shape.
 - **Front-load.** Decision first, reasoning below it. Assume the reader stops after the first screen.
-- A choice that would be expensive to reverse gets its own numbered decision record if the reasoning is
-  subtle or contested; otherwise a paragraph in *Decisions taken at project start* in
-  [docs/adr/README.md](../adr/README.md). Either way the rule it settles earns a fragment under
-  [docs/rules/](../rules/), and [docs/ground-rules.md](../ground-rules.md) — one line per rule — is
+- A choice that would be expensive to reverse is a rule: what is true, why, and what was declined go
+  into its fragment under [docs/rules/](../rules/), and why a crate is built that way goes into the
+  crate's module doc. [docs/plan/design.md](../plan/design.md) keeps the project-wide architecture, and [docs/ground-rules.md](../ground-rules.md) — one line per rule — is
   generated from it by `bun nv rules --render`, never written.
 - **Name a goal by its slug, never by its number.** Goal `<slug>`, never `goal 21` — here, in a `//!`
   header, in a commit message, in a test's owner column, and in a line a tool prints to a console.

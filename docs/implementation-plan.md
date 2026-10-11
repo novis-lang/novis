@@ -57,12 +57,10 @@
 > session discover it mid-run. Picking every dependency but the two the user named is pre-authorized
 > under `rule:packaging/a-c-dependency-answers-two-questions`.
 
-**How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
-each milestone is verified. It states decisions but does not argue them. The reasoning lives in
-[docs/adr/](adr/README.md), and where a decision has its own ADR the plan links to it instead of restating
-it — follow the link rather than expecting the argument here. For decisions with no ADR of their own, the
-*why* is in [adr/README.md](adr/README.md) under *Decisions taken at project start* and the *mechanics*
-are [docs/plan/design.md](plan/design.md) § *Architecture*.
+**How the plan relates to the rules.** The plan is the record of *what* gets built, in what order, and how
+each milestone is verified. It states decisions but does not argue them. The reasoning lives in the rule
+each decision settles, under [docs/rules/](rules/), and the plan cites the rule instead of restating it.
+The architecture's *why* and its *mechanics* are [docs/plan/design.md](plan/design.md) § *Architecture*.
 
 ## Milestones
 
