@@ -839,8 +839,7 @@ Deprecated code still works in production, and only a developer turns this on. T
 that request alone. `[mode]` does not change it.
 
 - **`"log"`** writes one `warning` record per use site per request, naming the member, the use's file
-  and line, and the replacement. The request remembers the sites it has logged in a set freed with it,
-  O(distinct deprecated sites the request reaches).
+  and line, and the replacement. The request remembers the sites it has logged in a set freed with it.
 - **`"throw"`** throws `Core\DeprecatedError`, a `LogicError`, whose message is `W1003`'s text
   ([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)), fixed at compile time and stored once
   in the unit's constant pool.
@@ -849,9 +848,14 @@ that request alone. `[mode]` does not change it.
 interface or a dynamic call is caught. A read or write of a deprecated property, class constant or enum
 case, a `new` of a deprecated class, and a passed deprecated parameter check at the use. A type position
 checks nothing, because it runs nothing. The check is a load of one word in the request context and a
-branch to a cold helper when it is not zero; a program that uses no deprecated code emits no check.
+branch to a cold helper when it is not zero; a program that uses no deprecated code emits no check. A
+use of deprecated code pays that load and branch every time it runs, whatever the setting.
 
-<sub>See also [`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code), [`config/every-block-is-argued-where-it-is-added`](config.md#config-every-block-is-argued-where-it-is-added), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/log-write`](errors.md#errors-log-write). Decided in [0275](../decisions/0275.md).</sub>
+- **Memory:** under `"log"`, the set of sites a request has logged, per request, O(distinct deprecated
+  sites the request reaches), freed with the request. Under `"ignore"` and `"throw"`, nothing per
+  request.
+
+<sub>See also [`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code), [`config/every-block-is-argued-where-it-is-added`](config.md#config-every-block-is-argued-where-it-is-added), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="errors-ambiguous-input-refused"></a>
 

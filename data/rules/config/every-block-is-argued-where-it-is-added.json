@@ -1,9 +1,7 @@
 {
   "title": "The block roster is closed, and each block's directives are argued by the rule that adds it",
   "status": "shipped",
-  "because": [
-    "0275"
-  ],
+  "because": [],
   "seeAlso": [
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one"
   ],

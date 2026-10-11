@@ -110,7 +110,7 @@ sites but a property hook and that hook's parameter
 - **Matching `Owner::Name` against the recognized roster.** No recognized attribute is a member of
   anything, so the only effect would be a second way to write a name the compiler acts on.
 
-<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0275](../decisions/0275.md).</sub>
+<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
 
 <a id="attributes-payload-is-a-compile-time-constant"></a>
 
@@ -426,9 +426,31 @@ an impure one used exactly once and in the order the use wrote it. Every other i
 Where that line would change when the code runs — the right of `&&`, `||`, `??` or `?:`, a loop's
 condition or step, an arrow function, a `match` arm, a default value, a property initializer — and for
 a `...$args` spread into a template parameter, there is no fix, and the warning's help shows the
-template. Every fix that is offered is `safe`.
+template. Every fix that is offered is `safe`: the rewrite keeps the order and count of every side
+effect by construction, and what the replacement does is the declaring author's claim, which the type
+check where it is declared bounds.
+
+**Why an expression.** The parser and the checker already read Novis, so the template is checked where
+it is written and the fix is a substitution on a tree. A broken template fails the build of the code
+that declares it, never the fix somebody applies. A deprecation is a warning because an error would
+break every caller on the day a member is retired, which
+[`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands) exists to prevent; this attribute is the
+warning that rule's announcement names.
 
 A construct the compiler refuses outright is not a deprecation and stays refused. A type alias
 carries no attributes and cannot be deprecated.
 
-<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`errors/a-use-of-deprecated-code-may-log-or-throw`](errors.md#errors-a-use-of-deprecated-code-may-log-or-throw). Decided in [0275](../decisions/0275.md).</sub>
+- **Memory:** nothing per request. The filled-in template and the message are stored once per
+  declaration in the compiled unit.
+
+**Declined:**
+- **A replacement as prose**, `note: "use find() instead"` alone. Nothing can be applied, and nothing
+  checks the prose against the code it names.
+- **A replacement as a name**, `replace: "find"`. It is mechanical only when both members take the same
+  arguments in the same order, which is the case a rename already handles.
+- **A template syntax of its own**, `"find({0}, limit: {1})"`. It is mechanical, but it is a second
+  language inside a string, with its own escaping and its own errors.
+- **An error-level deprecation.** Retiring a member would break every caller the day it lands.
+- **Deprecating a type alias.** A type alias carries no attributes.
+
+<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`packaging/a-forced-break-is-announced-before-it-lands`](packaging.md#packaging-a-forced-break-is-announced-before-it-lands), [`errors/a-use-of-deprecated-code-may-log-or-throw`](errors.md#errors-a-use-of-deprecated-code-may-log-or-throw).</sub>

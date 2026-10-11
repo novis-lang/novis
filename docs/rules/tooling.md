@@ -1240,7 +1240,7 @@ must still compile — and a third has to meet the same standard, never merely i
   has it, it is a registry-shaped field in the JSON [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program) emits,
   never an `@param` line.
 
-<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0275](../decisions/0275.md).</sub>
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card).</sub>
 
 <a id="tooling-strict-docs"></a>
 
@@ -1304,8 +1304,7 @@ and the rest of the line is its text.
 
 A `///` doc comment is never one, and neither is `todo:`, `TODO` without the colon, or a `/* */`
 comment. Todos are read from the trivia the lexer already keeps, so the parser does not change. A todo is
-a comment and only a comment: there is no todo attribute and no statement attribute, because either
-would say the same thing a second way.
+a comment and only a comment.
 
 **It is a list, not a diagnostic.** `Severity` has no todo level. The language server shows each todo
 as an `Information` entry with source `todo` and no code, never phase-gated, and `nvs check --todos`
@@ -1323,9 +1322,16 @@ prints `path:line: text` for every one, in path and line order; under `--json` t
   next pass applies what is left, until a pass applies nothing. It prints how many edits it made in how
   many files. It never writes under `vendor/`.
 
-`TODO(owner):`, `FIXME:` and any `--deny` kind beyond the two are not part of the form.
+**Declined:**
+- **A todo attribute or a statement attribute.** It says what a comment already says, a second way, and
+  attributes attach to declarations only.
+- **`TODO(owner):` and `FIXME:`.** One form keeps the list one list.
+- **`--deny warnings`, or any `--deny` kind beyond the two.** The list stays closed until a kind is
+  argued for.
+- **A workspace-wide fix in the editor.** The language server does not implement
+  `workspace/executeCommand`; `nvs check --fix` is the workspace-wide form.
 
-<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows). Decided in [0275](../decisions/0275.md).</sub>
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows).</sub>
 
 <a id="tooling-nvs-doc-renders-and-decides-nothing"></a>
 
