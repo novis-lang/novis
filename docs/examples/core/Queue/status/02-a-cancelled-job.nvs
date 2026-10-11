@@ -2,7 +2,6 @@
 // Shows how the state of a job changes when it is cancelled.
 use Core\Queue;
 use Core\Queue\Id;
-use Core\Queue\State;
 
 // On a real server, `nvs queue migrate` creates the queue tables.
 // This database is in memory, so the example creates them itself.
@@ -34,11 +33,11 @@ class Reminder {
     // Returns the name of the state, so the program can print it.
     public static function state(Id $job): string {
         return match (Queue::status($job)) {
-            State::Pending => "Pending",
-            State::Claimed => "Claimed",
-            State::Succeeded => "Succeeded",
-            State::Dead => "Dead",
-            State::Cancelled => "Cancelled",
+            Queue::State::Pending => "Pending",
+            Queue::State::Claimed => "Claimed",
+            Queue::State::Succeeded => "Succeeded",
+            Queue::State::Dead => "Dead",
+            Queue::State::Cancelled => "Cancelled",
         };
     }
 }

@@ -2727,13 +2727,13 @@ mod tests {
     /// them differing.
     const QUEUE: &str = "jobs";
 
-    /// `Core\Queue\State::Pending`'s ordinal — the state a row is in until a worker claims it.
+    /// `Core\Queue::State::Pending`'s ordinal — the state a row is in until a worker claims it.
     const PENDING: i64 = 0;
 
-    /// `Core\Queue\State::Claimed`'s ordinal, which a row holds while the attempt is in flight.
+    /// `Core\Queue::State::Claimed`'s ordinal, which a row holds while the attempt is in flight.
     const CLAIMED: i64 = 1;
 
-    /// `Core\Queue\State::Succeeded`'s ordinal, as [`nvs_stdlib::queue::SUCCEEDED_SQLITE`] writes
+    /// `Core\Queue::State::Succeeded`'s ordinal, as [`nvs_stdlib::queue::SUCCEEDED_SQLITE`] writes
     /// it.
     const SUCCEEDED: i64 = 2;
 

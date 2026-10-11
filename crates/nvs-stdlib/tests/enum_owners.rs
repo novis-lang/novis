@@ -10,13 +10,6 @@
 
 use nvs_stdlib::registry::{CLASSES, Const, CoreEnum, CoreTy, ENUMS};
 
-/// The enums one class uses that are still declared in their namespace, by
-/// their current name. Each rename slice deletes its rows, and the list is
-/// empty when every move has landed.
-const NOT_YET_MOVED: &[&str] = &[
-    r"Core\Queue\State",
-];
-
 /// Every enum `ty` names, appended to `into`.
 fn walk(ty: &CoreTy, into: &mut Vec<&'static str>) {
     match ty {
@@ -90,17 +83,9 @@ fn every_core_enum_one_class_uses_is_owned_by_it() {
     for core in ENUMS {
         if let [only] = users(core).as_slice()
             && core.owner() != Some(*only)
-            && !NOT_YET_MOVED.contains(&core.name)
         {
             misplaced.push(format!("{} is used by `{only}` alone", core.name));
         }
-    }
-    for name in NOT_YET_MOVED {
-        let core = ENUMS.iter().find(|core| core.name == *name);
-        assert!(
-            core.is_some_and(|core| core.owner().is_none()),
-            "{name} has moved or gone: delete its row from NOT_YET_MOVED"
-        );
     }
     assert!(
         misplaced.is_empty(),

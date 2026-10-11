@@ -2,7 +2,6 @@
 // Attack: the program purges a queue it may not purge, running jobs, huge limits, huge tags
 // and broken rows. Each call should return a count or throw an error. The program must not crash.
 use Core\Queue;
-use Core\Queue\State;
 
 var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
@@ -27,14 +26,14 @@ $db->execute($dead, []);
 string $other = Core\Str::repeat('other', 1);
 Queue::push('jobs/a.nvs', { queue: $other });
 try {
-    echo '1: ', Queue::purge($other, { state: State::Pending }), "\n";
+    echo '1: ', Queue::purge($other, { state: Queue::State::Pending }), "\n";
 } catch (Throwable $e) {
     echo "1: error\n";
 }
 
 // 2. The state is `Claimed`, and a worker is running those jobs.
 try {
-    echo '2: ', Queue::purge('q', { state: State::Claimed }), "\n";
+    echo '2: ', Queue::purge('q', { state: Queue::State::Claimed }), "\n";
 } catch (Throwable $e) {
     echo "2: error\n";
 }
@@ -44,12 +43,12 @@ Queue::push('jobs/a.nvs', { queue: 'q' });
 uint $largest = 9223372036854775807;
 $largest = $largest * 2 + 1;
 try {
-    echo '3: ', Queue::purge('q', { state: State::Pending, limit: 0 }), "\n";
+    echo '3: ', Queue::purge('q', { state: Queue::State::Pending, limit: 0 }), "\n";
 } catch (Throwable $e) {
     echo "3: error\n";
 }
 try {
-    echo '3: ', Queue::purge('q', { state: State::Pending, limit: $largest }), "\n";
+    echo '3: ', Queue::purge('q', { state: Queue::State::Pending, limit: $largest }), "\n";
 } catch (Throwable $e) {
     echo "3: error\n";
 }
@@ -64,13 +63,13 @@ try {
 // 5. The time is far in the future, and then far in the past.
 try {
     var $late = Core\Time::fromIso('9999-12-31T23:59:59Z');
-    echo '5: ', Queue::purge('q', { state: State::Pending, before: $late }), "\n";
+    echo '5: ', Queue::purge('q', { state: Queue::State::Pending, before: $late }), "\n";
 } catch (Throwable $e) {
     echo "5: error\n";
 }
 try {
     var $early = Core\Time::fromIso('0001-01-01T00:00:00Z');
-    echo '5: ', Queue::purge('q', { state: State::Pending, before: $early }), "\n";
+    echo '5: ', Queue::purge('q', { state: Queue::State::Pending, before: $early }), "\n";
 } catch (Throwable $e) {
     echo "5: error\n";
 }
@@ -81,7 +80,7 @@ Queue::push('jobs/a.nvs', { queue: 'q' });
 $db->execute("update nvs_jobs set state = 1 where queue = 'q'", []);
 $db->execute("update nvs_jobs set state = 'lost' where id = (select max(id) from nvs_jobs)", []);
 try {
-    echo '6: ', Queue::purge('q', { state: State::Pending }), ' ', Queue::purge('q'), "\n";
+    echo '6: ', Queue::purge('q', { state: Queue::State::Pending }), ' ', Queue::purge('q'), "\n";
 } catch (Throwable $e) {
     echo "6: error\n";
 }
@@ -93,10 +92,10 @@ while ($i < 5000) {
     $i = $i + 1;
 }
 uint $total = 0;
-uint $deleted = Queue::purge('q', { state: State::Pending });
+uint $deleted = Queue::purge('q', { state: Queue::State::Pending });
 while ($deleted > 0) {
     $total = $total + $deleted;
-    $deleted = Queue::purge('q', { state: State::Pending });
+    $deleted = Queue::purge('q', { state: Queue::State::Pending });
 }
 echo '7: ', $total, "\n";
 

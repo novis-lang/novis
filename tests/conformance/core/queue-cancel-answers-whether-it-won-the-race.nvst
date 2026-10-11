@@ -16,11 +16,11 @@ bool $won = Core\Queue::cancel($receipt);
 // And it is that bit, not the state the row ended up in — `status` is the
 // member that answers a state, and asking one question of two members is how
 // each stays about one thing.
-Core\Queue\State $wrong = Core\Queue::cancel($receipt);
+Core\Queue::State $wrong = Core\Queue::cancel($receipt);
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `Core\Queue\State`, found `bool`
+error[E0401]: expected `Core\Queue::State`, found `bool`
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

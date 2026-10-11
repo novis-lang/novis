@@ -2,7 +2,6 @@
 // Attack: the program changes the queue tables by hand and then reads the state of its jobs.
 // Each call should return a state or throw an error, and the program must not crash.
 use Core\Queue;
-use Core\Queue\State;
 
 var $db = Core\Db::connect('jobs');
 var $jobs = <<<'SQL'
@@ -29,7 +28,7 @@ string $seen = '';
 // 1. The state column has a number that is not a state.
 $db->execute('update nvs_jobs set state = 99', []);
 try {
-    $seen = Queue::status($job) == State::Pending ? 'pending' : 'other';
+    $seen = Queue::status($job) == Queue::State::Pending ? 'pending' : 'other';
     echo '1: ', $seen, "\n";
 } catch (Throwable $e) {
     echo "1: error\n";
@@ -38,7 +37,7 @@ try {
 // 2. The state column has a negative number.
 $db->execute('update nvs_jobs set state = -1', []);
 try {
-    $seen = Queue::status($job) == State::Pending ? 'pending' : 'other';
+    $seen = Queue::status($job) == Queue::State::Pending ? 'pending' : 'other';
     echo '2: ', $seen, "\n";
 } catch (Throwable $e) {
     echo "2: error\n";
@@ -47,7 +46,7 @@ try {
 // 3. The state column has text in place of a number.
 $db->execute("update nvs_jobs set state = 'lost'", []);
 try {
-    $seen = Queue::status($job) == State::Pending ? 'pending' : 'other';
+    $seen = Queue::status($job) == Queue::State::Pending ? 'pending' : 'other';
     echo '3: ', $seen, "\n";
 } catch (Throwable $e) {
     echo "3: error\n";
@@ -56,7 +55,7 @@ try {
 // 4. The row is deleted, so neither table has the job.
 $db->execute('delete from nvs_jobs', []);
 try {
-    $seen = Queue::status($job) == State::Pending ? 'pending' : 'other';
+    $seen = Queue::status($job) == Queue::State::Pending ? 'pending' : 'other';
     echo '4: ', $seen, "\n";
 } catch (Throwable $e) {
     echo "4: error\n";

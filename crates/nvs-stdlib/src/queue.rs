@@ -28,7 +28,7 @@
 //! database onto it and decides nothing about it. Two choices in it are worth their
 //! sentence: every instant is a `bigint` of epoch milliseconds rather than a timestamp, because § 2
 //! supports all five of `rule:core-classes/db-one-api`'s backends and five timestamp dialects is exactly the cost a
-//! runtime-owned table should not carry; and `state` is the ordinal `Core\Queue\State` already is at
+//! runtime-owned table should not carry; and `state` is the ordinal `Core\Queue::State` already is at
 //! runtime (`rule:enums/closed-integer-type`), so the enum and the column
 //! are one representation and not two.
 //!
@@ -84,8 +84,8 @@ pub(crate) const NAME: &str = r"Core\Queue";
 /// `Core\Queue\Id`'s, as [`CoreTy::Instance`] spells it.
 pub(crate) const ID_NAME: &str = r"Core\Queue\Id";
 
-/// `Core\Queue\State`'s, as [`CoreTy::Enum`] spells it.
-pub(crate) const STATE_NAME: &str = r"Core\Queue\State";
+/// `Core\Queue::State`'s, as [`CoreTy::Enum`] spells it.
+pub(crate) const STATE_NAME: &str = r"Core\Queue::State";
 
 /// `Core\Queue\Stats`'s, as [`CoreTy::Instance`] spells it.
 pub(crate) const STATS_NAME: &str = r"Core\Queue\Stats";
@@ -137,7 +137,7 @@ const DEAD_TABLE: &str = "nvs_dead_jobs";
 /// the one absence a running queue cannot see for itself.
 const DEDUPE_KEY: &str = "nvs_jobs_dedupe";
 
-/// `Core\Queue\State::Pending`'s ordinal, which is what a freshly pushed row's `state` is.
+/// `Core\Queue::State::Pending`'s ordinal, which is what a freshly pushed row's `state` is.
 ///
 /// Written as the number rather than read off [`STATE`] because the SQL beside it cannot read the
 /// enum either — a statement's `state = 0` is a literal in a string — so one spelling of the rule
@@ -661,7 +661,7 @@ pub const QUEUES_POSTGRES: &str = "with recursive pending (queue) as (\
 /// a statement that maintains [`schema`]'s column about its own row is one that holds the guarantee
 /// without resting on which statement ran before it.
 ///
-/// The `2` is `Core\Queue\State::Succeeded`'s ordinal, a literal for [`PENDING`]'s reason and held
+/// The `2` is `Core\Queue::State::Succeeded`'s ordinal, a literal for [`PENDING`]'s reason and held
 /// to the enum by `queue_statements_agree_with_the_state_enum`, in both dialects.
 ///
 /// `pub` for [`CLAIM_POSTGRES`]'s reason: the worker that writes it lives in `nvs-cli`, and § 2's
@@ -1152,7 +1152,7 @@ pub const SUCCEEDED_SQLSERVER: &str = "update nvs_jobs set state = 2, claimed_at
 ///
 /// The delay stays a bound value for [`RETRY_POSTGRES`]'s reason: § 6's ladder is exponential and
 /// jittered, and neither is something SQL should be deciding on a row it is already updating. The
-/// `0` is `Core\Queue\State::Pending`'s ordinal, held to the enum beside its twin by
+/// `0` is `Core\Queue::State::Pending`'s ordinal, held to the enum beside its twin by
 /// `queue_statements_agree_with_the_state_enum`.
 pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, errors = ?, \
     claimed_at = null, dedupe_pending = dedupe_key \
@@ -1162,7 +1162,7 @@ pub const RETRY_MYSQL: &str = "update nvs_jobs set state = 0, run_at = ?, errors
 /// `id`, `claimed_at`, which the `set` clause standing left of the `where` forces in any dialect
 /// binding by position. [`DEAD_LETTER_SQLITE`] owns why an alias and not a copy.
 ///
-/// The `0` is `Core\Queue\State::Pending`'s ordinal here as well, and it is the same literal, so
+/// The `0` is `Core\Queue::State::Pending`'s ordinal here as well, and it is the same literal, so
 /// `queue_statements_agree_with_the_state_enum` holds it against the enum without a third list to
 /// read.
 pub const RETRY_SQLITE: &str = RETRY_MYSQL;
@@ -1297,7 +1297,7 @@ fn jitter(id: i64, attempts: i64) -> u64 {
 /// statements would be two moments, and one is what makes the answer a fact about a single instant.
 /// A job cannot be in both arms at once, because moving it is one transaction of the worker's.
 ///
-/// The `3` in the second arm is `Core\Queue\State::Dead`'s ordinal, written as a literal because no
+/// The `3` in the second arm is `Core\Queue::State::Dead`'s ordinal, written as a literal because no
 /// `const` can reach inside a SQL string; `queue_statements_agree_with_the_state_enum` is what holds
 /// it to [`STATE`]. That arm also costs nothing under a design where a dead job stays in
 /// [`JOBS_TABLE`] with its state written instead of moving — the first arm is tried first and the
@@ -2386,7 +2386,7 @@ const PUSH_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Queue::status`'s reference card — `rule:core-api/reference-card`.
 const STATUS_DOC: MethodDoc = MethodDoc {
-    short: "Returns the current state of one job, as a `Core\\Queue\\State` case. Every call reads \
+    short: "Returns the current state of one job, as a `Core\\Queue::State` case. Every call reads \
             the state from the database.",
     params: &[ParamDoc {
         name: "job",
@@ -2509,7 +2509,7 @@ const PURGE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "state",
-            desc: "One `Core\\Queue\\State` to delete in place of the default ones. `Dead` deletes \
+            desc: "One `Core\\Queue::State` to delete in place of the default ones. `Dead` deletes \
                    from the dead-letter table. `Pending` deletes jobs that have not run yet. \
                    `Claimed` throws an error, because a worker is running those jobs.",
             shape: &[],
@@ -2538,7 +2538,7 @@ const PURGE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`state` is `Core\\Queue\\State::Claimed`. A worker is running those jobs, so \
+            desc: "`state` is `Core\\Queue::State::Claimed`. A worker is running those jobs, so \
                    their rows cannot be deleted.",
         },
         ErrorDoc {
@@ -2713,7 +2713,7 @@ pub(crate) const STATS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `rule:concurrency/claiming-is-one-statement` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, as § 1's `Core\Queue\State`.
+/// `rule:concurrency/claiming-is-one-statement` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`'s job lifecycle, as § 1's `Core\Queue::State`.
 ///
 /// **§ 1 is the home of the roster and of why there is no `Failed`**; this is the home of what a
 /// case *is* here, which is a stored number. Each case is a resting state of a row rather than an
@@ -4597,7 +4597,7 @@ fn sqlite_statement(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Queue::status(Queue\Id $job): Queue\State` — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
+    /// `Core\Queue::status(Queue\Id $job): Queue::State` — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`.
     ///
     /// **The receipt is the whole argument**, because it carries the queue as well as the row: a
     /// member taking a bare id would have to be told the queue beside it or search every one, and
@@ -6362,7 +6362,7 @@ mod tests {
     /// `const` can reach into. This is the assertion [`PENDING`]'s doc comment owes: the enum a
     /// program compares against and the column a worker claims from are one representation, and
     /// nothing else would notice them drifting apart.
-    // covers: Core\Queue\State
+    // covers: Core\Queue::State
     #[test]
     fn queue_statements_agree_with_the_state_enum() {
         let case = |name: &str| {

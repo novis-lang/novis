@@ -27788,11 +27788,11 @@ Keywords: push, status, cancel, stats, delete, purge
 | Member | Signature |
 |---|---|
 | [`Core\Queue::push`](#core-core-queue-push) | `push(string $script, {args?: mixed, queue?: string, runAt?: Core\Time\Instant, maxAttempts?: uint, backoff?: Core\Time\Duration, key?: string, tag?: string, grants?: array<string>, memory?: string, cpuTime?: string, wallTime?: string, maxOutput?: string}): Core\Queue\Id` |
-| [`Core\Queue::status`](#core-core-queue-status) | `status(Core\Queue\Id $job): Core\Queue\State` |
+| [`Core\Queue::status`](#core-core-queue-status) | `status(Core\Queue\Id $job): Core\Queue::State` |
 | [`Core\Queue::cancel`](#core-core-queue-cancel) | `cancel(Core\Queue\Id $job): bool` |
 | [`Core\Queue::stats`](#core-core-queue-stats) | `stats(string $queue): Core\Queue\Stats` |
 | [`Core\Queue::delete`](#core-core-queue-delete) | `delete(Core\Queue\Id $job): bool` |
-| [`Core\Queue::purge`](#core-core-queue-purge) | `purge(string $queue, {state?: Core\Queue\State, tag?: string, before?: Core\Time\Instant, limit?: uint}): uint` |
+| [`Core\Queue::purge`](#core-core-queue-purge) | `purge(string $queue, {state?: Core\Queue::State, tag?: string, before?: Core\Time\Instant, limit?: uint}): uint` |
 
 <a id="core-core-queue-push"></a>
 #### `Core\Queue::push`
@@ -27827,16 +27827,16 @@ Adds a job that runs `$script` in the background. The job is a row in the databa
 #### `Core\Queue::status`
 
 ```nvs skip
-Core\Queue::status(Core\Queue\Id $job): Core\Queue\State
+Core\Queue::status(Core\Queue\Id $job): Core\Queue::State
 ```
 
-Returns the current state of one job, as a `Core\Queue\State` case. Every call reads the state from the database.
+Returns the current state of one job, as a `Core\Queue::State` case. Every call reads the state from the database.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$job` | `Core\Queue\Id` | The `Core\Queue\Id` that `push` returned. It identifies the job and its queue. |
 
-**Returns** `Core\Queue\State` — `Pending` while the job waits, also while its `runAt` time or its backoff has not passed. `Claimed` while a worker runs it, `Succeeded` after it ran, `Dead` after it used all its attempts, and `Cancelled` after `cancel` stopped it.
+**Returns** `Core\Queue::State` — `Pending` while the job waits, also while its `runAt` time or its backoff has not passed. `Claimed` while a worker runs it, `Succeeded` after it ran, `Dead` after it used all its attempts, and `Cancelled` after `cancel` stopped it.
 
 **Throws** `RuntimeError` — The configuration has no `[queue]` block, or the database driver of the queue's connection cannot run statements yet. It is also thrown when neither table has the job, for example because `delete` deleted it.; `IOError` — The connection to the database failed, or the database rejected the query. The most common cause is that `nvs queue migrate` has not created the tables yet.
 
@@ -27895,7 +27895,7 @@ Deletes the row of one job. The row can be in the jobs table or in the dead-lett
 #### `Core\Queue::purge`
 
 ```nvs skip
-Core\Queue::purge(string $queue, {state?: Core\Queue\State, tag?: string, before?: Core\Time\Instant, limit?: uint}): uint
+Core\Queue::purge(string $queue, {state?: Core\Queue::State, tag?: string, before?: Core\Time\Instant, limit?: uint}): uint
 ```
 
 Deletes the finished jobs of a queue and returns how many rows it deleted. Without `state`, it deletes the `Succeeded` and `Cancelled` jobs. `Dead` and `Pending` jobs are deleted only when you pass that state. `Claimed` jobs are never deleted. One call deletes at most `limit` rows, so you call it again until it returns `0`. You need the `queue.purge` capability for the queue.
@@ -27903,14 +27903,14 @@ Deletes the finished jobs of a queue and returns how many rows it deleted. Witho
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$queue` | `string` (neutral) | The name of the queue. It must match the name `push` used exactly. The `queue.purge` capability is checked for this name. |
-| `{state: …}` | `Core\Queue\State` (default `null`) | One `Core\Queue\State` to delete in place of the default ones. `Dead` deletes from the dead-letter table. `Pending` deletes jobs that have not run yet. `Claimed` throws an error, because a worker is running those jobs. |
+| `{state: …}` | `Core\Queue::State` (default `null`) | One `Core\Queue::State` to delete in place of the default ones. `Dead` deletes from the dead-letter table. `Pending` deletes jobs that have not run yet. `Claimed` throws an error, because a worker is running those jobs. |
 | `{tag: …}` | `string` (default `null`, neutral) | Deletes only the jobs that `push` gave this tag. |
 | `{before: …}` | `Core\Time\Instant` (default `null`) | Deletes only the jobs added before this time. This is the time of the `push`, not the time of the next attempt. |
 | `{limit: …}` | `uint` (default `1000`) | The most rows one call deletes, oldest first. The default is `1000`. A delete without a limit can lock the table for a long time, and every `push` waits for it. |
 
 **Returns** `uint` — The number of rows this call deleted, and `0` when nothing matched. `while (Core\Queue::purge('email') > 0) {}` deletes all of them, one batch at a time.
 
-**Throws** `LogicError` — `state` is `Core\Queue\State::Claimed`. A worker is running those jobs, so their rows cannot be deleted.; `RuntimeError` — The configuration grants no `queue.purge` for this queue. A server has no such grant until the person who runs it adds one. It is also thrown when there is no `[queue]` block, or the database driver cannot run statements yet.; `IOError` — The connection to the database failed, or the database rejected the delete. The most common cause is that `nvs queue migrate` has not created the tables yet.
+**Throws** `LogicError` — `state` is `Core\Queue::State::Claimed`. A worker is running those jobs, so their rows cannot be deleted.; `RuntimeError` — The configuration grants no `queue.purge` for this queue. A server has no such grant until the person who runs it adds one. It is also thrown when there is no `[queue]` block, or the database driver cannot run statements yet.; `IOError` — The connection to the database failed, or the database rejected the delete. The most common cause is that `nvs queue migrate` has not created the tables yet.
 
 <a id="core-core-queue-id"></a>
 ### `Core\Queue\Id`
@@ -29594,7 +29594,7 @@ What a transaction is allowed to see of the work running beside it — the `isol
 | `Core\Db\Isolation::Snapshot` | The transaction reads from one snapshot taken when it began, and writes conflict rather than block — SQL Server's own level, and what the row-versioning backends call `REPEATABLE READ`. |
 | `Core\Db\Isolation::Serializable` | Concurrent transactions produce a result some serial order of them would have produced, and a transaction that cannot is rolled back for the caller to retry. |
 
-<a id="enum-core-db-columntype"></a>
+<a id="enum-core-db-column-type"></a>
 #### `Core\Db\Column::Type`
 
 What a result column was declared as, which is a description of the column and not a summary of the value a read of it produces: a `JSON` column and a `TEXT` one both read back as `tainted string` and are told apart here, wherever the backend has a type of its own to tell them apart by.
@@ -29635,7 +29635,7 @@ Why the server refused a statement, normalised across the drivers so that a prog
 | `Core\Db\ErrorKind::Permission` | The role may not do this. |
 | `Core\Db\ErrorKind::Other` | Anything the driver's own table does not name, including a condition one backend has and the others do not. It is also what a `Core\Db\DbError` constructed by hand carries, no server having classified it. |
 
-<a id="enum-core-db-plan-grade"></a>
+<a id="enum-core-db-plan-step-grade"></a>
 #### `Core\Db\Plan\Step::Grade`
 
 What one step of a schema plan can cost at worst, so that a deployment can run the half it is willing to run unattended.
@@ -29685,7 +29685,7 @@ Whether a connection to a directory is encrypted.
 | `Core\Ldap::Tls::Required` | The connection is encrypted. An `ldaps://` URL starts with TLS, and an `ldap://` URL switches to TLS before it logs in. |
 | `Core\Ldap::Tls::None` | The connection is not encrypted. The password and every result cross the network as plain text. The host must be in `[capabilities.ldap] cleartext`. |
 
-<a id="enum-core-ldap-scope"></a>
+<a id="enum-core-ldap-connection-scope"></a>
 #### `Core\Ldap\Connection::Scope`
 
 How far below its `base` a search looks.
@@ -29696,7 +29696,7 @@ How far below its `base` a search looks.
 | `Core\Ldap\Connection::Scope::OneLevel` | The entries directly below `base`, and not `base` itself. |
 | `Core\Ldap\Connection::Scope::Subtree` | `base` and every entry below it, at any depth. This is the default. |
 
-<a id="enum-core-ldap-ad-accounttype"></a>
+<a id="enum-core-ldap-entry-accounttype"></a>
 #### `Core\Ldap\Entry::AccountType`
 
 What kind of object an entry is, read from `sAMAccountType`.
@@ -29715,17 +29715,17 @@ What kind of object an entry is, read from `sAMAccountType`.
 | `Core\Ldap\Entry::AccountType::AppQueryGroup` | An application group whose members come from a query. |
 
 <a id="enum-core-queue-state"></a>
-#### `Core\Queue\State`
+#### `Core\Queue::State`
 
 What has become of a background job, as `Core\Queue::status` answers it. Five states and no `Failed`, because a failed attempt is retried: it returns the job to `Pending` rather than ending it.
 
 | Case | Meaning |
 |---|---|
-| `Core\Queue\State::Pending` | Waiting for a worker to claim it — including while its `runAt` is still in the future, and between attempts while its backoff elapses. |
-| `Core\Queue\State::Claimed` | A worker holds it, under the visibility timeout that returns it to `Pending` if that worker dies. |
-| `Core\Queue\State::Succeeded` | It ran to completion. Delivery is at-least-once, so this says the work happened and not that it happened exactly once. |
-| `Core\Queue\State::Dead` | It exhausted its attempts and is in the dead-letter table, with its payload and every attempt's error. Only `purge` and `delete` remove it from there. |
-| `Core\Queue\State::Cancelled` | `cancel` reached it while it was still pending, so no worker ever will. A job already claimed cannot arrive here — cancelling does not stop work in flight. |
+| `Core\Queue::State::Pending` | Waiting for a worker to claim it — including while its `runAt` is still in the future, and between attempts while its backoff elapses. |
+| `Core\Queue::State::Claimed` | A worker holds it, under the visibility timeout that returns it to `Pending` if that worker dies. |
+| `Core\Queue::State::Succeeded` | It ran to completion. Delivery is at-least-once, so this says the work happened and not that it happened exactly once. |
+| `Core\Queue::State::Dead` | It exhausted its attempts and is in the dead-letter table, with its payload and every attempt's error. Only `purge` and `delete` remove it from there. |
+| `Core\Queue::State::Cancelled` | `cancel` reached it while it was still pending, so no worker ever will. A job already claimed cannot arrive here — cancelling does not stop work in flight. |
 
 <a id="enum-novis-image-format"></a>
 #### `Novis\Image\Format`

@@ -1,7 +1,6 @@
 <?nvs
 // Shows that failed jobs stay counted until `Core\Queue::purge` deletes them.
 use Core\Queue;
-use Core\Queue\State;
 
 // On a real server, `nvs queue migrate` creates the queue tables.
 // This database is in memory, so the example creates them itself.
@@ -37,8 +36,8 @@ SQL, []);
 echo "failed: ", Queue::stats("webhooks")->deadLettered(), "\n";
 
 // You looked at the failed jobs and do not need them any more.
-// `State::Dead` deletes the jobs in the dead-letter table. This prints `deleted: 3`.
-echo "deleted: ", Queue::purge("webhooks", {state: State::Dead}), "\n";
+// `Queue::State::Dead` deletes the jobs in the dead-letter table. This prints `deleted: 3`.
+echo "deleted: ", Queue::purge("webhooks", {state: Queue::State::Dead}), "\n";
 
 // This prints `failed: 0`.
 echo "failed: ", Queue::stats("webhooks")->deadLettered(), "\n";

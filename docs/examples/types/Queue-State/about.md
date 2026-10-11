@@ -1,6 +1,8 @@
 What has become of a background job. Asking the queue about a job you handed it earlier answers with
 one of five states, and between them they cover everything a job can be doing.
 
+`Core\Queue::State` is declared in the class `Core\Queue`. The method `status` returns it.
+
 `Pending` means it is waiting for a worker to pick it up — including while its start time is still in
 the future, and while it waits between attempts. `Claimed` means a worker is holding it and running
 it right now. `Succeeded` means it ran to the end. `Dead` means it used up every attempt it was

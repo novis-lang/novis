@@ -1,5 +1,5 @@
 --TEST--
-`status` answers a `Core\Queue\State` and not the ordinal the row stores it as, so a program reads a state rather than a magic integer — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`, `rule:enums/closed-integer-type`
+`status` answers a `Core\Queue::State` and not the ordinal the row stores it as, so a program reads a state rather than a magic integer — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`, `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
 // The `state` column *is* an ordinal — the enum and the column are one
@@ -13,7 +13,7 @@ int $wrong = Core\Queue::status($receipt);
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `int`, found `Core\Queue\State`
+error[E0401]: expected `int`, found `Core\Queue::State`
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

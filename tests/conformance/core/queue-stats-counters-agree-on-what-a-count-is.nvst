@@ -18,7 +18,7 @@ uint $dead = $counts->deadLettered();
 uint $buried = $counts->deadAttempts();
 
 // Which is what this line says: the depth is a plain count, so it is not the
-// record it came out of and it is not a `Core\Queue\State` either.
+// record it came out of and it is not a `Core\Queue::State` either.
 Core\Queue\Stats $wrong = $counts->deadLettered();
 --EXPECT--
 

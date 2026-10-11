@@ -1,7 +1,6 @@
 <?nvs
 // Shows how to cancel a job that no worker has started yet.
 use Core\Queue;
-use Core\Queue\State;
 
 // On a real server, `nvs queue migrate` creates the queue tables.
 // This database is in memory, so the example creates them itself.
@@ -30,4 +29,4 @@ var $job = Queue::push("jobs/resize-photo.nvs", {queue: "images", args: ["photo"
 echo "cancelled: ", Queue::cancel($job) ? "yes" : "no", "\n";
 
 // The row is still in the database. This prints `state is Cancelled: yes`.
-echo "state is Cancelled: ", Queue::status($job) == State::Cancelled ? "yes" : "no", "\n";
+echo "state is Cancelled: ", Queue::status($job) == Queue::State::Cancelled ? "yes" : "no", "\n";

@@ -28823,7 +28823,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "status(Core\\Queue\\Id $job): Core\\Queue\\State",
+          "signature": "status(Core\\Queue\\Id $job): Core\\Queue::State",
           "params": [
             {
               "kind": "param",
@@ -28835,14 +28835,14 @@
             }
           ],
           "options": [],
-          "returnType": "Core\\Queue\\State",
+          "returnType": "Core\\Queue::State",
           "notes": "",
           "qualifier": "",
           "section": "",
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns the current state of one job, as a <code>Core\\Queue\\State</code> case. Every call reads the state from the database.",
+            "shortHtml": "Returns the current state of one job, as a <code>Core\\Queue::State</code> case. Every call reads the state from the database.",
             "params": [
               {
                 "name": "job",
@@ -29015,7 +29015,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "purge(string $queue, {state?: Core\\Queue\\State, tag?: string, before?: Core\\Time\\Instant, limit?: uint}): uint",
+          "signature": "purge(string $queue, {state?: Core\\Queue::State, tag?: string, before?: Core\\Time\\Instant, limit?: uint}): uint",
           "params": [
             {
               "kind": "param",
@@ -29029,7 +29029,7 @@
           "options": [
             {
               "name": "state",
-              "type": "Core\\Queue\\State"
+              "type": "Core\\Queue::State"
             },
             {
               "name": "tag",
@@ -29059,7 +29059,7 @@
               },
               {
                 "name": "state",
-                "descHtml": "One <code>Core\\Queue\\State</code> to delete in place of the default ones. <code>Dead</code> deletes from the dead-letter table. <code>Pending</code> deletes jobs that have not run yet. <code>Claimed</code> throws an error, because a worker is running those jobs."
+                "descHtml": "One <code>Core\\Queue::State</code> to delete in place of the default ones. <code>Dead</code> deletes from the dead-letter table. <code>Pending</code> deletes jobs that have not run yet. <code>Claimed</code> throws an error, because a worker is running those jobs."
               },
               {
                 "name": "tag",
@@ -29078,7 +29078,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "<code>state</code> is <code>Core\\Queue\\State::Claimed</code>. A worker is running those jobs, so their rows cannot be deleted."
+                "descHtml": "<code>state</code> is <code>Core\\Queue::State::Claimed</code>. A worker is running those jobs, so their rows cannot be deleted."
               },
               {
                 "error": "RuntimeError",

@@ -4,7 +4,6 @@ An enqueue and its receipt work where `[queue] connection` names a SQLite file r
 <?nvs
 use Core\Db\Row;
 use Core\Queue;
-use Core\Queue\State;
 
 // The queue with no server behind it. What a program sees of `Core\Queue` on
 // the four backends that have an address is asserted against a container by
@@ -75,7 +74,7 @@ $db->execute($dead, []);
 // members a request asks are the same four here as on the servers
 // `examples/queue.nvs` needs.
 var $receipt = Queue::push("jobs/send-receipt.nvs", {queue: "receipts"});
-echo "pending ", Queue::status($receipt) == State::Pending ? "yes" : "no", "\n";
+echo "pending ", Queue::status($receipt) == Queue::State::Pending ? "yes" : "no", "\n";
 
 // The row stores the script as an absolute path, joined to this file's folder
 // (`rule:programs/relative-paths-resolve-from-their-file`).

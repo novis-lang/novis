@@ -2,7 +2,6 @@
 // Shows how a page tells a user what happened to the export they asked for.
 use Core\Queue;
 use Core\Queue\Id;
-use Core\Queue\State;
 
 // On a real server, `nvs queue migrate` creates the queue tables.
 // This database is in memory, so the example creates them itself.
@@ -30,11 +29,11 @@ class ExportPage {
     // Each arm returns the text the user sees.
     public static function message(Id $export): string {
         return match (Queue::status($export)) {
-            State::Pending => "Your export is waiting to start.",
-            State::Claimed => "Your export is being built.",
-            State::Succeeded => "Your export is ready to download.",
-            State::Dead => "Your export failed. Please contact support.",
-            State::Cancelled => "You cancelled this export.",
+            Queue::State::Pending => "Your export is waiting to start.",
+            Queue::State::Claimed => "Your export is being built.",
+            Queue::State::Succeeded => "Your export is ready to download.",
+            Queue::State::Dead => "Your export failed. Please contact support.",
+            Queue::State::Cancelled => "You cancelled this export.",
         };
     }
 }

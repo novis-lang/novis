@@ -1,7 +1,6 @@
 <?nvs
 // Shows how to stop a newsletter by deleting the jobs that have its tag.
 use Core\Queue;
-use Core\Queue\State;
 
 // On a real server, `nvs queue migrate` creates the queue tables.
 // This database is in memory, so the example creates them itself.
@@ -30,7 +29,7 @@ foreach ($readers as string $to) {
 }
 Queue::push("jobs/send-invoice.nvs", {queue: "mail", tag: "invoice", args: ["to" => "ana@example.com"]});
 
-// `State::Pending` deletes jobs that have not run yet, and `tag` keeps the invoice.
+// `Queue::State::Pending` deletes jobs that have not run yet, and `tag` keeps the invoice.
 // This prints `deleted: 3` and `waiting: 1`.
-echo "deleted: ", Queue::purge("mail", {state: State::Pending, tag: "newsletter-june"}), "\n";
+echo "deleted: ", Queue::purge("mail", {state: Queue::State::Pending, tag: "newsletter-june"}), "\n";
 echo "waiting: ", Queue::stats("mail")->pending(), "\n";

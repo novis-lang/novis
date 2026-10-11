@@ -10,8 +10,8 @@ Cancelling changes a job's state rather than removing its row, so the receipt st
 var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
 
 bool $won = Core\Queue::cancel($receipt);
-Core\Queue\State $after = Core\Queue::status($receipt);
-$after = Core\Queue\State::Cancelled;
+Core\Queue::State $after = Core\Queue::status($receipt);
+$after = Core\Queue::State::Cancelled;
 
 // And it is a state like the other four, not a second kind of answer sitting
 // beside them — which is what an `?int` or a separate `wasCancelled` would
@@ -20,7 +20,7 @@ bool $wrong = $after;
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0401]: expected `bool`, found `Core\Queue\State`
+error[E0401]: expected `bool`, found `Core\Queue::State`
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

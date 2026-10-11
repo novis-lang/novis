@@ -27,7 +27,6 @@
 // under `data/goals/`; the source is not.
 
 use Core\Queue;
-use Core\Queue\State;
 
 class Poll
 {
@@ -88,7 +87,7 @@ echo 'claimed ', Poll::counted(fn (): uint => { return Queue::stats($queue)->cla
 
 // The write-back, read as the state it leaves behind rather than as a
 // callback: delivery is at-least-once, so "it ran" is something a row says.
-Poll::until(fn (): bool => { return Queue::status($receipt) == State::Succeeded; });
+Poll::until(fn (): bool => { return Queue::status($receipt) == Queue::State::Succeeded; });
 echo 'ran', "\n";
 
 // Two jobs now, against the same single writer. Neither worker can be inside
@@ -98,8 +97,8 @@ echo 'ran', "\n";
 var $first = Queue::push('queue/receipt.nvs', { queue: $queue });
 var $second = Queue::push('queue/receipt.nvs', { queue: $queue });
 Poll::until(fn (): bool => {
-    return Queue::status($first) == State::Succeeded
-        && Queue::status($second) == State::Succeeded;
+    return Queue::status($first) == Queue::State::Succeeded
+        && Queue::status($second) == Queue::State::Succeeded;
 });
 echo 'both ran', "\n";
 

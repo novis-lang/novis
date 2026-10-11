@@ -54,7 +54,7 @@ use nvs_stdlib::queue;
 /// matrix leg that hangs reports nothing at all.
 const DEADLINE: Duration = Duration::from_secs(10);
 
-/// The ordinal `Core\Queue\State::Pending` is, as `queue::schema`'s `state` column
+/// The ordinal `Core\Queue::State::Pending` is, as `queue::schema`'s `state` column
 /// holds it — `rule:enums/closed-integer-type`'s enums are their ordinal at runtime, so the enum and
 /// the column are one representation rather than two.
 const PENDING: &[u8] = b"0";

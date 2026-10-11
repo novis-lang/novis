@@ -3,7 +3,6 @@ The operator's two removals answer about what they removed and not about what th
 --FILE--
 <?nvs
 use Core\Queue;
-use Core\Queue\State;
 
 // SQLite is the backend a case can really run against, so these two members are
 // executed here rather than read: the same removals against the four backends
@@ -84,7 +83,7 @@ echo "kept ", Queue::stats("receipts")->pending(), "\n";
 // a drain loop reads to know whether to come round again.
 echo "cancelled ", Queue::cancel($second) ? "yes" : "no", "\n";
 echo "swept ", Queue::purge("receipts"), "\n";
-echo "swept ", Queue::purge("receipts", {state: State::Pending}), "\n";
+echo "swept ", Queue::purge("receipts", {state: Queue::State::Pending}), "\n";
 echo "empty ", Queue::purge("receipts"), "\n";
 
 // And the population the two removals left, from the member an operator
@@ -97,7 +96,7 @@ echo "pending=", Queue::stats("receipts")->pending(), "\n";
 // handed a state the row no longer has.
 try {
     var $answer = Queue::status($third);
-    echo "gone ", $answer == State::Pending ? "pending" : "not pending", "\n";
+    echo "gone ", $answer == Queue::State::Pending ? "pending" : "not pending", "\n";
 } catch (RuntimeError $removed) {
     echo $removed->message, "\n";
 }

@@ -9,7 +9,7 @@ Both members that are asked *about* a job take the receipt itself, so neither of
 var $receipt = Core\Queue::push("jobs/send-receipt.nvs");
 
 bool $won = Core\Queue::cancel($receipt);
-Core\Queue\State $state = Core\Queue::status($receipt);
+Core\Queue::State $state = Core\Queue::status($receipt);
 
 // So the number `push` actually wrote is not something a program is ever
 // holding, and this line is what says so.

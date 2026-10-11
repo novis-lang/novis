@@ -5,7 +5,6 @@
 // bench: complexity constant
 use Core\Queue;
 use Core\Queue\Id;
-use Core\Queue\State;
 
 var $db = Core\Db::connect("jobs");
 var $jobs = <<<'SQL'
@@ -33,7 +32,7 @@ class Bench {
         while ($i < $rounds) {
             // Which job is read depends on the previous round.
             Id $job = $total % 2 == 0 ? $first : $second;
-            $total = $total + (Queue::status($job) == State::Pending ? 1 : 2);
+            $total = $total + (Queue::status($job) == Queue::State::Pending ? 1 : 2);
             $i = $i + 1;
         }
         return $total;

@@ -30,7 +30,6 @@
 // database.
 
 use Core\Queue;
-use Core\Queue\State;
 
 class Poll
 {
@@ -95,7 +94,7 @@ echo 'enqueued', "\n";
 echo 'claimed ', Poll::counted(fn (): uint => { return Queue::stats($queue)->claimed(); }), "\n";
 
 // At-least-once, so "it ran" is a state and not a callback.
-Poll::until(fn (): bool => { return Queue::status($receipt) == State::Succeeded; });
+Poll::until(fn (): bool => { return Queue::status($receipt) == Queue::State::Succeeded; });
 echo 'ran', "\n";
 
 // The failing half, on its own queue so its counters are its own. Two

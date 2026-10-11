@@ -4,7 +4,6 @@ At most one *pending* job per dedupe key on a SQLite file, enforced by the plain
 <?nvs
 use Core\Db\Row;
 use Core\Queue;
-use Core\Queue\State;
 
 // The guarantee this case is about is a *column*: `dedupe_pending` holds the
 // key while the job is pending and null once it is not, so one unique key says
@@ -72,13 +71,13 @@ $db->execute($dead, []);
 var $taken = Queue::push("jobs/send-receipt.nvs", {queue: "receipts", key: "order-7"});
 var $again = Queue::push("jobs/send-receipt.nvs", {queue: "receipts", key: "order-7"});
 echo "pending ", Queue::stats("receipts")->pending(), "\n";
-echo "same job ", Queue::status($again) == State::Pending ? "pending" : "not pending", "\n";
+echo "same job ", Queue::status($again) == Queue::State::Pending ? "pending" : "not pending", "\n";
 
 // The release. A cancelled job is no longer waiting for a worker, so it holds
 // nothing back — and the key it was pushed under stays on the row, because that
 // is what the job was pushed under and not what is holding the slot.
 echo "cancelled ", Queue::cancel($taken) ? "yes" : "no", "\n";
-echo "state ", Queue::status($taken) == State::Cancelled ? "cancelled" : "something else", "\n";
+echo "state ", Queue::status($taken) == Queue::State::Cancelled ? "cancelled" : "something else", "\n";
 echo "again ", Queue::cancel($taken) ? "yes" : "no", "\n";
 
 // The same key, admitted now. One more row rather than one more receipt for the
@@ -86,8 +85,8 @@ echo "again ", Queue::cancel($taken) ? "yes" : "no", "\n";
 // that was merely no longer looked at.
 var $fresh = Queue::push("jobs/send-receipt.nvs", {queue: "receipts", key: "order-7"});
 echo "pending ", Queue::stats("receipts")->pending(), "\n";
-echo "new ", Queue::status($fresh) == State::Pending ? "pending" : "not pending", "\n";
-echo "old ", Queue::status($taken) == State::Cancelled ? "cancelled" : "something else", "\n";
+echo "new ", Queue::status($fresh) == Queue::State::Pending ? "pending" : "not pending", "\n";
+echo "old ", Queue::status($taken) == Queue::State::Cancelled ? "cancelled" : "something else", "\n";
 
 // And the two columns underneath, read through the operator's own connection to
 // the same block: every job this case pushed carries the key it was pushed

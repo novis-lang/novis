@@ -285,15 +285,14 @@ green, with its `Core\Ldap` enums at their new names after Stage 7.
   `Core\Cli::ColorDepth`; `Core\Cli\Shell` → `Core\Command::Shell`; `Core\Reflect\TypeKind` →
   `Core\Reflect::TypeKind`; `Core\IO\FileMode` → `Core\IO::FileMode`;
   `Core\Cldr\PluralCategory` → `Core\Cldr::PluralCategory`; `Core\Script\ExitReason` →
-  `Core\Script\ExitReport::Reason`; `Core\Db\Tls` → `Core\Db::Tls`; `Core\Db\Isolation` →
-  `Core\Db\Connection::Isolation`; `Core\Db\ErrorKind` → `Core\Db\DbError::Kind`;
+  `Core\Script\ExitReport::Reason`; `Core\Db\Tls` → `Core\Db::Tls`; `Core\Db\ErrorKind` → `Core\Db\DbError::Kind`;
   `Core\Db\ColumnType` → `Core\Db\Column::Type`; `Core\Db\Plan\Grade` →
   `Core\Db\Plan\Step::Grade`; `Core\Ldap\Scope` → `Core\Ldap\Connection::Scope`; `Core\Ldap\Tls` →
   `Core\Ldap::Tls`; `Core\Ldap\ErrorKind` → `Core\Ldap\LdapError::Kind`; `Core\Queue\State` →
   `Core\Queue::State`. **They stay:** `Core\RoundMode` (`Math`, `Decimal`), `Core\Charset`
   (`Encoding`, `IO`), `Core\Unit` (`DateTime`, `Date`, `TimeOfDay`), `Core\Crypto\KeyKind` (four
   classes), `Core\Http\Method` (seven classes and `#[Route]`), `Core\Audience`, `Core\Db\Driver`
-  (`Db`, `Db\Connection`). A session that finds a use site this table missed applies the rule, not
+  (`Db`, `Db\Connection`), `Core\Db\Isolation` (`Db\Connection`, `Db\Transaction`). A session that finds a use site this table missed applies the rule, not
   the table, and corrects the table in the placement rule's fragment.
 - **The built-in components' table:** every `Novis\Image` enum but `Format` moves into `Image`
   (`Gravity`, `Fit`, `Filter`, `Axis`, `Blend`, `Align`, `Output`, `HashKind`, `PlaceholderKind`),
@@ -526,13 +525,14 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 6 are done. In Stage 7 the registry slice and the `arr`, `str`, `hash`, `compress`, `crypto`, `mime`, `xml`, `log`, `env`, `response`, `cli`, `command`, `reflect`, `io`, `cldr`, `script` and `time` renames have landed, all three Stage 7 checks pass, and `bun nv verify` is green. The `db`, `ldap` and `queue` renames are left.**
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 6 are done. In Stage 7 every rename the placement test can see has landed, the last three being `db` (`Db\Column::Type`, `Db\Plan\Step::Grade`, `Db::Tls`), `ldap` (`Ldap\Connection::Scope`, `Ldap\Entry::AccountType`, `Ldap::Tls`) and `queue` (`Queue::State`). All three Stage 7 checks pass, and `bun nv verify` is green. Two enums are left: `Core\Db\ErrorKind` and `Core\Ldap\ErrorKind`.**
 
 - `CoreEnum::name` is `Core\Arr::Order` for an owned enum, and `CoreEnum::owner()` and `short_name()` read it. The checker finds a `Core` owner's enum through `lower::owned_enum` (`crates/nvs-types/src/lower.rs:521`), because `Core` declares nothing in the symbol table.
-- `crates/nvs-stdlib/tests/enum_owners.rs` decides placement, and its `NOT_YET_MOVED` list (`:16`) shrinks one namespace per slice. Each slice's commit carries its own rows' deletion, so every commit passes that test.
-- `Core\Db\Tls`, `Db\Isolation`, `Db\ErrorKind`, `Ldap\Tls` and `Ldap\ErrorKind` are in the table, but the test sees no single class using them. The `db` and `ldap` slices decide by the rule. The two `ErrorKind`s are used by error classes with no registry row (`nvs_hir::errors::TREE`).
+- `crates/nvs-stdlib/tests/enum_owners.rs` decides placement. Its `NOT_YET_MOVED` list is gone, and its `walk` now reads a settings shape's fields too. That walk showed `Core\Db\Driver` shared by `Db` and `Db\Connection`, and `Core\Db\Isolation` shared by `Db\Connection` and `Db\Transaction`. Both stay, and the fragment's and this goal's tables say so.
+- The two `ErrorKind`s are the `kind` property of `Core\Db\DbError` and `Core\Ldap\LdapError`. Those are error classes with no `CLASSES` row, so the test cannot see the use. The rule counts a property, so by the rule each moves into its error class. The property's type lives in `nvs_types::error_lib::own_properties` (`crates/nvs-types/src/error_lib.rs:112`, the names at `:203` and `:211`), and the names alone in `nvs_hir::errors::OWN_PROPERTIES` (`crates/nvs-hir/src/errors.rs:183`).
 - A slice is mechanical. Rename the relative form (`Mime\Type` → `Mime::Type`), which also covers `Core\…` and the doubled-backslash Rust and JSON strings, across every tracked file but `docs/rules/enums*`, `docs/goals/`, `docs/agent/playbook*` and `enum_owners.rs`. A reject case's `--> case.nvs:L:C` columns move by the one character `::` adds over `\`, and only the conformance run shows it. Then `git mv` the proof directory to `docs/examples/types/<classTail>/` (`tools/nv/proofs/roster.ts:79`) and add one sentence to its `about.md` naming the declaring class. Then `cargo build` and `bun nv site --stamp syntax/values/enums.mdx --nvs target/debug/nvs.exe`: the stamp needs the new binary. `bun nv proofs --verify --no-perf --nvs target/debug/nvs.exe --group 'Core\Mime'` checks a touched class's examples.
 - A small bun script under `.agent-tmp/` does the rename: for each tracked file outside the exclusions, replace `(?<![A-Za-z0-9_])Ns\\{1,2}Name(?![A-Za-z0-9_])` with the new form. `git ls-files` needs a large `maxBuffer` in `execFileSync`. A text may also name the enum without `Core\` (`Script\ExitReason` in a rule fragment and in `docs/spec/01-core-library.md`), so a second pass renames that form, then `bun nv rules --render` and `bun nv render` rewrite the generated copies.
+- A program that imported the old name (`use Core\Queue\State;`) is refused after the rename, because a member is not imported. Drop that `use`, import the owner, and write `Queue::State::Pending` where the code wrote `State::Pending`. `nvs.toml`'s `[[app]] root` lines name proof directories and move with a `git mv`.
 - Read the owner's real name from the registry before renaming: the goal's own table once said `Core\DateTime::Weekday`, and the class is `Core\Time\DateTime`. The fragment's table (`docs/rules/enums/an-enum-lives-in-the-class-that-uses-it.md:19`) was right.
 - Several slices in one session share `docs/novis.md`, `docs/spec/01-core-library.md`, `website/src/data/core.json` and `enum_owners.rs`. Do the slices in order, and after each one's conformance cases pass, `git add -A -- . ':!website/site.lock.json' ':!website/src/content/docs/syntax/values/enums.mdx'` and `git write-tree`. At commit time `git read-tree <tree>` then `git commit -F` for each slice, and the last slice commits everything with the stamp.
 - `tests/hostile/core/IO/write/01-bad-paths-escapes-and-large-content.nvs` fails under the debug binary on Windows: step 2 writes one of its "not a file" paths. The file names no enum and `io.rs` changed only in spelling. Which path is written, and whether HEAD fails too, is not checked.
@@ -544,16 +544,13 @@ Both rules stay `designed`. `bun nv links` still reports `AGENTS.md:403 -> docs/
 
 ### Next
 
-**Stage 7, the `db`, `ldap` and `queue` renames, one slice each** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file sets are the declaring file, the rows in `crates/nvs-stdlib/tests/enum_owners.rs:16`, and everything `git grep` finds on the old name. The `cldr`, `script` and `time` commits are the latest worked examples.
+**Stage 7's last slice, the two error kinds, then Stage 7 closes** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file set is `crates/nvs-stdlib/tests/enum_owners.rs`, `crates/nvs-types/src/error_lib.rs` and the two registries.
 
-- [ ] `db`: `Core\Db\Driver` → `Core\Db\Connection::Driver` (`crates/nvs-stdlib/src/db/registry.rs:826`), `Core\Db\ColumnType` → `Core\Db\Column::Type` (`crates/nvs-stdlib/src/db/registry.rs:1132`), `Core\Db\Plan\Grade` → `Core\Db\Plan\Step::Grade` (`crates/nvs-stdlib/src/db/mod.rs:506`). Check each owner's real class name in the registry first. Then decide `Tls`, `Isolation` and `ErrorKind` by the rule.
-- [ ] `ldap`: `Core\Ldap\Scope` → `Core\Ldap\Connection::Scope` (`crates/nvs-stdlib/src/ldap/registry.rs:55`). `Core\Ldap\Ad\AccountType` (`crates/nvs-stdlib/src/ldap/registry.rs:49`) is in `NOT_YET_MOVED` and missing from the fragment's table: apply the rule and add its row. Then decide `Tls` and `ErrorKind`.
-- [ ] `queue`: `Core\Queue\State` → `Core\Queue::State` (`crates/nvs-stdlib/src/queue.rs:88`). After it, `NOT_YET_MOVED` is empty and Stage 7 can close.
-
-Before each rename, `git grep` the old form for a longer word it is a prefix of (`ColumnTypeX`), and rename only the exact name.
+- [ ] Teach `enum_owners.rs` that an error class with an own property uses that property's enum. Read the type from `nvs_types::error_lib` (`crates/nvs-types/src/error_lib.rs:112`), or give the test a table of `(error class, property, enum)` that a second assertion holds against `nvs_hir::errors::OWN_PROPERTIES` (`crates/nvs-hir/src/errors.rs:183`). Then the test fails on both `ErrorKind`s.
+- [ ] Rename `Core\Db\ErrorKind` → `Core\Db\DbError::Kind` (`crates/nvs-stdlib/src/db/registry.rs:1025`, `crates/nvs-types/src/error_lib.rs:203`) and `Core\Ldap\ErrorKind` → `Core\Ldap\LdapError::Kind` (`crates/nvs-stdlib/src/ldap/registry.rs:2891`, `crates/nvs-types/src/error_lib.rs:211`). First check that `Core\Db\DbError::Kind::Deadlock` resolves, since the owner is an error class and `lower::owned_enum` has only been reached with a registry class. Then set Stage 7 to done.
+- [ ] Stage 8 starts: the `Novis\Image` and `Novis\Intl` enums, starting from a manifest's enum list (`crates/nvs-ext/src/manifest.rs:86`) and `crates/nvs-types/src/ext_lib.rs`.
 
 ### Backlog
 
-- Stage 8: every built-in component enum (`crates/nvs-ext/src/manifest.rs`, `crates/nvs-types/src/ext_lib.rs`).
 - A bare `Status::` in **type** position inside the owner does not complete the cases. Value position works through `owned_named` (`crates/nvs-lsp/src/completion.rs`).
 - Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs (this goal's file).

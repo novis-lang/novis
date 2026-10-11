@@ -4,7 +4,6 @@
 <?nvs
 // covers: Core\Queue\Stats::deadLettered
 use Core\Queue;
-use Core\Queue\State;
 
 var $db = Core\Db::connect("jobs");
 var $jobs = <<<'SQL'
@@ -53,7 +52,7 @@ echo "dead: ", $stats->deadLettered(), "\n";
 echo "other: ", Queue::stats("other")->deadLettered(), "\n";
 
 // The result is read once, so a later purge does not change it.
-echo "purged: ", Queue::purge("q", {state: State::Dead}), "\n";
+echo "purged: ", Queue::purge("q", {state: Queue::State::Dead}), "\n";
 echo "kept: ", $stats->deadLettered(), "\n";
 echo "read again: ", Queue::stats("q")->deadLettered(), "\n";
 echo "other after: ", Queue::stats("other")->deadLettered(), "\n";
