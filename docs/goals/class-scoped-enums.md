@@ -28,7 +28,7 @@ stages:
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 5
     title: "lowering, the runtime name, reflection and `nvs meta`"
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Tooling > nvs-ir cannot name"]
@@ -526,27 +526,24 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2, 3 and 4 are done, and `bun nv verify` is green.** Stage 4's check failed for two reasons, and both are fixed:
-- `tests/conformance/reject/a-class-scoped-enum-takes-no-modifier.nvst` wrote `#[Note]`, which is undeclared and gave an extra `E0303`. A file-scope enum reports the same error. The case now writes `#[Core\Deprecated(since: "2.0")]`.
-- `bun nv suite` printed only `GREEN`, and looper credits a `tests:` entry only from a `(pass) <path>` line. So every suite check with a `tests:` list stayed red after exit 0, including `env-context`'s. `tools/nv/cmd/suite.ts` now prints one such line per `--case` on green.
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 5 are done, both Stage 5 checks pass, and `bun nv verify` is green.**
 
-Both rules stay `designed`. How the key and the lookups work is in the Stage 4 code:
-- `QName::member` (`crates/nvs-hir/src/qname.rs:107`) builds the key.
-- `owned_enum` / `owned_enum_in_scope` (`crates/nvs-hir/src/resolve.rs:312`) are the one lookup.
-- `collect_owned` (`crates/nvs-types/src/enums.rs:271`) builds the table row.
+Stage 5 needed two code changes. Lowering, codegen, the runtime, `EnumInfo`, the conversion error and the route capture already used the `Shop\Order::Status` key unchanged.
+- `check_class_name_const` (`crates/nvs-types/src/expr/members.rs`) folds `Order::Status::class` through `resolve_class_expr`'s nested arm. A bare `Status::class` inside the owner already worked.
+- `nvs meta --json` lists an owned enum under its owner's `enums` key (`body_json`, `crates/nvs-cli/src/meta.rs`). Its `///` card sits on the `ClassMember` and not on the `EnumDecl`, as an alias's does, so `user_enum_json` takes the doc as a parameter.
 
-The key prints `Shop\Order::Status`, the name a program sees. Codegen needed no change. `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
+Both rules stay `designed`. The key and the lookups: `QName::member` (`crates/nvs-hir/src/qname.rs:107`), `owned_enum` / `owned_enum_in_scope` (`crates/nvs-hir/src/resolve.rs:312`), `collect_owned` (`crates/nvs-types/src/enums.rs:271`). `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
 
 ### Next
 
-**Stage 5: the runtime name.** One file set: `crates/nvs-types/src/expr/members.rs`, `crates/nvs-ir`, `Core\Reflect\EnumInfo` in `nvs-stdlib`, and `nvs-cli`'s `meta`.
+**Stage 6: the language server, starting with outline and definition** (`rule:enums/class-scoped-enum`). One file set: `crates/nvs-lsp/src/symbols.rs`, `crates/nvs-lsp/src/definition.rs`, `tests/lsp/symbols/`, `tests/lsp/definition/`.
 
-- [ ] **The name a program sees** (`rule:enums/reflection`). Check that `Core\Reflect\EnumInfo::of(Order::Status::class)` and its `name` print `Shop\Order::Status`. `::class` on a nested access is not handled yet. It goes through `infer_class_const`'s neighbours in `crates/nvs-types/src/expr/members.rs:77`, and `resolve_class_expr`'s nested arm (`crates/nvs-types/src/expr/members.rs:872`) is the lookup to reuse. Write `tests/conformance/enum/a-class-scoped-enum-names-itself-with-its-owner.nvst`.
-- [ ] **A cast and a route capture** (`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`). Write `a-class-scoped-enum-casts-from-an-integer-and-back.nvst` and `tests/conformance/core/router-a-capture-takes-a-class-scoped-enum.nvst`. A conversion error and the route capture error print the key through `QName`'s `Display`.
-- [ ] **`nvs meta --json`**: write `a_class_scoped_enum_is_listed_under_its_owner` in `crates/nvs-cli/tests/meta.rs:39`, beside `core_enum`, then run `looper check --name class-scoped-enums-the-name-a-program-sees` and `--name nvs-cli-meta-lists-an-owned-enum-under-its-owner`.
+- [ ] **Outline** nests an owned enum and its cases under its class, beside the alias arm at `crates/nvs-lsp/src/symbols.rs:215`. Write `tests/lsp/symbols/a-class-scoped-enum-nests-under-its-class.lspt`.
+- [ ] **Go to definition** from `Order::Status::Paid` and from a bare `Status` inside the owner: `declared_type` (`crates/nvs-lsp/src/definition.rs:479`), the member match at `crates/nvs-lsp/src/definition.rs:552` and `:589`, `type_member_at` (`crates/nvs-lsp/src/definition.rs:982`), `type_name_at` (`crates/nvs-lsp/src/definition.rs:1132`). Write the two `tests/lsp/definition/` cases the Stage 6 check names.
+- [ ] **Hover** shows the owner (`hover::at`, `crates/nvs-lsp/src/hover.rs:132`; the card run at `crates/nvs-lsp/src/hover.rs:336`). An owned enum's `///` card is on its `ClassMember`, not its `EnumDecl`. Write `tests/lsp/hover/a-class-scoped-enum-shows-its-owner.lspt`.
 
 ### Backlog
 
-- Stage 6: the editor and the formatter. `crates/nvs-lsp/src/index.rs` iterates `module.symbols`, so an owned enum already appears there under its `::` key, and Stage 6 nests it under its owner.
+- The rest of Stage 6 (this goal's Stage 6 section): completion, semantic tokens, folding, hints, `nvs fmt` (`a_class_scoped_enum_is_laid_out_like_a_file_scope_one` beside `crates/nvs-fmt/tests/novis_constructs.rs:213`) and the grammar. `crates/nvs-lsp/src/index.rs` iterates `module.symbols`, so an owned enum already appears there under its `::` key.
 - Stages 7 and 8: every `Core` enum, then every built-in component enum, moved by the rename table in `rule:enums/an-enum-lives-in-the-class-that-uses-it`. A registry name `Core\Arr::Order` parses to the same key `QName::member` builds.
 - Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs (this goal's file).

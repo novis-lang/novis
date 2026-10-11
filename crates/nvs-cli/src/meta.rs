@@ -774,7 +774,12 @@ fn collect(stmts: &[Stmt], src: &SourceFile, enclosing: &str, out: &mut Declared
                 out.interfaces
                     .push(user_interface_json(decl, src, &namespace, &scope));
             }
-            StmtKind::EnumDecl(decl) => out.enums.push(user_enum_json(decl, src, &namespace)),
+            StmtKind::EnumDecl(decl) => out.enums.push(user_enum_json(
+                decl,
+                decl.doc.as_ref(),
+                src,
+                qualify(&namespace, text(src, decl.name.span)),
+            )),
             StmtKind::TypeAliasDecl(decl) => out.types.push(user_alias_json(
                 decl,
                 decl.doc.as_ref(),
@@ -875,17 +880,20 @@ fn user_interface_json(
     Value::Object(out)
 }
 
-/// The `members`, `constants` and `types` of a class or interface body, under
-/// `owner`'s own qualified name.
+/// The `members`, `constants`, `enums` and `types` of a class or interface
+/// body, under `owner`'s own qualified name.
 ///
 /// `members` is always present, empty or not, because the registry's is; a
 /// class with no constants has no `constants` key, because the registry's does
-/// not either, and a body owning no alias has no `types` key for the same
-/// reason. A member the parser recovered over contributes nothing — it
-/// has no name to be documented under.
+/// not either, and a body owning no enum or no alias has no `enums` or `types`
+/// key for the same reason. An owned enum is named `Owner::Name`, the name a
+/// program sees (`rule:enums/reflection`), in the card shape a file-scope enum
+/// has. A member the parser recovered over contributes nothing — it has no
+/// name to be documented under.
 fn body_json(members: &[ClassMember], src: &SourceFile, owner: &str, out: &mut Map<String, Value>) {
     let mut declared = Vec::new();
     let mut constants = Vec::new();
+    let mut enums = Vec::new();
     for member in members {
         match &member.kind {
             ClassMemberKind::Method(method) => {
@@ -897,11 +905,16 @@ fn body_json(members: &[ClassMember], src: &SourceFile, owner: &str, out: &mut M
             ClassMemberKind::Const(constant) => {
                 constants.push(user_constant_json(constant, member.doc.as_ref(), src));
             }
+            ClassMemberKind::Enum(decl) => {
+                let name = format!("{owner}::{}", text(src, decl.name.span));
+                enums.push(user_enum_json(decl, member.doc.as_ref(), src, name));
+            }
             _ => {}
         }
     }
     out.insert("members".into(), Value::Array(declared));
     put_values(out, "constants", constants);
+    put_values(out, "enums", enums);
     put_values(out, "types", alias_cards(members, src, owner));
 }
 
@@ -1035,9 +1048,19 @@ fn user_constant_json(constant: &ConstMember, doc: Option<&DocComment>, src: &So
 /// the registry's [`EnumDoc`] keeps it — a `Core` enum's cases are documented
 /// in one Rust literal, and a program's are documented each above its own
 /// line.
-fn user_enum_json(decl: &EnumDecl, src: &SourceFile, namespace: &str) -> Value {
+///
+/// `name` is the spelling a program reaches the enum by: `N\Volume` for one
+/// written at file scope, `N\Order::Status` for one a class or interface body
+/// owns (`rule:enums/class-scoped-enum`). `doc` is the `///` run above it,
+/// which hangs on the [`ClassMember`] at the second site and on the
+/// declaration itself at the first, as an alias's does.
+fn user_enum_json(
+    decl: &EnumDecl,
+    doc: Option<&DocComment>,
+    src: &SourceFile,
+    name: String,
+) -> Value {
     let mut out = Map::new();
-    let name = qualify(namespace, text(src, decl.name.span));
     out.insert("name".into(), Value::from(name.as_str()));
     if let Some(backing) = &decl.backing {
         out.insert("backing".into(), Value::from(text(src, backing.span)));
@@ -1057,7 +1080,7 @@ fn user_enum_json(decl: &EnumDecl, src: &SourceFile, namespace: &str) -> Value {
         .collect();
     out.insert("cases".into(), Value::Array(cases));
     put_values(&mut out, "types", alias_cards(&decl.members, src, &name));
-    put_doc(&mut out, decl.doc.as_ref(), src);
+    put_doc(&mut out, doc, src);
     Value::Object(out)
 }
 

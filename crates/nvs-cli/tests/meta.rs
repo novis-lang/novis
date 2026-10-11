@@ -532,6 +532,46 @@ fn meta_json_nests_a_class_scoped_alias_under_its_owner() {
     assert_eq!(file_scope, vec!["Greeting"]);
 }
 
+/// An enum a class body owns is emitted inside its owner's entry, under an
+/// `enums` key and in the card shape a file-scope enum has, named
+/// `Shop\Order::Status`: the name a program sees (`rule:enums/reflection`).
+/// The file-scope roster does not list it a second time, so a program that
+/// declares no enum at file scope has no top-level `enums` key.
+#[test]
+fn a_class_scoped_enum_is_listed_under_its_owner() {
+    let entry = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/meta/owned-enum.nvs")
+        .display()
+        .to_string();
+    let program = program(&["--json", &entry]);
+
+    let order = declared(&program, "classes", "Shop\\Order");
+    assert_eq!(
+        declared(&order, "enums", "Shop\\Order::Status"),
+        serde_json::json!({
+            "name": "Shop\\Order::Status",
+            "backing": "uint",
+            "cases": [
+                { "name": "Open", "doc": { "short": "Placed and not paid yet." } },
+                { "name": "Paid", "value": "5" },
+            ],
+            "doc": { "short": "Where an order is in its life." },
+        })
+    );
+    // An owned enum is not a member: its cases are values, not a property.
+    let names: Vec<&str> = order["members"]
+        .as_array()
+        .expect("`members` is an array")
+        .iter()
+        .map(|m| m["name"].as_str().expect("a name"))
+        .collect();
+    assert_eq!(names, vec!["$status"]);
+    assert!(
+        program.get("enums").is_none(),
+        "the file-scope roster is empty"
+    );
+}
+
 /// A user declaration's card is the `///` run above it: its prose under
 /// `short`, its `@see` targets and its `@example` paths as their own lists, and
 /// the registry's omission rule over all three — an undocumented declaration
