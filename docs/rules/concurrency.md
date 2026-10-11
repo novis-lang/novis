@@ -1423,9 +1423,29 @@ A claimed job carries a **visibility timeout**: the claim is keyed on the instan
 worker that dies — or that overruns the window — matches no row when it tries to report, so the job
 becomes claimable again. That is what makes delivery at-least-once
 ([`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once)) and what makes bounded retries a rule rather than
-advice.
+advice. A worker that dies inside SQLite's immediate transaction leaves it unfinished and the row
+pending, so the same timeout makes the job claimable by the next worker.
 
-<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once). Decided in [0170](../decisions/0170.md).</sub>
+- **Memory:** nothing per job on the request path, and no allocation the queue was not already making.
+  The immediate transaction is the depth counter the connection already carries. On SQLite the claim
+  costs one transaction's round trips where PostgreSQL costs one statement, and those round trips are
+  function calls into a file rather than messages over a socket.
+
+**Declined:**
+- **A locking clause on SQLite for parity with the other dialects.** Parity of shape between dialect
+  arms is not a goal; parity of guarantee is, and the single writer already gives it.
+- **A deferred transaction with a retry loop around `SQLITE_BUSY`.** It keeps one `begin` and pays
+  for it with a busy-error path on every claim, which the busy timeout was meant to cover already.
+- **A single `update … where id = (select …) returning …` claim on SQLite.** The claim there is the
+  same select-then-update pair the other two-statement dialect runs, inside the immediate transaction.
+- **A build option for a wider SQLite grammar or a concurrent-write mode.** A queue statement that
+  parses only under a non-default SQLite build stops parsing the day the dependency moves. A SQLite
+  that admits two writers at once would also make the single-writer argument above false.
+- **A lease table, an advisory lock or a coordinator process**, on any backend. Contention is the
+  database's to settle, and SQLite, where the database settles it most completely, is the last place
+  for an exception.
+
+<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once).</sub>
 
 <a id="concurrency-a-job-between-attempts-is-pending"></a>
 

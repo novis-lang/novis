@@ -6,8 +6,8 @@
 // worker claims inside an *immediate* transaction, which SQLite's single writer
 // makes exclusive on its own. `for update skip locked` is what the same claim
 // says on a backend with row locks and concurrent writers to need them from;
-// here there is nothing left for it to do, and [ADR 0170](/docs/decisions/0170.md)
-// is why that is a stronger answer rather than a weaker one.
+// here there is nothing left for it to do, and that rule says why the single
+// writer is a stronger answer rather than a weaker one.
 //
 // So this fixture is the whole queue design running against a file: the job
 // names a file (`rule:concurrency/a-job-names-a-file`), the claim is the
