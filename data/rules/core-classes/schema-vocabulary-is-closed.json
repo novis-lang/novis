@@ -1,9 +1,7 @@
 {
   "title": "The schema vocabulary is five constructs shared by all five backends, with no raw escape hatch",
   "status": "shipped",
-  "because": [
-    "0187"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/schema-is-a-value",
     "core-classes/db-column-types",

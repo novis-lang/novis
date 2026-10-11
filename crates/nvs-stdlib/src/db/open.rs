@@ -1249,7 +1249,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **A field read and not a statement.** Every driver kept the version its
     /// own handshake had already delivered
-    /// ([ADR 0187 § 2](/docs/decisions/0187.md)), so this spends no round trip
+    /// (`rule:core-classes/server-version-is-what-the-server-said`), so this spends no round trip
     /// and answers between two rows of a `stream`, where the connection is held
     /// and a statement is refused. A member that looked like a field read and
     /// cost a `SELECT version()` would be a latency trap on the request path.

@@ -1180,7 +1180,7 @@ fn authenticate<S: Read + Write>(wire: &mut Wire<S>, target: &PgTarget<'_>) -> i
             // `server_version` is what `Core\Db\Connection::serverVersion`
             // answers, and startup is the only place this server says it, so a
             // member that reads like a field read costs no round trip
-            // ([ADR 0187 § 2](/docs/decisions/0187.md)). The two the type map
+            // (`rule:core-classes/server-version-is-what-the-server-said`). The two the type map
             // depends on, `DateStyle` and `TimeZone`, are startup parameters
             // this driver set, so reading those back would only be asking
             // whether the server agreed with itself.
@@ -1239,7 +1239,7 @@ fn authenticate<S: Read + Write>(wire: &mut Wire<S>, target: &PgTarget<'_>) -> i
 /// The [`CancelKey`] is unrepeatable because the protocol offers no way to ask
 /// again, and the version is unrepeatable by choice: asking would be a round
 /// trip under a member that reads like a field read
-/// ([ADR 0187 § 2](/docs/decisions/0187.md)).
+/// (`rule:core-classes/server-version-is-what-the-server-said`).
 #[derive(Debug)]
 struct Startup {
     /// What a second connection cancels this one's statement with.
@@ -4323,7 +4323,7 @@ mod tests {
 
     /// The version a connection keeps is the `server_version` its startup
     /// reported, verbatim and bought with no statement —
-    /// [ADR 0187 § 2](/docs/decisions/0187.md).
+    /// `rule:core-classes/server-version-is-what-the-server-said`.
     ///
     /// The fixture's value carries a distribution's suffix, so a driver that
     /// parsed the number out and rebuilt the string fails here; the peer

@@ -31,3 +31,9 @@ no existing deployment can converge to, while a nullable column arrives as a `Sa
 semantics are what `rule:core-classes/db-one-api`'s one-API promise means for a program's own schema,
 and `rule:core-classes/queue-storage-is-a-table`'s `dedupe_pending` is one reader of them rather than
 the reason for them.
+
+**Declined:**
+- **A computed column that maps a null to a unique value.** It is the same objection as the token
+  column, with an extra vocabulary entry attached.
+- **Leaving SQL Server with nulls that collide, and documenting it.** A silent correctness difference
+  between backends is what the one-API promise exists to prevent.

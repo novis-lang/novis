@@ -220,7 +220,7 @@ impl LoginAck {
     /// The version `Core\Db\Connection::serverVersion` answers on this driver:
     /// `major.minor.build`, decimal and unpadded — `16.0.4035`.
     ///
-    /// [ADR 0187 § 2](/docs/decisions/0187.md) fixes that spelling here because
+    /// `rule:core-classes/server-version-is-what-the-server-said` fixes that spelling here because
     /// SQL Server is the one backend sending numbers where the others send a
     /// string, and a driver inventing a rendering of its own would leave a
     /// program comparing versions across drivers comparing two shapes.

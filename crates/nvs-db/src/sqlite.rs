@@ -764,7 +764,7 @@ impl InsertedRow {
 
 /// The version of the SQLite this binary is linked against, which is what
 /// `Core\Db\Connection::serverVersion` answers on this driver —
-/// [ADR 0187 § 2](/docs/decisions/0187.md).
+/// `rule:core-classes/server-version-is-what-the-server-said`.
 ///
 /// A property of the binary and not of a connection: there is no server here
 /// and no handshake, so nothing about it is kept per open database.
@@ -1765,7 +1765,7 @@ mod tests {
 
     /// `serverVersion` on the one driver with no server: the version of the
     /// library this binary is linked against —
-    /// [ADR 0187 § 2](/docs/decisions/0187.md).
+    /// `rule:core-classes/server-version-is-what-the-server-said`.
     ///
     /// Asserted against what the engine itself answers rather than against a
     /// literal, so the two move together when the library does, and asserted to

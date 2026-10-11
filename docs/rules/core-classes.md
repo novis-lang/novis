@@ -1271,7 +1271,14 @@ connection was already told. [`core-classes/schema-plan`](core-classes.md#core-c
 and reads it off the connection it already holds, so the same refusal keeps a grade from costing a
 statement of its own.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan). Decided in [0187](../decisions/0187.md).</sub>
+**Declined:**
+- **A `SELECT version()` on first use.** The reason is above; on SQLite it would also answer the same
+  string a library call gives for nothing.
+- **Normalising every driver's version to a `(major, minor, patch)` triple.** It throws away what a
+  server chose to say about itself — the build, the vendor suffix, the distribution's patch marker —
+  which is most of why anyone reads the member.
+
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan).</sub>
 
 <a id="core-classes-db-connection-busy-state"></a>
 
@@ -1470,7 +1477,7 @@ cannot park. This rule is the member's contract — constant memory, the connect
 statement refused — and the read state each driver leaves between two steps is
 [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection), which is the mechanism under it.
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection). Decided in [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection).</sub>
 
 <a id="core-classes-a-stream-parks-its-read-on-the-connection"></a>
 
@@ -1502,10 +1509,24 @@ the fallback for a protocol that has no parked form, not a state any of the five
 **An abandoned stream drains rather than poisons.** Each wire protocol frames its remaining rows
 self-describingly to a terminating packet or `DONE` token, so the read back to a message boundary is
 deterministic, bounded by the result set the caller asked for, and the connection returns to `Idle`
-and to the pool. A read that *fails* mid-message is `Poisoned` and closed, as it is for every other
-statement.
+and to the pool. Closing instead would spend a full connection handshake, and a TLS one, on what is
+ordinarily a program taking the first row of a sorted query. A read that *fails* mid-message is
+`Poisoned` and closed, as it is for every other statement.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0187](../decisions/0187.md).</sub>
+**Memory:** an open stream holds one row plus the result set's column descriptions, on every driver.
+On SQLite it also holds one pooled thread until the walk ends, so a program that opens many streams
+and drains none can exhaust that pool. That is the same shape as holding many connections, and it is
+bounded by the pool the host already sizes.
+
+**Declined:**
+- **Buffering a result set behind `stream`.** It breaks the member's one promise, constant memory,
+  and makes a request's memory a function of a table's size, the unbounded-by-input shape
+  [`core-classes/output-that-scales-with-its-input-bounds-the-input`](core-classes.md#core-classes-output-that-scales-with-its-input-bounds-the-input) refuses everywhere else.
+- **Refusing `stream` on the drivers without a portal.** It turns [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s
+  single API into four APIs with a footnote, and no protocol among the five needs it.
+- **A chunk-size option.** [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming) gives the reason.
+
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum).</sub>
 
 <a id="core-classes-db-transactions"></a>
 
@@ -1725,7 +1746,7 @@ never escaped into safety by a second answer.
   everything, and it ends the diff's totality: a plan over an opaque fragment is best-effort, and every
   guarantee above becomes a hedge.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct).</sub>
 
 <a id="core-classes-a-unique-key-reads-nulls-as-distinct"></a>
 
@@ -1767,7 +1788,13 @@ semantics are what [`core-classes/db-one-api`](core-classes.md#core-classes-db-o
 and [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table)'s `dedupe_pending` is one reader of them rather than
 the reason for them.
 
-<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0187](../decisions/0187.md).</sub>
+**Declined:**
+- **A computed column that maps a null to a unique value.** It is the same objection as the token
+  column, with an extra vocabulary entry attached.
+- **Leaving SQL Server with nulls that collide, and documenting it.** A silent correctness difference
+  between backends is what the one-API promise exists to prevent.
+
+<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="core-classes-schema-converges"></a>
 
@@ -1878,7 +1905,7 @@ plan over-reports `Locking` on a server new enough to make a step instant.
   only in authentication and error tables, which no DDL reaches. A fifth emitter would be a copy of
   MySQL's to keep in step.
 
-<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct).</sub>
 
 <a id="core-classes-schema-absence-never-destroys"></a>
 
@@ -2257,7 +2284,7 @@ application's primary database, and that cost is the reason `[queue] connection`
 - **Creating the tables at boot or on first use.** DDL is a privileged act an operator takes, never one
   a running server takes on its own.
 
-<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities).</sub>
 
 <a id="core-classes-session-is-started-explicitly"></a>
 

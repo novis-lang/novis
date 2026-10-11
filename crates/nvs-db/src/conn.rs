@@ -766,7 +766,7 @@ pub struct PgConn {
     /// connection that dropped it cannot ask again.
     pub(crate) cancel: CancelKey,
     /// The `server_version` the backend reported during startup, verbatim —
-    /// [ADR 0187 § 2](/docs/decisions/0187.md)'s answer for this driver.
+    /// `rule:core-classes/server-version-is-what-the-server-said`'s answer for this driver.
     ///
     /// Kept because the parameter is delivered once and asking for it again
     /// would be a round trip behind a member that reads like a field read. A
@@ -857,7 +857,7 @@ pub struct MySqlConn {
     /// re-derived them per packet would be deciding it twice.
     pub(crate) capabilities: CapabilityFlags,
     /// The greeting's version banner, exactly as the server wrote it —
-    /// [ADR 0187 § 2](/docs/decisions/0187.md)'s answer for this driver, taken
+    /// `rule:core-classes/server-version-is-what-the-server-said`'s answer for this driver, taken
     /// off `crate::mysql`'s `Greeting`.
     ///
     /// The banner and not the `(major, minor, patch)` beside it: a
@@ -981,7 +981,7 @@ pub struct TdsConn {
     /// `rule:core-classes/db-connection-busy-state`'s busy state; the reasoning is on [`PgConn`].
     pub(crate) state: Cell<State>,
     /// `major.minor.build` from the `LOGINACK` that accepted the login, decimal
-    /// and unpadded — [ADR 0187 § 2](/docs/decisions/0187.md) fixes that
+    /// and unpadded — `rule:core-classes/server-version-is-what-the-server-said` fixes that
     /// spelling in [`crate::tds::LoginAck::server_version`], because this is the
     /// one backend that sends numbers where the others send a string.
     ///
@@ -1128,7 +1128,7 @@ impl Connection {
     }
 
     /// What the other end reported itself as, spelled per driver by
-    /// [ADR 0187 § 2](/docs/decisions/0187.md).
+    /// `rule:core-classes/server-version-is-what-the-server-said`.
     ///
     /// Read off the connection and never asked for: each wire driver kept what
     /// its own handshake had already delivered, so no statement goes out here.

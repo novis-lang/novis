@@ -1,9 +1,7 @@
 {
   "title": "`serverVersion` answers what the server said during the handshake, and never spends a round trip",
   "status": "shipped",
-  "because": [
-    "0187"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/db-connection-is-named",
     "core-classes/db-drivers-are-an-enum",

@@ -830,7 +830,7 @@ pub(crate) struct Greeting {
     server_version: (u16, u16, u16),
     /// That same field as the server wrote it, which is what
     /// `Core\Db\Connection::serverVersion` answers on MySQL and on MariaDB —
-    /// [ADR 0187 § 2](/docs/decisions/0187.md). The numbers above are a
+    /// `rule:core-classes/server-version-is-what-the-server-said`. The numbers above are a
     /// decision this handshake makes; this is the string an operator reads,
     /// suffix and all, and neither is rebuilt from the other.
     ///
@@ -3750,7 +3750,7 @@ mod tests {
 
     /// [`greeting_offering`] from a server whose banner is `version`: the field
     /// a distribution writes its own suffix into, and the one
-    /// [ADR 0187 § 2](/docs/decisions/0187.md) keeps verbatim.
+    /// `rule:core-classes/server-version-is-what-the-server-said` keeps verbatim.
     fn greeting_versioned(
         version: &str,
         plugin: &str,
@@ -4023,7 +4023,7 @@ mod tests {
 
     /// The banner a greeting carried is kept exactly as the server wrote it,
     /// which is what `Core\Db\Connection::serverVersion` answers on this driver
-    /// and on MariaDB — [ADR 0187 § 2](/docs/decisions/0187.md).
+    /// and on MariaDB — `rule:core-classes/server-version-is-what-the-server-said`.
     ///
     /// Both servers are asked, because the banner is how a MariaDB server says
     /// it is one: a driver answering the `(major, minor, patch)` beside it

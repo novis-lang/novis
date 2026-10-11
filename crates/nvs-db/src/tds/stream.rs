@@ -820,7 +820,7 @@ mod tests {
     }
 
     /// The version a connection keeps is the one `LOGINACK` sent, spelled the
-    /// one way [ADR 0187 § 2](/docs/decisions/0187.md) fixes it, and bought
+    /// one way `rule:core-classes/server-version-is-what-the-server-said` fixes it, and bought
     /// with no statement: the login is the whole exchange.
     ///
     /// The fixture is what a SQL Server 2022 answers, down to the byte order of

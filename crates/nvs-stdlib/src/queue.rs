@@ -252,8 +252,8 @@ const KEY_WIDTH: u32 = 255;
 ///   array back beside the count and the dead-letter move copies what is already on the row, so a
 ///   job arrives in [`DEAD_TABLE`] carrying every attempt rather than its last. That costs a row
 ///   rewritten once per attempt on the table § 4's claim contends over, which is the rule's promise
-///   being paid for rather than a depth this schema chose; `docs/decisions/0187.md` § 4 owns it,
-///   together with the bound — attempts are finite and an entry's message is capped at
+///   being paid for rather than a depth this schema chose; that rule owns it, together with the
+///   bound — attempts are finite and an entry's message is capped at
 ///   [`MESSAGE_CAP`], so the column holds at most attempts × that cap. The dead-letter row is
 ///   otherwise the job's own columns plus `failed_at`, and has no `state`: a row is `Dead` by being
 ///   in that table, which is exactly what [`STATUS_POSTGRES`]'s second arm asserts by answering the
@@ -1216,8 +1216,9 @@ pub fn dead_errors(prior: Option<&str>, at: i64, class: &str, message: &str) -> 
 /// How much of a thrown message an [`dead_errors`] entry keeps.
 ///
 /// Counted in characters and cut on a character boundary, because the column is `utf8mb4` text a
-/// reader parses and half a code point is not text. `docs/decisions/0187.md` § 4 owns why there is a
-/// cap at all; the number is the width at which a message still says what went wrong — a stack of
+/// reader parses and half a code point is not text.
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` owns why there is a cap at all;
+/// the number is the width at which a message still says what went wrong — a stack of
 /// frames or a rendered document does not, and a job row is not where either belongs.
 pub const MESSAGE_CAP: usize = 1_024;
 
@@ -5452,7 +5453,7 @@ mod tests {
     ///
     /// The cap is asserted with a multi-byte character, because a byte-wise cut inside one is the
     /// failure that would produce a column no reader can parse — and that is the whole reason
-    /// `docs/decisions/0187.md` § 4 says *character boundary*.
+    /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` says *character boundary*.
     #[test]
     fn the_errors_array_gains_an_entry_per_attempt_and_caps_each_message() {
         let first = dead_errors(None, 1, "RuntimeError", "the first");
