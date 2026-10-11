@@ -7,8 +7,9 @@ and `__set`. `PropertyObserver` watches every read and write of a class. `String
 its text form. A `callable` comes from `fn` or from a method reference such as `Core\Str::length(...)`,
 so there are no callable objects. There is no destructor.
 
-`new class { … }` does not exist, and a `class` written inside another class body is refused. Every
-class is declared at file scope with a name.
+`new class { … }` does not exist. A `class` or an `interface` inside a class body does not
+compile. Every class is declared at file scope with a name. An `enum` is the one type a class body
+can declare.
 
 **Good to know:** you meet all of these when you compile, never while the program is running.
 

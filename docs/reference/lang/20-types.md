@@ -381,7 +381,8 @@ echo Helper::nothing();
 `type Name = T;` gives a type expression a `PascalCase` name, written at file scope beside `namespace`
 and `use` or as a member of a class, interface or enum body — never inside a method body, a block or an
 anonymous function, where it is refused by name. A body's alias takes no visibility modifier, is reached as
-`Owner::Name` from anywhere and as a bare `Name` inside its owner, and is not inherited. The alias is
+`Owner::Name` from anywhere and as a bare `Name` inside its owner, and is not inherited, the same
+way as an enum declared in a class body (see [Declaring an enum](55-enums.md#declaring-an-enum)). The alias is
 a compile-time name only. It may not name a single bare class, interface or enum (`type Bar = Foo;` is
 refused: a class has its own name); `?Foo`, a union, a shape and an `array<…>` are all allowed.
 

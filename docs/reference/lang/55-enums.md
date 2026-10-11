@@ -12,6 +12,35 @@ constant of that type, never an object. The body is a comma list of `Name` or `N
 — there is no `case` keyword and no `;`. Case names are `PascalCase`.
 <!-- src: `rule:enums/closed-integer-type` -->
 
+An enum that one class uses is declared in that class's body. Inside the class it is `Status`.
+Everywhere else it is `Order::Status`, and a case is `Order::Status::Paid`. An interface body may
+declare an enum the same way.
+<!-- src: `rule:enums/class-scoped-enum`, `rule:enums/an-enum-lives-in-the-class-that-uses-it` -->
+
+```nvs
+<?nvs
+class Order {
+    enum Status { Open, Paid, Cancelled }
+
+    public Status $status = Status::Open;
+
+    public function pay(): void {
+        $this->status = Status::Paid;
+    }
+}
+
+Order $order = new Order();
+$order->pay();
+echo $order->status as int, "\n";
+echo $order->status == Order::Status::Paid ? "paid" : "open", "\n";
+```
+```output
+1
+paid
+```
+
+An enum that several classes share, or that no class uses, is declared at file scope:
+
 ```nvs
 <?nvs
 enum Rank { Bronze, Silver, Gold }
@@ -38,6 +67,9 @@ echo Mask::All as uint, "\n";
   else backs an enum — `enum E: string` is refused, and so is a case with a non-integer value.
 - An enum body holds cases and nothing else: a method, a constant or an `implements` clause is
   refused. Put behaviour on a class that takes the enum.
+- An enum in a class body takes no `public` or `private`, and a subclass does not inherit it.
+  Write `Status` inside the class and `Order::Status` outside it: `self::Status` and
+  `use Shop\Order::Status;` are refused.
 
 ```nvs error
 <?nvs

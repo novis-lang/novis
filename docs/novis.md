@@ -992,7 +992,8 @@ echo Helper::nothing();
 `type Name = T;` gives a type expression a `PascalCase` name, written at file scope beside `namespace`
 and `use` or as a member of a class, interface or enum body — never inside a method body, a block or an
 anonymous function, where it is refused by name. A body's alias takes no visibility modifier, is reached as
-`Owner::Name` from anywhere and as a bare `Name` inside its owner, and is not inherited. The alias is
+`Owner::Name` from anywhere and as a bare `Name` inside its owner, and is not inherited, the same
+way as an enum declared in a class body (see [Declaring an enum](55-enums.md#declaring-an-enum)). The alias is
 a compile-time name only. It may not name a single bare class, interface or enum (`type Bar = Foo;` is
 refused: a class has its own name); `?Foo`, a union, a shape and an `array<…>` are all allowed.
 
@@ -4318,8 +4319,9 @@ the roots, the attributes chapter the metadata usually read off them.
   interception beyond hooks and `PropertyObserver`, no callable objects (a `callable` comes from an anonymous function or a method reference),
   and no destructor.
 - **Anonymous classes.** `new class { … }` does not exist; declare a named class.
-- **Nested classes.** A `class` inside a class body is refused; every class is declared at file
-  scope.
+- **Nested classes.** A `class` or an `interface` inside a class body is refused; every class is
+  declared at file scope. An `enum` is the one type a class body may declare (see
+  [Declaring an enum](55-enums.md#declaring-an-enum)).
 
 ```nvs error
 <?nvs
@@ -4355,6 +4357,34 @@ Keywords: enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, st
 constant of that type, never an object. The body is a comma list of `Name` or `Name = integer`
 — there is no `case` keyword and no `;`. Case names are `PascalCase`.
 
+An enum that one class uses is declared in that class's body. Inside the class it is `Status`.
+Everywhere else it is `Order::Status`, and a case is `Order::Status::Paid`. An interface body may
+declare an enum the same way.
+
+```nvs
+<?nvs
+class Order {
+    enum Status { Open, Paid, Cancelled }
+
+    public Status $status = Status::Open;
+
+    public function pay(): void {
+        $this->status = Status::Paid;
+    }
+}
+
+Order $order = new Order();
+$order->pay();
+echo $order->status as int, "\n";
+echo $order->status == Order::Status::Paid ? "paid" : "open", "\n";
+```
+```output
+1
+paid
+```
+
+An enum that several classes share, or that no class uses, is declared at file scope:
+
 ```nvs
 <?nvs
 enum Rank { Bronze, Silver, Gold }
@@ -4381,6 +4411,9 @@ echo Mask::All as uint, "\n";
   else backs an enum — `enum E: string` is refused, and so is a case with a non-integer value.
 - An enum body holds cases and nothing else: a method, a constant or an `implements` clause is
   refused. Put behaviour on a class that takes the enum.
+- An enum in a class body takes no `public` or `private`, and a subclass does not inherit it.
+  Write `Status` inside the class and `Order::Status` outside it: `self::Status` and
+  `use Shop\Order::Status;` are refused.
 
 ```nvs error
 <?nvs

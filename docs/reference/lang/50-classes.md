@@ -1304,8 +1304,9 @@ the roots, the attributes chapter the metadata usually read off them.
   interception beyond hooks and `PropertyObserver`, no callable objects (a `callable` comes from an anonymous function or a method reference),
   and no destructor.
 - **Anonymous classes.** `new class { … }` does not exist; declare a named class.
-- **Nested classes.** A `class` inside a class body is refused; every class is declared at file
-  scope.
+- **Nested classes.** A `class` or an `interface` inside a class body is refused; every class is
+  declared at file scope. An `enum` is the one type a class body may declare (see
+  [Declaring an enum](55-enums.md#declaring-an-enum)).
 
 ```nvs error
 <?nvs
