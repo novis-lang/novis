@@ -8,7 +8,7 @@ Core\IO::write($path, "date;region;amount\n"
     . "2026-01-02;south;99.00\n"
     . "2026-01-03;north;18.25\n");
 
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 
 float $north = 0.0;
 int $records = 0;

@@ -12,7 +12,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+            Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
             foreach (Core\Csv::rows($file) as array<string> $record) {
                 $total = $total + 1;
             }

@@ -23,7 +23,7 @@ class Bench {
             // The file of every round is chosen by the records read so far, so
             // the loop cannot be left out.
             int $which = ($total % 3) as int;
-            Core\IO\File $file = Core\IO::open($paths[$which], Core\IO\FileMode::Read);
+            Core\IO\File $file = Core\IO::open($paths[$which], Core\IO::FileMode::Read);
             foreach (Core\Csv::rows($file) as array<string> $record) {
                 $total = $total + 1;
             }

@@ -1,5 +1,5 @@
 --TEST--
-Core\IO::append and a Core\IO\FileMode::Append handle write to the same end, found at each write rather than remembered — two writers interleaved over one file, and a seek in the middle, land their bytes in call order — spec § 14, `rule:security/capability-check-at-the-door`
+Core\IO::append and a Core\IO::FileMode::Append handle write to the same end, found at each write rather than remembered — two writers interleaved over one file, and a seek in the middle, land their bytes in call order — spec § 14, `rule:security/capability-check-at-the-door`
 --FILE--
 <?nvs
 // One file, two writers, alternating. If either of them had found the end once
@@ -9,7 +9,7 @@ Core\IO::append and a Core\IO\FileMode::Append handle write to the same end, fou
 // measuring a length and writing at the number it read.
 Core\IO::append("log.txt", "a");
 
-Core\IO\File $handle = Core\IO::open("log.txt", Core\IO\FileMode::Append);
+Core\IO\File $handle = Core\IO::open("log.txt", Core\IO::FileMode::Append);
 uint $wrote = $handle->write("b");
 
 // The whole-file member writes while the handle is open and holding a position

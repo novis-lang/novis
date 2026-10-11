@@ -3,7 +3,7 @@
 // A character such as `é` or `ö` uses more than one byte.
 
 string $path = Core\Path::join(Core\IO::temporaryDir(), "names.txt");
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 
 // "Café" has 4 characters and 5 bytes, so this prints 4 and then 5.
 echo Core\Str::length("Café"), "\n";

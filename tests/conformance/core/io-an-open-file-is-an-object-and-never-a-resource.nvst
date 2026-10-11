@@ -9,7 +9,7 @@
 // is an integer with a type tag every function taking one has to re-check at
 // run time; here the type is checked before the program runs, and what is left
 // for a body to ask is only whether the handle is still open.
-Core\IO\File $out = Core\IO::open("note.txt", Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open("note.txt", Core\IO::FileMode::Write);
 uint $written = $out->write("hello world\n");
 echo "wrote ", $written as string, "\n";
 $out->close();
@@ -17,7 +17,7 @@ $out->close();
 // The read half, through a second handle: without a `seek` the writing handle
 // is at the end of what it wrote, and reading back is what proves the bytes
 // reached the file rather than a buffer.
-Core\IO\File $in = Core\IO::open("note.txt", Core\IO\FileMode::Read);
+Core\IO\File $in = Core\IO::open("note.txt", Core\IO::FileMode::Read);
 echo "first: ", $in->read(5), "\n";
 echo "rest: ", $in->read(64);
 // The one answer `read` gives that is neither data nor an error.

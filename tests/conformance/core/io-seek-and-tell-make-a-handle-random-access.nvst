@@ -7,11 +7,11 @@
 // it so: one sets the position, the other reads it back. Every other member of
 // the class leaves the handle just past what it touched, which is what makes
 // the two agree with `read` and `write` rather than merely with each other.
-Core\IO\File $out = Core\IO::open("seekable.txt", Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open("seekable.txt", Core\IO::FileMode::Write);
 $out->write("abcdefghij");
 $out->close();
 
-Core\IO\File $in = Core\IO::open("seekable.txt", Core\IO\FileMode::Read);
+Core\IO\File $in = Core\IO::open("seekable.txt", Core\IO::FileMode::Read);
 // Nothing has been read yet, so the handle is at the start.
 echo "start: ", $in->tell() as string, "\n";
 echo "read: ", $in->read(3), "\n";
@@ -63,7 +63,7 @@ try {
 
 // A write lands where the handle is, so `seek` plus `write` is an overwrite in
 // place — the whole point of a position a caller can set.
-Core\IO\File $patch = Core\IO::open("seekable.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $patch = Core\IO::open("seekable.txt", Core\IO::FileMode::ReadWrite);
 $patch->seek(4);
 $patch->write("EF");
 $patch->close();

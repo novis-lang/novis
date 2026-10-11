@@ -6,7 +6,7 @@
 // touched. `truncate` touches the file's *length*, so the rule it obeys is
 // that the position is untouched — and the two are then independent enough
 // that a handle can sit at an offset the file no longer reaches.
-Core\IO\File $f = Core\IO::open("hole.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $f = Core\IO::open("hole.txt", Core\IO::FileMode::ReadWrite);
 $f->write("abcdefghij");
 echo "at: ", $f->tell() as string, "\n";
 

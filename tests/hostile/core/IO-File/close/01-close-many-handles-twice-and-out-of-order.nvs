@@ -14,7 +14,7 @@ array<Core\IO\File> $open = [];
 try {
     uint $i = 0;
     while ($i < 2000) {
-        $open[] = Core\IO::open($path, Core\IO\FileMode::Read);
+        $open[] = Core\IO::open($path, Core\IO::FileMode::Read);
         $i = $i + 1;
     }
 } catch (IOError $tooMany) {
@@ -41,18 +41,18 @@ if ($thrown != Core\Arr::count($open)) {
 echo 'step 2: done', "\n";
 
 // 3. A locked handle is closed while it writes a large text. A new handle must then get the lock.
-Core\IO\File $writer = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $writer = Core\IO::open($path, Core\IO::FileMode::Write);
 $writer->lock();
 $writer->write(Core\Str::repeat('x', 1000000));
 $writer->close();
-Core\IO\File $next = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+Core\IO\File $next = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 $next->lock();
 $next->close();
 echo 'step 3: done', "\n";
 
 // 4. The file is deleted while a handle is open, and then the handle is closed.
 // The delete may fail on some systems. Then `remove` throws an `IOError`.
-Core\IO\File $orphan = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $orphan = Core\IO::open($path, Core\IO::FileMode::Read);
 try {
     Core\IO::remove($path);
 } catch (IOError $busy) {
@@ -61,5 +61,5 @@ $orphan->close();
 echo 'step 4: done', "\n";
 
 // 5. A handle is opened and never closed. The program ends and Novis must close it.
-Core\IO\File $left = Core\IO::open(Core\Path::join($dir, 'left.txt'), Core\IO\FileMode::Write);
+Core\IO\File $left = Core\IO::open(Core\Path::join($dir, 'left.txt'), Core\IO::FileMode::Write);
 echo 'step 5: done', "\n";

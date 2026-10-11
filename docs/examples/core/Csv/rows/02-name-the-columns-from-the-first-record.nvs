@@ -5,7 +5,7 @@
 string $path = Core\Path::join(Core\IO::temporaryDir(), 'stock.csv');
 Core\IO::write($path, "product,count\nfig,2\napple,10\n");
 
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 
 // The first record holds the column names and is not one of the records you
 // read. This prints `fig: 2` and `apple: 10`.

@@ -15,7 +15,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // The file in each round depends on the round before, so no round can be left out.
-            Core\IO\File $handle = Core\IO::open($files[($total % 3) as int], Core\IO\FileMode::ReadWrite);
+            Core\IO\File $handle = Core\IO::open($files[($total % 3) as int], Core\IO::FileMode::ReadWrite);
             $handle->lock();
             $handle->close();
             $total = $total + 1;

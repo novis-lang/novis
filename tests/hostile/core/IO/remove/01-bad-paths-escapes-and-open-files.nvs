@@ -68,7 +68,7 @@ echo 'step 3: done', "\n";
 // `IOError`. Then the handle is read and closed, which must work or throw an error.
 string $open = Core\Path::join($dir, 'open.txt');
 Core\IO::write($open, 'still here');
-Core\IO\File $handle = Core\IO::open($open, Core\IO\FileMode::Read);
+Core\IO\File $handle = Core\IO::open($open, Core\IO::FileMode::Read);
 try {
     Core\IO::remove($open);
 } catch (IOError $locked) {

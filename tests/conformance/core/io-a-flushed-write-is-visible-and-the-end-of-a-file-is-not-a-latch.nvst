@@ -5,11 +5,11 @@
 // Novis holds no buffer of its own in front of the descriptor, so `flush` is a
 // statement about the operating system rather than about this class — and a
 // second handle on the same file is where that statement is observable.
-Core\IO\File $writer = Core\IO::open("journal.txt", Core\IO\FileMode::Write);
+Core\IO\File $writer = Core\IO::open("journal.txt", Core\IO::FileMode::Write);
 $writer->write("first\n");
 $writer->flush();
 
-Core\IO\File $reader = Core\IO::open("journal.txt", Core\IO\FileMode::Read);
+Core\IO\File $reader = Core\IO::open("journal.txt", Core\IO::FileMode::Read);
 echo "1: ", $reader->readLine() ?? "<end>", "\n";
 // The reader has caught up with the writer. That is an absence at a position,
 // not a state the handle enters.

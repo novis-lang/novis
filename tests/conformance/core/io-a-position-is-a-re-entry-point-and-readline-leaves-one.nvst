@@ -7,13 +7,13 @@
 // pins the answer: the position after a line is the first byte of the next one,
 // whatever the terminator was, and never somewhere inside the chunk that was
 // actually read from the descriptor.
-Core\IO\File $out = Core\IO::open("reentry.txt", Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open("reentry.txt", Core\IO::FileMode::Write);
 // Two terminators of different widths, so a position that counted the line
 // rather than its bytes lands wrong on the second.
 $out->write("alpha\nbeta\r\ngamma");
 $out->close();
 
-Core\IO\File $in = Core\IO::open("reentry.txt", Core\IO\FileMode::Read);
+Core\IO\File $in = Core\IO::open("reentry.txt", Core\IO::FileMode::Read);
 echo "1: ", $in->readLine() ?? "<end>", " @", $in->tell() as string, "\n";
 // The whole `\r\n` cluster is consumed, so this is 12 and not 11: one line's
 // terminator is not one byte.

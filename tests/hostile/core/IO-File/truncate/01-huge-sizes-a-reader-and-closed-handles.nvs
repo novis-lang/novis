@@ -10,7 +10,7 @@ string $path = Core\Path::join($dir, 'data.txt');
 Core\IO::write($path, 'keep this');
 
 // 1. The file grows to 1 MB and shrinks to 0, 10000 times. The handle must not move.
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 $file->seek(5);
 uint $i = 0;
 while ($i < 10000) {
@@ -35,7 +35,7 @@ echo 'step 2: done', "\n";
 // 3. A handle that can only read tries to empty the file 1000 times. Each try must throw
 // an `IOError`, and the file must keep its text.
 Core\IO::write($path, 'keep this');
-Core\IO\File $reader = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $reader = Core\IO::open($path, Core\IO::FileMode::Read);
 uint $thrown = 0;
 $i = 0;
 while ($i < 1000) {

@@ -25,7 +25,7 @@ int $placed = 0;    // and none of it moves the writer's own position
 
 foreach ($lengths as int $n) {
     string $payload = Core\Str::repeat("x", $n as uint);
-    Core\IO\File $w = Core\IO::open("agree.txt", Core\IO\FileMode::Write);
+    Core\IO\File $w = Core\IO::open("agree.txt", Core\IO::FileMode::Write);
     $w->write($payload);
     int $at = $w->tell() as int;
 
@@ -34,7 +34,7 @@ foreach ($lengths as int $n) {
     // had extended the file without the content following it would agree with
     // one of them and not the other.
     int $before = Core\IO::size("agree.txt") as int;
-    Core\IO\File $r = Core\IO::open("agree.txt", Core\IO\FileMode::Read);
+    Core\IO\File $r = Core\IO::open("agree.txt", Core\IO::FileMode::Read);
     int $got = Core\Str::length($r->read(20000)) as int;
     $r->close();
 
@@ -59,7 +59,7 @@ echo "position untouched: ", $placed, "/", $rows, "\n";
 // The empty end of the same statement: a flush with nothing behind it is not
 // an error and not a no-op the member is free to refuse — it is the same
 // agreement about no bytes, and it says so twice running.
-Core\IO\File $idle = Core\IO::open("idle.txt", Core\IO\FileMode::Write);
+Core\IO\File $idle = Core\IO::open("idle.txt", Core\IO::FileMode::Write);
 $idle->flush();
 echo "idle: ", Core\IO::size("idle.txt") as string, " at ", $idle->tell() as string, "\n";
 $idle->flush();

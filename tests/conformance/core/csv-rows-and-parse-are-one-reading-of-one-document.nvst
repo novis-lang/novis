@@ -22,11 +22,11 @@ int $agree = 0;
 foreach ($docs as string $doc) {
     $n = $n + 1;
 
-    Core\IO\File $out = Core\IO::open("one.csv", Core\IO\FileMode::Write);
+    Core\IO\File $out = Core\IO::open("one.csv", Core\IO::FileMode::Write);
     $out->write($doc);
     $out->close();
 
-    Core\IO\File $in = Core\IO::open("one.csv", Core\IO\FileMode::Read);
+    Core\IO\File $in = Core\IO::open("one.csv", Core\IO::FileMode::Read);
     string $walked = "";
     foreach (Core\Csv::rows($in) as array<string> $record) {
         foreach ($record as string $field) {
@@ -57,11 +57,11 @@ echo "agree ", $agree, "\n";
 // boundary lands in the middle of one of them, and a field that did not
 // survive it would show up as a record that is not `alpha,beta`.
 string $big = "k,v\n" . Core\Str::repeat("alpha,beta\n", 2000);
-Core\IO\File $sink = Core\IO::open("big.csv", Core\IO\FileMode::Write);
+Core\IO\File $sink = Core\IO::open("big.csv", Core\IO::FileMode::Write);
 $sink->write($big);
 $sink->close();
 
-Core\IO\File $source = Core\IO::open("big.csv", Core\IO\FileMode::Read);
+Core\IO\File $source = Core\IO::open("big.csv", Core\IO::FileMode::Read);
 int $long = 0;
 int $intact = 0;
 foreach (Core\Csv::rows($source, {header: true}) as array<string> $record) {

@@ -7,7 +7,7 @@
 // the next byte goes and this says how many bytes there are. Both are measured
 // from the start of the file, and neither takes an origin argument (`rule:core-api/shape-rules`
 // R3) because there is no other origin a length could have.
-Core\IO\File $out = Core\IO::open("cut.txt", Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open("cut.txt", Core\IO::FileMode::Write);
 $out->write("abcdefghij");
 $out->truncate(4);
 $out->close();
@@ -18,19 +18,19 @@ echo "size: ", Core\IO::size("cut.txt") as string, "\n";
 // already there (`fopen`'s `c+`), so what this asks is whether `truncate`
 // itself extends — and it does, with the same zero hole a write past the end
 // of a file leaves behind it.
-Core\IO\File $grow = Core\IO::open("cut.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $grow = Core\IO::open("cut.txt", Core\IO::FileMode::ReadWrite);
 $grow->truncate(9);
 $grow->close();
 echo "grown: ", Core\IO::size("cut.txt") as string, "\n";
 
 // The bytes that were there are still there, in front of the hole.
-Core\IO\File $back = Core\IO::open("cut.txt", Core\IO\FileMode::Read);
+Core\IO\File $back = Core\IO::open("cut.txt", Core\IO::FileMode::Read);
 echo "kept: ", $back->read(4), "\n";
 $back->close();
 
 // Zero is the smallest length rather than a separate operation, so emptying a
 // file is spelled out of the member that already sets one.
-Core\IO\File $empty = Core\IO::open("cut.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $empty = Core\IO::open("cut.txt", Core\IO::FileMode::ReadWrite);
 $empty->truncate(0);
 $empty->close();
 echo "empty: ", Core\IO::size("cut.txt") as string, "\n";

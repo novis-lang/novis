@@ -3,13 +3,13 @@
 --FILE--
 <?nvs
 // covers: Core\IO\File::read
-Core\IO\File $out = Core\IO::open("menu.txt", Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open("menu.txt", Core\IO::FileMode::Write);
 $out->write("café crème");
 $out->close();
 
 // `é` is two bytes. A ceiling of 4 bytes ends inside it, so the answer is "caf"
 // and the handle stays in front of `é`.
-Core\IO\File $in = Core\IO::open("menu.txt", Core\IO\FileMode::Read);
+Core\IO\File $in = Core\IO::open("menu.txt", Core\IO::FileMode::Read);
 echo "[", $in->read(4), "] at ", $in->tell() as string, "\n";
 
 // One byte cannot hold `é`. The read throws, and the handle does not move.

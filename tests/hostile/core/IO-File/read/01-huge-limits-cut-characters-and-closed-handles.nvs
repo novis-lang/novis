@@ -11,7 +11,7 @@ string $path = Core\Path::join($dir, 'data.txt');
 Core\IO::write($path, 'twelve bytes');
 
 // 1. A read asks for 4 TB from a file of 12 bytes. It must return the 12 bytes only.
-Core\IO\File $small = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $small = Core\IO::open($path, Core\IO::FileMode::Read);
 if (Core\Str::length($small->read(4000000000000)) != 12) {
     throw new LogicError('a huge limit read the wrong number of bytes');
 }
@@ -19,7 +19,7 @@ $small->close();
 echo 'step 1: done', "\n";
 
 // 2. A read of 0 bytes runs 100000 times. Each one returns an empty string.
-Core\IO\File $zero = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $zero = Core\IO::open($path, Core\IO::FileMode::Read);
 uint $i = 0;
 while ($i < 100000) {
     if (Core\Str::length($zero->read(0)) != 0) {
@@ -33,7 +33,7 @@ echo 'step 2: done', "\n";
 // 3. A file of 200000 "é" is read 3 bytes at a time, so every read ends inside a character.
 // No character may be lost.
 Core\IO::write($path, Core\Str::repeat('é', 200000));
-Core\IO\File $cut = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $cut = Core\IO::open($path, Core\IO::FileMode::Read);
 uint $characters = 0;
 string $part = $cut->read(3);
 while (Core\Str::length($part) > 0) {
@@ -49,7 +49,7 @@ echo 'step 3: done', "\n";
 // 4. The file is shortened so that it ends inside "é". Each read of the end must throw
 // a `RuntimeError`, 1000 times, and the position must not move.
 Core\IO::write($path, 'café');
-Core\IO\File $broken = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+Core\IO\File $broken = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 $broken->truncate(4);
 $broken->seek(3);
 uint $thrown = 0;
@@ -69,7 +69,7 @@ $broken->close();
 echo 'step 4: done', "\n";
 
 // 5. A handle that can only write is read. This must throw an `IOError`.
-Core\IO\File $writer = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $writer = Core\IO::open($path, Core\IO::FileMode::Write);
 try {
     $writer->read(10);
 } catch (IOError $refused) {
@@ -97,14 +97,14 @@ echo 'step 6: done', "\n";
 // so `read` must stop the program at its memory limit.
 echo "step 7\n";
 string $megabyte = Core\Str::repeat('x', 1048576);
-Core\IO\File $out = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open($path, Core\IO::FileMode::Write);
 $i = 0;
 while ($i < 32) {
     $out->write($megabyte);
     $i = $i + 1;
 }
 $out->close();
-Core\IO\File $huge = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $huge = Core\IO::open($path, Core\IO::FileMode::Read);
 echo 'step 7: reading', "\n";
 $huge->read(4000000000000);
 echo 'step 7: not reached', "\n";

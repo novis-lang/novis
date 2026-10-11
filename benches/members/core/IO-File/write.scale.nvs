@@ -8,7 +8,7 @@ class Bench
     public static function run(uint $size): uint
     {
         string $path = Core\Path::join(Core\IO::temporaryDir(), 'write.txt');
-        Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+        Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
         string $line = Core\Str::repeat('a', $size);
         uint $total = 0;
         uint $i = 0;

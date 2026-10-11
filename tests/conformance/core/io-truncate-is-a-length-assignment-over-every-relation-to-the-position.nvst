@@ -36,7 +36,7 @@ foreach ($positions as int $p) {
         // Each row starts from the same ten bytes. `ReadWrite` keeps what is
         // already on disk (`fopen`'s `c+`), so the reset is the member itself
         // followed by a write, not a second mode.
-        Core\IO\File $f = Core\IO::open("sweep.bin", Core\IO\FileMode::ReadWrite);
+        Core\IO\File $f = Core\IO::open("sweep.bin", Core\IO::FileMode::ReadWrite);
         $f->truncate(0);
         $f->seek(0);
         $f->write("abcdefghij");
@@ -77,7 +77,7 @@ echo "against the position: ", $below, " below, ", $at, " at, ", $above, " above
 // not say what it answered: a size the file already has. It is not a no-op the
 // member is free to skip and not a second spelling of `flush` — it is the same
 // assignment, and every byte and the position are where they were.
-Core\IO\File $same = Core\IO::open("sweep.bin", Core\IO\FileMode::ReadWrite);
+Core\IO\File $same = Core\IO::open("sweep.bin", Core\IO::FileMode::ReadWrite);
 $same->truncate(0);
 $same->seek(0);
 $same->write("abcdefghij");

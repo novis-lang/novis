@@ -7,13 +7,13 @@
 // unbounded wait on whatever other program holds the file. There is no such
 // spelling here: the lock is taken or it is refused, and there is no mode
 // argument to get wrong.
-Core\IO\File $first = Core\IO::open("shared.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $first = Core\IO::open("shared.txt", Core\IO::FileMode::ReadWrite);
 $first->lock();
 echo "held", "\n";
 
 // A second handle on the same file. Opening is not locking, so this part
 // succeeds; the lock does not, and it says so at once rather than waiting.
-Core\IO\File $second = Core\IO::open("shared.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $second = Core\IO::open("shared.txt", Core\IO::FileMode::ReadWrite);
 try {
     $second->lock();
     echo "two handles held one lock", "\n";

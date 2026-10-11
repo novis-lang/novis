@@ -1,6 +1,6 @@
 Opens a file and returns a handle that reads or writes it a part at a time.
 
-`Core\IO::open` takes the path and a `Core\IO\FileMode`. The mode says what the handle can do:
+`Core\IO::open` takes the path and a `Core\IO::FileMode`. The mode says what the handle can do:
 
 - `Read` reads a file that must already exist.
 - `Write` creates the file, or empties it if it is already there.

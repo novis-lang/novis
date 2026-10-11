@@ -18,7 +18,7 @@ class Attempt
                 echo "denied\n";
             }
             try {
-                Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+                Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
                 $file->truncate(0);
                 $file->close();
                 echo "emptied\n";

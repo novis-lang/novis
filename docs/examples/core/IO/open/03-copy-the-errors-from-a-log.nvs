@@ -6,8 +6,8 @@ string $source = Core\Path::join($dir, "app.log");
 string $target = Core\Path::join($dir, "errors.log");
 Core\IO::write($source, "INFO start\nERROR disk full\nINFO retry\nERROR disk full\nINFO stop\n");
 
-Core\IO\File $in = Core\IO::open($source, Core\IO\FileMode::Read);
-Core\IO\File $out = Core\IO::open($target, Core\IO\FileMode::Write);
+Core\IO\File $in = Core\IO::open($source, Core\IO::FileMode::Read);
+Core\IO\File $out = Core\IO::open($target, Core\IO::FileMode::Write);
 
 // `readLine` returns the next line without its line break. At the end of the file it returns `null`.
 // Only one line is in memory at a time, so this also works for a very large log.

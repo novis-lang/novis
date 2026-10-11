@@ -4,7 +4,7 @@
 string $path = Core\Path::join(Core\IO::temporaryDir(), "import.log");
 array<string> $steps = ["customers", "orders", "invoices"];
 
-Core\IO\File $log = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $log = Core\IO::open($path, Core\IO::FileMode::Write);
 foreach ($steps as string $step) {
     // A person can watch this log while the job runs. Each line is in the file after `flush`.
     $log->write("imported " . $step . "\n");

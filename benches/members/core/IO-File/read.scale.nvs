@@ -9,7 +9,7 @@ class Bench
     {
         string $path = Core\Path::join(Core\IO::temporaryDir(), 'read.txt');
         Core\IO::write($path, Core\Str::repeat('a', $size));
-        Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+        Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

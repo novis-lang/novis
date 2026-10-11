@@ -6,7 +6,7 @@ string $path = Core\Path::join(Core\IO::temporaryDir(), "app.log");
 string $quiet = Core\Str::repeat("INFO order saved\n", 5000);
 Core\IO::write($path, $quiet . "ERROR payment timed out\n" . $quiet . "ERROR disk is full\n");
 
-Core\IO\File $log = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $log = Core\IO::open($path, Core\IO::FileMode::Read);
 uint $number = 0;
 uint $errors = 0;
 ?string $line = $log->readLine();

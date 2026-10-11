@@ -3,7 +3,7 @@
 
 string $path = Core\Path::join(Core\IO::temporaryDir(), "stock.txt");
 
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
 $file->lock();
 $file->write("apples: 12\n");
 

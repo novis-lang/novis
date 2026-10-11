@@ -560,7 +560,7 @@ pub fn open_read(ctx: &Ctx, path: &Path, member: &str) -> Result<File, Fault> {
 /// Declared here rather than in `nvs-stdlib` because the capability question is this module's and
 /// the answer differs per variant: a door that took an already-built [`std::fs::OpenOptions`] could
 /// not ask what the caller intended, since nothing on that type reports back what was set. The
-/// surface enum a program writes is `Core\IO\FileMode`, which maps onto this one and adds nothing —
+/// surface enum a program writes is `Core\IO::FileMode`, which maps onto this one and adds nothing —
 /// the two are separate so that `nvs-runtime` does not learn a spelling from the standard library's
 /// roster, exactly as [`Scope`] is `nvs_config`'s rather than a `Core` type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -630,7 +630,7 @@ pub fn open(ctx: &Ctx, path: &Path, access: Access, member: &str) -> Result<File
 /// reason for taking the bytes.
 ///
 /// **`overwrite` is a parameter rather than another [`Access`] case**, because that enum is
-/// `Core\IO\FileMode`'s cases and nothing else: a case no mode spells would be a variant the
+/// `Core\IO::FileMode`'s cases and nothing else: a case no mode spells would be a variant the
 /// surface enum could never produce. And **`overwrite == false` refuses through the operating
 /// system** — `create_new`, which is `O_EXCL` — rather than through an [`exists`] call first: a check
 /// followed by a create is a window another process can create the file in, and `rule:core-classes/io-write-stream` makes

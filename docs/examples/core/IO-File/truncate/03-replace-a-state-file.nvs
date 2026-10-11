@@ -5,7 +5,7 @@
 
 string $path = Core\Path::join(Core\IO::temporaryDir(), "job-state.txt");
 Core\IO::write($path, "last order: 1041, status: running");
-Core\IO\File $state = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+Core\IO\File $state = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 $state->lock();
 
 // `truncate(0)` empties the file, and `seek(0)` moves the handle to the start.

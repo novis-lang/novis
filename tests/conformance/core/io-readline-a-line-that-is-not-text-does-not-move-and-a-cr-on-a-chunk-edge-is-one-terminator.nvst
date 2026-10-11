@@ -3,13 +3,13 @@
 --FILE--
 <?nvs
 // covers: Core\IO\File::readLine
-Core\IO\File $out = Core\IO::open("broken.txt", Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open("broken.txt", Core\IO::FileMode::Write);
 $out->write("abé\nnext\n");
 $out->close();
 
 // `é` is two bytes. Writing "x" over its first byte leaves a byte that is not
 // UTF-8, so the first line is no longer text.
-Core\IO\File $edit = Core\IO::open("broken.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $edit = Core\IO::open("broken.txt", Core\IO::FileMode::ReadWrite);
 $edit->seek(2);
 $edit->write("x");
 $edit->seek(0);
@@ -35,11 +35,11 @@ $edit->close();
 // `readLine` reads 8192 bytes at a time. Here the `\r` of a `\r\n` is byte 8192,
 // so the `\n` arrives in the next read. It is one terminator, and the handle
 // stands after both bytes.
-Core\IO\File $wide = Core\IO::open("edge.txt", Core\IO\FileMode::Write);
+Core\IO\File $wide = Core\IO::open("edge.txt", Core\IO::FileMode::Write);
 $wide->write(Core\Str::repeat("x", 8191));
 $wide->write("\r\nz\r");
 $wide->close();
-Core\IO\File $walk = Core\IO::open("edge.txt", Core\IO\FileMode::Read);
+Core\IO\File $walk = Core\IO::open("edge.txt", Core\IO::FileMode::Read);
 echo "long: ", Core\Str::length($walk->readLine() ?? "") as string, "\n";
 echo "at ", $walk->tell() as string, "\n";
 echo "next: [", $walk->readLine() ?? "<end>", "]\n";

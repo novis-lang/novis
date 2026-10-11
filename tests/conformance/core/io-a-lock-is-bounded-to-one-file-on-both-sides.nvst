@@ -7,9 +7,9 @@
 // program: one handle takes it, the next is refused, `close` puts it back.
 // What that implementation cannot do is the line below, and what tells the
 // two apart is naming the bound from *outside* as well as from inside.
-Core\IO\File $a = Core\IO::open("lock-a.txt", Core\IO\FileMode::ReadWrite);
-Core\IO\File $b = Core\IO::open("lock-b.txt", Core\IO\FileMode::ReadWrite);
-Core\IO\File $c = Core\IO::open("lock-c.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $a = Core\IO::open("lock-a.txt", Core\IO::FileMode::ReadWrite);
+Core\IO\File $b = Core\IO::open("lock-b.txt", Core\IO::FileMode::ReadWrite);
+Core\IO\File $c = Core\IO::open("lock-c.txt", Core\IO::FileMode::ReadWrite);
 $a->lock();
 $b->lock();
 $c->lock();
@@ -17,7 +17,7 @@ echo "three files, three locks", "\n";
 
 // The other side of the same bound, so that the three grants above are a
 // statement about files rather than a member that stopped refusing.
-Core\IO\File $again = Core\IO::open("lock-a.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $again = Core\IO::open("lock-a.txt", Core\IO::FileMode::ReadWrite);
 try {
     $again->lock();
     echo "one file, two locks", "\n";
@@ -29,7 +29,7 @@ try {
 // the path as spelled would hand this one out, and every case in this tree
 // would still be green — the refusal comes from the operating system, which
 // was never looking at the argument.
-Core\IO\File $spelled = Core\IO::open("./lock-b.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $spelled = Core\IO::open("./lock-b.txt", Core\IO::FileMode::ReadWrite);
 try {
     $spelled->lock();
     echo "a second spelling won its own lock", "\n";
@@ -49,7 +49,7 @@ try {
 } catch (IOError $stillA) {
     echo "a: still held", "\n";
 }
-Core\IO\File $onC = Core\IO::open("lock-c.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $onC = Core\IO::open("lock-c.txt", Core\IO::FileMode::ReadWrite);
 try {
     $onC->lock();
     echo "c went free as well", "\n";

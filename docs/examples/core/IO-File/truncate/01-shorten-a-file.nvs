@@ -3,7 +3,7 @@
 
 string $path = Core\Path::join(Core\IO::temporaryDir(), "list.txt");
 Core\IO::write($path, "milk\nbread\neggs\n");
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 
 // The first two lines are 11 bytes. This keeps them and deletes "eggs".
 $file->truncate(11);

@@ -5,7 +5,7 @@ Every member of `Core\IO\File` leaves the handle just past what it touched, and 
 // One question asked of every member of the roster: where did you leave the
 // handle? A member that grew a counter of its own would still answer its own
 // line plausibly and fail here.
-Core\IO\File $out = Core\IO::open("walk.txt", Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open("walk.txt", Core\IO::FileMode::Write);
 // A handle nothing has written to is at the start.
 echo "opened: ", $out->tell() as string, "\n";
 $out->write("abcdefghij");
@@ -23,7 +23,7 @@ $out->flush();
 echo "flushed: ", $out->tell() as string, "\n";
 $out->close();
 
-Core\IO\File $in = Core\IO::open("walk.txt", Core\IO\FileMode::Read);
+Core\IO\File $in = Core\IO::open("walk.txt", Core\IO::FileMode::Read);
 echo "reopened: ", $in->tell() as string, "\n";
 // A read of nothing is still a read, and it moves the handle by nothing.
 echo "none: [", $in->read(0), "] ", $in->tell() as string, "\n";

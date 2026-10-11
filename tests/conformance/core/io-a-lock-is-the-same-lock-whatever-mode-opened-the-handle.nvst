@@ -6,11 +6,11 @@
 // may take one — and the capability question was answered at `open` either
 // way, which `registry::CAPABILITIES` states as a `None` row for every member
 // of this class rather than leaving it to be inferred.
-Core\IO\File $seed = Core\IO::open("mode.txt", Core\IO\FileMode::Write);
+Core\IO\File $seed = Core\IO::open("mode.txt", Core\IO::FileMode::Write);
 $seed->write("body");
 $seed->close();
 
-Core\IO\File $reader = Core\IO::open("mode.txt", Core\IO\FileMode::Read);
+Core\IO\File $reader = Core\IO::open("mode.txt", Core\IO::FileMode::Read);
 $reader->lock();
 echo "a read handle holds it", "\n";
 
@@ -18,7 +18,7 @@ echo "a read handle holds it", "\n";
 // opened for writing is refused by one opened for reading. What the mode
 // decides is what a handle may do to the file, which is a different question
 // from who is holding it.
-Core\IO\File $writer = Core\IO::open("mode.txt", Core\IO\FileMode::ReadWrite);
+Core\IO\File $writer = Core\IO::open("mode.txt", Core\IO::FileMode::ReadWrite);
 try {
     $writer->lock();
     echo "the writer won", "\n";

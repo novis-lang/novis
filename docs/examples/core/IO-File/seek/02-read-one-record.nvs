@@ -5,7 +5,7 @@
 string $path = Core\Path::join(Core\IO::temporaryDir(), "fruit.dat");
 // Every record is 10 bytes: 9 characters and a line break.
 Core\IO::write($path, "apple    \nbanana   \ncherry   \ndate     \n");
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 uint $size = 10;
 array<uint> $wanted = [2, 0];
 

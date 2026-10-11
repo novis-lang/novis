@@ -3,7 +3,7 @@
 // Only one row is in memory at a time, however many rows there are.
 
 string $path = Core\Path::join(Core\IO::temporaryDir(), "orders.csv");
-Core\IO\File $out = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open($path, Core\IO::FileMode::Write);
 uint $bytes = $out->write("id,customer,total\n");
 
 uint $id = 1;

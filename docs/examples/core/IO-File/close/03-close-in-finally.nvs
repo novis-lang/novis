@@ -4,7 +4,7 @@
 string $path = Core\Path::join(Core\IO::temporaryDir(), "prices.txt");
 Core\IO::write($path, "12\n7\nfree\n30\n");
 
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 int $total = 0;
 try {
     ?string $line = $file->readLine();

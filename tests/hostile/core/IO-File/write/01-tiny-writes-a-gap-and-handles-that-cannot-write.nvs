@@ -9,7 +9,7 @@ Core\IO::makeDir($dir);
 string $path = Core\Path::join($dir, 'data.txt');
 
 // 1. 200000 writes of one byte each. The file must have 200000 bytes.
-Core\IO\File $tiny = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $tiny = Core\IO::open($path, Core\IO::FileMode::Write);
 uint $i = 0;
 while ($i < 200000) {
     $tiny->write('x');
@@ -22,7 +22,7 @@ if (Core\IO::size($path) != 200000) {
 echo 'step 1: done', "\n";
 
 // 2. 100000 writes of an empty string. Each one must return 0 and leave the position alone.
-Core\IO\File $nothing = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $nothing = Core\IO::open($path, Core\IO::FileMode::Write);
 $i = 0;
 while ($i < 100000) {
     if ($nothing->write('') != 0 || $nothing->tell() != 0) {
@@ -35,7 +35,7 @@ echo 'step 2: done', "\n";
 
 // 3. The position is moved 1 MB past the end of an empty file, and one byte is written there.
 // The file must grow to 1 MB and one byte.
-Core\IO\File $far = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $far = Core\IO::open($path, Core\IO::FileMode::Write);
 $far->seek(1048576);
 $far->write('x');
 $far->close();
@@ -45,7 +45,7 @@ if (Core\IO::size($path) != 1048577) {
 echo 'step 3: done', "\n";
 
 // 4. One write of 8 MB. It must return 8 MB, all of it.
-Core\IO\File $big = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $big = Core\IO::open($path, Core\IO::FileMode::Write);
 if ($big->write(Core\Str::repeat('é', 4194304)) != 8388608) {
     throw new LogicError('a large write was cut short');
 }
@@ -54,7 +54,7 @@ echo 'step 4: done', "\n";
 
 // 5. A handle that can only read is written 1000 times. Each `write` must throw an
 // `IOError`, and the file must not change.
-Core\IO\File $reader = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $reader = Core\IO::open($path, Core\IO::FileMode::Read);
 uint $thrown = 0;
 $i = 0;
 while ($i < 1000) {

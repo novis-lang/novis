@@ -4,7 +4,7 @@
 string $path = Core\Path::join(Core\IO::temporaryDir(), "notes.txt");
 Core\IO::write($path, "first note\n");
 
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 $file->close();
 
 // Reading from a closed handle throws a `RuntimeError`.

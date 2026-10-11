@@ -7,7 +7,7 @@
 // context's own table. A copy would hand the other side a key into **its**
 // table at the same index, so what crossed would read whatever that side has
 // open there. The walk refuses it naming the class instead.
-var $file = Core\IO::open('./data/note.txt', Core\IO\FileMode::Read);
+var $file = Core\IO::open('./data/note.txt', Core\IO::FileMode::Read);
 try {
     Core\Serialize::encode($file);
     echo "encoded an open file\n";

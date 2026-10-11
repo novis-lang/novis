@@ -10,7 +10,7 @@ string $dir = Core\IO::temporaryDir();
 // 1. A quoted field of eight megabytes that is never closed.
 string $unclosed = Core\Path::join($dir, 'unclosed.csv');
 Core\IO::write($unclosed, '"' . Core\Str::repeat('x', 8000000));
-Core\IO\File $first = Core\IO::open($unclosed, Core\IO\FileMode::Read);
+Core\IO\File $first = Core\IO::open($unclosed, Core\IO::FileMode::Read);
 uint $unended = 0;
 foreach (Core\Csv::rows($first) as array<string> $record) {
     $unended = $unended + 1;
@@ -21,7 +21,7 @@ echo '1 records in a file whose field never ends: ', $unended, "\n";
 // 2. Two hundred thousand records, read with one record held at a time.
 string $tall = Core\Path::join($dir, 'tall.csv');
 Core\IO::write($tall, Core\Str::repeat("a,b,c\n", 200000));
-Core\IO\File $second = Core\IO::open($tall, Core\IO\FileMode::Read);
+Core\IO\File $second = Core\IO::open($tall, Core\IO::FileMode::Read);
 uint $walked = 0;
 foreach (Core\Csv::rows($second) as array<string> $record) {
     $walked = $walked + 1;
@@ -32,7 +32,7 @@ echo '2 records read: ', $walked, "\n";
 // 3. One record of two hundred thousand fields.
 string $wide = Core\Path::join($dir, 'wide.csv');
 Core\IO::write($wide, Core\Str::repeat('a,', 200000) . "last\n");
-Core\IO\File $third = Core\IO::open($wide, Core\IO\FileMode::Read);
+Core\IO\File $third = Core\IO::open($wide, Core\IO::FileMode::Read);
 uint $fields = 0;
 foreach (Core\Csv::rows($third) as array<string> $record) {
     $fields = $fields + Core\Arr::count($record);
@@ -41,7 +41,7 @@ $third->close();
 echo '3 fields in one record: ', $fields, "\n";
 
 // 4. The handle is closed while the walk has read nothing yet.
-Core\IO\File $fourth = Core\IO::open($tall, Core\IO\FileMode::Read);
+Core\IO\File $fourth = Core\IO::open($tall, Core\IO::FileMode::Read);
 var $walk = Core\Csv::rows($fourth);
 $fourth->close();
 try {
@@ -55,7 +55,7 @@ try {
 }
 
 // 5. A dialect that asks for a line break as the separator.
-Core\IO\File $fifth = Core\IO::open($tall, Core\IO\FileMode::Read);
+Core\IO\File $fifth = Core\IO::open($tall, Core\IO::FileMode::Read);
 try {
     var $refused = Core\Csv::rows($fifth, { separator: "\n" });
     echo '5 a line break was accepted as the separator', "\n";

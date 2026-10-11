@@ -11916,7 +11916,7 @@ outside: refused
 | [`Core\IO::within`](#core-core-io-within) | `within(string $base, string $path): string` |
 | [`Core\IO::readText`](#core-core-io-readtext) | `readText(string $path, {charset?: Core\Charset}): string` |
 | [`Core\IO::lines`](#core-core-io-lines) | `lines(string $path): Core\IO\Lines` |
-| [`Core\IO::open`](#core-core-io-open) | `open(string $path, Core\IO\FileMode $mode): Core\IO\File` |
+| [`Core\IO::open`](#core-core-io-open) | `open(string $path, Core\IO::FileMode $mode): Core\IO\File` |
 | [`Core\IO::stdin`](#core-core-io-stdin) | `stdin(): tainted string` |
 
 <a id="core-core-io-read"></a>
@@ -12336,7 +12336,7 @@ Every line of a file, without its terminator — `file()` and the `fgets` loop t
 #### `Core\IO::open`
 
 ```nvs skip
-Core\IO::open(string $path, Core\IO\FileMode $mode): Core\IO\File
+Core\IO::open(string $path, Core\IO::FileMode $mode): Core\IO\File
 ```
 
 Opens a file and answers the handle every later read and write goes through — `fopen`, with the mode string replaced by an enum. Needs `fs.read` for `Read`, `fs.write` for `Write` and `Append`, and both for `ReadWrite`.
@@ -12344,7 +12344,7 @@ Opens a file and answers the handle every later read and write goes through — 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$path` | `string` (sink) | The file to open. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. |
-| `$mode` | `Core\IO\FileMode` | What the handle may do, as a `Core\IO\FileMode` case. |
+| `$mode` | `Core\IO::FileMode` | What the handle may do, as a `Core\IO::FileMode` case. |
 
 **Returns** `Core\IO\File` — An open `Core\IO\File`. It is closed by `close`, and by the end of the request if the program never calls it.
 
@@ -29488,7 +29488,7 @@ How much colour standard output can show. The cases ascend, so a sink degrading 
 | `Core\Cli::ColorDepth::Ansi256` | The 256-entry indexed palette, reported by a `TERM` naming `256color`. |
 | `Core\Cli::ColorDepth::TrueColor` | 24-bit colour, reported by `COLORTERM=truecolor` and by a Windows console that accepted virtual terminal processing. |
 
-<a id="enum-core-cli-shell"></a>
+<a id="enum-core-command-shell"></a>
 #### `Core\Command::Shell`
 
 Which shell `Core\Command::completions` writes a completion script for. Four cases and no catch-all: a script is generated in the named shell's own syntax, so a case with no generator behind it would complete nothing.
@@ -29519,16 +29519,16 @@ What a value is, once its static type is gone — ten cases, one per representat
 | `Core\Reflect::TypeKind::Object` | A class instance. A callable is also an object here, so there is no `Callable` case. |
 
 <a id="enum-core-io-filemode"></a>
-#### `Core\IO\FileMode`
+#### `Core\IO::FileMode`
 
 What an open handle may do. There is no binary or text mode: every handle reads and writes the bytes unchanged.
 
 | Case | Meaning |
 |---|---|
-| `Core\IO\FileMode::Read` | Reading only, from the start of a file that must already exist — `fopen`'s `r`. |
-| `Core\IO\FileMode::Write` | Writing only, emptying the file first and creating it if it is not there — `fopen`'s `w`. |
-| `Core\IO\FileMode::Append` | Writing only, always at the end whatever else has written since, creating the file if it is not there — `fopen`'s `a`. |
-| `Core\IO\FileMode::ReadWrite` | Both, creating the file if it is not there and emptying nothing — `fopen`'s `c+`, which is the one of its four `+` forms that surprises nobody. |
+| `Core\IO::FileMode::Read` | Reading only, from the start of a file that must already exist — `fopen`'s `r`. |
+| `Core\IO::FileMode::Write` | Writing only, emptying the file first and creating it if it is not there — `fopen`'s `w`. |
+| `Core\IO::FileMode::Append` | Writing only, always at the end whatever else has written since, creating the file if it is not there — `fopen`'s `a`. |
+| `Core\IO::FileMode::ReadWrite` | Both, creating the file if it is not there and emptying nothing — `fopen`'s `c+`, which is the one of its four `+` forms that surprises nobody. |
 
 <a id="enum-core-cldr-pluralcategory"></a>
 #### `Core\Cldr\PluralCategory`

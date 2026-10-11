@@ -5,11 +5,11 @@
 // The document holds the two things a reader fed a chunk at a time has to get
 // right: a quoted field holding the separator, and a quoted field holding a
 // terminator. Either one read as structure would change the record count.
-Core\IO\File $out = Core\IO::open("orders.csv", Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open("orders.csv", Core\IO::FileMode::Write);
 $out->write("name,qty,note\nfig,2,ripe\nplum,10,\"a, b\"\ndate,1,\"two\nlines\"\n");
 $out->close();
 
-Core\IO\File $in = Core\IO::open("orders.csv", Core\IO\FileMode::Read);
+Core\IO\File $in = Core\IO::open("orders.csv", Core\IO::FileMode::Read);
 // Naming a walk reads nothing — the handle is still at the start of the file,
 // so the first read is the first step of the `foreach` below. That is the
 // difference from `Core\IO::lines`, which has read the whole file by the time

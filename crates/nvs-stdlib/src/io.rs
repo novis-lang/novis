@@ -1196,7 +1196,7 @@ const OPEN_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "mode",
-            desc: "What the handle may do, as a `Core\\IO\\FileMode` case.",
+            desc: "What the handle may do, as a `Core\\IO::FileMode` case.",
             shape: &[],
         },
     ],
@@ -1241,9 +1241,9 @@ const STDIN_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\IO\FileMode`'s fully-qualified name, in one place for the same reason
+/// `Core\IO::FileMode`'s fully-qualified name, in one place for the same reason
 /// [`NAME`] is.
-pub(crate) const FILE_MODE_NAME: &str = r"Core\IO\FileMode";
+pub(crate) const FILE_MODE_NAME: &str = r"Core\IO::FileMode";
 
 /// Spec § 14's `FileMode` — R11's "an enum, never a mode string".
 ///
@@ -2242,7 +2242,7 @@ fn read_to_text(input: &mut impl std::io::Read) -> Result<Value, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\IO::open(string $path, Core\IO\FileMode $mode): Core\IO\File` —
+    /// `Core\IO::open(string $path, Core\IO::FileMode $mode): Core\IO\File` —
     /// replacing `fopen`.
     ///
     /// The door decides which capability the mode needs, this decides nothing,
@@ -2267,7 +2267,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// One `Core\IO\FileMode` case, as the access
+/// One `Core\IO::FileMode` case, as the access
 /// [`nvs_runtime::capability::open`] asks for.
 ///
 /// # Errors
@@ -5080,7 +5080,7 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// `Core\IO::open(path, mode)` under `ctx`, with `mode` as the `Core\IO\FileMode` case
+    /// `Core\IO::open(path, mode)` under `ctx`, with `mode` as the `Core\IO::FileMode` case
     /// index a call site passes, closing the handle it returned, or the message the refusal
     /// left in `ctx`.
     fn opened(ctx: &mut nvs_runtime::Ctx, path: &std::path::Path, mode: i64) -> Result<(), String> {
@@ -5243,7 +5243,7 @@ mod tests {
         );
     }
 
-    /// `Core\IO\FileMode::ReadWrite`'s case index, as a call site passes it.
+    /// `Core\IO::FileMode::ReadWrite`'s case index, as a call site passes it.
     const READ_WRITE: i64 = 3;
 
     /// A context granting `fs.read` and `fs.write` everywhere, for the handle members, whose

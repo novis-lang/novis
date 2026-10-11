@@ -11,7 +11,7 @@ string $path = Core\Path::join($dir, 'data.txt');
 
 // 1. A file of 100000 empty lines. Each one must be an empty string, and then `null`.
 Core\IO::write($path, Core\Str::repeat("\n", 100000));
-Core\IO\File $empty = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $empty = Core\IO::open($path, Core\IO::FileMode::Read);
 uint $lines = 0;
 ?string $line = $empty->readLine();
 while ($line != null) {
@@ -31,7 +31,7 @@ echo 'step 1: done', "\n";
 // once as `\r\n` and once as a lone `\r`. No line and no byte may be lost.
 string $long = Core\Str::repeat('x', 8191);
 Core\IO::write($path, Core\Str::repeat($long . "\r\n" . $long . "\r", 100));
-Core\IO\File $edge = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $edge = Core\IO::open($path, Core\IO::FileMode::Read);
 $lines = 0;
 $line = $edge->readLine();
 while ($line != null) {
@@ -50,7 +50,7 @@ echo 'step 2: done', "\n";
 // 3. "x" is written over the first byte of "é", so the first line is not text.
 // Each read of it must throw a `RuntimeError`, 1000 times, and the position must not move.
 Core\IO::write($path, "abé\nnext\n");
-Core\IO\File $broken = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+Core\IO\File $broken = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 $broken->seek(2);
 $broken->write('x');
 $broken->seek(0);
@@ -71,7 +71,7 @@ $broken->close();
 echo 'step 3: done', "\n";
 
 // 4. A handle that can only write is read. This must throw an `IOError`.
-Core\IO\File $writer = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $writer = Core\IO::open($path, Core\IO::FileMode::Write);
 try {
     $writer->readLine();
 } catch (IOError $refused) {
@@ -99,14 +99,14 @@ echo 'step 5: done', "\n";
 // 16 MB, so `readLine` must stop the program at its memory limit.
 echo "step 6\n";
 string $megabyte = Core\Str::repeat('x', 1048576);
-Core\IO\File $out = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open($path, Core\IO::FileMode::Write);
 $i = 0;
 while ($i < 32) {
     $out->write($megabyte);
     $i = $i + 1;
 }
 $out->close();
-Core\IO\File $huge = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $huge = Core\IO::open($path, Core\IO::FileMode::Read);
 echo 'step 6: reading', "\n";
 $huge->readLine();
 echo 'step 6: not reached', "\n";

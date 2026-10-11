@@ -6,7 +6,7 @@
 // Three terminators in one file, because a text file arriving from somewhere
 // else is the ordinary case: `\n`, `\r\n` and a lone `\r` all end a line, and
 // `Core\Str::lines` is the one place that decides so.
-Core\IO\File $out = Core\IO::open("mixed.txt", Core\IO\FileMode::Write);
+Core\IO\File $out = Core\IO::open("mixed.txt", Core\IO::FileMode::Write);
 $out->write("alpha\nbeta\r\ngamma\rdelta");
 // Nothing of Novis's own is buffered in front of the descriptor, so this is a
 // statement about the operating system and not about the disk.
@@ -16,7 +16,7 @@ $out->close();
 // The terminator is consumed and never handed back, which is where this parts
 // company with `fgets`: PHP's answer keeps the newline and every correct caller
 // then writes the same `rtrim`.
-Core\IO\File $in = Core\IO::open("mixed.txt", Core\IO\FileMode::Read);
+Core\IO\File $in = Core\IO::open("mixed.txt", Core\IO::FileMode::Read);
 echo "1: ", $in->readLine() ?? "<end>", "\n";
 echo "2: ", $in->readLine() ?? "<end>", "\n";
 echo "3: ", $in->readLine() ?? "<end>", "\n";
@@ -38,7 +38,7 @@ echo "lines: ", $joined, "\n";
 // `readLine` leaves the handle exactly past the terminator, so a `read` after
 // one continues where the line stopped rather than where a buffer happened to
 // end.
-Core\IO\File $mixed = Core\IO::open("mixed.txt", Core\IO\FileMode::Read);
+Core\IO\File $mixed = Core\IO::open("mixed.txt", Core\IO::FileMode::Read);
 echo "first: ", $mixed->readLine() ?? "<end>", "\n";
 echo "then: ", $mixed->read(2), "\n";
 echo "rest: ", $mixed->readLine() ?? "<end>", "\n";

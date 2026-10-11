@@ -9,14 +9,14 @@ string $path = Core\Path::join($dir, 'shared.lock');
 
 // 1. The first handle takes the lock. 500 more handles try, and each `lock` must throw an `IOError`.
 // The system may run out of file handles first. Then `open` throws an `IOError` too.
-Core\IO\File $holder = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+Core\IO\File $holder = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 $holder->lock();
 array<Core\IO\File> $others = [];
 uint $refused = 0;
 try {
     uint $i = 0;
     while ($i < 500) {
-        Core\IO\File $other = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+        Core\IO\File $other = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
         $others[] = $other;
         try {
             $other->lock();
@@ -59,7 +59,7 @@ foreach ($others as Core\IO\File $other) {
 echo 'step 3: done', "\n";
 
 // 4. A handle that can only read asks for the lock. This must work or throw an `IOError`.
-Core\IO\File $reader = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $reader = Core\IO::open($path, Core\IO::FileMode::Read);
 try {
     $reader->lock();
 } catch (IOError $refusedRead) {
@@ -80,6 +80,6 @@ if ($locked) {
 echo 'step 5: done', "\n";
 
 // 6. A handle takes a lock and is never closed. The program ends and Novis must release it.
-Core\IO\File $kept = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+Core\IO\File $kept = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 $kept->lock();
 echo 'step 6: done', "\n";

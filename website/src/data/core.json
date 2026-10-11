@@ -18184,7 +18184,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "open(string $path, Core\\IO\\FileMode $mode): Core\\IO\\File",
+          "signature": "open(string $path, Core\\IO::FileMode $mode): Core\\IO\\File",
           "params": [
             {
               "kind": "param",
@@ -18197,7 +18197,7 @@
             {
               "kind": "param",
               "name": "mode",
-              "type": "Core\\IO\\FileMode",
+              "type": "Core\\IO::FileMode",
               "default": null,
               "optional": false,
               "variadic": false
@@ -18219,7 +18219,7 @@
               },
               {
                 "name": "mode",
-                "descHtml": "What the handle may do, as a <code>Core\\IO\\FileMode</code> case."
+                "descHtml": "What the handle may do, as a <code>Core\\IO::FileMode</code> case."
               }
             ],
             "returnHtml": "An open <code>Core\\IO\\File</code>. It is closed by <code>close</code>, and by the end of the request if the program never calls it.",

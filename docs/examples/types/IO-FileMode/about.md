@@ -1,5 +1,7 @@
 What an open file is allowed to do, and what opening it does to whatever is already in the file.
 
+`Core\IO::FileMode` is declared in the class `Core\IO`. The method `open` takes it.
+
 There are four. `Read` only reads, from a file that must already exist. `Write` only writes, and
 empties the file the moment you open it, creating it if it is not there. `Append` only writes, always
 at the end, keeps what is there, and creates the file if it is not there. `ReadWrite` does both,

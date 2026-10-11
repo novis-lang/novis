@@ -3,7 +3,7 @@
 // The program never reads the start of the file, however large it is.
 
 string $path = Core\Path::join(Core\IO::temporaryDir(), "app.log");
-Core\IO\File $log = Core\IO::open($path, Core\IO\FileMode::Write);
+Core\IO\File $log = Core\IO::open($path, Core\IO::FileMode::Write);
 uint $i = 1;
 while ($i <= 5000) {
     $log->write("request " . $i as string . " done\n");
@@ -12,7 +12,7 @@ while ($i <= 5000) {
 $log->close();
 
 // The last 60 bytes start at the file size minus 60.
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 $file->seek(Core\IO::size($path) - 60);
 string $end = $file->read(60);
 $file->close();

@@ -4,7 +4,7 @@
 string $path = Core\Path::join(Core\IO::temporaryDir(), "shopping.txt");
 Core\IO::write($path, "bread\nmilk\napples\n");
 
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 // `readLine` returns the next line without its line break.
 // At the end of the file it returns `null`, and the loop stops.
 ?string $line = $file->readLine();

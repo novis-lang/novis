@@ -7,7 +7,7 @@ class Bench {
     public static function run(uint $rounds): uint {
         string $path = Core\Path::join(Core\IO::temporaryDir(), "read.txt");
         Core\IO::write($path, Core\Str::repeat("order 1042 shipped\n", 1000));
-        Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+        Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
         string $part = "";
         uint $total = 0;
         uint $i = 0;

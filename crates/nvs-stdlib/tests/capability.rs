@@ -649,8 +649,8 @@ impl Files for Fake {
 /// `pub(crate)`, so a test outside the crate names it the way a program does.
 const FILE: &str = r"Core\IO\File";
 
-/// `Core\IO\FileMode`, likewise.
-const FILE_MODE: &str = r"Core\IO\FileMode";
+/// `Core\IO::FileMode`, likewise.
+const FILE_MODE: &str = r"Core\IO::FileMode";
 
 #[test]
 fn an_open_file_is_an_object_and_never_a_resource() {
@@ -743,7 +743,7 @@ fn a_file_mode_is_an_enum_and_never_a_string() {
     let mode = nvs_stdlib::registry::ENUMS
         .iter()
         .find(|declared| declared.name == FILE_MODE)
-        .expect("`Core\\IO\\FileMode` is registered");
+        .expect("`Core\\IO::FileMode` is registered");
     let names: Vec<&str> = mode.cases.iter().map(|(name, _)| *name).collect();
     assert_eq!(
         names,

@@ -10,7 +10,7 @@ string $path = Core\Path::join($dir, 'data.txt');
 Core\IO::write($path, '0123456789');
 
 // 1. The handle moves 100000 times and reads one byte each time. Every byte must be right.
-Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 uint $i = 0;
 while ($i < 100000) {
     $file->seek($i % 10);
@@ -37,7 +37,7 @@ $file->close();
 echo 'step 2: done', "\n";
 
 // 3. A write 1 MB past the end must fill the gap with zero bytes.
-Core\IO\File $writer = Core\IO::open($path, Core\IO\FileMode::ReadWrite);
+Core\IO\File $writer = Core\IO::open($path, Core\IO::FileMode::ReadWrite);
 $writer->seek(1048586);
 $writer->write('!');
 $writer->close();
