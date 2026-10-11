@@ -20,7 +20,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 4
     title: "shaping and barcodes in `Novis\\Image`"
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/image-one-entry-point-per-job]
@@ -791,29 +791,27 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 4's three items are written and committed, and each of its three checks passes when run alone. The full `looper verify` has not run: the session reached its context budget first.** Stage 4 stays `open` until it is green.
+**Stage 4 is done: `looper verify` is green and its three checks pass.** Stage 5 has not started.
 
-- `Image::text` shapes through `harfrust` 0.12 in bidi runs from `unicode-bidi`, in `extensions/image/src/text.rs`; `ab_glyph` still draws the outlines. `ttf-parser` and the hand-written `GPOS` kerning are gone. A run is shaped as the script of its first letter, so a line mixing two scripts in one direction is shaped as one of them.
-- The shaping fixtures are three Noto fonts under `extensions/image/fixtures/`, with `NotoSans-OFL.txt`. They are test inputs only and are not embedded.
-- `extensions/image/src/barcode.rs` draws every symbology. It never computes a check digit: EAN-13, EAN-8, UPC-A and ITF-14 take their full length, and GS1-128 takes `(AI)value` element strings and checks the GTIN and the SSCC. Its `svg` writes `qr`'s SVG too. A 1D code's `text` prints in Liberation Sans through `pdf::sans`.
-- `Barcode.nvs`, `QrCode::svg` and `QrCode::giroCode` are Novis source. `giroCode` checks the IBAN's mod-97 sum, the field lengths and the amount's decimals, and writes all eleven EPC lines.
-- `rxing` 0.9 is a workspace dev-dependency of `nvs-ext` alone. It needs its `encoding_rs` feature to compile with its defaults off. The GiroCode test is in `crates/nvs-cli/tests/image_barcode.rs`, because a Novis-source member runs only through the binary. Both targets answer `cargo test --test image_barcode`.
-- `cargo deny` passes over the image component's graph and over the root. `THIRD-PARTY-LICENSES.txt` is regenerated.
-- The embedded size in `extensions/image/src/lib.rs`'s module doc still says 13.7 MiB. `crates/nvs-ext/tests/builtin.rs` fails if the new crates moved it past 5%.
+- `Image::text` shapes through `harfrust` in `unicode-bidi` runs (`extensions/image/src/text.rs`). `Novis\Image\Barcode` and `QrCode::svg` and `QrCode::giroCode` are on disk, read back by `rxing` in `crates/nvs-ext/tests/image_barcode.rs` and `crates/nvs-cli/tests/image_barcode.rs`.
+- The image component is 14.4 MiB embedded (`extensions/image/src/lib.rs`'s module doc).
+- `bun nv proofs --comments extensions/image/nvs` still names `Image.nvs` and `Font.nvs`, which predate this goal: member docs of three to five lines, and one 26-word sentence at `extensions/image/nvs/Image.nvs:412`. Stage 16's comment gate covers the example trees, not these.
+- `nvs-stdlib`'s lib tests failed once beside the other test binaries and passed alone, with `Core\Process::spawn` exit-hook errors in the log. It passed on the next run and is outside this goal.
 - `looper lint` reports AGENTS.md's managed text as edited by hand. `bun nv plan --check` has six findings for M4, M8 and M10. Both predate this goal.
 
 ### Next
 
-**Stage 4's close, then Stage 5**: the file set is `extensions/image/src/lib.rs`, `crates/nvs-ext/tests/builtin.rs` and the Stage 4 files already on disk.
+**Stage 5, the PDF component is built in**: the file set is `extensions/pdf/` (new), `crates/nvs-ext/build.rs`, `crates/nvs-ext/src/builtin.rs`, `crates/nvs-ext/src/load.rs` and `crates/nvs-ext/tests/pdf.rs` (new).
 
-- [ ] **Run `looper verify`** and fix what it names. The likely ones are clippy over `extensions/image/src/barcode.rs:1` and `extensions/image/src/text.rs:1`, and the size figure at `extensions/image/src/lib.rs:31` against `crates/nvs-ext/tests/builtin.rs:1` (`rule:packaging/the-first-party-components-are-built-in`). Then set Stage 4 `done`.
-- [ ] **`bun nv proofs --comments extensions/image/nvs`** over `extensions/image/nvs/Barcode.nvs:1` and `extensions/image/nvs/QrCode.nvs:1`, and the conformance case `tests/conformance/novis/image-a-barcode-renders-as-svg.nvst:1` (`rule:core-classes/image-barcode-roster`).
-- [ ] **Stage 5, the PDF component is built in**: `extensions/pdf/` as a crate beside `extensions/image/Cargo.toml:1`, packed by `crates/nvs-ext/build.rs:1` (`rule:core-classes/pdf-one-engine`).
+- [ ] **The crate**: `extensions/pdf/` in the shape of `extensions/image/Cargo.toml:1`, with `html5ever` patched to `vendor/html5ever` as the root does at `Cargo.toml:1173`, implementing `wit/pdf.wit` (`rule:core-classes/pdf-one-engine`).
+- [ ] **Built in**: a third entry in `crates/nvs-ext/build.rs:115`'s `COMPONENTS` and a `PDF` beside `crates/nvs-ext/src/builtin.rs:18`, loaded as `crates/nvs-ext/src/load.rs:667` loads the others (`rule:packaging/the-first-party-components-are-built-in`).
+- [ ] **The asset map, the writer and the fonts**: names resolve only against the map and `data:`, `krilla` output is byte-equal with no timestamp, and the Liberation set beside `extensions/image/src/lib.rs:31` is the default (`rule:core-classes/pdf-render-has-no-io`). Pinned by `cargo test --test pdf` and the two Stage 5 conformance cases.
+
 ### Backlog
 
 - SVG `<text>`: turn on `usvg`'s `text` feature with the Liberation fonts as its only `fontdb` (`rule:core-classes/image-format-roster`).
 - The PDF fixtures still owed by `rule:core-classes/pdf-decode-refusals`: an external reference, a JavaScript action and an embedded file, and one per object that throws. The guest-against-native benchmark is owed by `rule:core-classes/pdf-page-is-an-image-source`.
 - `hayro`'s `embed-cmaps`, which draws CJK text in a predefined CMap, is not taken. Its size is not measured (`rule:core-classes/pdf-page-is-an-image-source`).
-- Stages 5 to 13: `extensions/pdf/` built in, with its own `cargo deny` check, then the cascade, layout, pagination, header functions, tables, standards and existing PDFs.
+- Stages 6 to 13: the cascade, layout, pagination, header functions, tables, standards and existing PDFs, each in its stage of this file.
 - Stages 14 to 16: growth and benches, the editor's custom data, the feature proofs.
 - veraPDF as an external validator of PDF/A and PDF/UA output in CI is not in the acceptance. `krilla`'s own validation is. Adding it is the user's call.
