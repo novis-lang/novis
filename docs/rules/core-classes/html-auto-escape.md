@@ -35,3 +35,5 @@ other fragment, and `Markup` keeps its one slot.
 - **`Markup . string` escapes and lifts the other operand.** `.` produces a `string`, so composing a
   carrier through it loses exactly what the carrier carries, and an operator that escaped silently
   would bring back the invisible second transform `rule:security/launderer-answers-a-carrier` removes.
+  And `.` would give a `string` or a `Markup` depending on its operands, so a reader could not tell
+  what `$a . $b` is without knowing both types.

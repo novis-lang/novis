@@ -505,8 +505,10 @@ other fragment, and `Markup` keeps its one slot.
 - **`Markup . string` escapes and lifts the other operand.** `.` produces a `string`, so composing a
   carrier through it loses exactly what the carrier carries, and an operator that escaped silently
   would bring back the invisible second transform [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier) removes.
+  And `.` would give a `string` or a `Markup` depending on its operands, so a reader could not tell
+  what `$a . $b` is without knowing both types.
 
-<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0266](../decisions/0266.md).</sub>
 
 <a id="core-classes-html-template"></a>
 
@@ -588,7 +590,28 @@ segments could only ever be plain text, which needs no trust, because
 string is already accepted everywhere the carrier is. A third carrier is measured against that
 predicate rather than against the count.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration`](types.md#types-duration), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0169](../decisions/0169.md), [0202](../decisions/0202.md), [0213](../decisions/0213.md).</sub>
+**What it spends is surface, not memory.** It is one more literal form, with a `nvs fmt` layout, an
+editor region and a converter row behind it, and a reader meets two ways to write markup: a page of
+inline HTML, and an expression that returns a fragment. It also makes the sink's blind spot easier to
+write into: ``html`<a href="{$url}">` `` lets a `javascript:` URL through exactly as
+`<a href="<?= $url ?>">` does, and convenience raises how often that is written. In return, PHP's
+`'<b>' . htmlspecialchars($x) . '</b>'` has one faithful Novis form, ``html`<b>{$x}</b>` ``.
+
+**Declined:**
+- **A template that refuses the holes it cannot escape correctly**: an unquoted attribute, a URL
+  attribute, an `on*` handler, a `<script>` or `<style>` body, a tag or attribute name, a comment body.
+  It would make the template stricter than `<?= ?>`, so the same hazard would be an error in the newer
+  syntax and legal in the older one. It would also need the compiler to hold an HTML position model.
+  The hazard belongs to the sink, where one answer covers both spellings.
+- **A bare string literal lifted implicitly in a sink position.** `echo '<b>' . $x` and
+  `echo '<b>', $x` would produce different documents with nothing visible to say why, and `+` would
+  stay as it was.
+- **No template form, leaving fragments to the framework's template files.** `Web\Response::view`
+  renders a page ([`programs/first-party-framework`](programs.md#programs-first-party-framework)); a function returning a table row or a
+  component is expression position, which is where the ceremony was.
+- **A ``text`…` `` form for `Core\Cli\Text`, for symmetry.** It fails the predicate above.
+
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration`](types.md#types-duration), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0202](../decisions/0202.md), [0213](../decisions/0213.md).</sub>
 
 <a id="core-classes-html-later"></a>
 

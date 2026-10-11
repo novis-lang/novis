@@ -2,7 +2,6 @@
   "title": "Every construct PER never saw — qualifiers, `lateinit`, `fn` anonymous functions, `match`, anonymous objects, shape types, enum cases, html templates, a `?>` on its own line — has exactly one layout",
   "status": "shipped",
   "because": [
-    "0169",
     "0267"
   ],
   "seeAlso": [
