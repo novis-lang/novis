@@ -13,7 +13,9 @@ formatted output for one file only holds while there is one implementation to ag
 inline-HTML region the services and the formatter are the editor's own HTML ones
 (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`): the client forwards to them on
 boundaries the server reports and implements neither. So byte-identical formatted output across the two
-editors holds for the Novis bytes of a file; its markup bytes are each editor's HTML formatter's.
+editors holds for the Novis bytes of a file; its markup bytes are each editor's HTML formatter's. The
+client's format pass is its most intricate code, chunks, stand-ins, the base column and refusing an edit
+that reaches a hole, and all of it is over text the server delimited and none of it is language logic.
 
 The VS Code extension (`rule:ide/vscode-is-the-reference-client`) and the PhpStorm plugin
 (`rule:ide/phpstorm-bridges-to-the-same-server`) are the two clients, and a dependency-allowlist test on

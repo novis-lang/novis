@@ -1,9 +1,7 @@
 {
   "title": "Language smarts and formatting of Novis have one implementation each, `nvs-lsp` and `nvs-fmt`, and an editor client holds none of either",
   "status": "designed",
-  "because": [
-    "0173"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/vscode-is-the-reference-client",
     "ide/phpstorm-bridges-to-the-same-server",

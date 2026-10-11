@@ -75,7 +75,7 @@ const HOLE = "<?= $name ?>";
 // Markup inside a `for` body, which is where a chunk's base is not column zero. `nvs fmt` puts the
 // `?>` at the depth of the block it sits in (`rule:tooling/fmt-novis-constructs`), so this is a
 // file that pass has already been over, and the markup under it is what the client lays out from
-// there (ADR 0173 § 3).
+// there (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`).
 const LOOP = [
   "<?nvs",
   "for ($row = 0; $row < 3; $row = $row + 1) {",
