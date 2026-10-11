@@ -4,23 +4,8 @@
 // Every part must stay in its own place.
 use Core\Http\Method;
 
-try {
-    // 1. The visitor's text copies the form of a part. It is escaped and stays text.
-    var $fake = Core\Test::request(
-        Method::Post,
-        '/fake',
-        { body: "<template for=\"nvs-AAAAAAAAAAAAAAAA-0\"><script>alert(1)</script></template>" },
-    );
-    echo 'step 1 ', $fake->status(), "\n", $fake->body();
-
-    // 2. A part calls `slotted` after the main script ended. It throws a `LogicError`.
-    var $late = Core\Test::request(Method::Get, '/late');
-    echo 'step 2 ', $late->status(), "\n", $late->body();
-
-    // 3. The page starts 2000 parts. Each one is sent to its own place.
-    var $many = Core\Test::request(Method::Get, '/many');
-    echo 'step 3 ', $many->status(), ' ', Core\Str::length($many->body()), "\n";
-} catch (RuntimeError $insideTheRequest) {
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part is the page. It writes a different page for each path.
     Core\Response::slotted();
     tainted string $path = Core\Request::path();
     if ($path == '/fake') {
@@ -42,4 +27,20 @@ try {
             $i = $i + 1;
         }
     }
+} else {
+    // 1. The visitor's text copies the form of a part. It is escaped and stays text.
+    var $fake = Core\Test::request(
+        Method::Post,
+        '/fake',
+        { body: "<template for=\"nvs-AAAAAAAAAAAAAAAA-0\"><script>alert(1)</script></template>" },
+    );
+    echo 'step 1 ', $fake->status(), "\n", $fake->body();
+
+    // 2. A part calls `slotted` after the main script ended. It throws a `LogicError`.
+    var $late = Core\Test::request(Method::Get, '/late');
+    echo 'step 2 ', $late->status(), "\n", $late->body();
+
+    // 3. The page starts 2000 parts. Each one is sent to its own place.
+    var $many = Core\Test::request(Method::Get, '/many');
+    echo 'step 3 ', $many->status(), ' ', Core\Str::length($many->body()), "\n";
 }

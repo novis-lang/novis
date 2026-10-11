@@ -1,12 +1,9 @@
 <?nvs
 // Shows how `deadline` stops a slow part, so it does not make the whole page wait.
 
-// The program sends a request to itself and prints the page it gets back.
-// Inside that request, `Core\Test::request` throws an error, so the `catch` block runs.
-try {
-    var $page = Core\Test::request(Core\Http\Method::Get, "/today");
-    echo $page->body();
-} catch (RuntimeError $insideTheRequest) {
+// `Core\Test::request` runs this file again for the request. In that run,
+// `Core\Env::context()` returns `Request`, and this part writes the page.
+if (Core\Env::context() == Core\Env::Context::Request) {
     // This anonymous function needs 2 seconds, but its `deadline` is 50 ms.
     // After 50 ms it stops, and the page shows the `error` markup instead.
     Core\Html\Markup $weather = Core\Html::later(fn(): Core\Html\Markup => {
@@ -18,4 +15,8 @@ try {
     Core\Html\Markup $news = Core\Html::later(fn(): Core\Html\Markup => html`<p>The blog has a new post.</p>`);
 
     echo html`<h1>Today</h1>`, "\n", $news, "\n", $weather, "\n";
+} else {
+    // From the command line, this part sends the request and prints the page.
+    var $page = Core\Test::request(Core\Http\Method::Get, "/today");
+    echo $page->body();
 }

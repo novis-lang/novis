@@ -1,12 +1,9 @@
 <?nvs
 // Shows how `Core\Response::slotted()` sends a page first and its slow parts later.
 
-// The program sends a request to itself and prints the page it gets back.
-// Inside that request, `Core\Test::request` throws an error, so the `catch` block runs.
-try {
-    var $page = Core\Test::request(Core\Http\Method::Get, "/");
-    echo $page->body();
-} catch (RuntimeError $insideTheRequest) {
+// `Core\Test::request` runs this file again for the request. In that run,
+// `Core\Env::context()` returns `Request`, and this part writes the page.
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The page is sent when the main script ends. Each part follows when it is ready.
     Core\Response::slotted();
 
@@ -22,4 +19,8 @@ try {
 
     // The finished page has each part in the place of its placeholder.
     echo html`<h1>Welcome back</h1>`, "\n", $posts, "\n", $offers, "\n";
+} else {
+    // From the command line, this part sends the request and prints the page.
+    var $page = Core\Test::request(Core\Http\Method::Get, "/");
+    echo $page->body();
 }

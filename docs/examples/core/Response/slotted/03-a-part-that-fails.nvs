@@ -1,12 +1,9 @@
 <?nvs
 // Shows what a page sent with `Core\Response::slotted()` contains when one part fails.
 
-// The program sends a request to itself and prints the status and the page.
-// Inside that request, `Core\Test::request` throws an error, so the `catch` block runs.
-try {
-    var $page = Core\Test::request(Core\Http\Method::Get, "/shop/garden-chair");
-    echo $page->status(), "\n", $page->body();
-} catch (RuntimeError $insideTheRequest) {
+// `Core\Test::request` runs this file again for the request. In that run,
+// `Core\Env::context()` returns `Request`, and this part writes the page.
+if (Core\Env::context() == Core\Env::Context::Request) {
     Core\Response::slotted();
 
     // The anonymous function throws an error, so the `error` markup is sent in its place.
@@ -16,4 +13,8 @@ try {
 
     // The status was sent with the page, so it is still 200.
     echo html`<h1>Garden chair</h1>`, "\n", $reviews, "\n";
+} else {
+    // From the command line, this part sends the request and prints the status and the page.
+    var $page = Core\Test::request(Core\Http\Method::Get, "/shop/garden-chair");
+    echo $page->status(), "\n", $page->body();
 }
