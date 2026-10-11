@@ -1,9 +1,7 @@
 {
   "title": "Each open document is analysed as its own entry point, with open buffers overlaid on disk, and diagnostics are published only for open documents",
   "status": "designed",
-  "because": [
-    "0207"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/the-server-is-synchronous",
     "programs/autoload",

@@ -17,7 +17,8 @@ lands it on.
 
 - **The file's own declarations win.** A prefix both declare is the file's.
 - **A lender never borrows.** A file that declares `autoload` has a map of its own, and the server
-  analyses it through exactly that one, as `nvs check` does.
+  analyses it through exactly that one, as `nvs check` does. A bootstrap file is read by the walk of
+  every test program that requires it, and without this it would borrow copies of its own declarations.
 - **A borrowed declaration reports nothing**, a duplicate and a malformed glob included. Its position is
   in a file this walk never read, and the lender's own analysis is where it is reported.
 - **One lender lends, never a union.** Two programs over one source tree may give one prefix different
@@ -30,7 +31,9 @@ lands it on.
 - **The lender's declaring files are dependencies of the borrowing analysis**, so an edit to one
   re-analyses and republishes every open document that borrowed from it. An edit to a file the lender
   read repeats its walk only when the edited text holds `require`, since only a `require` can change what
-  the walk reads; an edit to any other file costs one search of its text for the two keywords.
+  the walk reads; an edit to any other file costs one search of its text for the two keywords. A file
+  that stops holding `require` leaves the set of files the walk read stale until the lender's next
+  walk, and the stale set lends a map only to a file no longer required.
 
 Under `nvs.check.scope = open` only the open documents are surveyed, so a map is lent once the file that
 declares it, or the entry that requires it, is open too.
@@ -67,5 +70,10 @@ the number of programs in the workspace, not with edits.
   no error.
 - **Repeating a lender's walk on every edit to a file it read.** That set is the whole application, so
   every keystroke anywhere would repeat the walk.
+- **The required file's own `require` as the link.** A test file requires nothing. The entry requires
+  it, so the edge points away from the open document a walk starts at.
+- **A test layout the editor already handles, recommended in place of the usual one.** An entry that
+  requires each test file and then the bootstrap is the layout the testing reference describes, and a
+  test file that uses a class is the ordinary case.
 - **Surveying by parsing every file.** The keyword search excludes almost every file for the cost of a
   read the index makes anyway.
