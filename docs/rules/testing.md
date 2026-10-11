@@ -1165,7 +1165,7 @@ second key said yes, and a tree that writes no `[debug]` block gets no debug str
 With the gate off nothing reaches the disk, so a debug record that survives into a deployment costs
 the predicted-not-taken branch [`testing/debug-probes`](testing.md#testing-debug-probes) already pays and nothing further.
 
-<sub>See also [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/log-level`](errors.md#errors-log-level). Decided in [0163](../decisions/0163.md).</sub>
+<sub>See also [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/log-level`](errors.md#errors-log-level).</sub>
 
 <a id="testing-the-debug-stream-reaches-the-service-through-the-disk"></a>
 
@@ -1192,7 +1192,25 @@ unsealed and untouched for longer than any live writer would take is swept by th
 The seal interval is the latency between a dump and its appearing, which is what buys everything
 above.
 
-<sub>See also [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0163](../decisions/0163.md).</sub>
+**The records are at rest, so the spool is guarded like a secret.** The spool and its directory are
+created for the service's account alone, in a directory that must pass the same ownership check a
+configuration file gets. A byte cap with oldest-first eviction is mandatory rather than advisory,
+because nothing drains the spool while the service is stopped. Because the files are the transport,
+a container needs none: the developer already mounts the project directory, and the same property
+makes the service a viewer for a copied-down log directory or a CI artifact.
+
+- **Memory:** one write buffer per writer, held while the writer lives, and no queue anywhere.
+
+**Declined:**
+- **A socket collector with the application as its client.** It needs a bounded queue, a background
+  drain, a circuit breaker, a retry window, a drop counter, a connect timeout on the request path and
+  its own authentication. Every one of those exists only to survive the collector being absent or
+  slow, and a file is absent-proof by construction.
+- **One file per record.** It costs a create, a write, a close and a later delete per record. On
+  Windows real-time antivirus scans each new file on close, and an undrained directory of small files
+  takes seconds to enumerate.
+
+<sub>See also [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/engine-floor`](errors.md#errors-engine-floor).</sub>
 
 <a id="testing-the-ingester-runs-whether-or-not-anyone-is-looking"></a>
 
@@ -1219,8 +1237,10 @@ sequence for a spool record, the file identity and byte offset for a tailed one.
 
 The order is read, insert, commit, **then** delete. A crash in that window re-ingests, which the
 dedupe key makes a no-op. The index holds nothing that cannot be rebuilt from the files, which is
-what licenses running it in its fastest mode and makes a corrupt index a cache miss to discard rather
-than a failure to resolve.
+what licenses running it in its fastest mode — write-ahead logging, so the one writer and the readers
+do not block each other, and synchronous writes off — and makes a corrupt index a cache miss to
+discard rather than a failure to resolve. The documented risk of that mode is corruption rather than
+lost transactions, so the viewer offers discarding and re-ingesting the index as an action.
 
 **The viewer is pushed a watermark, not records** — a monotonic sequence published after each
 committed batch, with the browser fetching the delta through the same query path it uses for
@@ -1229,7 +1249,7 @@ the ingester buffer, and a browser that was closed needs no replay buffer. That 
 record's own timestamp, orders the live view, which makes it immune to clock skew between writers and
 to a garbage timestamp in a corrupt file.
 
-<sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined), [`errors/log-write`](errors.md#errors-log-write). Decided in [0163](../decisions/0163.md).</sub>
+<sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="testing-a-bad-line-degrades-and-a-bad-file-is-quarantined"></a>
 
@@ -1257,7 +1277,7 @@ Work is bounded per source per pass and sources are taken in turn, so one enormo
 the live spool. A disk that is full or an index that errors backs off rather than spinning, and never
 deletes a spool file whose batch did not commit.
 
-<sub>See also [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking). Decided in [0163](../decisions/0163.md).</sub>
+<sub>See also [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking).</sub>
 
 <a id="testing-the-viewer-shows-the-stream-and-hands-off-every-artifact"></a>
 
@@ -1291,7 +1311,23 @@ it with elision and resolved every repeat to an identity before it was written �
 as a link to the node it names and expansion needs no fetch. Children are built from data already
 loaded.
 
-<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0163](../decisions/0163.md).</sub>
+**The listener is the service's own.** The viewer is a subcommand, binds loopback by default, and is
+never mounted on the application's listener: there every path-normalization bug and proxy
+misconfiguration would become disclosure, and a reserved path prefix would collide with the
+compile-time route table. A non-loopback bind needs TLS and a token read from a file, and boot fails
+if the file is absent. Because it is a browser-facing local listener, `Host` and `Origin` are
+allowlisted against DNS rebinding, its renderer builds DOM rather than assigning markup, and it runs
+no Novis code.
+
+The viewer's assets ship in every binary. What keeps that cheap is reachability rather than size: a
+server process never has a viewer in it.
+
+**Declined:**
+- **Fetching a value tree lazily as the developer expands it.** The tree is already bounded before it
+  is written, so a fetch per expansion would add round trips and server-side state to make a bounded
+  thing safe again.
+
+<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`errors/record-transformations`](errors.md#errors-record-transformations).</sub>
 
 <a id="testing-bench-counters"></a>
 

@@ -23,3 +23,19 @@ The value tree the browser receives is already finite — `rule:errors/record-tr
 it with elision and resolved every repeat to an identity before it was written — so a repeat renders
 as a link to the node it names and expansion needs no fetch. Children are built from data already
 loaded.
+
+**The listener is the service's own.** The viewer is a subcommand, binds loopback by default, and is
+never mounted on the application's listener: there every path-normalization bug and proxy
+misconfiguration would become disclosure, and a reserved path prefix would collide with the
+compile-time route table. A non-loopback bind needs TLS and a token read from a file, and boot fails
+if the file is absent. Because it is a browser-facing local listener, `Host` and `Origin` are
+allowlisted against DNS rebinding, its renderer builds DOM rather than assigning markup, and it runs
+no Novis code.
+
+The viewer's assets ship in every binary. What keeps that cheap is reachability rather than size: a
+server process never has a viewer in it.
+
+**Declined:**
+- **Fetching a value tree lazily as the developer expands it.** The tree is already bounded before it
+  is written, so a fetch per expansion would add round trips and server-side state to make a bounded
+  thing safe again.
