@@ -102,10 +102,12 @@ fn grey(request: &Request, extension: &Extension, data: &[u8]) -> (u32, u32, Vec
         Ok(Some(Value::Bytes(bytes))) => bytes,
         other => panic!("`run` returned {other:?}"),
     };
-    let word = |at: usize| u64::from_be_bytes(out[at..at + 8].try_into().unwrap());
-    let (width, height) = (word(0), word(8));
+    let word = |at: usize| {
+        let word = u64::from_be_bytes(out[at..at + 8].try_into().unwrap());
+        u32::try_from(word).expect("a frame side fits in a u32")
+    };
     let luma = out[16..].chunks_exact(4).map(|px| px[0]).collect();
-    (width as u32, height as u32, luma)
+    (word(0), word(8), luma)
 }
 
 /// The text `rxing` reads from the encoded image `data` as a `format` code. A GS1-128 code reads

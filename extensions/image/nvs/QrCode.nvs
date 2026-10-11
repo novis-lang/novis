@@ -27,9 +27,8 @@ final class QrCode
         return Core\Encoding::decodeText($svg, Core\Charset::Utf8);
     }
 
-    /// `QrCode::giroCode` returns the text of a SEPA bank transfer in the GiroCode layout.
-    /// Make a QR code of it, and a banking app fills in the transfer when it reads the code.
-    /// The amount is in euros. A wrong IBAN, a field that is too long, or both `reference` and `text` throw a `LogicError`.
+    /// `QrCode::giroCode` returns the text of a SEPA bank transfer, for a QR code that a banking app reads.
+    /// A wrong IBAN, a field that is too long, or both `reference` and `text` throw a `LogicError`.
     public static function giroCode({name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string} $payment): string
     {
         string $iban = Core\Str::upper(Core\Str::replace($payment->iban, " ", ""));

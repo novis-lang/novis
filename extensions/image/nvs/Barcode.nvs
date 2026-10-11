@@ -5,8 +5,6 @@ namespace Novis\Image;
 final class Barcode
 {
     /// `Barcode::render` returns `data` as a barcode image of the type `symbology`. By default it is a PNG.
-    /// `height` is the height of the bars and `module` the width of the thinnest bar, both in pixels.
-    /// `margin` is the empty space around the code, counted in thin bars. `text` prints the data under the bars.
     /// A wrong check digit, or a character the type cannot hold, throws a `LogicError`.
     public static function render(string $data, Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format} $options = null): bytes
     {
@@ -19,7 +17,6 @@ final class Barcode
     }
 
     /// `Barcode::svg` returns `data` as an SVG document of a barcode of the type `symbology`.
-    /// An SVG stays sharp at any size, so it is the best choice for a PDF or a printed label.
     /// The options are the same as for `Barcode::render`. A wrong check digit throws a `LogicError`.
     public static function svg(string $data, Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool} $options = null): string
     {
