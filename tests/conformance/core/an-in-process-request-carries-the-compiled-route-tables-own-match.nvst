@@ -8,27 +8,19 @@
 // `Core\Request::route()` and finds the row named below, which is the whole of
 // "dispatches through the compiled route table". Nothing here dispatches: what
 // a match means is the program's (`rule:routing/the-servers-match-dispatches-nothing`), and the program is the
-// `else` branch below.
+// `if` branch below.
 //
-// **The branch is the request, and the `catch` is how a case tells the two
-// sides apart.** The program answering an in-process request is this same
-// program -- its script frame is what a served request runs -- so the child
-// reaches the same `Core\Test::request` call and is refused: an in-process
-// request may not be made from inside one (`nvs_runtime::inproc`). That
-// refusal is what makes a one-file case possible at all, and it is a rule
-// rather than a trick, since without it a program with a top-level request
-// would answer its own request forever.
+// **The branch is the request.** The program answering an in-process request
+// is this same program -- its script frame is what a served request runs --
+// and `Core\Env::context()` is `Request` in that run
+// (`rule:core-classes/env-context`), so one file holds both sides.
 class Api {
     #[Core\Route(path: "/users/1", method: Core\Http\Method::Get, name: "Api::show")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(): string { return "shown"; }
 }
 
-try {
-    var $answered = Core\Test::request(Core\Http\Method::Get, "/users/1");
-    echo "status ", $answered->status(), "\n";
-    echo "body ", $answered->body(), "\n";
-} catch (RuntimeError $refused) {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The child. `route()` is the match the caller took before this isolate
     // existed, which is `rule:routing/matched-once-before-the-handler`'s "once, before any application code
     // runs" holding for a synthetic request exactly as it does for an arrived
@@ -39,6 +31,10 @@ try {
     } else {
         echo $matched->name() ?? "unnamed";
     }
+} else {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/users/1");
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
 }
 --EXPECT--
 status 200

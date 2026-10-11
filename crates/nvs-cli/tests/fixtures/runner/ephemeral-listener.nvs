@@ -5,10 +5,10 @@
 //
 // The top level is the entry, so it runs once when the suite is loaded — with
 // no request in front of it — and once per request the listener accepts.
-// `Core\Request::route()` is what tells those apart, throwing where there is no
-// request at all (`rule:security/request-state-throws-in-an-isolate`); this program declares no `#[Route]`, so a real
-// request matches nothing and still gets an answer, which is
-// `rule:routing/the-servers-match-dispatches-nothing`.
+// `Core\Env::context()` is what tells those apart: it is `Request` only in the
+// run that answers one (`rule:core-classes/env-context`). This program declares
+// no `#[Route]`, so a real request matches nothing and still gets an answer,
+// which is `rule:routing/the-servers-match-dispatches-nothing`.
 class Wire {
     #[Core\Test(server: true)]
     public function itReachesItsOwnListenerOverTheWire(): void {
@@ -33,13 +33,12 @@ class Wire {
     }
 }
 
-try {
+// The suite's own load has nothing to answer, so it writes nothing.
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $matched = Core\Request::route();
     if ($matched == null) {
         echo "on the wire";
     } else {
         echo "routed";
     }
-} catch (RuntimeError $notARequest) {
-    // The suite's own load. Nothing to answer, so nothing is written.
 }

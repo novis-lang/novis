@@ -2,17 +2,9 @@
 A `Core\Html::later` slot that calls a response-head method through a callable held in a variable throws `LogicError` at run time, the page keeps the status the main script set, and off a request `later` runs its callable in place -- `rule:core-classes/html-later`
 --FILE--
 <?nvs
-// The program sends a request to itself. Inside that request the call below
-// throws an error, so the `catch` block is the page the request runs.
-try {
-    var $page = Core\Test::request(Core\Http\Method::Get, "/blog");
-    echo $page->status(), "\n";
-    echo $page->body(), "\n";
-
-    // Off a request there is no page, so the callable runs at once and the
-    // result is its output.
-    echo Core\Html::later(fn(): void => { echo "Shop"; }), "\n";
-} catch (RuntimeError $inside) {
+// The program sends a request to itself. `Core\Test::request` runs this file
+// again for it, and in that run the first branch is the page.
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The checker cannot see into `$notFound`, so the call compiles. In the
     // slot it throws `LogicError`, and the status stays 200.
     var $notFound = fn(): void => { Core\Response::setStatus(404); };
@@ -23,6 +15,14 @@ try {
             echo $e->message;
         }
     });
+} else {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/blog");
+    echo $page->status(), "\n";
+    echo $page->body(), "\n";
+
+    // Off a request there is no page, so the callable runs at once and the
+    // result is its output.
+    echo Core\Html::later(fn(): void => { echo "Shop"; }), "\n";
 }
 --EXPECT--
 200

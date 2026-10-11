@@ -14,7 +14,13 @@ class Docs {
     public function page(string $slug): string { return $slug; }
 }
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // The child, which is this same program run from the top for each request
+    // below (`rule:testing/in-process-request`). What it echoes is the response
+    // body the parent prints — one link, written under whichever mount the
+    // request arrived through.
+    echo Core\Router::url("Docs::page", ["slug" => "intro"]);
+} else {
     // Two synthetic requests describing the same path through two doors: one
     // whose mount stripped nothing, and one served under `/ModuleA`. The target
     // is the same string in both, because a prefix is what the door took off
@@ -27,13 +33,6 @@ try {
     echo "run ", Core\Router::url("Docs::page", ["slug" => "intro"]), "\n";
     echo "rooted ", $rooted->body(), "\n";
     echo "mounted ", $mounted->body(), "\n";
-} catch (RuntimeError $inside) {
-    // The child, which is this same program run from the top for each request
-    // above (`rule:testing/in-process-request`), so the first call is refused
-    // from inside the request it would answer. What it echoes is the response
-    // body the parent prints — one link, written under whichever mount the
-    // request arrived through.
-    echo Core\Router::url("Docs::page", ["slug" => "intro"]);
 }
 --EXPECT--
 run /page/intro

@@ -6,17 +6,7 @@
 // stands as it was written; the `content-length` nobody wrote is derived from
 // the body, which is what makes the bag describe a request rather than a
 // half-filled one.
-try {
-    var $answered = Core\Test::request(
-        Core\Http\Method::Post,
-        "/hooks?since=2",
-        {
-            headers: ["X-Signature" => "t=1,v1=deadbeef"],
-            body: "id=7" as bytes
-        }
-    );
-    echo $answered->body();
-} catch (RuntimeError $inside) {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // `tainted` on the way in, exactly as an arrived request's input is, so a
     // handler that forgets to launder one of these fails its test rather than
     // production.
@@ -31,6 +21,16 @@ try {
     // The target splits exactly as the door splits one, so the query is the
     // request's and not part of its path.
     echo "since ", Core\Request::query("since") ?? "", "\n";
+} else {
+    var $answered = Core\Test::request(
+        Core\Http\Method::Post,
+        "/hooks?since=2",
+        {
+            headers: ["X-Signature" => "t=1,v1=deadbeef"],
+            body: "id=7" as bytes
+        }
+    );
+    echo $answered->body();
 }
 --EXPECT--
 signature t=1,v1=deadbeef

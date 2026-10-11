@@ -2,13 +2,9 @@
 `Core\Response::slotted()` called from a `Core\Html::later` slot throws `LogicError`, because the main script has ended, and the page is still sent whole -- `rule:core-classes/html-later`
 --FILE--
 <?nvs
-// The program sends a request to itself. Inside that request the call below
-// throws an error, so the `catch` block is the page the request runs.
-try {
-    var $page = Core\Test::request(Core\Http\Method::Get, "/blog");
-    echo $page->status(), "\n";
-    echo $page->body(), "\n";
-} catch (RuntimeError $inside) {
+// The program sends a request to itself. `Core\Test::request` runs this file
+// again for it, and in that run the first branch is the page.
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The checker cannot see into `$slotted`, so the call compiles. The slot
     // runs after the main script, so the call throws `LogicError`.
     var $slotted = fn(): void => { Core\Response::slotted(); };
@@ -19,6 +15,10 @@ try {
             echo $e->message;
         }
     });
+} else {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/blog");
+    echo $page->status(), "\n";
+    echo $page->body(), "\n";
 }
 --EXPECT--
 200

@@ -22,18 +22,9 @@ class Docs {
     public function shelf(Shelf $shelf): string { return "shelf"; }
 }
 
-try {
-    var $written = Core\Test::request(Core\Http\Method::Get, "/p/7");
-    var $outside = Core\Test::request(Core\Http\Method::Get, "/p/De");
-    var $counted = Core\Test::request(Core\Http\Method::Get, "/s/Sale");
-    var $lowered = Core\Test::request(Core\Http\Method::Get, "/s/sale");
-    echo "written ", $written->body(), "\n";
-    echo "outside ", $outside->body(), "\n";
-    echo "counted ", $counted->body(), "\n";
-    echo "lowered ", $lowered->body(), "\n";
-} catch (RuntimeError $refused) {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The child, which is this same program run from the top for each of the
-    // four requests above (`rule:testing/in-process-request`). What it echoes
+    // four requests below (`rule:testing/in-process-request`). What it echoes
     // is the response body the parent prints.
     //
     // A segment naming no admitted case is not a match and falls through, so
@@ -54,6 +45,15 @@ try {
              " lang=", $matched->param("lang") ?? "-",
              " shelf=", $matched->param("shelf") ?? "-";
     }
+} else {
+    var $written = Core\Test::request(Core\Http\Method::Get, "/p/7");
+    var $outside = Core\Test::request(Core\Http\Method::Get, "/p/De");
+    var $counted = Core\Test::request(Core\Http\Method::Get, "/s/Sale");
+    var $lowered = Core\Test::request(Core\Http\Method::Get, "/s/sale");
+    echo "written ", $written->body(), "\n";
+    echo "outside ", $outside->body(), "\n";
+    echo "counted ", $counted->body(), "\n";
+    echo "lowered ", $lowered->body(), "\n";
 }
 --EXPECT--
 written Docs::page lang=7 shelf=-

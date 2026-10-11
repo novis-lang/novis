@@ -25,17 +25,17 @@ array<secret bytes> $ring = [$key];
 // a member that rebuilt only the captures would still verify a link with none.
 string $link = Core\Router::urlSigned("Shop::show", ["id" => 7, "page" => "2"], {keys: $ring, until: null});
 
-try {
-    var $answered = Core\Test::request(Core\Http\Method::Get, $link);
-    echo "status ", $answered->status(), "\n";
-    echo "body ", $answered->body(), "\n";
-} catch (RuntimeError $refused) {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The child: the request the link names, answered by this file's own
     // script frame. What it echoes is the response body the parent prints.
     var $matched = Core\Router::signedRoute($ring);
     echo "route=", $matched->name() ?? "unnamed",
          " id=", $matched->param("id") ?? "none",
          " captures=", Core\Arr::count($matched->params()) as string;
+} else {
+    var $answered = Core\Test::request(Core\Http\Method::Get, $link);
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
 }
 --EXPECT--
 status 200

@@ -29,7 +29,14 @@ string $forever = Core\Router::urlSigned("Shop::show", ["id" => 7], {keys: $ring
 // against the named one.
 string $forged = "/shop/8?_sig=" . (Core\Str::after($live, "_sig=") as string);
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
+    try {
+        var $matched = Core\Router::signedRoute($ring);
+        echo "verified ", $matched->name() ?? "unnamed";
+    } catch (RuntimeError $no) {
+        echo $no->message;
+    }
+} else {
     var $withLive = Core\Test::request(Core\Http\Method::Get, $live);
     var $withForever = Core\Test::request(Core\Http\Method::Get, $forever);
     var $withStale = Core\Test::request(Core\Http\Method::Get, $stale);
@@ -41,13 +48,6 @@ try {
          Core\Str::contains($withStale->body(), "the signature expired at") ? "yes" : "no", "\n";
     echo "and a forgery does not=",
          Core\Str::contains($withForged->body(), "expired") ? "no" : "yes", "\n";
-} catch (RuntimeError $refused) {
-    try {
-        var $matched = Core\Router::signedRoute($ring);
-        echo "verified ", $matched->name() ?? "unnamed";
-    } catch (RuntimeError $no) {
-        echo $no->message;
-    }
 }
 --EXPECT--
 an hour left=verified Shop::show

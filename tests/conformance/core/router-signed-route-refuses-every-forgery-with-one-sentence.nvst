@@ -31,7 +31,16 @@ string $edited = "/shop/7?page=3&_sig=" . $token;
 string $moved = "/shop/8?page=2&_sig=" . $token;
 string $bare = "/shop/7?page=2";
 
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // The child, run once per request below and answering the same two ways
+    // each time: the match, or the one sentence.
+    try {
+        var $matched = Core\Router::signedRoute($ring);
+        echo "verified ", $matched->name() ?? "unnamed";
+    } catch (RuntimeError $no) {
+        echo $no->message;
+    }
+} else {
     var $signed = Core\Test::request(Core\Http\Method::Get, $link);
     var $withEdit = Core\Test::request(Core\Http\Method::Get, $edited);
     var $withMove = Core\Test::request(Core\Http\Method::Get, $moved);
@@ -45,15 +54,6 @@ try {
     echo "signed=", $signed->body(), "\n";
     echo "one sentence=", $same ? "yes" : "no", "\n";
     echo "and it says so=", Core\Str::contains($withEdit->body(), "which half of it failed") ? "yes" : "no", "\n";
-} catch (RuntimeError $refused) {
-    // The child, run once per request above and answering the same two ways
-    // each time: the match, or the one sentence.
-    try {
-        var $matched = Core\Router::signedRoute($ring);
-        echo "verified ", $matched->name() ?? "unnamed";
-    } catch (RuntimeError $no) {
-        echo $no->message;
-    }
 }
 --EXPECT--
 signed=verified Shop::show

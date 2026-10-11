@@ -4,13 +4,9 @@ On a normal route each `Core\Html::later` output replaces its own placeholder in
 <?nvs
 use Core\Html\Markup;
 
-// The program sends a request to itself. Inside that request the call below
-// throws an error, so the `catch` block is the page the request runs.
-try {
-    var $page = Core\Test::request(Core\Http\Method::Get, "/blog");
-    echo $page->status(), "\n";
-    echo $page->body();
-} catch (RuntimeError $inside) {
+// The program sends a request to itself. `Core\Test::request` runs this file
+// again for it, and in that run the first branch is the page.
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The first slot sleeps longest, so it finishes last. Each output still
     // appears where its placeholder was written.
     Markup $slow = Core\Html::later(fn(): void => {
@@ -30,6 +26,10 @@ try {
 
     echo html`<main>`, "\n", $slow, "\n", $fast, "\n", $outer, "\n", $broken, "\n";
     echo html`</main>`, "\n";
+} else {
+    var $page = Core\Test::request(Core\Http\Method::Get, "/blog");
+    echo $page->status(), "\n";
+    echo $page->body();
 }
 --EXPECT--
 200

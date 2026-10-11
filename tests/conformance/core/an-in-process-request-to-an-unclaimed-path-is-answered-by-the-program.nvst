@@ -9,19 +9,15 @@ an in-process request to a path the compiled table does not claim still runs the
 // A door that refused a miss would refuse every request of a program declaring
 // no `#[Route]` at all, which is `rule:routing/table-is-opt-in`'s opt-in rule inverted.
 //
-// The `catch` is the child, for the reason the sibling case's comment states
-// in full: an in-process request may not be made from inside one.
+// The `if` branch is the child, for the reason the sibling case's comment
+// states in full: `Core\Env::context()` is `Request` in the run that answers.
 class Api {
     #[Core\Route(path: "/claimed", method: Core\Http\Method::Get, name: "Api::claimed")]
     #[Core\Access(allow: Core\Audience::Public)]
     public function claimed(): string { return "claimed"; }
 }
 
-try {
-    var $answered = Core\Test::request(Core\Http\Method::Get, "/nothing/here");
-    echo "status ", $answered->status(), "\n";
-    echo "body ", $answered->body(), "\n";
-} catch (RuntimeError $refused) {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $matched = Core\Request::route();
     if ($matched == null) {
         // The program's own answer to a miss, chosen here and by nobody else.
@@ -30,6 +26,10 @@ try {
     } else {
         echo "unexpectedly matched ", $matched->name() ?? "unnamed";
     }
+} else {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/nothing/here");
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
 }
 --EXPECT--
 status 404

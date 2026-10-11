@@ -14,10 +14,9 @@ a `HEAD` request matches the `Get` route the table holds, `Core\Request::method`
 // token `isHead` compares — so a member that grew its own reading of the verb
 // disagrees here while still printing plausibly on its own line.
 //
-// **The branch is the request, and the `catch` is how a case tells the two
-// sides apart**: an in-process request may not be made from inside one, which
-// `an-in-process-request-may-not-be-made-from-inside-one` pins in full. The
-// child is the `catch`.
+// **The branch is the request**: `Core\Test::request` runs this same file
+// again to answer it, and `Core\Env::context()` is `Request` in that run
+// (`rule:core-classes/env-context`). The child is the `if` branch.
 //
 // What is *not* asserted here is the answer's body being discarded. That is
 // the server's half of the same convention — `Core\Test::request` answers in
@@ -31,11 +30,7 @@ class Pages {
     public function show(): string { return "shown"; }
 }
 
-try {
-    var $answered = Core\Test::request(Core\Http\Method::Head, "/page");
-    echo "status ", $answered->status(), "\n";
-    echo "body ", $answered->body(), "\n";
-} catch (RuntimeError $refused) {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // The child. `route()` is the match `rule:routing/matched-once-before-the-handler` took before this isolate
     // existed, and a `Get`-only table claiming a `HEAD` request is the whole
     // convention.
@@ -59,6 +54,10 @@ try {
     } else {
         echo " isHead=false";
     }
+} else {
+    var $answered = Core\Test::request(Core\Http\Method::Head, "/page");
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
 }
 --EXPECT--
 status 200

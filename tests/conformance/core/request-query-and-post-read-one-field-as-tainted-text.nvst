@@ -6,17 +6,7 @@
 // covers: Core\Request::post
 // covers: Core\Request::queryArray
 // covers: Core\Request::postArray
-try {
-    var $answered = Core\Test::request(
-        Core\Http\Method::Post,
-        "/search?q=red+shoes&page=2&page2=abc&tag[]=a&tag[]=b&filter[color]=red&deep[a][b]=c",
-        {
-            headers: ["Content-Type" => "application/x-www-form-urlencoded"],
-            body: "name=Ada&item[]=pen&item[]=book&size[shirt]=M" as bytes
-        }
-    );
-    echo $answered->body();
-} catch (RuntimeError $inside) {
+if (Core\Env::context() == Core\Env::Context::Request) {
     // One field is text, typed where it is read, with no conversion first.
     ?tainted string $q = Core\Request::query("q");
     echo "q ", $q ?? "none", "\n";
@@ -46,6 +36,16 @@ try {
     echo "item ", Core\Request::post("item") ?? "null", "\n";
     echo "items ", Core\Str::join(Core\Request::postArray("item"), ","), "\n";
     echo "shirt ", Core\Request::postArray("size")["shirt"] ?? "none", "\n";
+} else {
+    var $answered = Core\Test::request(
+        Core\Http\Method::Post,
+        "/search?q=red+shoes&page=2&page2=abc&tag[]=a&tag[]=b&filter[color]=red&deep[a][b]=c",
+        {
+            headers: ["Content-Type" => "application/x-www-form-urlencoded"],
+            body: "name=Ada&item[]=pen&item[]=book&size[shirt]=M" as bytes
+        }
+    );
+    echo $answered->body();
 }
 --EXPECT--
 q red shoes

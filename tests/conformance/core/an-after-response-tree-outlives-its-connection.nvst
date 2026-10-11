@@ -15,10 +15,19 @@ a request tree that deferred work keeps running once its answer is complete, and
 // the connection was answered would put it there too. Both are what § 6
 // forbids, and either one takes this case off its expectation.
 //
-// **The branch is the request, and the `catch` is how a case tells the two
-// sides apart** — an in-process request may not be made from inside one, which
-// `an-in-process-request-may-not-be-made-from-inside-one` pins in full.
-try {
+// **The branch is the request**: `Core\Test::request` runs this same file
+// again to answer it, and `Core\Env::context()` is `Request` in that run
+// (`rule:core-classes/env-context`).
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // The child. It registers deferred work and then finishes answering; § 6
+    // keeps `Core\Request` readable inside the callable because the tree is
+    // still the same tree, and keeps `Core\Response` out of it because the
+    // response is not.
+    Core\Task::afterResponse(fn (): void => {
+        echo " deferred=", Core\Request::path();
+    });
+    echo "answered";
+} else {
     var $answered = Core\Test::request(Core\Http\Method::Get, "/orders/7");
     // The caller's whole view of the request: a status and the bytes. Both are
     // read after the child's tree, deferred work and all, has been joined, so
@@ -33,15 +42,6 @@ try {
     Core\Task::afterResponse(fn (): void => {
         echo "the parent's own tree, after its last statement\n";
     });
-} catch (RuntimeError $refused) {
-    // The child. It registers deferred work and then finishes answering; § 6
-    // keeps `Core\Request` readable inside the callable because the tree is
-    // still the same tree, and keeps `Core\Response` out of it because the
-    // response is not.
-    Core\Task::afterResponse(fn (): void => {
-        echo " deferred=", Core\Request::path();
-    });
-    echo "answered";
 }
 --EXPECT--
 status=200

@@ -7,17 +7,9 @@
 // carried in by `Core\Test::request` because a case file crosses as text, so
 // `--POST_RAW--` has no spelling for them.
 //
-// The branch is the request and the `catch` is how one file holds both sides:
-// the child reaches this same call and is refused, an in-process request not
-// being makeable from inside one.
-try {
-    var $answered = Core\Test::request(
-        Core\Http\Method::Post,
-        "/hooks",
-        {body: Core\Encoding::fromHex("89504e470d0a1a0a00ff")}
-    );
-    echo $answered->body();
-} catch (RuntimeError $inside) {
+// `Core\Test::request` runs this same file again for the request, and in that
+// run `Core\Env::context()` is `Request`, so the first branch is the request.
+if (Core\Env::context() == Core\Env::Context::Request) {
     // `tainted`, exactly as an arrived request's body is -- nothing about being
     // synthetic changes what the roster declares. The refusal that pins the
     // qualifier is its own case, a plain `bytes` binding being the only thing
@@ -27,6 +19,13 @@ try {
     // would stop at, and the hex says which octets in which order.
     echo "octets ", Core\Bytes::length($raw), "\n";
     echo "hex ", Core\Encoding::toHex($raw), "\n";
+} else {
+    var $answered = Core\Test::request(
+        Core\Http\Method::Post,
+        "/hooks",
+        {body: Core\Encoding::fromHex("89504e470d0a1a0a00ff")}
+    );
+    echo $answered->body();
 }
 --EXPECT--
 octets 10

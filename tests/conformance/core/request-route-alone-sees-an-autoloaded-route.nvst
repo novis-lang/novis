@@ -7,23 +7,21 @@
 // the program scan the `Shop` root. Without the scan the child prints
 // `the table claimed nothing` and the body says so.
 //
-// The `catch` is the child, on
-// `an-in-process-request-carries-the-compiled-route-tables-own-match.nvst`'s
-// terms: the program answering an in-process request is this same program, and
-// its own `Core\Test::request` throws.
+// The `if` branch is the child: the program answering an in-process request is
+// this same program, and `Core\Env::context()` is `Request` in that run.
 autoload 'Shop' from './lib';
 
-try {
-    var $answered = Core\Test::request(Core\Http\Method::Get, "/catalog");
-    echo "status ", $answered->status(), "\n";
-    echo "body ", $answered->body(), "\n";
-} catch (RuntimeError $refused) {
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $matched = Core\Request::route();
     if ($matched == null) {
         echo "the table claimed nothing";
     } else {
         echo $matched->name() ?? "unnamed";
     }
+} else {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/catalog");
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
 }
 --FILE lib/Catalog.nvs--
 <?nvs

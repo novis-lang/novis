@@ -17,14 +17,11 @@ a value that arrived on the request line is `tainted`, and the launderer `rule:s
 // have become the grammar's any-character and matched a path the peer never
 // sent.
 //
-// **The branch is the request, and the `catch` is how a case tells the two
-// sides apart** — an in-process request may not be made from inside one, which
-// `an-in-process-request-may-not-be-made-from-inside-one` pins in full. The
-// child is the `catch`, and it is the only side with a request to read.
-try {
-    var $answered = Core\Test::request(Core\Http\Method::Get, "/search/a.b");
-    echo $answered->body();
-} catch (RuntimeError $refused) {
+// **The branch is the request**: `Core\Test::request` runs this same file
+// again to answer it, and `Core\Env::context()` is `Request` in that run
+// (`rule:core-classes/env-context`). The child is the `if` branch, and it is
+// the only side with a request to read.
+if (Core\Env::context() == Core\Env::Context::Request) {
     // Spec § 15: the path is a `tainted string`, because the peer wrote it.
     tainted string $raw = Core\Request::path();
     echo "path=", $raw, "\n";
@@ -40,6 +37,9 @@ try {
     Core\Regex\Pattern $pattern = Core\Regex::compile($quoted);
     echo "literal=", Core\Regex::matches("/search/a.b", $pattern) ? "y" : "n", "\n";
     echo "any=", Core\Regex::matches("/search/axb", $pattern) ? "y" : "n", "\n";
+} else {
+    var $answered = Core\Test::request(Core\Http\Method::Get, "/search/a.b");
+    echo $answered->body();
 }
 --EXPECT--
 path=/search/a.b

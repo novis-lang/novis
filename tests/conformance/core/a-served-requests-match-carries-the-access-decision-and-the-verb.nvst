@@ -8,10 +8,8 @@ The match a request carries answers the access decision and the verb of its rout
 // dispatcher reads: the decision has to have crossed with the request, or the
 // program answering it has nothing to enforce.
 //
-// The `catch` is the child, on
-// `an-in-process-request-carries-the-compiled-route-tables-own-match.nvst`'s
-// terms: the program answering an in-process request is this same program, and
-// its own `Core\Test::request` is refused.
+// The `if` branch is the child: the program answering an in-process request is
+// this same program, and `Core\Env::context()` is `Request` in that run.
 enum Role { Admin }
 
 class Api
@@ -21,11 +19,7 @@ class Api
     public function report(): string { return "reported"; }
 }
 
-try {
-    var $answered = Core\Test::request(Core\Http\Method::Post, "/reports");
-    echo "status ", $answered->status(), "\n";
-    echo "body ", $answered->body(), "\n";
-} catch (RuntimeError $refused) {
+if (Core\Env::context() == Core\Env::Context::Request) {
     ?Core\Router\Match $matched = Core\Request::route();
     if ($matched == null) {
         echo "the table claimed nothing";
@@ -36,6 +30,10 @@ try {
             Core\Response::setStatus(403);
         }
     }
+} else {
+    var $answered = Core\Test::request(Core\Http\Method::Post, "/reports");
+    echo "status ", $answered->status(), "\n";
+    echo "body ", $answered->body(), "\n";
 }
 --EXPECT--
 status 403

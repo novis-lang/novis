@@ -13,19 +13,19 @@ an in-process response carries the status the program declared, and `200` where 
 // match: the second path is claimed by no route, so the child is reading
 // `Core\Request::path()` rather than a route row.
 //
-// The `catch` is the child, as in the two sibling cases.
-try {
-    var $declared = Core\Test::request(Core\Http\Method::Get, "/declares");
-    echo "declared ", $declared->status(), " ", $declared->body(), "\n";
-    var $silent = Core\Test::request(Core\Http\Method::Get, "/silent");
-    echo "silent ", $silent->status(), " ", $silent->body(), "\n";
-} catch (RuntimeError $refused) {
+// The `if` branch is the child, as in the two sibling cases.
+if (Core\Env::context() == Core\Env::Context::Request) {
     if (Core\Str::endsWith(Core\Request::path(), "/declares")) {
         Core\Response::setStatus(201);
         echo "made";
     } else {
         echo "said nothing";
     }
+} else {
+    var $declared = Core\Test::request(Core\Http\Method::Get, "/declares");
+    echo "declared ", $declared->status(), " ", $declared->body(), "\n";
+    var $silent = Core\Test::request(Core\Http\Method::Get, "/silent");
+    echo "silent ", $silent->status(), " ", $silent->body(), "\n";
 }
 --EXPECT--
 declared 201 made

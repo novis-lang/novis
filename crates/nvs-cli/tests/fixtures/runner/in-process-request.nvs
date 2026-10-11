@@ -5,8 +5,8 @@
 //
 // The top level is the entry, so it runs twice for two different reasons: once
 // when the suite is loaded, with no request in front of it, and once per
-// synthetic request. `Core\Request::route()` is what tells those apart — it
-// throws where there is no request at all (`rule:security/request-state-throws-in-an-isolate`).
+// synthetic request. `Core\Env::context()` is what tells those apart — it is
+// `Request` only in the run that answers one (`rule:core-classes/env-context`).
 class Api {
     #[Core\Route(path: "/users/1", method: Core\Http\Method::Get, name: "Api::show")]
     #[Core\Access(allow: Core\Audience::Public)]
@@ -27,7 +27,8 @@ class Api {
     }
 }
 
-try {
+// The suite's own load has nothing to answer, so it writes nothing.
+if (Core\Env::context() == Core\Env::Context::Request) {
     var $matched = Core\Request::route();
     if ($matched == null) {
         echo "unclaimed";
@@ -35,6 +36,4 @@ try {
         Core\Response::setStatus(201);
         echo $matched->name() ?? "unnamed";
     }
-} catch (RuntimeError $notARequest) {
-    // The suite's own load. Nothing to answer, so nothing is written.
 }

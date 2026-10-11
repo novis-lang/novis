@@ -3,15 +3,15 @@ A file's text outside `<?nvs … ?>` is written as it is under both sinks, while
 --FILE--
 <?nvs
 // covers: lang:programs/code-mode-and-html-mode
-// The program sends a request to itself. Inside that request the call below
-// throws an error, so the `catch` block runs and the page after it is the
-// request's body. The program then writes the same page itself.
+// The program sends a request to itself and prints the request's body. The
+// request runs this file again, and the page after the `if` is that body.
+// The program then writes the same page itself.
 string $where = "program";
-try {
+if (Core\Env::context() == Core\Env::Context::Request) {
+    $where = "request";
+} else {
     var $page = Core\Test::request(Core\Http\Method::Get, "/shop");
     echo $page->body();
-} catch (RuntimeError $inside) {
-    $where = "request";
 }
 string $name = "<b>Shop</b> & co";
 Core\Html\Markup $logo = "<img src=\"logo.png\" alt=\"&amp;\">" as Core\Html\Markup;
