@@ -791,24 +791,24 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 3 is done: SVG and a chosen PDF page open as images, and both of its checks pass.** `looper verify` is green.
+**Stage 4's three items are written and committed, and each of its three checks passes when run alone. The full `looper verify` has not run: the session reached its context budget first.** Stage 4 stays `open` until it is green.
 
-- A PDF page rasterises through `hayro` 0.8 with its default features off, in `extensions/image/src/pdf.rs`. It is priced at `ceil(w × dpi / 72) × ceil(h × dpi / 72)` before the render context exists, drawn on white, and a side may be at most 65535 pixels. `info` returns the page count and the first page's box in points. `decode_page` in `extensions/image/src/decode.rs` carries `page` and `dpi`, and `known_size` in `extensions/image/src/lib.rs` prices a PDF's chosen page.
-- An encrypted PDF is opened with a password nobody sets, so one with an empty user password throws `ParseError` too. `extensions/image/fixtures/encrypted.pdf` is that case, made with Ghostscript.
-- The bomb corpus pins each outcome in `crates/nvs-ext/tests/image_decode.rs`. Nested forms reach the CPU limit, and the deflate bomb reaches the memory limit. A self-drawing form, an xref loop and a stream-length lie are drawn whole, because `hayro` cuts or repairs them. `rule:core-classes/pdf-decode-refusals` now says a repaired page drawn correctly is an allowed end. The user should know this changed.
-- The 12 Liberation fonts are under `extensions/fonts/`, with `SOURCE.json` naming release 2.1.5. `bun nv gen-attribution` reads them through `FONT_DIRS`. The image component embeds them as `hayro`'s standard-14 replacements.
-- The image component is 13.7 MiB embedded, up from 6.6. The fonts are 4.3 MiB of that and `hayro` most of the rest.
+- `Image::text` shapes through `harfrust` 0.12 in bidi runs from `unicode-bidi`, in `extensions/image/src/text.rs`; `ab_glyph` still draws the outlines. `ttf-parser` and the hand-written `GPOS` kerning are gone. A run is shaped as the script of its first letter, so a line mixing two scripts in one direction is shaped as one of them.
+- The shaping fixtures are three Noto fonts under `extensions/image/fixtures/`, with `NotoSans-OFL.txt`. They are test inputs only and are not embedded.
+- `extensions/image/src/barcode.rs` draws every symbology. It never computes a check digit: EAN-13, EAN-8, UPC-A and ITF-14 take their full length, and GS1-128 takes `(AI)value` element strings and checks the GTIN and the SSCC. Its `svg` writes `qr`'s SVG too. A 1D code's `text` prints in Liberation Sans through `pdf::sans`.
+- `Barcode.nvs`, `QrCode::svg` and `QrCode::giroCode` are Novis source. `giroCode` checks the IBAN's mod-97 sum, the field lengths and the amount's decimals, and writes all eleven EPC lines.
+- `rxing` 0.9 is a workspace dev-dependency of `nvs-ext` alone. It needs its `encoding_rs` feature to compile with its defaults off. The GiroCode test is in `crates/nvs-cli/tests/image_barcode.rs`, because a Novis-source member runs only through the binary. Both targets answer `cargo test --test image_barcode`.
+- `cargo deny` passes over the image component's graph and over the root. `THIRD-PARTY-LICENSES.txt` is regenerated.
+- The embedded size in `extensions/image/src/lib.rs`'s module doc still says 13.7 MiB. `crates/nvs-ext/tests/builtin.rs` fails if the new crates moved it past 5%.
 - `looper lint` reports AGENTS.md's managed text as edited by hand. `bun nv plan --check` has six findings for M4, M8 and M10. Both predate this goal.
-- `nvs-stdlib`'s `ldap` test binary failed once under the full verify's load and passed alone, and passed on the next run.
 
 ### Next
 
-**Stage 4, shaping and barcodes in `Novis\Image`**: the file set is `extensions/image/src/text.rs`, `extensions/image/src/qr.rs`, a new `extensions/image/src/barcode.rs`, `extensions/image/src/lib.rs`, `extensions/image/nvs/QrCode.nvs`, a new `extensions/image/nvs/Barcode.nvs`, `crates/nvs-ext/tests/image_analysis.rs` and a new `crates/nvs-ext/tests/image_barcode.rs`.
+**Stage 4's close, then Stage 5**: the file set is `extensions/image/src/lib.rs`, `crates/nvs-ext/tests/builtin.rs` and the Stage 4 files already on disk.
 
-- [ ] **`Image::text` shapes through `harfrust`** with `unicode-bidi`, replacing the Latin-only kerning in `measure` at `extensions/image/src/text.rs:305` and `render` at `extensions/image/src/text.rs:314`. The checks are `text_shapes_arabic_right_to_left_with_joined_letters`, `text_shapes_devanagari_with_its_conjuncts` and `latin_text_keeps_its_kerning_under_the_shaper` (`rule:core-classes/image-one-entry-point-per-job`). Each new crate owes `cargo deny` over the component's graph and `bun nv gen-attribution`.
-- [ ] **The `barcode` export's real body** replaces the stub at `extensions/image/src/lib.rs:804`, for the `barcode` function at `wit/image.wit:353`. Use `barcoders` for the 1D codes and `datamatrix` for DataMatrix. A wrong check digit throws naming it (`rule:core-classes/image-barcode-roster`).
-- [ ] **QR codes render as SVG**, beside `render` at `extensions/image/src/qr.rs:60`, with the GiroCode EPC helper in `extensions/image/nvs/QrCode.nvs`. Then add `tests/conformance/novis/image-a-barcode-renders-as-svg.nvst`.
-
+- [ ] **Run `looper verify`** and fix what it names. The likely ones are clippy over `extensions/image/src/barcode.rs:1` and `extensions/image/src/text.rs:1`, and the size figure at `extensions/image/src/lib.rs:31` against `crates/nvs-ext/tests/builtin.rs:1` (`rule:packaging/the-first-party-components-are-built-in`). Then set Stage 4 `done`.
+- [ ] **`bun nv proofs --comments extensions/image/nvs`** over `extensions/image/nvs/Barcode.nvs:1` and `extensions/image/nvs/QrCode.nvs:1`, and the conformance case `tests/conformance/novis/image-a-barcode-renders-as-svg.nvst:1` (`rule:core-classes/image-barcode-roster`).
+- [ ] **Stage 5, the PDF component is built in**: `extensions/pdf/` as a crate beside `extensions/image/Cargo.toml:1`, packed by `crates/nvs-ext/build.rs:1` (`rule:core-classes/pdf-one-engine`).
 ### Backlog
 
 - SVG `<text>`: turn on `usvg`'s `text` feature with the Liberation fonts as its only `fontdb` (`rule:core-classes/image-format-roster`).
