@@ -68,7 +68,7 @@ tungstenite.workspace = true
 # and faults, both of which are `nvs-runtime`'s and neither of which either
 # crate defines.
 nvs-db.workspace = true
-# ADR 0278 § 1 copies that edge for `Core\Ldap`: the registry rows and helper
+# `Core\Ldap` copies that edge: the registry rows and helper
 # bodies are here, and the LDAP wire is `nvs-ldap`'s, which names no crate of
 # this one's.
 nvs-ldap.workspace = true

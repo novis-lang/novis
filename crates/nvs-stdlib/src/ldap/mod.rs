@@ -1,6 +1,6 @@
 //! `Core\Ldap`'s connections: a `[ldap.<name>]` block opened under `ldap.connect`, a program's settings opened under `ldap.open`, and the pool a block's connections return to
 //!
-//! ADR 0278 is the design, and `crates/nvs-ldap` is the wire this module drives.
+//! `crates/nvs-ldap` is the wire this module drives.
 //! What lives here is the half that reads configuration and grants, which that
 //! crate never does: its [`nvs_ldap::Endpoint`] arrives with the address
 //! already resolved and the cleartext answer already given.
@@ -14,7 +14,8 @@
 //! `tls` is `"none"`, and [`nvs_ldap::Connection::open`] refuses the dial without
 //! that answer.
 //!
-//! **A block's URL list fails over in order** (ADR 0278 § 2), and so does every
+//! **A block's URL list fails over in order**
+//! (`rule:core-classes/ldap-capabilities`), and so does every
 //! address one URL's host resolves to. A server that does not answer, or whose
 //! TLS handshake fails, moves the walk to the next address or URL. A
 //! server that answers and refuses the bind stops it, because the next server
@@ -41,7 +42,8 @@
 //! exists. Each login pays one TCP and TLS handshake and holds nothing after
 //! it returns.
 //!
-//! **A search is an [`Entries`] the program owns** (ADR 0278 § 5): the key of
+//! **A search is an [`Entries`] the program owns**
+//! (`rule:core-classes/ldap-search-pages-and-never-follows-a-referral`): the key of
 //! the connection it runs on and an [`nvs_ldap::Cursor`] holding one page. The
 //! first page is read by [`search`] itself, so a base that does not exist or a
 //! filter the server refuses throws at the call. Every later page is read
@@ -81,7 +83,7 @@
 //! syntax, which is O(blocks) and not O(requests).
 //!
 //! **Every failure the directory or the wire reports is one `Ldap\LdapError`**
-//! (ADR 0278 § 10), built by [`fault_of`]: `$kind` is the [`ERROR_KIND`] case
+//! (`rule:core-classes/ldap-error`), built by [`fault_of`]: `$kind` is the [`ERROR_KIND`] case
 //! [`nvs_ldap::Kind`] names, and `$code` is the LDAP result code, or `null`
 //! where no server sent one. A pool with no free slot is an `IOError` and a
 //! malformed URL or DN is the program's own `LogicError` or `RuntimeError`, as

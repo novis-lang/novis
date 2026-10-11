@@ -1,13 +1,16 @@
 {
   "title": "`Ldap\\Dn` is the one launderer for the DN sink, and every DN parameter takes a `Dn` or a string that refuses `tainted`",
   "status": "designed",
-  "because": [
-    "0278"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/ldap-filter-is-a-value",
     "security/launderers-are-sink-named",
     "security/launderer-answers-a-carrier"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/core/ldap-dn-from-parts.nvst",
+    "tests/conformance/core/ldap-dn-parse-and-the-attribute-do-not-compile-when-tainted.nvst",
+    "tests/conformance/core/ldap-read-does-not-compile-with-a-tainted-dn.nvst",
+    "tests/conformance/core/ldap-dn-of-and-child-throw-for-a-bad-attribute-or-an-empty-value.nvst"
+  ]
 }

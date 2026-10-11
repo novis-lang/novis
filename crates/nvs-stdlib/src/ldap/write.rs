@@ -1,14 +1,15 @@
 //! `Core\Ldap`'s writing half: `Ldap\Connection`'s `add`, `modify`, `delete`, `rename`, `setPassword`, `changePassword` and `compare`, and the `Ldap\Change` values `modify` takes
 //!
-//! ADR 0278 §§ 1 and 9. [`modify`] sends one Modify request, so the server
+//! `rule:core-classes/ldap-search-pages-and-never-follows-a-referral` and
+//! `rule:security/ldap-cleartext-bind-is-granted-per-host`. [`modify`] sends one Modify request, so the server
 //! applies every change in order or none of them. [`rename`] reads both DNs
 //! and leaves [`nvs_ldap::Connection::rename`] to send the new first level,
 //! and the new parent only where it differs. [`set_password`] and
 //! [`change_password`] write AD's `unicodePwd` and are refused before
 //! anything is sent on a connection without TLS, whatever the cleartext
 //! grant says. Every write but [`compare`] throws `ReadOnly` before anything
-//! is sent on a connection to a Global Catalog, port 3268 or 3269 (ADR 0278
-//! § 11), which [`nvs_ldap::Connection`] checks because it holds the URL.
+//! is sent on a connection to a Global Catalog, port 3268 or 3269, which
+//! [`nvs_ldap::Connection`] checks because it holds the URL.
 //! [`compare`] lives here because it sends one value in the form a write does.
 //!
 //! **An `Ldap\Change` is a value**: its kind, its attribute and the `mixed`

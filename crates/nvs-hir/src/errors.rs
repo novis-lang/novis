@@ -75,7 +75,7 @@
 ///
 /// `Core\Ldap\LdapError` is the same shape for a directory: every failure
 /// `Core\Ldap` reports, as one class with a `kind` a program branches on and
-/// the LDAP result `code` beside it (ADR 0278 § 10). Its `kind` is a different
+/// the LDAP result `code` beside it (`rule:core-classes/ldap-error`). Its `kind` is a different
 /// enum from `Core\Db\DbError`'s, which is why `nvs_types::error_lib` types a
 /// property by its class and not by its name alone.
 ///
@@ -169,7 +169,7 @@ pub const BACKTRACE_SLOT: usize = 2;
 /// so that an application branches on the condition rather than on a vendor
 /// code, and beside it the raw `sqlState`, `driverCode` and `constraint` it was
 /// read off plus the `sql` that was refused. `Core\Ldap\LdapError` is the
-/// last, with ADR 0278 § 10's `kind` and `code`. Every one of spec § 18's is here,
+/// last, with `rule:core-classes/ldap-error`'s `kind` and `code`. Every one of spec § 18's is here,
 /// and none of them could have been added without a type in
 /// `nvs_types::error_lib::own_properties`, which `panic!`s at seed time on a
 /// property it cannot type. That is a *narrowing* rule and not a queue: a row

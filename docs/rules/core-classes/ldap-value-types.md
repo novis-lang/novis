@@ -21,7 +21,17 @@ taking one `bool` option per flag it may set, where an option left out keeps its
 general flag-set type. Bits the object does not name are kept, so a write never drops them. Lockout and
 an expired password are read from the computed attribute, and `mustChangePassword` from `pwdLastSet =
 0`, both of which `search` requests whenever `userAccountControl` is selected, because AD does not
-store them in `userAccountControl`; `with` cannot set them. A value is written in the form it is read, so every type above round-trips through
+store them in `userAccountControl`, and a reader of the stored attribute alone would report a locked
+account as active; `with` cannot set them. A value is written in the form it is read, so every type above round-trips through
 `modify` and is encoded the same way inside a filter. A ranged attribute (`member;range=0-1499`) is
 fetched to its end and returned whole under its plain name. An attribute name matches without case and
 keeps the server's case.
+
+- **Memory:** the schema is one map per block per core, O(blocks) and not O(requests). A merged ranged
+  attribute is the whole list, and counts against the request's memory cap like any other value.
+
+**Declined:**
+- **A general bit-flag type in `Core`.** Three AD fields need it; a readonly object per field names
+  every flag and costs nothing anywhere else.
+- **An array with a `count` key and lowercased attribute names, as PHP's `ldap_get_entries` returns.**
+  The typed readers replace it, and `toArray` keeps the server's spelling.

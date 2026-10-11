@@ -1,4 +1,5 @@
-//! ADR 0278 § 2's `[ldap.<name>]` block and `[capabilities.ldap]`'s three grants, as the boot reads
+//! The `[ldap.<name>]` block and `[capabilities.ldap]`'s three grants
+//! (`rule:core-classes/ldap-capabilities`), as the boot reads
 //! them: the empty password refused when the block is read
 //! (`rule:security/ldap-empty-password-is-refused`), `tls = "none"` as one half of a cleartext bind
 //! (`rule:security/ldap-cleartext-bind-is-granted-per-host`), and the grants in `db.*`'s shape.

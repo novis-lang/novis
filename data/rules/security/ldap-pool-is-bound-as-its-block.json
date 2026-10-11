@@ -1,9 +1,7 @@
 {
   "title": "A pooled LDAP connection is bound as its block for its whole life, and `authenticate` binds on a connection of its own",
   "status": "shipped",
-  "because": [
-    "0278"
-  ],
+  "because": [],
   "seeAlso": [
     "security/db-pool-reset-is-a-boundary",
     "security/ldap-empty-password-is-refused"

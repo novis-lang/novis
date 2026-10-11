@@ -1,5 +1,5 @@
-//! ADR 0278 § 2's `[ldap.<name>]` blocks, judged once the merge is done: the URL list, the two `tls`
-//! words, the credential, the timeout and the pool.
+//! The `[ldap.<name>]` blocks of `rule:core-classes/ldap-capabilities`, judged once the merge is
+//! done: the URL list, the two `tls` words, the credential, the timeout and the pool.
 //!
 //! **An empty password is refused when the block is read** (`rule:security/ldap-empty-password-is-refused`).
 //! A block with a `user` and no password, or a password of `""`, would make every pooled connection an
@@ -33,7 +33,7 @@ use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::{Config, LdapDirectory, Setting};
 
 /// How long one operation may take where the block names no `timeout`, connect and bind included.
-/// There is no spelling for unlimited (ADR 0278 § 2).
+/// There is no spelling for unlimited (`rule:core-classes/ldap-capabilities`).
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// What a block's `tls` says: the encrypted default, or plain `ldap://` for a granted host.

@@ -1,0 +1,17 @@
+{
+  "title": "Three deny-by-default capabilities gate naming an LDAP block, dialling a directory, and binding without TLS, and nothing is read from `ldap.conf` or the environment",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "core-classes/db-capabilities",
+    "security/ldap-cleartext-bind-is-granted-per-host",
+    "security/ldap-pool-is-bound-as-its-block"
+  ],
+  "guardedBy": [
+    "crates/nvs-config/tests/ldap.rs",
+    "tests/conformance/core/ldap-connect-without-a-grant-throws.nvst",
+    "tests/conformance/core/ldap-connect-a-granted-name-with-no-block-throws.nvst",
+    "tests/conformance/core/ldap-open-asks-the-grant-about-the-host.nvst",
+    "tests/conformance/core/ldap-open-checks-the-address-of-a-granted-host.nvst"
+  ]
+}

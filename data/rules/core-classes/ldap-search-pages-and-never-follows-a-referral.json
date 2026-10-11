@@ -1,0 +1,18 @@
+{
+  "title": "An LDAP search reads one page at a time, throws at a server limit and never follows a referral, and every control is a named option",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "core-classes/ldap-capabilities",
+    "core-classes/ldap-filter-is-a-value",
+    "core-classes/db-streaming"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/ldap-search-returns-every-page-of-a-result.nvst",
+    "tests/conformance/core/ldap-entries-references-lists-the-other-servers-and-does-not-follow-them.nvst",
+    "tests/conformance/core/ldap-search-window-agrees-with-a-sorted-search.nvst",
+    "tests/conformance/core/ldap-show-deleted-finds-a-deleted-entry.nvst",
+    "tests/conformance/core/ldap-sync-cookie.nvst",
+    "tests/conformance/core/ldap-modify-applies-every-change-or-none.nvst"
+  ]
+}

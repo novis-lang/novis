@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*24 of 95 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 98 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -2271,6 +2271,104 @@ a program that neither carries the attribute nor writes a half pays nothing at a
 
 <sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type).</sub>
 
+<a id="core-classes-ldap-capabilities"></a>
+
+## Three deny-by-default capabilities gate naming an LDAP block, dialling a directory, and binding without TLS, and nothing is read from `ldap.conf` or the environment
+
+`rule:core-classes/ldap-capabilities`
+
+Three deny-by-default capabilities under `[capabilities.ldap]` sit in front of a directory, in `db.*`'s shape. `ldap.connect` names the `[ldap.<name>]` blocks a program may open with `Ldap::connect`; `ldap.open` names the hosts an `Ldap\Settings` may reach with `Ldap::open`, and takes `*.` at a label boundary; `ldap.cleartext` names the hosts a bind may reach without TLS ([`security/ldap-cleartext-bind-is-granted-per-host`](security.md#security-ldap-cleartext-bind-is-granted-per-host)).
+
+A block's address is the operator's, so a `connect`-named block is pre-approved and is not checked
+against the outbound address policy, as [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities) reasons for a database. An
+`open` target is the program's: its host is checked against `ldap.open` and its address against
+[`security/net-address-policy`](security.md#security-net-address-policy) in full before anything is dialled.
+
+`[ldap.<name>]` follows `[db.<name>]`: `url` (one `ldaps://` or `ldap://` URL, or a list), `base`,
+`user`, `password` or `password_file` ([`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value)),
+`tls` (`"required"`, the default, or `"none"`), `tls_ca_file`, `timeout` and `pool`, and every table
+refuses an unknown key. A block with no `user` binds anonymously. `Ldap\Settings` is the same fields as
+a shape: `url` is a sink with no launderer, as `Settings.host` is for a database; `base` is
+`Dn|string`; `user` accepts `tainted`, being a length-framed protocol field; `password` is `secret
+tainted string`; and `tls` is the enum `Ldap\Tls`.
+
+**A block's URL list fails over in order**, and so does every address one URL's host resolves to. A
+server that does not answer, or whose TLS handshake fails, moves the walk on. A server that answers and
+refuses the credentials stops it, because the next server would refuse them too and the walk would
+only add to the account's lockout count.
+
+A timeout has a default and no spelling for unlimited. Nothing is read from `ldap.conf`, `LDAPTLS_*` or
+any other environment, so no setting one request's code makes can reach another request's connection,
+and TLS trust is relaxed only where [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant)
+already allows it per host.
+
+**Declined:**
+- **A binding to OpenLDAP's `libldap`.** It brings process-wide options, a second TLS stack beside the
+  one [`security/one-tls-client`](security.md#security-one-tls-client) allows, `ldap.conf` and the environment, and SASL through
+  `libsasl2`, and a TLS option set for one connection can then apply to the next request's.
+- **A tokio-based client crate.** It needs a second scheduler per core, which
+  [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler) refuses; the BER codec is borrowed sans-IO and the sequencing is
+  written over the runtime's own TCP and TLS streams ([`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary)).
+- **An unlimited timeout, and reading `ldap.conf` or `LDAPTLS_*`.** Both put a connection's behaviour
+  outside what the operator's configuration states.
+
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`security/ldap-cleartext-bind-is-granted-per-host`](security.md#security-ldap-cleartext-bind-is-granted-per-host), [`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block).</sub>
+
+<a id="core-classes-ldap-search-pages-and-never-follows-a-referral"></a>
+
+## An LDAP search reads one page at a time, throws at a server limit and never follows a referral, and every control is a named option
+
+`rule:core-classes/ldap-search-pages-and-never-follows-a-referral`
+
+`Ldap\Connection::search` returns an `Ldap\Entries` that reads one page at a time as the loop reaches it, throws when the server stopped at a size or time limit, and never follows a referral. Every control `Core\Ldap` sends is a named option of the member it changes, and every extended operation is the member that needs it.
+
+`search` sends the paged-results control (RFC 2696) on every request, `pageSize` 1000 by default, and
+reads the first page itself, so a base that does not exist or a filter the server refuses throws at the
+call. **A size or time limit the server hit throws** `SizeLimitExceeded` or `TimeLimitExceeded`, and
+the page it came with is dropped, so a partial result is never returned as if it were complete. A
+connection released with a search still paging is closed, not pooled
+([`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block)). `read` is a base-scope search for one entry and
+returns `null` for `noSuchObject`.
+
+**A referral is never followed.** A continuation reference in a search is data, read from
+`Entries::references()`; a referral answering any other operation throws the kind `Referral`. A
+referral the client followed would dial a server the server named, not one the operator or a grant in
+[`core-classes/ldap-capabilities`](core-classes.md#core-classes-ldap-capabilities) named.
+
+Active Directory's four extras are named options or members:
+
+- **Sort and a window.** `sort` (one attribute, because AD sorts on one key) with `descending`, and
+  `window` with `offset`, which need `sort`, replace paging for that search, and fill
+  `Entries::total()` with the server's count. Both are checked before anything is sent.
+- **Deleted objects.** `showDeleted` includes deleted entries, and `Entry::isDeleted` says which.
+- **Incremental sync.** `changes` is DirSync: it returns the entries changed since the `cookie` the
+  program stored, and `Changes::cookie()` is the next one. On a server without DirSync it throws
+  `Unsupported`.
+- **The Global Catalog** is a block whose URL uses port 3268 or 3269. It is read-only: every write but
+  `compare` throws `ReadOnly` before a byte is sent.
+
+`modify` sends one Modify request, so the server applies every `Ldap\Change` in order or none of them.
+`rename` derives the new first level and, where it moved, the new parent from its second DN. `compare`
+returns `bool` and throws on an error.
+
+- **Memory:** a search holds one page of up to `pageSize` entries and the current entry, per search a
+  request has open. A finished search leaves nothing on its connection.
+
+**Declined:**
+- **A `bind` member, a raw-control member and a raw-extended-operation member.** Each would be a
+  second form of an operation the named members already have
+  ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)), and a rebind would let a request change a pooled
+  connection's identity.
+- **Following referrals, or a rebind callback.** See above.
+- **`uSNChanged` polling pinned to one controller.** It is a second form of DirSync's job, correct only
+  while every call reaches the same controller, which the URL list's failover does not promise.
+- **A client-side sort, as PHP's `ldap_sort`.** The server sorts with `sort`, so a second sort would be
+  a second form of the same operation.
+- **A `compare` that returns `-1` on an error.** A third value a caller has to test for beside `true`
+  and `false`.
+
+<sub>See also [`core-classes/ldap-capabilities`](core-classes.md#core-classes-ldap-capabilities), [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value), [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming).</sub>
+
 <a id="core-classes-ldap-filter-is-a-value"></a>
 
 ## An LDAP filter is an immutable value encoded straight to BER, whose values accept `tainted` and whose attribute names are a sink  *(designed — not yet in the compiler)*
@@ -2300,7 +2398,17 @@ once per level, so a filter a request built in a loop would otherwise exhaust th
 take every request on the core down with it. The builder that would pass the limit throws
 `LogicError`, and so does `parse` at the `(` that does; no filter a person writes comes near it.
 
-<sub>See also [`core-classes/ldap-dn-is-the-launderer`](core-classes.md#core-classes-ldap-dn-is-the-launderer), [`core-classes/ldap-value-types`](core-classes.md#core-classes-ldap-value-types), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0278](../decisions/0278.md).</sub>
+**Declined:**
+- **`Filter::escape` beside text filters.** A second, weaker answer to a question the value builder
+  settles, and an escaper over filter text is the catch-all [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)
+  forbids.
+- **A fluent filter chain.** `->and()` beside `all` would be two ways to write the same tree, and a
+  chain's order is something a reader has to simulate.
+- **Leaving filters and AD's types to a package.** A package cannot be a launderer
+  ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), and a GUID read in the wrong byte order is a bug every
+  caller would write once.
+
+<sub>See also [`core-classes/ldap-dn-is-the-launderer`](core-classes.md#core-classes-ldap-dn-is-the-launderer), [`core-classes/ldap-value-types`](core-classes.md#core-classes-ldap-value-types), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`security/sink-predicate`](security.md#security-sink-predicate).</sub>
 
 <a id="core-classes-ldap-dn-is-the-launderer"></a>
 
@@ -2320,7 +2428,7 @@ parameter. A DN the server returns comes back as a `Dn`, and `parent`, `rdnAttri
 `toString` and `rdnValue`, is `tainted`, since a value in it may be. There is no `ldap_escape`, and no
 escaper for filter text either ([`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value)).
 
-<sub>See also [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier). Decided in [0278](../decisions/0278.md).</sub>
+<sub>See also [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier).</sub>
 
 <a id="core-classes-ldap-value-types"></a>
 
@@ -2351,12 +2459,50 @@ taking one `bool` option per flag it may set, where an option left out keeps its
 general flag-set type. Bits the object does not name are kept, so a write never drops them. Lockout and
 an expired password are read from the computed attribute, and `mustChangePassword` from `pwdLastSet =
 0`, both of which `search` requests whenever `userAccountControl` is selected, because AD does not
-store them in `userAccountControl`; `with` cannot set them. A value is written in the form it is read, so every type above round-trips through
+store them in `userAccountControl`, and a reader of the stored attribute alone would report a locked
+account as active; `with` cannot set them. A value is written in the form it is read, so every type above round-trips through
 `modify` and is encoded the same way inside a filter. A ranged attribute (`member;range=0-1499`) is
 fetched to its end and returned whole under its plain name. An attribute name matches without case and
 keeps the server's case.
 
-<sub>See also [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value). Decided in [0278](../decisions/0278.md).</sub>
+- **Memory:** the schema is one map per block per core, O(blocks) and not O(requests). A merged ranged
+  attribute is the whole list, and counts against the request's memory cap like any other value.
+
+**Declined:**
+- **A general bit-flag type in `Core`.** Three AD fields need it; a readonly object per field names
+  every flag and costs nothing anywhere else.
+- **An array with a `count` key and lowercased attribute names, as PHP's `ldap_get_entries` returns.**
+  The typed readers replace it, and `toArray` keeps the server's spelling.
+
+<sub>See also [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value).</sub>
+
+<a id="core-classes-ldap-error"></a>
+
+## Every `Core\Ldap` failure is one `Ldap\LdapError` with a kind to branch on and the LDAP result code, and no message carries a password
+
+`rule:core-classes/ldap-error`
+
+Every failure the directory or the wire reports is one class, `Ldap\LdapError`, with `$kind`, an `Ldap\ErrorKind` a program branches on, and `$code`, the LDAP result code, or `null` where no server sent one. A malformed attribute name, DN or URL is the program's own `LogicError` or `RuntimeError`, and a pool with no free slot is an `IOError`, as for `Core\Db`.
+
+The kinds are `InvalidCredentials`, `AccountDisabled` (AD `data 533`), `AccountLocked` (775),
+`PasswordExpired` (532), `MustChangePassword` (773), `AccountExpired` (701), `NotAllowedNow` (530,
+531), `EncryptionRequired`, `PasswordPolicy`, `NoSuchObject`, `AlreadyExists`, `InsufficientAccess`,
+`ConstraintViolation`, `SizeLimitExceeded`, `TimeLimitExceeded`, `Referral`, `ReadOnly`,
+`Unsupported`, `Unavailable`, `Timeout` and `Protocol`. One class with a kind lets a program branch on
+the condition rather than on a result code, for the reason [`core-classes/db-error`](core-classes.md#core-classes-db-error) gives
+`Core\Db\DbError`.
+
+An unknown user (525) and a wrong password (52e) are both `InvalidCredentials`
+([`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block)). AD's policy refusal of a new password is
+`PasswordPolicy`. **No message carries a password or a value of a filter**: a message is built from
+the operation's name, the result code and the server's own diagnostic.
+
+**Declined:**
+- **`false` and a separate error number, as PHP's `ldap_errno` gives.** A failure throws, so a
+  caller that forgets to test a return value cannot read a failure as a result.
+- **Distinct kinds for 525 and 52e.** A user-enumeration oracle handed to every login form.
+
+<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`security/ldap-pool-is-bound-as-its-block`](security.md#security-ldap-pool-is-bound-as-its-block).</sub>
 
 <a id="core-classes-queue-storage-is-a-table"></a>
 

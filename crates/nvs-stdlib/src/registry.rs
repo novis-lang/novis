@@ -2436,7 +2436,7 @@ pub const CLASSES: &[CoreClass] = &[
     // and neither class is reachable except through that member.
     crate::db::PLAN,
     crate::db::STEP,
-    // ADR 0278's directory client, beside the database classes because it is
+    // `Core\Ldap`, the directory client, beside the database classes because it is
     // opened the same two ways: a named block under `ldap.connect`, or a
     // program's settings under `ldap.open`.
     crate::ldap::CLASS,
@@ -3812,7 +3812,7 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
     // the body held, so this is a concrete element like the two `Core\IO` rows
     // above and never one of a receiver's own variables.
     (crate::request::BODY_STREAM_NAME, &CoreTy::TaintedBytes),
-    // ADR 0278 § 5's `search(): Entries`, which yields a `Core\Ldap\Entry`
+    // `Core\Ldap\Connection`'s `search(): Entries`, which yields a `Core\Ldap\Entry`
     // whatever the search selected.
     (
         crate::ldap::ENTRIES_NAME,
@@ -6473,7 +6473,7 @@ mod tests {
     /// again: a fill builds one, the sealing path reads its two slots, and a
     /// member answering the secret back would be a second door onto a value
     /// `getSecret` is the only door onto ([`crate::cache`]). `Core\Ldap\Change`
-    /// is `Core\Db\InList`'s shape over a write: ADR 0278 § 1 writes four
+    /// is `Core\Db\InList`'s shape over a write: it has four
     /// constructors and no member on it, and `modify` is what reads its three
     /// slots ([`crate::ldap`]'s `write`). Classes have left
     /// this list, each the same way: `Core\Db\Connection` when `query` landed

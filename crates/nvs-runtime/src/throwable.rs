@@ -244,8 +244,8 @@ pub const CONSTRAINT_SLOT: usize = KIND_SLOT + 3;
 /// `the_runtime_and_the_compiler_agree_on_every_throwable_slot`.
 pub const SQL_SLOT: usize = KIND_SLOT + 4;
 
-/// The slot `Core\Ldap\LdapError::$kind` occupies — ADR 0278 § 10's
-/// condition, which `nvs_stdlib::ldap::fault_of` fills.
+/// The slot `Core\Ldap\LdapError::$kind` occupies — the condition of
+/// `rule:core-classes/ldap-error`, which `nvs_stdlib::ldap::fault_of` fills.
 ///
 /// Equal to [`KIND_SLOT`] for that constant's reason and not derived from it:
 /// the two classes are siblings. `nvs_hir::errors::LDAP_KIND_SLOT` is the
@@ -394,7 +394,7 @@ pub enum ThrownClass {
     /// second field for a helper here to write.
     DbRolledBack,
     /// `Core\Ldap\LdapError` — a directory refused an operation, or could not
-    /// be reached (ADR 0278 § 10). One class with a `kind` at
+    /// be reached (`rule:core-classes/ldap-error`). One class with a `kind` at
     /// [`LDAP_KIND_SLOT`] and the result `code` at [`LDAP_CODE_SLOT`], for the
     /// reason [`Self::DbError`] is one class.
     LdapError,

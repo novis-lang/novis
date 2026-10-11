@@ -1,6 +1,6 @@
 //! `Ldap\Ad\AccountFlags` and `Ldap\Ad\GroupType`: AD's two flag fields, as readonly objects with one `bool` reader per flag, `bits()` and an immutable `with`
 //!
-//! ADR 0278 §§ 1 and 8, `rule:core-classes/ldap-value-types`. An object keeps
+//! `rule:core-classes/ldap-value-types`. An object keeps
 //! the integer AD wrote in its `bits` slot, so a bit no reader names is kept
 //! and `bits()` returns it unchanged. Each reader finds its bit by its own
 //! name in [`nvs_ldap::value::ACCOUNT_FLAGS`] or

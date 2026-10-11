@@ -1,6 +1,6 @@
 //! `Ldap\Entry`'s typed readers: an INTEGER as an `int`, `TRUE`/`FALSE` as a `bool`, a GUID as a `Core\Uuid`, a SID as an `Ldap\Sid`, a FILETIME or a GeneralizedTime as an `Instant`, an interval as a `Duration`, and AD's flag fields and account type
 //!
-//! ADR 0278 § 8, `rule:core-classes/ldap-value-types`. Each reader finds the
+//! `rule:core-classes/ldap-value-types`. Each reader finds the
 //! attribute's list as `string` does ([`super::search::values_named`]), reads
 //! each value with [`nvs_ldap::value`], and builds the `Core` value from what
 //! that returns. A value not in the form the reader needs throws `LogicError`

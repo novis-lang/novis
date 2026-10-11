@@ -1,0 +1,14 @@
+{
+  "title": "Every `Core\\Ldap` failure is one `Ldap\\LdapError` with a kind to branch on and the LDAP result code, and no message carries a password",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "core-classes/db-error",
+    "security/ldap-pool-is-bound-as-its-block"
+  ],
+  "guardedBy": [
+    "tests/conformance/core/ldap-authenticate-names-ads-reasons.nvst",
+    "tests/conformance/core/ldap-password-policy-refusal-is-password-policy.nvst",
+    "tests/conformance/core/ldap-connect-to-a-server-that-does-not-answer-throws-unavailable.nvst"
+  ]
+}
