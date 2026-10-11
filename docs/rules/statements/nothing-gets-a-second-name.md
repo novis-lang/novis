@@ -12,6 +12,14 @@ survives, making a bare `Str` resolve to an unrelated class is structurally unre
 refused, and the symbol table keeps exactly one entry per declared name, with no code path anywhere asking
 whether a name was resolved directly or through an alias.
 
+**One `use` names one import.** PHP's group form, `use App\Models\{User, Post};`, is `E0238` where the
+`\{` is written, the sibling of the rename refusal on the other half of the same statement. The group
+form does not give anything a second name, since every short name it introduces is still that name.
+It is refused for simplicity: it is a second syntax for a statement that already exists, its payoff is
+fewer lines, and its cost is that the short names a file introduces are no longer one per `^use` line
+for a `grep`. The parser reports the brace group and skips it, so the statement still yields an import
+for the prefix that was written and nothing downstream sees a half-parsed one.
+
 **Declined:**
 - **Import `as` kept for two libraries whose short names collide.** The fully-qualified name is more
   explicit for a little more typing, and a carve-out for collisions only does not stay narrow.

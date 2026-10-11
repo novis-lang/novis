@@ -3,6 +3,7 @@
   "order": 40,
   "rules": [
     "statements/nvs-is-the-only-open-tag",
+    "statements/one-namespace-statement-per-file",
     "statements/a-qualified-name-is-absolute",
     "statements/no-fallback-to-the-root-namespace",
     "statements/a-leading-separator-does-not-parse",
@@ -27,6 +28,8 @@
     "statements/exit-is-the-only-termination-keyword",
     "statements/exit-stops-the-program-where-it-stands",
     "statements/a-body-never-falls-off-its-end",
+    "statements/continue-always-continues-a-loop",
+    "statements/a-try-has-a-clause-and-a-catch-names-one-class",
     "statements/no-return-leaves-a-finally",
     "statements/let-and-is-are-reserved"
   ]

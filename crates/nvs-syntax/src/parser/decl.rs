@@ -494,9 +494,9 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// `use App\Models\User;` — one import, one statement.
     ///
     /// Two PHP spellings of the same statement are refused rather than
-    /// parsed: renaming (`as Other`, `rule:statements/nothing-gets-a-second-name`) and the group form
-    /// (`use App\Models\{User, Post};`, `docs/adr/README.md` § *Decisions
-    /// taken at project start*). Both are reported and then skipped, so the
+    /// parsed: renaming (`as Other`) and the group form
+    /// (`use App\Models\{User, Post};`), both refused by
+    /// `rule:statements/nothing-gets-a-second-name`. Both are reported and then skipped, so the
     /// statement still yields a [`UseDecl`] for the path that was written and
     /// nothing downstream sees a half-parsed import.
     pub(super) fn parse_use_decl(&mut self, start: Span) -> Stmt {

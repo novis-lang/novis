@@ -901,7 +901,7 @@ impl<'a> Lowering<'a> {
     /// `finally` runs** — [`crate::ir::Terminator::Catch`] admits only
     /// `THROWN`, and every copy of a `finally` body lives behind it. Both are
     /// PHP's own behaviour, checked against `php -r` rather than assumed;
-    /// `docs/adr/README.md` § *Decisions taken at project start* owns the
+    /// `rule:statements/exit-stops-the-program-where-it-stands` owns the
     /// decision.
     ///
     /// The operand carries PHP's two spellings at once: an `int` is the

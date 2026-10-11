@@ -756,8 +756,8 @@ pub fn callable_param_names(callable: Value) -> Result<Option<Vec<String>>, Faul
 /// [`crate::MethodRow::param_tags`] carries the callee's nibbles in this very
 /// encoding so that `rule:types/conversion`'s one implicit conversion is written once —
 /// two copies of it are two places for it to stop agreeing.
-/// `docs/adr/README.md` § *Decisions taken at project start* owns that
-/// decision, and [`crate::dispatch::call_erased_method`] is the other caller.
+/// `rule:types/erased-member-access` owns that decision, and
+/// [`crate::dispatch::call_erased_method`] is the other caller.
 ///
 /// One shift, one mask and one byte comparison per argument, on the callback
 /// path — latency spent on security, which is the direction AGENTS.md's

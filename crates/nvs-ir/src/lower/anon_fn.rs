@@ -432,7 +432,7 @@ pub(crate) fn declared_class(
 /// four-bit nibble has no room for a class label, so every class name arrives
 /// as the same "an object" — a lie a named-class binding then reads and writes
 /// at a *fixed offset*, which is a type confusion rather than a wrong answer.
-/// `docs/adr/README.md` § *Decisions taken at project start* owns why the
+/// `rule:types/callable-signature` says why the
 /// callable's entry is the boundary that pays: one
 /// `nvs_runtime::object::NvsObj::is_instance_of` per class-declared parameter
 /// per call, in the one position nothing else looked, rather than a name-keyed
@@ -442,8 +442,8 @@ pub(crate) fn declared_class(
 /// declared class where a representation would be. What arrived is *not*
 /// named: no IR instruction reads an object's class name — the runtime's
 /// `nvs_object_class_name` has no [`InstKind`] wrapping it — and adding one to
-/// widen a message is a new value shape for a diagnostic's sake. The ADR
-/// paragraph records that as the message's known limit.
+/// widen a message is a new value shape for a diagnostic's sake. The rule
+/// names that as the message's known limit.
 fn check_param_class(
     low: &mut Lowering<'_>,
     cur: BlockId,

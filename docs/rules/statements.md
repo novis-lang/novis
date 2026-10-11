@@ -3,7 +3,7 @@
 
 # Statements
 
-*2 of 27 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 30 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="statements-nvs-is-the-only-open-tag"></a>
 
@@ -39,6 +39,26 @@ before any `?>` is `E0009`.
   refuse.
 
 <sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword).</sub>
+
+<a id="statements-one-namespace-statement-per-file"></a>
+
+## `namespace X;` is the only namespace statement, once per file and before any declaration
+
+`rule:statements/one-namespace-statement-per-file`
+
+`namespace X;` is the only namespace statement, written once per file and before any declaration. The
+braced form `namespace X { … }`, a second `namespace X;` in one file, and a `namespace X;` after a
+declaration it would not cover are all `E0243` at parse time.
+
+[`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace) keys authority on the namespace enclosing the code,
+and [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path) keys an application on its entry file. A file
+that is two namespaces is a file whose authority depends on the line number, and neither rule has a
+reading to give that. The rewrite is one file per namespace.
+
+The braced form is still parsed after it is refused, so the declarations inside it report their own
+problems in the same run.
+
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
 
 <a id="statements-a-qualified-name-is-absolute"></a>
 
@@ -205,6 +225,14 @@ survives, making a bare `Str` resolve to an unrelated class is structurally unre
 refused, and the symbol table keeps exactly one entry per declared name, with no code path anywhere asking
 whether a name was resolved directly or through an alias.
 
+**One `use` names one import.** PHP's group form, `use App\Models\{User, Post};`, is `E0238` where the
+`\{` is written, the sibling of the rename refusal on the other half of the same statement. The group
+form does not give anything a second name, since every short name it introduces is still that name.
+It is refused for simplicity: it is a second syntax for a statement that already exists, its payoff is
+fewer lines, and its cost is that the short names a file introduces are no longer one per `^use` line
+for a `grep`. The parser reports the brace group and skips it, so the statement still yields an import
+for the prefix that was written and nothing downstream sees a half-parsed one.
+
 **Declined:**
 - **Import `as` kept for two libraries whose short names collide.** The fully-qualified name is more
   explicit for a little more typing, and a carve-out for collisions only does not stay narrow.
@@ -330,9 +358,12 @@ position.
 
 `rule:statements/static-is-a-member-modifier`
 
-`static` is a class-member modifier and a class-relative type. Static methods, static properties,
-`static::`, `static::$prop`, `new static()` and `: static` all bind late, to the called class, and
-`new static()` compiled as `new self()` would return the wrong class rather than fail to compile.
+`static` is a class-member modifier and a class-relative type. Static methods, `static::`, `new
+static()` and `: static` all bind late, to the called class, and `new static()` compiled as `new
+self()` would return the wrong class rather than fail to compile. A static property does not:
+its storage is fixed where the access is written, so `static::$prop` is refused (`E0499`). For a
+subclass that redeclares the property it would silently name the parent's storage, while a reader
+expects the called class's. `self::$prop` and a written class name say which storage is meant.
 `static::class` is the called class's own name,
 read at run time off the descriptor the frame already holds.
 
@@ -476,6 +507,20 @@ the host at isolate construction instead of by a user initialiser
 ([`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)). An enum case needs no row: it is a compile-time constant
 of its enum's integer type, inlined at every use site like any other literal.
 
+**A class static belongs to the request, never to the process.** Each declared static has one slot per
+in-flight request, set from the declaration's own initializer when the request's context is built and
+released when it ends. A process-global static is a channel from one request into the next: a token
+cached in one is readable by whoever sends the next request, and no care in user code closes that, so
+security and request isolation settles it. `nvs run` cannot tell the two apart, because a CLI run is
+one request, and `nvs serve` is where the difference shows. What it costs is PHP's process-lifetime
+memo, which [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing) already removes. A cache that must outlive a
+request is a `Core` capability with a stated lifetime, not a class variable. A static has no
+constructor to assign it, so its declaration carries an initializer unless its type admits `null`
+(`E0409`), and a nullable one starts each request at `null`.
+
+- **Memory:** one slot per declared static per in-flight request, released with the request, so the
+  total is O(in-flight) and never grows with requests served.
+
 The last row is the one to read twice. A top-level `$x` in a `.nvs` file is a local of the script's own
 frame and nothing more. The script body is a function, so its variables are locals, and with no
 `global` no other function can see them ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)). The
@@ -609,7 +654,24 @@ The word names the mechanism. A parameter is copy-in/copy-back through a cell th
 gets the cell's address, and the value is copied back after the call returns — a callee that throws is the
 one path that does not reach the write-back, so a caller sees no partial write. A `foreach` value binding
 is the other mechanism, pushing each assignment through to the array element as it happens. Neither is an
-alias. Which declarations may carry one is unchanged: an anonymous function may not, and a generator may not.
+alias.
+
+**An `inout` parameter belongs only to a frame the call site outlives.** The copy-back is sound because
+the callee's frame ends before the site's does, and two declarations break that order, so both are
+refused where they are written. Calling a **generator** runs none of its body: it allocates the state
+object and returns ([`iteration/generators`](iteration.md#iteration-generators)), so the staged cell is gone before the first
+`advance()` while the parked frame would still address it (`E0492`). An **anonymous function** has no
+call site that could stage anything: its by-value capture ([`types/implicit-capture`](types.md#types-implicit-capture)) lets it
+outlive every frame in scope where it was written, so there is no frame whose end the copy-back could
+be ordered against (`E0493`). A written `callable` signature ([`types/callable-signature`](types.md#types-callable-signature)) gives a
+site a parameter list to read and still no call site at which to stage a cell. Neither is a lowering
+left unwritten: copying the value in would stop being a reference, which is the observable point of
+`inout`. Shared mutable state is an ordinary object captured by value, and a generator takes the value
+and `yield`s what its body computes from it.
+
+An anonymous function **capturing** an enclosing `inout` parameter is a different question and is
+allowed: capture is by value, so the function holds a snapshot of the cell's value taken where it is
+written, and can outlive the call that staged the cell.
 
 Languages split on this word by mechanism. Those that alias write `ref`, `&` or `var`; those that copy in
 and copy back write `inout`, as Hack and Swift do. Novis copies, so it takes the second word.
@@ -816,6 +878,59 @@ A `never` body is asked about the falling-off path like any other, and refused (
 reaches its end. That refusal is also what makes counting a `never` call as an exit sound.
 
 <sub>See also [`types/declaration`](types.md#types-declaration), [`iteration/generators`](iteration.md#iteration-generators), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor).</sub>
+
+<a id="statements-continue-always-continues-a-loop"></a>
+
+## `continue` always continues a loop, and a written level counts the way PHP counts
+
+`rule:statements/continue-always-continues-a-loop`
+
+A `switch` owns `break` and nothing else, so `continue` always continues the innermost enclosing loop. A
+bare `continue` inside a `switch` moves that loop to its next iteration. PHP counts a `switch` as a
+looping structure for `continue`, so a bare one there behaves as `break`, and PHP warns that the
+program probably meant `continue 2`. Novis takes the meaning that warning points at.
+
+A written level counts the way PHP counts. `break N` and `continue N` name the `N`-th enclosing
+statement, and a `switch` is one of them for both keywords. A level that lands on a `switch` for
+`continue` then walks further out to the nearest loop. So `continue 2` inside a `switch` means here
+exactly what it means in PHP, and the one divergence stays where the bare keyword put it: a level
+naming a `switch` for `continue` continues the loop instead of breaking the `switch`.
+
+A level with nothing to name is `E0475` where it is written, never a panic. That is a level that is not
+a literal, a `0`, a level past the enclosing depth, and a `continue` with no loop at or outside its
+frame. PHP refuses all four at compile time too, because a level resolves to a statically known
+statement and one that names none has nothing to lower to.
+
+**Declined:**
+- **A bare `continue` in a `switch` behaving as `break`.** A keyword that means one thing inside a
+  `switch` and another everywhere else costs simplicity, and the compatibility it buys is one PHP
+  itself warns against.
+- **Counting loops alone for a written level.** It would silently retarget `continue 2` inside a
+  `switch` inside two nested loops from the inner loop to the outer one, which is worse than a
+  diagnostic, and it would make PHP's own `continue 2` inside a `switch` in one loop name a loop that
+  is not there.
+
+<sub>See also [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality).</sub>
+
+<a id="statements-a-try-has-a-clause-and-a-catch-names-one-class"></a>
+
+## A `try` has a `catch` or a `finally`, and a `catch` clause names exactly one class
+
+`rule:statements/a-try-has-a-clause-and-a-catch-names-one-class`
+
+A `try` has at least one `catch` clause or a `finally`, and a `catch` clause names exactly one class.
+A bare `try { … }` guards nothing and is the shape a deleted clause leaves behind: it is `E0242`. PHP
+refuses it too.
+
+`catch (A | B $e)` is `E0245`. The binding carries one static type ([`types/declaration`](types.md#types-declaration)'s `catch`
+position), and a clause naming two classes has no single type to give it. A body shared by two classes
+is written as two clauses, or as one clause naming a class they both extend. That is the shape
+[`expressions/catch-expression`](expressions.md#expressions-catch-expression) already requires of an expression arm, and the two refusals use
+the same words.
+
+Both are parse-time refusals in the rejected-PHP band, and each diagnostic names its rewrite.
+
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`types/declaration`](types.md#types-declaration).</sub>
 
 <a id="statements-no-return-leaves-a-finally"></a>
 

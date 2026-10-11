@@ -3,7 +3,7 @@
 
 # Expressions
 
-*4 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="expressions-truthy-positions"></a>
 
@@ -390,6 +390,19 @@ Truthiness has no part in this. A `switch` subject and a `match` subject are com
 for truth, and [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions)'s six positions do not include either.
 
 <sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics).</sub>
+
+<a id="expressions-a-match-has-at-least-one-arm"></a>
+
+## A `match` has at least one arm
+
+`rule:expressions/a-match-has-at-least-one-arm`
+
+A `match` with no arms is `E0476` where it is written. PHP parses one and throws `UnhandledMatchError` on
+every evaluation, so no program that ran is lost. A `match` is an expression, and one whose every path
+throws has nothing for the position it sits in to bind, pass or return, and no value for a merge with
+no incoming edge to carry. A written arm, or `default => throw …`, says the same thing on purpose.
+
+<sub>See also [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality).</sub>
 
 <a id="expressions-intrinsic-constant-arguments"></a>
 

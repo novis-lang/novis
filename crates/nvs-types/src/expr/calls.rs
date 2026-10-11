@@ -163,8 +163,8 @@ pub(crate) fn infer_method_call(
     // `rule:types/erased-member-access`'s deferral, and the one receiver the refusal above
     // deliberately leaves alone: `mixed` is `rule:types/conversion`'s one unchecked
     // position, so which class is behind the handle — and whether there is one
-    // at all — is answered by the receiver's own descriptor when the call runs
-    // (`docs/adr/README.md` § *Decisions taken at project start*). What the
+    // at all — is answered by the receiver's own descriptor when the call
+    // runs. What the
     // site can still settle it settles here; the rest is recorded for `nvs-ir`
     // to dispatch on.
     if resolved.is_none()

@@ -1,0 +1,14 @@
+{
+  "title": "`namespace X;` is the only namespace statement, once per file and before any declaration",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "security/authority-is-the-enclosing-namespace",
+    "statements/a-qualified-name-is-absolute"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-namespace-statement-is-unbraced.nvst",
+    "tests/conformance/reject/a-second-namespace-in-one-file-does-not-compile.nvst",
+    "crates/nvs-syntax/src/parser/tests/decl.rs"
+  ]
+}

@@ -12,6 +12,7 @@
     "tests/conformance/core/arr-a-callback-float-parameter-widens-an-int-and-stops-at-2-53.nvst",
     "tests/conformance/reject/an-existing-int-array-does-not-widen-to-a-float-array.nvst",
     "tests/conformance/lang/an-integer-stored-at-a-union-holding-float-becomes-a-float.nvst",
+    "tests/conformance/lang/a-ternarys-two-arms-widen-to-one-value.nvst",
     "crates/nvs-ir/src/lower/tests.rs"
   ]
 }

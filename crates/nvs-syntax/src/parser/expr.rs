@@ -1801,9 +1801,9 @@ impl<'src, 'd> Parser<'src, 'd> {
         // Refused at the keyword and then parsed whole: the body's members are
         // still checked, and `nvs_ir` — which has no name to lower this under —
         // is never reached, because a parse error stops the pipeline. See
-        // docs/adr/README.md § *Decisions taken at project start*, which
-        // refuses a nested declaration in expression position for the reason it
-        // refuses a conditional one.
+        // `rule:classes/a-type-is-declared-at-file-scope`, which refuses a
+        // nested declaration in expression position for the reason it refuses
+        // a conditional one.
         self.diags.report(
             Diagnostic::error(
                 code::E_ANONYMOUS_CLASS_UNSUPPORTED,

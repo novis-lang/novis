@@ -569,8 +569,8 @@ pub enum ExprInfo {
     ///
     /// `rule:types/conversion` makes `mixed` the one unchecked position, so `rule:types/erased-member-access`'s deferral covers a call as well as a property access: which class
     /// is behind the handle, and whether there is one at all, is a run-time
-    /// question, and `docs/adr/README.md` § *Decisions taken at project start*
-    /// owns the convention that answers it — the receiver's own descriptor
+    /// question, and `rule:types/erased-member-access` owns the convention
+    /// that answers it — the receiver's own descriptor
     /// marshals the call, its method row carrying the callee's arity and
     /// parameter tags. Every *other* receiver naming no class is
     /// `E_METHOD_ON_ERASED_RECEIVER` instead, so an entry here is the checker

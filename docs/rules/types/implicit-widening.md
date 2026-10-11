@@ -14,6 +14,14 @@ keep the representation they were stored with, so an `array<int>` is not an `arr
 where `f64` stops representing
 every integer.
 
+A branch of a ternary, an elvis or a `match` is not a `float` position. The checker types the whole
+expression as the union of its branches, and branches of two representations join at that union's
+tagged form, each tagged in its own block, instead of one being promoted into the other. So `$c ? 1 :
+2.5` keeps PHP's answer on its truthy path, an `int` that stays exact past 2^53 where a widening
+would have thrown, and `float $x = $c ? 1 : 2.5;` widens exactly once, at the binding. This is the
+line integer `/` draws for the same reason: the promotion rows belong to an operator, whose result
+type `rule:types/arithmetic` fixes, and a branch is neither an operator nor a position.
+
 Everything else is a diagnostic. `mixed` never absorbs implicitly in either direction
 (`rule:types/unions-and-mixed`), a `decimal` never meets a `float` in arithmetic
 (`rule:types/decimal`), and every remaining change of type is written as `as`

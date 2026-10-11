@@ -118,7 +118,19 @@ codes! {
 /// | `E07xx` | types, continued — the `E04xx` band filled at `E0499` |
 /// | `E08xx` | types, continued again — the `E07xx` band filled at `E0799` |
 /// | `E09xx` | internal compiler errors |
+/// | `E10xx` | reserve: whichever band fills next continues here |
 /// | `W1xxx` | warnings |
+///
+/// A band is two digits wide, and a full one continues in a new band instead
+/// of running past its end. Max-plus-one past `E0499` would give `E0500`,
+/// whose digits read as the IR-and-codegen band, so `E0500` is never issued
+/// and each continuation is one more row in the table above. The
+/// two alternatives cost more than a second range: widening every band to
+/// three digits renumbers every released code and every `.nvst` case that
+/// names one, and filling the lowest hole inside a band reuses a retired
+/// number, which the promise above forbids. The orientation pack's next-free
+/// list reports a band whose max-plus-one would leave it as **full**, so the
+/// next code is read off the tool and not re-derived.
 pub mod code {
     use crate::diagnostic::Code;
 
@@ -479,9 +491,8 @@ pub mod code {
     // `E_IDENTITY_OPERATOR_UNSUPPORTED`, `E_ANGLE_NOT_EQUAL_UNSUPPORTED`) are
     // named where they are recognised, which is the lexer. A few are shapes
     // PHP refuses as well and admits here by nothing but omission; they are in
-    // this band because the answer is the band's own — recognise the shape and
-    // name its rewrite — and because docs/adr/README.md § *Decisions taken at
-    // project start* places them here. See docs/spec.
+    // this band because the answer is the band's own: recognise the shape and
+    // name its rewrite. The rule each one cites places it here. See docs/spec.
     /// `eval()`: Novis compiles ahead of execution.
     pub const E_EVAL_UNSUPPORTED: Code = Code::new("E0201").card(
         "`eval()` is not available in Novis. Every program is compiled before it runs, so code \
@@ -769,8 +780,8 @@ pub mod code {
     );
     /// `use App\Models\{User, Post};` — PHP's group-use form. One `use`
     /// statement imports exactly one name, so the short name a file introduces
-    /// is always written on a line of its own: `docs/adr/README.md`
-    /// § *Decisions taken at project start* owns the rule, and
+    /// is always written on a line of its own
+    /// (`rule:statements/nothing-gets-a-second-name`), and
     /// [`E_IMPORT_ALIAS_UNSUPPORTED`] is its sibling refusal on the other half
     /// of the same statement.
     pub const E_IMPORT_GROUP_UNSUPPORTED: Code = Code::new("E0238").card(
@@ -812,8 +823,8 @@ pub mod code {
     );
     /// A `try` block with neither a `catch` clause nor a `finally` — `try { …
     /// }` alone, which guards nothing and is the shape a deleted clause leaves
-    /// behind. PHP refuses it too. See `docs/adr/README.md` § *Decisions taken
-    /// at project start*.
+    /// behind. PHP refuses it too
+    /// (`rule:statements/a-try-has-a-clause-and-a-catch-names-one-class`).
     pub const E_TRY_WITHOUT_CLAUSE: Code = Code::new("E0242").card(
         "A `try` block needs a `catch` or a `finally` clause. Add `catch (Throwable $e) { ... }` \
          to handle an error, or `finally { ... }` for code that always runs.",
@@ -855,8 +866,7 @@ pub mod code {
     /// constant is no different: the type read off the folded value is a
     /// guess the declaration never made, it is unavailable to an interface
     /// constant at all, and where the value has no constant form there is
-    /// nothing to guess from. See `docs/adr/README.md` § *Decisions taken at
-    /// project start*.
+    /// nothing to guess from.
     pub const E_CONSTANT_WITHOUT_TYPE: Code = Code::new("E0246").card(
         "A class constant must declare its type. Write the type before the name, as in \
          `public const int LIMIT = 9;`.",
@@ -2175,13 +2185,12 @@ pub mod code {
     /// (`nvs_ir::ir::StaticProp`), so for such a subclass the spelling would
     /// silently name the parent's storage instead, and it is refused.
     /// `self::$prop` and a written class name both say exactly which storage
-    /// is meant and are unaffected.
+    /// is meant and are unaffected (`rule:statements/static-is-a-member-modifier`).
     ///
-    /// **The last code in the E04xx band**, which is full. The band decision
-    /// is [`E_ELEMENT_WRITE_ROOT_NOT_A_PLACE`]'s: the types band continues at
-    /// `E07xx`, and `E0500` is never issued, its own digits reading as the
-    /// IR-and-codegen band. `docs/adr/README.md` § *Decisions taken at project
-    /// start* is the one home for why.
+    /// **The last code in the E04xx band**, which is full. The types band
+    /// continues at `E07xx`, and `E0500` is never issued, its own digits
+    /// reading as the IR-and-codegen band; this module's legend table and the
+    /// paragraph under it say why.
     pub const E_STATIC_PROPERTY_LATE_BOUND: Code = Code::new("E0499").card(
         "`static::$prop` is not allowed for a static property. Write `self::$prop` for the class \
          this code is in, or write the name of the class whose property you mean.",
@@ -3016,10 +3025,8 @@ pub mod code {
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose
     // band digits read as E05xx — IR and codegen — so that number is never
-    // issued and the types band continues here instead. `docs/adr/README.md`
-    // § *Decisions taken at project start* owns the reasoning; `bun nv orient`
-    // reports a filled band as full rather than handing out the number past
-    // its end.
+    // issued and the types band continues here instead. The paragraph under
+    // this module's legend table owns the reasoning.
     /// An array element written through a root that is not a **place**:
     /// `$h->rows()["a"] = "y"`, `[1, 2]["0"] = "z"`, `($c ? $a : $b)["k"] = v`.
     ///
@@ -4684,10 +4691,9 @@ pub mod code {
     /// the two halves cannot share a site.
     ///
     /// **The last code in the E07xx band, which is full.** The types band has
-    /// filled twice — at `E0499` and here — and the next types diagnostic
-    /// opens a new band rather than taking `E0800`, whose digits read as no
-    /// band at all. That is a project-level decision and `docs/adr/README.md`
-    /// § *Decisions taken at project level* is its home, as it is for `E0500`.
+    /// filled twice — at `E0499` and here — and the types diagnostics continue
+    /// in the `E08xx` band; this module's legend table and the paragraph
+    /// under it say why.
     pub const E_PROPERTY_KEY_ARGUMENT_NOT_A_CLASS: Code = Code::new("E0799").card(
         "In `property<T>`, `T` must be a class with at least one public property. An interface, \
          an enum or a type like `int` is not allowed.",
@@ -4695,11 +4701,10 @@ pub mod code {
 
     // --- E08xx types, continued again ---------------------------------------
     //
-    // The third band for one stage. `E07xx` filled at `E0799`, whose own doc
-    // comment says the next types diagnostic opens a band rather than taking
-    // the number past the end of that one, and `docs/adr/README.md`
-    // § *Decisions taken at project start* sets `E08xx` aside for whichever
-    // band fills next — it is the project-level home of both.
+    // The third band for one stage. `E07xx` filled at `E0799`, and `E08xx`,
+    // held in reserve for whichever band filled next, continues it; `E10xx`
+    // is the reserve. The paragraph under this module's legend table
+    // owns the reasoning.
     //
 
     /// `callable(int $x): string` — a parameter name inside a `callable` type,

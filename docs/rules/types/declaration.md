@@ -28,6 +28,13 @@ or narrows is a diagnostic. There is no function-scope `static` and no global co
 a binding site at all (`rule:statements/no-function-static-and-no-global`), and definite assignment
 holds with no exception: no binding is live on a call whose path never ran its initialiser.
 
+A class or interface constant writes its type too, and PHP's untyped `public const LIMIT = 9;` is
+`E0246` at the `const` keyword, in the rejected-PHP band. A type read off the folded value is a guess
+the declaration never made, and it is not available everywhere the form is: an interface constant
+records no value to read it from, and a value with no constant form, such as `[1, 2]`, has nothing to
+read a type from either. The rewrite is the type the value already has, one word per constant in a
+migrated file.
+
 A declared type is what makes the other priorities cheap. Untrusted input cannot coerce silently into
 a wrong but valid value — `"abc"` read as row id `0` — because no binding changes type without an
 `as`. The backend emits a native instruction wherever both operand types are known, which is every

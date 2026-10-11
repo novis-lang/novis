@@ -1,0 +1,11 @@
+{
+  "title": "A `match` has at least one arm",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "expressions/switch-match-equality"
+  ],
+  "guardedBy": [
+    "tests/conformance/lang/an-arm-less-match-is-a-diagnostic.nvst"
+  ]
+}

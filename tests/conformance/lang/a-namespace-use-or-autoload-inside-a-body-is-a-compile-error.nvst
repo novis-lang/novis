@@ -1,5 +1,5 @@
 --TEST--
-A `use`, `autoload`, `type` or `namespace` written inside a body is `E0233`, never a panic — docs/adr/README.md § *Decisions taken at project start*
+A `use`, `autoload`, `type` or `namespace` written inside a body is `E0233`, never a panic — `rule:classes/a-type-is-declared-at-file-scope`
 --FILE--
 <?nvs
 // A declaration is in effect before any code runs, so a body is the one place

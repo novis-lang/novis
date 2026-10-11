@@ -518,7 +518,7 @@ fn every_keyword_spelling_is_a_name_segment_past_the_first() {
 }
 
 /// PHP's group-use form is refused, not parsed: one `use` names one import.
-/// `docs/adr/README.md` § *Decisions taken at project start* owns the rule.
+/// `rule:statements/nothing-gets-a-second-name` owns the rule.
 #[test]
 fn a_grouped_use_parses_or_names_the_rule_that_refuses_it() {
     let (s, diags) = parse_stmt_with_diags("use App\\Models\\{User, Post};");
@@ -580,8 +580,8 @@ fn a_second_or_late_namespace_statement_is_e0243() {
 
 /// `namespace X;` is the only namespace statement, and the braced form is
 /// still parsed after it is refused so the declarations inside it report
-/// their own problems in the same run. docs/adr/README.md § *Decisions taken
-/// at project start*.
+/// their own problems in the same run
+/// (`rule:statements/one-namespace-statement-per-file`).
 #[test]
 fn a_braced_namespace_is_e0243() {
     let (s, diags) = parse_stmt_with_diags("namespace App\\Billing { class Invoice {} }");
@@ -751,8 +751,8 @@ fn a_class_constant_without_a_type_is_e0246() {
 
 /// An anonymous class is refused at `new class` and then parsed whole, so the
 /// members inside it are checked in the same run and nothing downstream meets
-/// a half-built declaration. docs/adr/README.md § *Decisions taken at project
-/// start* is the refusal; the shape below is what the parser still builds.
+/// a half-built declaration. `rule:classes/a-type-is-declared-at-file-scope`
+/// is the refusal; the shape below is what the parser still builds.
 #[test]
 fn anonymous_class_as_new_target_is_e0244() {
     let (s, diags) =

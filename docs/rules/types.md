@@ -39,6 +39,13 @@ or narrows is a diagnostic. There is no function-scope `static` and no global co
 a binding site at all ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)), and definite assignment
 holds with no exception: no binding is live on a call whose path never ran its initialiser.
 
+A class or interface constant writes its type too, and PHP's untyped `public const LIMIT = 9;` is
+`E0246` at the `const` keyword, in the rejected-PHP band. A type read off the folded value is a guess
+the declaration never made, and it is not available everywhere the form is: an interface constant
+records no value to read it from, and a value with no constant form, such as `[1, 2]`, has nothing to
+read a type from either. The rewrite is the type the value already has, one word per constant in a
+migrated file.
+
 A declared type is what makes the other priorities cheap. Untrusted input cannot coerce silently into
 a wrong but valid value — `"abc"` read as row id `0` — because no binding changes type without an
 `as`. The backend emits a native instruction wherever both operand types are known, which is every
@@ -373,6 +380,14 @@ keep the representation they were stored with, so an `array<int>` is not an `arr
 `as array<float>` is the conversion ([`types/arrays`](types.md#types-arrays)). It throws above 2^53 rather than rounding,
 where `f64` stops representing
 every integer.
+
+A branch of a ternary, an elvis or a `match` is not a `float` position. The checker types the whole
+expression as the union of its branches, and branches of two representations join at that union's
+tagged form, each tagged in its own block, instead of one being promoted into the other. So `$c ? 1 :
+2.5` keeps PHP's answer on its truthy path, an `int` that stays exact past 2^53 where a widening
+would have thrown, and `float $x = $c ? 1 : 2.5;` widens exactly once, at the binding. This is the
+line integer `/` draws for the same reason: the promotion rows belong to an operator, whose result
+type [`types/arithmetic`](types.md#types-arithmetic) fixes, and a branch is neither an operator nor a position.
 
 Everything else is a diagnostic. `mixed` never absorbs implicitly in either direction
 ([`types/unions-and-mixed`](types.md#types-unions-and-mixed)), a `decimal` never meets a `float` in arithmetic
@@ -1784,6 +1799,22 @@ argument, per call. A written signature discharges the same guard at compile tim
 the mismatch is written. `Core\Arr::map($ints, fn (string $s): string => $s)` over an `array<int>`
 does not compile.
 
+**A parameter that names a class is checked against the argument's ancestry at the callable's
+entry.** The tag check compares representations, and every class name, `object` and a shape share one
+tag, so it accepts an instance of an unrelated class. A named-class binding is read and written at a
+fixed offset against its label, so that acceptance is a type confusion and not a wrong answer: one
+wrong callback can write an `int` over a `string` field, and the next read dereferences it. That is
+security and request isolation. Every other position is checked where it is written, and an erased
+receiver carries no label at all ([`types/erased-member-access`](types.md#types-erased-member-access)), so the callable's entry is the
+one place nothing else looked. The body's first block runs the same class test `$x is C` runs on each
+class-declared parameter, and a miss throws a `LogicError`. A parent class and an implemented
+interface accept the instance an exact class does.
+
+Two things the entry check does not do. A `?C` parameter is unchecked on both lines: it erases to a
+tagged value before any class survives, the same nothing `mixed` gets. And the error does not name the
+class that arrived, because no compiled instruction reads an object's class name, and adding one is a
+new value shape for the sake of a message.
+
 The parameter list needs no trial parse: a `(` after `callable` in a type position can only open a
 parameter list, because a type position has no call syntax to confuse it with.
 
@@ -1796,7 +1827,9 @@ more: no type variable can be bounded, and without it `Task::all(5)` would compi
 What it accepts is ordinary assignability, and what it binds is the same structural walk.
 
 - **Memory:** none. A written signature adds no runtime representation, no heap shape and no
-  per-callable growth. The parameter tags and the arity stay on every callable value.
+  per-callable growth. The parameter tags and the arity stay on every callable value. The entry
+  check spends one scan of the argument's ancestry per class-declared parameter per call, and
+  allocates nothing.
 
 **Declined:**
 - **Angle brackets, `callable<User, string, string>`.** The return type would be positional and
@@ -1810,6 +1843,11 @@ What it accepts is ordinary assignability, and what it binds is the same structu
   varies.
 - **`Closure` as a second name for a typed signature.** One function type is enough
   ([`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type)).
+- **Name-keyed access for every named-class property.** It closes the same hole everywhere, but it
+  spends latency in every program, most of which never write an anonymous function.
+- **A class channel in the parameter tags.** A per-callable list of descriptors would spend an
+  allocation at every anonymous function literal to answer a question the body's first block asks
+  for free.
 
 <sub>See also [`types/callable-arity`](types.md#types-callable-arity), [`types/callable-variance`](types.md#types-callable-variance), [`types/anonymous-function-parameter-inference`](types.md#types-anonymous-function-parameter-inference), [`types/callable-values`](types.md#types-callable-values).</sub>
 
@@ -2235,9 +2273,10 @@ For all three:
 - **Write:** the same missing-name throw, plus a check of the incoming value against the field's
   *real*, concrete declared type, throwing on a mismatch. A write through an erased view can **never
   create a field**.
-- **Call:** a call through an erased receiver is dispatched on the value's own descriptor when it
-  runs. What cannot be deferred is refused: taking a *method reference* off an erased receiver has no class
-  present to read a callee from ([`types/callable-values`](types.md#types-callable-values)).
+- **Call:** only `mixed` defers a call. A call through `mixed` is dispatched on the value's own
+  descriptor when it runs; a call through a plain `object` or a shape is `E0477`, as the paragraphs
+  below say. What cannot be deferred is refused: taking a *method reference* off an erased receiver
+  has no class present to read a callee from ([`types/callable-values`](types.md#types-callable-values)).
 
 Both throws are ordinary `Throwable`s propagated by checked return ([`errors/propagation`](errors.md#errors-propagation)), never
 routed through the fatal escalation ladder ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)). The run-time name
@@ -2246,6 +2285,46 @@ code that erased its receiver's type pays it. Per-property hooks and a
 declared property observer behave here exactly as they do anywhere, because this is one implementation
 and not a family of them — [`types/property-key-access`](types.md#types-property-key-access) and [`types/mixed-subscript`](types.md#types-mixed-subscript) are the
 same access one step along.
+
+**A method call needs a class label, so a receiver that names no class is refused where it is
+written (`E0477`).** `object` erases to exactly the pointer a named class does, so nothing below the
+checker wants the label for representation. What wants it is resolution: `$o->m(...)` has no signature
+to check its arguments against and no return type for the position it sits in. There is no `__call`
+to fall back on ([`classes/no-call-magic`](classes.md#classes-no-call-magic)), and a dynamic call with run-time-checked arguments is
+granted to bare `callable` alone. `E0477` is one code for every receiver that names no class, because
+it is one mistake: plain `object`, a shape, a union naming no single class, and a type that can hold
+no object at all, such as a scalar, an `array<T>` or a `void` call's result. Only the help splits:
+narrow the receiver (`is` proves the class, `as ClassName` converts to it), convert it, or nothing at
+all for a value that does not exist. The property half splits a deferral off from `E0495` and the call
+half does not, because a property read has a name-keyed fetch to defer to and a call has nothing.
+`mixed` is the one receiver left out, since [`types/unions-and-mixed`](types.md#types-unions-and-mixed) makes it the one unchecked
+position.
+
+**A call through `mixed` is checked against the callee's declared shape.** The receiver's descriptor
+carries, for each method, its arity and the representation each parameter requires, and the
+arguments are tested by the same per-argument check a bare `callable` call runs, so the
+`int`-into-`float` widening ([`types/implicit-widening`](types.md#types-implicit-widening)) is applied in one place. Nothing is
+converted on the way in or out: the arguments are already tagged values, and the result comes back
+tagged for the `mixed` the call's own type is. Every failure is a catchable throw on
+[`errors/propagation`](errors.md#errors-propagation)'s error edge, worded as the diagnostic that names the same mistake where a
+static type shows it: a receiver whose tag is not an object (`E0477`), a class with no such method
+(`E0405`), and an argument count or representation the callee does not admit (`E0402`, `E0401`). Two
+more shapes throw instead of dispatching. A non-`public` method throws, since a `mixed` receiver is
+outside every class. A `Core`-owned method throws, since its native convention borrows argument 0
+where a compiled method owns its parameters.
+
+- **Memory:** the method rows are per class, once per process, and nothing per instance or per call.
+  A statically typed call pays nothing. A call through `mixed` pays a tag test on the receiver, one
+  binary search of the method table by name, and a shift, a mask and a compare per argument.
+
+**Declined:**
+- **Dispatching a method call through `object` or a shape.** Refusing is the reversible choice: a
+  later decision can turn `E0477` into dispatch, while a program that already dispatched could not be
+  taken back.
+- **A compiled thunk per method for a call through `mixed`.** It would write the tag rules a second
+  time in the code generator, add a second frame on the erased path that still needs the same name
+  lookup, and spend a compiled function per method in every unit whether any `mixed` receiver exists
+  or not.
 
 <sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/shape-type`](types.md#types-shape-type), [`types/property-key-access`](types.md#types-property-key-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed).</sub>
 

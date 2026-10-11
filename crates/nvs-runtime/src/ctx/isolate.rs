@@ -1,6 +1,6 @@
 //! Static-property storage, and the ways a context makes another one.
 //!
-//! `docs/adr/README.md` § *Decisions taken at project start* makes a static
+//! `rule:statements/storage-that-outlives-a-call` makes a static
 //! property's slot request-scoped: [`Ctx::install_statics`] materializes one
 //! per declared default when the request is armed and [`Ctx`]'s `Drop` releases
 //! them, so nothing outlives the request that wrote it.

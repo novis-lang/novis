@@ -264,8 +264,8 @@ pub fn call_static_bound(
 /// arity and the tag each parameter requires, and
 /// [`crate::callable`]'s `check_param_tags` judges the arguments against them
 /// through the one implementation this path and `callable`'s share.
-/// `docs/adr/README.md` § *Decisions taken at project start* owns the
-/// convention and why it is a descriptor row rather than a per-method thunk.
+/// `rule:types/erased-member-access` owns the convention and why it is a
+/// descriptor row rather than a per-method thunk.
 ///
 /// Nothing is marshalled in either direction: `rule:errors/propagation` makes one calling
 /// convention normative, so the tagged values this site holds are already the

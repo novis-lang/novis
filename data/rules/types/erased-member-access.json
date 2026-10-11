@@ -13,6 +13,8 @@
     "tests/conformance/lang/a-shape-field-write-is-name-keyed-and-type-checked.nvst",
     "tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst",
     "tests/conformance/lang/a-call-through-a-mixed-receiver-is-dispatched-on-its-value.nvst",
-    "tests/conformance/reject/a-call-through-a-mixed-receiver-refuses-what-it-cannot-defer.nvst"
+    "tests/conformance/reject/a-call-through-a-mixed-receiver-refuses-what-it-cannot-defer.nvst",
+    "tests/conformance/lang/a-method-call-through-an-erased-receiver-is-a-diagnostic.nvst",
+    "tests/conformance/reject/a-method-call-through-a-receiver-that-names-no-class-is-refused.nvst"
   ]
 }

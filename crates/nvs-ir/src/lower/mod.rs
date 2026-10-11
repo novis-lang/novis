@@ -4386,8 +4386,8 @@ pub const FN_PARAM_TAG_ANY: u8 = 15;
 /// its label, so admitting one is a type confusion rather than a wrong answer.
 /// The label four bits have no room for is checked at the callable's **entry**
 /// instead, one class test per class-declared parameter
-/// (`lower::anon_fn::check_param_class`); `docs/adr/README.md` § *Decisions
-/// taken at project start* owns why that boundary pays rather than every
+/// (`lower::anon_fn::check_param_class`); `rule:types/callable-signature`
+/// says why that boundary pays rather than every
 /// named-class property access, and
 /// `tests/conformance/core/out-a-callback-parameter-naming-a-class-checks-the-argument-class-at-entry.nvst`
 /// pins both lines — this one around objecthood, that one around ancestry.

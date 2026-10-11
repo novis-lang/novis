@@ -25,6 +25,22 @@ argument, per call. A written signature discharges the same guard at compile tim
 the mismatch is written. `Core\Arr::map($ints, fn (string $s): string => $s)` over an `array<int>`
 does not compile.
 
+**A parameter that names a class is checked against the argument's ancestry at the callable's
+entry.** The tag check compares representations, and every class name, `object` and a shape share one
+tag, so it accepts an instance of an unrelated class. A named-class binding is read and written at a
+fixed offset against its label, so that acceptance is a type confusion and not a wrong answer: one
+wrong callback can write an `int` over a `string` field, and the next read dereferences it. That is
+security and request isolation. Every other position is checked where it is written, and an erased
+receiver carries no label at all (`rule:types/erased-member-access`), so the callable's entry is the
+one place nothing else looked. The body's first block runs the same class test `$x is C` runs on each
+class-declared parameter, and a miss throws a `LogicError`. A parent class and an implemented
+interface accept the instance an exact class does.
+
+Two things the entry check does not do. A `?C` parameter is unchecked on both lines: it erases to a
+tagged value before any class survives, the same nothing `mixed` gets. And the error does not name the
+class that arrived, because no compiled instruction reads an object's class name, and adding one is a
+new value shape for the sake of a message.
+
 The parameter list needs no trial parse: a `(` after `callable` in a type position can only open a
 parameter list, because a type position has no call syntax to confuse it with.
 
@@ -37,7 +53,9 @@ more: no type variable can be bounded, and without it `Task::all(5)` would compi
 What it accepts is ordinary assignability, and what it binds is the same structural walk.
 
 - **Memory:** none. A written signature adds no runtime representation, no heap shape and no
-  per-callable growth. The parameter tags and the arity stay on every callable value.
+  per-callable growth. The parameter tags and the arity stay on every callable value. The entry
+  check spends one scan of the argument's ancestry per class-declared parameter per call, and
+  allocates nothing.
 
 **Declined:**
 - **Angle brackets, `callable<User, string, string>`.** The return type would be positional and
@@ -51,3 +69,8 @@ What it accepts is ordinary assignability, and what it binds is the same structu
   varies.
 - **`Closure` as a second name for a typed signature.** One function type is enough
   (`rule:types/callable-is-the-only-function-type`).
+- **Name-keyed access for every named-class property.** It closes the same hole everywhere, but it
+  spends latency in every program, most of which never write an anonymous function.
+- **A class channel in the parameter tags.** A per-callable list of descriptors would spend an
+  allocation at every anonymous function literal to answer a question the body's first block asks
+  for free.

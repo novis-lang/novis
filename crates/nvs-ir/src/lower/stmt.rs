@@ -286,9 +286,9 @@ impl<'a> Lowering<'a> {
             ),
             // The declarations. At file scope `lower_script_stmts` above skips
             // them; anywhere else `nvs_types::locals`' walk, which is reached
-            // only from inside a body, reports this code. The decision is in
-            // `docs/adr/README.md` § *Decisions taken at project start*, since
-            // PHP's "declared when the statement runs" has no reading a static
+            // only from inside a body, reports this code. The decision is
+            // `rule:classes/a-type-is-declared-at-file-scope`, since PHP's
+            // "declared when the statement runs" has no reading a static
             // table built before any code runs can give it.
             StmtKind::ClassDecl(_)
             | StmtKind::InterfaceDecl(_)

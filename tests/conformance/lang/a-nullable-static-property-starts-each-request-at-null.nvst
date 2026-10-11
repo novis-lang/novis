@@ -1,5 +1,5 @@
 --TEST--
-A `static` property whose type admits `null` needs no initializer and starts the request at `null`; a subclass redeclaring one gets a second storage — `rule:classes/definite-property-initialization`, and `docs/adr/README.md` § *Decisions taken at project start* for the lifetime
+A `static` property whose type admits `null` needs no initializer and starts the request at `null`; a subclass redeclaring one gets a second storage — `rule:classes/definite-property-initialization`, and `rule:statements/storage-that-outlives-a-call` for the lifetime
 --FILE--
 <?nvs
 class Cache {

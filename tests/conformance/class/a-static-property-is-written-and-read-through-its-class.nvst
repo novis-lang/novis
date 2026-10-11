@@ -3,8 +3,8 @@ A static property is one slot named by its declaring class, whichever spelling r
 --FILE--
 <?nvs
 // Storage is request-scoped, and the declaring class is its identity — see
-// `docs/adr/README.md` § *Decisions taken at project start*. Every spelling
-// below resolves to the same slot, so the reads are what prove it.
+// `rule:statements/storage-that-outlives-a-call`. Every spelling below
+// resolves to the same slot, so the reads are what prove it.
 class Registry {
     public static int $count = 0;
     public static string $label = "hits";

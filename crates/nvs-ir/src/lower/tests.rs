@@ -2260,8 +2260,8 @@ fn a_multi_level_break_leaves_the_loop_its_level_names() {
 /// `switch` counts as a level and the walk outward finds the loop.
 ///
 /// `nvs_ir::lower::Lowering::lower_continue` is where both steps live and
-/// why; `docs/adr/README.md`'s paragraph on `continue` inside a `switch`
-/// is the decision's home.
+/// why; `rule:statements/continue-always-continues-a-loop` is the
+/// decision's home.
 #[test]
 fn a_continue_level_walks_out_of_a_switch_to_the_loop() {
     let inside_switch = |keyword: &str| {

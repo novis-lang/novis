@@ -648,15 +648,13 @@ pub struct ClassDesc {
 /// `nvs_ir::lower`'s `FN_ARITY` and `FN_PARAM_TAGS` slots, in the same
 /// encoding, and [`crate::callable`]'s `check_param_tags` is the one
 /// implementation both paths share rather than a second copy of `rule:types/conversion`'s
-/// `int`-into-`float` widening. `docs/adr/README.md` § *Decisions taken at
-/// project start* owns why this rides on the descriptor rather than on a
-/// per-method thunk.
+/// `int`-into-`float` widening. `rule:types/erased-member-access` owns why
+/// this rides on the descriptor rather than on a per-method thunk.
 ///
 /// **Cost:** the two words, the `bool`s and the two roster headers are 64
 /// bytes per method per class, plus one `String` for each parameter a source
 /// declaration named and one for each type it wrote — once per process and not
-/// per instance, and still short of what the thunk this replaces would have
-/// spent a compiled function each on.
+/// per instance, where a per-method thunk would spend a compiled function each.
 #[derive(Clone, Debug)]
 pub struct MethodRow {
     /// The method name, as written. The table is sorted on this.

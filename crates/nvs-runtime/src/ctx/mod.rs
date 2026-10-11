@@ -128,9 +128,9 @@
 //! A `public static int $total;` has exactly one storage slot **per request**,
 //! not per process: [`Ctx::install_statics`] materializes every slot from its
 //! declared initializer when the request's context is armed, and [`Ctx`]'s
-//! `Drop` releases them when the request ends. `docs/adr/README.md`
-//! § *Decisions taken at project start* owns the decision and its reasoning;
-//! what belongs here is the shape it takes.
+//! `Drop` releases them when the request ends.
+//! `rule:statements/storage-that-outlives-a-call` owns the decision and its
+//! reasoning; what belongs here is the shape it takes.
 //!
 //! The slots are one flat `[Value]`, indexed by a slot number `nvs-codegen`
 //! resolves at compile time from `nvs_ir::ir::Program::statics` — the same

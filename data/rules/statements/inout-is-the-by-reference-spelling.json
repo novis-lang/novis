@@ -11,6 +11,8 @@
     "tests/conformance/lang/a-by-reference-argument-is-written-inout-at-both-ends.nvst",
     "tests/conformance/lang/a-reference-argument-is-written-back-before-the-next-read.nvst",
     "tests/conformance/lang/compound-assignment-writes-through-a-by-reference-parameter.nvst",
+    "tests/conformance/iter/a-generator-refuses-a-by-reference-parameter.nvst",
+    "tests/conformance/lang/an-anonymous-function-refuses-a-by-reference-parameter.nvst",
     "crates/nvs-syntax/src/parser/tests/inout.rs"
   ]
 }

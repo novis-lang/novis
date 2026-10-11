@@ -17,8 +17,8 @@ An anonymous function's parameter naming a class is checked against the argument
 // block, one class test per class-declared parameter
 // (`nvs_ir::lower::anon_fn::check_param_class`), which is what draws the
 // second line — around the argument's *ancestry*, not around its exact class.
-// `docs/adr/README.md` § *Decisions taken at project start* owns why the
-// callable's entry is the boundary that pays for it: without it a named-class
+// `rule:types/callable-signature` says why the callable's entry is the
+// boundary that pays for it: without it a named-class
 // binding reads and writes at a fixed offset against a label nothing verified,
 // which is a type confusion rather than a wrong answer.
 //

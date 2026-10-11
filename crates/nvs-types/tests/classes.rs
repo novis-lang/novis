@@ -561,9 +561,8 @@ interface HasLimit {
 }
 
 /// A constant reads at the type its declaration writes — the rule
-/// `signatures::ConstSig` owns. PHP 8.3's unannotated spelling, which used to
-/// read at the value it folded to instead, is now refused in the parser
-/// (`E0246`, docs/adr/README.md § *Decisions taken at project start*).
+/// `signatures::ConstSig` owns. PHP 8.3's unannotated spelling is refused in
+/// the parser (`E0246`, `rule:types/declaration`).
 #[test]
 fn a_class_constant_reads_at_its_declared_type() {
     let diags = check_src(

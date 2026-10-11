@@ -1,0 +1,14 @@
+{
+  "title": "A `try` has a `catch` or a `finally`, and a `catch` clause names exactly one class",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "expressions/catch-expression",
+    "types/declaration"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/a-try-has-a-clause.nvst",
+    "tests/conformance/reject/a-catch-clause-names-one-class.nvst",
+    "crates/nvs-syntax/src/parser/tests/stmt.rs"
+  ]
+}

@@ -126,9 +126,9 @@ pub struct ShapeCodec {
 /// request's own flat slot vector, whose index is this value's position in
 /// [`Program::statics`]. `nvs_runtime::ctx`'s docs own the lifetime — the slot
 /// is request-scoped, armed from [`Self::default_value`] when the request
-/// starts and released when it ends — and `docs/adr/README.md`
-/// § *Decisions taken at project start* owns why it is request-scoped rather
-/// than process-global.
+/// starts and released when it ends — and
+/// `rule:statements/storage-that-outlives-a-call` says why it is
+/// request-scoped rather than process-global.
 ///
 /// The pair `(class, name)` is the *declaring* class's label and the property's
 /// own name, which is exactly what `nvs_types::expr_table::ExprInfo::StaticProperty`
@@ -2951,8 +2951,8 @@ pub enum Helper {
     /// arguments are packed for the same one: how many there are is a
     /// **run-time** fact — a `...` argument's count is its subject's own
     /// length — and the callee's arity is not known here either, that being
-    /// what the receiver's descriptor answers. `docs/adr/README.md`
-    /// § *Decisions taken at project start* owns the convention: the method
+    /// what the receiver's descriptor answers. `rule:types/erased-member-access`
+    /// owns the convention: the method
     /// row on the receiver's own `ClassDesc` carries the callee's arity and
     /// parameter tags, and `nvs_runtime::callable`'s `check_param_tags` is the
     /// one implementation this path and `callable`'s share.

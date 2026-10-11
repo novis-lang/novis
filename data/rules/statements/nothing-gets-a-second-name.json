@@ -7,6 +7,7 @@
     "statements/no-fallback-to-the-root-namespace"
   ],
   "guardedBy": [
-    "crates/nvs-syntax/src/parser/tests/decl.rs"
+    "crates/nvs-syntax/src/parser/tests/decl.rs",
+    "tests/conformance/reject/an-import-is-neither-renamed-nor-grouped-nor-nested-and-a-short-name-never-falls-back-to-the-root.nvst"
   ]
 }
