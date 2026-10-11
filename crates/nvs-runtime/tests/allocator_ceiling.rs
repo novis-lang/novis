@@ -88,7 +88,7 @@ fn a_growing_allocation_past_the_ceiling_sets_the_memory_bit() {
 /// mirror follows rather than drifts.
 #[test]
 fn a_ceiling_raised_mid_request_rearms_the_threshold() {
-    let mut ctx = ctx_reading("[limits]\nmemory = \"16M\"\n");
+    let mut ctx = ctx_reading("[limits]\nmemory = \"16M\"\n\n[limits.hard]\nmemory = \"64M\"\n");
     let narrow = budget::armed_ceiling();
     assert!(
         narrow > 0,
@@ -219,11 +219,11 @@ fn an_uncapped_request_arms_no_threshold_and_pays_one_compare() {
         "a context that armed a threshold did not give back what it displaced as it dropped",
     );
 
-    let ctx = ctx_reading("[limits]\ncpu_time = \"2s\"\n");
+    let ctx = ctx_reading("[limits]\nmemory = false\n");
     assert_eq!(
         ctx.memory_limit(),
         0,
-        "a configuration stating no `[limits] memory` produced a ceiling, so this is not the uncapped case",
+        "`[limits] memory = false` produced a ceiling, so this is not the uncapped case",
     );
     assert_eq!(
         budget::armed_ceiling(),

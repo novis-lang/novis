@@ -6069,7 +6069,7 @@ mod tests {
                 .concat()
         });
         let held = through(|ctx, part| {
-            read_all(ctx, part, u64::MAX).expect("a part still on the wire is read whole")
+            read_all(ctx, part, 1 << 20).expect("a part still on the wire is read whole")
         });
         let saved = through(|ctx, part| {
             let (_dir, path) = scratch("consumed-once.pdf");

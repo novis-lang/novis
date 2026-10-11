@@ -17,7 +17,8 @@
 //! **What `set` refuses, it refuses by returning `false`** (`rule:config/three-changeability-classes`, and `m6.md`'s *Verify*): a
 //! name no [`Directive`](crate::directive::Directive) row governs, a name a row governs that is not
 //! a leaf key the file may write (`log`, `log.x`), a `System` one, a value that
-//! does not spell its unit, a value above the `[limits.hard]` ceiling, a
+//! does not spell its unit, a value above its ceiling (`[limits.hard]`, or where that is not
+//! written the `[limits]` value the run started with), a
 //! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow, an assignment that would
 //! leave this request holding one of `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`'s meaningless `[http]` pairs, and a mode
 //! outside `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s ceiling — a name that is not one of the two modes being outside every
@@ -56,16 +57,35 @@ pub struct Request {
     /// Every key `set` accepted, by canonical dotted name. Empty for a request that never called
     /// it, which is nearly all of them.
     overlay: BTreeMap<String, String>,
+    /// Whether this run is server work — a request, a connection, a scheduled run, a queued job,
+    /// or an isolate inside one of those. It decides whether an unwritten `[limits] cpu_time` is
+    /// [`value::DEFAULT_CPU_TIME`] or nothing ([`value::unwritten_limit`]). `false` until
+    /// [`serve`](Self::serve), and a clone carries it, so a child of server work is server work.
+    serving: bool,
 }
 
 impl Request {
-    /// The view a request starts with: `base`, and nothing set.
+    /// The view a request starts with: `base`, and nothing set. It is not server work until
+    /// [`serve`](Self::serve) says so.
     #[must_use]
     pub fn new(base: Arc<Snapshot>) -> Self {
         Self {
             base,
             overlay: BTreeMap::new(),
+            serving: false,
         }
+    }
+
+    /// Marks this run as server work. It never goes back: nothing a server run starts is a CLI
+    /// program.
+    pub fn serve(&mut self) {
+        self.serving = true;
+    }
+
+    /// Whether this run is server work — see [`serve`](Self::serve).
+    #[must_use]
+    pub fn serves(&self) -> bool {
+        self.serving
     }
 
     /// The snapshot underneath, for a reader that wants the whole tree rather than one directive —
@@ -293,11 +313,16 @@ impl Request {
         out
     }
 
-    /// The `[limits.hard]` ceiling bounding `key`, or `None` where the operator stated none.
+    /// The ceiling bounding a `set` of `key`, or `None` where nothing bounds it.
     ///
-    /// It is read off the typed tree through [`app::ceilings`](crate::app::ceilings), which is the
-    /// one table naming the bounded limits — another one is a row there and not a new place to
-    /// forget.
+    /// The `[limits.hard]` value where the operator wrote one. Where they did not, the ceiling is
+    /// the `[limits]` value this run started with: the one the file wrote, after the `[app.limits]`
+    /// blocks folded into it, or else [`value::unwritten_limit`]'s default. So a program cannot
+    /// raise its own limit unless the operator wrote a ceiling above it. A limit with neither a
+    /// written value nor a default has no ceiling, which is `cpu_time` under `nvs run`.
+    ///
+    /// The bounded limits are the rows of [`app::ceilings`](crate::app::ceilings), which is the
+    /// one table naming them — another one is a row there and not a new place to forget.
     fn ceiling(&self, key: &str) -> Option<Setting> {
         let leaf = key.strip_prefix("limits.")?;
         if leaf.contains('.') {
@@ -305,11 +330,33 @@ impl Request {
             // that is not one of them has no ceiling to find.
             return None;
         }
-        let hard = self.base.config.limits.as_ref()?.hard.as_ref()?;
-        crate::app::ceilings(hard)
+        let unwritten = crate::tree::LimitSet::default();
+        let hard = self
+            .base
+            .config
+            .limits
+            .as_ref()
+            .and_then(|limits| limits.hard.as_ref())
+            .unwrap_or(&unwritten);
+        let (_, written) = crate::app::ceilings(hard)
             .into_iter()
-            .find(|(name, _)| *name == leaf)
-            .and_then(|(_, ceiling)| ceiling.cloned())
+            .find(|(name, _)| *name == leaf)?;
+        if let Some(written) = written {
+            return Some(written.clone());
+        }
+        if let Some(started) = value_at(&self.base.table, key) {
+            return started.clone().try_into().ok();
+        }
+        value::unwritten_limit(leaf, self.serving).map(|default| match default {
+            // A bare number is bytes under a size, and `ns` is the smallest duration, so each
+            // reads back through the one parser as exactly the default.
+            value::Quantity::Nanos(nanos) => Setting::Text(format!("{nanos}ns")),
+            value::Quantity::Bytes(amount) | value::Quantity::Count(amount) => {
+                Setting::Text(amount.to_string())
+            }
+            value::Quantity::Unbounded => Setting::Bool(false),
+            value::Quantity::Ratio(fraction) => Setting::Float(fraction),
+        })
     }
 
     /// The value currently in force at a canonical key, as the boot path would have read it.

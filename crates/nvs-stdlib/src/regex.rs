@@ -822,8 +822,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 ///
 /// This is what a request **starts with** and not a ceiling: the directive is
 /// `Runtime`-class (`rule:config/three-changeability-classes`), so a request
-/// may widen or narrow it for itself, and a host that wants a bound on how far
-/// writes `[limits.hard] max_regex_steps`.
+/// may widen or narrow it for itself up to `[limits.hard] max_regex_steps`.
+/// Where that is not written, a `[limits] max_regex_steps` the file wrote is
+/// the ceiling, and this unwritten default is not one.
 const BACKTRACK_BUDGET: usize = 1_000_000;
 
 /// `[limits] max_regex_steps` — the directive [`step_budget`] reads.

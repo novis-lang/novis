@@ -51,6 +51,23 @@ pub enum RunKind {
     Connection,
 }
 
+impl RunKind {
+    /// Whether this kind of run is server work: a request, a connection, a
+    /// scheduled run or a queued job. Server work takes
+    /// [`nvs_config::DEFAULT_CPU_TIME`] where `[limits] cpu_time` is not
+    /// written, and a CLI program and a test take no CPU ceiling
+    /// (`rule:config/no-configuration-file-is-a-complete-configuration`).
+    /// [`Self::Isolate`] is not on the list: a child takes whatever the run it
+    /// was spawned in is ([`nvs_config::Request::serves`]).
+    #[must_use]
+    pub fn is_server_work(self) -> bool {
+        matches!(
+            self,
+            Self::Request | Self::Connection | Self::Schedule | Self::Job
+        )
+    }
+}
+
 impl Ctx {
     /// What kind of run this context is.
     ///
@@ -72,9 +89,13 @@ impl Ctx {
     /// Stores the kind of run this context is, for a host that built it for a
     /// job, a scheduled fire or a test. Written once, before the program runs.
     /// It cannot hide a request or a connection: [`Self::run_kind`] reads
-    /// those two from the context itself.
+    /// those two from the context itself. A kind that is server work makes the
+    /// configuration server work too ([`Self::now_serving`]).
     pub fn set_run_kind(&mut self, kind: RunKind) {
         self.run_kind = kind;
+        if kind.is_server_work() {
+            self.now_serving();
+        }
     }
 
     /// Moves `rule:concurrency/a-connection-is-a-root-isolate`
@@ -93,6 +114,7 @@ impl Ctx {
     /// [`crate::peer`] is the home of the seam itself.
     pub fn set_peer(&mut self, peer: Box<dyn crate::peer::PeerSocket>) {
         self.peer = Some(peer);
+        self.now_serving();
     }
 
     /// The socket, for the isolate that has one.

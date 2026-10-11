@@ -202,6 +202,11 @@ echo "each names what it could not hold: ", $strings, " string, ", $buffers, " b
 // in both refusing tables and answer differently in each, which is what the
 // two counts above are worth together.
 echo "members reaching both bounds: ", Core\Arr::count($seam), " of ", Core\Arr::count($allocator), "\n";
+--FILE nvs.toml--
+# No memory ceiling, so a count past the process's own seam reaches the
+# member's check and is not stopped first by the request's ceiling.
+[limits]
+memory = false
 --EXPECT--
 answered a size they can serve: 8 of 8
 one sentence past the seam: 7 of 7

@@ -171,6 +171,11 @@ echo "a held entry moves the bound by one: ",
     Bound::arrPadStart($one, 576460752303423488), " ",
     Bound::arrPadEnd($one, 576460752303423488), " ",
     Bound::arrPadEnd($one, 576460752303423489), "\n";
+--FILE nvs.toml--
+# No memory ceiling, so a count past the process's own seam reaches the
+# member's check and is not stopped first by the request's ceiling.
+[limits]
+memory = false
 --EXPECT--
 the seam's last count is the allocator's first: 8 of 8
 one count further is the seam: seam seam seam

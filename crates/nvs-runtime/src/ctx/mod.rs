@@ -497,7 +497,9 @@ pub struct Ctx {
     tree_share: Option<TreeShare>,
     /// `[limits] memory` as a byte count, or `0` for a request under no cap —
     /// `rule:errors/on-limit`'s
-    /// first resource limit.
+    /// first resource limit. A configuration that writes none gives
+    /// [`nvs_config::DEFAULT_MEMORY`], so `0` is a `false` the operator wrote
+    /// or a context with no configuration.
     ///
     /// **Cached, not re-derived.** The value on disk is a string with a suffix
     /// (`"256M"`), and parsing one per poll would put a string parse on the
@@ -564,7 +566,9 @@ pub struct Ctx {
     fatal_reserve: usize,
     /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap —
     /// `rule:errors/on-limit`'s
-    /// second resource limit, cached for [`Self::memory_limit`]'s reason.
+    /// second resource limit, cached for [`Self::memory_limit`]'s reason. A
+    /// configuration that writes none gives server work
+    /// [`nvs_config::DEFAULT_CPU_TIME`] and a CLI program or a test no cap.
     ///
     /// **What measures it is the request thread's own CPU clock, and never the
     /// wall clock [`Self::deadline`] is written from.** The two are different
@@ -699,14 +703,12 @@ pub struct Ctx {
     /// [`Self::DEFAULT_MAX_SCRIPT_DEPTH`] where nothing states one, and `0`
     /// (no ceiling) only where an operator wrote `false`.
     ///
-    /// **The one ceiling here with a default rather than an unstated "no cap",**
-    /// and the asymmetry is the point. A request left uncapped for CPU or memory
-    /// is a request an operator chose not to bound; a recursion of isolates left
-    /// unbounded does not run on forever, it exhausts the tree's heap, so
-    /// "unstated" would mean the breach is reported as an out-of-memory — the
-    /// confusion `docs/plan/m6.md`'s *Verify* asks this directive to remove. A
-    /// malformed value takes the default for the same reason, where its siblings
-    /// read malformed as no cap: on is the safe direction for a net.
+    /// **A written `0` takes the default here, and so does a malformed value.**
+    /// A recursion of isolates left unbounded does not run on forever, it
+    /// exhausts the tree's heap, so no ceiling would mean the breach is reported
+    /// as an out-of-memory — the confusion `docs/plan/m6.md`'s *Verify* asks
+    /// this directive to remove. Its siblings read malformed as no cap; on is
+    /// the safe direction for a net.
     ///
     /// **Counting the depth is the host's, not this crate's**, the same split
     /// [`Self::cpu_limit`] describes for the clock: `nvs-runtime` has no isolate

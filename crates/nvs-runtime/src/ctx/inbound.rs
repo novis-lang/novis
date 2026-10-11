@@ -73,6 +73,9 @@ impl Ctx {
             self.set_trace_context(trace);
         }
         self.inbound = Some(inbound);
+        // A context answering a request is server work, whenever its
+        // configuration arrived.
+        self.now_serving();
     }
     /// The request this context is answering, or `None` where there is none.
     ///

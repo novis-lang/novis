@@ -18586,7 +18586,7 @@ Sets a directive for this request only, replacing `ini_set`. The change is writt
 | `$name` | `string` (neutral) | The directive's name, read exactly as `get` reads it. |
 | `$value` | `string` (neutral) | The value, written the way the configuration file would write it — `512M`, `30s`, `64`. |
 
-**Returns** `bool` — `true` when the change was made. `false`, with the previous value left in place, for a directive `nvs.toml` alone may set, for one no directive registry row governs, for a value that does not spell the quantity its name takes, and for a value above the `[limits.hard]` ceiling the operator kept. A refusal never throws.
+**Returns** `bool` — `true` when the change was made. `false` when it is not allowed, and the previous value stays in place. It is not allowed for a directive only `nvs.toml` may set, or for a name that is not a directive. It is not allowed for a value that is not a valid size, duration or count. It is not allowed for a value above the limit's ceiling. The ceiling is `[limits.hard]`, or the value the program started with when `[limits.hard]` does not set that limit. `set` never throws an error.
 
 <a id="core-core-config-restore"></a>
 #### `Core\Config::restore`
@@ -31087,6 +31087,9 @@ by `nvs run` or `nvs config check` in this build; it is simply not a quantity an
 ```toml file=nvs.toml
 [limits]
 wall_time = "30s"
+
+[limits.hard]
+wall_time = "5m"
 ```
 ```nvs
 <?nvs
@@ -31107,8 +31110,12 @@ now 90
 ### `[limits]` and `[limits.hard]`
 
 `[limits]` states what a request **starts with**; `[limits.hard]` states the **ceiling** it may
-raise itself to with `Core\Config::set`. A key in `[limits]` with no `[limits.hard]` entry has no
-ceiling.
+raise itself to with `Core\Config::set`. When `[limits.hard]` does not set a key, the ceiling is the
+value the request started with. So a program can lower that limit, and it cannot raise it.
+
+When `[limits] memory` is not set, every program may hold 128M. When `[limits] cpu_time` is not
+set, a request, a connection, a scheduled script and a queued job may use 30s of processor time.
+`nvs run` and `nvs test` have no `cpu_time` limit unless you set one. `false` removes a limit.
 
 | Key | Unit | Meaning |
 |---|---|---|
@@ -31158,11 +31165,10 @@ report — raises its own limit with `Core\Config::set("cpu_time", "40s")`, up t
 rather than the starting value being raised for every request. The CPU clock is sampled about twice
 a second, so a request may overrun `cpu_time` by up to that much. Linux, macOS and Windows have a
 per-thread CPU clock; on a platform without one `cpu_time` is not enforced at all, and the server
-says so when it starts. An unset `cpu_time` is no limit.
+says so when it starts.
 
-An unset `memory` is no limit either, under `nvs run` and `nvs serve`. A program with no ceiling can
-grow until the machine runs out of memory. To stop it at a size, write `[limits] memory`, or set a
-limit from the program itself with `Core\Config::set("memory", "64M")`.
+`memory = false` is no limit. A program with no limit can grow until the machine runs out of
+memory. A program can also lower its own limit with `Core\Config::set("memory", "64M")`.
 
 In this build **`nvs run` enforces `memory` and `cpu_time`**. `wall_time`, `max_tasks` and
 `max_output` are accepted, readable and settable, and a program that exceeds them under `nvs run`

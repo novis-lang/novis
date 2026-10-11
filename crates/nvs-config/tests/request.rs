@@ -170,7 +170,9 @@ fn a_system_directive_is_not_settable_by_a_request() {
 /// otherwise answer with something the boot path would have refused out of the file.
 #[test]
 fn a_value_that_is_not_a_quantity_is_refused() {
-    let mut request = Request::new(snapshot_of("[limits]\nmemory = \"256M\"\n"));
+    let mut request = Request::new(snapshot_of(
+        "[limits]\nmemory = \"256M\"\n\n[limits.hard]\nmemory = false\n",
+    ));
 
     assert!(!request.set("memory", "later"));
     assert!(request.set("memory", "1G"), "no ceiling bounds this tree");

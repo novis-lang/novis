@@ -807,7 +807,7 @@ const DEFAULT_MAX_IN_FLIGHT: u64 = 10_000;
 /// the wrong end of the process.
 ///
 /// `per_request` and `budget` are both `Option` because both are genuinely absent on real
-/// deployments, and the absences mean different things: a tree that states no `[limits] memory` has
+/// deployments, and the absences mean different things: a tree whose memory limit is `false` has
 /// no per-request cap for a concurrency ceiling to have a relationship *with*, and a host that
 /// answers no budget has not been asked a question this crate can put to it. The admission
 /// arithmetic is
@@ -817,10 +817,10 @@ pub struct Capacity {
     /// `[server] max_in_flight`, or § 5's own `10000` where the key is unwritten.
     pub configured: u64,
     /// The bytes one request may hold at its most: `[limits.hard] memory` where a ceiling is
-    /// written, and otherwise the `[limits] memory` a request starts with. `None` where the tree
-    /// states neither, and where `[limits.hard] memory = false` removed the ceiling — `rule:config/three-changeability-classes`'s
-    /// spelling for "no ceiling" is exactly the case the admission arithmetic has nothing to
-    /// divide by.
+    /// written, otherwise the `[limits] memory` a request starts with, and otherwise
+    /// [`DEFAULT_MEMORY`](crate::value::DEFAULT_MEMORY). `None` where the side that wins is `false`
+    /// — `rule:config/three-changeability-classes`'s spelling for "no ceiling" is exactly the case
+    /// the admission arithmetic has nothing to divide by.
     pub per_request: Option<u64>,
     /// What this machine affords the process, as [`memory_budget`] read it.
     pub budget: Option<u64>,
@@ -903,22 +903,23 @@ pub fn capacity_across(
 ///
 /// The *hard* ceiling wins where one is written, because that is the number a request can actually
 /// reach: `[limits] memory` is only where it starts, and a request that raises itself to the
-/// ceiling is what the machine has to hold. A cap of zero is read as no cap rather than divided by
-/// — a request that may hold nothing is a tree that is wrong about something else, and this
-/// function is not the place that says so.
+/// ceiling is what the machine has to hold. With no hard ceiling written, the request cannot rise
+/// past its start, so the cap is `[limits] memory`, and where that is not written either it is
+/// [`DEFAULT_MEMORY`](crate::value::DEFAULT_MEMORY). `false` on whichever side wins is no cap, and
+/// so is a cap of zero rather than a divisor — a request that may hold nothing is a tree that is
+/// wrong about something else, and this function is not the place that says so.
 fn per_request_cap(
     config: &Config,
     origins: &BTreeMap<String, Origin>,
 ) -> Result<Option<u64>, Diagnostic> {
-    let Some(limits) = config.limits.as_ref() else {
-        return Ok(None);
-    };
-    let (key, written) = match limits.hard.as_ref().and_then(|hard| hard.memory.as_ref()) {
-        Some(hard) => ("limits.hard.memory", hard),
-        None => match limits.memory.as_ref() {
-            Some(start) => ("limits.memory", start),
-            None => return Ok(None),
-        },
+    let limits = config.limits.as_ref();
+    let hard = limits
+        .and_then(|limits| limits.hard.as_ref())
+        .and_then(|hard| hard.memory.as_ref());
+    let (key, written) = match (hard, limits.and_then(|limits| limits.memory.as_ref())) {
+        (Some(hard), _) => ("limits.hard.memory", hard),
+        (None, Some(start)) => ("limits.memory", start),
+        (None, None) => return Ok(Some(crate::value::DEFAULT_MEMORY)),
     };
     let quantity = Quantity::parse(key, Unit::Bytes, written)
         .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
@@ -1218,12 +1219,21 @@ mod tests {
     /// ceiling wins
     /// where one is there, because that is the number a request can actually reach — a cap read
     /// from `[limits] memory` under a `[limits.hard] memory` four times its size would afford four
-    /// times the concurrency the machine can hold.
+    /// times the concurrency the machine can hold. A tree that writes neither reserves the
+    /// default every request runs under.
     #[test]
     fn the_per_request_cap_is_the_ceiling_a_request_can_reach() {
         let none = capacity_for(&tree(""), &BTreeMap::new()).expect("an empty tree was refused");
         assert_eq!(none.configured, DEFAULT_MAX_IN_FLIGHT);
-        assert_eq!(none.per_request, None, "an unwritten cap became a number");
+        assert_eq!(
+            none.per_request,
+            Some(128 * 1024 * 1024),
+            "an unwritten cap is not the default a request runs under"
+        );
+
+        let removed = capacity_for(&tree("[limits]\nmemory = false\n"), &BTreeMap::new())
+            .expect("a removed start value was refused");
+        assert_eq!(removed.per_request, None, "`false` became a cap");
 
         let started = capacity_for(&tree("[limits]\nmemory = \"64M\"\n"), &BTreeMap::new())
             .expect("a written `[limits]` was refused");

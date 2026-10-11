@@ -139,6 +139,38 @@ pub fn unit_of(key: &str) -> Option<Unit> {
     }
 }
 
+/// The bytes a run may hold where no `[limits] memory` is written: 128 MiB, for every kind of run
+/// (`rule:config/no-configuration-file-is-a-complete-configuration`).
+///
+/// The one home of the number. The runtime's ceiling, the `Core\Config::set` bound an unwritten
+/// `[limits.hard] memory` stands for, and the admission arithmetic's per-request cap all read it
+/// here. **What it spends:** up to 128 MiB per request in flight, which is what admission reserves
+/// for each one.
+pub const DEFAULT_MEMORY: u64 = 128 * 1024 * 1024;
+
+/// The CPU time server work may burn where no `[limits] cpu_time` is written: 30 seconds, in
+/// nanoseconds. A request, a connection, a scheduled run and a queued job take it; a CLI program
+/// and a test run under `nvs test` take no CPU ceiling at all
+/// (`rule:config/no-configuration-file-is-a-complete-configuration`).
+///
+/// The one home of the number, read by the same three places as [`DEFAULT_MEMORY`].
+pub const DEFAULT_CPU_TIME: u64 = 30 * 1_000_000_000;
+
+/// The value `[limits] <leaf>` has where no file writes it: [`DEFAULT_MEMORY`] for `memory`,
+/// [`DEFAULT_CPU_TIME`] for `cpu_time` when `serving` is `true`, and `None` for everything else.
+///
+/// `serving` is whether the run is server work — a request, a connection, a scheduled run or a
+/// queued job. A limit with no default here has no start value, so nothing bounds a
+/// `Core\Config::set` of it until `[limits.hard]` is written.
+#[must_use]
+pub fn unwritten_limit(leaf: &str, serving: bool) -> Option<Quantity> {
+    match leaf {
+        "memory" => Some(Quantity::Bytes(DEFAULT_MEMORY)),
+        "cpu_time" if serving => Some(Quantity::Nanos(DEFAULT_CPU_TIME)),
+        _ => None,
+    }
+}
+
 /// Whether a limit written in `block` is one of `rule:config/three-changeability-classes`'s — `""` for the bare name
 /// `Core\Config::set` uses, and any block ending in `limits` or `limits.hard` for the file, which
 /// covers `app.0.limits` and a `[[schedule]]`'s alike.

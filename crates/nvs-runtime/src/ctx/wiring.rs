@@ -397,8 +397,22 @@ impl Ctx {
     /// Written by whoever resolved the tree, exactly as [`Self::set_origin`] is
     /// and for the same reason: nothing on the request path may re-read the
     /// configuration, or two reads in one request could disagree.
+    ///
+    /// The configuration is server work where this context already is — its
+    /// kind of run, or the configuration it replaces — because that decides
+    /// the CPU ceiling an unwritten `[limits] cpu_time` gives
+    /// ([`nvs_config::Request::serves`]).
     pub fn set_config(&mut self, snapshot: std::sync::Arc<nvs_config::Snapshot>) {
-        self.config = Some(nvs_config::Request::new(snapshot));
+        let serving = self.run_kind().is_server_work()
+            || self
+                .config
+                .as_ref()
+                .is_some_and(nvs_config::Request::serves);
+        let mut config = nvs_config::Request::new(snapshot);
+        if serving {
+            config.serve();
+        }
+        self.config = Some(config);
         self.refresh_limits();
         // The log target is read out of the snapshot that just arrived, not out
         // of the one this context was built with. Dropping whatever was

@@ -105,8 +105,9 @@ fn the_fatal_reserve_time_is_carved_out_of_the_cpu_ceiling() {
     );
 }
 
-/// The three spellings of "no ceiling" answer the same `0`, because a request that may burn any
-/// amount of CPU and one whose limit nothing states are the same request downstream. The malformed
+/// The three spellings of "no ceiling" answer the same `0` for a CLI program, which has no CPU
+/// default: one that may burn any amount of CPU and one whose limit nothing states are the same
+/// program downstream. The malformed
 /// case is `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s rule seen from here: the file was refused once already, at the boundary
 /// that could name the line, so this is not a second place to refuse it.
 #[test]
@@ -124,15 +125,13 @@ fn an_unstated_uncapped_or_malformed_cpu_time_is_no_ceiling() {
     );
 }
 
-/// The same three spellings for `[limits] memory`, which
-/// `rule:config/no-configuration-file-is-a-complete-configuration` states as the default: a request
-/// whose configuration names no memory ceiling, `nvs run` included, holds whatever the host gives it.
-/// The armed threshold is asked as well as the reading, because the allocator compares against that
-/// and not against [`Ctx::memory_limit`].
+/// `[limits] memory = false` and a malformed value are no ceiling, as they are for `cpu_time`. The
+/// armed threshold is asked as well as the reading, because the allocator compares against that
+/// and not against [`Ctx::memory_limit`]. An unstated one is the default, which the case after this
+/// one pins.
 #[test]
-fn an_unstated_uncapped_or_malformed_memory_is_no_ceiling() {
+fn an_uncapped_or_malformed_memory_is_no_ceiling() {
     for written in [
-        "[limits]\ncpu_time = \"2s\"\n",
         "[limits]\nmemory = false\n",
         "[limits]\nmemory = \"a lot\"\n",
     ] {
@@ -149,6 +148,73 @@ fn an_unstated_uncapped_or_malformed_memory_is_no_ceiling() {
         0,
         "a request with no configuration at all",
     );
+}
+
+/// `rule:config/no-configuration-file-is-a-complete-configuration`'s defaults, read off a
+/// configuration that writes no `[limits]`: a request holds 128 MiB and burns 30 seconds of CPU,
+/// whichever of its configuration and its request arrived first. Each reading is the pair the
+/// reserve is carved out of, because the default is the directive and not what is left after it.
+#[test]
+fn a_request_with_no_limits_written_takes_128m_and_30s() {
+    let configured_first = {
+        let mut ctx = ctx_reading("");
+        ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
+        ctx
+    };
+    let answered_first = {
+        let mut ctx = Ctx::new(OutputSink::Buffer(Vec::new()));
+        ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
+        ctx.set_config(snapshot(""));
+        ctx
+    };
+    for (order, ctx) in [
+        ("configuration first", &configured_first),
+        ("request first", &answered_first),
+    ] {
+        assert_eq!(
+            ctx.memory_limit() + ctx.fatal_reserve(),
+            128 * 1024 * 1024,
+            "{order}"
+        );
+        assert_eq!(
+            ctx.cpu_limit() + ctx.fatal_reserve_time(),
+            30_000_000_000,
+            "{order}"
+        );
+    }
+}
+
+/// A CLI program and a test take the 128 MiB memory default and no CPU ceiling. A scheduled run and
+/// a queued job are server work and take 30 seconds, like a request.
+#[test]
+fn a_command_and_a_test_take_128m_and_no_cpu_ceiling() {
+    let command = ctx_reading("");
+    assert_eq!(
+        command.memory_limit() + command.fatal_reserve(),
+        128 * 1024 * 1024
+    );
+    assert_eq!(command.cpu_limit(), 0, "a CLI program took a CPU ceiling");
+
+    for (kind, nanos) in [
+        (nvs_runtime::RunKind::Test, 0),
+        (nvs_runtime::RunKind::Job, 30_000_000_000),
+        (nvs_runtime::RunKind::Schedule, 30_000_000_000),
+    ] {
+        let mut ctx = ctx_reading("");
+        ctx.set_run_kind(kind);
+        assert_eq!(
+            ctx.cpu_limit() + ctx.fatal_reserve_time(),
+            nanos,
+            "{kind:?}"
+        );
+    }
+
+    let removed = {
+        let mut ctx = ctx_reading("[limits]\ncpu_time = false\n");
+        ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
+        ctx
+    };
+    assert_eq!(removed.cpu_limit(), 0, "a written `false` took the default");
 }
 
 /// `[limits] max_script_depth` is the one ceiling in this block whose *unstated* reading is a

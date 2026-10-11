@@ -98,6 +98,11 @@ echo Rep::of($quad, 1000000000000000000), "\n";
 // short-circuit in `nvs_core_bytes_repeat` that makes them immediate.
 echo "[", Rep::of($none, 18446744073709551615), "]\n";
 echo "[", Rep::of($none, 1000000000000000000), "]\n";
+--FILE nvs.toml--
+# No memory ceiling, so a count past the process's own seam reaches the
+# member's check and is not stopped first by the request's ceiling.
+[limits]
+memory = false
 --EXPECT--
 []
 [00112233]

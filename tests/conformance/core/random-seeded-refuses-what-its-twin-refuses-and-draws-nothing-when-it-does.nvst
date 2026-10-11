@@ -83,6 +83,11 @@ $held = $held + (($clean->float() == $bumped->float()) ? 1 : 0);
 $held = $held + ((($clean->pick($box) as int) == ($bumped->pick($box) as int)) ? 1 : 0);
 $held = $held + ((Core\Json::encode($clean->shuffle($box)) == Core\Json::encode($bumped->shuffle($box))) ? 1 : 0);
 echo "a refusal leaves the sequence where it was: ", $held, " of 3\n";
+--FILE nvs.toml--
+# No memory ceiling, so a draw past the process's own seam reaches the
+# member's check and is not stopped first by the request's ceiling.
+[limits]
+memory = false
 --EXPECT--
 Core\Random\Seeded::int(): the range is empty — the lower bound 4 is above the upper bound 3, and both ends are inclusive
 Core\Random\Seeded::bytes(): a draw of zero bytes is the empty buffer, which is no sequence at all — draw at least one byte

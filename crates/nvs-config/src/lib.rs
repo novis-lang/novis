@@ -106,7 +106,7 @@ pub use resolve::{Origin, Override, Resolved, Roots};
 pub use server::{Capacity, ConnectionBounds, Waits};
 pub use snapshot::{AppBlocks, Current, Published, Reload, Snapshot};
 pub use tree::{Config, Setting};
-pub use value::{Quantity, Unit};
+pub use value::{DEFAULT_CPU_TIME, DEFAULT_MEMORY, Quantity, Unit};
 
 /// The `nvs.toml` this project ships: every key [`mod@tree`] parses, commented out, under the prose
 /// that says what it does. Its `[block]` headers are live, so setting a key is removing one `#`;

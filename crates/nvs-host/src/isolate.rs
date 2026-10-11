@@ -689,6 +689,15 @@ impl Isolate {
             (Charge::Tree, Form::Method) => ctx.method_isolate(sink),
             (Charge::EngineReserve, _) => ctx.handler_isolate(sink),
         };
+        // The kind of run a host started this as, before the narrowings below:
+        // a scheduled run and a queued job are server work, and that decides
+        // the CPU ceiling an unwritten `[limits] cpu_time` gives, which a
+        // narrowing is measured against. [`Isolate::running_as`] is the only
+        // writer, and a request or a connection attached below is read as one
+        // regardless.
+        if let Some(kind) = kind {
+            isolate_ctx.set_run_kind(kind);
+        }
         // The spawn site's own narrowings, on the child and before its first
         // statement — `rule:security/isolate-budget-is-the-trees`. Against
         // `ctx`, which is the parent, because a sub-cap is tighter than what
@@ -717,12 +726,6 @@ impl Isolate {
         // is the one that takes it.
         if let Some(trace) = recording {
             isolate_ctx.set_trace_context(trace);
-        }
-        // The kind of run a host started this as, on the same context and at
-        // the same point: [`Isolate::running_as`] is the only writer, and a
-        // request or a connection attached below is read as one regardless.
-        if let Some(kind) = kind {
-            isolate_ctx.set_run_kind(kind);
         }
         if let Some(inbound) = inbound {
             isolate_ctx.set_inbound(inbound);

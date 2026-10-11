@@ -711,6 +711,11 @@ impl Ctx {
     /// turning into a response that ends. There is no undoing it either way.
     pub fn mark_event_stream(&mut self, door: EventStreamDoor) {
         self.event_stream.get_or_insert(door);
+        // The connection door makes this a connection, which is server work.
+        // A program opening a stream on its own output is whatever run it was.
+        if door == EventStreamDoor::Connection {
+            self.now_serving();
+        }
     }
 
     /// Whether an event stream was opened on this context, by either door.

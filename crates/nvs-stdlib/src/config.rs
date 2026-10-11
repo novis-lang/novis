@@ -120,10 +120,12 @@ const SET_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "`true` when the change was made. `false`, with the previous value left in place, for a \
-          directive `nvs.toml` alone may set, for one no directive registry row governs, for a \
-          value that does not spell the quantity its name takes, and for a value above the \
-          `[limits.hard]` ceiling the operator kept. A refusal never throws.",
+    ret: "`true` when the change was made. `false` when it is not allowed, and the previous value \
+          stays in place. It is not allowed for a directive only `nvs.toml` may set, or for a \
+          name that is not a directive. It is not allowed for a value that is not a valid size, \
+          duration or count. It is not allowed for a value above the limit's ceiling. The \
+          ceiling is `[limits.hard]`, or the value the program started with when \
+          `[limits.hard]` does not set that limit. `set` never throws an error.",
     errors: &[],
 };
 
@@ -426,12 +428,14 @@ mod tests {
     // covers: Core\Config::get, Core\Config::restore
     #[test]
     fn restore_drops_this_requests_change_and_leaves_the_files_value() {
-        let mut ctx = configured("[limits]\nmemory = \"256M\"\n\n[log]\nlevel = \"info\"\n");
+        let mut ctx = configured(
+            "[limits]\nmemory = \"256M\"\n\n[limits.hard]\nmemory = \"512M\"\n\n[log]\nlevel = \"info\"\n",
+        );
         assert_eq!(get(&mut ctx, "memory").as_deref(), Some("256M"));
 
         assert!(
             set(&mut ctx, "memory", "384M"),
-            "the fixture states no ceiling, so this set is what the rest reads"
+            "the fixture's ceiling is above this set, so it is what the rest reads"
         );
         assert_eq!(
             get(&mut ctx, "limits.memory").as_deref(),
@@ -494,5 +498,74 @@ mod tests {
             enforced,
             "a refused set moved the ceiling the runtime enforces"
         );
+    }
+
+    /// With no `[limits.hard]` written, the ceiling is the `[limits]` value the
+    /// run started with — the file's, or the default where the file writes
+    /// none. A program can lower its own limit and cannot raise it, until the
+    /// operator writes a hard ceiling above the start.
+    // covers: Core\Config::set
+    #[test]
+    fn an_unwritten_hard_ceiling_is_the_value_the_run_started_with() {
+        let mut ctx = configured("");
+        assert!(
+            !set(&mut ctx, "memory", "256M"),
+            "a program raised its memory past the 128M default with no ceiling written"
+        );
+        assert!(
+            set(&mut ctx, "memory", "128M"),
+            "the start value itself is allowed"
+        );
+        assert!(set(&mut ctx, "memory", "64M"), "lowering is allowed");
+        assert!(
+            set(&mut ctx, "memory", "128M"),
+            "a lowered limit goes back up to the start value"
+        );
+
+        let mut written = configured("[limits]\nmemory = \"32M\"\n");
+        assert!(
+            !set(&mut written, "memory", "64M"),
+            "a program raised its memory past the value the file wrote"
+        );
+
+        let mut ceilinged = configured("[limits.hard]\nmemory = \"512M\"\n");
+        assert!(
+            set(&mut ceilinged, "memory", "256M"),
+            "a written hard ceiling did not allow a raise below it"
+        );
+        assert!(!set(&mut ceilinged, "memory", "513M"));
+
+        let mut removed = configured("[limits.hard]\nmemory = false\n");
+        assert!(
+            set(&mut removed, "memory", "4G"),
+            "a hard `false` did not remove the ceiling"
+        );
+    }
+
+    /// `cpu_time` has a start value only for server work. A CLI program has
+    /// none, so nothing bounds its set; a request starts at 30 seconds and
+    /// cannot raise itself past them.
+    // covers: Core\Config::set
+    #[test]
+    fn an_unwritten_cpu_time_bounds_a_request_and_not_a_command() {
+        let mut command = configured("");
+        assert_eq!(command.cpu_limit(), 0, "a CLI program took a CPU ceiling");
+        assert!(
+            set(&mut command, "cpu_time", "1h"),
+            "a CLI program with no CPU ceiling could not set one"
+        );
+
+        let mut request = configured("");
+        request.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
+        assert_eq!(
+            request.cpu_limit() + request.fatal_reserve_time(),
+            30_000_000_000,
+            "a request did not start at the 30s default"
+        );
+        assert!(
+            !set(&mut request, "cpu_time", "60s"),
+            "a request raised its CPU time past the default with no ceiling written"
+        );
+        assert!(set(&mut request, "cpu_time", "10s"), "lowering is allowed");
     }
 }

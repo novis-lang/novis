@@ -87,6 +87,11 @@ foreach ($counts as uint $each) {
     }
 }
 echo "past the seam: bytes ", $seamForBytes, ", token ", $seamForToken, "\n";
+--FILE nvs.toml--
+# No memory ceiling, so a draw past the process's own seam reaches the
+# member's check and is not stopped first by the request's ceiling.
+[limits]
+memory = false
 --EXPECT--
 Core\Random::bytes(): the requested draw is larger than any buffer this process could hold
 Core\Random::bytes(): the requested allocation is larger than any this process could hold

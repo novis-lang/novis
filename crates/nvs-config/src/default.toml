@@ -61,13 +61,15 @@
 # ----------------------------------------------------------------------------------------------
 
 [limits]
-# `Runtime` — the keys a request may set wider or narrower at runtime, up to the matching
+# `Runtime` — the keys a request may set narrower at runtime, and wider up to the matching
 # `[limits.hard]` ceiling: the heap a request starts with, its CPU time, its wall time, and the bytes
-# it may write to the response. The runtime reads a missing value as no ceiling, so a deployment
-# that wants one writes it. A duration or a size takes a suffix or a bare number of seconds or
-# bytes, so `"30s"` and `30` are the same wait.
-#memory = "512M"                      # default: no cap
-#cpu_time = "30s"                     # default: no cap
+# it may write to the response. Every run holds at most 128M unless `memory` says otherwise. A
+# request, a connection, a scheduled run and a queued job may use 30s of CPU time. `nvs run` and
+# `nvs test` have no CPU limit unless `cpu_time` is written. `false` removes a limit. A missing
+# `wall_time` or `max_output` is no limit. A duration or a size takes a suffix or a bare number of
+# seconds or bytes, so `"30s"` and `30` are the same wait.
+#memory = "128M"                      # default
+#cpu_time = "30s"                     # default: 30s for server work, none under nvs run and nvs test
 #wall_time = "60s"                    # default: no cap
 #max_output = "32M"                   # default: no cap
 # `Runtime` — concurrent tasks, named to a request like the ones above. No scheduler or budget reads
@@ -83,7 +85,8 @@
 # rest of the ceiling is gone (`rule:errors/on-limit`). A request may not set either one, and
 # neither has a `[limits.hard]` ceiling, because there is no request-set value for a ceiling to
 # bound. Either is clamped to a quarter of the ceiling it comes out of, so a short budget stays
-# mostly program, and where that ceiling is not set nothing is reserved.
+# mostly program. Where that ceiling is `false`, or `cpu_time` has none under `nvs run`, nothing is
+# reserved.
 #fatal_reserve_memory = "1M"          # default
 #fatal_reserve_time = "50ms"          # default
 # `System` — how deep a chain of `spawn script` may nest before the next one is refused. `false`
@@ -99,8 +102,8 @@
 #max_decompression_ratio = 1000       # default
 # `System` — a share of `memory`, between 0 and 1. A request whose memory peak reaches it writes one
 # `Warn` to the log when it ends, naming the peak, the ceiling and the route
-# (`rule:observability/memory-high-water-writes-a-warn`). A request with no `memory` cap is never
-# warned about.
+# (`rule:observability/memory-high-water-writes-a-warn`). A request with `memory = false` has no
+# cap and is never warned about.
 #memory_high_water = 0.8              # default: off
 # `System` — what happens to a request whose client goes away before its response is sent. A
 # request runs to its end and its response is thrown away, unless its method is listed here; a
@@ -112,15 +115,17 @@
 #disconnect_grace = "30s"             # default
 
 [limits.hard]
-# The ceiling a request may not raise itself past, for the `Runtime` keys that have one. `false`
-# removes the ceiling for that key. A request that asks for more gets `false` back from
-# `Core\Config::set` and keeps the value it had.
-#memory = "1G"                        # default: no ceiling
-#cpu_time = "120s"                    # default: no ceiling
-#wall_time = "300s"                   # default: no ceiling
-#max_tasks = 64                       # default: no ceiling
-#max_output = "128M"                  # default: no ceiling
-#max_regex_steps = 5000000            # default: no ceiling
+# The ceiling a request may not raise itself past, for the `Runtime` keys that have one. A key that
+# is not written here is the value the run started with in `[limits]`, so a program can lower its
+# limit and cannot raise it. Where that value is not written and has no default, there is no
+# ceiling. `false` removes the ceiling for that key. A request that asks for more gets `false` back
+# from `Core\Config::set` and keeps the value it had.
+#memory = "1G"                        # default: the [limits] value
+#cpu_time = "120s"                    # default: the [limits] value
+#wall_time = "300s"                   # default: the [limits] value
+#max_tasks = 64                       # default: the [limits] value
+#max_output = "128M"                  # default: the [limits] value
+#max_regex_steps = 5000000            # default: the [limits] value
 
 
 # ----------------------------------------------------------------------------------------------
@@ -839,13 +844,13 @@
 
 #[schedule.limits]
 # This entry's ceilings, which are `[limits.hard]`'s keys with no ceiling nested under them. `false`
-# removes one.
-#memory = "1G"                        # default: no ceiling
-#cpu_time = "300s"                    # default: no ceiling
-#wall_time = "600s"                   # default: no ceiling
-#max_tasks = 16                       # default: no ceiling
-#max_output = "64M"                   # default: no ceiling
-#max_regex_steps = 5000000            # default: no ceiling
+# removes one. A key not written here leaves the entry at the `[limits]` value it runs with.
+#memory = "1G"                        # default: the [limits] value
+#cpu_time = "300s"                    # default: the [limits] value
+#wall_time = "600s"                   # default: the [limits] value
+#max_tasks = 16                       # default: the [limits] value
+#max_output = "64M"                   # default: the [limits] value
+#max_regex_steps = 5000000            # default: the [limits] value
 
 #[schedule.grants.script]
 # This entry's grants, key for key the same as `[capabilities.*]` above and read the same way: what
@@ -992,8 +997,8 @@
 
 #[app.limits]
 # `[limits]`' keys for this application alone, read exactly as they are read there.
-#memory = "512M"                      # default: no cap
-#cpu_time = "30s"                     # default: no cap
+#memory = "128M"                      # default
+#cpu_time = "30s"                     # default: 30s for server work, none under nvs run and nvs test
 #wall_time = "60s"                    # default: no cap
 #max_output = "32M"                   # default: no cap
 #max_tasks = 16                       # default: no cap
@@ -1008,13 +1013,14 @@
 #disconnect_grace = "30s"             # default
 
 #[app.limits.hard]
-# This application's ceilings; `false` removes one.
-#memory = "1G"                        # default: no ceiling
-#cpu_time = "120s"                    # default: no ceiling
-#wall_time = "300s"                   # default: no ceiling
-#max_tasks = 64                       # default: no ceiling
-#max_output = "128M"                  # default: no ceiling
-#max_regex_steps = 5000000            # default: no ceiling
+# This application's ceilings; `false` removes one. A key not written here is the `[limits.hard]`
+# ceiling, and where that is not written either, the value the run started with.
+#memory = "1G"                        # default: the [limits] value
+#cpu_time = "120s"                    # default: the [limits] value
+#wall_time = "300s"                   # default: the [limits] value
+#max_tasks = 64                       # default: the [limits] value
+#max_output = "128M"                  # default: the [limits] value
+#max_regex_steps = 5000000            # default: the [limits] value
 
 #[app.capabilities.script]
 # This application's grants, key for key `[capabilities.*]`'s and read the same way: what is not
