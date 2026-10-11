@@ -359,7 +359,7 @@ Everything else is a diagnostic. `mixed` never absorbs implicitly in either dire
 ([`types/conversion`](types.md#types-conversion)). A numeric literal is not a conversion at all: it is untyped until placed,
 so it takes `int`, `uint`, `float` or `decimal` from its target ([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)).
 
-<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0238](../decisions/0238.md), [0239](../decisions/0239.md).</sub>
+<sub>See also [`types/conversion`](types.md#types-conversion), [`types/arithmetic`](types.md#types-arithmetic), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement). Decided in [0239](../decisions/0239.md).</sub>
 
 <a id="types-decimal"></a>
 
@@ -801,12 +801,17 @@ between two kinds.
 - **The `int` → `float` widening is not part of the covariance.** An element of an array that already
   exists keeps the representation it was stored with, so an `array<int>` or `array<uint>` is not an
   `array<float>`, at any depth and in any position ([`types/implicit-widening`](types.md#types-implicit-widening)). `array<int|float>`
-  still takes it, because `int` is one of its members.
+  still takes it, because `int` is one of its members. Passing, assigning or returning one there is
+  `E0401` (`E0403` for a return), and the help line names the conversion, `$value as array<float>`.
 - **The read is free; the conversion is not.** `as array<int|string>` is still the spelling that
   *restamps*, at O(n), one tag test per element ([`types/conversion`](types.md#types-conversion)) — it is what converts an
   array, where the covariant read only passes one along. The two views share one copy-on-write
   buffer. `as array<float>` over `int` or `uint` elements is the one conversion that copies: it builds
-  a new array of the same size with each such element converted.
+  a new array of the same size with each such element converted, at each level that has such
+  elements. The keys and their order are kept, an element above 2^53 throws, and `as ?array<float>`
+  gives `null` there.
+- **Memory:** that copy, once per conversion, freed with the array. A literal at `array<float>` and
+  every read of an `array<float>` cost nothing extra.
 - **An array literal is checked against its target type wherever one is written, never inferred and
   then compared.** Each element is placed at the element type, so `[1, $count]` at `array<float>`
   stores two floats, at any depth and in a shape field, and `[]` is an `array<T>` at every `array<T>`.
@@ -855,10 +860,15 @@ between two kinds.
 - **Covariance with a runtime barrier on writes through a widened view.** That is what a language with
   aliasing arrays needs, and here it would spend request-path time on a hazard copy-on-write values
   already exclude.
+- **Converting an `array<int>` to `array<float>` at an assignment, argument or return.** It hides
+  an O(n) copy inside a statement where nothing in the source shows it.
+- **Converting an `int` element when an `array<float>` is read.** It costs a tag test on every read
+  of a float array, the most common array read on the request path, and leaves `int` tags in an
+  array declared to hold floats, for `Core\Json::encode` and `Core\Arr::sum` to see.
 - **The roster listed in prose as the authority.** A list in a document cannot track a table, and the
   door's members are the compiler's registry.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0252](../decisions/0252.md).</sub>
 
 <a id="types-array-combination"></a>
 
@@ -1442,7 +1452,7 @@ conversion whose operand needs one.
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
   ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0238](../decisions/0238.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
@@ -2171,7 +2181,7 @@ one map entry per declared field at check time, and at run time only the convers
 - **Copying an existing value at the widening.** It breaks the same sharing, and it makes a shape
   assignment cost a copy.
 
-<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0238](../decisions/0238.md).</sub>
+<sub>See also [`types/anonymous-object`](types.md#types-anonymous-object), [`types/object-top`](types.md#types-object-top), [`types/type-alias`](types.md#types-type-alias), [`types/erased-member-access`](types.md#types-erased-member-access).</sub>
 
 <a id="types-erased-member-access"></a>
 

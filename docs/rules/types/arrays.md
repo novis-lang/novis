@@ -51,12 +51,17 @@ between two kinds.
 - **The `int` → `float` widening is not part of the covariance.** An element of an array that already
   exists keeps the representation it was stored with, so an `array<int>` or `array<uint>` is not an
   `array<float>`, at any depth and in any position (`rule:types/implicit-widening`). `array<int|float>`
-  still takes it, because `int` is one of its members.
+  still takes it, because `int` is one of its members. Passing, assigning or returning one there is
+  `E0401` (`E0403` for a return), and the help line names the conversion, `$value as array<float>`.
 - **The read is free; the conversion is not.** `as array<int|string>` is still the spelling that
   *restamps*, at O(n), one tag test per element (`rule:types/conversion`) — it is what converts an
   array, where the covariant read only passes one along. The two views share one copy-on-write
   buffer. `as array<float>` over `int` or `uint` elements is the one conversion that copies: it builds
-  a new array of the same size with each such element converted.
+  a new array of the same size with each such element converted, at each level that has such
+  elements. The keys and their order are kept, an element above 2^53 throws, and `as ?array<float>`
+  gives `null` there.
+- **Memory:** that copy, once per conversion, freed with the array. A literal at `array<float>` and
+  every read of an `array<float>` cost nothing extra.
 - **An array literal is checked against its target type wherever one is written, never inferred and
   then compared.** Each element is placed at the element type, so `[1, $count]` at `array<float>`
   stores two floats, at any depth and in a shape field, and `[]` is an `array<T>` at every `array<T>`.
@@ -105,5 +110,10 @@ between two kinds.
 - **Covariance with a runtime barrier on writes through a widened view.** That is what a language with
   aliasing arrays needs, and here it would spend request-path time on a hazard copy-on-write values
   already exclude.
+- **Converting an `array<int>` to `array<float>` at an assignment, argument or return.** It hides
+  an O(n) copy inside a statement where nothing in the source shows it.
+- **Converting an `int` element when an `array<float>` is read.** It costs a tag test on every read
+  of a float array, the most common array read on the request path, and leaves `int` tags in an
+  array declared to hold floats, for `Core\Json::encode` and `Core\Arr::sum` to see.
 - **The roster listed in prose as the authority.** A list in a document cannot track a table, and the
   door's members are the compiler's registry.
