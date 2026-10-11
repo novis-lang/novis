@@ -1,9 +1,7 @@
 {
   "title": "The compiler proves a route's access decision was written, never that it was honoured",
   "status": "shipped",
-  "because": [
-    "0255"
-  ],
+  "because": [],
   "seeAlso": [
     "attributes/access-is-a-required-sibling",
     "attributes/access-payload",
@@ -16,6 +14,9 @@
     "tests/conformance/core/one-access-check-above-the-dispatch-switch-covers-every-route.nvst",
     "tests/conformance/core/a-match-answers-the-access-decision-as-a-case-of-the-written-enum.nvst",
     "tests/conformance/reject/access-as-needs-an-enum-as-its-type-argument.nvst",
+    "tests/conformance/core/access-as-answers-a-uint-backed-case-that-a-match-arm-compares.nvst",
+    "tests/hostile/core/Router-Match/accessAs/01-an-admin-route-tries-to-pass-as-public.nvs",
+    "crates/nvs-stdlib/src/router.rs",
     "crates/nvs-server/src/route.rs"
   ]
 }

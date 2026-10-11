@@ -589,7 +589,7 @@ const CAPTURE: &CoreTy = &CoreTy::Union(&[
 /// [`MATCH_ACCESS_DOC`]'s member is here. The row carries the resolved *name*,
 /// which `access()` answers as text. [`MATCH_ACCESS_AS_DOC`]'s `accessAs<E>()`
 /// answers the same decision as a case of the enum `E` the call site wrote, or
-/// `null` when the decision is not one of `E`'s cases (ADR 0255). The typed
+/// `null` when the decision is not one of `E`'s cases. The typed
 /// member is the one a dispatcher compares with: a case reaching `mixed` is
 /// only its integer (`rule:enums/representation`), so `Core\Audience::Public`
 /// and `App\Role::Admin` can be equal there, and a comparison against the text
@@ -1941,7 +1941,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Router\Match::accessAs<E>(): ?E` — the decision
     /// [`nvs_core_router_match_access`] answers as text, as a case of the enum
-    /// the call site wrote (ADR 0255).
+    /// the call site wrote (`rule:security/access-is-checked-for-presence-not-meaning`).
     ///
     /// Argument 0 is that enum's name, which
     /// [`crate::registry::WRITTEN_ENUM_MEMBERS`] puts ahead of the receiver.
