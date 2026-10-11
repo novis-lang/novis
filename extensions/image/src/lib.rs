@@ -24,7 +24,7 @@
 //! under the cap. An encoded source's size is its header's, and a `text` source's is its laid-out
 //! box (`text`'s module doc, which says what the `text` step draws too).
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 5.8 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 6.6 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for image,
 //! and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of the bytes the
 //! binary carries.
@@ -38,6 +38,7 @@ mod info;
 pub mod ops;
 pub mod qr;
 pub mod summary;
+mod svg;
 pub mod text;
 mod webp;
 
@@ -50,6 +51,10 @@ pub use ops::Op;
 /// overlay drawn twice inside one drawn twice is four draws, so this bounds the work a plan of a
 /// few rows could otherwise double at every level.
 pub const MAX_OVERLAY_DRAWS: u64 = 64;
+
+/// The resolution a page of a paged source is drawn at when `open` names none
+/// (`rule:core-classes/pdf-page-is-an-image-source`).
+pub const DEFAULT_DPI: f64 = 150.0;
 
 /// What `run` returns, the WIT `output` enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -131,11 +136,15 @@ fn check(plan: &Plan<'_>) -> Result<(), Error> {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Input<'a> {
     /// Encoded bytes, decoded with the EXIF orientation applied when `auto_orient` is set and an
-    /// embedded ICC profile converted to sRGB when `to_srgb` is.
+    /// embedded ICC profile converted to sRGB when `to_srgb` is. `page`, counted from 1, selects
+    /// one page of a paged source, and `dpi` is the resolution it is drawn at. A source that is
+    /// not paged has one page and ignores `dpi`.
     Encoded {
         data: &'a [u8],
         auto_orient: bool,
         to_srgb: bool,
+        page: u64,
+        dpi: f64,
     },
     /// A blank canvas in one colour.
     Canvas {
@@ -166,7 +175,13 @@ pub fn run(input: &Input<'_>, cap: u64, plan: &Plan<'_>) -> Result<Vec<u8>, Erro
 /// result beside the frame holds a third while it runs.
 pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan<'_>]) -> Result<Vec<Vec<u8>>, Error> {
     let format = match *input {
-        Input::Encoded { data, .. } => sniff(data)?,
+        Input::Encoded { data, page, .. } => {
+            let format = sniff(data)?;
+            if page != 1 && format != Format::Pdf {
+                return Err(past_end(page, 1));
+            }
+            format
+        }
         Input::Canvas { .. } | Input::Pixels { .. } | Input::Text(_) => Format::Png,
     };
     for plan in plans {
@@ -200,6 +215,14 @@ pub fn variants(input: &Input<'_>, cap: u64, plans: &[Plan<'_>]) -> Result<Vec<V
     }
     outs.push(finish(pixels, format, last, cap)?);
     Ok(outs)
+}
+
+/// `Runtime` for `page` of a document of `count` pages, which is past its end.
+pub(crate) fn past_end(page: u64, count: u64) -> Error {
+    let pages = if count == 1 { "page" } else { "pages" };
+    Error::Runtime(format!(
+        "the document has {count} {pages}, so there is no page {page}"
+    ))
 }
 
 /// The size of the frame `input` makes, when it is known before anything is decoded and within
@@ -265,6 +288,7 @@ fn frame(input: &Input<'_>, cap: u64) -> Result<Pixels, Error> {
             data,
             auto_orient,
             to_srgb,
+            ..
         } => decode(data, cap, auto_orient, to_srgb),
         Input::Canvas {
             width,
@@ -447,7 +471,9 @@ mod guest {
     }
 
     /// The core's input for `source`, and the pixel cap it is held to: the source's own
-    /// `max-pixels` for encoded bytes, and the default for a canvas or pixels.
+    /// `max-pixels` for encoded bytes, and the default for a canvas or pixels. An encoded source
+    /// opens page 1 at 150 dpi unless it names others, and a page of 0 or a `dpi` that is not
+    /// more than 0 returns `invalid`.
     fn input(source: &Source) -> Result<(crate::Input<'_>, u64), Error> {
         Ok(match source {
             Source::Encoded(source) => (
@@ -455,6 +481,22 @@ mod guest {
                     data: &source.data,
                     auto_orient: source.auto_orient,
                     to_srgb: source.to_srgb,
+                    page: match source.page {
+                        Some(0) => {
+                            return Err(Error::Invalid(
+                                "`page` is 0. Pages are counted from 1.".to_owned(),
+                            ));
+                        }
+                        page => page.unwrap_or(1),
+                    },
+                    dpi: match source.dpi {
+                        Some(dpi) if !(dpi.is_finite() && dpi > 0.0) => {
+                            return Err(Error::Invalid(format!(
+                                "`dpi` is {dpi}. It must be a number more than 0."
+                            )));
+                        }
+                        dpi => dpi.unwrap_or(crate::DEFAULT_DPI),
+                    },
                 },
                 source.max_pixels.unwrap_or(crate::DEFAULT_MAX_PIXELS),
             ),

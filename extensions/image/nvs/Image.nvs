@@ -29,7 +29,7 @@ final class Image
         format?: Encoding,
         metadata?: {keep: bool},
     };
-    type Origin = {data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint}
+    type Origin = {data: bytes, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float}
         | {width: uint, height: uint, fill: Rgba}
         | {width: uint, height: uint, pixels: bytes}
         | {text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align};
@@ -57,16 +57,20 @@ final class Image
 
     /// `Image::open` starts from the bytes of an encoded image. It turns the image upright and
     /// converts its colours to sRGB, unless `autoOrient` or `toSrgb` is `false`.
+    /// `page` chooses one page of a document, starting at 1. `dpi` is the resolution of that page, 150 by default.
+    /// An image with one page has only page 1, and a page past the end throws an error.
     /// Bytes that are not an image throw an error when `encode`, `variants` or `raw` runs.
-    public static function open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint} $options = null): Image
+    public static function open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float} $options = null): Image
     {
         bool $autoOrient = $options?->autoOrient ?? true;
         bool $toSrgb = $options?->toSrgb ?? true;
         ?uint $maxPixels = $options?->maxPixels ?? null;
+        uint $page = $options?->page ?? 1;
+        float $dpi = $options?->dpi ?? 150.0;
         if ($maxPixels == null) {
-            return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb}, [], []);
+            return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, page: $page, dpi: $dpi}, [], []);
         }
-        return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, maxPixels: $maxPixels}, [], []);
+        return new Image({data: $data, autoOrient: $autoOrient, toSrgb: $toSrgb, maxPixels: $maxPixels, page: $page, dpi: $dpi}, [], []);
     }
 
     /// `Image::create` starts from a blank canvas. Without `$fill`, the canvas is transparent.

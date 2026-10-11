@@ -127,6 +127,8 @@ pub(crate) fn native(job: Job, inputs: &Inputs) -> Vec<u8> {
                 data: &inputs.jpeg,
                 auto_orient: true,
                 to_srgb: true,
+                page: 1,
+                dpi: nvs_image::DEFAULT_DPI,
             },
             raw(Vec::new()),
         ),

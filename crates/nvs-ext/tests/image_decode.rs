@@ -474,3 +474,79 @@ fn bytes_that_are_not_an_image_throw_parse_error() {
     );
     block_on(request.end()).expect("the request ends");
 }
+
+#[test]
+fn an_svg_decodes_and_an_external_href_throws() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+    let svg = r##"<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10">
+  <rect width="10" height="10" fill="#ff0000"/>
+  <rect x="10" width="10" height="10" fill="#0000ff"/>
+</svg>"##;
+    let out = run(
+        &request,
+        &extension,
+        encoded(svg.as_bytes().to_vec(), None),
+        plan(Vec::new(), "Raw"),
+    )
+    .expect("the SVG decodes");
+    assert_eq!(size_of(&out), (20, 10));
+    let pixel = |x: usize, y: usize| &out[16 + (y * 20 + x) * 4..16 + (y * 20 + x) * 4 + 4];
+    assert_eq!(pixel(2, 5), &[255, 0, 0, 255]);
+    assert_eq!(pixel(17, 5), &[0, 0, 255, 255]);
+    let info = block_on(request.call_values(
+        &extension,
+        "info",
+        vec![Value::Bytes(svg.as_bytes().to_vec())],
+    ))
+    .expect("`info` answers")
+    .expect("`info` returns a value");
+    let Value::Array(fields) = info else {
+        panic!("a shape was expected")
+    };
+    let get = |name: &str| {
+        fields
+            .iter()
+            .find(|(k, _)| *k == Key::String(name.to_owned()))
+            .map(|(_, v)| v.clone())
+    };
+    assert_eq!(get("format"), Some(Value::Case("Svg".to_owned())));
+    assert_eq!(get("width"), Some(Value::Uint(20)));
+    // An SVG is one page.
+    let second = shape(vec![
+        ("data", Value::Bytes(svg.as_bytes().to_vec())),
+        ("autoOrient", Value::Bool(true)),
+        ("toSrgb", Value::Bool(true)),
+        ("page", Value::Uint(2)),
+    ]);
+    assert_eq!(
+        expect_error(run(&request, &extension, second, plan(Vec::new(), "Raw"))),
+        Error::Runtime("the document has 1 page, so there is no page 2".to_owned())
+    );
+    // Neither a path nor an address is read. Each throws, naming the reference.
+    for href in [
+        "/etc/passwd",
+        "file:///etc/passwd",
+        "https://example.com/a.png",
+        "logo.png",
+    ] {
+        let linked = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"><image href="{href}" width="4" height="4"/></svg>"#
+        );
+        let refused = expect_error(run(
+            &request,
+            &extension,
+            encoded(linked.into_bytes(), None),
+            plan(Vec::new(), "Raw"),
+        ));
+        assert_eq!(
+            refused,
+            Error::Runtime(format!(
+                "the SVG links to `{href}`. An SVG can only use images it contains as `data:` URIs"
+            ))
+        );
+    }
+    block_on(request.end()).expect("the request ends");
+}

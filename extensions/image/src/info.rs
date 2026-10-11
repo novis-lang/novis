@@ -3,7 +3,8 @@
 //! The decoder is constructed, which parses the header and the metadata segments before the pixel
 //! data, and is dropped before it reads further. Two fields are not read yet and carry a fixed
 //! value: `frames` is `1`, and `exif` is `None`. The EXIF reader and the animation frame count
-//! are later slices of goal `ext-image`.
+//! are later slices of goal `ext-image`. An SVG document is parsed whole, because its size is
+//! computed from its root element's attributes, and nothing is drawn.
 
 use std::io::Cursor;
 
@@ -28,6 +29,9 @@ pub struct Info {
 /// Reads the header of `data`. Bytes in a format the component does not read, and a header that
 /// does not parse, return `Parse`.
 pub fn info(data: &[u8]) -> Result<Info, Error> {
+    if crate::decode::sniff(data) == Ok(Format::Svg) {
+        return crate::svg::info(data);
+    }
     let mut reader = ImageReader::new(Cursor::new(data))
         .with_guessed_format()
         .map_err(|err| Error::Runtime(err.to_string()))?;

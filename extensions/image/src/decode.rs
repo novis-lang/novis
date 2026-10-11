@@ -12,7 +12,8 @@
 //! full, because the orientation an upright result needs is in it.
 //!
 //! JPEG, PNG, WebP and GIF decode through `image`; JPEG XL through `jxl-oxide`; AVIF through
-//! `rav1d` (`avif`'s module doc). Only the first frame of an animated input is decoded, so `frames`
+//! `rav1d` (`avif`'s module doc); SVG through `resvg` (`svg`'s module doc), which reads nothing but
+//! the bytes it is given. Only the first frame of an animated input is decoded, so `frames`
 //! is `1` in the cap. A CMYK JPEG XL returns `Runtime`.
 //!
 //! **Auto-orient** (`rule:core-classes/image-correct-by-default`) applies the EXIF orientation to
@@ -70,6 +71,7 @@ pub fn sniff(data: &[u8]) -> Result<Format, Error> {
         Ok(ImageFormat::Png) => Ok(Format::Png),
         Ok(ImageFormat::WebP) => Ok(Format::Webp),
         Ok(ImageFormat::Gif) => Ok(Format::Gif),
+        _ if crate::svg::sniff(data) => Ok(Format::Svg),
         _ => Err(Error::Parse(
             "the data is not an image in a format the image component reads".to_string(),
         )),
@@ -120,6 +122,7 @@ pub fn decode(data: &[u8], cap: u64, auto_orient: bool, to_srgb: bool) -> Result
     match format {
         Format::Jxl => decode_jxl(data, cap),
         Format::Avif => crate::avif::decode(data, cap),
+        Format::Svg => crate::svg::decode(data, cap),
         _ => Err(Error::Invalid(format!(
             "{format:?} is not a format the image component decodes"
         ))),
