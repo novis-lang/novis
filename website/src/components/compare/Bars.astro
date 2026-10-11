@@ -1,9 +1,12 @@
 ---
 /**
- * One bar chart on the comparison page: a row per bar with its label, the
- * figure the bar shows, and the measured figures under it, smaller. A bar
- * with `best` takes the accent colour. A row with an empty label continues
- * the peer named above it, and an empty `figures` prints no line under it.
+ * One bar chart on the comparison page: a row per bar with its label, how it
+ * compares (its length as a percentage unless the caller words it) left of
+ * the bar, the figure it shows right of it, and a line of text
+ * under it, smaller. A bar with `best` takes the accent colour. A row with an
+ * empty label continues the peer named above it, and a bar with `above`
+ * prints its text above it, so two bars of one peer sit together between
+ * their two lines.
  */
 export interface Props {
   bars: {
@@ -13,24 +16,30 @@ export interface Props {
     best: boolean
     /** The figure printed at the end of the bar. */
     value: string
-    /** The measured figures printed under the bar. */
+    /** The line of text printed under the bar, or above it with `above`. */
     figures: string
+    above?: boolean
+    /** The text beside the value. Without it, the bar's length as a percentage. */
+    compared?: string
   }[]
 }
 
 const { bars } = Astro.props
+const percent = (share: number) => `${Math.round(share * 100)}%`
 ---
 
 <ul class="compare-bars">
   {
     bars.map((b) => (
-      <li class:list={{ best: b.best }}>
+      <li class:list={{ best: b.best, paired: b.above }}>
+        {b.above && <span class="figures above">{b.figures}</span>}
         <span class="peer">{b.label}</span>
+        <span class="percent">{b.compared ?? percent(b.share)}</span>
         <span class="track">
           <span class="bar" style={`width: ${(Math.min(b.share, 1) * 100).toFixed(1)}%`} />
         </span>
         <span class="value">{b.value}</span>
-        {b.figures && <span class="figures">{b.figures}</span>}
+        {!b.above && <span class="figures">{b.figures}</span>}
       </li>
     ))
   }
@@ -41,7 +50,7 @@ const { bars } = Astro.props
     list-style: none;
     padding: 0;
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto auto 1fr auto;
     gap: 0.25rem 0.75rem;
     align-items: center;
   }
@@ -49,6 +58,7 @@ const { bars } = Astro.props
     display: contents;
   }
   .compare-bars .peer {
+    grid-column: 1;
     font-weight: 600;
   }
   .compare-bars .track {
@@ -68,12 +78,24 @@ const { bars } = Astro.props
   .compare-bars .value {
     font-variant-numeric: tabular-nums;
     text-align: right;
+    white-space: nowrap;
+  }
+  .compare-bars .percent {
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
   }
   .compare-bars .figures {
-    grid-column: 2 / 4;
+    grid-column: 3 / 5;
     margin-top: -0.25rem;
     margin-bottom: 0.5rem;
     font-size: var(--sl-text-xs);
     color: var(--sl-color-gray-3);
+  }
+  .compare-bars .figures.above {
+    margin-top: 0.5rem;
+    margin-bottom: -0.25rem;
   }
 </style>

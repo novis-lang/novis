@@ -27,12 +27,13 @@ Each program is written the way the documentation of its language shows. Before 
 four servers must return the same answer for the same request. A server that returns a different
 answer gets no number.
 
-## Speed
+## Speed and memory
 
 The absolute numbers depend on the machine. A faster machine gives bigger numbers for all four. The
-result is the relation between the four servers. Each bar shows a server's requests per second as a
-share of the fastest server in that test. The fastest server has the full bar. The measured numbers
-are under each bar.
+result is the relation between the four servers. Each server has two bars in each test. The first
+bar is requests per second, and the fastest server has the full bar. The second bar is peak memory,
+and the server that used the most memory has the full bar. The coloured bars are the best results:
+the most requests and the least memory.
 
 This is the machine and the run:
 
@@ -41,7 +42,8 @@ This is the machine and the run:
 <CaseCharts />
 
 `p99` is the time within which 99 of 100 requests were answered. Peak memory is the most memory the
-server's container used during the test.
+server's container used during the test. Memory matters as much as speed when you pay for a server,
+because less memory per server means more servers on one machine.
 
 ## More than one CPU core
 
@@ -61,9 +63,9 @@ So the Bun program starts one Bun process for each core itself.
 ### One request in four parts
 
 Each request runs the same loop in four parts. The test times one part alone, and then all four
-parts on four cores. The grey bar is the time for one part. The coloured bar is the time for all
-four parts. A shorter bar is faster. When the four parts run at the same time, both bars are about
-the same length.
+parts on four cores. Each language has two bars: the time for one part, and the time for all four
+parts. A shorter bar is faster, and the coloured bar is the fastest time for four parts. When the
+four parts run at the same time, both bars are about the same length.
 
 <CoreCharts chart="one-request" />
 
@@ -94,6 +96,22 @@ Click a result to see the four programs for that row. The table shows every resu
 where another language does better than Novis.
 
 <FeatureTable />
+
+In Novis, every string you print in a request is escaped. To write HTML tags, you use an `html`
+template, and the values in it are still escaped. To print raw HTML, the program must use
+`Core\Html\Markup`, so it can only happen when you choose it. In Go, `html/template` escapes, but
+`fmt.Fprintf` writes the same text unescaped.
+
+Outside data is every value that comes from outside the program: the request, the session,
+environment variables, command line arguments, a reply from another server and values read from a
+database. Novis calls these values tainted. A tainted value in an SQL string is a compile error, so
+the program never runs with it.
+
+The deploy test copies a new version of 200 source files into a running server. Requests arrive
+the whole time. A failed request is a request that gets an error instead of the page. A mixed reply
+is a page built partly from old files and partly from new files. PHP needs a reload to use the new
+files, and Bun and Go need a restart. In this test, each of them failed requests during that step.
+Novis uses the new files with no reload and no restart, and every request got a complete page.
 
 ## Run it yourself
 

@@ -57,15 +57,15 @@ const ROW_TEXT: Record<string, string> = {
   crash: 'Other requests are still answered after one request crashes',
   loop: 'A request that loops forever is stopped, and other requests are still answered',
   memory: 'A request that uses too much memory is stopped, and other requests are still answered',
-  escape: 'Text in an HTML page is escaped by default',
-  taint: 'A request value in an SQL string is found before the program runs',
+  escape: 'Text in an HTML page is always escaped, also when you write it without a template',
+  taint: 'An SQL injection from outside data (request, session, environment, database) is not executed',
   secret: 'A secret in the output is found before the program runs',
   csrf: 'A form sent from another site is rejected',
   headers: 'Security headers are sent by default',
   waiting: 'Answers 1000 waiting requests on one CPU',
   parallel: 'One request can split its work over four CPU cores',
-  'live-edit': 'An edited file is served without a restart',
-  deploy: 'A new version goes live with no failed request',
+  'live-edit': 'An edited source file is served without a restart',
+  deploy: 'A new version goes live under load with no failed request and no mixed reply',
   config: 'A change to the config file applies without a restart',
   upgrade: 'A new runtime version runs with no failed request',
 }
@@ -157,6 +157,18 @@ export const rows: FeatureRow[] = record?.scenarios
       }),
     }))
   : []
+
+/**
+ * How a figure where less is better compares with the least one: `best` for
+ * the least itself, else how much more it is, as `89% slower` with
+ * `more` = `slower`. From twice the least up it is a factor, `37× more`,
+ * which reads more easily than `3600% more`.
+ */
+export function overLeast(value: number, least: number, best: string, more: string): string {
+  if (value <= least) return best
+  const ratio = value / least
+  return ratio >= 2 ? `${ratio.toFixed(ratio < 10 ? 1 : 0)}× ${more}` : `${Math.round((ratio - 1) * 100)}% ${more}`
+}
 
 /** The evidence a row recorded for each peer, in `peers` order, skipping a peer the row has no result for. */
 function evidenceOf(row: string): { label: string; evidence: Record<string, unknown> }[] {

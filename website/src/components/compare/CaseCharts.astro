@@ -1,43 +1,55 @@
 ---
 /**
- * One bar chart per recorded case on the comparison page. Each bar is a
- * peer's requests per second as a share of the best peer's in that case, and
- * the measured figures are printed under it, smaller.
+ * One chart per recorded case on the comparison page. Each peer has two
+ * bars: its requests per second against the best peer's, and its peak memory
+ * against the most any peer used. The best bar of each kind takes the accent
+ * colour: the most requests, and the least memory.
  */
 import Bars from './Bars.astro'
-import { charts, record } from '~/lib/compare'
+import { charts, overLeast, record } from '~/lib/compare'
 
-const percent = (share: number) => `${Math.round(share * 100)}%`
 const number = (n: number) => Math.round(n).toLocaleString('en-US')
-const figures = (requestsPerSec: number, p99Ms: number | null, memoryMiB: number | null) =>
-  [
-    `${number(requestsPerSec)} requests per second`,
-    p99Ms === null ? null : `p99 ${p99Ms.toFixed(1)} ms`,
-    memoryMiB === null ? null : `peak memory ${memoryMiB.toFixed(0)} MiB`,
-  ]
-    .filter((s) => s !== null)
-    .join(', ')
 ---
 
 {
   record ? (
-    charts.map((c) => (
-      <section class="compare-case">
-        <h3 id={`case-${c.id}`}>{c.title}</h3>
-        <p>
-          {c.text} {c.concurrency.toLocaleString('en-US')} connections at once.
-        </p>
-        <Bars
-          bars={c.bars.map((b) => ({
-            label: b.label,
-            share: b.share,
-            best: b.best,
-            value: percent(b.share),
-            figures: figures(b.requestsPerSec, b.p99Ms, b.memoryMiB),
-          }))}
-        />
-      </section>
-    ))
+    charts.map((c) => {
+      const memories = c.bars.flatMap((b) => (b.memoryMiB === null ? [] : [b.memoryMiB]))
+      const most = Math.max(...memories)
+      const least = Math.min(...memories)
+      return (
+        <section class="compare-case">
+          <h3 id={`case-${c.id}`}>{c.title}</h3>
+          <p>
+            {c.text} {c.concurrency.toLocaleString('en-US')} connections at once.
+          </p>
+          <Bars
+            bars={c.bars.flatMap((b) => [
+              {
+                label: b.label,
+                share: b.share,
+                best: b.best,
+                value: number(b.requestsPerSec),
+                figures: b.p99Ms === null ? 'requests per second' : `requests per second, p99 ${b.p99Ms.toFixed(1)} ms`,
+                above: b.memoryMiB !== null,
+              },
+              ...(b.memoryMiB === null
+                ? []
+                : [
+                    {
+                      label: '',
+                      share: most > 0 ? b.memoryMiB / most : 0,
+                      best: b.memoryMiB === least,
+                      value: `${b.memoryMiB.toFixed(0)} MiB`,
+                      compared: overLeast(b.memoryMiB, least, 'least', 'more'),
+                      figures: 'peak memory, less is better',
+                    },
+                  ]),
+            ])}
+          />
+        </section>
+      )
+    })
   ) : (
     <p class="compare-empty">No run is recorded yet.</p>
   )
