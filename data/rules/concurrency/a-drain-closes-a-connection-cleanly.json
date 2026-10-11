@@ -1,9 +1,7 @@
 {
   "title": "A shutdown or a reload closes a connection with a defined code after a drain, never with a reset",
   "status": "shipped",
-  "because": [
-    "0209"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/connection-bounds-are-finite",
     "concurrency/a-connection-keeps-its-compiled-unit"
