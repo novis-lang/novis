@@ -87,11 +87,13 @@
 //! *running* core: [`nvs_host::Watchdog`], which every worker registers itself
 //! with once it holds a reactor and deregisters from when it ends. A stall
 //! report costs a core nothing at all — it is read off the deadline each accept
-//! loop already publishes. `rule:errors/on-limit`'s CPU ceiling costs it two
-//! stores per request, one when a request's isolate starts and one when it ends
-//! ([`nvs_host::Isolate::watched_by`]), and one word of the watched entry to
-//! hold them in; nothing is written at a safepoint, and nothing accumulates per
-//! request answered.
+//! loop already publishes. `rule:errors/on-limit`'s CPU ceiling costs it one
+//! publication per request in flight, made when the request's isolate starts and
+//! withdrawn when it ends ([`nvs_host::Isolate::watched_by`]), and one reading
+//! of its own clock at each task switch that leaves or enters a request, which
+//! `nvs_host::watchdog`'s *Charging a request for the time it runs* prices.
+//! Nothing is written at a safepoint, and nothing accumulates per request
+//! answered.
 //!
 //! # Decision: the snapshot this command publishes is what a served request reads
 //!

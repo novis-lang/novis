@@ -210,6 +210,10 @@ struct Suspended {
     /// `false` the moment a helper frame is on it, per
     /// [`nvs_runtime::HelperFrame`].
     unwindable: bool,
+    /// The request tree of the context that suspended, where the park site had
+    /// one ([`suspend`]), and `None` where it had none ([`suspend_current`]).
+    /// [`Task::tree`] is what it updates.
+    tree: Option<usize>,
 }
 
 /// What a resume means to the task being resumed.
@@ -616,6 +620,14 @@ struct Task {
     /// [`Scheduler::run`]'s parked sweep from spinning against a park site that
     /// ignores the answer.
     told: bool,
+    /// The request tree this task runs for, as [`nvs_runtime::Ctx::tree_key`]
+    /// names it: taken from the context it was spawned with, and taken again
+    /// at each suspension that hands one over, because a connection's context
+    /// starts a new tree for each request it serves (`Ctx::reroot`).
+    /// [`Scheduler::run`] hands it to [`crate::watchdog::switch_to`] before
+    /// every resume, so the CPU time the task spends is charged to its own
+    /// request.
+    tree: usize,
     /// This task's ThreadSanitizer fiber — a zero-sized nothing in every build
     /// but the sanitizer leg's, where it is the access history that follows
     /// this stack rather than the thread currently under it. [`crate::tsan`] is
@@ -835,6 +847,7 @@ impl Scheduler {
     fn start(&mut self, id: TaskId, ctx: Ctx, root: TaskRoot, body: Box<dyn FnOnce(&mut Ctx)>) {
         let stack = self.stacks.take();
         let mut ctx = ctx;
+        let tree = ctx.tree_key();
         let (base, ceiling) = crate::stack::bounds(&stack);
         ctx.arm_stack_limit(base, ceiling);
         // Boxed for the crossing and unboxed the instant the coroutine starts,
@@ -880,6 +893,7 @@ impl Scheduler {
             coro,
             unwindable: true,
             told: false,
+            tree,
             fiber: Fiber::new(),
         });
     }
@@ -918,6 +932,10 @@ impl Scheduler {
         // [`crate::group`] is the implementor and the home of what a child gets
         // for a `Ctx`.
         let _host = crate::group::install();
+        // The tree the thread was charging before this turn, which it charges
+        // again once the turn ends: none on a worker between turns, and the
+        // run's own tree under `nvs run`, whose reactor work is that run's.
+        let outer = crate::watchdog::running_tree();
         loop {
             // Before the run queue is read rather than only after a resume: a
             // wake issued between turns, by an end of a channel held outside
@@ -947,9 +965,16 @@ impl Scheduler {
                     Resume::Run
                 };
                 report.resumes += 1;
+                // The CPU time from here until the next switch is this task's
+                // request's. `crate::watchdog`'s *Charging a request* section
+                // owns what this costs.
+                crate::watchdog::switch_to(task.tree);
                 match task.resume(resume) {
                     CoroutineResult::Yield(suspended) => {
                         task.unwindable = suspended.unwindable;
+                        if let Some(tree) = suspended.tree {
+                            task.tree = tree;
+                        }
                         match suspended.waiting {
                             Waiting::Yielded => self.ready.push_back(task),
                             Waiting::Parked => {
@@ -1031,6 +1056,7 @@ impl Scheduler {
                 }
             }
         }
+        crate::watchdog::switch_to(outer);
         report.parked = self.parked.len();
         report
     }
@@ -1314,7 +1340,7 @@ pub fn suspend(ctx: &Ctx, waiting: Waiting) -> Resumed {
     if raw.is_null() {
         return Resumed::NotSuspended;
     }
-    yield_on(raw, waiting)
+    yield_on(raw, waiting, Some(ctx.tree_key()))
 }
 
 thread_local! {
@@ -1400,7 +1426,7 @@ pub fn children_still_running() -> usize {
 /// rather than run on", and [`Resumed::Cancelled`] is "stop waiting".
 pub fn suspend_current(waiting: Waiting) -> Resumed {
     match RUNNING.get() {
-        Some(running) => yield_on(running.yielder, waiting),
+        Some(running) => yield_on(running.yielder, waiting, None),
         None => Resumed::NotSuspended,
     }
 }
@@ -1420,7 +1446,10 @@ pub fn suspend_current(waiting: Waiting) -> Resumed {
 /// [`nvs_runtime::CurrentStack`]'s pair — that last one because it is the only
 /// one whose stale value is a *dangling pointer* rather than a wrong number,
 /// which is what its own doc records.
-fn yield_on(raw: *const (), waiting: Waiting) -> Resumed {
+///
+/// `tree` is the request tree of the context that suspended, where the park
+/// site has one, and travels out in the suspension for [`Task::tree`].
+fn yield_on(raw: *const (), waiting: Waiting, tree: Option<usize>) -> Resumed {
     // SAFETY: a non-null erased yielder is written in exactly one place —
     // `Scheduler::spawn`'s coroutine body, from `&Yielder` — into the task's
     // `Ctx` and into `RUNNING` in the same statement, and cleared from both
@@ -1453,6 +1482,7 @@ fn yield_on(raw: *const (), waiting: Waiting) -> Resumed {
     let resume = yielder.suspend(Suspended {
         waiting,
         unwindable: frames == 0,
+        tree,
     });
     current.restore();
     nvs_runtime::HelperFrame::restore(frames);

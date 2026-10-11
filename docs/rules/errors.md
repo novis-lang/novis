@@ -204,7 +204,10 @@ word compiled code polls at every back edge; the allocator raises the memory bit
 address rather than living inside `Ctx`, because neither writer holds a context and a write through one
 would alias the `&mut Ctx` a helper body holds. A request tree shares one word, as it shares one budget
 ([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)), so a child made after a flag was raised is not born
-clean. A runaway request therefore stops itself at its next poll, and the core it ran on is never
+clean. A core charges each request only for the time that request's own tasks run, taking a reading
+of its clock at each task switch between requests, so a request that waits and then loops is
+stopped like one that never waited, and the requests waiting beside it are charged nothing for the
+loop. A runaway request therefore stops itself at its next poll, and the core it ran on is never
 wedged.
 
 **Declined:**

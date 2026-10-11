@@ -226,6 +226,19 @@ impl Ctx {
         std::sync::Arc::clone(&self.tree)
     }
 
+    /// An identity for this context's request tree: the same for every context
+    /// and [`SafepointView`] in it, and different from that of every other tree
+    /// alive at the same time.
+    ///
+    /// The address of the state the tree shares, so reading it holds nothing
+    /// and costs one load. A tree that has ended may lend its address to a
+    /// later one, so a caller keys by it only trees it still holds a handle on,
+    /// or that a context it is running still holds.
+    #[must_use]
+    pub fn tree_key(&self) -> usize {
+        std::sync::Arc::as_ptr(&self.tree).addr()
+    }
+
     /// Whether this request's deadline has passed —
     /// `rule:http-server/time-is-bounded-inside-a-helper`
     /// 's poll, and the module docs' *The request's deadline* section owns
@@ -456,6 +469,12 @@ impl SafepointView {
     #[must_use]
     pub fn same_tree(&self, other: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.tree, &other.tree)
+    }
+
+    /// The identity [`Ctx::tree_key`] gives every context in this tree.
+    #[must_use]
+    pub fn tree_key(&self) -> usize {
+        std::sync::Arc::as_ptr(&self.tree).addr()
     }
 
     /// The flags standing in the word, which is what the next poll reads.

@@ -4,8 +4,8 @@
 //! `rule:http-server/a-wedged-core-is-detected-by-its-deadline`
 //! is the whole specification, and its first clause decides this module's
 //! shape: the watchdog **reads the in-flight deadline each worker already
-//! maintains**. So there is no heartbeat here, and nothing on a request path is
-//! written for this module's benefit. What it reads is [`crate::timer`]'s
+//! maintains**. So there is no heartbeat here, and a stall is read off state the
+//! core keeps for its own deadlines. What it reads is [`crate::timer`]'s
 //! [`DeadlineView`], which is the first entry of a table the deadline mechanism
 //! was keeping anyway. A per-request beat would be the wrong implementation of
 //! this item even if it were cheap, because it measures the request rather than
@@ -46,67 +46,85 @@
 //!
 //! One OS thread for the process — not one per core — started when the first
 //! core registers, so a process running no workers has none. It holds one
-//! entry per *registered core*, which is O(cores) and never grows with requests
-//! served, and it wakes once per [`DEFAULT_INTERVAL`] to read one atomic per
-//! entry.
+//! entry per *registered core*, which is O(cores), and in each entry one
+//! publication per request in flight on that core, which leaves with its
+//! request: O(in-flight), never O(requests served). It wakes once per
+//! [`DEFAULT_INTERVAL`] to read one atomic per entry and one per publication
+//! under a ceiling, beside one reading of that core's clock. What a core pays
+//! for its publications is *Charging a request for the time it runs* below.
 //!
 //! `[server] watchdog_margin` sets the margin, and [`DEFAULT_MARGIN`] is the
 //! margin with the key left out. `nvs serve` resolves the key at boot through
 //! `nvs_config::server::watchdog_margin_for` and builds the process's one
 //! watchdog with [`Watchdog::reporting_after`], which is why the key is `Boot`:
 //! a reload has no second watchdog to hand a new margin to. [`DEFAULT_INTERVAL`]
-//! has no key, because a sweep costs one wakeup and one relaxed load per core
-//! and a shorter or longer one buys an operator nothing the margin does not.
+//! has no key, because a sweep costs one wakeup and a few relaxed loads per
+//! core, and a shorter or longer one buys an operator nothing the margin does
+//! not.
 //!
-//! # The request a core is running
+//! # The requests a core is running
 //!
 //! Reporting a wedged core answers the *core*. Stopping the **request** that
-//! wedged it needs a handle on that request, and
-//! [`Registration::publish_safepoint`] is where a core hands one over:
-//! `nvs-runtime`'s [`SafepointView`] on its request tree's safepoint word,
-//! which is the word compiled code polls at every function entry and loop back
-//! edge. One store through it stops every isolate and task under that tree,
-//! because `rule:security/isolate-shares-nothing` gives a tree one ceiling to
-//! divide and so one word to be stopped by.
+//! wedged it needs a handle on that request, and [`Registration::publish`] is
+//! where a core hands one over: `nvs-runtime`'s [`SafepointView`] on its
+//! request tree's safepoint word, which is the word compiled code polls at
+//! every function entry and loop back edge. One store through it stops every
+//! isolate and task under that tree, because `rule:security/isolate-shares-nothing`
+//! gives a tree one ceiling to divide and so one word to be stopped by.
 //!
-//! The handle goes through the lock this module already holds rather than
-//! through a second atomic beside the deadline. A core takes that lock to
-//! register and to deregister, and the watchdog holds it only across a clone,
-//! so a published handle costs a core no synchronisation the watched set was
-//! not already costing it. A *deadline* could not be published this way —
-//! [`crate::timer`]'s docs own that argument — because it is rewritten every
-//! time any task arms or disarms one.
+//! A core publishes a request where its body starts and withdraws it where the
+//! body ends ([`Registration::withdraw`]), so an entry holds every request in
+//! flight on its core: a core takes up many at once and runs each a few
+//! statements at a time. A publication goes through the lock this module
+//! already holds rather than through an atomic of its own, and costs a core
+//! one lock at a request's start and one at its end. A *deadline* could not be
+//! published this way — [`crate::timer`]'s docs own that argument — because it
+//! is rewritten every time any task arms or disarms one.
 //!
-//! What a core publishes is a [`RunningRequest`]: that handle, and the reading
-//! the core's own [`ThreadClock`] gave at the instant of publication. The
-//! handle alone cannot be charged against a ceiling — the watchdog has to know
-//! where this request's spending starts — and a core is the only thread that
-//! may take a clock on itself, so the baseline is taken where the publication
-//! is. The ceiling is not part of the record: it is read through the handle on
+//! The ceiling is not part of a publication: it is read through the handle on
 //! every sweep, so one a program narrowed with `Core\Config::set` is the one
-//! charged, from the baseline its request started with. A request under no cap
+//! charged, against everything its request has spent. A request under no cap
 //! is published and compared with nothing until it has one. A core on a
 //! platform with no per-thread clock publishes nothing and is sampled not at
 //! all.
 //!
-//! [`Shared::sweep`] reads that charge on the walk it already makes, and a
-//! request whose charge has reached its ceiling is asked to stop through the
-//! handle beside it: `SafepointFlags::CPU_LIMIT` into the word compiled code
-//! polls, which is `rule:errors/on-limit`'s ceiling arriving at the request
-//! that spent it. Nothing there touches the *core* — the section above still
-//! holds, and a core is reported and shed rather than killed; what changes is
-//! that the request wedging it now stops itself at its next poll.
+//! # Charging a request for the time it runs
 //!
-//! The window a charge is read over runs from that baseline, and it is the
-//! *core's* time rather than the request's: a core runs many tasks, so a
-//! neighbour that ran since the publication is charged to the request that was
-//! published. The fault the ceiling exists for is the one where that cannot
-//! happen — a request that never yields is a core that never republishes — so
-//! the over-charge needs the very thing the runaway case denies it. A request
-//! that does yield is charged from its most recent publication and no total is
-//! kept across them, because accounting a yielding request's whole spend needs
-//! a store at the yield, which is the request-path write this module's first
-//! paragraph refuses.
+//! Each publication carries a [`Charge`]: the CPU time its core has spent
+//! running that request's tree. [`crate::scheduler::Scheduler`] names the tree of every
+//! task before it resumes it ([`switch_to`]), and a switch that leaves or
+//! enters a published tree reads the core's own [`ThreadClock`] once: the time
+//! since the last switch goes to the tree it leaves, and the tree it enters is
+//! charged from that reading on. So a request is charged for the time its own
+//! tasks run and for nothing its neighbours run, across every wait. A request
+//! that waits once and then loops forever is charged from the switch that
+//! resumed it, and a request parked beside it is charged nothing for the loop.
+//!
+//! **What it spends on each task switch.** Between two tasks of one tree — a
+//! request's own tasks taking turns — one comparison. Between two trees, a
+//! thread-local read and two lookups in the core's own table of publications;
+//! and where either tree is published, one reading of the core's clock and, for
+//! each published tree it leaves or enters, one load and one store into that
+//! tree's [`Charge`]. The reading is a system call on every platform that has
+//! the clock, and it is the cost that buys `rule:errors/on-limit`'s ceiling for
+//! a request that waits before it runs away: security and request isolation
+//! are paid for here with request-path latency, in that order of priority.
+//!
+//! [`Shared::sweep`] reads a core's clock and then each charge, on the walk it
+//! already makes, and a request whose charge has reached its ceiling is asked
+//! to stop through the handle beside it: `SafepointFlags::CPU_LIMIT` into the
+//! word compiled code polls, which is `rule:errors/on-limit`'s ceiling
+//! arriving at the request that spent it. Clock first and charge second, so a
+//! switch between the two reads can only make the charge read low, never high:
+//! a request is never stopped for time its neighbours spent. Nothing there
+//! touches the *core*. The section above still holds, and a core is reported
+//! and shed rather than killed; what changes is that the request wedging it
+//! stops itself at its next poll.
+//!
+//! A thread that publishes outside any task — `nvs run` before its scheduler
+//! turns, or an isolate run on its caller's stack — is running that request
+//! itself, so it is charged from the publication on and goes back to whatever
+//! it was charging when the publication is withdrawn.
 //!
 //! # Registering a core
 //!
@@ -133,7 +151,11 @@
 //! raised at the ceiling — and none of the half that answers a core, so such an
 //! entry takes no [`DeadlineView`] and is reported as wedged never.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::io::Write;
+use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -178,53 +200,23 @@ pub struct Stall {
 /// Where a report goes: `rule:errors/engine-floor`'s floor, or a caller's own sink.
 type Sink = Box<dyn Fn(&Stall) + Send + Sync + 'static>;
 
-/// What a core publishes about the request it is running: the handle that stops
-/// it and carries the CPU ceiling it runs under, and where its charge starts.
+/// What a core publishes about one request in flight on it: the handle that
+/// stops it and carries the CPU ceiling it runs under, and what it has spent of
+/// the core so far.
 ///
-/// Minted on the core's own thread by [`RunningRequest::new`] and handed to
-/// [`Registration::publish_safepoint`]. It holds no borrow of the request — the
-/// handle is `Send` where a `Ctx` is not, and the rest is a duration and an
-/// identifier — so the watchdog thread reads all of it without touching
+/// Made on the core's own thread by [`Registration::publish`] and read back
+/// through [`Watchdog::running`]. It holds no borrow of the request — the
+/// handle is `Send` where a `Ctx` is not, and the rest is an identifier and a
+/// shared word — so the watchdog thread reads all of it without touching
 /// anything the request owns.
 #[derive(Clone, Debug)]
 pub struct RunningRequest {
     view: SafepointView,
     clock: ThreadClock,
-    baseline: Duration,
+    charge: Arc<Charge>,
 }
 
 impl RunningRequest {
-    /// The request a core is about to run, or `None` where no CPU ceiling can
-    /// be enforced on it.
-    ///
-    /// Called on the core's own thread, and `clock` must be that core's: what
-    /// is read here is the baseline every later charge is measured from, and a
-    /// clock on any other thread measures somebody else's work.
-    ///
-    /// `None` in two cases a caller does not have to tell apart, because the
-    /// answer to both is the same — publish nothing, be sampled not at all: the
-    /// platform has no per-thread clock a stranger may read, or the clock
-    /// refuses a reading.
-    ///
-    /// **A request under no cap is published like any other.** Its ceiling is
-    /// read through the handle on every sweep ([`Self::limit`]) and is not
-    /// copied here, because `Core\Config::set` may narrow `limits.cpu_time`
-    /// while the request runs, and the charge that ceiling is compared with has
-    /// to start where the request did. A baseline taken at the narrowing would
-    /// let a program clear its own charge by setting the directive again.
-    ///
-    /// **What it spends:** one reading of the thread's clock per publication,
-    /// capped or not.
-    #[must_use]
-    pub fn new(view: SafepointView, clock: Option<ThreadClock>) -> Option<Self> {
-        let clock = clock?;
-        Some(Self {
-            view,
-            clock,
-            baseline: clock.burned()?,
-        })
-    }
-
     /// The handle that stops this request, and with it every isolate and task
     /// under its tree.
     #[must_use]
@@ -235,28 +227,174 @@ impl RunningRequest {
     /// The CPU time this request may burn as its tree's root states it now —
     /// `[limits] cpu_time`, as `Ctx::cpu_limit` reports it — or `None` while
     /// the request is under no cap.
+    ///
+    /// Read through the handle each time rather than copied at the
+    /// publication, because `Core\Config::set` may narrow `limits.cpu_time`
+    /// while the request runs. The charge it is compared with is the whole
+    /// request's, so a program cannot clear its own charge by setting the
+    /// directive again.
     #[must_use]
     pub fn limit(&self) -> Option<Duration> {
         let nanos = self.view.cpu_limit();
         (nanos > 0).then(|| Duration::from_nanos(nanos))
     }
 
-    /// What the core had burned at the instant this request was published.
-    #[must_use]
-    pub fn baseline(&self) -> Duration {
-        self.baseline
-    }
-
-    /// What the core has burned since, or `None` once its thread has ended.
+    /// The CPU time the core has spent running this request's tree since the
+    /// publication, or `None` once the core's thread has ended.
     ///
-    /// Read from the watchdog's thread rather than the core's, which is what
-    /// [`ThreadClock`] exists for. Saturating, because a clock the operating
-    /// system steps backwards must read as no charge rather than as an enormous
-    /// one.
+    /// Read from any thread: the core's clock first, through [`ThreadClock`],
+    /// and the [`Charge`] after it, which is the order that never reads high.
     #[must_use]
     pub fn burned(&self) -> Option<Duration> {
-        Some(self.clock.burned()?.saturating_sub(self.baseline))
+        let now = self.clock.burned()?;
+        Some(Duration::from_nanos(self.charge.at(nanos(now))))
     }
+}
+
+/// The CPU time one published request tree has spent of its core, in one word
+/// the core writes and any thread reads.
+///
+/// The word has two forms, told apart by its top bit. While the core is not
+/// running the tree, it is the nanoseconds the tree has spent. While the core
+/// is running it, the bit is set and the rest is the reading of the core's
+/// clock at which the tree would have spent nothing had it run alone, so its
+/// spend is the clock now less that reading. One word means a reader never
+/// sees half of a switch: whatever it loads is a charge that was true at some
+/// instant.
+#[derive(Debug, Default)]
+struct Charge(AtomicU64);
+
+impl Charge {
+    /// Set while the core is running this tree.
+    const RUNNING: u64 = 1 << 63;
+
+    /// The core starts running this tree at clock reading `now`.
+    fn start(&self, now: u64) {
+        let word = self.0.load(Ordering::Relaxed);
+        if word & Self::RUNNING == 0 {
+            self.0
+                .store(Self::RUNNING | now.saturating_sub(word), Ordering::Release);
+        }
+    }
+
+    /// The core stops running this tree at clock reading `now`.
+    fn stop(&self, now: u64) {
+        let word = self.0.load(Ordering::Relaxed);
+        if word & Self::RUNNING != 0 {
+            self.0
+                .store(now.saturating_sub(word & !Self::RUNNING), Ordering::Release);
+        }
+    }
+
+    /// What the tree has spent, given a reading of the core's clock taken
+    /// before this call.
+    ///
+    /// Saturating, because a reading taken before the tree's latest start is
+    /// earlier than the point it is measured from, and that must read as a
+    /// small charge rather than an enormous one.
+    fn at(&self, now: u64) -> u64 {
+        let word = self.0.load(Ordering::Acquire);
+        if word & Self::RUNNING == 0 {
+            word
+        } else {
+            now.saturating_sub(word & !Self::RUNNING)
+        }
+    }
+}
+
+/// A clock reading in the nanoseconds a [`Charge`] counts, kept clear of its
+/// top bit. That bit is 292 years of CPU time.
+fn nanos(reading: Duration) -> u64 {
+    u64::try_from(reading.as_nanos()).unwrap_or(u64::MAX) & !Charge::RUNNING
+}
+
+/// The half of a registration that only its own thread touches: which request
+/// trees it has published, and which tree it is running now.
+///
+/// Reached by [`Registration`]'s methods and, through [`METER`], by
+/// [`switch_to`], which the scheduler calls before every task it resumes.
+#[derive(Debug)]
+struct Meter {
+    /// This thread's clock, read here on the thread itself.
+    clock: ThreadClock,
+    /// Every tree published on this thread, by [`SafepointView::tree_key`].
+    charges: HashMap<usize, Charging>,
+    /// The tree this thread is running now, or [`NO_TREE`] outside any task.
+    running: usize,
+}
+
+/// One tree's entry in a [`Meter`].
+#[derive(Debug)]
+struct Charging {
+    charge: Arc<Charge>,
+    /// How many publications of this tree are standing. A request publishes
+    /// its tree once per isolate body that is watched, and the tree stays
+    /// charged until the last of them is withdrawn.
+    publications: usize,
+    /// The tree this thread was running when this one was published outside
+    /// any task, which it runs again when this one is withdrawn. `None` for a
+    /// tree published by a task: the scheduler names what runs next.
+    outer: Option<usize>,
+}
+
+/// The tree key of a thread that is running no task.
+const NO_TREE: usize = 0;
+
+impl Meter {
+    /// The thread moves from the tree it is running to `tree`.
+    fn switch(&mut self, tree: usize) {
+        if tree == self.running {
+            return;
+        }
+        let left = std::mem::replace(&mut self.running, tree);
+        let leaving = self.charges.get(&left);
+        let entering = self.charges.get(&tree);
+        if leaving.is_none() && entering.is_none() {
+            return;
+        }
+        let Some(now) = self.clock.burned() else {
+            return;
+        };
+        let now = nanos(now);
+        if let Some(leaving) = leaving {
+            leaving.charge.stop(now);
+        }
+        if let Some(entering) = entering {
+            entering.charge.start(now);
+        }
+    }
+}
+
+thread_local! {
+    /// The [`Meter`] of the registration this thread made last, which is the
+    /// one the scheduler charges through. Empty on a thread that registered
+    /// nothing, or that has no clock to charge with.
+    static METER: RefCell<Option<Rc<RefCell<Meter>>>> = const { RefCell::new(None) };
+}
+
+/// Charges the CPU time this thread spends from now on to `tree`, as
+/// [`nvs_runtime::Ctx::tree_key`] names it, and stops charging the tree it was
+/// running. The module doc's *Charging a request for the time it runs* section
+/// owns what it costs.
+///
+/// [`crate::scheduler::Scheduler`] calls it before every task it resumes, and
+/// once more at the end of a turn with what [`running_tree`] answered at its
+/// start.
+pub(crate) fn switch_to(tree: usize) {
+    METER.with_borrow(|meter| {
+        if let Some(meter) = meter {
+            meter.borrow_mut().switch(tree);
+        }
+    });
+}
+
+/// The tree this thread is charging now, or [`NO_TREE`].
+pub(crate) fn running_tree() -> usize {
+    METER.with_borrow(|meter| {
+        meter
+            .as_ref()
+            .map_or(NO_TREE, |meter| meter.borrow().running)
+    })
 }
 
 /// One registered thread, and what has already been said about it.
@@ -272,12 +410,11 @@ struct Watched {
     /// ceilings exactly as a core is and is reported as wedged never, because
     /// there is no deadline table to read and nothing to shed it onto.
     core: Option<(CpuId, DeadlineView)>,
-    /// The request tree this core is running and the baseline it is charged
-    /// from, or `None` while it is running none —
-    /// [`Registration::publish_safepoint`] is the only writer, and this
-    /// module's docs say why it lives behind the same lock as the rest of the
-    /// entry.
-    running: Option<RunningRequest>,
+    /// Every request tree published on this core and not yet withdrawn, one
+    /// entry per tree. [`Registration`]'s methods are the only writers, and
+    /// this module's docs say why it lives behind the same lock as the rest of
+    /// the entry.
+    running: Vec<RunningRequest>,
     /// The deadline this core was last reported for, so an episode produces one
     /// record rather than one per sweep. Cleared whenever the core is not
     /// overdue, which is what makes a later stall a new episode.
@@ -430,7 +567,7 @@ impl Watchdog {
     /// worker that stopped turning, and the process that would be named by such
     /// a report here is the one already printing the `FATAL` the ceiling
     /// raised. What it does get is the half that answers a *request*:
-    /// [`Registration::publish_safepoint`], sampled on the same walk and
+    /// [`Registration::publish`], sampled on the same walk and
     /// stopped at the same ceiling as any core's.
     pub fn register_requests(&self) -> Registration {
         self.watch(None)
@@ -444,9 +581,9 @@ impl Watchdog {
             id,
             core,
             // A core registers when it installs its reactor, which is before it
-            // has a request to be running — so the request arrives later, by
+            // has a request to be running — so the requests arrive later, by
             // publication, and never as a second argument here.
-            running: None,
+            running: Vec::new(),
             reported: None,
         });
         if state.thread.is_none() && state.running {
@@ -457,15 +594,25 @@ impl Watchdog {
                 .ok();
         }
         drop(state);
+        // On the registering thread's own stack, which is the one thing this
+        // call can be sure of: `register` is called from the core it watches,
+        // so the clock every publication through this handle is charged
+        // against is that core's. [`Registration::meter`] owns the rest.
+        let meter = ThreadClock::current().map(|clock| {
+            Rc::new(RefCell::new(Meter {
+                clock,
+                charges: HashMap::new(),
+                running: NO_TREE,
+            }))
+        });
+        let outer_meter = meter
+            .as_ref()
+            .and_then(|meter| METER.replace(Some(Rc::clone(meter))));
         Registration {
             shared: Arc::clone(&self.shared),
             id,
-            // On the registering thread's own stack, which is the one thing
-            // this call can be sure of: `register` is called from the core it
-            // watches, so the clock this handle charges every publication
-            // against is that core's. The field doc owns why it is not taken
-            // per request.
-            clock: ThreadClock::current(),
+            meter,
+            outer_meter,
         }
     }
 
@@ -512,25 +659,25 @@ impl Watchdog {
         cores == 0 || wedged < cores
     }
 
-    /// Every registered thread that has published a request, paired with what
-    /// it published — the handle that stops that request, and the baseline a
-    /// charge against its ceiling is measured from. The CPU is the one the
-    /// publisher is pinned to, and `None` where it is no core.
+    /// Every request published on a registered thread, paired with the CPU
+    /// that thread is pinned to, or `None` where it is no core. Each carries
+    /// the handle that stops its request and what that request has spent.
     ///
-    /// The read side of [`Registration::publish_safepoint`]. Cloned out under
-    /// the lock and handed back owned, so whatever decides to stop a request —
-    /// a sampler, a test — does that with the watched set released and cannot
+    /// The read side of [`Registration::publish`]. Cloned out under the lock
+    /// and handed back owned, so whatever decides to stop a request — a
+    /// sampler, a test — does that with the watched set released and cannot
     /// wedge a core registering beside it.
     #[must_use]
     pub fn running(&self) -> Vec<(Option<CpuId>, RunningRequest)> {
         lock(&self.shared.state)
             .watching
             .iter()
-            .filter_map(|watched| {
-                Some((
-                    watched.core.as_ref().map(|&(cpu, _)| cpu),
-                    watched.running.clone()?,
-                ))
+            .flat_map(|watched| {
+                let cpu = watched.core.as_ref().map(|&(cpu, _)| cpu);
+                watched
+                    .running
+                    .iter()
+                    .map(move |running| (cpu, running.clone()))
             })
             .collect()
     }
@@ -554,90 +701,132 @@ impl Drop for Watchdog {
 }
 
 /// One core's place in the watched set, which it holds for as long as it runs.
+///
+/// Made and dropped on the core's own thread, and `!Send` so that it cannot
+/// leave it: what it charges is that thread's clock.
 pub struct Registration {
     shared: Arc<Shared>,
     id: u64,
-    /// The clock of the thread that registered, which is the thread every
-    /// request published through this handle runs on. Taken once here rather
-    /// than once per publication because [`ThreadClock::current`] measures its
-    /// caller and nothing else: a clock taken where a request is *built* would
-    /// measure whichever thread built it, and one taken per request would pay a
-    /// platform call for an answer that cannot have changed. `None` on a
-    /// platform with no per-thread clock a stranger may read, which
-    /// [`RunningRequest::new`] turns into a request that is sampled not at all.
-    clock: Option<ThreadClock>,
+    /// This thread's [`Meter`], or `None` on a platform with no per-thread
+    /// clock a stranger may read, where nothing is published and nothing is
+    /// sampled. Built from a clock taken once, where the registration is made,
+    /// because [`ThreadClock::current`] measures its caller and nothing else: a
+    /// clock taken where a request is *built* would measure whichever thread
+    /// built it.
+    meter: Option<Rc<RefCell<Meter>>>,
+    /// The meter [`METER`] held before this registration replaced it, put back
+    /// when this one is dropped.
+    outer_meter: Option<Rc<RefCell<Meter>>>,
 }
 
 impl Registration {
-    /// Publishes the request this core is now running, or clears it with `None`
-    /// when the core is running none.
+    /// Publishes a request this thread is running, until [`Self::withdraw`]
+    /// takes it back.
     ///
-    /// The handle inside must be the **tree root's** — `Ctx::safepoint_view`
-    /// hands out no other — so one store through it reaches every isolate and
-    /// task under it, including one spawned after the store. This module's docs
-    /// say what the watchdog does with it, why it rides the watched set's own
-    /// lock, and what the baseline beside it buys.
+    /// `view` must be the **tree root's** handle — `Ctx::safepoint_view` hands
+    /// out no other — so one store through it reaches every isolate and task
+    /// under it, including one spawned after the store. A request under no cap
+    /// is published too, because its program may narrow the ceiling later and
+    /// the charge has to cover everything the request spent. This module's
+    /// docs say what the watchdog does with a publication and what a core pays
+    /// for it.
     ///
-    /// Called from the core's own thread, so a request is published before it
-    /// can wedge the core; a core that never publishes is watched exactly as it
-    /// is today and stops nothing. [`RunningRequest::new`]'s `None` — a platform
-    /// with no clock — belongs here unchanged: it clears whatever this core was
-    /// running before, which is what a core taking up an unsampled request has
-    /// to do.
-    pub fn publish_safepoint(&self, running: Option<RunningRequest>) {
-        let mut state = lock(&self.shared.state);
-        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
-            watched.running = running;
-        }
-    }
-
-    /// Publishes the request this thread is now running, charged from this
-    /// registration's own clock.
-    ///
-    /// The same store [`Self::publish_safepoint`] makes, for the caller that
-    /// holds the request rather than a [`RunningRequest`]: `view` is the tree
-    /// root's handle, which carries the ceiling, and the baseline comes from
-    /// the clock taken where this handle was made. A request under no cap is
-    /// published too, because its program may narrow the ceiling later and the
-    /// charge has to start here — [`RunningRequest::new`] owns that.
+    /// A tree already published here is not published twice: the publication
+    /// is counted, and the tree keeps the charge it has. A tree this thread is
+    /// running now is charged from this call on, and so is one published
+    /// outside any task, which this thread is then running itself.
     ///
     /// Called from the thread that registered, like every other writer here:
     /// the ceiling is charged against *that* thread's clock, so publishing a
     /// request running anywhere else would charge it to a stranger.
     pub fn publish(&self, view: SafepointView) {
-        self.publish_safepoint(RunningRequest::new(view, self.clock));
-    }
-
-    /// Clears whatever this thread was running, leaving it registered and
-    /// sampled against no ceiling until it publishes again.
-    ///
-    /// What a thread owes when a request it published ends: the entry outlives
-    /// the request, so a slot left filled would go on charging a finished tree
-    /// for whatever the thread does next. Clearing it can only ever *stop*
-    /// sampling, never start it, so a caller that clears one request's
-    /// publication where another's still stands loses coverage and raises no
-    /// flag.
-    pub fn clear(&self) {
-        self.publish_safepoint(None);
-    }
-
-    /// Clears this thread's publication if it still names `view`'s request
-    /// tree, and leaves it standing otherwise.
-    ///
-    /// What a request owes when it ends on a core that runs other requests
-    /// beside it: while it was parked, another request may have published, and
-    /// that one is still running. [`Self::clear`] would leave that request
-    /// sampled against no ceiling, so a runaway it starts later would never be
-    /// stopped.
-    pub fn withdraw(&self, view: &SafepointView) {
-        let mut state = lock(&self.shared.state);
-        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id)
-            && watched
-                .running
-                .as_ref()
-                .is_some_and(|running| running.view().same_tree(view))
+        let Some(meter) = &self.meter else {
+            return;
+        };
+        let tree = view.tree_key();
+        let mut meter = meter.borrow_mut();
+        if let Some(charging) = meter.charges.get_mut(&tree) {
+            charging.publications += 1;
+            return;
+        }
+        let charge = Arc::new(Charge::default());
+        let adopted = crate::scheduler::current_task().is_none() && meter.running != tree;
+        let outer = adopted.then_some(meter.running);
+        meter.charges.insert(
+            tree,
+            Charging {
+                charge: Arc::clone(&charge),
+                publications: 1,
+                outer,
+            },
+        );
+        if adopted {
+            meter.switch(tree);
+        } else if meter.running == tree
+            && let Some(now) = meter.clock.burned()
         {
-            watched.running = None;
+            charge.start(nanos(now));
+        }
+        let clock = meter.clock;
+        drop(meter);
+        let mut state = lock(&self.shared.state);
+        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
+            watched.running.push(RunningRequest {
+                view,
+                clock,
+                charge,
+            });
+        }
+    }
+
+    /// Takes back one publication of `view`'s request tree, and stops sampling
+    /// that tree when it was the last.
+    ///
+    /// What a request owes when it ends: the entry outlives the request, and a
+    /// publication left standing would hold a finished tree's handle for as
+    /// long as the core runs. Every other tree published here keeps standing,
+    /// with its charge. A tree published outside any task hands the thread
+    /// back to the tree it was running before.
+    pub fn withdraw(&self, view: &SafepointView) {
+        let Some(meter) = &self.meter else {
+            return;
+        };
+        let tree = view.tree_key();
+        let mut meter = meter.borrow_mut();
+        let Some(charging) = meter.charges.get_mut(&tree) else {
+            return;
+        };
+        charging.publications -= 1;
+        if charging.publications > 0 {
+            return;
+        }
+        let Some(charging) = meter.charges.remove(&tree) else {
+            return;
+        };
+        if let Some(outer) = charging.outer
+            && meter.running == tree
+        {
+            meter.switch(outer);
+        }
+        drop(meter);
+        let mut state = lock(&self.shared.state);
+        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
+            watched
+                .running
+                .retain(|running| !Arc::ptr_eq(&running.charge, &charging.charge));
+        }
+    }
+
+    /// Withdraws every request this thread has published, leaving it
+    /// registered and sampled against no ceiling until it publishes again.
+    pub fn clear(&self) {
+        let Some(meter) = &self.meter else {
+            return;
+        };
+        meter.borrow_mut().charges.clear();
+        let mut state = lock(&self.shared.state);
+        if let Some(watched) = state.watching.iter_mut().find(|w| w.id == self.id) {
+            watched.running.clear();
         }
     }
 }
@@ -654,6 +843,19 @@ impl Drop for Registration {
     fn drop(&mut self) {
         let mut state = lock(&self.shared.state);
         state.watching.retain(|watched| watched.id != self.id);
+        drop(state);
+        // `try_with`, because a registration a thread-local owns may be dropped
+        // after this one is gone, and there is nothing left to put back then.
+        let _ = METER.try_with(|slot| {
+            let mut slot = slot.borrow_mut();
+            let ours = match (slot.as_ref(), self.meter.as_ref()) {
+                (Some(installed), Some(meter)) => Rc::ptr_eq(installed, meter),
+                _ => false,
+            };
+            if ours {
+                *slot = self.outer_meter.take();
+            }
+        });
     }
 }
 
@@ -667,7 +869,7 @@ impl Shared {
     /// decision is testable without waiting for one. A CPU ceiling is not
     /// measured against `now` — it is `rule:errors/on-limit`'s cpu time and
     /// never wall clock — so that half reads the core's own clock here, once
-    /// per core whose published request is under a cap and not at all for any
+    /// per core with a published request under a cap and not at all for any
     /// other. That is the one read per core per interval
     /// `rule:http-server/a-wedged-core-is-detected-by-its-deadline` prices this
     /// thread at, and it stays on the walk the deadlines already cost.
@@ -683,14 +885,23 @@ impl Shared {
         let margin = self.margin;
         let mut stalls = Vec::new();
         for watched in &mut state.watching {
-            let past_its_ceiling = watched.running.as_ref().filter(|running| {
+            // Read once per core, at the first request under a ceiling, and
+            // before any charge is: the module doc's *Charging a request*
+            // section owns why that order never reads high.
+            let mut clock: Option<Option<u64>> = None;
+            for running in &watched.running {
                 // The ceiling first, so a request under no cap costs this walk
                 // one load and no reading of its core's clock.
-                running
-                    .limit()
-                    .is_some_and(|limit| running.burned().is_some_and(|burned| burned >= limit))
-            });
-            if let Some(running) = past_its_ceiling {
+                let Some(limit) = running.limit() else {
+                    continue;
+                };
+                let Some(now) = *clock.get_or_insert_with(|| running.clock.burned().map(nanos))
+                else {
+                    break;
+                };
+                if Duration::from_nanos(running.charge.at(now)) < limit {
+                    continue;
+                }
                 // Both halves, because they are two different polls: the flag
                 // is what compiled code reads between calls, and the deadline
                 // is what `rule:http-server/time-is-bounded-inside-a-helper`'s
@@ -700,9 +911,9 @@ impl Shared {
                 //
                 // Asked again on every sweep for as long as it stands, which
                 // costs two stores and answers the case the flags exist for: a
-                // request that polls stops at its next poll and its core
-                // publishes something else, and one that does not poll is the
-                // wedge the rest of this walk reports.
+                // request that polls stops at its next poll and is withdrawn as
+                // it ends, and one that does not poll is the wedge the rest of
+                // this walk reports.
                 running.view().request(SafepointFlags::CPU_LIMIT);
                 running.view().expire_deadline();
             }
@@ -1116,15 +1327,14 @@ mod tests {
         );
 
         let request = capped(a_minute());
-        let Some(running) = RunningRequest::new(request.safepoint_view(), ThreadClock::current())
-        else {
+        if ThreadClock::current().is_none() {
             // This platform has no per-thread clock, so it enforces no CPU
             // ceiling and a core on it publishes nothing — `crate::cpuclock`'s
             // docs own that answer, and nothing about a handle can be asserted
             // where no handle is offered.
             return;
-        };
-        registered.publish_safepoint(Some(running));
+        }
+        registered.publish(request.safepoint_view());
         let published = dog.running();
         assert_eq!(published.len(), 1, "the published handle was not readable");
         assert_eq!(published[0].0, Some(a_cpu()));
@@ -1152,7 +1362,7 @@ mod tests {
             "an isolate built after the store was born clean"
         );
 
-        registered.publish_safepoint(None);
+        registered.withdraw(&request.safepoint_view());
         assert!(
             dog.running().is_empty(),
             "a core that finished its request kept offering the handle to it"
@@ -1184,10 +1394,10 @@ mod tests {
             published[0].1.limit(),
             Some(Duration::from_nanos(a_minute()))
         );
-        // The baseline is this thread's own reading, taken at the registration
-        // and not at some zero: a clock read from the watchdog's thread would
-        // charge this request whatever *that* thread had burned since it
-        // started.
+        // The charge is measured on this thread's own clock, from the
+        // publication and not from some zero: a clock taken on the watchdog's
+        // thread would charge this request whatever *that* thread had burned
+        // since it started.
         assert!(
             published[0]
                 .1
@@ -1204,10 +1414,10 @@ mod tests {
     }
 
     /// A request under no cap is published like any other and compared with
-    /// nothing, and a ceiling its program narrows afterwards is charged from
-    /// the baseline it was published with — what `Core\Config::set` does to
-    /// `limits.cpu_time` in a request that started uncapped,
-    /// `rule:errors/on-limit`.
+    /// nothing, and a ceiling its program narrows afterwards is compared with
+    /// everything the request spent since its publication — what
+    /// `Core\Config::set` does to `limits.cpu_time` in a request that started
+    /// uncapped, `rule:errors/on-limit`.
     #[test]
     fn a_request_published_under_no_cap_is_stopped_at_a_ceiling_narrowed_later() {
         let (tx, _rx) = mpsc::channel();
@@ -1224,9 +1434,12 @@ mod tests {
         let published = dog.running();
         assert_eq!(published.len(), 1, "an uncapped request was not published");
         assert_eq!(published[0].1.limit(), None);
-        let baseline = published[0].1.baseline();
 
         burn_a_charge();
+        let spent = published[0]
+            .1
+            .burned()
+            .expect("a live thread read as no thread");
         assert!(dog.shared.sweep(Instant::now()).is_empty());
         assert!(
             !request
@@ -1247,9 +1460,11 @@ mod tests {
                 .contains(SafepointFlags::CPU_LIMIT),
             "a ceiling narrowed after the publication was charged from a later start, or not at all"
         );
-        assert_eq!(
-            dog.running()[0].1.baseline(),
-            baseline,
+        assert!(
+            dog.running()[0]
+                .1
+                .burned()
+                .is_some_and(|burned| burned >= spent),
             "narrowing the ceiling moved where the charge starts"
         );
     }
@@ -1266,14 +1481,13 @@ mod tests {
         // One nanosecond: the ceiling is passed by the time the publication
         // returns, so this case asserts the walk rather than the clock.
         let request = capped(1);
-        let Some(running) = RunningRequest::new(request.safepoint_view(), ThreadClock::current())
-        else {
+        if ThreadClock::current().is_none() {
             // No per-thread clock here, so nothing is sampled at all —
             // `a_published_handle_stops_the_whole_request_tree` owns why that
             // is a return rather than a failure.
             return;
-        };
-        registered.publish_safepoint(Some(running));
+        }
+        registered.publish(request.safepoint_view());
         let published = dog.running();
         assert_eq!(published.len(), 1, "the published request was not readable");
         assert_eq!(
@@ -1298,36 +1512,29 @@ mod tests {
         );
     }
 
-    /// What a core publishes is what a ceiling can be charged against: the
-    /// baseline its charge is measured from, beside a handle that reads the
+    /// What a core publishes is what a ceiling can be charged against: what
+    /// the request has spent of its core, beside a handle that reads the
     /// ceiling its tree states — `rule:errors/on-limit`.
     #[test]
-    fn a_published_request_carries_a_baseline_and_reads_its_trees_ceiling() {
+    fn a_published_request_is_charged_what_its_core_spends_and_reads_its_trees_ceiling() {
         let (tx, _rx) = mpsc::channel();
         let dog = watchdog_of(Duration::from_secs(3600), tx);
         let timers = Timers::default();
         let registered = dog.register(a_cpu(), timers.view());
         let request = capped(a_minute());
 
-        let Some(running) = RunningRequest::new(request.safepoint_view(), ThreadClock::current())
-        else {
+        if ThreadClock::current().is_none() {
             // The platform's own answer, as the case above this one gives it.
             return;
-        };
-        let limit = running.limit().expect("a capped request read as uncapped");
-        assert_eq!(limit, Duration::from_secs(60));
-        let baseline = running.baseline();
-        registered.publish_safepoint(Some(running));
+        }
+        registered.publish(request.safepoint_view());
 
         let published = dog.running();
         let (_, running) = published
             .first()
             .expect("the published request was not readable");
-        assert_eq!(
-            running.baseline(),
-            baseline,
-            "what the watchdog read back was charged from a different instant"
-        );
+        let limit = running.limit().expect("a capped request read as uncapped");
+        assert_eq!(limit, Duration::from_secs(60));
         let before = running.burned().expect("a live core read as no thread");
 
         burn_a_charge();
@@ -1356,13 +1563,12 @@ mod tests {
         let registered = dog.register(a_cpu(), timers.view());
         let mut request = capped(a_minute());
 
-        let Some(under) = RunningRequest::new(request.safepoint_view(), ThreadClock::current())
-        else {
+        if ThreadClock::current().is_none() {
             // The platform's own answer: no per-thread clock, so no CPU
             // ceiling — `crate::cpuclock`'s docs own it.
             return;
-        };
-        registered.publish_safepoint(Some(under));
+        }
+        registered.publish(request.safepoint_view());
         burn_a_charge();
         assert!(dog.shared.sweep(Instant::now()).is_empty());
         assert!(
@@ -1416,13 +1622,12 @@ mod tests {
         let request = capped(
             u64::try_from(ceiling.as_nanos()).expect("fifty milliseconds does not fit a u64"),
         );
-        let Some(parked) = RunningRequest::new(request.safepoint_view(), ThreadClock::current())
-        else {
+        if ThreadClock::current().is_none() {
             // The platform's own answer: no per-thread clock, so no CPU
             // ceiling — `crate::cpuclock`'s docs own it.
             return;
-        };
-        registered.publish_safepoint(Some(parked));
+        }
+        registered.publish(request.safepoint_view());
         std::thread::sleep(ceiling * 4);
 
         assert!(dog.shared.sweep(Instant::now()).is_empty());
@@ -1435,6 +1640,68 @@ mod tests {
         assert!(
             !request.deadline_expired(),
             "a request that only waited was left the poll a long member makes"
+        );
+    }
+
+    /// A thread charges each published request only while it runs that
+    /// request's tree, and charges nothing it runs for an unpublished one —
+    /// the switch [`crate::scheduler::Scheduler`] makes before every resume,
+    /// made here by hand. A request keeps its charge across every switch away
+    /// and back, so a total is never lost to a wait.
+    #[test]
+    fn a_thread_charges_each_published_request_only_for_the_time_it_runs_it() {
+        let (tx, _rx) = mpsc::channel();
+        let dog = watchdog_of(Duration::from_secs(3600), tx);
+        let registered = dog.register_requests();
+        if ThreadClock::current().is_none() {
+            // No per-thread clock here, so nothing is sampled at all —
+            // `crate::cpuclock`'s docs own that answer.
+            return;
+        }
+        let first = capped(a_minute());
+        let second = capped(a_minute());
+        let charged = |request: &Ctx| {
+            let mine = request.safepoint_view();
+            dog.running()
+                .into_iter()
+                .find(|(_, running)| running.view().same_tree(&mine))
+                .and_then(|(_, running)| running.burned())
+                .expect("a published request was not readable")
+        };
+
+        // Published outside any task, so this thread runs each from its
+        // publication on: `second` is the one running after both.
+        registered.publish(first.safepoint_view());
+        registered.publish(second.safepoint_view());
+        burn_a_charge();
+        let first_before = charged(&first);
+        assert!(
+            charged(&second) >= Duration::from_millis(20),
+            "the request this thread ran was not charged for it"
+        );
+
+        switch_to(first.tree_key());
+        let second_left = charged(&second);
+        burn_a_charge();
+        assert!(
+            charged(&first) >= first_before + Duration::from_millis(20),
+            "a request resumed after a switch was not charged for what it ran"
+        );
+        assert_eq!(
+            charged(&second),
+            second_left,
+            "a request switched away from was charged for its neighbour's time"
+        );
+
+        let unpublished = ctx();
+        switch_to(unpublished.tree_key());
+        let first_left = charged(&first);
+        burn_a_charge();
+        assert_eq!(charged(&first), first_left);
+        assert_eq!(
+            charged(&second),
+            second_left,
+            "a published request was charged for time spent on an unpublished one"
         );
     }
 

@@ -5,7 +5,9 @@
 //! one burning the CPU it has to measure, so it needs a handle on somebody
 //! else's clock, and this module is the platform half of that: a core takes a
 //! [`ThreadClock`] on **itself**, and any thread holding it can read what that
-//! core has spent.
+//! core has spent. The core reads the same clock itself at each task switch
+//! that moves its time from one request to another, so the two readers share
+//! one measure.
 //!
 //! # CPU time, never wall clock
 //!
@@ -26,10 +28,11 @@
 //! thread may pass to `clock_gettime`. Windows answers with the thread id,
 //! reopened per sample: `GetThreadTimes` wants a handle, and an id is a `u32`
 //! this type can be `Copy` over while a handle is something that would have to
-//! be owned, closed and taught to be `Send`. A sample is one `OpenThread` and
-//! one `CloseHandle` per core per watchdog interval, on a thread that is
-//! already awake — the price of holding no operating-system resource between
-//! sweeps.
+//! be owned, closed and taught to be `Send`. A sample from another thread is
+//! one `OpenThread` and one `CloseHandle` per core per watchdog interval, on a
+//! thread that is already awake — the price of holding no operating-system
+//! resource between sweeps. A thread reading its own clock, as a core does at a
+//! task switch, uses its pseudo-handle and makes the one call.
 //!
 //! macOS has no `pthread_getcpuclockid`, and its `CLOCK_THREAD_CPUTIME_ID` only
 //! reads the caller's own thread, so it answers with the thread's mach port
@@ -193,7 +196,8 @@ fn current() -> Option<Clock> {
 fn burned(clock: Clock) -> Option<Duration> {
     use windows_sys::Win32::Foundation::{CloseHandle, FILETIME};
     use windows_sys::Win32::System::Threading::{
-        GetThreadTimes, OpenThread, THREAD_QUERY_LIMITED_INFORMATION,
+        GetCurrentThread, GetCurrentThreadId, GetThreadTimes, OpenThread,
+        THREAD_QUERY_LIMITED_INFORMATION,
     };
 
     /// A `FILETIME` is a count of 100-nanosecond intervals, in two halves.
@@ -206,13 +210,19 @@ fn burned(clock: Clock) -> Option<Duration> {
     #[expect(
         unsafe_code,
         reason = "`GetThreadTimes` is the Windows spelling of a thread's own CPU clock and `std` \
-                  has none. The handle is opened and closed inside this call for the narrowest \
-                  right that answers the question, a thread that has ended is refused rather than \
-                  read, and the four out-parameters are stack `FILETIME`s this call owns \
-                  exclusively."
+                  has none. The caller's own thread is read through its pseudo-handle, which \
+                  needs no closing; any other is opened and closed inside this call for the \
+                  narrowest right that answers the question, and a thread that has ended is \
+                  refused rather than read. The four out-parameters are stack `FILETIME`s this \
+                  call owns exclusively."
     )]
     let spent = unsafe {
-        let thread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, 0, clock);
+        let own = GetCurrentThreadId() == clock;
+        let thread = if own {
+            GetCurrentThread()
+        } else {
+            OpenThread(THREAD_QUERY_LIMITED_INFORMATION, 0, clock)
+        };
         if thread.is_null() {
             return None;
         }
@@ -225,7 +235,9 @@ fn burned(clock: Clock) -> Option<Duration> {
             &raw mut kernel,
             &raw mut user,
         ) != 0;
-        CloseHandle(thread);
+        if !own {
+            CloseHandle(thread);
+        }
         read
     };
     if !spent {

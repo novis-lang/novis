@@ -255,12 +255,12 @@ impl Isolate {
     /// (`rule:security/isolate-budget-is-the-trees`).
     ///
     /// The publication is made where this isolate's body starts to run and
-    /// withdrawn where it ends, however it ends — [`Published`] owns both. One
-    /// slot per registered thread is the whole of what a registration holds, so
-    /// a thread running several isolates at once publishes the one whose body
-    /// started last. A request that parks and later runs away on resuming is
-    /// charged under whatever was published last, or under nothing once that
-    /// request has ended.
+    /// withdrawn where it ends, however it ends — [`Published`] owns both. A
+    /// thread holds one publication per request in flight on it, and charges
+    /// each request only while one of that request's tasks runs, so a request
+    /// that parks and later runs away is charged for the loop and stopped by
+    /// its own ceiling. `crate::watchdog`'s *Charging a request for the time it
+    /// runs* section owns how, and what it costs.
     #[must_use]
     pub fn watched_by(mut self, watch: Rc<Registration>) -> Self {
         self.watch = Some(watch);
@@ -642,19 +642,6 @@ impl Isolate {
         // child's own stack and this context is borrowed by then
         // (`Ctx::class_table`).
         let receiving = ctx.class_table();
-        // `rule:errors/on-limit`'s CPU ceiling reaches a request that allocates
-        // nothing, writes nothing and calls nothing only if a thread that is not
-        // this one is charging it, and what such a thread charges is the
-        // **tree's** handle, which carries the tree's ceiling and is read again
-        // on every sweep. The handle is this context's, and the child below
-        // shares it through `Ctx::share_safepoint_with`. This store covers the
-        // spawn itself, which runs on this core now. The one a runaway is
-        // stopped under is the child's own, made by [`Published`] where its
-        // body starts, because other tasks may run and publish between this
-        // spawn and that start.
-        if let Some(watch) = &watch {
-            watch.publish(ctx.safepoint_view());
-        }
 
         // The isolate's own root. Buffered under both options; § 4's fresh
         // statics base is `Ctx::isolate`'s whole reason for existing.
@@ -793,31 +780,30 @@ impl Isolate {
 /// An isolate's publication to the watchdog, made where its body starts to run
 /// and withdrawn when that body ends.
 ///
-/// Made on the body's own stack, as its first act, because a core runs many
-/// tasks and publishes one: the publication is a claim about what the core is
-/// running *now*. A spawn under a scheduler only queues the child, and every
-/// task the core runs before it — another connection taking up its own request
-/// — publishes over the spawn's store, so a child that then ran away would be
-/// charged under another request's tree, or under none once that request
-/// ended. Published at its first statement, a child that never yields keeps the
-/// publication it runs away under, and the watchdog stops it.
+/// Made on the body's own stack, as its first act, so the request is watched
+/// from its first statement to its last. In between, the core charges the
+/// request's tree only while one of its tasks runs (`crate::watchdog`'s
+/// *Charging a request for the time it runs*). A child that waits and then
+/// never yields again is charged for every instant of its loop, and the
+/// watchdog stops it at its own ceiling.
 ///
 /// A guard rather than a line at the end of the body, for [`Ended`]'s reason:
-/// an isolate torn down by a forced unwind reaches no line, and a slot left
-/// filled would charge whatever the thread does next to a tree that has
-/// finished. Its drop withdraws only its own tree's publication
-/// ([`Registration::withdraw`]), so a request that ends after another has
-/// published leaves that one standing.
+/// an isolate torn down by a forced unwind reaches no line, and a publication
+/// left standing would hold a finished tree for as long as the core runs. Its
+/// drop withdraws only its own tree's publication ([`Registration::withdraw`]),
+/// so every other request on the core keeps its own.
 ///
-/// **What it spends:** one lock of the watched set and one reading of the
-/// thread's clock where a request's body starts, and one lock where it ends.
+/// **What it spends:** one lock of the watched set, one entry in the core's
+/// table of publications and one reading of the thread's clock where a
+/// request's body starts, and one lock where it ends.
 struct Published {
     watch: Rc<Registration>,
     view: nvs_runtime::SafepointView,
 }
 
 impl Published {
-    /// Publishes `ctx`'s tree on `watch`, charged from this instant.
+    /// Publishes `ctx`'s tree on `watch`, charged from this instant while this
+    /// task runs.
     fn new(watch: Rc<Registration>, ctx: &Ctx) -> Self {
         let view = ctx.safepoint_view();
         watch.publish(view.clone());
@@ -1660,6 +1646,135 @@ mod tests {
                 "b ok=true".to_owned(),
             ],
             "a request ran under a publication that was not its own"
+        );
+        assert!(
+            dog.running().is_empty(),
+            "a finished request was still offered as the request to stop"
+        );
+    }
+
+    /// `rule:errors/on-limit`'s CPU ceiling on a request that waits before it
+    /// runs away. On one core, the runaway parks once, a second request starts
+    /// and finishes while it waits, and a third wakes it and parks in turn. The
+    /// runaway then loops until its tree is stopped. A core charges each
+    /// request only while that request's own tasks run, so the loop is charged
+    /// to the runaway and the watchdog stops it, and the parked neighbour is
+    /// charged nothing for it. Charging whatever the core published last put
+    /// the loop on the neighbour, and left the runaway running for good.
+    #[test]
+    fn a_request_that_runs_away_after_it_parks_is_stopped_and_its_neighbour_is_not_charged() {
+        use crate::scheduler::suspend;
+        use nvs_runtime::SafepointFlags;
+        use std::time::Duration;
+
+        if crate::ThreadClock::current().is_none() {
+            // No per-thread clock here, so no CPU ceiling is enforced —
+            // `crate::cpuclock`'s docs own that answer.
+            return;
+        }
+        // A real sampler on its own thread, sweeping every millisecond, with a
+        // stall margin nothing here reaches.
+        let dog = Rc::new(crate::Watchdog::with(
+            Duration::from_secs(3600),
+            Duration::from_millis(1),
+            |_| {},
+        ));
+        let registered = Rc::new(dog.register_requests());
+        // Every request runs under the same ceiling, so a neighbour charged for
+        // the loop would be stopped beside the runaway.
+        let ceiling = Duration::from_millis(100);
+        let mut sched = Scheduler::new();
+
+        let runaway_wake: Rc<RefCell<Option<Wake>>> = Rc::default();
+        let neighbour_wake: Rc<RefCell<Option<Wake>>> = Rc::default();
+        // Whether the runaway's loop ended at its tree's stop rather than at
+        // the wall-clock bound that keeps a failure from hanging.
+        let stopped: Rc<Cell<Option<bool>>> = Rc::default();
+        // Whether the neighbour's tree was stopped, and what it was charged.
+        type Seen = Option<(bool, Option<Duration>)>;
+        let neighbour: Rc<Cell<Seen>> = Rc::default();
+
+        let runaway: Program = {
+            let own_wake = Rc::clone(&runaway_wake);
+            let neighbour_wake = Rc::clone(&neighbour_wake);
+            let stopped = Rc::clone(&stopped);
+            Box::new(move |child: &mut Ctx, _args| {
+                *own_wake.borrow_mut() = Wake::current();
+                let _ = suspend(child, Waiting::Parked);
+                // The loop compiled code runs: it reads its tree's word at
+                // every back edge and stops when the CPU bit is raised.
+                let give_up = Instant::now() + Duration::from_secs(60);
+                let flagged = loop {
+                    if child.safepoint_flags().contains(SafepointFlags::CPU_LIMIT) {
+                        break true;
+                    }
+                    if Instant::now() >= give_up {
+                        break false;
+                    }
+                    std::hint::spin_loop();
+                };
+                stopped.set(Some(flagged));
+                if let Some(wake) = neighbour_wake.borrow_mut().take() {
+                    wake.wake();
+                }
+                Value::null()
+            })
+        };
+        let passing: Program = Box::new(|_child: &mut Ctx, _args| Value::null());
+        let parked: Program = {
+            let own_wake = Rc::clone(&neighbour_wake);
+            let runaway_wake = Rc::clone(&runaway_wake);
+            let seen = Rc::clone(&neighbour);
+            let reading = Rc::clone(&dog);
+            Box::new(move |child: &mut Ctx, _args| {
+                *own_wake.borrow_mut() = Wake::current();
+                if let Some(wake) = runaway_wake.borrow_mut().take() {
+                    wake.wake();
+                }
+                let _ = suspend(child, Waiting::Parked);
+                let mine = child.safepoint_view();
+                let charged = reading
+                    .running()
+                    .into_iter()
+                    .find(|(_, running)| running.view().same_tree(&mine))
+                    .and_then(|(_, running)| running.burned());
+                let flagged = child.safepoint_flags().contains(SafepointFlags::CPU_LIMIT);
+                seen.set(Some((flagged, charged)));
+                Value::null()
+            })
+        };
+
+        for program in [runaway, passing, parked] {
+            let mut request = parent();
+            request.set_cpu_limit(
+                u64::try_from(ceiling.as_nanos()).expect("the ceiling does not fit a u64"),
+            );
+            let mut cell = Some(
+                Isolate::new(program, Value::null(), Output::Capture)
+                    .watched_by(Rc::clone(&registered)),
+            );
+            sched.spawn(request, TaskRoot::Request, move |parent_ctx| {
+                let isolate = cell.take().expect("run once");
+                let running = isolate.start(parent_ctx).expect("the argument crossed");
+                let _ = running.join(parent_ctx);
+            });
+        }
+        sched.run();
+
+        assert_eq!(
+            stopped.get(),
+            Some(true),
+            "a request that ran away after it parked was not stopped by its own ceiling"
+        );
+        let (flagged, charged) = neighbour.get().expect("the parked neighbour never resumed");
+        assert!(
+            !flagged,
+            "the request parked beside a runaway was stopped for the runaway's loop"
+        );
+        let charged = charged.expect("the parked neighbour was not published while it ran");
+        assert!(
+            charged < ceiling / 2,
+            "the request parked beside a runaway was charged {charged:?} of the loop"
         );
         assert!(
             dog.running().is_empty(),

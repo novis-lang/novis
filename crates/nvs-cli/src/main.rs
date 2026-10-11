@@ -3523,14 +3523,16 @@ fn run_run(
     // does. A run registers for that half alone —
     // `nvs_host::Watchdog::register_requests` owns why a `nvs run` is watched
     // for its ceiling and never reported as a wedged core — and publishes the
-    // one request it is: this whole run, from here until the scheduler is idle.
+    // one request it is, from here until the scheduler is idle. The scheduler
+    // charges it for the time its own tasks run on this thread, which is the
+    // thread that registers, so the clock is the program's
+    // (`nvs_host::watchdog`'s *Charging a request for the time it runs*).
     //
-    // Built for a run under no cap as well, because the program may narrow
+    // Published for a run under no cap as well, because the program may narrow
     // `limits.cpu_time` with `Core\Config::set`, and the charge that ceiling is
-    // compared with has to start here — `RunningRequest::new` owns that. It
-    // answers `None` only for a platform with no per-thread clock, where no
-    // thread is started, and the clock it is handed is this thread's because
-    // this is the thread the program runs on.
+    // compared with has to cover the whole run — `Registration::publish` owns
+    // that. A platform with no per-thread clock starts no thread, because
+    // nothing could be charged there.
     //
     // **What it spends:** one thread for the length of the run, which wakes once
     // per sweep interval and reads one word while the run is under no cap.
@@ -3556,11 +3558,12 @@ fn run_run(
             calls as std::rc::Rc<dyn nvs_runtime::extension::Extensions>,
         )
     });
-    let charged = nvs_host::RunningRequest::new(tree, nvs_host::ThreadClock::current());
-    let watchdog = charged.is_some().then(nvs_host::Watchdog::new);
+    let watchdog = nvs_host::ThreadClock::current()
+        .is_some()
+        .then(nvs_host::Watchdog::new);
     let watched = watchdog.as_ref().map(|watchdog| {
         let watched = watchdog.register_requests();
-        watched.publish_safepoint(charged);
+        watched.publish(tree);
         watched
     });
     let ran = nvs_runtime::script::scoped(compiler.as_ref(), || {
