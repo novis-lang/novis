@@ -10,6 +10,7 @@
   "guardedBy": [
     "tests/conformance/core/fatal-on-limit-registers-a-handler-without-running-it.nvst",
     "tests/conformance/core/fatal-on-uncaught-throw-and-on-limit-are-two-independent-slots.nvst",
-    "crates/nvs-runtime/tests/configured_limits.rs"
+    "crates/nvs-runtime/tests/configured_limits.rs",
+    "tests/conformance/error/a-loop-that-allocates-nothing-is-stopped-by-the-cpu-ceiling.nvst"
   ]
 }

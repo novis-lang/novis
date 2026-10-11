@@ -30,3 +30,12 @@ The refusal is sticky for the rest of the request: a request refused once is ove
 does afterwards brings it back under a ceiling it never held the bytes against. Objects are outside
 the pre-check by design — an object's allocation is sized by its class, so no program drives one
 unbounded — and they stay bounded by the published flag.
+
+The check is one thread-local load and one compare per growing allocation, in front of a heap round
+trip that costs far more; a request with no memory ceiling arms zero and stops at the first compare.
+
+**Declined:**
+- **A status return on the primitives that carry no `ctx`.** It would put a new argument and a new
+  return on the hottest primitives in the language and change every call site the compiler emits, for
+  a signal nothing can act on: the request is already over, and the degenerate value has the same
+  observable outcome.

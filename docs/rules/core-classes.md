@@ -2602,7 +2602,10 @@ several is the member twice or the existing parse-and-build pair, and removing i
 A `Core` member whose output scales with its input takes one of exactly two obligations: it allocates
 that output through the value allocator the memory ceiling guards, or it bounds the input it accepts.
 There is no third option, and a member that took neither is how a request holds many times its own
-`[limits] memory` in one call.
+`[limits] memory` in one call. The obligation is general rather than one member's paragraph because
+the residual is a small format factor for the members that ship and a thousandfold one for the first
+member with a large expansion ratio; stating it before that member exists is cheaper than finding
+which members quietly took neither branch.
 
 The ceiling is asked in front of a value allocation, so a member that grows a Novis `string` or
 `array` as it goes is bounded by construction: the first allocation past the ceiling is refused and
@@ -2621,7 +2624,7 @@ breach it raises is named there, and a caller may lower it and never raise it. A
 takes the first branch says so — its result is built through the value allocator and it holds no
 buffer of its own that the ceiling has not seen.
 
-<sub>See also [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`](errors.md#errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself). Decided in [0174](../decisions/0174.md).</sub>
+<sub>See also [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`](errors.md#errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself).</sub>
 
 <a id="core-classes-decompression-bound"></a>
 

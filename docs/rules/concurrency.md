@@ -707,7 +707,10 @@ them cannot put the allocation and the release on one balance at all, and bracke
 turn a bounded credit into an unbounded one — such a store stays unbracketed and records the gap in
 its own module doc rather than taking the guard and breaking its symmetry.
 
-<sub>See also [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`](errors.md#errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0174](../decisions/0174.md).</sub>
+- **Memory:** a bracketed store holds one copy of each payload it is handed, made on its write path
+  after the value is already encoded. That copy is what the symmetry costs.
+
+<sub>See also [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`](errors.md#errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="concurrency-the-local-tier-cannot-hold-what-must-be-coherent"></a>
 

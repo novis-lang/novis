@@ -196,6 +196,25 @@ takes a later field without changing the signature of a handler already written.
 `[limits] memory` less the reserve, which is 1 MiB by default and never more than a quarter of the
 ceiling. A request with no memory ceiling reserves nothing.
 
+A ceiling is enforced where the resource is spent, not where a program happens to look, so a loop
+that allocates nothing and calls nothing is still stopped. The watchdog thread, which already wakes on
+an interval and holds an entry per core, reads each core's own CPU clock and raises the CPU bit in the
+word compiled code polls at every back edge; the allocator raises the memory bit in the same word
+([`errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`](errors.md#errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself)). That word is reached by
+address rather than living inside `Ctx`, because neither writer holds a context and a write through one
+would alias the `&mut Ctx` a helper body holds. A request tree shares one word, as it shares one budget
+([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)), so a child made after a flag was raised is not born
+clean. A runaway request therefore stops itself at its next poll, and the core it ran on is never
+wedged.
+
+**Declined:**
+- **A wall clock in place of CPU time.** A wall clock cannot tell a runaway loop from a request waiting
+  on a slow database, and `[limits] cpu_time` exists to stop the first and leave the second alone. A
+  platform with no per-thread clock another thread may read enforces no CPU ceiling and says so at
+  boot.
+- **Killing the core a runaway request is wedging.** No point exists at which another thread may
+  unwind a core running compiled code ([`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed)).
+
 <sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code).</sub>
 
 <a id="errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself"></a>
@@ -237,7 +256,16 @@ does afterwards brings it back under a ceiling it never held the bytes against. 
 the pre-check by design — an object's allocation is sized by its class, so no program drives one
 unbounded — and they stay bounded by the published flag.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance). Decided in [0174](../decisions/0174.md).</sub>
+The check is one thread-local load and one compare per growing allocation, in front of a heap round
+trip that costs far more; a request with no memory ceiling arms zero and stops at the first compare.
+
+**Declined:**
+- **A status return on the primitives that carry no `ctx`.** It would put a new argument and a new
+  return on the hottest primitives in the language and change every call site the compiler emits, for
+  a signal nothing can act on: the request is already over, and the degenerate value has the same
+  observable outcome.
+
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance).</sub>
 
 <a id="errors-escalation-ladder"></a>
 

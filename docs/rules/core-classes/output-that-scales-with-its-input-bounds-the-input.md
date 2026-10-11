@@ -1,7 +1,10 @@
 A `Core` member whose output scales with its input takes one of exactly two obligations: it allocates
 that output through the value allocator the memory ceiling guards, or it bounds the input it accepts.
 There is no third option, and a member that took neither is how a request holds many times its own
-`[limits] memory` in one call.
+`[limits] memory` in one call. The obligation is general rather than one member's paragraph because
+the residual is a small format factor for the members that ship and a thousandfold one for the first
+member with a large expansion ratio; stating it before that member exists is cheaper than finding
+which members quietly took neither branch.
 
 The ceiling is asked in front of a value allocation, so a member that grows a Novis `string` or
 `array` as it goes is bounded by construction: the first allocation past the ceiling is refused and
