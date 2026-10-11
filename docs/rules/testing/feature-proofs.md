@@ -24,6 +24,24 @@ when it finished; a feature leaves the list when it gains its help.
 
 Each tree's own README owns what a file in it *is*, and this rule restates none of them.
 
+**Perf's growth is judged on the counts.** The ramp judges the slope of each count's increment as the
+batches double, so start-up and set-up cancel out and the verdict is the same on every machine; the
+clock is reported and never fails a proof, sets an iteration count or decides that a bench is proven.
+`tools/nv/cmd/scaling.ts`'s module doc is the one home of the ramp, its agreement test, its ceiling
+and its bounds, and `bun nv proofs --record-perf` and `bun nv proofs --id '<feature>'` run it with no
+extra command. A bench that grows past its bound is a failing proof
+(`rule:testing/a-failing-proof-is-fixed-or-recorded`), and no ledger record is written. Every bench
+declares `// bench: complexity`, and `quadratic` is never accepted; a bench with no declaration fails
+its proof, so the size check cannot be skipped by omission. Callgrind runs only where the counts stay
+flat while the work happens inside a Rust member and the clock is too noisy to read before the ramp
+reaches its ceiling. It finds the batch at which the growth is clear, the bench's `// bench:
+iterations N` is set from it with a note that callgrind measured it, and later runs do not start
+valgrind again until the bench's definition changes or the ramp at N is unclear again. A bench still
+unclear after callgrind is reported, not judged. Valgrind stays out of `nv verify` because callgrind
+costs minutes per bench and needs WSL on Windows, so a gate that could start it would be as slow as
+its slowest unclear bench. A recording sweep costs more per bench than one timed run, because the
+ramp runs several batches, and that cost is paid when a figure is re-measured, not on every verify.
+
 Not every kind of feature owes every proof: an enum is not attacked and a directive is not
 benchmarked.
 What each kind owes is **data**, overridable per feature, because a policy stated only in prose is a
@@ -43,3 +61,9 @@ and says so in the audit.
   feature is proven, and a coverage percentage is a threshold rather than a finished feature.
 - **A hand-kept checklist of finished features.** It rots within a day of an unattended run
   (`rule:testing/roster-is-derived`).
+- **Growth judged by one ratio of two clock figures against a scaled sibling.** A noisy machine can
+  pass or fail it at random, and at a tolerance of three times the predicted ratio it misses a slope
+  of 1.5: at a scale factor of 4 a linear bench may cost 12 times as much per operation, and `n^1.5`
+  costs 8.
+- **Callgrind on every bench.** Its verdict is exact, and it costs minutes per bench on every
+  recording, for a question the counts already answer for most benches.
