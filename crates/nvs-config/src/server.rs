@@ -874,7 +874,8 @@ pub fn capacity_for(
     })
 }
 
-/// [`capacity_for`] for a server whose entries run under snapshots of their own (ADR 0271):
+/// [`capacity_for`] for a server whose entries run under snapshots of their own
+/// (`rule:http-server/the-served-file-is-optional`):
 /// `host` gives the ceiling and the budget, and the per-request cap is the largest any of
 /// `entries` reaches. One entry with no cap leaves none, because a request of that entry is free
 /// to hold more than any number the arithmetic could divide by.

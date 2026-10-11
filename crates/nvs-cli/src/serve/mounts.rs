@@ -38,7 +38,8 @@
 //! against the source map that reload recorded
 //! (`crate::reload::Process::sources_of`). After any expansion and after any
 //! publish, each row takes the `[[app]] origin` of its own entry's snapshot in
-//! the set standing then (`super::fold_origins`, ADR 0271). A row the rescan
+//! the set standing then (`super::fold_origins`,
+//! `rule:http-server/the-served-file-is-optional`). A row the rescan
 //! adds is folded into that set as it is read. Either way the pass asks the
 //! origin check of every row that changed, and publishes. A reload folds the
 //! entries of the rows standing when it runs ([`Mounts::entries`]). A named file over a tree that writes no

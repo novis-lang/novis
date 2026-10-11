@@ -485,7 +485,8 @@ pub(crate) type BootSet = (
 );
 
 /// What `nvs serve` boots from: the host's snapshot, with no `[[app]]` block folded, and the
-/// roster each served entry's own snapshot is folded from (ADR 0271).
+/// roster each served entry's own snapshot is folded from
+/// (`rule:http-server/the-served-file-is-optional`).
 ///
 /// # Errors
 ///

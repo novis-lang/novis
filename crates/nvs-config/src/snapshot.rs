@@ -5,7 +5,7 @@
 //! afterwards. [`Snapshot::host`] is the one that is for no file: the global tree alone, which every
 //! process-wide key and the door read.
 //!
-//! **One publish is a [`Published`] set** (ADR 0271): the host's snapshot, and the way from an entry
+//! **One publish is a [`Published`] set**: the host's snapshot, and the way from an entry
 //! file to its own. Entries whose blocks form the same chain share one snapshot, folded over the
 //! host's tree after its `Boot` carry and carrying the host's generation, and an entry no block
 //! matches gets the host's [`Arc`] itself. [`Current`] holds the published set; a request clones an
@@ -410,7 +410,7 @@ impl AppBlocks {
     }
 }
 
-/// One publish: the host's snapshot, and the way from an entry file to its own (ADR 0271).
+/// One publish: the host's snapshot, and the way from an entry file to its own.
 ///
 /// An entry's snapshot depends only on the chain of blocks [`app::matching`] gives it, so entries
 /// matching one chain share one [`Arc`], and an entry no block matches gets the host's. Every

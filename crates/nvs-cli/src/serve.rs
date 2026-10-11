@@ -34,13 +34,17 @@
 //! that neither the command line nor the configuration named
 //! (`rule:http-server/the-served-file-is-optional`).
 //!
-//! **The argument does not override the table; it has to be in it.** A `<file>`
-//! that is not one of the mounted entries is refused before the socket exists,
-//! because a command told to serve a file and then serving a different
-//! application is the one outcome neither reading wants. What the argument
-//! decides is *which* configuration this is: `rule:config/every-matching-app-block-applies-least-specific-first` layers the
-//! `[[app]]` blocks that match it, and with no argument no block is layered —
-//! the process reads [`nvs_config::Snapshot::host`], the global tree alone.
+//! **The argument does not override the table; it has to be in it, and that is
+//! its only role.** A `<file>` that is not one of the mounted entries is refused
+//! before the socket exists, because a command told to serve a file and then
+//! serving a different application is the one outcome neither reading wants.
+//! It selects no configuration. The process boots from
+//! [`nvs_config::Snapshot::host`], the global tree with no `[[app]]` block
+//! folded, which the door and every process-wide key read, and each served
+//! entry runs under the snapshot the blocks matching its own file fold to
+//! (`rule:config/every-matching-app-block-applies-least-specific-first`). A
+//! start with a file and a start without one serve the same configuration
+//! (`rule:http-server/the-served-file-is-optional`).
 //!
 //! **Every mounted entry is compiled before the socket is bound**, which is what
 //! § 2 buys — a program that does not compile is a start that fails rather than
@@ -164,7 +168,8 @@ pub(crate) fn run(
     // The `[server]` keys read below are `Boot`-class (`rule:http-server/the-server-block-is-boot-class`),
     // so this is the only time they are read. It is the host's snapshot, with
     // no `[[app]]` block folded: each served entry's own is folded from
-    // `blocks` once the table below names the entries (ADR 0271).
+    // `blocks` once the table below names the entries
+    // (`rule:http-server/the-served-file-is-optional`).
     let mut sources = SourceMap::new();
     let (snapshot, blocks, origins) = match crate::config::boot_set(config, &mut sources, init) {
         Ok(all) => all,
@@ -958,7 +963,8 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // The snapshot the program runs under: the one the `[[app]]` blocks
             // matching this file fold to, out of the publish the door took for
             // this request, so the door's answer and the program's configuration
-            // come from one reload (ADR 0271 § 2). It is the file that runs and
+            // come from one reload (`rule:config/the-config-is-an-immutable-snapshot`).
+            // It is the file that runs and
             // not the row's `entry`, which under `dispatch = "path"` is another
             // file. A file whose blocks do not fold runs nothing: it answers as
             // a failing program does, because running it under the host's
@@ -1752,7 +1758,8 @@ impl nvs_server::Fires for Scheduled {
     fn isolate(&self, entry: &nvs_server::Armed, ctx: &mut Ctx) -> Option<Isolate> {
         // The fire's context arrives holding no tree, and this is the line that
         // gives it one: the snapshot the `[[app]]` blocks matching the entry's
-        // own script fold to, as a request takes its file's (ADR 0271 § 2). Read
+        // own script fold to, as a request takes its file's
+        // (`rule:config/a-scheduled-run-is-a-root-isolate`). Read
         // out of the holder per fire for the reason the accept loop reads it per
         // request (`rule:config/the-config-is-an-immutable-snapshot`): an entry
         // firing nightly runs under what a reload published, and a fire already
@@ -2034,7 +2041,8 @@ fn fall_back_to(mounts: &mut [Mounted], app: Option<&str>) {
 }
 
 /// [`fall_back_to`] for every row, each with the `[app] origin` of its own
-/// entry's snapshot in `published` (ADR 0271), so every mount takes the origin
+/// entry's snapshot in `published` (`rule:http-server/the-served-file-is-optional`),
+/// so every mount takes the origin
 /// its own `[[app]]` blocks write. An entry `published` has not met yet is
 /// folded now. One whose blocks do not fold takes no origin, and its requests
 /// fail on that fold.
@@ -3034,7 +3042,8 @@ mod tests {
     }
 
     /// A fire runs under the snapshot the `[[app]]` blocks matching its own
-    /// script fold to (ADR 0271 § 2), out of the publish the holder serves.
+    /// script fold to (`rule:config/a-scheduled-run-is-a-root-isolate`), out of
+    /// the publish the holder serves.
     ///
     /// Two entries under one tree that grants `script.spawn` over both scripts:
     /// the script whose block narrows `[app.limits] memory` gets an isolate held

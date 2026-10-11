@@ -1,9 +1,7 @@
 {
   "title": "The configuration is one immutable snapshot a request clones at start, and a reload replaces it whole after validating everything",
   "status": "shipped",
-  "because": [
-    "0271"
-  ],
+  "because": [],
   "seeAlso": [
     "config/a-runtime-set-is-request-local",
     "config/reloadability-is-its-own-field",
@@ -14,6 +12,7 @@
   "guardedBy": [
     "crates/nvs-config/tests/snapshot.rs",
     "crates/nvs-cli/tests/live_config.rs",
-    "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst"
+    "tests/conformance/config/config-set-is-invisible-to-the-next-request.nvst",
+    "crates/nvs-cli/tests/per_mount_config.rs"
   ]
 }
