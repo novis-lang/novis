@@ -32,7 +32,7 @@
 //! no mount is refused, and so is a table of nothing — a `scan` that matched no
 //! file: `expand`'s implicit mount is never reached from here, so nothing runs
 //! that neither the command line nor the configuration named
-//! (`rule:http-server/the-served-file-is-optional`, [ADR 0200]).
+//! (`rule:http-server/the-served-file-is-optional`).
 //!
 //! **The argument does not override the table; it has to be in it.** A `<file>`
 //! that is not one of the mounted entries is refused before the socket exists,
@@ -41,8 +41,6 @@
 //! decides is *which* configuration this is: `rule:config/every-matching-app-block-applies-least-specific-first` layers the
 //! `[[app]]` blocks that match it, and with no argument no block is layered —
 //! the process reads [`nvs_config::Snapshot::host`], the global tree alone.
-//!
-//! [ADR 0200]: ../../../docs/decisions/0200.md
 //!
 //! **Every mounted entry is compiled before the socket is bound**, which is what
 //! § 2 buys — a program that does not compile is a start that fails rather than

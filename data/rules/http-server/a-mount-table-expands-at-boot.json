@@ -1,9 +1,7 @@
 {
   "title": "A mount matches on `prefix` or `host`, names one `entry` or one `scan`, and a scan expands against the disk at boot and again whenever a scanned directory changes",
   "status": "shipped",
-  "because": [
-    "0200"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/a-path-is-never-derived-from-a-url",
     "http-server/a-mount-carries-no-policy",
