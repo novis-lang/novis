@@ -15,7 +15,7 @@ class Bench {
         }
         uint $calls = 0;
         while ($calls < $size) {
-            Core\Log::write(Core\Log\Level::Debug, "step " . $calls, $fields);
+            Core\Log::write(Core\Log::Level::Debug, "step " . $calls, $fields);
             $calls = $calls + 1;
         }
         return $calls + Core\Arr::count($fields);

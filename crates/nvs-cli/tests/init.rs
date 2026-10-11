@@ -250,7 +250,7 @@ fn the_simplest_layout_is_written_by_init_and_one_run_from_elsewhere_uses_cache_
     let program = elsewhere.join("index.nvs");
     std::fs::write(
         &program,
-        "<?nvs\nCore\\Log::write(Core\\Log\\Level::Error, \"started\");\necho \"served\\n\";\n",
+        "<?nvs\nCore\\Log::write(Core\\Log::Level::Error, \"started\");\necho \"served\\n\";\n",
     )
     .expect("the program is written");
     let ran = nvs()

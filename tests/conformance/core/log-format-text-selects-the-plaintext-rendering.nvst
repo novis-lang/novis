@@ -12,12 +12,12 @@ Core\Script::onExit(fn (): void => {
 
 // The envelope's header line, then the bag as one indented, typed line per
 // field — `nvs_render::plain`'s layout, which is `var_dump`'s in shape.
-Core\Log::write(Core\Log\Level::Error, "the application said so", ["user" => 7]);
+Core\Log::write(Core\Log::Level::Error, "the application said so", ["user" => 7]);
 
 // A second record, so the rendering is asked of the block *boundary* as well:
 // a plaintext record is a run of lines with no blank one between records, which
 // is why the JSON Lines default is what an unconfigured target still emits.
-Core\Log::write(Core\Log\Level::Warn, "and again");
+Core\Log::write(Core\Log::Level::Warn, "and again");
 --FILE nvs.toml--
 [log]
 target = "file:app.log"

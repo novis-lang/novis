@@ -1,5 +1,5 @@
 //! `Core\Log` — `rule:errors/log-write`'s reporting half: one member a program writes a record with, and
-//! `rule:errors/log-level`'s `Core\Log\Level` beside it because that member is the only thing that
+//! `rule:errors/log-level`'s `Core\Log::Level` beside it because that member is the only thing that
 //! takes one.
 //!
 //! **The level enum's integers are the syslog severities, not ordinals.**
@@ -87,7 +87,7 @@ use crate::registry::{
 pub(crate) const NAME: &str = r"Core\Log";
 
 /// [`LEVEL`]'s fully-qualified name, written once for the same reason.
-pub(crate) const LEVEL_NAME: &str = r"Core\Log\Level";
+pub(crate) const LEVEL_NAME: &str = r"Core\Log::Level";
 
 /// `rule:errors/log-level`'s five cases, valued by the syslog severity that section fixes
 /// for each — this module's own doc comment owns why the value is the severity
@@ -174,7 +174,7 @@ const WRITE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "level",
-            desc: "How loud the record is. `Core\\Log\\Level`'s five cases carry their own syslog \
+            desc: "How loud the record is. `Core\\Log::Level`'s five cases carry their own syslog \
                    severities.",
             shape: &[],
         },
@@ -210,7 +210,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Log::write(Core\Log\Level $level, string $message, array<string, mixed> $fields = []): void`
+    /// `Core\Log::write(Core\Log::Level $level, string $message, array<string, mixed> $fields = []): void`
     /// — `rule:errors/log-write`.
     ///
     /// One write call per record rather than one per field: JSON Lines' whole
@@ -260,7 +260,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// The `Core\Log\Level` case in slot 0, as the record model's own level.
+/// The `Core\Log::Level` case in slot 0, as the record model's own level.
 ///
 /// [`LEVEL`]'s cases are valued by their syslog severities, so what arrives
 /// here is one of `rule:errors/log-level`'s five integers and
@@ -282,7 +282,7 @@ fn level_of(value: &Value) -> Result<Level, Fault> {
     // `crate::hash`'s `digest_kind` gives: a runtime-contract violation is not
     // something a program can catch its way out of.
     Err(Fault::fatal(format!(
-        "Core\\Log::write expected a `Core\\Log\\Level` case, got tag {} value {:?}",
+        "Core\\Log::write expected a `Core\\Log::Level` case, got tag {} value {:?}",
         value.tag_byte(),
         value.as_int()
     )))
@@ -408,7 +408,7 @@ mod tests {
 
     use super::{LEVEL, nvs_core_log_write};
 
-    /// The integer `Core\Log\Level::Error` arrives as, read off [`LEVEL`]'s own
+    /// The integer `Core\Log::Level::Error` arrives as, read off [`LEVEL`]'s own
     /// row rather than written out here: a lowered enum case *is* that integer,
     /// and a second copy would be exactly the drift the row exists to prevent.
     fn error_severity() -> i64 {
@@ -1217,13 +1217,13 @@ mod tests {
         );
         for (case, severity) in LEVEL.cases {
             let severity = u8::try_from(*severity)
-                .unwrap_or_else(|_| panic!("`Core\\Log\\Level::{case}` is not a syslog severity"));
+                .unwrap_or_else(|_| panic!("`Core\\Log::Level::{case}` is not a syslog severity"));
             let level = Level::from_syslog_severity(severity)
-                .unwrap_or_else(|| panic!("`Core\\Log\\Level::{case}` has no level"));
+                .unwrap_or_else(|| panic!("`Core\\Log::Level::{case}` has no level"));
             assert_eq!(
                 level.name(),
                 case.to_lowercase(),
-                "`Core\\Log\\Level::{case}` renders as its own name, lowercased"
+                "`Core\\Log::Level::{case}` renders as its own name, lowercased"
             );
         }
     }

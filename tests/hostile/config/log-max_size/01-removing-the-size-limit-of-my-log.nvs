@@ -47,6 +47,6 @@ Core\Config::restore('log.keep');
 
 // 3. Writes log records after the attempts. They go to the configured target.
 foreach ($sizes as string $size) {
-    Core\Log::write(Core\Log\Level::Warn, 'tried max_size = ' . Core\Str::slice($size, 0, 32));
+    Core\Log::write(Core\Log::Level::Warn, 'tried max_size = ' . Core\Str::slice($size, 0, 32));
 }
 echo 'max_size: ', Core\Config::get('log.max_size') ?? '(not set)', "\n";

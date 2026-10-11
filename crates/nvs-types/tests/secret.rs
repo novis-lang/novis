@@ -196,7 +196,7 @@ fn a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type() {
     let bag = check_in_method(
         "secret string $token = \"literal\";\n\
          array<secret string> $bag = [\"token\" => $token];\n\
-         Core\\Log::write(Core\\Log\\Level::Info, \"auth\", $bag);\n",
+         Core\\Log::write(Core\\Log::Level::Info, \"auth\", $bag);\n",
     );
     assert!(
         bag.iter().any(|d| d.code == Some(code::E_SECRET_LOGGED)),
@@ -205,7 +205,7 @@ fn a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type() {
 
     let literal = check_in_method(
         "secret string $token = \"literal\";\n\
-         Core\\Log::write(Core\\Log\\Level::Info, \"auth\", [\"token\" => $token]);\n",
+         Core\\Log::write(Core\\Log::Level::Info, \"auth\", [\"token\" => $token]);\n",
     );
     assert!(
         literal
@@ -218,7 +218,7 @@ fn a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type() {
     // call carrying an ordinary field is a record the rule says nothing about.
     let allowed = check_in_method(
         "string $user = \"literal\";\n\
-         Core\\Log::write(Core\\Log\\Level::Info, \"auth\", [\"user\" => $user]);\n",
+         Core\\Log::write(Core\\Log::Level::Info, \"auth\", [\"user\" => $user]);\n",
     );
     assert!(!allowed.has_errors(), "{allowed:?}");
 }

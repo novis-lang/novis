@@ -12,7 +12,7 @@ class Bench {
             // The message of each round is picked by the round before it, so no round can be
             // left out. The field is different each round, so no record repeats.
             int $pick = ($total % 3) as int;
-            Core\Log::write(Core\Log\Level::Info, $events[$pick], ["order" => $i]);
+            Core\Log::write(Core\Log::Level::Info, $events[$pick], ["order" => $i]);
             $total = $total + Core\Str::length($events[$pick]);
             $i = $i + 1;
         }

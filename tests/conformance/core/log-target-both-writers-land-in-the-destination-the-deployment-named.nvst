@@ -23,7 +23,7 @@ Core\Script::onExit(fn (): void => {
     echo Core\IO::readText("app.log");
 });
 
-Core\Log::write(Core\Log\Level::Error, "the application said so");
+Core\Log::write(Core\Log::Level::Error, "the application said so");
 
 // Printed *before* either record, which is the displacement asserted from the
 // outside: with no target configured this line would come second, after

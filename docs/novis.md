@@ -20382,20 +20382,20 @@ Keywords: write
 
 | Member | Signature |
 |---|---|
-| [`Core\Log::write`](#core-core-log-write) | `write(Core\Log\Level $level, string $message, array<mixed> $fields = []): void` |
+| [`Core\Log::write`](#core-core-log-write) | `write(Core\Log::Level $level, string $message, array<mixed> $fields = []): void` |
 
 <a id="core-core-log-write"></a>
 #### `Core\Log::write`
 
 ```nvs skip
-Core\Log::write(Core\Log\Level $level, string $message, array<mixed> $fields = []): void
+Core\Log::write(Core\Log::Level $level, string $message, array<mixed> $fields = []): void
 ```
 
 Writes one log record — the same record, through the same writer, the engine itself uses when it reports for a program that has stopped, so a log pipeline never sees two shapes for one event. The rendering at a log target is JSON Lines: one object per line.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$level` | `Core\Log\Level` | How loud the record is. `Core\Log\Level`'s five cases carry their own syslog severities. |
+| `$level` | `Core\Log::Level` | How loud the record is. `Core\Log::Level`'s five cases carry their own syslog severities. |
 | `$message` | `string` (neutral) | What happened, as one plain sentence. A `tainted` value is accepted here — a log record is data and recording untrusted input is the point — while a `secret` one is refused, which is the rule for every message a human reads. |
 | `$fields` | `array<mixed>` (default `[]`) | Structured context, written as a `fields` object beside the message rather than pasted into it. Omitted from the record entirely when it is empty, so an ordinary call costs no key. Nothing in `fields` makes a write fail. A value the format cannot write, such as `bytes`, a callable or a cycle, is written as text that says what it is. |
 
@@ -29396,17 +29396,17 @@ What a node in a parsed document is. The set is closed at five and both parsers 
 | `Core\Xml\Node::Kind::Document` | The root of what a parse answers with — never a child of anything, and the one node a program is handed rather than reaching. |
 
 <a id="enum-core-log-level"></a>
-#### `Core\Log\Level`
+#### `Core\Log::Level`
 
 How loud a log record is — five cases, each valued by its own syslog severity so that a `syslog` target needs no second table. A smaller number is a louder record.
 
 | Case | Meaning |
 |---|---|
-| `Core\Log\Level::Debug` | Detail kept for whoever is looking at this run; `Core\Debug::dump`'s own destination. |
-| `Core\Log\Level::Info` | Something the program did that an operator would want in the record. |
-| `Core\Log\Level::Warn` | Something recoverable that nobody chose — a retry, a fallback, a deprecated path still in use. |
-| `Core\Log\Level::Error` | An operation failed. An uncaught `Throwable` is reported at this level. |
-| `Core\Log\Level::Critical` | The escalation ladder's own level: a resource limit stopped the request, or the engine floor is reporting for a program that can no longer report for itself. |
+| `Core\Log::Level::Debug` | Detail kept for whoever is looking at this run; `Core\Debug::dump`'s own destination. |
+| `Core\Log::Level::Info` | Something the program did that an operator would want in the record. |
+| `Core\Log::Level::Warn` | Something recoverable that nobody chose — a retry, a fallback, a deprecated path still in use. |
+| `Core\Log::Level::Error` | An operation failed. An uncaught `Throwable` is reported at this level. |
+| `Core\Log::Level::Critical` | The escalation ladder's own level: a resource limit stopped the request, or the engine floor is reporting for a program that can no longer report for itself. |
 
 <a id="enum-core-env-mode"></a>
 #### `Core\Env\Mode`

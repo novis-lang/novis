@@ -198,7 +198,7 @@ pub enum ArgConv {
     /// **A subset is this same row with the cases the union did not name
     /// dropped** ([`subset_of`]), because both questions a subset could have
     /// raised are already answered here — which word, and what it becomes — so
-    /// `Log\Level` and `Log\Level::Warn|Log\Level::Error` are one conversion
+    /// `Log::Level` and `Log::Level::Warn|Log::Level::Error` are one conversion
     /// read twice rather than two that could come to disagree about `Warn`.
     ///
     /// **The word is the case name.** That is the decision
@@ -321,7 +321,7 @@ fn cases_of(name: &QName, env: &Env<'_>) -> ArgConv {
 }
 
 /// The cases `ty` admits of one enum, as the row [`ArgConv::Enum`] carries them
-/// — § 3's `Log\Level::Warn|Log\Level::Error`, and the lone case that is the
+/// — § 3's `Log::Level::Warn|Log::Level::Error`, and the lone case that is the
 /// same subset written with one member.
 ///
 /// A **filter over [`cases_of`]** rather than a second reading of the roster:

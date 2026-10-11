@@ -9,14 +9,14 @@
 // a one-key `$`-tagged object -- `nvs_render::json`'s module doc is the home of
 // that rule and of why the bytes are hex.
 array<mixed> $binary = ["payload" => "text" as bytes];
-Core\Log::write(Core\Log\Level::Error, "captured", $binary);
+Core\Log::write(Core\Log::Level::Error, "captured", $binary);
 
 // Rendering rather than refusing is `rule:errors/log-write`'s requirement, not a
 // convenience: the same helper is what the tier-4 floor calls with its one
 // shot, and a reporting path that throws while reporting has nothing left to
 // report with. So the record after this one is the next record, never the tail
 // of a failed write.
-Core\Log::write(Core\Log\Level::Info, "after");
+Core\Log::write(Core\Log::Level::Info, "after");
 --EXPECT--
 {"level":"error","msg":"captured","source":{"file":"case.nvs","line":9},"fields":{"payload":{"$bytes":"74657874"}}}
 {"level":"info","msg":"after","source":{"file":"case.nvs","line":16}}

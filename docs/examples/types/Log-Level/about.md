@@ -1,6 +1,9 @@
 How loud a log record is. Every record your program writes carries one of five levels, and whoever
 runs the server decides how much of that they want to keep.
 
+`Core\Log::Level` is declared in the class `Core\Log`. The method `write` takes it as its first
+argument.
+
 The five, quietest first, are `Debug`, `Info`, `Warn`, `Error` and `Critical`. `Debug` is detail for
 whoever is watching this one run. `Info` is something the program did that an operator would want in
 the record. `Warn` is something recoverable that nobody chose — a retry, a fallback. `Error` means an

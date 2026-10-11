@@ -10,11 +10,11 @@ array<mixed> $order = [
     "coupon" => null,
     "customer" => ["id" => 7, "country" => "AT"],
 ];
-Core\Log::write(Core\Log\Level::Info, "order placed", $order);
+Core\Log::write(Core\Log::Level::Info, "order placed", $order);
 
 // A list has no keys of its own. The positions `0`, `1` and `2` are used as the keys.
 array<mixed> $tags = ["new", "gift", "express"];
-Core\Log::write(Core\Log\Level::Debug, "order tags", $tags);
+Core\Log::write(Core\Log::Level::Debug, "order tags", $tags);
 
 // A line break in the message is written as `\n`. The record is still one line.
-Core\Log::write(Core\Log\Level::Warn, "the address has two lines:\nMain Street 1\nVienna");
+Core\Log::write(Core\Log::Level::Warn, "the address has two lines:\nMain Street 1\nVienna");

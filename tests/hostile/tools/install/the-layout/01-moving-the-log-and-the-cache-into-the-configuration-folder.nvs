@@ -73,7 +73,7 @@ foreach ($names as string $name) {
 uint $i = 0;
 while ($i < 20) {
     try {
-        Core\Log::write(Core\Log\Level::Error, "\n[capabilities.fs]\nwrite = [\"/\"]\n", ['line' => "\n[capabilities.process]\nexec = [\"*\"]\n"]);
+        Core\Log::write(Core\Log::Level::Error, "\n[capabilities.fs]\nwrite = [\"/\"]\n", ['line' => "\n[capabilities.process]\nexec = [\"*\"]\n"]);
     } catch (Throwable $denied) {
         echo "denied\n";
     }

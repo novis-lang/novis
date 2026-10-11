@@ -1866,7 +1866,7 @@
         ],
         [
           "`Core\\Log`, `Core\\Fatal`",
-          "structured logging. `write(Log\\Level, string $message, array<string, mixed> $fields = [])`, where `Log\\Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the `secret` axis (`rule:security/secret-sinks-refuse`); on the `tainted` axis neither is a sink, because a field is *data* (`rule:security/log-is-not-a-sink`) and logging tainted input is the point",
+          "structured logging. `write(Log::Level, string $message, array<string, mixed> $fields = [])`, where `Log::Level` is `Debug`, `Info`, `Warn`, `Error`, `Critical`. Both refuse a `secret` argument at the call site — a sink on the `secret` axis (`rule:security/secret-sinks-refuse`); on the `tainted` axis neither is a sink, because a field is *data* (`rule:security/log-is-not-a-sink`) and logging tainted input is the point",
           "`rule:errors/log-write`, `rule:errors/log-level`"
         ],
         [

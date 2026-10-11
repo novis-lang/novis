@@ -21,7 +21,7 @@ class Check
 // second record. The output must be exactly one line.
 string $forged = "ok\"}\n{\"level\":\"critical\",\"msg\":\"forged\"}\r\u{0}\u{1b}[2J";
 var $one = Core\Out::capture(fn (): void => {
-    Core\Log::write(Core\Log\Level::Info, $forged, [$forged => $forged]);
+    Core\Log::write(Core\Log::Level::Info, $forged, [$forged => $forged]);
 });
 if (Check::lines($one as string) != 1) {
     throw new LogicError('a message wrote more than one line');
@@ -36,7 +36,7 @@ while ($d < 100000) {
     $d = $d + 1;
 }
 var $nested = Core\Out::capture(fn (): void => {
-    Core\Log::write(Core\Log\Level::Info, 'deep', $deep);
+    Core\Log::write(Core\Log::Level::Info, 'deep', $deep);
 });
 echo 'step 2: done ', Check::lines($nested as string), "\n";
 
@@ -44,14 +44,14 @@ echo 'step 2: done ', Check::lines($nested as string), "\n";
 Node $loop = new Node();
 $loop->next = $loop;
 var $cycle = Core\Out::capture(fn (): void => {
-    Core\Log::write(Core\Log\Level::Info, 'cycle', ['node' => $loop]);
+    Core\Log::write(Core\Log::Level::Info, 'cycle', ['node' => $loop]);
 });
 echo 'step 3: done ', Check::lines($cycle as string), "\n";
 
 // 4. A message of ten million characters. It is written as one line.
 string $huge = Core\Str::repeat('A', 10000000);
 var $long = Core\Out::capture(fn (): void => {
-    Core\Log::write(Core\Log\Level::Info, $huge);
+    Core\Log::write(Core\Log::Level::Info, $huge);
 });
 echo 'step 4: done ', Check::lines($long as string), "\n";
 
@@ -59,7 +59,7 @@ echo 'step 4: done ', Check::lines($long as string), "\n";
 var $many = Core\Out::capture(fn (): void => {
     uint $i = 0;
     while ($i < 100000) {
-        Core\Log::write(Core\Log\Level::Debug, 'row', ['row' => $i]);
+        Core\Log::write(Core\Log::Level::Debug, 'row', ['row' => $i]);
         $i = $i + 1;
     }
 });
@@ -73,7 +73,7 @@ echo 'step 5: done', "\n";
 var $same = Core\Out::capture(fn (): void => {
     uint $i = 0;
     while ($i < 100000) {
-        Core\Log::write(Core\Log\Level::Warn, 'the disk is almost full');
+        Core\Log::write(Core\Log::Level::Warn, 'the disk is almost full');
         $i = $i + 1;
     }
 });

@@ -2,7 +2,7 @@
 `[log] level` is the minimum level written, with the bound named on both sides: the last level a deployment drops and the first one it keeps — `rule:errors/log-level`
 --FILE--
 <?nvs
-// covers: Core\Log\Level
+// covers: Core\Log::Level
 // `rule:errors/log-level`'s last paragraph. The directive names a floor, not a filter for
 // one level, so the roster is walked past it in both directions: `Debug` and
 // `Info` are quieter than `Warn` and are written nowhere, `Warn` is the level
@@ -21,10 +21,10 @@ Core\Script::onExit(fn (): void => {
     echo Core\IO::readText("app.log");
 });
 
-Core\Log::write(Core\Log\Level::Debug, "quieter than the floor");
-Core\Log::write(Core\Log\Level::Info, "the last level dropped");
-Core\Log::write(Core\Log\Level::Warn, "the floor itself");
-Core\Log::write(Core\Log\Level::Error, "above the floor");
+Core\Log::write(Core\Log::Level::Debug, "quieter than the floor");
+Core\Log::write(Core\Log::Level::Info, "the last level dropped");
+Core\Log::write(Core\Log::Level::Warn, "the floor itself");
+Core\Log::write(Core\Log::Level::Error, "above the floor");
 --FILE nvs.toml--
 [log]
 target = "file:app.log"

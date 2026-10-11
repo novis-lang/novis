@@ -6,7 +6,7 @@ Core\Debug::render(mixed $value): Core\Cli\Text
 | Context | Where a dump lands |
 |---|---|
 | a CLI program, a scheduled script, a job worker, a test | **stderr**, plaintext |
-| an HTTP request writing HTML, `[debug] inline` false | one record at `Log\Level::Debug` |
+| an HTTP request writing HTML, `[debug] inline` false | one record at `Log::Level::Debug` |
 | an HTTP request writing HTML, `[debug] inline` true | a collapsible block appended to the body, **and** the log record |
 | an HTTP request writing **JSON** | the log record only — **never inline** |
 

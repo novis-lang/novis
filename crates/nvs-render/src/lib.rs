@@ -103,7 +103,7 @@ pub mod text;
 ///
 /// The mapping is fixed because `rule:errors/engine-floor` names `syslog` as a target and a severity is not optional there.
 ///
-/// This is the Rust side. The *Novis* enum `Log\Level` that `Core\Log::write`
+/// This is the Rust side. The *Novis* enum `Log::Level` that `Core\Log::write`
 /// takes is `nvs_stdlib::registry`'s: its cases are these and its integer
 /// backings are [`Self::syslog_severity`], read from here rather than written
 /// again.
@@ -144,7 +144,7 @@ impl Level {
     /// It reads the mapping back by *searching* [`Self::ALL`] rather than by
     /// matching the five integers a second time, so the severities are written
     /// once and this direction cannot come to disagree with the other. The
-    /// caller that needs it is `Core\Log::write`, whose `Core\Log\Level` cases
+    /// caller that needs it is `Core\Log::write`, whose `Core\Log::Level` cases
     /// are valued by these severities, so what arrives at the member is one of
     /// these integers and nothing else.
     #[must_use]
@@ -179,7 +179,7 @@ impl Level {
     }
 
     /// The level's own case name, as `rule:errors/log-level`'s roster writes it —
-    /// `Log\Level::Debug` — and as [`Self::of`] reads `[log] level`.
+    /// `Log::Level::Debug` — and as [`Self::of`] reads `[log] level`.
     ///
     /// Another match over the roster rather than a case fold of [`Self::name`],
     /// because there is no `const` fold and because these are two spellings of
@@ -200,7 +200,7 @@ impl Level {
     ///
     /// **Two spellings, and both of them the documentation's own.**
     /// `rule:errors/log-level` writes
-    /// the roster as `Log\Level::Debug`, and so does
+    /// the roster as `Log::Level::Debug`, and so does
     /// `rule:config/a-mode-is-five-defaults`
     /// 's per-mode default column for `[log] level`; a record renders the
     /// same level as [`Self::name`]'s `debug`. An operator has read one of the

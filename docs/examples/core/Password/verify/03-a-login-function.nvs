@@ -12,7 +12,7 @@ class Login {
         } catch (LogicError $broken) {
             // The stored value is not a password hash. The user sees the same
             // message, but the error is written to the log for a developer.
-            Core\Log::write(Core\Log\Level::Error, "the stored password hash cannot be read");
+            Core\Log::write(Core\Log::Level::Error, "the stored password hash cannot be read");
             return "wrong email or password";
         }
     }

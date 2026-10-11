@@ -4,12 +4,12 @@
 // about the same thing in two different ways.
 
 class Report {
-    public static function levelFor(string $outcome): Core\Log\Level {
+    public static function levelFor(string $outcome): Core\Log::Level {
         return match ($outcome) {
-            "placed" => Core\Log\Level::Info,
-            "retried" => Core\Log\Level::Warn,
-            "declined" => Core\Log\Level::Error,
-            default => Core\Log\Level::Critical,
+            "placed" => Core\Log::Level::Info,
+            "retried" => Core\Log::Level::Warn,
+            "declined" => Core\Log::Level::Error,
+            default => Core\Log::Level::Critical,
         };
     }
 }

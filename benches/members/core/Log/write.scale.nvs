@@ -11,7 +11,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            Core\Log::write(Core\Log\Level::Info, $event, ['order' => $i]);
+            Core\Log::write(Core\Log::Level::Info, $event, ['order' => $i]);
             $total = $total + Core\Str::length($event);
             $i = $i + 1;
         }

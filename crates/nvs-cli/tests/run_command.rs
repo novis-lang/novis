@@ -282,7 +282,7 @@ fn a_read_only_older_template_is_read_as_it_is_and_the_run_goes_on() {
 
 /// A program that writes one log record and then one line of output.
 const LOGGING: &str =
-    "<?nvs\nCore\\Log::write(Core\\Log\\Level::Warn, \"logged\");\necho \"ran\", \"\\n\";\n";
+    "<?nvs\nCore\\Log::write(Core\\Log::Level::Warn, \"logged\");\necho \"ran\", \"\\n\";\n";
 
 /// Runs [`LOGGING`] from `dir` with the data folder `data`. With `managed`,
 /// `$NOTIFY_SOCKET` is set, which is how systemd starts a service; without it,

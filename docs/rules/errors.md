@@ -656,7 +656,7 @@ Core\Debug::render(mixed $value): Core\Cli\Text
 | Context | Where a dump lands |
 |---|---|
 | a CLI program, a scheduled script, a job worker, a test | **stderr**, plaintext |
-| an HTTP request writing HTML, `[debug] inline` false | one record at `Log\Level::Debug` |
+| an HTTP request writing HTML, `[debug] inline` false | one record at `Log::Level::Debug` |
 | an HTTP request writing HTML, `[debug] inline` true | a collapsible block appended to the body, **and** the log record |
 | an HTTP request writing **JSON** | the log record only — **never inline** |
 
@@ -703,7 +703,7 @@ in a response does not exist outside a mode whose ceiling is closed by default.
 `rule:errors/log-write`
 
 ```
-Core\Log::write(Log\Level $level, string $message, array<string, mixed> $fields = []): void
+Core\Log::write(Log::Level $level, string $message, array<string, mixed> $fields = []): void
 ```
 
 Application code and [`errors/handler-script`](errors.md#errors-handler-script) call this; it is a thin binding over the **same
@@ -729,7 +729,7 @@ solved, mechanical problem where `logfmt`'s quoting of embedded quotes, newlines
 `rule:errors/log-level`
 
 ```
-Log\Level::Debug   Log\Level::Info   Log\Level::Warn   Log\Level::Error   Log\Level::Critical
+Log::Level::Debug   Log::Level::Info   Log::Level::Warn   Log::Level::Error   Log::Level::Critical
 ```
 
 An ordinary enum, and the syslog mapping is fixed — 7, 6, 4, 3, 2 — because `syslog` is a

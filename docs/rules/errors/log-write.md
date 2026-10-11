@@ -1,5 +1,5 @@
 ```
-Core\Log::write(Log\Level $level, string $message, array<string, mixed> $fields = []): void
+Core\Log::write(Log::Level $level, string $message, array<string, mixed> $fields = []): void
 ```
 
 Application code and `rule:errors/handler-script` call this; it is a thin binding over the **same

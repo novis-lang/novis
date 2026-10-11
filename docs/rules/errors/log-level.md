@@ -1,5 +1,5 @@
 ```
-Log\Level::Debug   Log\Level::Info   Log\Level::Warn   Log\Level::Error   Log\Level::Critical
+Log::Level::Debug   Log::Level::Info   Log::Level::Warn   Log::Level::Error   Log::Level::Critical
 ```
 
 An ordinary enum, and the syslog mapping is fixed — 7, 6, 4, 3, 2 — because `syslog` is a

@@ -5,10 +5,10 @@
 // The bound on both sides: the call that carries no key, and the smallest one
 // that does. § 6 omits a field with no content rather than writing it empty,
 // which is the rule `trace_id` is already stated under.
-Core\Log::write(Core\Log\Level::Info, "bare");
+Core\Log::write(Core\Log::Level::Info, "bare");
 
 array<mixed> $one = ["user" => 7];
-Core\Log::write(Core\Log\Level::Info, "given", $one);
+Core\Log::write(Core\Log::Level::Info, "given", $one);
 
 // The bag is `array<string, mixed>`, so a field is whatever the call site had
 // -- and it is walked into `rule:errors/diagnostic-record`'s node model by the same walk
@@ -16,13 +16,13 @@ Core\Log::write(Core\Log\Level::Info, "given", $one);
 // floor will, so a `float`, a `bool` and a nested array cannot be spelled one
 // way by the program and another way by the runtime reporting on it.
 array<mixed> $several = ["ratio" => 1.5, "retried" => true, "codes" => [1, 2]];
-Core\Log::write(Core\Log\Level::Warn, "mixed", $several);
+Core\Log::write(Core\Log::Level::Warn, "mixed", $several);
 
 // An empty bag written out is the same record as one not written at all: the
 // omission is decided by what the bag holds, not by whether the argument was
 // given.
 array<mixed> $none = [];
-Core\Log::write(Core\Log\Level::Info, "bare", $none);
+Core\Log::write(Core\Log::Level::Info, "bare", $none);
 --EXPECT--
 {"level":"info","msg":"bare","source":{"file":"case.nvs","line":5}}
 {"level":"info","msg":"given","source":{"file":"case.nvs","line":8},"fields":{"user":7}}

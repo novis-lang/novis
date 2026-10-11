@@ -9,7 +9,7 @@ A record names the file, line and enclosing member it was produced at, a record 
 // which is what the rule declines to buy.
 class Orders {
     public static function place(): void {
-        Core\Log::write(Core\Log\Level::Info, "placed");
+        Core\Log::write(Core\Log::Level::Info, "placed");
     }
 }
 
@@ -18,7 +18,7 @@ Orders::place();
 // A statement at file scope has a file and a line and no member to name, so the
 // key is omitted rather than written empty -- the envelope's existing rule,
 // applied to the one field a call site fills.
-Core\Log::write(Core\Log\Level::Info, "done");
+Core\Log::write(Core\Log::Level::Info, "done");
 
 // The second reader of that one datum: `$e->location` is the site the `throw`
 // was compiled with, handed to the raise as the very constant a producer above

@@ -38,7 +38,7 @@
 //!
 //! # Every conversion `rule:tooling/commands-are-compiled` admits is on the table
 //!
-//! Including the one § 3 spells as a union: `Log\Level::Warn|Log\Level::Error`
+//! Including the one § 3 spells as a union: `Log::Level::Warn|Log::Level::Error`
 //! crosses as [`ArgConv::Enum`] carrying those two cases, because the two
 //! questions a subset raises — which word, and what it becomes — are the ones
 //! that arm already answers for a whole enum, so a subset is those same pairs

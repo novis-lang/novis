@@ -28,7 +28,7 @@
 //! deliberately *not* captured by `Core\Out::capture`: capturing one would
 //! swallow the very output it was written to make visible.
 //!
-//! **Inside a request a dump is a log record**, at `Log\Level::Debug`, written
+//! **Inside a request a dump is a log record**, at `Log::Level::Debug`, written
 //! through `nvs_runtime::Ctx::write_log_record` like `rule:errors/record-producers`'
 //! other writers — so `[log] target`, `[log] level` and `[log] format` answer
 //! for it too, and a forgotten call in production is a line in whatever the

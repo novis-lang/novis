@@ -13,7 +13,7 @@
 //! `rule:config/ini-set-is-core-config-set`'s API is string-in/string-out and a flip whose answer could be told apart from the
 //! same value written in `nvs.toml` would be a second spelling of every directive it touches. That
 //! is the *text* of the value and not its TOML rendering — a string with no quotes around it, a bool
-//! as `true`/`false`. `[log] level` is `Log\Level`'s own case name, `Info` or `Debug`
+//! as `true`/`false`. `[log] level` is `Log::Level`'s own case name, `Info` or `Debug`
 //! (`rule:errors/log-level`).
 //!
 //! **The ceiling is a comparison over a two-value order** (`rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`): `production` is the restrictive end
