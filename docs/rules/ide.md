@@ -384,13 +384,14 @@ map for the length of one command.
 
 A `Core` class, enum, interface or compiler attribute is declared in a generated stub file, and a jump
 to one opens that file on the line of the declaration. The server writes one `.nvs` file per name, at
-the name's namespace path, under the directory `nvs.stubs.dir` names — or under `lsp/<version>/` in
+the name's namespace path, and writes an enum its class owns inside that class's file
+([`enums/class-scoped-enum`](enums.md#enums-class-scoped-enum)), under the directory `nvs.stubs.dir` names — or under `lsp/<version>/` in
 the data folder when no client named one, so a bare `nvs lsp` answers too — and `nvs stubs --out <dir>`
 writes the same tree from the same generator for any other reader. The tree is written once per
 render and again when a file is missing; nothing repairs a file in place.
 
-A stub is a declaration with its real signature and an empty body: a class with each method, constant
-and constructor, an enum with its cases, an attribute as the shape-typed `type` alias a userland
+A stub is a declaration with its real signature and an empty body: a class with each method, constant,
+constructor and owned enum, an enum with its cases, an attribute as the shape-typed `type` alias a userland
 attribute already is, each under the same reference card hover shows ([`core-api/reference-card`](core-api.md#core-api-reference-card)),
 and a header saying the file is generated and edits are lost. Registry prose is rendered as it is
 written. Every file is made read-only on disk, and the server publishes no diagnostics for a document

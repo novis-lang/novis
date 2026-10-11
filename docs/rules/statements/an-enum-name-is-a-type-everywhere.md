@@ -18,3 +18,9 @@ An enum name is an atom in the type grammar beside a class name — lexically id
 distinguished by what the name resolves to, the way `self`, `static` and `parent` are already contextual
 there. Every binding site that requires a type takes one, with no position that admits a class name and
 refuses an enum's.
+
+An enum declared in a class or interface body (`rule:enums/class-scoped-enum`) is the same atom,
+spelled `Owner::Status` anywhere and `Status` inside its owner, and its case is `Owner::Status::Active`.
+Every binding site above takes the qualified form exactly as it takes the bare one:
+`Account::Status $s = Account::Status::Active;` outside `Account` declares the same local that
+`Status $s = Status::Active;` declares inside one of its methods.

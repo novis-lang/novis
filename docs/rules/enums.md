@@ -3,6 +3,8 @@
 
 # Enums
 
+*2 of 10 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="enums-declaration"></a>
 
 ## A case with no written value counts on from the one before it, starting at zero
@@ -46,6 +48,197 @@ enum body belongs somewhere else and is told so; a case belongs exactly where it
 only its spelling is wrong.
 
 <sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery).</sub>
+
+<a id="enums-class-scoped-enum"></a>
+
+## An `enum` is also a member of a class or interface body, reached as `Owner::Name` and `Owner::Name::Case`, and as a bare `Name` inside its owner  *(designed — not yet in the compiler)*
+
+`rule:enums/class-scoped-enum`
+
+An `enum` is also a member of a class or interface body, taking no visibility modifier, reached as
+`Owner::Name` and `Owner::Name::Case` from anywhere and as a bare `Name` and `Name::Case` inside its
+owner's own body, and never inherited.
+
+```nvs
+namespace Shop;
+
+final class Order {
+    enum Status { Open, Paid, Cancelled }
+
+    public Status $status = Status::Open;              // the short form, inside the owner
+
+    public function pay(): void { $this->status = Status::Paid; }
+}
+
+function label(Order::Status $s): string {            // the qualified form, anywhere
+    return $s == Order::Status::Paid ? "paid" : "unpaid";
+}
+```
+
+Everything else about an enum holds unchanged: its body ([`enums/declaration`](enums.md#enums-declaration)), its one backing
+type, its closed integer cases ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), its zero-byte representation, and
+every binding site it types ([`statements/an-enum-name-is-a-type-everywhere`](statements.md#statements-an-enum-name-is-a-type-everywhere)). The member
+only changes where the declaration is written and how its name is spelled. A case is still an integer
+inlined where it is written, so `Order::Status::Paid` compiles to the same constant a file-scope
+`Status::Paid` does. In type position, `Order::Status::Paid` is the case's own type
+([`types/enum-case-type`](types.md#types-enum-case-type)).
+
+- **Two places, and no third.** An enum is declared at file scope or in a class or interface body. In
+  an enum body it is `E0220`, whose help names the class body. In a method body, a hook, a closure or a
+  block it stays `E0233` ([`classes/a-type-is-declared-at-file-scope`](classes.md#classes-a-type-is-declared-at-file-scope)). A class or an interface in
+  a class body stays refused: it is one `E0233` where it is written.
+- **No visibility, ever.** A modifier run in front of a body's `enum` is `E0133`. Its cases leave the
+  class in every return value and every property, so a `private` enum would hide the name and not the
+  values. An attribute group may stand in front of it, as in front of a file-scope enum.
+- **No inheritance.** `Sub::Status`, where only an ancestor of `Sub` declares `Status`, is `E0405`
+  naming the class that does. A subclass that inherited the name would give one enum as many names as
+  its owner has descendants ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
+- **Two spellings and no third.** `self::Status` and `static::Status` are `E0135` where they are
+  written, as they are for a class-scoped alias ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)). An enum is resolved
+  before there is a receiver, so `static::` could only mean the lexical class, which the bare `Status`
+  already says.
+- **A name is one thing.** An owner's enum, constant and alias never share a name: the later of the
+  two declarations is `E0304`.
+- **No import of a member.** `use Shop\Order::Status;` is a diagnostic where it is written. A program
+  imports the owner and writes `Order::Status`. A member import would give one enum a second short
+  name.
+
+**The name a program sees** is the owner's qualified name, `::`, and the member's name:
+`Shop\Order::Status`. `Core\Reflect\EnumInfo::name`, a diagnostic, `nvs meta` and the error a route
+capture throws all print it. `Core\Reflect\EnumInfo::of(Order::Status::class)` reads it back. The
+declaration is keyed by the owner's `QName` and the member name, never by a namespace path, for the
+reason [`types/class-scoped-alias`](types.md#types-class-scoped-alias) gives: `Shop\Order\Status` is also the spelling of a class
+`Status` in namespace `Shop\Order`, and the two are two types with two keys.
+
+The member exists so an enum that describes one class's state is named by its owner, as that class's
+constants, aliases and methods are, and not by an owner prefix written by hand into a file-scope name
+(`OrderStatus`, `InvoiceStatus`). Where an enum goes is [`enums/an-enum-lives-in-the-class-that-uses-it`](enums.md#enums-an-enum-lives-in-the-class-that-uses-it).
+
+What it trades. Performance: nothing at run time, because a case is still an inlined integer and the
+name is resolved before any code runs. Usability: a class's enums are read with it, and a name stops
+carrying its owner's word. Simplicity: a second place to declare an enum and a three-part value form,
+both resolved by the checker.
+
+- **Memory:** nothing per request, because the compiled program is the one the file-scope form
+  produces. At compile time it costs one enum-table entry per declaration, the same entry a
+  file-scope enum pays for, and one runtime name string per enum, as before.
+
+**Declined:**
+- **Enums at file scope only.** Every program would pay for it with owner prefixes spelled by hand,
+  to save one member kind in the parser.
+- **`use Shop\Order::Status;`.** It gives one enum a second short name
+  ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)), and importing the owner already costs one segment.
+- **A `private` or `protected` enum.** The cases are values that leave the class, so a modifier hides
+  a name and nothing else.
+- **Nested classes and interfaces alongside.** A class has members, layout and dispatch of its own,
+  and none of the static tables has a reading for one inside another. An enum is a closed list of
+  integers and has none of that.
+- **An enum in an enum body.** An enum body is a list of cases ([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)), and
+  a case list owning another case list says nothing a namespace does not.
+- **The old file-scope `Core` names kept beside the new ones.** That is a second name for each
+  enum, and there is no release that a program could have been written against.
+
+<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`enums/an-enum-lives-in-the-class-that-uses-it`](enums.md#enums-an-enum-lives-in-the-class-that-uses-it), [`classes/a-type-is-declared-at-file-scope`](classes.md#classes-a-type-is-declared-at-file-scope), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name).</sub>
+
+<a id="enums-an-enum-lives-in-the-class-that-uses-it"></a>
+
+## An enum one class uses is declared in that class, and an enum several classes share is declared in their namespace  *(designed — not yet in the compiler)*
+
+`rule:enums/an-enum-lives-in-the-class-that-uses-it`
+
+An enum exactly one class takes, returns or holds is declared in that class; an enum several classes
+use, or none, is declared in their namespace. The rule binds every `Core` enum, every built-in
+component's enum and every published program, and it is the default a program's own enums follow.
+
+The test is mechanical, so two readers place one enum the same way. A class *uses* an enum when one
+of its methods takes it as a parameter or returns it, or one of its properties or constants has its
+type. An enum used by one class moves into it. An enum used by two or more, or only by an attribute
+(`Core\Audience`, used only by `#[Access]`), stays at namespace scope. When a later member makes an
+owned enum shared, the enum moves back to its namespace in the slice that adds the member.
+`crates/nvs-stdlib/tests/enum_owners.rs` holds the rule for `Core`, and a reviewer's judgement does
+not override it.
+
+**A rename drops the owner's word** where the old name repeated it: `Core\Xml\NodeKind` becomes
+`Core\Xml\Node::Kind`, never `Core\Xml\Node::NodeKind`. A name that does not parse as a member, because
+it clashes with a keyword, keeps its old word and drops the owner's prefix the other way; the table
+below says which, and today no entry needs it.
+
+The `Core` enums that move:
+
+| Was | Is |
+|---|---|
+| `Core\Order` | `Core\Arr::Order` |
+| `Core\SetOn` | `Core\Arr::SetOn` |
+| `Core\NormalForm` | `Core\Str::NormalForm` |
+| `Core\Digest` | `Core\Hash::Digest` |
+| `Core\Codec` | `Core\Compress::Codec` |
+| `Core\Weekday` | `Core\DateTime::Weekday` |
+| `Core\Crypto\Cipher` | `Core\Crypto::Cipher` |
+| `Core\Crypto\KeyFormat` | `Core\Crypto\PublicKey::Format` |
+| `Core\Mime\Type` | `Core\Mime::Type` |
+| `Core\Xml\NodeKind` | `Core\Xml\Node::Kind` |
+| `Core\Log\Level` | `Core\Log::Level` |
+| `Core\Env\Mode` | `Core\Env::Mode` |
+| `Core\Response\Redirect` | `Core\Response::Redirect` |
+| `Core\Response\SameSite` | `Core\Response::SameSite` |
+| `Core\Cli\Stream` | `Core\Cli::Stream` |
+| `Core\Cli\ColorDepth` | `Core\Cli::ColorDepth` |
+| `Core\Cli\Shell` | `Core\Command::Shell` |
+| `Core\Reflect\TypeKind` | `Core\Reflect::TypeKind` |
+| `Core\IO\FileMode` | `Core\IO::FileMode` |
+| `Core\Cldr\PluralCategory` | `Core\Cldr::PluralCategory` |
+| `Core\Script\ExitReason` | `Core\Script\ExitReport::Reason` |
+| `Core\Db\Tls` | `Core\Db::Tls` |
+| `Core\Db\Isolation` | `Core\Db\Connection::Isolation` |
+| `Core\Db\ErrorKind` | `Core\Db\DbError::Kind` |
+| `Core\Db\ColumnType` | `Core\Db\Column::Type` |
+| `Core\Db\Plan\Grade` | `Core\Db\Plan\Step::Grade` |
+| `Core\Ldap\Scope` | `Core\Ldap\Connection::Scope` |
+| `Core\Ldap\Tls` | `Core\Ldap::Tls` |
+| `Core\Ldap\ErrorKind` | `Core\Ldap\LdapError::Kind` |
+| `Core\Queue\State` | `Core\Queue::State` |
+
+The `Core` enums that stay, each with the classes that share it: `Core\RoundMode` (`Math`,
+`Decimal`), `Core\Charset` (`Encoding`, `IO`), `Core\Unit` (`DateTime`, `Date`, `TimeOfDay`),
+`Core\Crypto\KeyKind` (four classes), `Core\Http\Method` (seven classes and `#[Route]`),
+`Core\Audience` (`#[Access]` alone) and `Core\Db\Driver` (`Db`, `Db\Connection`). A use site this
+table missed is placed by the rule, and the table is corrected here.
+
+The built-in components follow the same rule. In `Novis\Image`, every enum but `Format` moves into
+`Image` (`Gravity`, `Fit`, `Filter`, `Axis`, `Blend`, `Align`, `Output`, `HashKind`,
+`PlaceholderKind`), and `QrLevel` becomes `QrCode::Level`. `Format` is shared and stays. In
+`Novis\Intl`, the enums become `Collator::Strength`, `Collator::CaseFirst`, `NumberFormat::Style`,
+`NumberFormat::CurrencyDisplay`, `NumberFormat::CompactDisplay`, `PluralRules::Kind`,
+`PluralRules::Category`, `DateFormat::Length`, `DateFormat::ZoneStyle`, `RelativeTime::Unit`,
+`RelativeTime::Numeric`, `ListFormat::Type` and `Locale::Service`. `Width` is shared and stays.
+
+A published program — an example, an attack, a bench, a website snippet, a reference chapter's
+listing, a template `nvs new` writes — places its enums the same way. An enum two classes share stays
+at file scope, and the program says so in one line where it is declared. `tests/conformance/` is the
+exception: its cases pin enum behaviour at file scope and stay there.
+
+The rule exists so a reader finds an enum where the class it describes is declared, and so the
+surface is one language. A `Core` class's card and stub show its enums, and a program written against
+the reference reads like the reference. An old `Core` name is gone, not deprecated: there is no
+release a program could depend on, and a second spelling would be a second name
+([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
+
+What it trades. Performance and memory: nothing, since placement changes a name and not a value.
+Usability: every `Core` enum a program names changes spelling once, before the first release, and
+`Core\Arr::sort($rows, {order: Core\Arr::Order::Desc})` reads with its class. Simplicity: one rule a
+test enforces, in place of a judgement each contributor makes.
+
+**Declined:**
+- **Placement left to taste.** Two contributors would place one enum two ways, and the surface would
+  drift one member at a time. A rule a test reads does not drift.
+- **Every enum in a class, a shared one in whichever class came first.** The other users would name
+  it through a class they do not otherwise touch, and the owner would be an accident of history.
+- **Deprecated aliases for the old `Core` names.** Each is a second name for one enum, kept for
+  programs that do not exist yet.
+- **Moving the conformance cases too.** They pin the file-scope form, which stays a supported place
+  for a shared enum, and the new form has cases of its own.
+
+<sub>See also [`enums/class-scoped-enum`](enums.md#enums-class-scoped-enum), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name).</sub>
 
 <a id="enums-closed-integer-type"></a>
 
@@ -224,6 +417,12 @@ optimiser has proved it immutable.
 
 `Core\Reflect\EnumInfo::of(Status::class)` reports an enum's shape as ordinary structural metadata —
 the type's name and its closed case list — the same way `ClassInfo` reports a class's shape.
+
+The name is the one a program writes to reach the enum from anywhere. For a file-scope enum it is the
+qualified name, `Shop\Status`. For an enum declared in a class or interface body it is the owner's
+qualified name, `::` and the member's name, `Shop\Order::Status` ([`enums/class-scoped-enum`](enums.md#enums-class-scoped-enum)), and
+`EnumInfo::of(Order::Status::class)` finds it by that name. A diagnostic, `nvs meta` and the
+error a route capture throws print the same string, so one enum has one printed name everywhere.
 
 It grants an enum nothing it does not already have: no method dispatch, no interface, no case
 identity, and nothing that acts on a value. It is a second description of the same closed integer

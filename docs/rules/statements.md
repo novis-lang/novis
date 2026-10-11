@@ -266,6 +266,12 @@ distinguished by what the name resolves to, the way `self`, `static` and `parent
 there. Every binding site that requires a type takes one, with no position that admits a class name and
 refuses an enum's.
 
+An enum declared in a class or interface body ([`enums/class-scoped-enum`](enums.md#enums-class-scoped-enum)) is the same atom,
+spelled `Owner::Status` anywhere and `Status` inside its owner, and its case is `Owner::Status::Active`.
+Every binding site above takes the qualified form exactly as it takes the bare one:
+`Account::Status $s = Account::Status::Active;` outside `Account` declares the same local that
+`Status $s = Status::Active;` declares inside one of its methods.
+
 <sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-require-is-the-only-inclusion-construct"></a>

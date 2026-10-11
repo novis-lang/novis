@@ -4,6 +4,8 @@
   "rules": [
     "enums/declaration",
     "enums/no-case-keyword",
+    "enums/class-scoped-enum",
+    "enums/an-enum-lives-in-the-class-that-uses-it",
     "enums/closed-integer-type",
     "enums/one-backing-type",
     "enums/representation",

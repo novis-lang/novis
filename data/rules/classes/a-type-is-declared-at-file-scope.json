@@ -1,9 +1,10 @@
 {
-  "title": "A `class`, `interface` or `enum` is declared at file scope, or not at all",
+  "title": "A `class`, `interface` or `enum` is declared at file scope, or not at all, and an `enum` may also be declared in a class or interface body",
   "status": "shipped",
   "seeAlso": [
     "classes/no-free-functions-or-constants",
-    "types/class-scoped-alias"
+    "types/class-scoped-alias",
+    "enums/class-scoped-enum"
   ],
   "guardedBy": [
     "tests/conformance/lang/a-type-declared-inside-a-body-is-a-compile-error.nvst",

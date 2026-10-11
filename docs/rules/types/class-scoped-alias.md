@@ -29,11 +29,11 @@ and an enum's alias has nothing to do with its cases.
   of this member and are `E0135` where they are written, as `parent::Name` is
   (`rule:types/grammar`). An alias is resolved before there is a receiver, so `static::` could only
   ever mean the lexical class, which the bare `Name` already says.
-- **A name is one thing.** A body's alias sharing a name with a class constant or an enum case is
-  `E0304` at the later of the two declarations. `Owner::Name` in type position is therefore read as
-  an alias, then an enum case, then a class constant, and no program that compiles depends on that
-  order — it exists so the diagnostic for a name that resolves to nothing can say what was looked
-  for.
+- **A name is one thing.** A body's alias sharing a name with a class constant, an enum case or an
+  enum the same body declares (`rule:enums/class-scoped-enum`) is `E0304` at the later of the two
+  declarations. `Owner::Name` in type position is therefore read as an alias, then an owned enum, then
+  an enum case, then a class constant, and no program that compiles depends on that order — it exists
+  so the diagnostic for a name that resolves to nothing can say what was looked for.
 
 The member exists so a type that describes one class's data is named by its owner, as that class's
 constants and methods are, and not by an owner prefix written by hand into a file-scope name
