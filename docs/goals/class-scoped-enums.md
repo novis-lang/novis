@@ -526,24 +526,34 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums` — an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 and 3 are done: the rules are written and the parser accepts the member.** `rule:enums/class-scoped-enum` and `rule:enums/an-enum-lives-in-the-class-that-uses-it` stay `designed`; the first now lists `crates/nvs-syntax/src/parser/tests/decl.rs` in `guardedBy`, and the stage whose tests complete the rule flips it to `shipped`.
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 and 3 are done. Stage 4's code and cases are committed, but `bun nv verify` has not run on them.** The session hit the hand-off budget before verify. So Stage 4 stays `open` in the front matter, even though its check passed locally. All 11 cases ran green under `nvs test`, plus one extra case, `tests/conformance/reject/a-class-scoped-enum-is-not-reached-through-a-class-keyword.nvst`. Both rules stay `designed`. `class-scoped-enum`'s record (`data/rules/enums/class-scoped-enum.json`) now guards two conformance cases as well.
 
-What the parser does now. `ClassMemberKind::Enum(EnumDecl)` (`crates/nvs-syntax/src/ast.rs`) is parsed in `parse_class_member_with_attrs` through the shared `parse_enum_decl_body` (`crates/nvs-syntax/src/parser/decl.rs`); its `///` run hangs on the `ClassMember`, so `EnumDecl::doc` is `None` there, as for a member alias. A modifier run is one `E0133` (`refuse_modifiers_on_a_member_enum`), an attribute group is kept. An enum in an enum body is one `E0220` and is dropped from `members`. A class or interface in a class body is parsed whole and is one `E0233`. In type position `Owner::Enum::Case` is the new atom `TypeAtom::MemberCase(Name, Span, Span)`; `Owner::Enum` stays `TypeAtom::Member`. In value position `A::B::C` is a nested `ClassConstAccess`, pinned by a test. `walk.rs` emits the member as an `EnumDecl` node and `casing.rs` checks it with `check_enum_decl`.
+How the key works. An owned enum's key is `QName::member(owner, name)` (`crates/nvs-hir/src/qname.rs:107`). That is the owner's path with `::Name` added to its last segment, so it prints `Shop\Order::Status`, which is the name a program sees. It never equals the namespace path `Shop\Order\Status`. `as_member` reads the key back. The key is declared as a `SymbolKind::Enum` symbol (`declare_owned_enums`, `crates/nvs-hir/src/resolve.rs:178`). No written name resolves to a segment that holds `::`, so this is not a file-scope entry. The key is also an `EnumTable` row (`collect_owned`, `crates/nvs-types/src/enums.rs:271`) and a `MemberTable` entry whose cases are its constants (`collect_owned_enums`, `crates/nvs-hir/src/members.rs:298`). Codegen therefore needed no change: the probe program ran end to end.
 
-Not handled yet, on purpose: every crate past `nvs-syntax` ignores the member through its wildcard arm, and `nvs-types` lowers `TypeAtom::MemberCase` to `mixed` through the wildcard at `crates/nvs-types/src/lower.rs:233`. An anonymous class body also accepts the member, because it shares `parse_class_body`; the rule names only class and interface bodies, so Stage 4 refuses it in the checker or the rule says otherwise. `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
+How names resolve. `nvs_hir::owned_enum` and `owned_enum_in_scope` (`crates/nvs-hir/src/resolve.rs:312`) are the one lookup:
+- Inside the owner, a bare name finds the owner's own enum first.
+- In type position, `owner_left_of_member` and `lower_member_case_type` (`crates/nvs-types/src/lower.rs:454`, `:487`) use it, and so does `resolve_name_type`.
+- In value position, `resolve_class_expr` and `is_written_class_side` (`crates/nvs-types/src/expr/members.rs`) and `resolve_class_name` (`crates/nvs-hir/src/members.rs:1518`) use it.
+
+What is refused, and where:
+- `Sub::Status` is `E0405` in a type and `E0309` in a value, each with a help that names the declaring class.
+- `self::`, `static::` and `parent::` in front of an enum name are `E0135` (`reject_keyword_owned_enum`, `expr/members.rs:907`).
+- An owned enum that shares a name with a constant, an alias or another enum of its owner is `E0304`.
+- `use Shop\Order::Status;` is one `E0212` from the parser, and the statement imports nothing (`refuse_member_import`, `crates/nvs-syntax/src/parser/decl.rs:545`).
+
+The anonymous-class question is settled: `new class {…}` is already `E0244`, so no enum can reach one. Walks now cover owned enums in `requires.rs`, `check.rs` (`check_owned_enums`, `:592`) and `deprecated.rs`. Two walks need nothing: `autoload.rs` lists only file-scope declarations, and an owned enum needs no file of its own. `signatures.rs` records nothing from an enum body, which holds aliases only. `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
 
 ### Next
 
-**Stage 4: names and the checker**, one file set: `crates/nvs-hir/src/resolve.rs`, `aliases.rs`, `members.rs`, `requires.rs`, `crates/nvs-types/src/enums.rs`, `lower.rs`, `expr/members.rs`. The goal's § *4. names and the checker* lists every anchor.
+**Close Stage 4, then start Stage 5: the runtime name.** One file set: the Stage 4 files above, then `crates/nvs-ir`, `nvs-cli`'s `meta` and `Core\Reflect\EnumInfo`.
 
-- [ ] **The key and the table** (`rule:enums/class-scoped-enum`): `EnumTable` (`crates/nvs-types/src/enums.rs:98`) takes an owned enum under its owner and name, modelled on `AliasKey::Member` (`crates/nvs-hir/src/aliases.rs:66`); `check_body_aliases` (`crates/nvs-hir/src/resolve.rs:279`) and `check_name_collisions` (`crates/nvs-hir/src/aliases.rs:302`) gain the enum for `E0304`.
-- [ ] **Type position** (`rule:types/enum-case-type`): `lower_member_type` (`crates/nvs-types/src/lower.rs:406`) reads an owned enum, a new arm lowers `TypeAtom::MemberCase`, and `resolve_name_type` (`crates/nvs-types/src/lower.rs:891`) reads the bare name inside the owner.
-- [ ] **Value position**: `infer_class_const` (`crates/nvs-types/src/expr/members.rs:77`) and `is_written_class_side` (`crates/nvs-types/src/expr/members.rs:871`) accept the nested access whose inner one names an owned enum.
-- [ ] **The refusals and the conformance cases** the Stage 4 check names, under `tests/conformance/enum/` and `tests/conformance/reject/`: `E0405` for `Sub::Status` beside `lower_member_type` (`crates/nvs-types/src/lower.rs:406`), and `use Shop\Order::Status;` refused in `crates/nvs-hir/src/resolve.rs:96`.
+- [ ] **Verify Stage 4** (`rule:enums/class-scoped-enum`). Run `bun nv verify`. `cargo fmt` may rewrap `check_name_collisions` (`crates/nvs-hir/src/aliases.rs:302`) and `is_written_class_side` (`crates/nvs-types/src/expr/members.rs:871`). Fix what it finds, then run `looper check --name class-scoped-enums-the-checker-resolves-both-spellings` and set Stage 4 to `done`.
+- [ ] **The name a program sees** (`rule:enums/reflection`). Check that `Core\Reflect\EnumInfo::of(Order::Status::class)` and its `name` print `Shop\Order::Status`. `::class` on a nested access is not handled yet: it goes through `infer_class_const`'s neighbours in `crates/nvs-types/src/expr/members.rs`.
+- [ ] **A cast and a route capture** (`rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`). Write Stage 5's three `.nvst` cases. A conversion error and the route capture error print the key through `QName`'s `Display`.
 
 ### Backlog
 
-- Stages 5 and 6: lowering and the runtime name, then the editor and the formatter (this goal's file).
-- Stages 7 and 8: every `Core` enum, then every built-in component enum, moved by the rename table in `rule:enums/an-enum-lives-in-the-class-that-uses-it`.
+- Stage 5's `nvs meta --json` test, `a_class_scoped_enum_is_listed_under_its_owner` (this goal's file).
+- Stage 6: the editor and the formatter. `crates/nvs-lsp/src/index.rs` iterates `module.symbols`, so an owned enum already appears there under its `::` key, and Stage 6 nests it under its owner.
+- Stages 7 and 8: every `Core` enum, then every built-in component enum, moved by the rename table in `rule:enums/an-enum-lives-in-the-class-that-uses-it`. A registry name `Core\Arr::Order` parses to the same key `QName::member` builds.
 - Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs (this goal's file).
-- The anonymous-class body question above, decided in Stage 4 (`rule:enums/class-scoped-enum`).
