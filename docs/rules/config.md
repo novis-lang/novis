@@ -1080,7 +1080,13 @@ moved it since. An idle server takes a change within `revalidate_freq` plus `set
 **An atomic deploy is atomic.** At the start of each compile the entry file's path is resolved
 through every symlink and junction once, and the program is read through the real directory that
 gives. After the compile the path is resolved again, and a different answer discards the compile, so
-switching a `current` link between two releases never builds a program from both.
+switching a `current` link between two releases never builds a program from both. A slow copy into
+the directory being served can still be seen half done if it pauses for longer than `settle`,
+because no compiler can tell a pause from the end; switching a link to a finished directory is the
+deploy that is always safe.
+
+Where a design choice makes this rule harder to keep, the rule wins over latency, simplicity and
+memory, and never over security.
 
 A compile that fails leaves the pointer where it was
 ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)), and a deleted file a program still
@@ -1092,9 +1098,12 @@ trigger a recompile — only the program's own files changing do. The cost is on
 file, and one per listed directory, per `revalidate_freq`, off the request path. Only a program some
 request has loaded is checked, so a deploy that touches many files recompiles only the programs in
 use. The table is the one structure every core shares, so a swap made by the check is what every
-core's next lookup reads, with no broadcast and no second cache to keep in step.
+core's next lookup reads, with no broadcast and no second cache to keep in step. A warm start in
+production reads source too: every file a program reached is `stat`ed at the first check, which is
+the price of seeing a change at all.
 
-- **Memory:** the path pointer is a second map beside the content-keyed table, one entry per entry
+- **Memory:** each unit keeps the list of files its compile read, with a stamp and a digest per
+  file. The path pointer is a second map beside the content-keyed table, one entry per entry
   file. Beyond the two units each path keeps, an older unit is freed when the last request holding
   it ends, so units stay in proportion to entry files, never to edits.
 
@@ -1118,10 +1127,13 @@ switch does not reach a server that mounts one.
   `path → state` map gives that up, and every guarantee above rests on it.
 - **Trusting `mtime` alone.** It fails on containers, some network mounts and coarse clocks, which
   are the file systems least likely to be noticed failing.
+- **Checking every file on the request path.** It is correct, and it puts the whole-program `stat`
+  and every recompile in front of whichever request arrives first. A request that arrives during a
+  `git pull` could also compile a program from half of the old tree and half of the new one.
 - **Pushing an edit to every process of a fleet.** Sub-second propagation across processes or hosts
   is a distribution problem, not a concurrency one. A signal for it would feed the same pointer swap.
 
-<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0218](../decisions/0218.md).</sub>
+<sub>See also [`config/a-request-keeps-the-unit-it-resolved`](config.md#config-a-request-keeps-the-unit-it-resolved), [`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit).</sub>
 
 <a id="config-a-request-keeps-the-unit-it-resolved"></a>
 
@@ -1410,7 +1422,7 @@ to decide whether a core's table is rebuilt.
   configuration becomes a file people copy without reading. The cost accepted is that every new
   directive has to say which table it belongs in.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0218](../decisions/0218.md).</sub>
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode).</sub>
 
 <a id="config-a-program-may-read-and-flip-its-mode"></a>
 
@@ -2220,7 +2232,12 @@ wins, because the mode supplies a default and nothing more.
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
 
-<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0218](../decisions/0218.md).</sub>
+**Declined:**
+- **Keeping `never` for operators who want it.** It is the outage a restart-free deploy removes, and
+  the cost it saved is one background `stat` per file per window. A value kept for compatibility
+  would keep that outage.
+
+<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart).</sub>
 
 <a id="config-opcache-file-cache-directives-are-system"></a>
 
