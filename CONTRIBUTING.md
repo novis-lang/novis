@@ -50,9 +50,8 @@ decides whether Novis is any good is mostly not Rust:
 
 - **Say what you think of the design.** The type system, the `tainted`/`secret` rules, the naming of the
   `Core` library, the decision that every function is a method — all of it is written down and none of it
-  is set in stone. The rulebook under [docs/rules/](docs/rules/) states every rule, and
-  [docs/decisions/](docs/decisions/) holds one frozen record per decision with the reasoning behind it;
-  disagreeing with one, in a discussion, is a contribution.
+  is set in stone. The rulebook under [docs/rules/](docs/rules/) states every rule with the reasoning
+  behind it and what it declined; disagreeing with one, in a discussion, is a contribution.
 - **Say what would stop you using it.** A missing feature, a migration you cannot see a path through, a
   guarantee you would not trust. That is the most useful thing an outsider can report, and the hardest
   thing for the people inside to notice.
@@ -211,7 +210,7 @@ Code extension is TypeScript/Node tooling, the PhpStorm plugin is Kotlin/Gradle/
 tooling — and each is a thin client over `nvs-lsp`/`nvs-fmt`, never a second implementation of language
 smarts or formatting (`rule:ide/one-server-two-thin-clients`).
 
-[`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several decisions in `docs/decisions/`
+[`benches/abi-probe`](benches/abi-probe/) is worth knowing about early. Several rules under `docs/rules/`
 depend on how Cranelift, `corosensei` and Wasmtime behave rather than on Novis's own code, so a dependency
 bump can invalidate them silently. It checks them continuously: that a throw propagates and a runtime
 panic is *contained* across native frames, that a coroutine can suspend from beneath live JIT frames, that
@@ -239,9 +238,8 @@ the premise the calling convention exists for.
 | Extensions | built-in, sandboxed wasm (`.nvsx`), or statically linked native — never `dlopen` ([`packaging/an-extension-is-a-sandboxed-wasm-component`](docs/rules/packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)) |
 
 This is the short form. The fuller decision table, with the sequencing each choice implies, is in
-[docs/implementation-plan.md](docs/implementation-plan.md); the reasoning behind each choice and the
-measurements backing it are in the records under [docs/decisions/](docs/decisions/), each reached through a
-rule's `because` in [docs/ground-rules.md](docs/ground-rules.md).
+[docs/implementation-plan.md](docs/implementation-plan.md); the reasoning behind each choice is in its
+rule, and [docs/ground-rules.md](docs/ground-rules.md) lists every rule.
 
 ### Making a change
 

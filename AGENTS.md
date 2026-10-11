@@ -399,8 +399,6 @@ What a loop session owes on top of § *Session workflow*:
 - **[docs/agent/testing.md](docs/agent/testing.md)**: what to test, and how.
 - **[docs/agent/grounding.md](docs/agent/grounding.md)**: what an answer owes the person who asked.
 - **[docs/agent/playbook.md](docs/agent/playbook.md)**: traps a session already paid for once.
-- **[docs/decisions/](docs/decisions/README.md)**: numbered decision records. Cite one as
-  `decision 0003`.
 - **Each stack's own rules** are in `docs/agent/<stack>.md`, such as `docs/agent/rust.md`.
 
 **Every fact has exactly one home.** If two files state the same thing, the home wins and the other is a

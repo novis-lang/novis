@@ -53,7 +53,7 @@ builder member. A plan's `step` is a WIT record with one optional field per oper
 of them set, because the manifest tells a union's cases apart by their required keys and most steps
 have none: a step crosses as a Novis array keyed by its operation, `['resize' => [...]]`. The
 component's `run` and `variants` run every step, in order, and check each step's
-options before anything is decoded; what each pixel step does where 0120 leaves it open, and the
+options before anything is decoded; what each pixel step does beyond this rule, and the
 pixel cap every frame a step makes is held to, are `extensions/image/src/ops.rs`'s module doc. A
 `composite` step names only an earlier row, and one plan draws a bounded number of overlays counting
 every level, so a few rows that each draw the one before twice cannot double the work per level
