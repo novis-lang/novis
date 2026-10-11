@@ -1,9 +1,7 @@
 {
   "title": "A tainted operand poisons every operation it takes part in, and only a checked conversion launders for free",
   "status": "shipped",
-  "because": [
-    "0280"
-  ],
+  "because": [],
   "seeAlso": [
     "security/tainted-qualifier",
     "security/launderers-are-sink-named",

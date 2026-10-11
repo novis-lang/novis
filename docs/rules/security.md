@@ -1245,7 +1245,7 @@ is `?tainted bytes`. The list of sources being **enumerable** is what lets the q
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
 <a id="security-taint-propagation"></a>
 
@@ -1280,7 +1280,12 @@ are admitted. The same holds for an `array<mixed>` operand and for a union with 
 **The keys of such a value are outside text too**: a `foreach` key over a `mixed` or `iterable`
 subject, or over an array whose element type carries `tainted` or `mixed` anywhere — `queryArray`,
 `postArray`, `headers()`, a decoded `array<mixed>` — is `tainted string`, because an array's type says
-nothing of its keys and its elements are the evidence of where it was filled. An object's fields are
+nothing of its keys and its elements are the evidence of where it was filled. Every member that fills
+an array from outside answers one with such elements, so the element type covers members not yet
+written too. An array the program fills with tainted values under its own literal keys over-taints,
+which is the safe direction: write `tainted string $k`, and bind or escape the key where it reaches a
+sink. The bound is a map nested in a decoded target: a `postAs<Form>` whose `Form` has an `array<int>`
+field is keyed by the peer and has clean elements, so its keys bind as plain `string`. An object's fields are
 read the same way: a shape target of `as` or `is` over a class takes each text field from the field of
 that name, so a field that is `mixed`, `object` or tainted, or one the class does not declare and only
 a subclass could, counts as outside text. Where the text would land in a type the program *wrote* — a
@@ -1313,7 +1318,9 @@ bypass of every rule below. All of it is decided while checking: no tag at run t
 request path.
 
 - **Memory:** none. The qualifier is erased before codegen; the cost is compile time, one walk of the
-  operand's type per conversion, `.`, interpolation and type test.
+  operand's type per conversion, `.`, interpolation and type test, one walk of the subject's element
+  type per `foreach` with a key, and one property lookup per text field of a shape target over an
+  object.
 
 **Declined:**
 - **Typed request accessors as the only fix.** They leave `json()`, `Core\Script::args`,
@@ -1322,12 +1329,16 @@ request path.
 - **A hidden, source-marked `mixed`** carrying an invisible "came from outside" bit. It is lost at the
   first `mixed` parameter or property, it cannot be written in a declaration, and `tainted mixed` is
   refused for the same reason ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)).
+- **A key qualifier on the array type**, such as `array<tainted string => T>`, set by the members
+  that fill an array from outside. It is exact, and it closes the nested-map bound above, but it adds
+  a type parameter to every array and a second axis to assignability, which simplicity does not buy
+  until that shape turns up in practice.
 - **Tainting a written shape target or binding without `tainted` written.** The declaration would then
   understate the value, and a type that is not what it says is worse than a long one.
 - **Refusing `as string` out of `mixed` outright.** It leaves no way to read text from a request at
   all, and the tainted result is exactly what a sink needs to see.
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers).</sub>
 
 <a id="security-sink-predicate"></a>
 

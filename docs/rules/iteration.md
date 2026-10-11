@@ -118,7 +118,7 @@ An object becomes iterable by declaring one of the two interfaces at a concrete 
 interface that turns a subscript or a count into a method call
 ([`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces)).
 
-<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators). Decided in [0280](../decisions/0280.md).</sub>
+<sub>See also [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`iteration/no-magic-collection-interfaces`](iteration.md#iteration-no-magic-collection-interfaces), [`iteration/generators`](iteration.md#iteration-generators).</sub>
 
 <a id="iteration-two-interfaces"></a>
 

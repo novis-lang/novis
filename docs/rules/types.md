@@ -1358,7 +1358,7 @@ A guarded branch is cheaper with `is` than without it: the `as` a program wrote 
 - **An `integer`-style spelling matching both integer tags.** It adds surface to hide the `int` and
   `uint` split rather than stating it, and `int|uint` already says it in the grammar a reader knows.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test).</sub>
 
 <a id="types-narrowing"></a>
 
@@ -1484,7 +1484,7 @@ conversion whose operand needs one.
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
   ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed).</sub>
 
 <a id="types-no-legacy-cast"></a>
 
