@@ -2,7 +2,6 @@
   "title": "`$x is T` tests whether a value holds a `T`, answers `bool`, and never refuses because the answer is knowable",
   "status": "shipped",
   "because": [
-    "0279",
     "0280"
   ],
   "seeAlso": [

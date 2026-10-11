@@ -138,7 +138,7 @@ writing twice the type the subject already states.
 - **An untyped `foreach ($xs as $v)` meaning `var`.** The binding would look like PHP's and mean
   something PHP does not; `var` says in the source that the type was taken.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays). Decided in [0279](../decisions/0279.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/numeric-literal-placement`](types.md#types-numeric-literal-placement), [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="types-grammar"></a>
 
@@ -1231,7 +1231,7 @@ every step out of it is an `as` a reviewer can see.
 - **`mixed` checked at its boundaries.** It would leave no way to say "this is untyped input"
   honestly, which is the one thing `mixed` is for.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test). Decided in [0279](../decisions/0279.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/grammar`](types.md#types-grammar), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/type-test`](types.md#types-type-test).</sub>
 
 <a id="types-type-test"></a>
 
@@ -1358,7 +1358,7 @@ A guarded branch is cheaper with `is` than without it: the `as` a program wrote 
 - **An `integer`-style spelling matching both integer tags.** It adds surface to hide the `int` and
   `uint` split rather than stating it, and `int|uint` already says it in the grammar a reader knows.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0280](../decisions/0280.md).</sub>
 
 <a id="types-narrowing"></a>
 
@@ -1484,7 +1484,7 @@ conversion whose operand needs one.
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
   ([`types/no-legacy-cast`](types.md#types-no-legacy-cast)).
 
-<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/implicit-widening`](types.md#types-implicit-widening), [`types/arithmetic`](types.md#types-arithmetic), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0280](../decisions/0280.md).</sub>
 
 <a id="types-no-legacy-cast"></a>
 

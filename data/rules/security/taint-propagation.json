@@ -2,7 +2,6 @@
   "title": "A tainted operand poisons every operation it takes part in, and only a checked conversion launders for free",
   "status": "shipped",
   "because": [
-    "0279",
     "0280"
   ],
   "seeAlso": [

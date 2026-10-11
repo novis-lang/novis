@@ -1113,7 +1113,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   the one level the brackets build, keyed as they keyed it (`tag[]=a&tag[]=b` is `["a", "b"]`,
   `filter[color]=red` is `["color" => "red"]`), a lone unbracketed value as a list of one, an absent name
   as `[]`, and a second level of brackets as a `ParseError` naming `queryAs`
-  ([0279](../decisions/0279.md));
+  (`rule:security/tainted-sources`);
   `post(string $name): ?tainted string` and `postArray(string $name): array<tainted string>` read a
   submitted field the same two ways, over
   those buffered parts or over a urlencoded body, and read to the **end** of the body, which is what

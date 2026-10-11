@@ -31,9 +31,18 @@ that name, so a field that is `mixed`, `object` or tainted, or one the class doe
 a subclass could, counts as outside text. Where the text would land in a type the program *wrote* — a
 shape target of `as` or `is` over a `mixed` or `object` operand or over such an object, or a `foreach`
 key or value binding — the qualifier is never added behind the declaration: a field or binding written
-without `tainted` is a diagnostic asking for `tainted {…}` or `tainted string`, and a `var` key takes
-`tainted string` itself. A literal that was stored in `mixed` and is genuinely trusted is recovered
-with `rule:security/assert-trusted`, or with the sink's own launderer.
+without `tainted` is a diagnostic asking for `tainted {…}` or `tainted string` (`E0851`), and a `var`
+key takes `tainted string` itself. `object` counts with `mixed` for a shape target because its fields
+are as untyped as `mixed`'s, so `$m as object` is no step round the rule. A shape target whose
+qualified fields are all `tainted` is admitted by `as`, and over an unchecked subject by `is`, and is
+tested with the qualifier erased; a `secret` field stays refused. A literal that was stored in `mixed`
+and is genuinely trusted, or the text of a `Stringable` object pulled out of one, is recovered with
+`rule:security/assert-trusted`, or with the sink's own launderer.
+
+The rule sits at the one boundary every `mixed` source shares — `Core\Request::json`,
+`Core\Script::args`, `Core\Session::get`, `Core\Json::decode`, `Core\Cache::get`, a row's `get`,
+`Core\Serialize::decode`, `Core\Uri::queryParameter`, a socket's or event stream's `value` — so it
+covers members not yet written as well.
 
 A checked `as` conversion to a type that already throws on a malformed shape — `as uint`, `as int`,
 `as float`, `as bool`, an enum's backing type, a set of allowed values — **removes the qualifier on
@@ -47,3 +56,18 @@ conversion out of a `?tainted string` or an `array<tainted string>`. UTF-8 valid
 whether the content is safe for a given sink, and a conversion that laundered here would be a one-word
 bypass of every rule below. All of it is decided while checking: no tag at run time, nothing on the
 request path.
+
+- **Memory:** none. The qualifier is erased before codegen; the cost is compile time, one walk of the
+  operand's type per conversion, `.`, interpolation and type test.
+
+**Declined:**
+- **Typed request accessors as the only fix.** They leave `json()`, `Core\Script::args`,
+  `Core\Session::get`, `Core\Cache::get` and a row's `get` open, and every later member answering
+  `mixed` would reopen the gap.
+- **A hidden, source-marked `mixed`** carrying an invisible "came from outside" bit. It is lost at the
+  first `mixed` parameter or property, it cannot be written in a declaration, and `tainted mixed` is
+  refused for the same reason (`rule:security/tainted-qualifier`).
+- **Tainting a written shape target or binding without `tainted` written.** The declaration would then
+  understate the value, and a type that is not what it says is worse than a long one.
+- **Refusing `as string` out of `mixed` outright.** It leaves no way to read text from a request at
+  all, and the tainted result is exactly what a sink needs to see.

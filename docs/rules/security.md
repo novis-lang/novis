@@ -1211,7 +1211,7 @@ at the cost of one written reason per call site.
   long enough that programs stop writing it, and [`security/tainted-sources`](security.md#security-tainted-sources) is only worth as much
   as the declarations that carry it forward.
 
-<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0279](../decisions/0279.md).</sub>
+<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar).</sub>
 
 <a id="security-tainted-sources"></a>
 
@@ -1245,7 +1245,7 @@ is `?tainted bytes`. The list of sources being **enumerable** is what lets the q
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0280](../decisions/0280.md).</sub>
 
 <a id="security-taint-propagation"></a>
 
@@ -1286,9 +1286,18 @@ that name, so a field that is `mixed`, `object` or tainted, or one the class doe
 a subclass could, counts as outside text. Where the text would land in a type the program *wrote* — a
 shape target of `as` or `is` over a `mixed` or `object` operand or over such an object, or a `foreach`
 key or value binding — the qualifier is never added behind the declaration: a field or binding written
-without `tainted` is a diagnostic asking for `tainted {…}` or `tainted string`, and a `var` key takes
-`tainted string` itself. A literal that was stored in `mixed` and is genuinely trusted is recovered
-with [`security/assert-trusted`](security.md#security-assert-trusted), or with the sink's own launderer.
+without `tainted` is a diagnostic asking for `tainted {…}` or `tainted string` (`E0851`), and a `var`
+key takes `tainted string` itself. `object` counts with `mixed` for a shape target because its fields
+are as untyped as `mixed`'s, so `$m as object` is no step round the rule. A shape target whose
+qualified fields are all `tainted` is admitted by `as`, and over an unchecked subject by `is`, and is
+tested with the qualifier erased; a `secret` field stays refused. A literal that was stored in `mixed`
+and is genuinely trusted, or the text of a `Stringable` object pulled out of one, is recovered with
+[`security/assert-trusted`](security.md#security-assert-trusted), or with the sink's own launderer.
+
+The rule sits at the one boundary every `mixed` source shares — `Core\Request::json`,
+`Core\Script::args`, `Core\Session::get`, `Core\Json::decode`, `Core\Cache::get`, a row's `get`,
+`Core\Serialize::decode`, `Core\Uri::queryParameter`, a socket's or event stream's `value` — so it
+covers members not yet written as well.
 
 A checked `as` conversion to a type that already throws on a malformed shape — `as uint`, `as int`,
 `as float`, `as bool`, an enum's backing type, a set of allowed values — **removes the qualifier on
@@ -1303,7 +1312,22 @@ whether the content is safe for a given sink, and a conversion that laundered he
 bypass of every rule below. All of it is decided while checking: no tag at run time, nothing on the
 request path.
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+- **Memory:** none. The qualifier is erased before codegen; the cost is compile time, one walk of the
+  operand's type per conversion, `.`, interpolation and type test.
+
+**Declined:**
+- **Typed request accessors as the only fix.** They leave `json()`, `Core\Script::args`,
+  `Core\Session::get`, `Core\Cache::get` and a row's `get` open, and every later member answering
+  `mixed` would reopen the gap.
+- **A hidden, source-marked `mixed`** carrying an invisible "came from outside" bit. It is lost at the
+  first `mixed` parameter or property, it cannot be written in a declaration, and `tainted mixed` is
+  refused for the same reason ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)).
+- **Tainting a written shape target or binding without `tainted` written.** The declaration would then
+  understate the value, and a type that is not what it says is worse than a long one.
+- **Refusing `as string` out of `mixed` outright.** It leaves no way to read text from a request at
+  all, and the tainted result is exactly what a sink needs to see.
+
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0280](../decisions/0280.md).</sub>
 
 <a id="security-sink-predicate"></a>
 

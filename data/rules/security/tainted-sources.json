@@ -2,7 +2,6 @@
   "title": "Every accessor that hands a program bytes from outside answers the `tainted` form, and the list of them is enumerable",
   "status": "shipped",
   "because": [
-    "0279",
     "0280"
   ],
   "seeAlso": [
@@ -15,6 +14,7 @@
     "tests/conformance/reject/a-response-body-is-tainted-and-its-status-is-not.nvst",
     "tests/conformance/core/env-a-variable-name-is-a-sink-and-every-value-is-tainted.nvst",
     "tests/conformance/core/request-query-and-post-read-one-field-as-tainted-text.nvst",
-    "tests/conformance/reject/request-field-text-into-a-query-is-refused.nvst"
+    "tests/conformance/reject/request-field-text-into-a-query-is-refused.nvst",
+    "tests/conformance/reject/db-row-text-readers-answer-tainted-text.nvst"
   ]
 }

@@ -1,9 +1,7 @@
 {
   "title": "`tainted` is a compile-time qualifier on `string`, `bytes` and a shape of them, spellable in any declaration and erased before codegen",
   "status": "shipped",
-  "because": [
-    "0279"
-  ],
+  "because": [],
   "seeAlso": [
     "security/tainted-sources",
     "security/taint-propagation",
