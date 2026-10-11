@@ -15,13 +15,13 @@ var $point = new Point();
 var $described = Core\Reflect::forObject($point);
 mixed $x = $described->get($point, "x");
 mixed $label = $described->get($point, "label");
-echo Core\Reflect::typeOf($x) == Core\Reflect\TypeKind::Int ? "x int\n" : "x other\n";
-echo Core\Reflect::typeOf($label) == Core\Reflect\TypeKind::Text ? "label text\n" : "label other\n";
+echo Core\Reflect::typeOf($x) == Core\Reflect::TypeKind::Int ? "x int\n" : "x other\n";
+echo Core\Reflect::typeOf($label) == Core\Reflect::TypeKind::Text ? "label text\n" : "label other\n";
 
 // A description is an ordinary object, which is why it has no `Object`-shaped
 // exception here: a `Core`-owned instance answers the same case a program's
 // own instance does.
-echo Core\Reflect::typeOf($described) == Core\Reflect\TypeKind::Object ? "description object\n" : "description other\n";
+echo Core\Reflect::typeOf($described) == Core\Reflect::TypeKind::Object ? "description object\n" : "description other\n";
 
 // The two doors meet on the name: whatever a description answers is a name
 // `forClass` accepts. This is the pairing that would break first if either

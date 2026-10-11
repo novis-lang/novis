@@ -24345,7 +24345,7 @@ Keywords: forClass, forObject, typeOf
 |---|---|
 | [`Core\Reflect::forClass`](#core-core-reflect-forclass) | `forClass(string $name): ?Core\Reflect\ClassInfo` |
 | [`Core\Reflect::forObject`](#core-core-reflect-forobject) | `forObject(mixed $object): Core\Reflect\ClassInfo` |
-| [`Core\Reflect::typeOf`](#core-core-reflect-typeof) | `typeOf(mixed $value): Core\Reflect\TypeKind` |
+| [`Core\Reflect::typeOf`](#core-core-reflect-typeof) | `typeOf(mixed $value): Core\Reflect::TypeKind` |
 
 <a id="core-core-reflect-forclass"></a>
 #### `Core\Reflect::forClass`
@@ -24383,7 +24383,7 @@ Describes `$object`'s class — its name, and the properties code outside the cl
 #### `Core\Reflect::typeOf`
 
 ```nvs skip
-Core\Reflect::typeOf(mixed $value): Core\Reflect\TypeKind
+Core\Reflect::typeOf(mixed $value): Core\Reflect::TypeKind
 ```
 
 Returns the kind of value `$value` is right now. Use it on a `mixed` value.
@@ -24392,7 +24392,7 @@ Returns the kind of value `$value` is right now. Use it on a `mixed` value.
 |---|---|---|
 | `$value` | `mixed` | The value to ask about. On anything but a `mixed` the checker already knows the answer, so the interesting receiver is the one whose type was erased. |
 
-**Returns** `Core\Reflect\TypeKind` — One `Core\Reflect\TypeKind` case — exactly one, since the cases partition the representations rather than overlapping the way `is_scalar` and `is_int` do.
+**Returns** `Core\Reflect::TypeKind` — One `Core\Reflect::TypeKind` case — exactly one, since the cases partition the representations rather than overlapping the way `is_scalar` and `is_int` do.
 
 <a id="core-core-reflect-classinfo"></a>
 ### `Core\Reflect\ClassInfo`
@@ -29501,22 +29501,22 @@ Which shell `Core\Command::completions` writes a completion script for. Four cas
 | `Core\Command::Shell::Pwsh` | PowerShell — 7 and Windows PowerShell alike, whose script calls `Register-ArgumentCompleter`. |
 
 <a id="enum-core-reflect-typekind"></a>
-#### `Core\Reflect\TypeKind`
+#### `Core\Reflect::TypeKind`
 
 What a value is, once its static type is gone — ten cases, one per representation the runtime has, and every value is in exactly one of them.
 
 | Case | Meaning |
 |---|---|
-| `Core\Reflect\TypeKind::Null` | The `null` value; what `is_null` asked. |
-| `Core\Reflect\TypeKind::Bool` | A `bool`, `true` or `false` alike. |
-| `Core\Reflect\TypeKind::Int` | A signed `int`. |
-| `Core\Reflect\TypeKind::Uint` | An unsigned `uint`. It is a type of its own, so it has a case of its own. |
-| `Core\Reflect\TypeKind::Float` | A `float`; what `is_float` and its `is_double` alias asked. |
-| `Core\Reflect\TypeKind::Decimal` | A `decimal` — the exact scalar, and never a `float` that happens to be round. |
-| `Core\Reflect\TypeKind::Text` | A `string`, which is UTF-8 by the language's own guarantee; what `is_string` asked. |
-| `Core\Reflect\TypeKind::Bytes` | A `bytes` value. It is like `Text`, but its content does not have to be valid UTF-8. |
-| `Core\Reflect\TypeKind::Array` | An `array<T>`; what `is_array`, `is_iterable` and `is_countable` between them asked. |
-| `Core\Reflect\TypeKind::Object` | A class instance. A callable is also an object here, so there is no `Callable` case. |
+| `Core\Reflect::TypeKind::Null` | The `null` value; what `is_null` asked. |
+| `Core\Reflect::TypeKind::Bool` | A `bool`, `true` or `false` alike. |
+| `Core\Reflect::TypeKind::Int` | A signed `int`. |
+| `Core\Reflect::TypeKind::Uint` | An unsigned `uint`. It is a type of its own, so it has a case of its own. |
+| `Core\Reflect::TypeKind::Float` | A `float`; what `is_float` and its `is_double` alias asked. |
+| `Core\Reflect::TypeKind::Decimal` | A `decimal` — the exact scalar, and never a `float` that happens to be round. |
+| `Core\Reflect::TypeKind::Text` | A `string`, which is UTF-8 by the language's own guarantee; what `is_string` asked. |
+| `Core\Reflect::TypeKind::Bytes` | A `bytes` value. It is like `Text`, but its content does not have to be valid UTF-8. |
+| `Core\Reflect::TypeKind::Array` | An `array<T>`; what `is_array`, `is_iterable` and `is_countable` between them asked. |
+| `Core\Reflect::TypeKind::Object` | A class instance. A callable is also an object here, so there is no `Callable` case. |
 
 <a id="enum-core-io-filemode"></a>
 #### `Core\IO\FileMode`

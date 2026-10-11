@@ -15,7 +15,6 @@ use nvs_stdlib::registry::{CLASSES, Const, CoreEnum, CoreTy, ENUMS};
 /// empty when every move has landed.
 const NOT_YET_MOVED: &[&str] = &[
     r"Core\Weekday",
-    r"Core\Reflect\TypeKind",
     r"Core\IO\FileMode",
     r"Core\Cldr\PluralCategory",
     r"Core\Script\ExitReason",

@@ -422,13 +422,13 @@ const TYPE_OF_DOC: MethodDoc = MethodDoc {
                answer, so the interesting receiver is the one whose type was erased.",
         shape: &[],
     }],
-    ret: "One `Core\\Reflect\\TypeKind` case — exactly one, since the cases partition the \
+    ret: "One `Core\\Reflect::TypeKind` case — exactly one, since the cases partition the \
           representations rather than overlapping the way `is_scalar` and `is_int` do.",
     errors: &[],
 };
 
 /// [`TYPE_KIND`]'s name, as a program writes it.
-pub(crate) const TYPE_KIND_NAME: &str = r"Core\Reflect\TypeKind";
+pub(crate) const TYPE_KIND_NAME: &str = r"Core\Reflect::TypeKind";
 
 /// The answer [`nvs_core_reflect_type_of`] gives — one case per representation
 /// a value can be in.
@@ -2130,7 +2130,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Reflect::typeOf(mixed $value): Core\Reflect\TypeKind` — the one
+    /// `Core\Reflect::typeOf(mixed $value): Core\Reflect::TypeKind` — the one
     /// question that survives type erasure, and so the one replacement for
     /// fourteen predicates that each asked a piece of it.
     ///

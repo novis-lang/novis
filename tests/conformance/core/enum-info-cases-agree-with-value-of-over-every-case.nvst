@@ -45,7 +45,7 @@ if ($found != null) {
 
 // A `Core` enum is seeded into the same table the program's own declarations
 // land in, so it is described the same way and needs no second door.
-?Core\Reflect\EnumInfo $core = Core\Reflect\EnumInfo::of("Core\\Reflect\\TypeKind");
+?Core\Reflect\EnumInfo $core = Core\Reflect\EnumInfo::of("Core\\Reflect::TypeKind");
 echo $core == null ? "absent" : "present", "\n";
 --EXPECT--
 4

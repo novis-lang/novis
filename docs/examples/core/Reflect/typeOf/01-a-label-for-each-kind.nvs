@@ -4,19 +4,19 @@
 class Kind {
     public static function label(mixed $value): string {
         var $kind = Core\Reflect::typeOf($value);
-        if ($kind == Core\Reflect\TypeKind::Int) {
+        if ($kind == Core\Reflect::TypeKind::Int) {
             return "a whole number";
         }
-        if ($kind == Core\Reflect\TypeKind::Float) {
+        if ($kind == Core\Reflect::TypeKind::Float) {
             return "a float";
         }
-        if ($kind == Core\Reflect\TypeKind::Text) {
+        if ($kind == Core\Reflect::TypeKind::Text) {
             return "a string";
         }
-        if ($kind == Core\Reflect\TypeKind::Bool) {
+        if ($kind == Core\Reflect::TypeKind::Bool) {
             return "true or false";
         }
-        if ($kind == Core\Reflect\TypeKind::Null) {
+        if ($kind == Core\Reflect::TypeKind::Null) {
             return "null";
         }
         return "something else";

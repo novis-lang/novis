@@ -56,9 +56,9 @@ try {
 // constant.
 mixed $value = 7;
 string $kind = match (Core\Reflect::typeOf($value)) {
-    Core\Reflect\TypeKind::Int => 'int',
-    Core\Reflect\TypeKind::Float => 'float',
-    Core\Reflect\TypeKind::Text => 'string',
+    Core\Reflect::TypeKind::Int => 'int',
+    Core\Reflect::TypeKind::Float => 'float',
+    Core\Reflect::TypeKind::Text => 'string',
     default => 'other',
 };
 echo 'kind=', $kind, "\n";

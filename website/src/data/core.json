@@ -30263,7 +30263,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "typeOf(mixed $value): Core\\Reflect\\TypeKind",
+          "signature": "typeOf(mixed $value): Core\\Reflect::TypeKind",
           "params": [
             {
               "kind": "param",
@@ -30275,7 +30275,7 @@
             }
           ],
           "options": [],
-          "returnType": "Core\\Reflect\\TypeKind",
+          "returnType": "Core\\Reflect::TypeKind",
           "notes": "",
           "qualifier": "",
           "section": "13. Compiler-facing surfaces",
@@ -30289,7 +30289,7 @@
                 "descHtml": "The value to ask about. On anything but a <code>mixed</code> the checker already knows the answer, so the interesting receiver is the one whose type was erased."
               }
             ],
-            "returnHtml": "One <code>Core\\Reflect\\TypeKind</code> case — exactly one, since the cases partition the representations rather than overlapping the way <code>is_scalar</code> and <code>is_int</code> do."
+            "returnHtml": "One <code>Core\\Reflect::TypeKind</code> case — exactly one, since the cases partition the representations rather than overlapping the way <code>is_scalar</code> and <code>is_int</code> do."
           },
           "slug": "typeof",
           "url": "/reference/core/reflect/typeof/",

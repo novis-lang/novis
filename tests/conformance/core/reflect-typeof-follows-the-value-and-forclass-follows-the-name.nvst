@@ -6,11 +6,11 @@
 // it is only meaningful on a `mixed`: one variable answers a different case
 // after each assignment.
 mixed $slot = 7;
-echo Core\Reflect::typeOf($slot) == Core\Reflect\TypeKind::Int ? "int\n" : "other\n";
+echo Core\Reflect::typeOf($slot) == Core\Reflect::TypeKind::Int ? "int\n" : "other\n";
 $slot = "seven";
-echo Core\Reflect::typeOf($slot) == Core\Reflect\TypeKind::Text ? "text\n" : "other\n";
+echo Core\Reflect::typeOf($slot) == Core\Reflect::TypeKind::Text ? "text\n" : "other\n";
 $slot = null;
-echo Core\Reflect::typeOf($slot) == Core\Reflect\TypeKind::Null ? "null\n" : "other\n";
+echo Core\Reflect::typeOf($slot) == Core\Reflect::TypeKind::Null ? "null\n" : "other\n";
 
 // The same question asked of every element of an `array<mixed>`: a container
 // does not flatten what it holds, so this counts the answers rather than
@@ -20,15 +20,15 @@ array<mixed> $mixture = [1, "two", 3, true];
 int $ints = 0;
 int $texts = 0;
 foreach ($mixture as mixed $element) {
-    if (Core\Reflect::typeOf($element) == Core\Reflect\TypeKind::Int) {
+    if (Core\Reflect::typeOf($element) == Core\Reflect::TypeKind::Int) {
         $ints = $ints + 1;
     }
-    if (Core\Reflect::typeOf($element) == Core\Reflect\TypeKind::Text) {
+    if (Core\Reflect::typeOf($element) == Core\Reflect::TypeKind::Text) {
         $texts = $texts + 1;
     }
 }
 echo "ints=", $ints, " texts=", $texts, "\n";
-echo Core\Reflect::typeOf($mixture) == Core\Reflect\TypeKind::Array ? "container array\n" : "container other\n";
+echo Core\Reflect::typeOf($mixture) == Core\Reflect::TypeKind::Array ? "container array\n" : "container other\n";
 
 // `forClass` describes the class the *name* declares. Slot order is every
 // ancestor's first and then the class's own, so a subclass's description

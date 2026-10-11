@@ -13,7 +13,7 @@ class Bench {
             // Which value is checked comes from last round's total,
             // so no round can be reused.
             mixed $value = $values[($total % 4) as int];
-            if (Core\Reflect::typeOf($value) == Core\Reflect\TypeKind::Text) {
+            if (Core\Reflect::typeOf($value) == Core\Reflect::TypeKind::Text) {
                 $total = $total + 3;
             } else {
                 $total = $total + 1;

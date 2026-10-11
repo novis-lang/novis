@@ -9,11 +9,11 @@ while ($level < 100000) {
     $deep = [$deep];
     $level = $level + 1;
 }
-echo Core\Reflect::typeOf($deep) == Core\Reflect\TypeKind::Array ? 'array' : 'wrong', "\n";
+echo Core\Reflect::typeOf($deep) == Core\Reflect::TypeKind::Array ? 'array' : 'wrong', "\n";
 
 // 2. A string of 16 million characters. The result is `Text`.
 mixed $long = Core\Str::repeat('x', 16000000);
-echo Core\Reflect::typeOf($long) == Core\Reflect\TypeKind::Text ? 'text' : 'wrong', "\n";
+echo Core\Reflect::typeOf($long) == Core\Reflect::TypeKind::Text ? 'text' : 'wrong', "\n";
 
 // 3. An array with one million elements. The result is `Array`.
 array<int> $wide = [];
@@ -23,16 +23,16 @@ while ($i < 1000000) {
     $i = $i + 1;
 }
 mixed $many = $wide;
-echo Core\Reflect::typeOf($many) == Core\Reflect\TypeKind::Array ? 'array' : 'wrong', "\n";
+echo Core\Reflect::typeOf($many) == Core\Reflect::TypeKind::Array ? 'array' : 'wrong', "\n";
 
 // 4. Two million calls over five kinds of value. Every answer is checked.
 array<mixed> $values = [0, '', null, false, $deep];
-array<Core\Reflect\TypeKind> $expected = [
-    Core\Reflect\TypeKind::Int,
-    Core\Reflect\TypeKind::Text,
-    Core\Reflect\TypeKind::Null,
-    Core\Reflect\TypeKind::Bool,
-    Core\Reflect\TypeKind::Array,
+array<Core\Reflect::TypeKind> $expected = [
+    Core\Reflect::TypeKind::Int,
+    Core\Reflect::TypeKind::Text,
+    Core\Reflect::TypeKind::Null,
+    Core\Reflect::TypeKind::Bool,
+    Core\Reflect::TypeKind::Array,
 ];
 uint $wrong = 0;
 int $n = 0;

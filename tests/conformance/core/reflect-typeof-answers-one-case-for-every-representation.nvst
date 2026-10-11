@@ -7,20 +7,20 @@
 // representations, so the `match` below needs no `default`: every value
 // reaches exactly one arm, which is what makes one call the replacement for
 // PHP's fourteen `is_*` predicates plus `gettype`.
-// covers: Core\Reflect\TypeKind
+// covers: Core\Reflect::TypeKind
 class Kind {
     public static function of(mixed $value): string {
         return match (Core\Reflect::typeOf($value)) {
-            Core\Reflect\TypeKind::Null => "null",
-            Core\Reflect\TypeKind::Bool => "bool",
-            Core\Reflect\TypeKind::Int => "int",
-            Core\Reflect\TypeKind::Uint => "uint",
-            Core\Reflect\TypeKind::Float => "float",
-            Core\Reflect\TypeKind::Decimal => "decimal",
-            Core\Reflect\TypeKind::Text => "text",
-            Core\Reflect\TypeKind::Bytes => "bytes",
-            Core\Reflect\TypeKind::Array => "array",
-            Core\Reflect\TypeKind::Object => "object",
+            Core\Reflect::TypeKind::Null => "null",
+            Core\Reflect::TypeKind::Bool => "bool",
+            Core\Reflect::TypeKind::Int => "int",
+            Core\Reflect::TypeKind::Uint => "uint",
+            Core\Reflect::TypeKind::Float => "float",
+            Core\Reflect::TypeKind::Decimal => "decimal",
+            Core\Reflect::TypeKind::Text => "text",
+            Core\Reflect::TypeKind::Bytes => "bytes",
+            Core\Reflect::TypeKind::Array => "array",
+            Core\Reflect::TypeKind::Object => "object",
         };
     }
 }

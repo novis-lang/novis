@@ -1367,7 +1367,7 @@ A guarded branch is cheaper with `is` than without it: the `as` a program wrote 
 - **`array<T>` accepted only in its bare form, to keep every test O(1).** `as array<T>` already
   performs the same walk and is accepted, so refusing the spelling that does not throw optimises
   nothing and misstates the cost.
-- **`is callable` refused, by analogy with `Core\Reflect\TypeKind` having no `Callable` case.**
+- **`is callable` refused, by analogy with `Core\Reflect::TypeKind` having no `Callable` case.**
   `TypeKind`'s cases partition the tag space, and a closure is already an `Object`. `is` has no
   partition to keep, and overlapping questions are what an operator over the type grammar is for.
 - **An `integer`-style spelling matching both integer tags.** It adds surface to hide the `int` and

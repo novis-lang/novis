@@ -5,12 +5,12 @@
 class Kind {
     public static function of(mixed $value): string {
         return match (Core\Reflect::typeOf($value)) {
-            Core\Reflect\TypeKind::Int => "Int",
-            Core\Reflect\TypeKind::Uint => "Uint",
-            Core\Reflect\TypeKind::Float => "Float",
-            Core\Reflect\TypeKind::Decimal => "Decimal",
-            Core\Reflect\TypeKind::Text => "Text",
-            Core\Reflect\TypeKind::Bytes => "Bytes",
+            Core\Reflect::TypeKind::Int => "Int",
+            Core\Reflect::TypeKind::Uint => "Uint",
+            Core\Reflect::TypeKind::Float => "Float",
+            Core\Reflect::TypeKind::Decimal => "Decimal",
+            Core\Reflect::TypeKind::Text => "Text",
+            Core\Reflect::TypeKind::Bytes => "Bytes",
             default => "something else",
         };
     }
