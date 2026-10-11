@@ -98,10 +98,10 @@ use crate::registry::{
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
 
-/// `Core\NormalForm`'s fully-qualified name, written once for
+/// `Core\Str::NormalForm`'s fully-qualified name, written once for
 /// [`NORMAL_FORM`], for the registry row that takes one, and for the message
 /// quoting it.
-pub(crate) const NORMAL_FORM_NAME: &str = r"Core\NormalForm";
+pub(crate) const NORMAL_FORM_NAME: &str = r"Core\Str::NormalForm";
 
 /// `Core\Str::length`'s reference card (`rule:core-api/reference-card`) — the first member
 /// documented in the registry, and the simplest: one parameter, no options,
@@ -3756,7 +3756,7 @@ enum NormalForm {
     Nfkd,
 }
 
-/// The `Core\NormalForm` case in slot 1, or the `FATAL` a value that is no
+/// The `Core\Str::NormalForm` case in slot 1, or the `FATAL` a value that is no
 /// case is.
 ///
 /// # Errors
@@ -3772,7 +3772,7 @@ fn normal_form_of(value: &Value) -> Result<NormalForm, Fault> {
         Some(3) => Ok(NormalForm::Nfkd),
         // Unreachable from source: `normalize`'s parameter 1 is
         // `CoreTy::Enum(NORMAL_FORM_NAME)` in `CLASS` above, so a value that
-        // is no case is `E0401: expected Core\NormalForm, found …` at the
+        // is no case is `E0401: expected Core\Str::NormalForm, found …` at the
         // checker — probed with a `mixed` binding and with the bare `int`
         // literal `1`, which is the near miss worth checking since the
         // discriminant compiled code writes for a case is exactly an integer.

@@ -18,31 +18,31 @@ int $canonRT = 0;
 int $square = 0;
 int $kLossless = 0;
 foreach ($rows as string $s) {
-    string $c = Core\Str::normalize($s, Core\NormalForm::Nfc);
-    string $d = Core\Str::normalize($s, Core\NormalForm::Nfd);
-    string $kc = Core\Str::normalize($s, Core\NormalForm::Nfkc);
-    string $kd = Core\Str::normalize($s, Core\NormalForm::Nfkd);
+    string $c = Core\Str::normalize($s, Core\Str::NormalForm::Nfc);
+    string $d = Core\Str::normalize($s, Core\Str::NormalForm::Nfd);
+    string $kc = Core\Str::normalize($s, Core\Str::NormalForm::Nfkc);
+    string $kd = Core\Str::normalize($s, Core\Str::NormalForm::Nfkd);
     // Every form is a fixed point of itself — 36 of them, four per row. A
     // normalization that is not idempotent is not a normalization.
-    if (Core\Str::normalize($c, Core\NormalForm::Nfc) == $c) { $idem = $idem + 1; }
-    if (Core\Str::normalize($d, Core\NormalForm::Nfd) == $d) { $idem = $idem + 1; }
-    if (Core\Str::normalize($kc, Core\NormalForm::Nfkc) == $kc) { $idem = $idem + 1; }
-    if (Core\Str::normalize($kd, Core\NormalForm::Nfkd) == $kd) { $idem = $idem + 1; }
+    if (Core\Str::normalize($c, Core\Str::NormalForm::Nfc) == $c) { $idem = $idem + 1; }
+    if (Core\Str::normalize($d, Core\Str::NormalForm::Nfd) == $d) { $idem = $idem + 1; }
+    if (Core\Str::normalize($kc, Core\Str::NormalForm::Nfkc) == $kc) { $idem = $idem + 1; }
+    if (Core\Str::normalize($kd, Core\Str::NormalForm::Nfkd) == $kd) { $idem = $idem + 1; }
     // The compatibility axis absorbs the canonical one: normalizing
     // canonically first changes nothing a `K` form then does.
-    if (Core\Str::normalize($c, Core\NormalForm::Nfkc) == $kc) { $kAbsorbs = $kAbsorbs + 1; }
-    if (Core\Str::normalize($d, Core\NormalForm::Nfkd) == $kd) { $kAbsorbs = $kAbsorbs + 1; }
+    if (Core\Str::normalize($c, Core\Str::NormalForm::Nfkc) == $kc) { $kAbsorbs = $kAbsorbs + 1; }
+    if (Core\Str::normalize($d, Core\Str::NormalForm::Nfkd) == $kd) { $kAbsorbs = $kAbsorbs + 1; }
     // The canonical pair is lossless in both directions, on every row.
-    if (Core\Str::normalize($d, Core\NormalForm::Nfc) == $c) { $canonRT = $canonRT + 1; }
-    if (Core\Str::normalize($c, Core\NormalForm::Nfd) == $d) { $canonRT = $canonRT + 1; }
+    if (Core\Str::normalize($d, Core\Str::NormalForm::Nfc) == $c) { $canonRT = $canonRT + 1; }
+    if (Core\Str::normalize($c, Core\Str::NormalForm::Nfd) == $d) { $canonRT = $canonRT + 1; }
     // The axes really are independent, which is UAX #15's own definition of
     // the composed `K` form: decompose compatibly, then compose canonically.
-    if (Core\Str::normalize($kd, Core\NormalForm::Nfc) == $kc) { $square = $square + 1; }
+    if (Core\Str::normalize($kd, Core\Str::NormalForm::Nfc) == $kc) { $square = $square + 1; }
     // And the compatibility axis is *not* lossless: composing back out of a
     // `K` form recovers the original on only five of the nine — the four
     // carrying a compatibility character have had a distinction discarded,
     // which is why the doc calls a `K` form a key rather than a rendering.
-    if (Core\Str::normalize($kc, Core\NormalForm::Nfc) == $c) { $kLossless = $kLossless + 1; }
+    if (Core\Str::normalize($kc, Core\Str::NormalForm::Nfc) == $c) { $kLossless = $kLossless + 1; }
 }
 echo $idem, " ", $kAbsorbs, " ", $canonRT, " ", $square, " ", $kLossless, " of ", Core\Arr::count($rows), "\n";
 
@@ -51,10 +51,10 @@ echo $idem, " ", $kAbsorbs, " ", $canonRT, " ", $square, " ", $kLossless, " of "
 array<string> $ascii = ["plain ascii", "", "1st", "A-Z"];
 int $same = 0;
 foreach ($ascii as string $a) {
-    if (Core\Str::normalize($a, Core\NormalForm::Nfc) == $a) { $same = $same + 1; }
-    if (Core\Str::normalize($a, Core\NormalForm::Nfd) == $a) { $same = $same + 1; }
-    if (Core\Str::normalize($a, Core\NormalForm::Nfkc) == $a) { $same = $same + 1; }
-    if (Core\Str::normalize($a, Core\NormalForm::Nfkd) == $a) { $same = $same + 1; }
+    if (Core\Str::normalize($a, Core\Str::NormalForm::Nfc) == $a) { $same = $same + 1; }
+    if (Core\Str::normalize($a, Core\Str::NormalForm::Nfd) == $a) { $same = $same + 1; }
+    if (Core\Str::normalize($a, Core\Str::NormalForm::Nfkc) == $a) { $same = $same + 1; }
+    if (Core\Str::normalize($a, Core\Str::NormalForm::Nfkd) == $a) { $same = $same + 1; }
 }
 echo $same, " of ", Core\Arr::count($ascii) * 4, "\n";
 --EXPECT--

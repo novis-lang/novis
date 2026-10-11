@@ -12,6 +12,6 @@ echo "the same text: ", (Core\Str::compare($typed, $pasted) == 0) ? "yes" : "no"
 
 // Putting both into the same form is what makes the comparison honest. `Nfc`
 // is the form to use for text you are storing and comparing.
-string $one = Core\Str::normalize($typed, Core\NormalForm::Nfc);
-string $other = Core\Str::normalize($pasted, Core\NormalForm::Nfc);
+string $one = Core\Str::normalize($typed, Core\Str::NormalForm::Nfc);
+string $other = Core\Str::normalize($pasted, Core\Str::NormalForm::Nfc);
 echo "the same text once normalized: ", (Core\Str::compare($one, $other) == 0) ? "yes" : "no", "\n";

@@ -31,7 +31,7 @@ if (Core\Str::trimStart($empty) == $empty) { $fixed = $fixed + 1; }
 
 // UAX #15 over the empty sequence — every normal form of nothing is nothing.
 $asked = $asked + 1;
-if (Core\Str::normalize($empty, Core\NormalForm::Nfc) == $empty) { $fixed = $fixed + 1; }
+if (Core\Str::normalize($empty, Core\Str::NormalForm::Nfc) == $empty) { $fixed = $fixed + 1; }
 
 // A pair table with nowhere to match it.
 $asked = $asked + 1;

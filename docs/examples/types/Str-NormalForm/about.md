@@ -4,6 +4,9 @@ Some characters can be written in more than one way. `é` can be a single charac
 followed by a mark that adds the accent. The two look identical on screen and are not the same text,
 so a comparison says they differ and a search for one does not find the other.
 
+`Core\Str::NormalForm` is declared in the class `Core\Str`. `Core\Str::normalize` takes it as its
+second argument.
+
 **In plain words:** normalizing is agreeing on one spelling before you store text or compare it.
 
 `Nfc` composes, so `é` becomes one character, and it is the form to store and compare in. `Nfd` goes

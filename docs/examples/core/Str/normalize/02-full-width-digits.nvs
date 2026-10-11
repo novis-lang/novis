@@ -9,6 +9,6 @@ string $typed = "１２３";
 echo ($typed as ?int) ?? 0, "\n";
 
 // After `Nfkc`, the text is `123`. This prints `123` and then `124`.
-string $digits = Core\Str::normalize($typed, Core\NormalForm::Nfkc);
+string $digits = Core\Str::normalize($typed, Core\Str::NormalForm::Nfkc);
 echo $digits, "\n";
 echo (($digits as ?int) ?? 0) + 1, "\n";

@@ -6,7 +6,7 @@ followed by an accent mark. Both look the same on the screen, but they are diffe
 `==` and `Core\Str::contains` treat them as different.
 
 `Core\Str::normalize` takes a string and a form, and returns the string in that form. There are
-four forms in `Core\NormalForm`. `Nfc` writes `é` as one character, and it is the form to use when
+four forms in `Core\Str::NormalForm`. `Nfc` writes `é` as one character, and it is the form to use when
 you store and compare text. `Nfd` writes it as two. `Nfkc` and `Nfkd` also replace characters that
 only look like others: full-width `１` becomes `1`, and `ﬁ` becomes `fi`. That change cannot be
 undone.

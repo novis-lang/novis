@@ -10,6 +10,6 @@ string $search = "café";
 echo Core\Str::contains($review, $search) ? "true" : "false", "\n";
 
 // `Nfc` changes both strings to the same form. This prints `true`.
-string $text = Core\Str::normalize($review, Core\NormalForm::Nfc);
-string $word = Core\Str::normalize($search, Core\NormalForm::Nfc);
+string $text = Core\Str::normalize($review, Core\Str::NormalForm::Nfc);
+string $word = Core\Str::normalize($search, Core\Str::NormalForm::Nfc);
 echo Core\Str::contains($text, $word) ? "true" : "false", "\n";

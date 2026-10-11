@@ -5,10 +5,10 @@
 string $subject = "ﬁancé";
 
 array<string> $forms = ["as typed" => $subject];
-$forms["Nfc"] = Core\Str::normalize($subject, Core\NormalForm::Nfc);
-$forms["Nfd"] = Core\Str::normalize($subject, Core\NormalForm::Nfd);
-$forms["Nfkc"] = Core\Str::normalize($subject, Core\NormalForm::Nfkc);
-$forms["Nfkd"] = Core\Str::normalize($subject, Core\NormalForm::Nfkd);
+$forms["Nfc"] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfc);
+$forms["Nfd"] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfd);
+$forms["Nfkc"] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfkc);
+$forms["Nfkd"] = Core\Str::normalize($subject, Core\Str::NormalForm::Nfkd);
 
 foreach ($forms as string $name => string $text) {
     echo $name, ": ", $text, " (", Core\Str::length($text), " characters)\n";

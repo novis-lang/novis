@@ -6,7 +6,7 @@ class Names {
     // `key` returns the name for comparing, not for showing. It lowercases the name,
     // and `Nfkc` writes accents and look-alike characters in one standard way.
     public static function key(string $name): string {
-        return Core\Str::normalize(Core\Str::lower($name), Core\NormalForm::Nfkc);
+        return Core\Str::normalize(Core\Str::lower($name), Core\Str::NormalForm::Nfkc);
     }
 }
 

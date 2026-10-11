@@ -9,21 +9,21 @@ class Attack
     /// 1. Changes one million `ﷺ` with `Nfkd`. Each one becomes eighteen characters.
     public static function aTextThatGrows(uint $size): uint
     {
-        return Core\Str::length(Core\Str::normalize(Core\Str::repeat('ﷺ', $size), Core\NormalForm::Nfkd));
+        return Core\Str::length(Core\Str::normalize(Core\Str::repeat('ﷺ', $size), Core\Str::NormalForm::Nfkd));
     }
 
     /// 2. Puts two million accent marks after one letter, so all of them must be sorted as one group.
     public static function manyAccentsOnOneLetter(uint $size): uint
     {
         string $marks = Core\Str::repeat(Core\Str::fromCodePoints([769, 790]), $size);
-        return Core\Str::length(Core\Str::normalize('a' . $marks, Core\NormalForm::Nfc));
+        return Core\Str::length(Core\Str::normalize('a' . $marks, Core\Str::NormalForm::Nfc));
     }
 
     /// 3. Splits one million Korean syllables into their parts, and joins them again.
     public static function koreanAndBack(uint $size): uint
     {
-        string $parts = Core\Str::normalize(Core\Str::repeat('한글', $size), Core\NormalForm::Nfd);
-        return Core\Str::length(Core\Str::normalize($parts, Core\NormalForm::Nfc));
+        string $parts = Core\Str::normalize(Core\Str::repeat('한글', $size), Core\Str::NormalForm::Nfd);
+        return Core\Str::length(Core\Str::normalize($parts, Core\Str::NormalForm::Nfc));
     }
 
     /// 4. Changes a short word one million times and keeps none of the results.
@@ -32,7 +32,7 @@ class Attack
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            $total = $total + Core\Str::length(Core\Str::normalize('ﬁancé', Core\NormalForm::Nfkc));
+            $total = $total + Core\Str::length(Core\Str::normalize('ﬁancé', Core\Str::NormalForm::Nfkc));
             $i = $i + 1;
         }
         return $total;
@@ -43,7 +43,7 @@ class Attack
     public static function tooLarge(uint $size): uint
     {
         echo "step 5\n";
-        return Core\Str::length(Core\Str::normalize(Core\Str::repeat('ﷺ', $size), Core\NormalForm::Nfkd));
+        return Core\Str::length(Core\Str::normalize(Core\Str::repeat('ﷺ', $size), Core\Str::NormalForm::Nfkd));
     }
 }
 

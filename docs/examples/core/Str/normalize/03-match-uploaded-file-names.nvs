@@ -6,7 +6,7 @@
 class FileNames {
     // Changes a name to `Nfc`, the form to store and compare text in.
     public static function key(string $name): string {
-        return Core\Str::normalize($name, Core\NormalForm::Nfc);
+        return Core\Str::normalize($name, Core\Str::NormalForm::Nfc);
     }
 }
 
