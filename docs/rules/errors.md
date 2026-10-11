@@ -532,7 +532,12 @@ every record would need a walk of Novis's own frame chain and is not bought here
 The cost stays where [`errors/propagation`](errors.md#errors-propagation) put it. A `source` is read at the call that produces a
 record, never maintained as running state, so no path that produces no record pays anything for it.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/propagation`](errors.md#errors-propagation), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active). Decided in [0165](../decisions/0165.md).</sub>
+**Declined:**
+- **A current-location word maintained in the context.** It is a store on every statement to serve
+  the rare statement that produces a record, where a constant read at that call costs nothing
+  elsewhere.
+
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/propagation`](errors.md#errors-propagation), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active).</sub>
 
 <a id="errors-record-transformations"></a>
 
@@ -789,7 +794,7 @@ collapses a run into one row saying how many it stands for, which expands.
 
 **The log target's window is a small fixed table, not the floor's single slot.** The floor keeps one
 because a fault loop repeats one record; application code interleaves, and a single slot coalesces
-none of that. Memory stays a constant, just a larger one.
+none of that.
 
 The identity is the floor's: `ts`, `request_id`, `trace_id`, `span_id` and any existing `count` are
 cleared before hashing, because those are what distinguish two occurrences of one thing. Everything
@@ -800,7 +805,20 @@ window closes carries how many it stands for.
 Coalescing bounds what is *stored*, not what is *spent*: a duplicate is only known to be one after
 its record has been built and rendered, so a loop still pays for every record it makes.
 
-<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking). Decided in [0165](../decisions/0165.md).</sub>
+- **Memory:** each worker thread holds one fixed table of `LOG_WINDOW_SLOTS` windows
+  (`crates/nvs-runtime/src/floor.rs`), whatever the program writes. A record below `[log] level`
+  takes no slot.
+
+**Declined:**
+- **One coalescing policy for every sink.** The floor, a disk-bounded log and an index protect
+  different things, and one policy would either fill a disk or discard what a developer went looking
+  for.
+- **A per-call-site rate limit.** It is the only option that makes a hot loop cheap rather than
+  merely quiet, but it drops records that differ, which is a change of meaning rather than an
+  optimisation. Nothing measured asks for it. Taking it would need a shed record to increment an
+  exported counter, as [`errors/log-fields`](errors.md#errors-log-fields) already requires.
+
+<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking).</sub>
 
 <a id="errors-a-use-of-deprecated-code-may-log-or-throw"></a>
 
