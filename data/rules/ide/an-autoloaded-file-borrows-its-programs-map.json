@@ -1,9 +1,7 @@
 {
   "title": "A file a program autoloads or requires is analysed through that program's `autoload` map, behind its own declarations and without reporting anything for the borrowed ones",
   "status": "shipped",
-  "because": [
-    "0257"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/an-open-document-is-its-own-entry-point",
     "programs/autoload",

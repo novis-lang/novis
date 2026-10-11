@@ -324,8 +324,19 @@ directory, skipping what the server skips — in path order, stops at the first 
 file, else takes the first that holds it, and checks the file again with that lender's declarations
 behind its own. A file that declares a
 map, or names nothing undeclared, is checked once and searches nothing; a file no lender reaches keeps
-the first walk's diagnostics. `nvs_hir::lenders` is the one implementation of what a lender is and whom it
-lends to, for the server and the command both.
+the first walk's diagnostics, and so does a file checked from a directory outside its project. `E0303`
+and `E0306` are the two diagnostics a borrowed map can change, so no other finding starts a search.
+The second walk starts from a fresh source map, and its diagnostics are the ones reported, in the same
+text and `--json` formats; since a borrowed declaration reports nothing, every diagnostic is about a
+file the check read for the checked file. `nvs_hir::lenders` is the one implementation of what a lender
+is and whom it lends to, for the server and the command both, so the two cannot disagree.
+
+The command borrows because of how it is used. A coding agent is told to run `nvs check` on the file it
+just edited, and that file is most often a class file under an `autoload` root; without a lent map the
+command it was told to trust reports `E0303` and `E0306` on a program that builds clean, and the false
+error sends the agent to fix code that is correct. For such a file the command costs one read of each
+`.nvs` file under the root, one name-resolution walk per file holding `autoload` or `require` up to the
+lender, and a second walk of the checked file; a program's entry point pays nothing new.
 
 Nothing is configured for this. Where two lenders reach one file the same way, the first in entry-path
 order lends, and nothing says which. The survey costs one read of each file under the root at startup,
@@ -334,7 +345,8 @@ analysis then costs one `canonicalize` and a prefix test per lender. Nothing is 
 runtime.
 
 **Memory:** one resolved map and a few short path lists per lender, held for the session. It grows with
-the number of programs in the workspace, not with edits.
+the number of programs in the workspace, not with edits. `nvs check` holds the first lender's resolved
+map for the length of one command.
 
 **Declined:**
 - **A setting naming the entry point.** It is exact, but a false error is the default until somebody
@@ -356,8 +368,13 @@ the number of programs in the workspace, not with edits.
   test file that uses a class is the ordinary case.
 - **Surveying by parsing every file.** The keyword search excludes almost every file for the cost of a
   read the index makes anyway.
+- **`nvs check` surveying before its first walk.** It costs a tree read on every check of every file,
+  the programs that need nothing included.
+- **`nvs check` searching upwards from the checked file for a lender.** A shared framework tree is
+  reached by a program outside its own directories, and the server, which surveys the workspace, would
+  then disagree with the command.
 
-<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace). Decided in [0257](../decisions/0257.md).</sub>
+<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace).</sub>
 
 <a id="ide-the-stub-tree-is-where-core-is-declared"></a>
 
