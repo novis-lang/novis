@@ -745,11 +745,18 @@ configuration path every two seconds on the checking thread.
   is edited rarely and every change is global, so a check per request pays on every request for an
   event that happens a few times a day.
 - **`SIGHUP` as the reload trigger.** It has no Windows equivalent and no payload, so it carries
-  nothing a reload could report back ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)).
+  nothing a reload could report back ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)). It also stops
+  the server, and a signal that stops it in one place and reloads it in another is a trap.
+- **A file-system watcher on the configuration files.** A lost event is a change that never arrives,
+  and a timed `stat` of a known list cannot miss one
+  ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)).
+- **Applying a changed file at once.** A file read while it is being written can be valid and still
+  incomplete, a block cut off at a line boundary, and publishing it would drop every key after the
+  cut. One quiet check costs two seconds.
 - **Restart only.** Defensible behind a load balancer with rolling deploys, and still not enough
   when one process holds the whole concurrency.
 
-<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0219](../decisions/0219.md), [0271](../decisions/0271.md).</sub>
+<sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary). Decided in [0271](../decisions/0271.md).</sub>
 
 <a id="config-three-changeability-classes"></a>
 
@@ -844,6 +851,13 @@ since such a directive *is* a value read out of the snapshot. A registry that de
 from the other would re-create the conflation this field exists to end, so the census test fails if it
 ever does.
 
+**A key needs a restart only where applying it without one is not possible.** Every row of the
+registry names exactly one proof of what applying a change to it does: a `Reload` row names a case
+in which a running server takes the change and a real request sees it, and a `Boot` row names the
+test in which the reload keeps the running value and reports the key. A directive added with
+neither fails the census, which is what stops a subsystem from taking a value once at boot while
+the reload report lists it as applied.
+
 **`Boot` is four keys: `[server] listen`, `[server] socket_mode`, `[server] workers` and
 `[server] watchdog_margin`.** A port below 1024 needs a privilege the process dropped after it bound,
 so `listen` cannot move in general. `socket_mode` is applied when a Unix listener is bound, so it
@@ -869,7 +883,24 @@ when that block moves, so the next `fleet` fire takes its key in the new store. 
 **does not take effect**: the published snapshot carries the running value forward, and the reload
 names the key ([`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply)).
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system). Decided in [0219](../decisions/0219.md).</sub>
+State a subsystem derives from the configuration is derived again from each published snapshot,
+once per publish and never per request: the security headers and CORS policy, the admission
+ceiling, the unit cache's `[opcache]`, the schedule roster, each queue job's configuration, the
+metrics and trace exporters, and the mount rows' origins. A rebuilt scrape socket is bound before the
+old one closes, and an exporter change that cannot be followed is logged while the running exporter
+keeps serving. A resource that cannot be built is logged by name with the reason, its key keeps its
+running value and is reported as not applied, and the rest of the snapshot is published, so one
+unreachable store does not hold back an unrelated change that may be a security fix.
+
+- **Memory:** each replaced resource, such as a store, a connection pool or an exporter, lives until
+  the last request or job using it ends. Bounded by what is in flight, never by the number of
+  reloads.
+
+**Declined:**
+- **Refusing the whole reload when one resource cannot be built.** An unreachable session database
+  would then hold back a tightened header policy written in the same save.
+
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system).</sub>
 
 <a id="config-ceilings-are-their-own-directives"></a>
 
@@ -1154,7 +1185,9 @@ fields name, in one place: the directives applied and now in force; the **`Boot`
 changed and therefore did not take effect, each named individually**; and how many compiled units were
 invalidated, so an operator knows a recompile wave is coming. A reload the configuration check started
 also names the files whose stamps moved. A validation failure is one record carrying the offending
-line, under a message that states the running configuration is unchanged.
+line, under a message that states the running configuration is unchanged. A `Reload` key whose new
+resource could not be built is one record of its own, naming the key and the reason, and that key
+keeps its running value ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)).
 
 Naming the ignored `Boot` keys is the difference between a reload an operator can trust and one they
 have to guess about: silently ignoring a changed listen address is how a deployment ends up believing
@@ -1173,7 +1206,7 @@ invalidates every unit and an unchanged one invalidates none. What a reload cann
 extension removed while source still references it — those units fail when next resolved
 ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)).
 
-<sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager). Decided in [0219](../decisions/0219.md).</sub>
+<sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager).</sub>
 
 <a id="config-check-and-dump-audit-the-tree-offline"></a>
 
@@ -1377,7 +1410,7 @@ to decide whether a core's table is rebuilt.
   configuration becomes a file people copy without reading. The cost accepted is that every new
   directive has to say which table it belongs in.
 
-<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode). Decided in [0218](../decisions/0218.md).</sub>
 
 <a id="config-a-program-may-read-and-flip-its-mode"></a>
 
@@ -1869,7 +1902,7 @@ A tree with no shared store, and one whose store will not answer, leave every `f
 **unarmed** and named in a note. Firing it on each host's own clock would be the precise failure
 the scope exists to prevent, so the safe half is to run none of them and say so.
 
-<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0219](../decisions/0219.md).</sub>
+<sub>See also [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`](config.md#config-a-missed-fire-is-skipped-and-a-dst-edge-fires-once), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit).</sub>
 
 <a id="config-overlap-is-skip-queue-or-kill"></a>
 

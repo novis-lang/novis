@@ -2,7 +2,6 @@
   "title": "The configuration is one immutable snapshot a request clones at start, and a reload replaces it whole after validating everything",
   "status": "shipped",
   "because": [
-    "0219",
     "0271"
   ],
   "seeAlso": [

@@ -24,3 +24,9 @@ The whole block is `System`-class (`rule:config/three-changeability-classes`): `
 `workers` is the one key here the machine answers a default for, and it is the only one that says how many accept loops there are rather than what one of them does: `rule:http-server/the-accept-fan-out-is-one-worker-per-core` owns the count, what a core holds of its own and what every core shares.
 
 The accept loop backs off on descriptor exhaustion and logs once per window rather than once per attempt, and a core that stops making progress is reported and shed by a watchdog reading the in-flight deadline each worker already keeps; `watchdog_margin` is how far past that deadline it must be, and is refused as `false` or `0` like the waits. The waits, the valve, the probe and the drain period are their own rules: `rule:http-server/four-idle-waits-all-finite`, `rule:http-server/max-in-flight-refuses-before-allocating`, `rule:http-server/health-path-is-off-and-checks-nothing`, `rule:concurrency/a-drain-closes-a-connection-cleanly`. `drain_timeout` is the one key here that bounds a connection which is working rather than an idle one, which is why it is not `keepalive_timeout` under another name: an operator lengthening the keep-alive a proxy needs would otherwise have lengthened every restart.
+
+**Declined:**
+- **Making `listen` reloadable.** Binding a port below 1024 again needs the process to keep a
+  privilege for its whole life, and security is not traded for a restart saved.
+- **Resizing `workers` while the server runs.** Each core holds its own runtime state, and resizing
+  that live is a large change for a key set once per machine.

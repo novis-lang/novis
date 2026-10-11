@@ -3,7 +3,9 @@ fields name, in one place: the directives applied and now in force; the **`Boot`
 changed and therefore did not take effect, each named individually**; and how many compiled units were
 invalidated, so an operator knows a recompile wave is coming. A reload the configuration check started
 also names the files whose stamps moved. A validation failure is one record carrying the offending
-line, under a message that states the running configuration is unchanged.
+line, under a message that states the running configuration is unchanged. A `Reload` key whose new
+resource could not be built is one record of its own, naming the key and the reason, and that key
+keeps its running value (`rule:config/reloadability-is-its-own-field`).
 
 Naming the ignored `Boot` keys is the difference between a reload an operator can trust and one they
 have to guess about: silently ignoring a changed listen address is how a deployment ends up believing

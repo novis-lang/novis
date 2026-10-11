@@ -1,9 +1,7 @@
 {
   "title": "Reloadability is a second registry field, `Reload` or `Boot`, orthogonal to the changeability class",
   "status": "shipped",
-  "because": [
-    "0219"
-  ],
+  "because": [],
   "seeAlso": [
     "config/three-changeability-classes",
     "config/system-means-a-request-may-not-set-it",
@@ -13,6 +11,7 @@
   ],
   "guardedBy": [
     "crates/nvs-config/tests/directives.rs",
-    "crates/nvs-config/tests/snapshot.rs"
+    "crates/nvs-config/tests/snapshot.rs",
+    "crates/nvs-cli/tests/live_config.rs"
   ]
 }

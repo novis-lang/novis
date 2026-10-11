@@ -1,9 +1,7 @@
 {
   "title": "An origin is declared per mount with `[app] origin` as the fallback, a request cannot set it, and a mount that calls `urlAbsolute` without one is a boot error",
   "status": "shipped",
-  "because": [
-    "0219"
-  ],
+  "because": [],
   "seeAlso": [
     "routing/an-absolute-link-takes-a-configured-origin",
     "routing/a-request-reads-its-mount",

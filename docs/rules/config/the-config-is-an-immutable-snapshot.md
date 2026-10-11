@@ -43,6 +43,13 @@ configuration path every two seconds on the checking thread.
   is edited rarely and every change is global, so a check per request pays on every request for an
   event that happens a few times a day.
 - **`SIGHUP` as the reload trigger.** It has no Windows equivalent and no payload, so it carries
-  nothing a reload could report back (`rule:packaging/a-service-answers-its-manager`).
+  nothing a reload could report back (`rule:packaging/a-service-answers-its-manager`). It also stops
+  the server, and a signal that stops it in one place and reloads it in another is a trap.
+- **A file-system watcher on the configuration files.** A lost event is a change that never arrives,
+  and a timed `stat` of a known list cannot miss one
+  (`rule:config/an-edit-reaches-the-next-request-without-a-restart`).
+- **Applying a changed file at once.** A file read while it is being written can be valid and still
+  incomplete, a block cut off at a line boundary, and publishing it would drop every key after the
+  cut. One quiet check costs two seconds.
 - **Restart only.** Defensible behind a load balancer with rolling deploys, and still not enough
   when one process holds the whole concurrency.
