@@ -796,7 +796,8 @@ between two kinds.
   a write through the wide view is checked against the wide view's own element type. What the
   covariance buys is every signature written over a union — `Core\Arr::sum`'s
   `array<int|float|decimal>` takes the `array<int>` a caller means by it, and `Core\Arr::flip`'s
-  `array<int|string>` takes an `array<string>`.
+  `array<int|string>` takes an `array<string>`. It spends nothing: the call passes the array it was
+  handed, and nothing is allocated, copied or interned for it.
 - **The `int` → `float` widening is not part of the covariance.** An element of an array that already
   exists keeps the representation it was stored with, so an `array<int>` or `array<uint>` is not an
   `array<float>`, at any depth and in any position ([`types/implicit-widening`](types.md#types-implicit-widening)). `array<int|float>`
@@ -848,10 +849,16 @@ between two kinds.
 - **A type-argument door that admits a class alone.** A shaped decode would then need a class declared
   only to be named once, and a request boundary would be the one place a program must invent a nominal
   type to describe data it does not own.
+- **`array<T>` invariant, with the union annotated at the caller.** A binding that only ever holds
+  strings would be declared `array<int|string>` to satisfy a callee, which says something false about
+  the value and puts the callee's type into the caller's code.
+- **Covariance with a runtime barrier on writes through a widened view.** That is what a language with
+  aliasing arrays needs, and here it would spend request-path time on a hazard copy-on-write values
+  already exclude.
 - **The roster listed in prose as the authority.** A list in a document cannot track a table, and the
   door's members are the compiler's registry.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0188](../decisions/0188.md), [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
 
 <a id="types-array-combination"></a>
 
@@ -2272,7 +2279,7 @@ one that widens on neither argument, because its argument bounds a receiver inst
   `class<Dog>` to a `class<Animal>` parameter impossible without a redundant narrowing checked at run
   time. Covariance is sound here and costs one rule.
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/arrays`](types.md#types-arrays). Decided in [0188](../decisions/0188.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-variance`](types.md#types-property-key-variance), [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="types-class-reference-sites"></a>
 

@@ -1075,7 +1075,7 @@ generic helper path for the typed one, and its element writes become compile err
 throws. Nothing is spent per request, and no memory beyond one more interned descriptor where the program
 did not already have that type.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/conversion`](types.md#types-conversion), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0188](../decisions/0188.md).</sub>
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/conversion`](types.md#types-conversion), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-highlighting-is-two-layers"></a>
 
