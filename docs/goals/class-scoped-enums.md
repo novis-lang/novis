@@ -526,26 +526,26 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 6 are done. In Stage 7 the registry slice and the `arr` rename have landed, all three Stage 7 checks pass, and `bun nv verify` is green.**
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 6 are done. In Stage 7 the registry slice and the `arr`, `str`, `hash` and `compress` renames have landed, all three Stage 7 checks pass, and `bun nv verify` is green.**
 
-- `CoreEnum::name` is `Core\Arr::Order` for an owned enum, and `CoreEnum::owner()` and `short_name()` read it. `seed_core` needed no change. The checker finds a `Core` owner's enum in the enum table through `lower::owned_enum` (`crates/nvs-types/src/lower.rs:521`), because `Core` declares nothing in the symbol table.
-- The stub tree writes an owned enum inside its class's stub (`enum_decl`, `crates/nvs-lsp/src/stubs.rs`).
-- `crates/nvs-stdlib/tests/enum_owners.rs` decides placement, and its `NOT_YET_MOVED` list (`:16`) shrinks one namespace per slice. It disagreed with the rename table three times, and the rule's fragment now has the corrected table: `Weekday` goes to `Core\Time\DateTime`, `Db\Driver` goes to `Db\Connection`, and `Ldap\Ad\AccountType` goes to `Ldap\Entry`.
-- `Core\Db\Tls`, `Db\Isolation`, `Db\ErrorKind`, `Ldap\Tls` and `Ldap\ErrorKind` are in the table, but the test sees no single class using them, so it does not demand that they move. The `db` and `ldap` slices decide by the rule. The two `ErrorKind`s are used by error classes that have no registry row (`nvs_hir::errors::TREE`).
-- A moved enum's proof directory is `docs/examples/types/<Owner>-<Name>/`. `classTail` (`tools/nv/proofs/roster.ts:79`) turns `::` into `-`.
-- The website's `website/src/data/core.json` is stale for reasons this goal did not cause, so it was left alone. The `lang:enums/core-enums` bench is marked perf-stale.
+- `CoreEnum::name` is `Core\Arr::Order` for an owned enum, and `CoreEnum::owner()` and `short_name()` read it. The checker finds a `Core` owner's enum through `lower::owned_enum` (`crates/nvs-types/src/lower.rs:521`), because `Core` declares nothing in the symbol table.
+- `crates/nvs-stdlib/tests/enum_owners.rs` decides placement, and its `NOT_YET_MOVED` list (`:16`) shrinks one namespace per slice. The rule's fragment has the corrected table: `Weekday` goes to `Core\Time\DateTime`, `Db\Driver` to `Db\Connection`, and `Ldap\Ad\AccountType` to `Ldap\Entry`.
+- `Core\Db\Tls`, `Db\Isolation`, `Db\ErrorKind`, `Ldap\Tls` and `Ldap\ErrorKind` are in the table, but the test sees no single class using them. The `db` and `ldap` slices decide by the rule. The two `ErrorKind`s are used by error classes with no registry row (`nvs_hir::errors::TREE`).
+- A moved enum's proof directory is `docs/examples/types/<Owner>-<Name>/` (`classTail`, `tools/nv/proofs/roster.ts:79`). Its `about.md` gains one sentence naming the class it is declared in.
+- A slice is mechanical: a fixed-string replace of `Core\Old` (and `Core\\Old` in Rust and JSON strings) across every tracked file but `docs/rules/` (the rename table), `docs/goals/` and `enum_owners.rs`; a `git mv` of the proof directory; the spec's `Enums:` line; then `bun nv site --stamp syntax/values/enums.mdx`, whose `covers:` lists every `Core` enum. Moving an enum into a class's stub shifts the stub's lines, so `tests/lsp/definition/a-core-method-answers-its-stub.lspt` and its siblings may need a new line number.
+- The website's `website/src/data/core.json` is stale for reasons this goal did not cause. The `lang:enums/core-enums` bench is marked perf-stale.
 
 Both rules stay `designed`. `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
 
 ### Next
 
-**Stage 7, the renames of `str`, `hash` and `compress`, one slice each** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file sets are the declaring file, the rows in `crates/nvs-stdlib/tests/enum_owners.rs:16`, and everything `git grep` finds on the old name. The `arr` slice's commit, `refactor(stdlib): Core\Order and Core\SetOn move into Core\Arr`, is the worked example. It also covers the tools a rename reaches: `tools/nv/renderers/website-core.ts`, and `crates/nvs-cli/tests/agent.rs`.
+**Stage 7, the renames of `crypto`, `mime` and `xml`, one slice each** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file sets are the declaring file, the rows in `crates/nvs-stdlib/tests/enum_owners.rs:16`, and everything `git grep` finds on the old name. The `compress` slice's commit, `refactor(stdlib): Core\Codec moves into Core\Compress`, is the latest worked example.
 
-- [ ] `Core\NormalForm` → `Core\Str::NormalForm` (`crates/nvs-stdlib/src/str.rs:132`).
-- [ ] `Core\Digest` → `Core\Hash::Digest` (`crates/nvs-stdlib/src/hash.rs:154`).
-- [ ] `Core\Codec` → `Core\Compress::Codec` (`crates/nvs-stdlib/src/compress.rs:130`).
+- [ ] `Core\Crypto\Cipher` → `Core\Crypto::Cipher` and `Core\Crypto\KeyFormat` → `Core\Crypto\PublicKey::Format` (`crates/nvs-stdlib/src/crypto.rs:330`, `crates/nvs-stdlib/src/crypto.rs:337`).
+- [ ] `Core\Mime\Type` → `Core\Mime::Type` (`crates/nvs-stdlib/src/mime.rs:68`). Check first that `Type` parses as a member name after `::`; if it clashes with `type`, the standing decision on a keyword clash applies.
+- [ ] `Core\Xml\NodeKind` → `Core\Xml\Node::Kind` (`crates/nvs-stdlib/src/xml.rs:174`).
 
-Running proofs needs `--nvs target/debug/nvs.exe`, because the default release binary still has the old names.
+Running proofs needs `--nvs target/covws/x86_64-pc-windows-msvc/debug/nvs.exe`, or a `cargo build` first for `target/debug/nvs.exe`: `bun nv verify` rebuilds only the `covws` binary, and the release binary has the old names.
 
 ### Backlog
 
