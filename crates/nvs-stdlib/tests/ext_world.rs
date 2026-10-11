@@ -17,6 +17,9 @@
 //! reaches, fails. `wit/intl.wit`'s `nvs:intl@1.0.0` is held to
 //! `rule:core-classes/intl-batch-shape`: [`ICU_EXPORTS`] in order, and every
 //! one but [`ICU_SINGLE`] takes a list first and returns a list.
+//! `wit/pdf.wit`'s `nvs:pdf@1.0.0` is held to [`PDF_EXPORTS`] in order, and
+//! its `render` to the two passes of
+//! `rule:core-classes/pdf-header-is-a-page-function`.
 //!
 //! The WIT text is parsed from the repository, never embedded, so the test
 //! and the file an extension author builds against cannot drift.
@@ -934,26 +937,36 @@ fn the_intl_interface_parses_against_the_world_in_wit_types_alone() {
         "the `intl` world exports `icu` alone"
     );
 
-    let functions = &resolve.interfaces[icu].functions;
-    let names: Vec<&str> = functions.keys().map(String::as_str).collect();
+    let names: Vec<&str> = resolve.interfaces[icu]
+        .functions
+        .keys()
+        .map(String::as_str)
+        .collect();
     assert_eq!(names, ICU_EXPORTS, "`icu`'s functions, in order");
 
-    let error = named_type(&resolve, interface(&resolve, ext, "types"), "error");
+    let problems = crossing_problems(&resolve, ext, icu);
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+/// Every way `iface` fails `rule:packaging/a-value-crosses-as-its-wit-type`:
+/// a function that is not freestanding, a parameter, result or type no Novis
+/// type crosses as, and a result whose error is not the world's `error`.
+fn crossing_problems(resolve: &Resolve, ext: PackageId, iface: InterfaceId) -> Vec<String> {
+    let error = named_type(resolve, interface(resolve, ext, "types"), "error");
     let mut problems = Vec::new();
-    for (name, function) in functions {
+    for (name, function) in &resolve.interfaces[iface].functions {
         if function.kind != FunctionKind::Freestanding {
             problems.push(format!("`{name}` is not a plain function"));
         }
         for param in &function.params {
-            if let Err(err) =
-                check_crossable(&resolve, param.ty, &format!("{name}({})", param.name))
+            if let Err(err) = check_crossable(resolve, param.ty, &format!("{name}({})", param.name))
             {
                 problems.push(err);
             }
         }
-        match result_of(&resolve, function) {
-            Some((Some(ok), Some(Type::Id(err)))) if dealias(&resolve, err) == error => {
-                if let Err(err) = check_crossable(&resolve, ok, &format!("{name} -> ok")) {
+        match result_of(resolve, function) {
+            Some((Some(ok), Some(Type::Id(err)))) if dealias(resolve, err) == error => {
+                if let Err(err) = check_crossable(resolve, ok, &format!("{name} -> ok")) {
                     problems.push(err);
                 }
             }
@@ -963,12 +976,12 @@ fn the_intl_interface_parses_against_the_world_in_wit_types_alone() {
             None => problems.push(format!("`{name}` does not return a `result`")),
         }
     }
-    for (name, id) in &resolve.interfaces[icu].types {
-        if let Err(err) = check_crossable(&resolve, Type::Id(*id), name) {
+    for (name, id) in &resolve.interfaces[iface].types {
+        if let Err(err) = check_crossable(resolve, Type::Id(*id), name) {
             problems.push(err);
         }
     }
-    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+    problems
 }
 
 #[test]
@@ -1001,6 +1014,168 @@ fn every_intl_formatting_export_takes_a_list_and_returns_a_list() {
         }
     }
     assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+/// The exports of the PDF component's `engine`, one per static method of `Novis\Pdf\Engine`
+/// (`rule:core-classes/pdf-roster`).
+const PDF_EXPORTS: &[&str] = &["render", "merge", "read", "read-text"];
+
+/// `wit/pdf.wit`, resolved against the `nvs:ext` world it includes: the
+/// resolve, the `nvs:ext` package, the `nvs:pdf` package and its `engine`.
+fn pdf() -> (Resolve, PackageId, PackageId, InterfaceId) {
+    let (mut resolve, ext) = world();
+    let file = nvs_repo::path("wit/pdf.wit");
+    let package = resolve
+        .push_file(&file)
+        .unwrap_or_else(|err| panic!("{} does not parse: {err:?}", file.display()));
+    assert_eq!(resolve.packages[package].name.to_string(), "nvs:pdf@1.0.0");
+    let engine = *resolve.packages[package]
+        .interfaces
+        .get("engine")
+        .expect("`nvs:pdf` has an interface `engine`");
+    (resolve, ext, package, engine)
+}
+
+/// The fields of the record `ty` names, with aliases followed, by name.
+fn record_fields(resolve: &Resolve, ty: Type) -> Vec<(String, Type)> {
+    let Type::Id(id) = ty else {
+        panic!("{ty:?} is not a record");
+    };
+    match &resolve.types[dealias(resolve, id)].kind {
+        TypeDefKind::Record(record) => record
+            .fields
+            .iter()
+            .map(|field| (field.name.clone(), field.ty))
+            .collect(),
+        other => panic!("{ty:?} is a {other:?}, not a record"),
+    }
+}
+
+/// The element type of the `list` `ty` names, with aliases followed.
+fn list_element(resolve: &Resolve, ty: Type) -> Type {
+    match ty {
+        Type::Id(id) => match &resolve.types[dealias(resolve, id)].kind {
+            TypeDefKind::List(inner) => *inner,
+            other => panic!("{ty:?} is a {other:?}, not a list"),
+        },
+        other => panic!("{other:?} is not a list"),
+    }
+}
+
+#[test]
+fn the_pdf_interface_parses_against_the_world_in_wit_types_alone() {
+    let (resolve, ext, package, engine) = pdf();
+    let found = &resolve.packages[package];
+    let interfaces: Vec<&str> = found.interfaces.keys().map(String::as_str).collect();
+    assert_eq!(interfaces, ["engine"], "the package's interfaces");
+    let worlds: Vec<&str> = found.worlds.keys().map(String::as_str).collect();
+    assert_eq!(worlds, ["pdf"], "the package's worlds");
+
+    let world_id = found.worlds["pdf"];
+    let allowed: BTreeSet<String> = ALLOWED_IMPORTS.iter().map(ToString::to_string).collect();
+    let imported = imports(&resolve, world_id);
+    let extra: Vec<&String> = imported.difference(&allowed).collect();
+    let missing: Vec<&String> = allowed.difference(&imported).collect();
+    assert!(
+        extra.is_empty() && missing.is_empty(),
+        "the `pdf` world imports {extra:?} that the `extension` world does not, and misses {missing:?}"
+    );
+    let exports: Vec<String> = resolve.worlds[world_id]
+        .exports
+        .iter()
+        .map(|(key, item)| match (key, item) {
+            (WorldKey::Interface(id), WorldItem::Interface { .. }) => resolve
+                .id_of(*id)
+                .expect("an exported interface has a package"),
+            (key, item) => panic!("the world exports {key:?} as {item:?}, not a named interface"),
+        })
+        .collect();
+    assert_eq!(
+        exports,
+        ["nvs:pdf/engine@1.0.0"],
+        "the `pdf` world exports `engine` alone"
+    );
+
+    let names: Vec<&str> = resolve.interfaces[engine]
+        .functions
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(names, PDF_EXPORTS, "`engine`'s functions, in order");
+
+    let problems = crossing_problems(&resolve, ext, engine);
+    assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+}
+
+/// `render` takes one `pass`: `whole` and `first` carry the document, and
+/// `second` carries every page's header, footer and slot markup and nothing
+/// of the document, which the instance kept from `first`. The result carries
+/// each page's facts for the functions to read.
+#[test]
+fn the_pdf_render_export_carries_a_second_pass_for_page_markup() {
+    let (resolve, _, _, engine) = pdf();
+    let render = &resolve.interfaces[engine].functions["render"];
+    let [param] = render.params.as_slice() else {
+        panic!(
+            "`render` takes {} parameters, not one `pass`",
+            render.params.len()
+        );
+    };
+    let Type::Id(pass) = param.ty else {
+        panic!("`render`'s parameter is {:?}, not a variant", param.ty);
+    };
+    let TypeDefKind::Variant(variant) = &resolve.types[dealias(&resolve, pass)].kind else {
+        panic!("`render`'s parameter is not a variant");
+    };
+    let cases: Vec<(&str, Option<Type>)> = variant
+        .cases
+        .iter()
+        .map(|case| (case.name.as_str(), case.ty))
+        .collect();
+    let names: Vec<&str> = cases.iter().map(|(name, _)| *name).collect();
+    assert_eq!(names, ["whole", "first", "second"], "the passes, in order");
+
+    let payload = |name: &str| {
+        let (_, ty) = cases.iter().find(|(case, _)| *case == name).unwrap();
+        ty.unwrap_or_else(|| panic!("the `{name}` pass carries nothing"))
+    };
+    let field_names = |ty: Type| -> Vec<String> {
+        record_fields(&resolve, ty)
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect()
+    };
+    assert_eq!(
+        payload("whole"),
+        payload("first"),
+        "both first passes carry the document"
+    );
+    assert_eq!(field_names(payload("whole")), ["html", "assets", "options"]);
+
+    let second = record_fields(&resolve, payload("second"));
+    let [(name, pages)] = second.as_slice() else {
+        panic!("the `second` pass carries {second:?}, not the pages' markup alone");
+    };
+    assert_eq!(name, "pages");
+    assert_eq!(
+        field_names(list_element(&resolve, *pages)),
+        ["header", "footer", "slots"],
+        "each page's markup"
+    );
+
+    let Some((Some(rendered), _)) = result_of(&resolve, render) else {
+        panic!("`render` returns no value");
+    };
+    let rendered = record_fields(&resolve, rendered);
+    let (_, pages) = rendered
+        .iter()
+        .find(|(name, _)| name == "pages")
+        .expect("`rendered` carries the pages' facts");
+    assert_eq!(
+        field_names(list_element(&resolve, *pages)),
+        ["number", "name", "strings", "marks"],
+        "each page's facts"
+    );
 }
 
 /// `nvs_stdlib::ext_record` reads and builds exactly the classes the host crosses, and a record

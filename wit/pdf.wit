@@ -1,0 +1,168 @@
+package nvs:pdf@1.0.0;
+
+/// The PDF component's whole surface: four exports, each one call that
+/// carries its whole input and returns its whole output.
+///
+/// `Novis\Pdf`'s classes are Novis source that build these records and call
+/// `Novis\Pdf\Engine`, whose static methods are these exports
+/// (`rule:core-classes/pdf-roster`). Nothing here names a file, a URL or a
+/// clock: every asset is bytes under a name, and a creation time is the
+/// program's. Every type here is one the Novis-to-WIT table gives, so `u64`
+/// is a Novis `uint` and `list<u8>` a `bytes`.
+interface engine {
+    use nvs:ext/types@1.0.0.{error, instant};
+
+    /// The standard a document is validated against. Every document is
+    /// tagged whichever is chosen.
+    enum standard {
+        pdf-a2b,
+        pdf-a3b,
+        pdf-ua1,
+    }
+
+    /// One asset the document names: an image, a stylesheet, a font or a
+    /// PDF. A reference resolves against these names and `data:` alone.
+    record asset {
+        name: string,
+        data: list<u8>,
+    }
+
+    /// `header-height` and `footer-height` are CSS lengths that fix a
+    /// margin a header or footer function fills. An absent one is `@page`'s
+    /// margin. An `invoice-xml` without `pdf-a3b`, or a `password` with a
+    /// PDF/A standard, returns `invalid`.
+    record render-options {
+        standard: option<standard>,
+        password: option<string>,
+        invoice-xml: option<string>,
+        created: option<instant>,
+        header-height: option<string>,
+        footer-height: option<string>,
+    }
+
+    record document {
+        html: string,
+        assets: list<asset>,
+        options: render-options,
+    }
+
+    record named-value {
+        name: string,
+        value: string,
+    }
+
+    /// One page's facts, from which the Novis half makes a `Page`. `strings`
+    /// are the page's `string-set` values and `marks` its `data-mark`
+    /// values, in document order.
+    record page-facts {
+        number: u64,
+        name: option<string>,
+        strings: list<named-value>,
+        marks: list<named-value>,
+    }
+
+    /// What the functions returned for one page, each part HTML: the header,
+    /// the footer, and a fill for each `<slot name>` in its repeated rows.
+    record page-markup {
+        header: option<string>,
+        footer: option<string>,
+        slots: list<named-value>,
+    }
+
+    /// Every page's markup, in page order, one per page of the first pass.
+    record margins {
+        pages: list<page-markup>,
+    }
+
+    /// Which pass a `render` call is. `whole` lays out and writes in one
+    /// call. `first` lays out the body, keeps it in the instance, and returns
+    /// the pages' facts with an empty `data`. `second` places each page's
+    /// markup on the body `first` kept, without moving it, and writes the
+    /// file; with nothing kept it returns `invalid`.
+    variant pass {
+        whole(document),
+        first(document),
+        second(margins),
+    }
+
+    /// A declaration or an element the subset does not render. `line` and
+    /// `column` count from 1 in the HTML.
+    record dropped-item {
+        property: string,
+        value: string,
+        selector: string,
+        line: u64,
+        column: u64,
+    }
+
+    record missing-glyph {
+        text: string,
+        fonts: list<string>,
+        page: u64,
+    }
+
+    /// Markup taller than its area. `area` is `header`, `footer`, a margin
+    /// box's at-rule name, or a slot's name.
+    record overflow {
+        page: u64,
+        area: string,
+        text: string,
+    }
+
+    record rendered {
+        data: list<u8>,
+        page-count: u64,
+        pages: list<page-facts>,
+        dropped: list<dropped-item>,
+        missing-glyphs: list<missing-glyph>,
+        overflows: list<overflow>,
+    }
+
+    /// One source of a merge, with the pages to take in order, from 1. An
+    /// absent list takes every page.
+    record part {
+        data: list<u8>,
+        pages: option<list<u64>>,
+    }
+
+    record metadata {
+        title: option<string>,
+        author: option<string>,
+        subject: option<string>,
+        keywords: option<string>,
+        creator: option<string>,
+        producer: option<string>,
+    }
+
+    record attachment {
+        name: string,
+        data: list<u8>,
+    }
+
+    record pdf-info {
+        page-count: u64,
+        metadata: metadata,
+        attachments: list<attachment>,
+        invoice-xml: option<string>,
+    }
+
+    /// Renders one pass of a document.
+    render: func(pass: pass) -> result<rendered, error>;
+
+    /// One PDF of the parts' pages, in order. An encrypted part returns
+    /// `parse`.
+    merge: func(parts: list<part>) -> result<list<u8>, error>;
+
+    /// The page count, metadata and attachments of a PDF.
+    read: func(data: list<u8>) -> result<pdf-info, error>;
+
+    /// The text of each page in `pages`, in the order the file stores it.
+    read-text: func(data: list<u8>, pages: list<u64>) -> result<list<string>, error>;
+}
+
+/// The PDF component: everything an extension may import, and `engine`.
+world pdf {
+    include nvs:ext/extension@1.0.0;
+
+    export engine;
+}
