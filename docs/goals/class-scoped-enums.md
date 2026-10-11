@@ -13,7 +13,7 @@ stages:
         shapes: [A rule fragment]
   - id: 3
     title: the parser
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Writing Novis > a new exprkind variant", "Tooling > a node added to nvs_syntax::walk"]
@@ -526,22 +526,24 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums` — an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stage 2 is done: the rules are written, and no code has changed yet.** `rule:enums/class-scoped-enum` (the member, its refusals and codes, the name `Shop\Order::Status`) and `rule:enums/an-enum-lives-in-the-class-that-uses-it` (the placement rule and both rename tables) exist as `designed`, with an empty `guardedBy`. The stage that writes each guard test adds it to `data/rules/enums/<slug>.json` and flips `status` to `shipped` once the whole rule holds. The five Stage 0 fragments for Stage 2 are rewritten, and Stages 3 to 9 carry the new rules in their `context.rules`. `bun nv links` reports one missing link, `AGENTS.md:403 -> docs/decisions/README.md`, from the stale second half of `AGENTS.md`. This goal did not cause it.
+**Goal `class-scoped-enums` — an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 and 3 are done: the rules are written and the parser accepts the member.** `rule:enums/class-scoped-enum` and `rule:enums/an-enum-lives-in-the-class-that-uses-it` stay `designed`; the first now lists `crates/nvs-syntax/src/parser/tests/decl.rs` in `guardedBy`, and the stage whose tests complete the rule flips it to `shipped`.
 
-The user asked for it on 2026-10-08, settled the member's rules (no modifier, not inherited, no `self::`/`static::` spelling, one name per owner, class and interface bodies only), made it the default for programs, and asked for `Core` and the built-in components to follow the same rule because there is no release yet. The goal file's § *Standing decisions* holds those calls, the writer's own calls, and the full rename table. No session re-decides one.
+What the parser does now. `ClassMemberKind::Enum(EnumDecl)` (`crates/nvs-syntax/src/ast.rs`) is parsed in `parse_class_member_with_attrs` through the shared `parse_enum_decl_body` (`crates/nvs-syntax/src/parser/decl.rs`); its `///` run hangs on the `ClassMember`, so `EnumDecl::doc` is `None` there, as for a member alias. A modifier run is one `E0133` (`refuse_modifiers_on_a_member_enum`), an attribute group is kept. An enum in an enum body is one `E0220` and is dropped from `members`. A class or interface in a class body is parsed whole and is one `E0233`. In type position `Owner::Enum::Case` is the new atom `TypeAtom::MemberCase(Name, Span, Span)`; `Owner::Enum` stays `TypeAtom::Member`. In value position `A::B::C` is a nested `ClassConstAccess`, pinned by a test. `walk.rs` emits the member as an `EnumDecl` node and `casing.rs` checks it with `check_enum_decl`.
 
-Facts about the tree as the goal was written. `class Order { enum Status { Open, Paid } }` gives ten diagnostics led by `E0101 expected a class member` (`crates/nvs-syntax/src/parser/decl.rs:1094`). `Order::Status::Paid` in value position parses as a nested `ClassConstAccess` and is refused with `E0309`/`E0496` by `is_written_class_side` (`crates/nvs-types/src/expr/members.rs:871`). A type atom takes one `::` segment (`crates/nvs-syntax/src/parser/ty.rs:561`). A class-scoped alias is keyed by `AliasKey::Member(owner, name)` (`crates/nvs-hir/src/aliases.rs:66`), which is the model for an owned enum's key. The 37 `Core` enums are `crates/nvs-stdlib/src/registry.rs:3075`, each a hand-written qualified string seeded by `QName::parse` at `crates/nvs-types/src/enums.rs:201`; the runtime finds an enum by its label string (`crates/nvs-runtime/src/object.rs:2620`).
+Not handled yet, on purpose: every crate past `nvs-syntax` ignores the member through its wildcard arm, and `nvs-types` lowers `TypeAtom::MemberCase` to `mixed` through the wildcard at `crates/nvs-types/src/lower.rs:233`. An anonymous class body also accepts the member, because it shares `parse_class_body`; the rule names only class and interface bodies, so Stage 4 refuses it in the checker or the rule says otherwise. `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
 
 ### Next
 
-**Stage 3: the parser**, one file set: `crates/nvs-syntax/src/parser/decl.rs`, `parser/ty.rs`, `ast.rs`, `walk.rs`, `casing.rs`, `parser/tests/decl.rs`.
+**Stage 4: names and the checker**, one file set: `crates/nvs-hir/src/resolve.rs`, `aliases.rs`, `members.rs`, `requires.rs`, `crates/nvs-types/src/enums.rs`, `lower.rs`, `expr/members.rs`. The goal's § *4. names and the checker* lists every anchor.
 
-- [ ] **The member arm** (`rule:enums/class-scoped-enum`): `ClassMemberKind::Enum(EnumDecl)` in `crates/nvs-syntax/src/ast.rs:1767`, parsed in `crates/nvs-syntax/src/parser/decl.rs:1042` beside the alias arm, reusing `finish_enum_decl` (`crates/nvs-syntax/src/parser/decl.rs:1510`). A modifier run is `E0133`, generalising `crates/nvs-syntax/src/parser/decl.rs:768`. An enum in an enum body is one `E0220` (`crates/nvs-syntax/src/parser/decl.rs:1587`). A class or interface in a class body is one `E0233`.
-- [ ] **The two-`::` type atom** (`rule:types/enum-case-type`): `crates/nvs-syntax/src/parser/ty.rs:566` takes a second segment. Add a parser test pinning `A::B::C` in value position as nested `ClassConstAccess`.
-- [ ] **The walker node and casing**: `crates/nvs-syntax/src/walk.rs:935` emits an `EnumDecl` node with its cases. `casing.rs` checks the member's name and cases. The test names are the Stage 3 check's.
+- [ ] **The key and the table** (`rule:enums/class-scoped-enum`): `EnumTable` (`crates/nvs-types/src/enums.rs:98`) takes an owned enum under its owner and name, modelled on `AliasKey::Member` (`crates/nvs-hir/src/aliases.rs:66`); `check_body_aliases` (`crates/nvs-hir/src/resolve.rs:279`) and `check_name_collisions` (`crates/nvs-hir/src/aliases.rs:302`) gain the enum for `E0304`.
+- [ ] **Type position** (`rule:types/enum-case-type`): `lower_member_type` (`crates/nvs-types/src/lower.rs:406`) reads an owned enum, a new arm lowers `TypeAtom::MemberCase`, and `resolve_name_type` (`crates/nvs-types/src/lower.rs:891`) reads the bare name inside the owner.
+- [ ] **Value position**: `infer_class_const` (`crates/nvs-types/src/expr/members.rs:77`) and `is_written_class_side` (`crates/nvs-types/src/expr/members.rs:871`) accept the nested access whose inner one names an owned enum.
+- [ ] **The refusals and the conformance cases** the Stage 4 check names, under `tests/conformance/enum/` and `tests/conformance/reject/`: `E0405` for `Sub::Status` beside `lower_member_type` (`crates/nvs-types/src/lower.rs:406`), and `use Shop\Order::Status;` refused in `crates/nvs-hir/src/resolve.rs:96`.
 
 ### Backlog
 
-- Stages 4 to 6: names and the checker, lowering and the runtime name, the editor and the formatter.
-- Stages 7 and 8: every `Core` enum, then every built-in component enum, moved to its class by the goal's rename table.
-- Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs and the Stage 0 search.
+- Stages 5 and 6: lowering and the runtime name, then the editor and the formatter (this goal's file).
+- Stages 7 and 8: every `Core` enum, then every built-in component enum, moved by the rename table in `rule:enums/an-enum-lives-in-the-class-that-uses-it`.
+- Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs (this goal's file).
+- The anonymous-class body question above, decided in Stage 4 (`rule:enums/class-scoped-enum`).
