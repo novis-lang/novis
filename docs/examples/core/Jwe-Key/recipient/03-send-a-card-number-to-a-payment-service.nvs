@@ -7,7 +7,7 @@ class Shop {
         Core\Crypto\PublicKey $service = Core\Crypto\PublicKey::read(
             $published,
             Core\Crypto\KeyKind::X25519,
-            Core\Crypto\KeyFormat::Jwk
+            Core\Crypto\PublicKey::Format::Jwk
         );
         return Core\Jwe::encrypt($card, Core\Jwe\Key::recipient($service));
     }
@@ -22,7 +22,7 @@ class PaymentService {
 
 // The payment service makes its key pair once. It publishes the public key as JSON.
 Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
-bytes $published = $pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk);
+bytes $published = $pair->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk);
 
 string $token = Shop::pay("4111 1111 1111 1111", $published);
 

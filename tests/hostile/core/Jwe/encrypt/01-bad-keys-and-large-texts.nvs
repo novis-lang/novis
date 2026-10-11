@@ -11,7 +11,7 @@ Core\Jwe\Key $shared = Core\Jwe\Key::shared($secret);
 Core\Crypto\PublicKey $zero = Core\Crypto\PublicKey::read(
     Core\Bytes::repeat(Core\Encoding::fromHex('00'), 32),
     Core\Crypto\KeyKind::X25519,
-    Core\Crypto\KeyFormat::Raw,
+    Core\Crypto\PublicKey::Format::Raw,
 );
 try {
     Core\Jwe::encrypt('a card number', Core\Jwe\Key::recipient($zero));

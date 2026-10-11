@@ -9,12 +9,12 @@ bytes $rsaSpki = Core\Encoding::fromHex('30820122300d06092a864886f70d01010105000
 Core\Crypto\PublicKey $rsa = Core\Crypto\PublicKey::read(
     $rsaSpki,
     Core\Crypto\KeyKind::RsaPkcs1,
-    Core\Crypto\KeyFormat::Spki,
+    Core\Crypto\PublicKey::Format::Spki,
 );
 Core\Crypto\PublicKey $ed25519 = Core\Crypto\PublicKey::read(
     Core\Encoding::fromHex('fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac'),
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\KeyFormat::Raw,
+    Core\Crypto\PublicKey::Format::Raw,
 );
 
 // 1. A hundred thousand requests for the encoding an RSA key does not have.
@@ -22,7 +22,7 @@ Core\Crypto\PublicKey $ed25519 = Core\Crypto\PublicKey::read(
 int $refusals = 0;
 foreach (Core\Arr::range(1, 100000) as int $round) {
     try {
-        $rsa->write(Core\Crypto\KeyFormat::Raw);
+        $rsa->write(Core\Crypto\PublicKey::Format::Raw);
     } catch (Throwable $e) {
         $refusals += 1;
     }
@@ -33,7 +33,7 @@ echo '1 refused ', $refusals, ' times', "\n";
 // that kept each one would run out of memory here.
 int $written = 0;
 foreach (Core\Arr::range(1, 200000) as int $round) {
-    $written += Core\Bytes::length($ed25519->write(Core\Crypto\KeyFormat::Jwk)) as int;
+    $written += Core\Bytes::length($ed25519->write(Core\Crypto\PublicKey::Format::Jwk)) as int;
 }
 echo '2 wrote ', $written, ' octets', "\n";
 
@@ -41,10 +41,10 @@ echo '2 wrote ', $written, ' octets', "\n";
 // request does when it wants the server to run out of memory.
 array<bytes> $kept = [];
 foreach (Core\Arr::range(1, 50000) as int $round) {
-    $kept[] = $rsa->write(Core\Crypto\KeyFormat::Jwk);
+    $kept[] = $rsa->write(Core\Crypto\PublicKey::Format::Jwk);
 }
 echo '3 kept ', Core\Arr::count($kept), ' documents', "\n";
 
 // 4. The key written in every encoding it has, after all of that. A member
 // that had moved the key out of the object would answer nothing here.
-echo '4 still ', Core\Bytes::length($ed25519->write(Core\Crypto\KeyFormat::Spki)), ' octets', "\n";
+echo '4 still ', Core\Bytes::length($ed25519->write(Core\Crypto\PublicKey::Format::Spki)), ' octets', "\n";

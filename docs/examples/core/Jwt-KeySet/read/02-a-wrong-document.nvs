@@ -2,7 +2,7 @@
 // Shows the errors `read` throws when a document is not a valid key set.
 
 Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
-string $jwk = Core\Encoding::decodeText($pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+string $jwk = Core\Encoding::decodeText($pair->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk), Core\Charset::Utf8);
 string $named = Core\Str::replace($jwk, "{", "{\"kid\":\"main\",");
 
 // Three wrong documents: an HTML error page, JSON with no `keys` list, and two keys

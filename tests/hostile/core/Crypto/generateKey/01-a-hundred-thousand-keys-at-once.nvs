@@ -41,13 +41,13 @@ echo '3 keys equal to the one before: ', $sameAsPrevious, "\n";
 bytes $sealed = Core\Crypto::seal(
     'the vault code is 4711' as bytes,
     Core\Crypto::generateKey(),
-    Core\Crypto\Cipher::XChaCha20Poly1305,
+    Core\Crypto::Cipher::XChaCha20Poly1305,
 );
 uint $opened = 0;
 uint $tried = 0;
 while ($tried < 10000) {
     try {
-        Core\Crypto::open($sealed, $keys[$tried], Core\Crypto\Cipher::XChaCha20Poly1305);
+        Core\Crypto::open($sealed, $keys[$tried], Core\Crypto::Cipher::XChaCha20Poly1305);
         $opened = $opened + 1;
     } catch (Throwable $e) {
     }

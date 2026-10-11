@@ -1,5 +1,8 @@
 Names the construction a sealed message is written and read under.
 
+`Core\Crypto::Cipher` is declared in the class `Core\Crypto`. The methods `seal` and `open` take it as
+an argument.
+
 `Core\Crypto::seal` and `Core\Crypto::open` each take a cipher, and there is no default: every call
 says which of the two it is under. Both cases authenticate, so neither can produce a message somebody
 could alter without the open being refused. What they differ in is who else can read the result.

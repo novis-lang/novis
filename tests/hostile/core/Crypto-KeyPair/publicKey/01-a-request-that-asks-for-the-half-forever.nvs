@@ -22,7 +22,7 @@ echo '1 kept ', $held, ' halves', "\n";
 // 2. Every one of them written out and joined into one buffer.
 array<bytes> $written = [];
 foreach ($halves as Core\Crypto\PublicKey $half) {
-    $written[] = $half->write(Core\Crypto\KeyFormat::Spki);
+    $written[] = $half->write(Core\Crypto\PublicKey::Format::Spki);
 }
 echo '2 joined ', Core\Bytes::length(Core\Bytes::join($written, '' as bytes)), ' bytes', "\n";
 
@@ -34,7 +34,7 @@ Core\Crypto\KeyPair $curve = Core\Crypto\KeyPair::read(
 );
 int $long = 0;
 foreach (Core\Arr::range(1, 20000) as int $round) {
-    if (Core\Bytes::length($curve->publicKey()->write(Core\Crypto\KeyFormat::Raw)) == 65) {
+    if (Core\Bytes::length($curve->publicKey()->write(Core\Crypto\PublicKey::Format::Raw)) == 65) {
         $long += 1;
     }
 }
@@ -47,7 +47,7 @@ foreach (Core\Arr::range(1, 10000) as int $round) {
     if (Core\Bytes::length(
         Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519)
             ->publicKey()
-            ->write(Core\Crypto\KeyFormat::Raw),
+            ->write(Core\Crypto\PublicKey::Format::Raw),
     ) == 32) {
         $fresh += 1;
     }

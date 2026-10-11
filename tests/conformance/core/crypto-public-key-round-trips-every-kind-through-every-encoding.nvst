@@ -2,7 +2,7 @@
 Core\Crypto\PublicKey::read and ->write round-trip every kind of the roster through every encoding that kind has, and ->kind answers the case the read was given — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
-// covers: Core\Crypto\KeyFormat
+// covers: Core\Crypto\PublicKey::Format
 //
 // WebCrypto's own exports of five keys, frozen under
 // `crates/nvs-stdlib/tests/vectors/`. That these *are* WebCrypto's bytes is held
@@ -44,13 +44,13 @@ foreach ($spki as string $slot => string $hex) {
     Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex($hex),
         $kinds[$slot],
-        Core\Crypto\KeyFormat::Spki
+        Core\Crypto\PublicKey::Format::Spki
     );
 
     // The object holds the canonical `SubjectPublicKeyInfo` rather than the
     // octets it was handed, so this asserts the two are the same document and
     // not merely that something parsed.
-    if (Core\Encoding::toHex($key->write(Core\Crypto\KeyFormat::Spki)) == $hex) {
+    if (Core\Encoding::toHex($key->write(Core\Crypto\PublicKey::Format::Spki)) == $hex) {
         $spkiRoundTrips += 1;
     }
 
@@ -62,7 +62,7 @@ foreach ($spki as string $slot => string $hex) {
     }
 
     string $written = Core\Encoding::decodeText(
-        $key->write(Core\Crypto\KeyFormat::Jwk),
+        $key->write(Core\Crypto\PublicKey::Format::Jwk),
         Core\Charset::Utf8
     );
     if ($written == $jwk[$slot]) {
@@ -74,9 +74,9 @@ foreach ($spki as string $slot => string $hex) {
     Core\Crypto\PublicKey $again = Core\Crypto\PublicKey::read(
         $written as bytes,
         $kinds[$slot],
-        Core\Crypto\KeyFormat::Jwk
+        Core\Crypto\PublicKey::Format::Jwk
     );
-    if (Core\Encoding::toHex($again->write(Core\Crypto\KeyFormat::Spki)) == $hex) {
+    if (Core\Encoding::toHex($again->write(Core\Crypto\PublicKey::Format::Spki)) == $hex) {
         $jwkRoundTrips += 1;
     }
 }
@@ -105,9 +105,9 @@ foreach ($raw as string $slot => string $hex) {
     Core\Crypto\PublicKey $curve = Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex($hex),
         $curves[$slot],
-        Core\Crypto\KeyFormat::Raw
+        Core\Crypto\PublicKey::Format::Raw
     );
-    if (Core\Encoding::toHex($curve->write(Core\Crypto\KeyFormat::Raw)) == $hex) {
+    if (Core\Encoding::toHex($curve->write(Core\Crypto\PublicKey::Format::Raw)) == $hex) {
         $rawRoundTrips += 1;
     }
     if ($curve->kind() == $curves[$slot]) {

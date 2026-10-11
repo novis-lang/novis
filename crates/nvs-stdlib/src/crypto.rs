@@ -327,14 +327,14 @@ const NAME: &str = r"Core\Crypto";
 
 /// The cipher enum's name, once, for the row that takes it and the fatal that
 /// reports a slot holding something else.
-pub(crate) const CIPHER_NAME: &str = r"Core\Crypto\Cipher";
+pub(crate) const CIPHER_NAME: &str = r"Core\Crypto::Cipher";
 
 /// The key-kind enum's name, once, for the rows that take it and the fatal that
 /// reports a slot holding something else.
 pub(crate) const KEY_KIND_NAME: &str = r"Core\Crypto\KeyKind";
 
 /// The key-format enum's name, once, for the same two places.
-pub(crate) const KEY_FORMAT_NAME: &str = r"Core\Crypto\KeyFormat";
+pub(crate) const KEY_FORMAT_NAME: &str = r"Core\Crypto\PublicKey::Format";
 
 /// The public-key class's name, once, for its own refusals and for the row that
 /// answers one.
@@ -827,7 +827,7 @@ const GENERATE_KEY_DOC: MethodDoc = MethodDoc {
 const SEAL_DOC: MethodDoc = MethodDoc {
     short: "Encrypts and authenticates `$message` under `$key` with the construction `$cipher` \
             names, drawing a fresh nonce per call. There is no mode, padding or IV argument, and \
-            no cipher name in a string — the only choice is a `Core\\Crypto\\Cipher` case, and \
+            no cipher name in a string — the only choice is a `Core\\Crypto::Cipher` case, and \
             every case authenticates.",
     params: &[
         ParamDoc {
@@ -3456,7 +3456,7 @@ fn key_of(args: &[Value], index: usize, member: &str) -> Result<PublicKey, Fault
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Crypto\PublicKey::read(bytes $encoded, Crypto\KeyKind $kind, Crypto\KeyFormat $format): Crypto\PublicKey`
+    /// `Core\Crypto\PublicKey::read(bytes $encoded, Crypto\KeyKind $kind, Crypto\PublicKey::Format $format): Crypto\PublicKey`
     /// — the one door onto [`PublicKey::read`].
     ///
     /// What the object keeps is the canonical `SubjectPublicKeyInfo` and not the
@@ -3538,7 +3538,7 @@ fn public_key_instance(key: &PublicKey, site: &str) -> Result<Value, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$publicKey->write(Crypto\KeyFormat $format): bytes` — this key in any of
+    /// `$publicKey->write(Crypto\PublicKey::Format $format): bytes` — this key in any of
     /// the encodings `read` accepts.
     ///
     /// The answer is written from the key rather than copied out of the octets

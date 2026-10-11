@@ -28,7 +28,7 @@ birthday bound around 2^32 messages under one key; that bound is the price of re
 wrote, and the answer when a program approaches it is the other cipher rather than a counter the caller
 keeps, which is a worse failure with a wider blast radius. Opening under the wrong cipher is a forgery,
 never plausible bytes: both constructions authenticate before they decrypt, so a mismatched
-`Crypto\Cipher` gets the same one `RuntimeError` sentence as every other message that is not authentic.
+`Crypto::Cipher` gets the same one `RuntimeError` sentence as every other message that is not authentic.
 
 **A key is validated where it is read, not where it is used.** Every public key is checked at `read` — on
 the curve for P-256, inside 2048–8192 bits for RSA — and an all-zero X25519 shared secret is refused at

@@ -21,6 +21,6 @@ Core\Crypto\KeyPair $again = Core\Crypto\KeyPair::read(
 
 // It is the same pair, so it has the same public key. Clients that already know
 // this server can still check its signatures.
-bytes $before = $pair->publicKey()->write(Core\Crypto\KeyFormat::Spki);
-bytes $after = $again->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+bytes $before = $pair->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
+bytes $after = $again->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
 echo "the same key came back: ", ($before == $after ? "yes" : "no"), "\n";

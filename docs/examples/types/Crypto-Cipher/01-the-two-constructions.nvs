@@ -1,13 +1,13 @@
 <?nvs
-// `Core\Crypto::seal` needs a `Core\Crypto\Cipher` case, and there is no default.
+// `Core\Crypto::seal` needs a `Core\Crypto::Cipher` case, and there is no default.
 // Both ciphers detect a changed message, so both are safe. Pick `Aes256Gcm`
 // when another system must read the message.
 
 secret bytes $key = Core\Crypto::generateKey();
 bytes $note = "ship the order on friday" as bytes;
 
-bytes $fast = Core\Crypto::seal($note, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
-bytes $interop = Core\Crypto::seal($note, $key, Core\Crypto\Cipher::Aes256Gcm);
+bytes $fast = Core\Crypto::seal($note, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
+bytes $interop = Core\Crypto::seal($note, $key, Core\Crypto::Cipher::Aes256Gcm);
 
 // Each cipher puts a nonce (a random value used once) before the message. It is
 // 24 bytes for XChaCha20Poly1305 and 12 for Aes256Gcm. Both add a 16-byte tag.
@@ -17,10 +17,10 @@ echo "Aes256Gcm ", Core\Bytes::length($interop), " octets", "\n";
 
 // `Core\Crypto::open` needs the same case again. It returns the original note.
 echo Core\Encoding::decodeText(
-    Core\Crypto::open($fast, $key, Core\Crypto\Cipher::XChaCha20Poly1305),
+    Core\Crypto::open($fast, $key, Core\Crypto::Cipher::XChaCha20Poly1305),
     Core\Charset::Utf8
 ), "\n";
 echo Core\Encoding::decodeText(
-    Core\Crypto::open($interop, $key, Core\Crypto\Cipher::Aes256Gcm),
+    Core\Crypto::open($interop, $key, Core\Crypto::Cipher::Aes256Gcm),
     Core\Charset::Utf8
 ), "\n";

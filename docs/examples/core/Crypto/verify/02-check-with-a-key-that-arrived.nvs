@@ -9,10 +9,10 @@ bytes $signature = Core\Crypto::sign($message, $signer);
 
 // The two formats other programs send a public key in. `Spki` is bytes, and
 // `Jwk` is JSON text that browsers and web services use.
-bytes $spki = $signer->publicKey()->write(Core\Crypto\KeyFormat::Spki);
-bytes $jwk = $signer->publicKey()->write(Core\Crypto\KeyFormat::Jwk);
+bytes $spki = $signer->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
+bytes $jwk = $signer->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk);
 
-array<Core\Crypto\KeyFormat> $formats = [Core\Crypto\KeyFormat::Spki, Core\Crypto\KeyFormat::Jwk];
+array<Core\Crypto\PublicKey::Format> $formats = [Core\Crypto\PublicKey::Format::Spki, Core\Crypto\PublicKey::Format::Jwk];
 array<bytes> $arrived = [$spki, $jwk];
 
 // Both are the same key, so the same signature checks out under both. This

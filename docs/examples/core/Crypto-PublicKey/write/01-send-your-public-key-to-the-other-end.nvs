@@ -9,7 +9,7 @@ Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read(
 
 // `publicKey` gives you the half you may send. `write` turns it into octets in
 // the encoding you name.
-bytes $sent = $pair->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+bytes $sent = $pair->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
 
 // This prints the same line on every run, because the file holds one key.
 echo Core\Encoding::toHex($sent), "\n";

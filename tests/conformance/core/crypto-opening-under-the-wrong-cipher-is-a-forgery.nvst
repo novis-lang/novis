@@ -20,10 +20,10 @@ int $sameSentence = 0;
 foreach ($lengths as uint $length) {
     bytes $message = Core\Bytes::fill($length, 65);
 
-    bytes $extended = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $extended = Core\Crypto::seal($message, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
     $tried += 1;
     try {
-        bytes $asInterop = Core\Crypto::open($extended, $key, Core\Crypto\Cipher::Aes256Gcm);
+        bytes $asInterop = Core\Crypto::open($extended, $key, Core\Crypto::Cipher::Aes256Gcm);
     } catch (RuntimeError $notThisCipher) {
         $refused += 1;
         if ($sentence == "") {
@@ -34,10 +34,10 @@ foreach ($lengths as uint $length) {
         }
     }
 
-    bytes $interop = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::Aes256Gcm);
+    bytes $interop = Core\Crypto::seal($message, $key, Core\Crypto::Cipher::Aes256Gcm);
     $tried += 1;
     try {
-        bytes $asExtended = Core\Crypto::open($interop, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+        bytes $asExtended = Core\Crypto::open($interop, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
     } catch (RuntimeError $stillNotThisCipher) {
         $refused += 1;
         if ($stillNotThisCipher->message == $sentence) {
@@ -51,10 +51,10 @@ echo "one sentence ", $sameSentence, " of ", $refused, "\n";
 // The sentence itself, and it is the one a wrong key earns rather than a
 // second one: a caller that could tell "wrong cipher" from "wrong key" apart
 // would learn which half of a forgery attempt landed.
-bytes $probe = Core\Crypto::seal("attack at dawn" as bytes, $key, Core\Crypto\Cipher::Aes256Gcm);
+bytes $probe = Core\Crypto::seal("attack at dawn" as bytes, $key, Core\Crypto::Cipher::Aes256Gcm);
 secret bytes $other = Core\Crypto::generateKey();
 try {
-    bytes $wrongKey = Core\Crypto::open($probe, $other, Core\Crypto\Cipher::Aes256Gcm);
+    bytes $wrongKey = Core\Crypto::open($probe, $other, Core\Crypto::Cipher::Aes256Gcm);
     echo "opened under the wrong key", "\n";
 } catch (RuntimeError $notThisKey) {
     if ($notThisKey->message == $sentence) {
@@ -68,7 +68,7 @@ echo $sentence, "\n";
 // The other side of the bound: the case it was sealed under still opens it, so
 // the refusals above are about the cipher named and not about `open` having
 // become a member that refuses everything.
-if (Core\Crypto::open($probe, $key, Core\Crypto\Cipher::Aes256Gcm) == "attack at dawn" as bytes) {
+if (Core\Crypto::open($probe, $key, Core\Crypto::Cipher::Aes256Gcm) == "attack at dawn" as bytes) {
     echo "and the case it was sealed under opens it", "\n";
 } else {
     echo "refused its own message", "\n";

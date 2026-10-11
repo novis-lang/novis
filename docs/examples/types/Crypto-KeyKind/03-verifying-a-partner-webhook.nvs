@@ -12,9 +12,9 @@ bytes $signature = Core\Crypto::sign($body, $partner);
 // `PublicKey::read` checks that the bytes are a valid key of that kind.
 Core\Crypto\KeyKind $kind = Core\Crypto\KeyKind::Ed25519;
 Core\Crypto\PublicKey $onFile = Core\Crypto\PublicKey::read(
-    $partner->publicKey()->write(Core\Crypto\KeyFormat::Spki),
+    $partner->publicKey()->write(Core\Crypto\PublicKey::Format::Spki),
     $kind,
-    Core\Crypto\KeyFormat::Spki
+    Core\Crypto\PublicKey::Format::Spki
 );
 
 try {

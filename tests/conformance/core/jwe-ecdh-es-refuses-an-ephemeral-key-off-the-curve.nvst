@@ -82,14 +82,14 @@ echo "distinct sentences ", Core\Arr::count($sentences), "\n";
 Core\Crypto\PublicKey $sender = Core\Crypto\PublicKey::read(
     "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"t5E8LI6Gbd9z62dcaPZclzrQ84vjqzhxIZJ5ynKANGk\",\"y\":\"patKjTTAFcRNbEWrxtS4MP32grfcwcImAxFlUjI0SM4\"}" as bytes,
     Core\Crypto\KeyKind::P256,
-    Core\Crypto\KeyFormat::Jwk
+    Core\Crypto\PublicKey::Format::Jwk
 );
 echo $sender->kind() == Core\Crypto\KeyKind::P256 ? "the same jwk reads" : "read another kind", "\n";
 try {
     Core\Crypto\PublicKey $never = Core\Crypto\PublicKey::read(
         "{\"crv\":\"P-256\",\"kty\":\"EC\",\"x\":\"t5E8LI6Gbd9z62dcaPZclzrQ84vjqzhxIZJ5ynKANGk\",\"y\":\"pKtKjTTAFcRNbEWrxtS4MP32grfcwcImAxFlUjI0SM4\"}" as bytes,
         Core\Crypto\KeyKind::P256,
-        Core\Crypto\KeyFormat::Jwk
+        Core\Crypto\PublicKey::Format::Jwk
     );
     echo "the transposed jwk read as a key", "\n";
 } catch (RuntimeError $verdict) {

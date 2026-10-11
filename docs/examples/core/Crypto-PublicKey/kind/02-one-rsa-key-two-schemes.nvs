@@ -7,12 +7,12 @@ bytes $sameOctets = Core\Encoding::fromHex("30820122300d06092a864886f70d01010105
 Core\Crypto\PublicKey $signing = Core\Crypto\PublicKey::read(
     $sameOctets,
     Core\Crypto\KeyKind::RsaPkcs1,
-    Core\Crypto\KeyFormat::Spki
+    Core\Crypto\PublicKey::Format::Spki
 );
 Core\Crypto\PublicKey $probabilistic = Core\Crypto\PublicKey::read(
     $sameOctets,
     Core\Crypto\KeyKind::RsaPss,
-    Core\Crypto\KeyFormat::Spki
+    Core\Crypto\PublicKey::Format::Spki
 );
 
 // Two keys out of one document, and each reports the scheme it was read as.

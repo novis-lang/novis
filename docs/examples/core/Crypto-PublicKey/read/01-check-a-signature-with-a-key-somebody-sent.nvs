@@ -9,7 +9,7 @@ bytes $sent = Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bb
 Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
     $sent,
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\KeyFormat::Raw
+    Core\Crypto\PublicKey::Format::Raw
 );
 
 bytes $message = "order 1042 shipped" as bytes;

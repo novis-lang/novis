@@ -9,7 +9,7 @@ try {
     Core\Crypto\PublicKey::read(
         Core\Bytes::fill(200000, 3),
         Core\Crypto\KeyKind::P256,
-        Core\Crypto\KeyFormat::Spki,
+        Core\Crypto\PublicKey::Format::Spki,
     );
     echo '1 read a key out of filler octets', "\n";
 } catch (Throwable $e) {
@@ -22,7 +22,7 @@ try {
     Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex('0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e88'),
         Core\Crypto\KeyKind::P256,
-        Core\Crypto\KeyFormat::Raw,
+        Core\Crypto\PublicKey::Format::Raw,
     );
     echo '2 read a point that is not on the curve', "\n";
 } catch (Throwable $e) {
@@ -35,7 +35,7 @@ try {
     Core\Crypto\PublicKey::read(
         ("{\"kty\":\"RSA\",\"e\":\"AQAB\",\"n\":\"" . Core\Str::repeat('A', 5000000) . "\"}") as bytes,
         Core\Crypto\KeyKind::RsaPkcs1,
-        Core\Crypto\KeyFormat::Jwk,
+        Core\Crypto\PublicKey::Format::Jwk,
     );
     echo '3 read a key with a five million character number', "\n";
 } catch (Throwable $e) {
@@ -48,7 +48,7 @@ try {
     Core\Crypto\PublicKey::read(
         Core\Str::repeat('[', 100000) as bytes,
         Core\Crypto\KeyKind::Ed25519,
-        Core\Crypto\KeyFormat::Jwk,
+        Core\Crypto\PublicKey::Format::Jwk,
     );
     echo '4 read a key out of open brackets', "\n";
 } catch (Throwable $e) {
@@ -61,7 +61,7 @@ try {
     Core\Crypto\PublicKey::read(
         "{\"crv\":\"Ed25519\",\"d\":\"Nue-RPHfwV1kqA-Y2PLXn5eIB6fEYmFy87eV3H4RBIo\",\"kty\":\"OKP\",\"x\":\"_M6QCKM1ZSSFYSlafOHMywQLYSm7qP8kdElTu8ASYaw\"}" as bytes,
         Core\Crypto\KeyKind::Ed25519,
-        Core\Crypto\KeyFormat::Jwk,
+        Core\Crypto\PublicKey::Format::Jwk,
     );
     echo '5 read a private key as a public one', "\n";
 } catch (Throwable $e) {
@@ -79,7 +79,7 @@ array<Core\Crypto\KeyKind> $wrong = [
 ];
 foreach ($wrong as Core\Crypto\KeyKind $kind) {
     try {
-        Core\Crypto\PublicKey::read($ed25519, $kind, Core\Crypto\KeyFormat::Spki);
+        Core\Crypto\PublicKey::read($ed25519, $kind, Core\Crypto\PublicKey::Format::Spki);
         echo '6 read an Ed25519 key as another kind', "\n";
     } catch (Throwable $e) {
         echo '6 refused', "\n";
@@ -94,7 +94,7 @@ foreach (Core\Arr::range(1, 20000) as int $round) {
     $kept[] = Core\Crypto\PublicKey::read(
         $ed25519,
         Core\Crypto\KeyKind::Ed25519,
-        Core\Crypto\KeyFormat::Spki,
+        Core\Crypto\PublicKey::Format::Spki,
     );
     $held += 1;
 }

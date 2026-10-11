@@ -8,11 +8,11 @@ Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read(
 Core\Crypto\PublicKey $half = $pair->publicKey();
 
 // `Raw` is the key itself, and nothing else. It is the shortest form.
-echo Core\Encoding::toHex($half->write(Core\Crypto\KeyFormat::Raw)), "\n";
+echo Core\Encoding::toHex($half->write(Core\Crypto\PublicKey::Format::Raw)), "\n";
 
 // `Spki` is the same key with a header saying which kind it is. Most other
 // programs expect this form.
-echo Core\Encoding::toHex($half->write(Core\Crypto\KeyFormat::Spki)), "\n";
+echo Core\Encoding::toHex($half->write(Core\Crypto\PublicKey::Format::Spki)), "\n";
 
 // The public half is worked out from the private key, so one file always gives
 // you the same public key.
@@ -21,6 +21,6 @@ Core\Crypto\KeyPair $again = Core\Crypto\KeyPair::read(
     Core\Crypto\KeyKind::Ed25519
 );
 echo "the same key every time: ",
-    ($again->publicKey()->write(Core\Crypto\KeyFormat::Raw)
-        == $half->write(Core\Crypto\KeyFormat::Raw) ? "yes" : "no"),
+    ($again->publicKey()->write(Core\Crypto\PublicKey::Format::Raw)
+        == $half->write(Core\Crypto\PublicKey::Format::Raw) ? "yes" : "no"),
     "\n";

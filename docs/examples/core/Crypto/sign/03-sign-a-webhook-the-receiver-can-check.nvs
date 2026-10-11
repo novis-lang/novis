@@ -7,7 +7,7 @@ Core\Crypto\KeyPair $sender = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::
 
 // The receiver is given this one public key beforehand. A public key is safe to
 // publish.
-bytes $published = $sender->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+bytes $published = $sender->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
 
 // What the sender sends: the body, and the signature as text in a header.
 string $body = '{"order":1042,"state":"shipped"}';
@@ -17,7 +17,7 @@ string $header = Core\Encoding::toHex(Core\Crypto::sign($body as bytes, $sender)
 Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
     $published,
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\KeyFormat::Spki
+    Core\Crypto\PublicKey::Format::Spki
 );
 // ...and checks the body it just received against the header.
 try {

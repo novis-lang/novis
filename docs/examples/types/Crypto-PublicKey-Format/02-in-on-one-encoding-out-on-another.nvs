@@ -11,19 +11,19 @@ string $der = "3059301306072a8648ce3d020106082a8648ce3d030107034200"
 Core\Crypto\PublicKey $stored = Core\Crypto\PublicKey::read(
     Core\Encoding::fromHex($der),
     Core\Crypto\KeyKind::P256,
-    Core\Crypto\KeyFormat::Spki
+    Core\Crypto\PublicKey::Format::Spki
 );
 
 // The browser gets the raw point and sends it back later. `PublicKey::read`
 // needs the format of the bytes as an argument.
-bytes $forTheBrowser = $stored->write(Core\Crypto\KeyFormat::Raw);
+bytes $forTheBrowser = $stored->write(Core\Crypto\PublicKey::Format::Raw);
 Core\Crypto\PublicKey $returned = Core\Crypto\PublicKey::read(
     $forTheBrowser,
     Core\Crypto\KeyKind::P256,
-    Core\Crypto\KeyFormat::Raw
+    Core\Crypto\PublicKey::Format::Raw
 );
 
-if (Core\Encoding::toHex($returned->write(Core\Crypto\KeyFormat::Spki)) == $der) {
+if (Core\Encoding::toHex($returned->write(Core\Crypto\PublicKey::Format::Spki)) == $der) {
     echo "the raw point wrote back the DER we started from", "\n";
 } else {
     echo "the raw point came back as another key", "\n";
@@ -31,12 +31,12 @@ if (Core\Encoding::toHex($returned->write(Core\Crypto\KeyFormat::Spki)) == $der)
 
 // The same test with JSON, the format for keys published on the web.
 Core\Crypto\PublicKey $viaJson = Core\Crypto\PublicKey::read(
-    $stored->write(Core\Crypto\KeyFormat::Jwk),
+    $stored->write(Core\Crypto\PublicKey::Format::Jwk),
     Core\Crypto\KeyKind::P256,
-    Core\Crypto\KeyFormat::Jwk
+    Core\Crypto\PublicKey::Format::Jwk
 );
 
-if (Core\Encoding::toHex($viaJson->write(Core\Crypto\KeyFormat::Spki)) == $der) {
+if (Core\Encoding::toHex($viaJson->write(Core\Crypto\PublicKey::Format::Spki)) == $der) {
     echo "and so did the JSON one", "\n";
 } else {
     echo "the JSON one came back as another key", "\n";

@@ -9,12 +9,12 @@ class Bench {
         Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
             Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
             Core\Crypto\KeyKind::Ed25519,
-            Core\Crypto\KeyFormat::Raw
+            Core\Crypto\PublicKey::Format::Raw
         );
-        array<Core\Crypto\KeyFormat> $formats = [
-            Core\Crypto\KeyFormat::Raw,
-            Core\Crypto\KeyFormat::Spki,
-            Core\Crypto\KeyFormat::Jwk,
+        array<Core\Crypto\PublicKey::Format> $formats = [
+            Core\Crypto\PublicKey::Format::Raw,
+            Core\Crypto\PublicKey::Format::Spki,
+            Core\Crypto\PublicKey::Format::Jwk,
         ];
 
         uint $total = 0;

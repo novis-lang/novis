@@ -28,8 +28,8 @@ if ($noInfo != $noSalt) {
 // And both edges at once still answer a key, read back the only way a
 // `secret bytes` can be: by keying the ciphers that have a bound on its width.
 bytes $message = "attack at dawn" as bytes;
-bytes $sealed = Core\Crypto::seal($message, $noInfo, Core\Crypto\Cipher::Aes256Gcm);
-if (Core\Crypto::open($sealed, $noInfo, Core\Crypto\Cipher::Aes256Gcm) == $message) {
+bytes $sealed = Core\Crypto::seal($message, $noInfo, Core\Crypto::Cipher::Aes256Gcm);
+if (Core\Crypto::open($sealed, $noInfo, Core\Crypto::Cipher::Aes256Gcm) == $message) {
     echo "no salt and no info: a key", "\n";
 }
 --EXPECT--

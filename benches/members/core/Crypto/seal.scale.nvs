@@ -12,7 +12,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            bytes $sealed = Core\Crypto::seal($field, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+            bytes $sealed = Core\Crypto::seal($field, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
             $total = $total + Core\Bytes::length($sealed);
             $i = $i + 1;
         }

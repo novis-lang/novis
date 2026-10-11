@@ -1,5 +1,5 @@
 --TEST--
-Core\Crypto::generateKey, ::deriveKey and ::expandKey agree on what a key is — each answer seals and opens under both Core\Crypto\Cipher cases, and none of them opens a message sealed under another — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
+Core\Crypto::generateKey, ::deriveKey and ::expandKey agree on what a key is — each answer seals and opens under both Core\Crypto::Cipher cases, and none of them opens a message sealed under another — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
 // Agreement: one question asked of every member that answers a key, asserting
@@ -28,12 +28,12 @@ foreach (Core\Arr::range(0, 2) as int $i) {
     // Both constructions under every key, because a key is a key for either:
     // 32 octets is XChaCha20-Poly1305's only width and AES-256's, which is why
     // no member that answers one takes a cipher argument.
-    bytes $extended = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
-    bytes $interop = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::Aes256Gcm);
-    if (Core\Crypto::open($extended, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+    bytes $extended = Core\Crypto::seal($message, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
+    bytes $interop = Core\Crypto::seal($message, $key, Core\Crypto::Cipher::Aes256Gcm);
+    if (Core\Crypto::open($extended, $key, Core\Crypto::Cipher::XChaCha20Poly1305) == $message) {
         $round += 1;
     }
-    if (Core\Crypto::open($interop, $key, Core\Crypto\Cipher::Aes256Gcm) == $message) {
+    if (Core\Crypto::open($interop, $key, Core\Crypto::Cipher::Aes256Gcm) == $message) {
         $round += 1;
     }
 
@@ -47,7 +47,7 @@ foreach (Core\Arr::range(0, 2) as int $i) {
                 bytes $opened = Core\Crypto::open(
                     $extended,
                     $keys[$j],
-                    Core\Crypto\Cipher::XChaCha20Poly1305
+                    Core\Crypto::Cipher::XChaCha20Poly1305
                 );
                 echo "one member's key opened another's message", "\n";
             } catch (RuntimeError $notThisKey) {

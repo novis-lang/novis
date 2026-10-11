@@ -40,8 +40,8 @@ foreach ($pem as string $slot => string $block) {
     // And the same public half, which is the half that says the two are one
     // key rather than two files that both happened to parse.
     if (
-        Core\Encoding::toHex($armoured->publicKey()->write(Core\Crypto\KeyFormat::Spki))
-        == Core\Encoding::toHex($plain->publicKey()->write(Core\Crypto\KeyFormat::Spki))
+        Core\Encoding::toHex($armoured->publicKey()->write(Core\Crypto\PublicKey::Format::Spki))
+        == Core\Encoding::toHex($plain->publicKey()->write(Core\Crypto\PublicKey::Format::Spki))
     ) {
         $sameKey += 1;
     }

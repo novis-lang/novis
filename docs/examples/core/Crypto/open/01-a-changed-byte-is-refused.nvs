@@ -6,7 +6,7 @@ secret bytes $key = Core\Crypto::generateKey();
 bytes $sealed = Core\Crypto::seal(
     "pay 100 to Ada" as bytes,
     $key,
-    Core\Crypto\Cipher::XChaCha20Poly1305
+    Core\Crypto::Cipher::XChaCha20Poly1305
 );
 
 // Somebody replaces the last byte with an `X`.
@@ -19,10 +19,10 @@ bytes $changed = Core\Bytes::join(
 // The message is now 1 byte different, and it is refused. This prints
 // `the message was changed`.
 try {
-    echo Core\Crypto::open($changed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
+    echo Core\Crypto::open($changed, $key, Core\Crypto::Cipher::XChaCha20Poly1305) as string, "\n";
 } catch (RuntimeError $e) {
     echo "the message was changed", "\n";
 }
 
 // The untouched bytes still open. This prints the message.
-echo Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
+echo Core\Crypto::open($sealed, $key, Core\Crypto::Cipher::XChaCha20Poly1305) as string, "\n";

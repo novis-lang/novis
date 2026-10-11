@@ -17,7 +17,7 @@ try {
     Core\Crypto\PublicKey $noRawForm = Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex($rsaSpki),
         Core\Crypto\KeyKind::RsaPkcs1,
-        Core\Crypto\KeyFormat::Raw
+        Core\Crypto\PublicKey::Format::Raw
     );
     echo "raw rsa accepted", "\n";
 } catch (LogicError $bug) {
@@ -31,7 +31,7 @@ try {
     Core\Crypto\PublicKey $privateHalf = Core\Crypto\PublicKey::read(
         "{\"crv\":\"Ed25519\",\"d\":\"Nue-RPHfwV1kqA-Y2PLXn5eIB6fEYmFy87eV3H4RBIo\",\"kty\":\"OKP\",\"x\":\"_M6QCKM1ZSSFYSlafOHMywQLYSm7qP8kdElTu8ASYaw\"}" as bytes,
         Core\Crypto\KeyKind::Ed25519,
-        Core\Crypto\KeyFormat::Jwk
+        Core\Crypto\PublicKey::Format::Jwk
     );
     echo "a private jwk accepted", "\n";
 } catch (LogicError $bug) {
@@ -44,10 +44,10 @@ try {
 Core\Crypto\PublicKey $rsa = Core\Crypto\PublicKey::read(
     Core\Encoding::fromHex($rsaSpki),
     Core\Crypto\KeyKind::RsaPkcs1,
-    Core\Crypto\KeyFormat::Spki
+    Core\Crypto\PublicKey::Format::Spki
 );
 try {
-    bytes $nothingToWrite = $rsa->write(Core\Crypto\KeyFormat::Raw);
+    bytes $nothingToWrite = $rsa->write(Core\Crypto\PublicKey::Format::Raw);
     echo "raw rsa written", "\n";
 } catch (LogicError $bug) {
     echo $bug->message, "\n";
@@ -83,13 +83,13 @@ array<Core\Crypto\KeyKind> $unreadableKinds = [
     Core\Crypto\KeyKind::P256,
     Core\Crypto\KeyKind::RsaPkcs1,
 ];
-array<Core\Crypto\KeyFormat> $unreadableFormats = [
-    Core\Crypto\KeyFormat::Raw,
-    Core\Crypto\KeyFormat::Raw,
-    Core\Crypto\KeyFormat::Raw,
-    Core\Crypto\KeyFormat::Spki,
-    Core\Crypto\KeyFormat::Jwk,
-    Core\Crypto\KeyFormat::Spki,
+array<Core\Crypto\PublicKey::Format> $unreadableFormats = [
+    Core\Crypto\PublicKey::Format::Raw,
+    Core\Crypto\PublicKey::Format::Raw,
+    Core\Crypto\PublicKey::Format::Raw,
+    Core\Crypto\PublicKey::Format::Spki,
+    Core\Crypto\PublicKey::Format::Jwk,
+    Core\Crypto\PublicKey::Format::Spki,
 ];
 int $verdicts = 0;
 string $sentence = "";

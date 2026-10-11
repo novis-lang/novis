@@ -4,7 +4,7 @@
 // hostile: timeout-ms 30000
 
 Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
-string $jwk = Core\Encoding::decodeText($pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+string $jwk = Core\Encoding::decodeText($pair->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk), Core\Charset::Utf8);
 
 class Check
 {

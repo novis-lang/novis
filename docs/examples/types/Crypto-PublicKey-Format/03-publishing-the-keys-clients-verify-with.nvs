@@ -20,10 +20,10 @@ foreach (Core\Arr::range(0, 1) as int $slot) {
     Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex($stored[$slot]),
         $kinds[$slot],
-        Core\Crypto\KeyFormat::Spki
+        Core\Crypto\PublicKey::Format::Spki
     );
     $published[] = Core\Encoding::decodeText(
-        $key->write(Core\Crypto\KeyFormat::Jwk),
+        $key->write(Core\Crypto\PublicKey::Format::Jwk),
         Core\Charset::Utf8
     );
 }

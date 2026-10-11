@@ -55,7 +55,7 @@ foreach ($pkcs8 as string $slot => string $hex) {
     // one handed to it could hold a public key belonging to somebody else;
     // this is the same key WebCrypto exported from the same private key.
     Core\Crypto\PublicKey $public = $pair->publicKey();
-    if (Core\Encoding::toHex($public->write(Core\Crypto\KeyFormat::Spki)) == $spki[$slot]) {
+    if (Core\Encoding::toHex($public->write(Core\Crypto\PublicKey::Format::Spki)) == $spki[$slot]) {
         $halves += 1;
     }
 

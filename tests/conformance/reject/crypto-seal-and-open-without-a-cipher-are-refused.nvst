@@ -1,5 +1,5 @@
 --TEST--
-Core\Crypto::seal and ::open without their Core\Crypto\Cipher argument are compile errors, because no algorithm argument in this class carries a default — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
+Core\Crypto::seal and ::open without their Core\Crypto::Cipher argument are compile errors, because no algorithm argument in this class carries a default — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
 // The other half of `crypto-seal-and-open-take-a-cipher-and-round-trip-under-each`.

@@ -20,7 +20,7 @@ foreach ($clients as string $name) {
     bytes $sealed = Core\Crypto::seal(
         ("hello " . $name) as bytes,
         $key,
-        Core\Crypto\Cipher::XChaCha20Poly1305
+        Core\Crypto::Cipher::XChaCha20Poly1305
     );
 
     // The client reaches the same secret from its own side, builds the same key
@@ -30,5 +30,5 @@ foreach ($clients as string $name) {
         "" as bytes,
         "session for " . $name
     );
-    echo Core\Crypto::open($sealed, $clientKey, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
+    echo Core\Crypto::open($sealed, $clientKey, Core\Crypto::Cipher::XChaCha20Poly1305) as string, "\n";
 }

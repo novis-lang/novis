@@ -12,12 +12,12 @@ Core\Crypto\PublicKey $key = $pair->publicKey();
 // What each client asked for, as the names the browsers use.
 array<string> $asked = ["raw", "spki", "jwk"];
 foreach ($asked as string $name) {
-    Core\Crypto\KeyFormat $format = Core\Crypto\KeyFormat::Jwk;
+    Core\Crypto\PublicKey::Format $format = Core\Crypto\PublicKey::Format::Jwk;
     if ($name == "raw") {
-        $format = Core\Crypto\KeyFormat::Raw;
+        $format = Core\Crypto\PublicKey::Format::Raw;
     }
     if ($name == "spki") {
-        $format = Core\Crypto\KeyFormat::Spki;
+        $format = Core\Crypto\PublicKey::Format::Spki;
     }
 
     // The same key, written three ways. This prints 32, 44 and 79 octets.

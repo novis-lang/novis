@@ -18,8 +18,8 @@ Core\Crypto\KeyPair $fromDer = Core\Crypto\KeyPair::read(
 );
 
 // One key read twice, so both pairs have the same public half.
-bytes $fromText = $fromPem->publicKey()->write(Core\Crypto\KeyFormat::Spki);
-bytes $fromBinary = $fromDer->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+bytes $fromText = $fromPem->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
+bytes $fromBinary = $fromDer->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
 echo "both files are one key: ", ($fromText == $fromBinary ? "yes" : "no"), "\n";
 
 // `write` always gives the binary form, whichever form was read. Your program

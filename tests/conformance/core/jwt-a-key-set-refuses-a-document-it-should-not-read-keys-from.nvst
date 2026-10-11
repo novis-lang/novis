@@ -9,7 +9,7 @@ Core\Jwt\KeySet::read refuses a whole document that is wrong about its own keys 
 // the reader of the message is whoever configured the URL and not a forger.
 Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
 string $sig = Core\Encoding::decodeText(
-    $signing->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    $signing->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk),
     Core\Charset::Utf8
 );
 string $named = Core\Str::replace($sig, "{", "{\"kid\":\"ec-1\",");

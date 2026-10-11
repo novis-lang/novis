@@ -17,10 +17,10 @@ class Bench {
             Core\Crypto\KeyKind::X25519,
             Core\Crypto\KeyKind::P256,
         ];
-        array<Core\Crypto\KeyFormat> $formats = [
-            Core\Crypto\KeyFormat::Raw,
-            Core\Crypto\KeyFormat::Spki,
-            Core\Crypto\KeyFormat::Spki,
+        array<Core\Crypto\PublicKey::Format> $formats = [
+            Core\Crypto\PublicKey::Format::Raw,
+            Core\Crypto\PublicKey::Format::Spki,
+            Core\Crypto\PublicKey::Format::Spki,
         ];
 
         uint $total = 0;

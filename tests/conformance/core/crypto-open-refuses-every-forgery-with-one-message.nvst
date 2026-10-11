@@ -13,14 +13,14 @@ secret bytes $other = Core\Crypto::generateKey();
 bytes $sealed = Core\Crypto::seal(
     "attack at dawn" as bytes,
     $key,
-    Core\Crypto\Cipher::XChaCha20Poly1305
+    Core\Crypto::Cipher::XChaCha20Poly1305
 );
 
 // One octet short — the cheapest tamper there is, and `examples/crypto.nvs`'s
 // own last line.
 bytes $truncated = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
 try {
-    bytes $forged = Core\Crypto::open($truncated, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $forged = Core\Crypto::open($truncated, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
     echo "tamper accepted", "\n";
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";
@@ -32,7 +32,7 @@ try {
     bytes $headless = Core\Crypto::open(
         Core\Bytes::slice($sealed, 0, 24),
         $key,
-        Core\Crypto\Cipher::XChaCha20Poly1305
+        Core\Crypto::Cipher::XChaCha20Poly1305
     );
     echo "a bare nonce accepted", "\n";
 } catch (RuntimeError $noTag) {
@@ -43,7 +43,7 @@ try {
 // split — and it is refused with the same sentence rather than a more helpful
 // one about its length.
 try {
-    bytes $stub = Core\Crypto::open("nope" as bytes, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $stub = Core\Crypto::open("nope" as bytes, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
     echo "a four-octet message accepted", "\n";
 } catch (RuntimeError $tooShort) {
     echo $tooShort->message, "\n";
@@ -51,7 +51,7 @@ try {
 
 // An intact message under a key that did not seal it.
 try {
-    bytes $wrong = Core\Crypto::open($sealed, $other, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $wrong = Core\Crypto::open($sealed, $other, Core\Crypto::Cipher::XChaCha20Poly1305);
     echo "opened under the wrong key", "\n";
 } catch (RuntimeError $notThisKey) {
     echo $notThisKey->message, "\n";
@@ -63,7 +63,7 @@ try {
 // value not.
 secret bytes $stunted = Core\Random::bytes(8);
 try {
-    bytes $unopenable = Core\Crypto::open($sealed, $stunted, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $unopenable = Core\Crypto::open($sealed, $stunted, Core\Crypto::Cipher::XChaCha20Poly1305);
     echo "opened under an 8-octet key", "\n";
 } catch (LogicError $notAKey) {
     echo $notAKey->message, "\n";
@@ -73,7 +73,7 @@ try {
     bytes $unsealable = Core\Crypto::seal(
         "x" as bytes,
         $stunted,
-        Core\Crypto\Cipher::XChaCha20Poly1305
+        Core\Crypto::Cipher::XChaCha20Poly1305
     );
     echo "sealed under an 8-octet key", "\n";
 } catch (LogicError $stillNotAKey) {
@@ -83,7 +83,7 @@ try {
 // The other side of the bound: the message this class sealed opens under the
 // key that sealed it, so the six refusals above are about their arguments and
 // not about `open` having become a member that refuses everything.
-if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == "attack at dawn" as bytes) {
+if (Core\Crypto::open($sealed, $key, Core\Crypto::Cipher::XChaCha20Poly1305) == "attack at dawn" as bytes) {
     echo "and the message it sealed opens", "\n";
 } else {
     echo "refused its own message", "\n";

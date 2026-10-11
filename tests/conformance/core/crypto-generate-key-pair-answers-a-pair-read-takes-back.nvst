@@ -27,8 +27,8 @@ foreach (Core\Arr::range(0, 2) as int $slot) {
         $readBack += 1;
     }
 
-    string $half = Core\Encoding::toHex($drawn->publicKey()->write(Core\Crypto\KeyFormat::Spki));
-    if (Core\Encoding::toHex($stored->publicKey()->write(Core\Crypto\KeyFormat::Spki)) == $half) {
+    string $half = Core\Encoding::toHex($drawn->publicKey()->write(Core\Crypto\PublicKey::Format::Spki));
+    if (Core\Encoding::toHex($stored->publicKey()->write(Core\Crypto\PublicKey::Format::Spki)) == $half) {
         $sameHalf += 1;
     }
 
@@ -44,9 +44,9 @@ foreach (Core\Arr::range(0, 2) as int $slot) {
     Core\Crypto\PublicKey $sent = Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex($half),
         $kinds[$slot],
-        Core\Crypto\KeyFormat::Spki
+        Core\Crypto\PublicKey::Format::Spki
     );
-    if (Core\Encoding::toHex($sent->write(Core\Crypto\KeyFormat::Spki)) == $half) {
+    if (Core\Encoding::toHex($sent->write(Core\Crypto\PublicKey::Format::Spki)) == $half) {
         $onTheCurve += 1;
     }
 }

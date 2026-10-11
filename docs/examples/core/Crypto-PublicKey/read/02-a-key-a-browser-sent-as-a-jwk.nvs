@@ -9,9 +9,9 @@ string $sentByTheBrowser = "{\"key_ops\":[\"verify\"],\"ext\":true,\"alg\":\"Ed2
 Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
     $sentByTheBrowser as bytes,
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\KeyFormat::Jwk
+    Core\Crypto\PublicKey::Format::Jwk
 );
 
 // One key has one spelling in each encoding. The same key sent as `Raw` or as
 // `Spki` writes the same line here. This prints the key as hex text.
-echo Core\Encoding::toHex($key->write(Core\Crypto\KeyFormat::Spki)), "\n";
+echo Core\Encoding::toHex($key->write(Core\Crypto\PublicKey::Format::Spki)), "\n";

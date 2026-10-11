@@ -1,6 +1,9 @@
 Says which encoding a public key is read from or written to.
 
-A public key can be written as bytes in several standard ways. `Core\Crypto\KeyFormat` has one case
+`Core\Crypto\PublicKey::Format` is declared in the class `Core\Crypto\PublicKey`. The methods `read`
+and `write` take it as an argument.
+
+A public key can be written as bytes in several standard ways. `Core\Crypto\PublicKey::Format` has one case
 for each encoding that a browser's WebCrypto API exports, and the cases have the same names. `Raw`
 is the key bytes alone. `Spki` is a DER document that contains the key and the name of its
 algorithm. `Jwk` is the JSON form that identity providers publish. When you read a key, you pass

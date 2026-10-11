@@ -34,7 +34,7 @@ echo $headers[1], "\n";
 // own public half exports, so `embedKey` cannot grow a second JWK spelling that
 // a recipient reading the exported one would not accept.
 string $exported = Core\Encoding::decodeText(
-    $pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    $pair->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk),
     Core\Charset::Utf8
 );
 string $wanted = "{\"alg\":\"EdDSA\",\"jwk\":" . $exported . ",\"kid\":\"dpop\",\"typ\":\"JWT\"}";

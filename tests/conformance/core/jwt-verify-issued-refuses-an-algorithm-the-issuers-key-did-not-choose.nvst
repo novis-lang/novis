@@ -36,7 +36,7 @@ string $borrowed = $none . "." . $claims . "." . $signature;
 // The confusion. A verifier that reads `alg` to pick its arm HMACs whatever
 // key it is holding, and the key it is holding here is the one the issuer
 // publishes — so this token is one anybody who can fetch a JWKS can sign.
-bytes $published = $issuer->publicKey()->write(Core\Crypto\KeyFormat::Raw);
+bytes $published = $issuer->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
 array<string> $mac = ["iss" => "https://issuer.example", "aud" => "novis-app"];
 string $confused = Core\Jwt::sign($mac, 15m, $published);
 

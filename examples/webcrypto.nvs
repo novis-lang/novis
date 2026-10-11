@@ -24,10 +24,10 @@
 // `encrypt` output with its IV put in front.
 secret bytes $key = Core\Crypto::generateKey();
 bytes $message = 'the quarterly figures' as bytes;
-bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::Aes256Gcm);
+bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto::Cipher::Aes256Gcm);
 echo 'sealed', "\n";
 
-if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::Aes256Gcm) == $message) {
+if (Core\Crypto::open($sealed, $key, Core\Crypto::Cipher::Aes256Gcm) == $message) {
     echo 'opened', "\n";
 } else {
     echo 'opened the wrong plaintext', "\n";
@@ -38,7 +38,7 @@ if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::Aes256Gcm) == $message)
 // nothing at all.
 bytes $tampered = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
 try {
-    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto\Cipher::Aes256Gcm);
+    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto::Cipher::Aes256Gcm);
     echo 'tamper accepted', "\n";
 } catch (RuntimeError $refused) {
     echo 'tamper refused', "\n";

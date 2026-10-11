@@ -28,7 +28,7 @@ foreach ($contributeNothing as string $point) {
     Core\Crypto\PublicKey $small = Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex($point),
         Core\Crypto\KeyKind::X25519,
-        Core\Crypto\KeyFormat::Raw
+        Core\Crypto\PublicKey::Format::Raw
     );
     try {
         secret bytes $zero = Core\Crypto::agree($mine, $small);
@@ -53,7 +53,7 @@ echo $said[0], "\n";
 Core\Crypto\PublicKey $real = Core\Crypto\PublicKey::read(
     Core\Encoding::fromHex("9c7be3a9c961ce008340674cd3d468fc5be27c98b65a35262ca2d05573d0585e"),
     Core\Crypto\KeyKind::X25519,
-    Core\Crypto\KeyFormat::Raw
+    Core\Crypto\PublicKey::Format::Raw
 );
 secret bytes $want = Core\Encoding::fromHex(
     "34749db6e8052e771090b04ad9ba16459ac958541996589611b0930a4d5ff709"

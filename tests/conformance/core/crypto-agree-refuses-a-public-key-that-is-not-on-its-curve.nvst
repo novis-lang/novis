@@ -40,7 +40,7 @@ foreach ($notOnP256 as string $point) {
         Core\Crypto\PublicKey $never = Core\Crypto\PublicKey::read(
             Core\Encoding::fromHex($point),
             Core\Crypto\KeyKind::P256,
-            Core\Crypto\KeyFormat::Raw
+            Core\Crypto\PublicKey::Format::Raw
         );
         echo "a point that is not on P-256 read as a key", "\n";
     } catch (RuntimeError $verdict) {
@@ -66,7 +66,7 @@ foreach ($contributeNothing as string $point) {
     Core\Crypto\PublicKey $small = Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex($point),
         Core\Crypto\KeyKind::X25519,
-        Core\Crypto\KeyFormat::Raw
+        Core\Crypto\PublicKey::Format::Raw
     );
     $readBack += 1;
     try {

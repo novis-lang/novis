@@ -94,8 +94,8 @@ Core\Crypto\KeyPair $underPss = Core\Crypto\KeyPair::read(
     Core\Crypto\KeyKind::RsaPss
 );
 echo $underPkcs1->write() == $underPss->write() ? "one file\n" : "two files\n";
-echo Core\Encoding::toHex($underPkcs1->publicKey()->write(Core\Crypto\KeyFormat::Spki))
-    == Core\Encoding::toHex($underPss->publicKey()->write(Core\Crypto\KeyFormat::Spki))
+echo Core\Encoding::toHex($underPkcs1->publicKey()->write(Core\Crypto\PublicKey::Format::Spki))
+    == Core\Encoding::toHex($underPss->publicKey()->write(Core\Crypto\PublicKey::Format::Spki))
     ? "one public key\n"
     : "two public keys\n";
 echo $underPkcs1->publicKey()->kind() == Core\Crypto\KeyKind::RsaPkcs1 ? "RsaPkcs1\n" : "another kind\n";

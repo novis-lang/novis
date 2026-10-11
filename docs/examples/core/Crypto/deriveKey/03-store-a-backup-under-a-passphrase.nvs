@@ -11,7 +11,7 @@ secret bytes $key = Core\Crypto::deriveKey($passphrase, $salt, $rounds);
 bytes $sealed = Core\Crypto::seal(
     "account: 12345, pin: 6789" as bytes,
     $key,
-    Core\Crypto\Cipher::XChaCha20Poly1305
+    Core\Crypto::Cipher::XChaCha20Poly1305
 );
 
 // These three go into the file together. The passphrase is the only part that
@@ -29,5 +29,5 @@ secret bytes $opened = Core\Crypto::deriveKey(
 echo Core\Crypto::open(
     Core\Encoding::fromHex($storedBackup),
     $opened,
-    Core\Crypto\Cipher::XChaCha20Poly1305
+    Core\Crypto::Cipher::XChaCha20Poly1305
 ) as string, "\n";

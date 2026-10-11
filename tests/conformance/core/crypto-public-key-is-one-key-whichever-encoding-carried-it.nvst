@@ -14,51 +14,51 @@ array<Core\Crypto\PublicKey> $p256 = [
     Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex("0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e89"),
         Core\Crypto\KeyKind::P256,
-        Core\Crypto\KeyFormat::Raw
+        Core\Crypto\PublicKey::Format::Raw
     ),
     Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex("3059301306072a8648ce3d020106082a8648ce3d0301070342000468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c493781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686faeeba6850b16fdb2572ff0e89"),
         Core\Crypto\KeyKind::P256,
-        Core\Crypto\KeyFormat::Spki
+        Core\Crypto\PublicKey::Format::Spki
     ),
     Core\Crypto\PublicKey::read(
         "{\"key_ops\":[\"verify\"],\"ext\":true,\"kty\":\"EC\",\"x\":\"aKp-tdd1uKsy5Ts6KwBtxCY41NWgbZtQxJN4Hipl8-A\",\"y\":\"NssnPqQQU0pujJRq6ep-EDGGhvruumhQsW_bJXL_Dok\",\"crv\":\"P-256\"}" as bytes,
         Core\Crypto\KeyKind::P256,
-        Core\Crypto\KeyFormat::Jwk
+        Core\Crypto\PublicKey::Format::Jwk
     ),
 ];
 array<Core\Crypto\PublicKey> $x25519 = [
     Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex("7d82b8dc4d111da7d459301c4d278d8519db6bc4e05cf6de7b078a891767a331"),
         Core\Crypto\KeyKind::X25519,
-        Core\Crypto\KeyFormat::Raw
+        Core\Crypto\PublicKey::Format::Raw
     ),
     Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex("302a300506032b656e0321007d82b8dc4d111da7d459301c4d278d8519db6bc4e05cf6de7b078a891767a331"),
         Core\Crypto\KeyKind::X25519,
-        Core\Crypto\KeyFormat::Spki
+        Core\Crypto\PublicKey::Format::Spki
     ),
     Core\Crypto\PublicKey::read(
         "{\"key_ops\":[],\"ext\":true,\"crv\":\"X25519\",\"x\":\"fYK43E0RHafUWTAcTSeNhRnba8TgXPbeeweKiRdnozE\",\"kty\":\"OKP\"}" as bytes,
         Core\Crypto\KeyKind::X25519,
-        Core\Crypto\KeyFormat::Jwk
+        Core\Crypto\PublicKey::Format::Jwk
     ),
 ];
 array<Core\Crypto\PublicKey> $ed25519 = [
     Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex("fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
         Core\Crypto\KeyKind::Ed25519,
-        Core\Crypto\KeyFormat::Raw
+        Core\Crypto\PublicKey::Format::Raw
     ),
     Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex("302a300506032b6570032100fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac"),
         Core\Crypto\KeyKind::Ed25519,
-        Core\Crypto\KeyFormat::Spki
+        Core\Crypto\PublicKey::Format::Spki
     ),
     Core\Crypto\PublicKey::read(
         "{\"key_ops\":[\"verify\"],\"ext\":true,\"alg\":\"Ed25519\",\"crv\":\"Ed25519\",\"x\":\"_M6QCKM1ZSSFYSlafOHMywQLYSm7qP8kdElTu8ASYaw\",\"kty\":\"OKP\"}" as bytes,
         Core\Crypto\KeyKind::Ed25519,
-        Core\Crypto\KeyFormat::Jwk
+        Core\Crypto\PublicKey::Format::Jwk
     ),
 ];
 
@@ -78,10 +78,10 @@ foreach ($groups as string $slot => array<Core\Crypto\PublicKey> $group) {
     array<string> $rawSeen = [];
     int $kindsAgree = 0;
     foreach ($group as Core\Crypto\PublicKey $key) {
-        $spkiSeen[Core\Encoding::toHex($key->write(Core\Crypto\KeyFormat::Spki))] = "";
-        $rawSeen[Core\Encoding::toHex($key->write(Core\Crypto\KeyFormat::Raw))] = "";
+        $spkiSeen[Core\Encoding::toHex($key->write(Core\Crypto\PublicKey::Format::Spki))] = "";
+        $rawSeen[Core\Encoding::toHex($key->write(Core\Crypto\PublicKey::Format::Raw))] = "";
         $jwkSeen[Core\Encoding::decodeText(
-            $key->write(Core\Crypto\KeyFormat::Jwk),
+            $key->write(Core\Crypto\PublicKey::Format::Jwk),
             Core\Charset::Utf8
         )] = "";
         if ($key->kind() == $groupKinds[$slot]) {
@@ -104,15 +104,15 @@ string $rsaJwk = "{\"e\":\"AQAB\",\"kty\":\"RSA\",\"n\":\"z6phky2P2eeFj6UhYXYh8F
 Core\Crypto\PublicKey $signing = Core\Crypto\PublicKey::read(
     $rsaJwk as bytes,
     Core\Crypto\KeyKind::RsaPkcs1,
-    Core\Crypto\KeyFormat::Jwk
+    Core\Crypto\PublicKey::Format::Jwk
 );
 Core\Crypto\PublicKey $probabilistic = Core\Crypto\PublicKey::read(
     $rsaJwk as bytes,
     Core\Crypto\KeyKind::RsaPss,
-    Core\Crypto\KeyFormat::Jwk
+    Core\Crypto\PublicKey::Format::Jwk
 );
-if (Core\Encoding::toHex($signing->write(Core\Crypto\KeyFormat::Spki))
-    == Core\Encoding::toHex($probabilistic->write(Core\Crypto\KeyFormat::Spki))) {
+if (Core\Encoding::toHex($signing->write(Core\Crypto\PublicKey::Format::Spki))
+    == Core\Encoding::toHex($probabilistic->write(Core\Crypto\PublicKey::Format::Spki))) {
     echo "one rsa modulus", "\n";
 }
 if ($signing->kind() == Core\Crypto\KeyKind::RsaPkcs1

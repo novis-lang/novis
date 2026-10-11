@@ -13,7 +13,7 @@ Core\Crypto\KeyPair $ed25519 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind:
 // length. This prints 91, 44 and 44.
 array<Core\Crypto\KeyPair> $pairs = [$p256, $x25519, $ed25519];
 foreach ($pairs as Core\Crypto\KeyPair $pair) {
-    echo Core\Bytes::length($pair->publicKey()->write(Core\Crypto\KeyFormat::Spki)), "\n";
+    echo Core\Bytes::length($pair->publicKey()->write(Core\Crypto\PublicKey::Format::Spki)), "\n";
 }
 
 // The two keys that agree must be of the same kind. Here both sides are

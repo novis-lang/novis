@@ -34,10 +34,10 @@ if (Core\Password::verify($wrong, $stored)) {
 // AEAD, both directions.
 secret bytes $key = Core\Crypto::generateKey();
 bytes $message = 'attack at dawn' as bytes;
-bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
 echo 'sealed', "\n";
 
-if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+if (Core\Crypto::open($sealed, $key, Core\Crypto::Cipher::XChaCha20Poly1305) == $message) {
     echo 'opened', "\n";
 } else {
     echo 'opened the wrong plaintext', "\n";
@@ -47,7 +47,7 @@ if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $
 // than returning what is left.
 bytes $tampered = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
 try {
-    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
     echo 'tamper accepted', "\n";
 } catch (RuntimeError $refused) {
     echo 'tamper refused', "\n";

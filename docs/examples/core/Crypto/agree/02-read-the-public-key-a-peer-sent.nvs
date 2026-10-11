@@ -7,7 +7,7 @@ Core\Crypto\KeyPair $mine = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P2
 Core\Crypto\KeyPair $theirs = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
 
 // These are the bytes you send. A public key is safe to publish.
-bytes $sent = $mine->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+bytes $sent = $mine->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
 // This prints `sent 91 bytes`.
 echo "sent ", Core\Bytes::length($sent), " bytes", "\n";
 
@@ -16,7 +16,7 @@ echo "sent ", Core\Bytes::length($sent), " bytes", "\n";
 Core\Crypto\PublicKey $read = Core\Crypto\PublicKey::read(
     $sent,
     Core\Crypto\KeyKind::P256,
-    Core\Crypto\KeyFormat::Spki
+    Core\Crypto\PublicKey::Format::Spki
 );
 
 // The key the peer read reaches the same secret as the key you hold.

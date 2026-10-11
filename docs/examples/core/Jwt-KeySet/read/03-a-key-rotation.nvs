@@ -4,7 +4,7 @@
 class Keys {
     // Returns the public key as a JWK with the name `$kid`.
     public static function jwk(Core\Crypto\KeyPair $pair, string $kid): string {
-        string $jwk = Core\Encoding::decodeText($pair->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+        string $jwk = Core\Encoding::decodeText($pair->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk), Core\Charset::Utf8);
         return Core\Str::replace($jwk, "{", "{\"kid\":\"" . $kid . "\",");
     }
 

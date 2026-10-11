@@ -7,8 +7,8 @@ Core\Crypto\KeyPair $green = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P
 
 // `write` gives a public key as a JWK, a JSON object. The service adds a name in `kid`
 // and publishes both keys in one document.
-string $blueJwk = Core\Encoding::decodeText($blue->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
-string $greenJwk = Core\Encoding::decodeText($green->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+string $blueJwk = Core\Encoding::decodeText($blue->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk), Core\Charset::Utf8);
+string $greenJwk = Core\Encoding::decodeText($green->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk), Core\Charset::Utf8);
 string $jwks = "{\"keys\":["
     . Core\Str::replace($blueJwk, "{", "{\"kid\":\"blue\",") . ","
     . Core\Str::replace($greenJwk, "{", "{\"kid\":\"green\",") . "]}";

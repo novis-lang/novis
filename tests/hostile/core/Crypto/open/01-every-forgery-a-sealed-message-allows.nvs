@@ -5,7 +5,7 @@
 // sealed message of sixteen megabytes.
 
 secret bytes $key = Core\Crypto::generateKey();
-bytes $sealed = Core\Crypto::seal('pay 100 to Ada' as bytes, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+bytes $sealed = Core\Crypto::seal('pay 100 to Ada' as bytes, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
 int $length = Core\Bytes::length($sealed) as int;
 
 // 1. One byte is changed at every position of the message, to every other
@@ -26,7 +26,7 @@ while ($at < $length) {
                 '' as bytes,
             );
             try {
-                Core\Crypto::open($forged, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+                Core\Crypto::open($forged, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
                 $opened = $opened + 1;
             } catch (Throwable $e) {
             }
@@ -42,7 +42,7 @@ uint $shortOpened = 0;
 int $cut = 0;
 while ($cut < $length) {
     try {
-        Core\Crypto::open(Core\Bytes::slice($sealed, 0, $cut), $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+        Core\Crypto::open(Core\Bytes::slice($sealed, 0, $cut), $key, Core\Crypto::Cipher::XChaCha20Poly1305);
         $shortOpened = $shortOpened + 1;
     } catch (Throwable $e) {
     }
@@ -57,12 +57,12 @@ uint $i = 0;
 while ($i < 10000) {
     bytes $noise = Core\Random::bytes(Core\Bytes::length($sealed));
     try {
-        Core\Crypto::open($noise, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+        Core\Crypto::open($noise, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
         $randomOpened = $randomOpened + 1;
     } catch (Throwable $e) {
     }
     try {
-        Core\Crypto::open($noise, $key, Core\Crypto\Cipher::Aes256Gcm);
+        Core\Crypto::open($noise, $key, Core\Crypto::Cipher::Aes256Gcm);
         $randomOpened = $randomOpened + 1;
     } catch (Throwable $e) {
     }
@@ -74,7 +74,7 @@ echo '3 random buffers that opened: ', $randomOpened, "\n";
 array<uint> $widths = [0, 1, 31, 33];
 foreach ($widths as uint $width) {
     try {
-        Core\Crypto::open($sealed, Core\Bytes::fill($width, 65), Core\Crypto\Cipher::XChaCha20Poly1305);
+        Core\Crypto::open($sealed, Core\Bytes::fill($width, 65), Core\Crypto::Cipher::XChaCha20Poly1305);
         echo '4 opened under a key of ', $width, ' bytes', "\n";
     } catch (Throwable $e) {
         echo '4 refused a key of ', $width, ' bytes', "\n";
@@ -83,11 +83,11 @@ foreach ($widths as uint $width) {
 
 // 5. A sealed message of sixteen megabytes, opened with one byte changed and
 // then left alone. The plaintext and the sealed bytes are held at once.
-bytes $bigSealed = Core\Crypto::seal(Core\Bytes::fill(16000000, 65), $key, Core\Crypto\Cipher::Aes256Gcm);
+bytes $bigSealed = Core\Crypto::seal(Core\Bytes::fill(16000000, 65), $key, Core\Crypto::Cipher::Aes256Gcm);
 try {
-    Core\Crypto::open(Core\Bytes::slice($bigSealed, 0, 15999999), $key, Core\Crypto\Cipher::Aes256Gcm);
+    Core\Crypto::open(Core\Bytes::slice($bigSealed, 0, 15999999), $key, Core\Crypto::Cipher::Aes256Gcm);
     echo '5 a cut message of sixteen megabytes opened', "\n";
 } catch (Throwable $e) {
     echo '5 refused a cut message of sixteen megabytes', "\n";
 }
-echo '5 opened ', Core\Bytes::length(Core\Crypto::open($bigSealed, $key, Core\Crypto\Cipher::Aes256Gcm)), ' bytes', "\n";
+echo '5 opened ', Core\Bytes::length(Core\Crypto::open($bigSealed, $key, Core\Crypto::Cipher::Aes256Gcm)), ' bytes', "\n";

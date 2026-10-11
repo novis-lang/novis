@@ -7,10 +7,10 @@
 class Vault {
     // The one place the program picks a case. If that choice ever moves, this
     // is the line that moves.
-    public static function cipherFor(string $reader): Core\Crypto\Cipher {
+    public static function cipherFor(string $reader): Core\Crypto::Cipher {
         return $reader == "browser"
-            ? Core\Crypto\Cipher::Aes256Gcm
-            : Core\Crypto\Cipher::XChaCha20Poly1305;
+            ? Core\Crypto::Cipher::Aes256Gcm
+            : Core\Crypto::Cipher::XChaCha20Poly1305;
     }
 }
 
@@ -20,9 +20,9 @@ array<string> $readers = ["browser", "job runner", "browser"];
 array<string> $values = ["session=a41f", "retry after 30s", "cart holds 8 items"];
 
 array<bytes> $bodies = [];
-array<Core\Crypto\Cipher> $cases = [];
+array<Core\Crypto::Cipher> $cases = [];
 foreach (Core\Arr::range(0, 2) as int $row) {
-    Core\Crypto\Cipher $cipher = Vault::cipherFor($readers[$row]);
+    Core\Crypto::Cipher $cipher = Vault::cipherFor($readers[$row]);
     $bodies[] = Core\Crypto::seal($values[$row] as bytes, $key, $cipher);
     $cases[] = $cipher;
 }

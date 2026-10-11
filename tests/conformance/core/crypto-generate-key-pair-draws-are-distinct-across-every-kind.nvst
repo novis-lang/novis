@@ -27,7 +27,7 @@ foreach (Core\Arr::range(0, 2) as int $kind) {
         $files = Core\Arr::append($files, $fresh->write());
         $halves = Core\Arr::append(
             $halves,
-            Core\Encoding::toHex($fresh->publicKey()->write(Core\Crypto\KeyFormat::Spki))
+            Core\Encoding::toHex($fresh->publicKey()->write(Core\Crypto\PublicKey::Format::Spki))
         );
     }
 

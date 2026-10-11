@@ -16,9 +16,9 @@ secret bytes $theirKey = Core\Crypto::expandKey($theyAgreed, "" as bytes, "order
 
 // We seal with our key, and they open with theirs. This works because both
 // keys are the same.
-bytes $sealed = Core\Crypto::seal("order 1042 accepted" as bytes, $ourKey, Core\Crypto\Cipher::XChaCha20Poly1305);
+bytes $sealed = Core\Crypto::seal("order 1042 accepted" as bytes, $ourKey, Core\Crypto::Cipher::XChaCha20Poly1305);
 echo Core\Encoding::decodeText(
-    Core\Crypto::open($sealed, $theirKey, Core\Crypto\Cipher::XChaCha20Poly1305),
+    Core\Crypto::open($sealed, $theirKey, Core\Crypto::Cipher::XChaCha20Poly1305),
     Core\Charset::Utf8
 ), "\n";
 

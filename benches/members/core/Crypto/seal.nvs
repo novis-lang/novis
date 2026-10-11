@@ -18,7 +18,7 @@ class Bench {
             // The field of every round is chosen by the length sealed so far,
             // so no round can be left out.
             int $which = ($total % 3) as int;
-            bytes $sealed = Core\Crypto::seal($fields[$which], $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+            bytes $sealed = Core\Crypto::seal($fields[$which], $key, Core\Crypto::Cipher::XChaCha20Poly1305);
             $total = $total + Core\Bytes::length($sealed);
             $i = $i + 1;
         }

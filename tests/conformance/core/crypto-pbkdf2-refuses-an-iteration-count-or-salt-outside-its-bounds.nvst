@@ -44,8 +44,8 @@ try {
 // open instead, which no answer of the wrong width could do.
 secret bytes $accepted = Core\Crypto::deriveKey($password, $salt, 100000);
 bytes $message = "attack at dawn" as bytes;
-bytes $sealed = Core\Crypto::seal($message, $accepted, Core\Crypto\Cipher::XChaCha20Poly1305);
-if (Core\Crypto::open($sealed, $accepted, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+bytes $sealed = Core\Crypto::seal($message, $accepted, Core\Crypto::Cipher::XChaCha20Poly1305);
+if (Core\Crypto::open($sealed, $accepted, Core\Crypto::Cipher::XChaCha20Poly1305) == $message) {
     echo "and at 100000 rounds over a 16-octet salt: a key", "\n";
 }
 --EXPECT--

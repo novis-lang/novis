@@ -51,7 +51,7 @@ echo $direct->sub, " of ", $direct->iss, " for ", $direct->exp - $direct->iat, "
 // The same key, reached the way a program that fetched a JWKS reaches it. A
 // document of one key is the shape a token carrying no `kid` is answered by.
 string $jwk = Core\Encoding::decodeText(
-    $issuer->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    $issuer->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk),
     Core\Charset::Utf8
 );
 Core\Jwt\KeySet $published = Core\Jwt\KeySet::read("{\"keys\":[" . $jwk . "]}");

@@ -5,8 +5,8 @@
 // a name in `kid`. Here the service has an old key `2025` and a new key `2026`.
 Core\Crypto\KeyPair $old = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
 Core\Crypto\KeyPair $new = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
-string $oldJwk = Core\Encoding::decodeText($old->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
-string $newJwk = Core\Encoding::decodeText($new->publicKey()->write(Core\Crypto\KeyFormat::Jwk), Core\Charset::Utf8);
+string $oldJwk = Core\Encoding::decodeText($old->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk), Core\Charset::Utf8);
+string $newJwk = Core\Encoding::decodeText($new->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk), Core\Charset::Utf8);
 string $jwks = "{\"keys\":["
     . Core\Str::replace($oldJwk, "{", "{\"kid\":\"2025\",") . ","
     . Core\Str::replace($newJwk, "{", "{\"kid\":\"2026\",") . "]}";

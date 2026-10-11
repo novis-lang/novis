@@ -45,24 +45,24 @@ secret bytes $key = Core\Crypto::generateKey();
 bytes $message = "attack at dawn" as bytes;
 
 // No mode, no padding, no IV — and 40 octets of overhead, flat.
-bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
 if (Core\Bytes::length($sealed) == Core\Bytes::length($message) + 40) {
     echo "sealed, 40 octets over\n";
 }
 
-if (Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+if (Core\Crypto::open($sealed, $key, Core\Crypto::Cipher::XChaCha20Poly1305) == $message) {
     echo "and it opens\n";
 }
 
 // The nonce is drawn per call, so the same message never seals the same way.
-if (Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305) != $sealed) {
+if (Core\Crypto::seal($message, $key, Core\Crypto::Cipher::XChaCha20Poly1305) != $sealed) {
     echo "a fresh nonce every time\n";
 }
 
 // One octet short is a forgery, and an authenticated mode says so.
 bytes $tampered = Core\Bytes::slice($sealed, 0, (Core\Bytes::length($sealed) as int) - 1);
 try {
-    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $forged = Core\Crypto::open($tampered, $key, Core\Crypto::Cipher::XChaCha20Poly1305);
     echo "tamper accepted\n";
 } catch (RuntimeError $refused) {
     echo "tamper refused\n";
@@ -71,7 +71,7 @@ try {
 // So is an intact message under a key that did not seal it.
 secret bytes $other = Core\Crypto::generateKey();
 try {
-    bytes $wrong = Core\Crypto::open($sealed, $other, Core\Crypto\Cipher::XChaCha20Poly1305);
+    bytes $wrong = Core\Crypto::open($sealed, $other, Core\Crypto::Cipher::XChaCha20Poly1305);
     echo "opened under the wrong key\n";
 } catch (RuntimeError $notThisKey) {
     echo "the wrong key is refused\n";
@@ -122,8 +122,8 @@ if ($forCookies != $forTokens) {
 // Either answer is a key like any other, and is a `secret bytes` like any
 // other: neither derivation is a way out of the qualifier.
 bytes $message = "attack at dawn" as bytes;
-bytes $sealed = Core\Crypto::seal($message, $fromPassword, Core\Crypto\Cipher::XChaCha20Poly1305);
-if (Core\Crypto::open($sealed, $fromPassword, Core\Crypto\Cipher::XChaCha20Poly1305) == $message) {
+bytes $sealed = Core\Crypto::seal($message, $fromPassword, Core\Crypto::Cipher::XChaCha20Poly1305);
+if (Core\Crypto::open($sealed, $fromPassword, Core\Crypto::Cipher::XChaCha20Poly1305) == $message) {
     echo "a derived key seals like a drawn one\n";
 }
 
@@ -169,19 +169,19 @@ not do is a `LogicError` rather than a weaker answer. `::agree` answers the shar
 // other end reads. `Raw` is the 32 octets a browser exports for a curve.
 Core\Crypto\KeyPair $mine = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
 Core\Crypto\KeyPair $theirs = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
-bytes $sent = $mine->publicKey()->write(Core\Crypto\KeyFormat::Raw);
+bytes $sent = $mine->publicKey()->write(Core\Crypto\PublicKey::Format::Raw);
 
 // What arrives is read back before anything uses it, under the kind and the
 // encoding the protocol says it is in.
 Core\Crypto\PublicKey $peer = Core\Crypto\PublicKey::read(
-    $theirs->publicKey()->write(Core\Crypto\KeyFormat::Raw),
+    $theirs->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
     Core\Crypto\KeyKind::X25519,
-    Core\Crypto\KeyFormat::Raw
+    Core\Crypto\PublicKey::Format::Raw
 );
 Core\Crypto\PublicKey $me = Core\Crypto\PublicKey::read(
     $sent,
     Core\Crypto\KeyKind::X25519,
-    Core\Crypto\KeyFormat::Raw
+    Core\Crypto\PublicKey::Format::Raw
 );
 
 // Both ends agree the same secret from opposite halves and spread it into a
@@ -189,8 +189,8 @@ Core\Crypto\PublicKey $me = Core\Crypto\PublicKey::read(
 bytes $salt = "a salt both ends know" as bytes;
 secret bytes $ours = Core\Crypto::expandKey(Core\Crypto::agree($mine, $peer), $salt, "session");
 secret bytes $yours = Core\Crypto::expandKey(Core\Crypto::agree($theirs, $me), $salt, "session");
-bytes $sealed = Core\Crypto::seal("ping" as bytes, $ours, Core\Crypto\Cipher::Aes256Gcm);
-if (Core\Crypto::open($sealed, $yours, Core\Crypto\Cipher::Aes256Gcm) == ("ping" as bytes)) {
+bytes $sealed = Core\Crypto::seal("ping" as bytes, $ours, Core\Crypto::Cipher::Aes256Gcm);
+if (Core\Crypto::open($sealed, $yours, Core\Crypto::Cipher::Aes256Gcm) == ("ping" as bytes)) {
     echo "one secret, agreed from both ends\n";
 }
 

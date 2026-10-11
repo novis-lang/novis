@@ -11,11 +11,11 @@ Core\Crypto\KeyPair $a = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256)
 Core\Crypto\KeyPair $b = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
 
 string $jwkA = Core\Encoding::decodeText(
-    $a->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    $a->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk),
     Core\Charset::Utf8
 );
 string $jwkB = Core\Encoding::decodeText(
-    $b->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    $b->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk),
     Core\Charset::Utf8
 );
 string $namedA = Core\Str::replace($jwkA, "{", "{\"kid\":\"a\",");

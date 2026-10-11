@@ -13,7 +13,7 @@ try {
     Core\Crypto\PublicKey $zero = Core\Crypto\PublicKey::read(
         Core\Bytes::fill(32, 0),
         Core\Crypto\KeyKind::X25519,
-        Core\Crypto\KeyFormat::Raw,
+        Core\Crypto\PublicKey::Format::Raw,
     );
     Core\Crypto::agree($mine, $zero);
     echo '1 agreed on the all-zero point', "\n";
@@ -33,7 +33,7 @@ foreach ($smallOrder as string $point) {
         Core\Crypto\PublicKey $weak = Core\Crypto\PublicKey::read(
             Core\Encoding::fromHex($point),
             Core\Crypto\KeyKind::X25519,
-            Core\Crypto\KeyFormat::Raw,
+            Core\Crypto\PublicKey::Format::Raw,
         );
         Core\Crypto::agree($mine, $weak);
         echo '2 agreed on a small-order point', "\n";
@@ -47,7 +47,7 @@ try {
     Core\Crypto\PublicKey::read(
         Core\Bytes::fill(200, 7),
         Core\Crypto\KeyKind::P256,
-        Core\Crypto\KeyFormat::Spki,
+        Core\Crypto\PublicKey::Format::Spki,
     );
     echo '3 read a key out of filler bytes', "\n";
 } catch (Throwable $e) {
@@ -78,7 +78,7 @@ try {
     Core\Crypto\PublicKey::read(
         Core\Bytes::fill(1000000, 4),
         Core\Crypto\KeyKind::X25519,
-        Core\Crypto\KeyFormat::Raw,
+        Core\Crypto\PublicKey::Format::Raw,
     );
     echo '6 read a key out of a megabyte of filler', "\n";
 } catch (Throwable $e) {

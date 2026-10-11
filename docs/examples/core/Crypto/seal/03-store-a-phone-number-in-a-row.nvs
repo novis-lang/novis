@@ -14,7 +14,7 @@ while ($i < 2) {
     bytes $sealed = Core\Crypto::seal(
         $numbers[$i] as bytes,
         $key,
-        Core\Crypto\Cipher::XChaCha20Poly1305
+        Core\Crypto::Cipher::XChaCha20Poly1305
     );
     $column[] = Core\Encoding::toHex($sealed);
     $i = $i + 1;
@@ -30,6 +30,6 @@ $i = 0;
 while ($i < 2) {
     bytes $stored = Core\Encoding::fromHex($column[$i]);
     echo $customers[$i], ": ",
-        Core\Crypto::open($stored, $key, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
+        Core\Crypto::open($stored, $key, Core\Crypto::Cipher::XChaCha20Poly1305) as string, "\n";
     $i = $i + 1;
 }

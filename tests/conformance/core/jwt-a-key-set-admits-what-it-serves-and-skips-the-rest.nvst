@@ -11,11 +11,11 @@ Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind:
 Core\Crypto\KeyPair $agreeing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
 
 string $sig = Core\Encoding::decodeText(
-    $signing->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    $signing->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk),
     Core\Charset::Utf8
 );
 string $agree = Core\Encoding::decodeText(
-    $agreeing->publicKey()->write(Core\Crypto\KeyFormat::Jwk),
+    $agreeing->publicKey()->write(Core\Crypto\PublicKey::Format::Jwk),
     Core\Charset::Utf8
 );
 

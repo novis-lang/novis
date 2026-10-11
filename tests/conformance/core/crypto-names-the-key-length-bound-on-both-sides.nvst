@@ -15,7 +15,7 @@ bytes $message = "attack at dawn" as bytes;
 // refused for is not being a key: at 32 octets the candidate is the very key
 // that sealed it, and there is no authenticity question left to answer.
 secret bytes $sealing = Core\Bytes::fill(32, 65);
-bytes $probe = Core\Crypto::seal($message, $sealing, Core\Crypto\Cipher::XChaCha20Poly1305);
+bytes $probe = Core\Crypto::seal($message, $sealing, Core\Crypto::Cipher::XChaCha20Poly1305);
 
 // Nothing, one octet, the two widths a cipher of a different construction
 // would have taken, one short of the key, the key, one past it, and twice it.
@@ -39,7 +39,7 @@ foreach ($widths as uint $width) {
         bytes $sealed = Core\Crypto::seal(
             $message,
             $candidate,
-            Core\Crypto\Cipher::XChaCha20Poly1305
+            Core\Crypto::Cipher::XChaCha20Poly1305
         );
     } catch (LogicError $notAKey) {
         $sealTakesIt = false;
@@ -50,7 +50,7 @@ foreach ($widths as uint $width) {
         bytes $opened = Core\Crypto::open(
             $probe,
             $candidate,
-            Core\Crypto\Cipher::XChaCha20Poly1305
+            Core\Crypto::Cipher::XChaCha20Poly1305
         );
     } catch (LogicError $stillNotAKey) {
         $openTakesIt = false;

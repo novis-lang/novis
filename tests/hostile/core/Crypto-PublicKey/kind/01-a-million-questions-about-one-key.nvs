@@ -8,7 +8,7 @@ bytes $ed25519 = Core\Encoding::fromHex('fcce9008a33565248561295a7ce1cccb040b612
 Core\Crypto\PublicKey $one = Core\Crypto\PublicKey::read(
     $ed25519,
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\KeyFormat::Raw,
+    Core\Crypto\PublicKey::Format::Raw,
 );
 
 // 1. One key asked a million times. A member that made something new on every
@@ -29,7 +29,7 @@ foreach (Core\Arr::range(1, 100000) as int $round) {
     Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
         $ed25519,
         Core\Crypto\KeyKind::Ed25519,
-        Core\Crypto\KeyFormat::Raw,
+        Core\Crypto\PublicKey::Format::Raw,
     );
     if ($key->kind() == Core\Crypto\KeyKind::Ed25519) {
         $curves += 1;

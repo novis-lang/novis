@@ -5,7 +5,7 @@
 
 // What the publisher does, once, when it releases the file.
 Core\Crypto\KeyPair $publisher = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
-bytes $published = $publisher->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+bytes $published = $publisher->publicKey()->write(Core\Crypto\PublicKey::Format::Spki);
 
 bytes $update = "print('version 3')" as bytes;
 bytes $signature = Core\Crypto::sign($update, $publisher);
@@ -15,7 +15,7 @@ bytes $signature = Core\Crypto::sign($update, $publisher);
 Core\Crypto\PublicKey $trusted = Core\Crypto\PublicKey::read(
     $published,
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\KeyFormat::Spki
+    Core\Crypto\PublicKey::Format::Spki
 );
 
 // Check first, use afterwards. A file that does not check out is never used.

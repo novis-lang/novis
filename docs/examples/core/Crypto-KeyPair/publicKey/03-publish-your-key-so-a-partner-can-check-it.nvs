@@ -9,7 +9,7 @@ Core\Crypto\KeyPair $server = Core\Crypto\KeyPair::read(
 
 // What goes in your documentation: the public half as one line of base64.
 string $published = Core\Encoding::toBase64(
-    $server->publicKey()->write(Core\Crypto\KeyFormat::Spki)
+    $server->publicKey()->write(Core\Crypto\PublicKey::Format::Spki)
 );
 echo "public key: ", $published, "\n";
 
@@ -22,7 +22,7 @@ string $header = Core\Encoding::toBase64(Core\Crypto::sign($body, $server));
 Core\Crypto\PublicKey $ours = Core\Crypto\PublicKey::read(
     Core\Encoding::fromBase64($published),
     Core\Crypto\KeyKind::Ed25519,
-    Core\Crypto\KeyFormat::Spki
+    Core\Crypto\PublicKey::Format::Spki
 );
 Core\Crypto::verify($body, Core\Encoding::fromBase64($header), $ours);
 echo "the partner accepted the webhook", "\n";

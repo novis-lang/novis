@@ -63,7 +63,7 @@ try {
 int $drew = 0;
 foreach (Core\Arr::range(1, 2000) as int $round) {
     if (Core\Bytes::length(
-        Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256)->publicKey()->write(Core\Crypto\KeyFormat::Raw),
+        Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256)->publicKey()->write(Core\Crypto\PublicKey::Format::Raw),
     ) == 65) {
         $drew += 1;
     }
