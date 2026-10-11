@@ -1681,7 +1681,7 @@ trimming what a selected section says.
 - **A size gate on the primer.** Trimming prose against a tripwire cuts what a section says rather
   than what the primer selects, so the budget is held by review and nothing else.
 
-<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member).</sub>
 
 <a id="tooling-an-adapter-carries-protocol-and-never-language"></a>
 

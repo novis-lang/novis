@@ -64,3 +64,8 @@ tuning.
 - **A fresh instance per extension a request calls**, in a store charged to that request, so extension
   state cannot leak between requests
   (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`).
+
+**Declined:**
+- **A correctness item in the ordering**, with or without a clause naming PHP. Correctness is not
+  something the ordering trades against latency or memory, so an item for it decides nothing, and the
+  rules and the conformance cases already own it.

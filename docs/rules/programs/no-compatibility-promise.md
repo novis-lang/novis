@@ -37,6 +37,10 @@ whose file name mentions PHP keep their names.
 - **A compatibility package that carries PHP's semantics** — an integer-keyed array class, a loose
   comparison helper, byte-counting string functions. Each one is a difference in a result, not a
   missing destination, and a package for it lets a ported program stay on PHP's semantics forever.
+- **A feature that reads a PHP-to-Novis table**: editor completion that offers PHP function names, or
+  a diagnostic clause naming the PHP function a call replaces. Each needs the table this rule forbids.
+- **A catalogue of divergences from PHP**, as a document or as a field on each rule. A divergence is a
+  relation to PHP, and PHP is not the reference: each behaviour is stated by its own rule.
 - **A clean-sheet syntax with no PHP shape.** It would remove the association and the temptation to
   promise compatibility, and it would throw away a syntax that is good, implemented and familiar.
   The harm is the promise, and this rule removes the promise while keeping the syntax.

@@ -1185,7 +1185,7 @@ pays nothing.
   in one call. Each arm's read would also be tagged into the union before the join, so it gives no
   statically typed read.
 
-<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`types/property-key`](types.md#types-property-key), [`types/erased-member-access`](types.md#types-erased-member-access), [`types/property-key-variance`](types.md#types-property-key-variance).</sub>
 
 <a id="types-unions-and-mixed"></a>
 

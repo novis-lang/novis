@@ -661,7 +661,7 @@ program being recognisable to the person and the operating system running it.
 - **The release icon on both builds.** The debug binary is the one a contributor runs by accident when
   measuring, and the icon is the cheapest place to say so.
 
-<sub>See also [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`packaging/a-build-records-no-timestamp`](packaging.md#packaging-a-build-records-no-timestamp), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host).</sub>
 
 <a id="packaging-the-third-party-notice-is-generated-never-written-by-hand"></a>
 
@@ -735,7 +735,7 @@ is changed alone.
 The cost is roughly 55 KB of read-only data in a binary measured in tens of megabytes: memory footprint
 spent on a legal obligation, never touching a request path.
 
-<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand), [`packaging/nvs-info-is-the-one-call`](packaging.md#packaging-nvs-info-is-the-one-call).</sub>
 
 <a id="packaging-the-cli-surface-is-novis-own"></a>
 

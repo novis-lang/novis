@@ -1,9 +1,7 @@
 {
   "title": "A capture narrows to a closed set with a set of allowed values or an enum-subset type, never with a regex",
   "status": "shipped",
-  "because": [
-    "0274"
-  ],
+  "because": [],
   "seeAlso": [
     "security/route-capture-is-laundered-by-its-type",
     "types/single-value-types",

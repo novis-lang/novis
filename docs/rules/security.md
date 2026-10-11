@@ -235,7 +235,7 @@ use-after-free. `crates/nvs-runtime/src/object.rs` is the mechanism's one home.
   is the runtime's only reclamation path, so it is the only one that can be wrong. The sweep spends two
   pointers per live object and a few non-atomic stores at each object's allocation and death.
 
-<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="security-arena-is-an-ownership-root"></a>
 
@@ -517,7 +517,7 @@ serializer or a test helper that reached into private state through reflection h
 the declaring class to offer the access, which is the same answer [`testing/private-in-the-same-file`](testing.md#testing-private-in-the-same-file)
 gives a test.
 
-<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection).</sub>
 
 <a id="security-reflection-needs-no-capability"></a>
 

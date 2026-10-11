@@ -1,9 +1,7 @@
 {
   "title": "`.nvst` proves the language; `#[Test]` is how a program written in Novis tests itself",
   "status": "shipped",
-  "because": [
-    "0274"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/test-attribute",
     "testing/report-formats",
@@ -12,6 +10,7 @@
   "guardedBy": [
     "crates/nvs-test/src/lib.rs",
     "crates/nvs-cli/src/main.rs",
-    "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst"
+    "tests/conformance/lang/a-test-attribute-builds-a-table-the-runner-reports.nvst",
+    "crates/nvs-test/src/case.rs"
   ]
 }

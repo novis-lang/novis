@@ -1,9 +1,7 @@
 {
   "title": "`$obj->$key` accepts a `property<T>` and nothing else; a read is the union and a write is checked",
   "status": "shipped",
-  "because": [
-    "0274"
-  ],
+  "because": [],
   "seeAlso": [
     "types/property-key",
     "types/erased-member-access",

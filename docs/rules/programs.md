@@ -133,11 +133,15 @@ whose file name mentions PHP keep their names.
 - **A compatibility package that carries PHP's semantics** — an integer-keyed array class, a loose
   comparison helper, byte-counting string functions. Each one is a difference in a result, not a
   missing destination, and a package for it lets a ported program stay on PHP's semantics forever.
+- **A feature that reads a PHP-to-Novis table**: editor completion that offers PHP function names, or
+  a diagnostic clause naming the PHP function a call replaces. Each needs the table this rule forbids.
+- **A catalogue of divergences from PHP**, as a document or as a field on each rule. A divergence is a
+  relation to PHP, and PHP is not the reference: each behaviour is stated by its own rule.
 - **A clean-sheet syntax with no PHP shape.** It would remove the association and the temptation to
   promise compatibility, and it would throw away a syntax that is good, implemented and familiar.
   The harm is the promise, and this rule removes the promise while keeping the syntax.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0274](../decisions/0274.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader).</sub>
 
 <a id="programs-slice-ranking"></a>
 
@@ -239,7 +243,12 @@ tuning.
   state cannot leak between requests
   ([`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)).
 
-<sub>See also [`programs/program-id`](programs.md#programs-program-id), [`programs/three-claims`](programs.md#programs-three-claims), [`errors/propagation`](errors.md#errors-propagation). Decided in [0274](../decisions/0274.md).</sub>
+**Declined:**
+- **A correctness item in the ordering**, with or without a clause naming PHP. Correctness is not
+  something the ordering trades against latency or memory, so an item for it decides nothing, and the
+  rules and the conformance cases already own it.
+
+<sub>See also [`programs/program-id`](programs.md#programs-program-id), [`programs/three-claims`](programs.md#programs-three-claims), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="programs-implementing"></a>
 
