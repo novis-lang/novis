@@ -1,14 +1,17 @@
-//! The `text` step and the `text` source: Latin text set in a font given as bytes
+//! The `text` step and the `text` source: text shaped in a font given as bytes
 //! (`rule:core-classes/image-one-entry-point-per-job`).
 //!
-//! The font is a TrueType or OpenType file, parsed by `ab_glyph` when the plan is checked, so
-//! bytes it cannot read return `parse` before anything is decoded. There is no system font. Each
-//! character is the glyph the font's `cmap` maps it to, and a character the font has no glyph
-//! for draws the font's missing glyph; control characters other than a line feed draw nothing.
-//! Glyphs follow one another by their advance widths, adjusted for each pair by the pair
-//! adjustments of the `kern` feature in the font's `GPOS` table, read through `ttf-parser`, or by
-//! its `kern` table when it has no `GPOS`. Every other shaping rule, ligatures and complex
-//! scripts included, is not applied, so text is Latin until shaping lands.
+//! The font is a TrueType or OpenType file, parsed by `ab_glyph` and by `read-fonts` when the
+//! plan is checked, so bytes either cannot read return `parse` before anything is decoded. There
+//! is no system font. Control characters other than a line feed, and the paragraph separator
+//! U+2029, draw nothing.
+//!
+//! Each line is split into runs of one direction by the Unicode bidirectional algorithm
+//! (`unicode-bidi`), in the order they are drawn, and each run is shaped by `harfrust` in the
+//! font's `GSUB` and `GPOS` tables: ligatures, the joined forms of Arabic, Devanagari's conjuncts
+//! and the `kern` feature all apply. A line's direction is that of its first strong letter, so a
+//! line of Arabic or Hebrew reads right to left. A run is shaped as the script of its first letter
+//! that has one. A character the font has no glyph for draws the font's missing glyph.
 //!
 //! `size` is the font's em in pixels, as a CSS `font-size` is. A line is the font's ascent plus
 //! its descent high, and lines are a line height plus the font's line gap apart. A line feed
@@ -24,12 +27,16 @@
 //! `x` and `y`, the box's top-left corner, or at `gravity` (default `Center`) on an axis with
 //! neither.
 //!
-//! Memory: the layout holds one glyph per character and the font's pair subtables, and the step
-//! holds one RGBA8 frame of the box beside the frame it draws on. All are freed when the step
-//! returns.
+//! Cost: wrapping shapes a line again for each word it tries, so a paragraph of `n` words under
+//! `max_width` is shaped about `n` times its line length. Memory: the layout holds one glyph per
+//! shaped glyph and the font's shaping tables, and the step holds one RGBA8 frame of the box
+//! beside the frame it draws on. All are freed when the step returns.
 
-use ab_glyph::{Font as _, FontRef, GlyphId, PxScale, PxScaleFont, ScaleFont as _, point};
-use ttf_parser::gpos::{PairAdjustment, PositioningSubtable};
+use std::ops::Range;
+
+use ab_glyph::{Font as _, FontRef, GlyphId, PxScale, ScaleFont as _, point};
+use harfrust::{Direction, ShapeOptions, Shaper, ShaperData, UnicodeBuffer};
+use unicode_bidi::BidiInfo;
 
 use crate::decode::check as within_cap;
 use crate::ops::{self, Blend, Composite, Gravity};
@@ -66,10 +73,18 @@ pub struct Text<'a> {
     pub y: Option<i64>,
 }
 
-/// One laid-out line: its glyphs with their pen positions from the line's left edge, and its
-/// advance width.
+/// One shaped glyph: its pen position from the line's left edge, and how far above the baseline
+/// it is raised, both in pixels.
+#[derive(Debug, Clone, Copy)]
+struct Glyph {
+    id: GlyphId,
+    x: f32,
+    rise: f32,
+}
+
+/// One laid-out line: its glyphs in the order they are drawn, and its advance width.
 struct Line {
-    glyphs: Vec<(GlyphId, f32)>,
+    glyphs: Vec<Glyph>,
     width: f32,
 }
 
@@ -77,112 +92,63 @@ struct Line {
 struct Set {
     lines: Vec<Line>,
     ascent: f32,
+    scale: PxScale,
     /// From one baseline to the next.
     step: f32,
     width: f32,
     height: f32,
 }
 
-/// The font at a scale, and the pair subtables of each `GPOS` lookup its `kern` feature names,
-/// in lookup order.
+/// The shaper and the pixels one of its font units is.
 struct Pen<'f> {
-    scaled: PxScaleFont<&'f FontRef<'f>>,
-    pairs: Vec<Vec<PairAdjustment<'f>>>,
+    shaper: Shaper<'f>,
+    per_unit: f32,
 }
 
-impl<'f> Pen<'f> {
-    fn new(font: &'f FontRef<'f>, data: &'f [u8], scale: PxScale) -> Self {
-        Self {
-            scaled: font.as_scaled(scale),
-            pairs: pairs(data),
+impl Pen<'_> {
+    /// `text[range]` shaped into one line, its runs in the order `bidi` draws them.
+    fn line(&self, bidi: &BidiInfo<'_>, range: Range<usize>) -> Line {
+        let mut glyphs = Vec::new();
+        let mut pen = 0.0;
+        if range.is_empty() {
+            return Line { glyphs, width: pen };
         }
-    }
-
-    /// The pen moves by this between `first` and `second`, in pixels. Each lookup adds the
-    /// adjustment of its first subtable that covers `first`.
-    fn kern(&self, first: GlyphId, second: GlyphId) -> f32 {
-        if self.pairs.is_empty() {
-            return self.scaled.kern(first, second);
-        }
-        let (a, b) = (ttf_parser::GlyphId(first.0), ttf_parser::GlyphId(second.0));
-        let units: i32 = self
-            .pairs
-            .iter()
-            .filter_map(|lookup| lookup.iter().find_map(|pair| adjustment(pair, a, b)))
-            .map(i32::from)
-            .sum();
-        units as f32 * self.scaled.h_scale_factor()
-    }
-}
-
-/// The pair subtables of the `kern` feature's lookups in `data`'s `GPOS`, or none.
-fn pairs(data: &[u8]) -> Vec<Vec<PairAdjustment<'_>>> {
-    let Some(gpos) = ttf_parser::Face::parse(data, 0)
-        .ok()
-        .and_then(|face| face.tables().gpos)
-    else {
-        return Vec::new();
-    };
-    let kern = ttf_parser::Tag::from_bytes(b"kern");
-    let mut lookups: Vec<u16> = gpos
-        .features
-        .into_iter()
-        .filter(|feature| feature.tag == kern)
-        .flat_map(|feature| feature.lookup_indices)
-        .collect();
-    lookups.sort_unstable();
-    lookups.dedup();
-    lookups
-        .into_iter()
-        .filter_map(|index| gpos.lookups.get(index))
-        .map(|lookup| {
-            lookup
-                .subtables
-                .into_iter::<PositioningSubtable<'_>>()
-                .filter_map(|subtable| match subtable {
-                    PositioningSubtable::Pair(pair) => Some(pair),
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-        })
-        .filter(|lookup| !lookup.is_empty())
-        .collect()
-}
-
-/// The advance adjustment `pair` gives `first` before `second`, in font units, when it covers
-/// `first`.
-fn adjustment(
-    pair: &PairAdjustment<'_>,
-    first: ttf_parser::GlyphId,
-    second: ttf_parser::GlyphId,
-) -> Option<i16> {
-    match pair {
-        PairAdjustment::Format1 { coverage, sets } => {
-            let set = sets.get(coverage.get(first)?)?;
-            Some(set.get(second).map_or(0, |(value, _)| value.x_advance))
-        }
-        PairAdjustment::Format2 {
-            coverage,
-            classes,
-            matrix,
-        } => {
-            if !coverage.contains(first) {
-                return None;
+        let (levels, runs) = bidi.visual_runs(&bidi.paragraphs[0], range);
+        for run in runs {
+            let mut buffer = UnicodeBuffer::new();
+            buffer.push_str(&bidi.text[run.clone()]);
+            buffer.set_direction(if levels[run.start].is_rtl() {
+                Direction::RightToLeft
+            } else {
+                Direction::LeftToRight
+            });
+            buffer.guess_segment_properties();
+            let shaped = self.shaper.shape(buffer, ShapeOptions::new());
+            for (info, at) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {
+                glyphs.push(Glyph {
+                    id: GlyphId(u16::try_from(info.glyph_id).unwrap_or(0)),
+                    x: pen + at.x_offset as f32 * self.per_unit,
+                    rise: at.y_offset as f32 * self.per_unit,
+                });
+                pen += at.x_advance as f32 * self.per_unit;
             }
-            let classes = (classes.0.get(first), classes.1.get(second));
-            Some(matrix.get(classes).map_or(0, |(value, _)| value.x_advance))
         }
+        Line { glyphs, width: pen }
     }
 }
 
-/// `data` as a font, or `Parse` when it is not one `ab_glyph` reads.
+/// The error for `data` when a font reader rejects it.
+fn not_a_font(data: &[u8], err: impl std::fmt::Display) -> Error {
+    Error::Parse(format!(
+        "{} bytes are not a TrueType or OpenType font: {err}",
+        data.len()
+    ))
+}
+
+/// `data` as a font, or `Parse` when it is not one `ab_glyph` and `read-fonts` both read.
 fn font(data: &[u8]) -> Result<FontRef<'_>, Error> {
-    FontRef::try_from_slice(data).map_err(|err| {
-        Error::Parse(format!(
-            "{} bytes are not a TrueType or OpenType font: {err}",
-            data.len()
-        ))
-    })
+    harfrust::FontRef::new(data).map_err(|err| not_a_font(data, err))?;
+    FontRef::try_from_slice(data).map_err(|err| not_a_font(data, err))
 }
 
 /// `Invalid` when `layout`'s options are out of range, and `Parse` when its font does not parse.
@@ -201,93 +167,65 @@ pub fn check(layout: &Layout<'_>) -> Result<(), Error> {
     font(layout.font).map(|_| ())
 }
 
-/// The pen advance after `s` is set from `width`, with `last` the glyph before it: each glyph's
-/// advance plus the `kern` adjustment from the one before. Returns the new width and last glyph.
-fn extend(
-    pen: &Pen<'_>,
-    mut width: f32,
-    mut last: Option<GlyphId>,
-    s: &str,
-    mut out: Option<&mut Vec<(GlyphId, f32)>>,
-) -> (f32, Option<GlyphId>) {
-    for c in s.chars().filter(|c| !c.is_control()) {
-        let id = pen.scaled.glyph_id(c);
-        if let Some(before) = last {
-            width += pen.kern(before, id);
-        }
-        if let Some(out) = out.as_deref_mut() {
-            out.push((id, width));
-        }
-        width += pen.scaled.h_advance(id);
-        last = Some(id);
-    }
-    (width, last)
-}
-
-/// `paragraph` broken into lines of at most `max` pixels at its spaces, each line's byte range.
-fn wrap(scaled: &Pen<'_>, paragraph: &str, max: f32) -> Vec<(usize, usize)> {
+/// `paragraph`, the whole of `bidi`'s text, broken into lines of at most `max` pixels at its
+/// spaces, each line's byte range.
+fn wrap(pen: &Pen<'_>, bidi: &BidiInfo<'_>, max: f32) -> Vec<Range<usize>> {
     let mut lines = Vec::new();
-    let mut line: Option<(usize, usize, f32, Option<GlyphId>)> = None;
+    let mut line: Option<Range<usize>> = None;
     let mut at = 0;
-    for word in paragraph.split(' ') {
+    for word in bidi.text.split(' ') {
         let (start, end) = (at, at + word.len());
         at = end + 1;
         line = Some(match line {
-            None => {
-                let (width, last) = extend(scaled, 0.0, None, word, None);
-                (start, end, width, last)
+            Some(open) if pen.line(bidi, open.start..end).width <= max => open.start..end,
+            Some(open) => {
+                lines.push(open);
+                start..end
             }
-            Some((from, to, width, last)) => {
-                let (spaced, after) = extend(scaled, width, last, " ", None);
-                let (joined, after) = extend(scaled, spaced, after, word, None);
-                if joined <= max {
-                    (from, end, joined, after)
-                } else {
-                    lines.push((from, to));
-                    let (width, last) = extend(scaled, 0.0, None, word, None);
-                    (start, end, width, last)
-                }
-            }
+            None => start..end,
         });
     }
-    if let Some((from, to, ..)) = line {
-        lines.push((from, to));
-    }
+    lines.extend(line);
     lines
 }
 
-/// `layout` set in `font`, and the pen that set it.
-fn set<'f>(font: &'f FontRef<'f>, layout: &Layout<'f>) -> (Pen<'f>, Set) {
+/// `layout` set in `font`, whose bytes are `layout.font`.
+fn set(font: &FontRef<'_>, layout: &Layout<'_>) -> Result<Set, Error> {
+    let shaping =
+        harfrust::FontRef::new(layout.font).map_err(|err| not_a_font(layout.font, err))?;
+    let data = ShaperData::new(&shaping);
+    let shaper = data.shaper(&shaping).build();
+    let per_unit = layout.size as f32 / shaper.units_per_em() as f32;
+    let pen = Pen { shaper, per_unit };
     let em = font.units_per_em().unwrap_or(1000.0);
     let scale = PxScale::from(layout.size as f32 * font.height_unscaled() / em);
-    let pen = Pen::new(font, layout.font, scale);
-    let scaled = &pen;
     let mut lines = Vec::new();
     for paragraph in layout.text.split('\n') {
-        let paragraph = paragraph.strip_suffix('\r').unwrap_or(paragraph);
+        let clean: String = paragraph
+            .chars()
+            .filter(|&c| !c.is_control() && c != '\u{2029}')
+            .collect();
+        let bidi = BidiInfo::new(&clean, None);
         let ranges = match layout.max_width {
-            Some(max) => wrap(scaled, paragraph, max as f32),
-            None => vec![(0, paragraph.len())],
+            Some(max) => wrap(&pen, &bidi, max as f32),
+            None => vec![0..clean.len()],
         };
-        for (from, to) in ranges {
-            let mut glyphs = Vec::new();
-            let (width, _) = extend(scaled, 0.0, None, &paragraph[from..to], Some(&mut glyphs));
-            lines.push(Line { glyphs, width });
-        }
+        lines.extend(ranges.into_iter().map(|range| pen.line(&bidi, range)));
     }
-    let ascent = pen.scaled.ascent();
-    let tall = ascent - pen.scaled.descent();
-    let step = tall + pen.scaled.line_gap();
+    let scaled = font.as_scaled(scale);
+    let ascent = scaled.ascent();
+    let tall = ascent - scaled.descent();
+    let step = tall + scaled.line_gap();
     let width = lines.iter().map(|line| line.width).fold(0.0, f32::max);
     let height = tall + step * lines.len().saturating_sub(1) as f32;
-    let set = Set {
+    Ok(Set {
         lines,
         ascent,
+        scale,
         step,
         width,
         height,
-    };
-    (pen, set)
+    })
 }
 
 /// The box of `set` in whole pixels, or `Invalid` when it has no pixel.
@@ -305,8 +243,7 @@ fn size(set: &Set, text: &str) -> Result<(u64, u64), Error> {
 pub fn measure(layout: &Layout<'_>) -> Result<(u64, u64), Error> {
     check(layout)?;
     let font = font(layout.font)?;
-    let (_, set) = set(&font, layout);
-    size(&set, layout.text)
+    size(&set(&font, layout)?, layout.text)
 }
 
 /// `layout`'s box, transparent, with the text drawn in `color`. A box over `cap` pixels returns
@@ -314,7 +251,7 @@ pub fn measure(layout: &Layout<'_>) -> Result<(u64, u64), Error> {
 pub fn render(layout: &Layout<'_>, color: [u8; 4], cap: u64) -> Result<Pixels, Error> {
     check(layout)?;
     let font = font(layout.font)?;
-    let (pen, set) = set(&font, layout);
+    let set = set(&font, layout)?;
     let (width, height) = size(&set, layout.text)?;
     within_cap(width, height, cap)?;
     let (w, h) = (width as usize, height as usize);
@@ -327,9 +264,11 @@ pub fn render(layout: &Layout<'_>, color: [u8; 4], cap: u64) -> Result<Pixels, E
     for (row, line) in set.lines.iter().enumerate() {
         let left = (set.width - line.width) * share;
         let baseline = set.ascent + set.step * row as f32;
-        for &(id, at) in &line.glyphs {
-            let glyph = id.with_scale_and_position(pen.scaled.scale, point(left + at, baseline));
-            let Some(outlined) = font.outline_glyph(glyph) else {
+        for glyph in &line.glyphs {
+            let placed = glyph
+                .id
+                .with_scale_and_position(set.scale, point(left + glyph.x, baseline - glyph.rise));
+            let Some(outlined) = font.outline_glyph(placed) else {
                 continue;
             };
             let bounds = outlined.px_bounds();
@@ -396,6 +335,13 @@ mod tests {
         frame.rgba.chunks_exact(4).filter(|px| px[3] > 0).count()
     }
 
+    /// The advance of `text` set alone in one line.
+    fn advance(text: &str) -> f32 {
+        let font = font(FONT).unwrap();
+        let set = set(&font, &layout(text)).unwrap();
+        set.width
+    }
+
     #[test]
     fn the_source_box_is_the_measured_size_and_has_ink() {
         let shop = layout("Shop");
@@ -410,19 +356,18 @@ mod tests {
     }
 
     #[test]
-    fn gpos_kerning_moves_a_pair_closer() {
-        let font = font(FONT).unwrap();
-        let pen = Pen::new(&font, FONT, PxScale::from(32.0));
-        assert!(!pen.pairs.is_empty());
+    fn the_shaper_kerns_a_pair_closer() {
         let letters = ('A'..='Z').chain('a'..='z');
-        let (first, second) = letters
+        let kerned = letters
             .clone()
             .flat_map(|a| letters.clone().map(move |b| (a, b)))
-            .find(|&(a, b)| pen.kern(pen.scaled.glyph_id(a), pen.scaled.glyph_id(b)) < 0.0)
-            .expect("the font kerns some pair of Latin letters closer");
-        let (a, b) = (pen.scaled.glyph_id(first), pen.scaled.glyph_id(second));
-        let (pair, _) = extend(&pen, 0.0, None, &format!("{first}{second}"), None);
-        assert!(pair < pen.scaled.h_advance(a) + pen.scaled.h_advance(b));
+            .find(|&(a, b)| {
+                advance(&format!("{a}{b}")) < advance(&a.to_string()) + advance(&b.to_string())
+            });
+        assert!(
+            kerned.is_some(),
+            "the font kerns some pair of Latin letters closer"
+        );
     }
 
     #[test]

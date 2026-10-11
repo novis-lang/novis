@@ -6,8 +6,8 @@ draws the same text in a box of exactly this size.
 
 `size` is the font size in pixels. One line is as high as the font's ascent plus its descent at that
 size. A line feed starts a new line. With `maxWidth`, lines also break at spaces, and each extra line
-adds to the `height`. A word wider than `maxWidth` is not broken, so the result can be wider. Only
-Latin text is supported.
+adds to the `height`. A word wider than `maxWidth` is not broken, so the result can be wider. Text
+in any script is measured as it is drawn, with the letters joined as the font joins them.
 
 Text with nothing to draw throws a `LogicError`. A font file with broken tables throws a
 `ParseError`.

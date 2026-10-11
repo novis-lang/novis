@@ -7,7 +7,9 @@ colour of the text. Both are needed. `x` and `y` place the top-left corner of th
 A line feed starts a new line. With `maxWidth`, lines also break at spaces. `align` sets how the
 lines line up, and the default is `Image::Align::Left`. `Image::measureText` returns the size of the text.
 
-There are no system fonts. Make a `Font` with `Font::fromBytes`. Only Latin text is supported. Text
+There are no system fonts. Make a `Font` with `Font::fromBytes`. Text in any script is drawn as the
+font defines it, so Arabic letters join and a line of Arabic or Hebrew runs from right to left. The
+font must contain the letters of the text. Text
 with nothing to draw throws a `LogicError`, and a font file with broken tables throws a
 `ParseError`. Both happen when `encode` or `raw` runs.
 

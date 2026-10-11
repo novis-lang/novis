@@ -15,8 +15,10 @@
 //! the font given as bytes draws dark pixels on a canvas in one crossing, the `text` source's
 //! `size` output is exactly the box its `raw` output fills and a step's ink stays inside that box,
 //! `maxWidth` puts each word of two on its own line and never breaks a word, and a font cut off
-//! after its header returns `parse` from both the source and the step. The inputs are built here
-//! or read from `extensions/image/fixtures/`.
+//! after its header returns `parse` from both the source and the step. Text is shaped: a line of
+//! Arabic or Hebrew draws its first letter at the right, Arabic letters take their joining forms,
+//! Devanagari's ka, virama and ssa draw as one conjunct, and a Latin pair stays kerned. The inputs
+//! are built here or read from `extensions/image/fixtures/`.
 
 use std::future::Future;
 use std::pin::pin;
@@ -611,7 +613,12 @@ fn qr_data_too_long_for_its_level_is_a_logic_error() {
 }
 
 fn font() -> Vec<u8> {
-    let path = nvs_repo::path("extensions/image/fixtures/DancingScript-Regular.ttf");
+    fixture_font("DancingScript-Regular.ttf")
+}
+
+/// The font `name` under `extensions/image/fixtures/`.
+fn fixture_font(name: &str) -> Vec<u8> {
+    let path = nvs_repo::path(&format!("extensions/image/fixtures/{name}"));
     std::fs::read(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
 }
 
@@ -873,4 +880,146 @@ fn a_font_with_malformed_tables_throws_parse_error_at_the_terminal() {
             other => panic!("{what} with a truncated font returned {other:?}"),
         }
     }
+}
+
+/// The `text` source of `text` in `font` as raw pixels: its width, height and RGBA8 rows.
+fn text_pixels(
+    request: &Request,
+    extension: &Extension,
+    text: &str,
+    font: &[u8],
+) -> (u64, u64, Vec<u8>) {
+    let out = run_steps(
+        request,
+        extension,
+        text_source(text, font, None),
+        Vec::new(),
+        "Raw",
+    )
+    .unwrap_or_else(|failure| panic!("drawing {text:?}: {failure:?}"));
+    let (width, height, rgba) = header(&out);
+    (width, height, rgba.to_vec())
+}
+
+/// The top row of ink in the columns `columns` of a `width`-wide frame.
+fn top_of_ink(rgba: &[u8], width: u64, columns: std::ops::Range<u64>) -> Option<u64> {
+    rgba.chunks_exact(4)
+        .enumerate()
+        .filter(|(at, px)| px[3] > 0 && columns.contains(&(*at as u64 % width)))
+        .map(|(at, _)| at as u64 / width)
+        .min()
+}
+
+/// `tall`, two spaces and `low`, drawn in `font`: the tall letter's ink is in the right quarter
+/// of the box, and the low letters' ink alone is in the left quarter, so the line runs right to
+/// left from its first letter.
+fn assert_right_to_left(
+    request: &Request,
+    extension: &Extension,
+    font: &[u8],
+    tall: &str,
+    low: &str,
+) {
+    let text = format!("{tall}  {low}");
+    let (width, _, rgba) = text_pixels(request, extension, &text, font);
+    let right = top_of_ink(&rgba, width, width * 3 / 4..width).expect("the right quarter has ink");
+    let left = top_of_ink(&rgba, width, 0..width / 4).expect("the left quarter has ink");
+    assert!(
+        right < left,
+        "{text:?}: the first letter is drawn at the right: its top row {right} against {left}"
+    );
+}
+
+// covers: Novis\Image\Image::text
+#[test]
+fn text_shapes_arabic_right_to_left_with_joined_letters() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let arabic = fixture_font("NotoSansArabic-Regular.ttf");
+    // An alef, then tatweels, the flat stroke that lengthens a joined letter.
+    assert_right_to_left(
+        &request,
+        &extension,
+        &arabic,
+        "\u{627}",
+        "\u{640}\u{640}\u{640}\u{640}",
+    );
+    // "Salam" joined, and the same four letters with a zero-width non-joiner between each.
+    let joined = text_pixels(
+        &request,
+        &extension,
+        "\u{633}\u{644}\u{627}\u{645}",
+        &arabic,
+    );
+    let apart = text_pixels(
+        &request,
+        &extension,
+        "\u{633}\u{200c}\u{644}\u{200c}\u{627}\u{200c}\u{645}",
+        &arabic,
+    );
+    assert_ne!(joined.2, apart.2, "joined letters take their joining forms");
+    assert!(
+        joined.0 < apart.0,
+        "the joined word is narrower: {} against {}",
+        joined.0,
+        apart.0
+    );
+}
+
+#[test]
+fn text_shapes_hebrew_right_to_left() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let hebrew = fixture_font("NotoSansHebrew-Regular.ttf");
+    // A lamed, the one Hebrew letter that rises above the others, then mems.
+    assert_right_to_left(
+        &request,
+        &extension,
+        &hebrew,
+        "\u{5dc}",
+        "\u{5de}\u{5de}\u{5de}\u{5de}",
+    );
+}
+
+#[test]
+fn text_shapes_devanagari_with_its_conjuncts() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let devanagari = fixture_font("NotoSansDevanagari-Regular.ttf");
+    // Ka, virama and ssa form the conjunct "ksha", one glyph narrower than ka and ssa side by side.
+    let (ka, _) = measure(&request, &extension, "\u{915}", &devanagari, None);
+    let (ssa, _) = measure(&request, &extension, "\u{937}", &devanagari, None);
+    let (ksha, _) = measure(
+        &request,
+        &extension,
+        "\u{915}\u{94d}\u{937}",
+        &devanagari,
+        None,
+    );
+    assert!(
+        ksha * 10 < (ka + ssa) * 9,
+        "the conjunct is one glyph: {ksha} against {ka} + {ssa}"
+    );
+}
+
+#[test]
+fn latin_text_keeps_its_kerning_under_the_shaper() {
+    let (host, extension) = setup();
+    let request = request(&host);
+    let font = font();
+    // A box is whole pixels, so a pair is kerned when it is at least two pixels narrower than its
+    // letters measured apart.
+    let kerned = ["AV", "Te", "To", "Va", "Wa", "Yo", "LT", "Ty", "We", "Ta"]
+        .iter()
+        .find(|pair| {
+            let mut letters = pair
+                .chars()
+                .map(|c| measure(&request, &extension, &c.to_string(), &font, None).0);
+            let apart = letters.next().unwrap() + letters.next().unwrap();
+            measure(&request, &extension, pair, &font, None).0 + 1 < apart
+        });
+    assert!(
+        kerned.is_some(),
+        "the shaper applies the font's `kern` feature to some pair"
+    );
 }

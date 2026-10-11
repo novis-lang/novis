@@ -244,7 +244,8 @@ final class Image
     /// `text` draws `$text` on the image with `$font`, in `color`. `size` is the font size in pixels.
     /// `x` and `y` place the top-left corner of the text. Without them, `gravity` places it, and
     /// the default is `Gravity::Center`. With `maxWidth`, lines break at spaces to stay that wide.
-    /// `align` sets how the lines line up, and the default is `Align::Left`. Only Latin text is supported.
+    /// `align` sets how the lines line up, and the default is `Align::Left`. Text in any script
+    /// is drawn as the font defines it. A line of Arabic or Hebrew runs from right to left.
     public function text(string $text, Font $font, {size: float, color: Color, gravity?: Gravity, x?: int, y?: int, maxWidth?: uint, align?: Align} $options): Image
     {
         return $this->then({text: {

@@ -29,6 +29,12 @@ Latin TrueType font that kerns through both a `kern` table and `GPOS`, copied un
 `macroquad` crate's examples. It is under the SIL Open Font License 1.1, which
 `DancingScript-OFL.txt` beside it holds with the font's copyright.
 
+`NotoSansArabic-Regular.ttf`, `NotoSansHebrew-Regular.ttf` and `NotoSansDevanagari-Regular.ttf` are
+the fonts the shaping tests draw in: Arabic joining, right-to-left lines and Devanagari conjuncts.
+Each is the unhinted TrueType file from the Noto project's `notofonts.github.io` repository, copied
+unchanged. They are under the SIL Open Font License 1.1, which `NotoSans-OFL.txt` holds with the
+three fonts' copyrights. No font here is embedded in the component.
+
 `encrypted.pdf` is one page of 200 by 100 points, filled red, encrypted with RC4 at 128 bits. It
 has an owner password and no user password, so a reader that is not careful opens it with no
 password at all. Ghostscript 10.01 wrote it from a three-line PostScript page with this command:
