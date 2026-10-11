@@ -4341,7 +4341,7 @@ class Outer {
 }
 ```
 ```output
-expected a class member
+a class or an interface is not declared in a class body
 ```
 
 <a id="lang-enums"></a>
