@@ -21,7 +21,9 @@ and no code under OFL-1.1 is admitted by it.
 - **Memory:** the twelve fonts are part of each component's bytes, a few megabytes of the binary. A
   render holds the faces it uses inside its request's cap.
 
-**Not shipped.** There is no PDF component in the tree.
+**Not shipped.** There is no PDF component in the tree. The twelve files are under
+`extensions/fonts/` with their release recorded in `SOURCE.json`, and the image component embeds
+them.
 
 **Declined:**
 - **Noto or another font with wide script coverage as a default.** Its size grows the binary by tens of

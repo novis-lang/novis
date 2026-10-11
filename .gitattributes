@@ -49,3 +49,4 @@ docs/ground-rules.md                      linguist-generated
 *.ico     binary
 *.nvso    binary
 *.nvsx    binary
+*.ttf     binary

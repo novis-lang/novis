@@ -26,7 +26,7 @@
 // dependency, and every package reachable the same way from each built-in component's crate
 // (`BUILT_IN_COMPONENTS`), which is compiled to wasm and embedded in the binary. The C libraries a
 // component carries prebuilt (`PREBUILT_C`) have no manifest, so their licence files are read from
-// beside the library.
+// beside the library, and so are the embedded fonts' (`FONT_DIRS`).
 //
 // The C-dependency enumeration reads the binary's package set alone. A package counts when it
 // declares `links`, or when it build-depends on a tool that compiles C (`C_BUILD_TOOLS`). Either
@@ -277,6 +277,17 @@ interface Prebuilt {
 const PREBUILT_C: Prebuilt[] = [
   { name: "libwebp", component: "image", dir: "extensions/image/libwebp", license: "BSD-3-Clause", texts: ["COPYING", "PATENTS"] },
 ];
+
+// The font files the built-in components embed, each folder with a `SOURCE.json` naming the release
+// it came from and the licence it is under (`rule:core-classes/pdf-default-fonts`). Font data is
+// shipped and never linked, so it is not a C dependency and `deny.toml` does not see it.
+const FONT_DIRS = ["extensions/fonts"];
+
+interface FontRecord {
+  name: string;
+  license: string;
+  source: { version: string };
+}
 
 interface Package {
   id: string;
@@ -881,6 +892,13 @@ async function build(): Promise<string> {
     components.push({ name: lib.name, version, taken: lib.license, offered: lib.license });
     const text = lib.texts.map((name) => normalize(readText(join(ROOT, lib.dir, name)))).join("\n\n");
     group(lib.license, text).push(`${lib.name} ${version}`);
+  }
+  // A font folder has no manifest either: its record names the licence, and its LICENSE is the text.
+  for (const dir of FONT_DIRS) {
+    const record = JSON.parse(readText(join(ROOT, dir, "SOURCE.json"))) as FontRecord;
+    if (!FONT_DATA.includes(record.license)) problems.push(`${dir}: ${record.license} is not a licence admitted for font data`);
+    components.push({ name: record.name, version: record.source.version, taken: record.license, offered: record.license });
+    group(record.license, normalize(readText(join(ROOT, dir, "LICENSE")))).push(`${record.name} ${record.source.version}`);
   }
   components.sort((a, b) => cmp(a.name.toLowerCase(), b.name.toLowerCase()) || cmp(a.version, b.version));
 
