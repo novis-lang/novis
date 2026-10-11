@@ -922,7 +922,9 @@ fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
                 }
                 walk_type(ret, src, out);
             }
-            TypeAtom::Member(name, _) => record_name(name, src, out),
+            TypeAtom::Member(name, _) | TypeAtom::MemberCase(name, ..) => {
+                record_name(name, src, out);
+            }
             TypeAtom::Name(name, args) => {
                 record_name(name, src, out);
                 for arg in args {

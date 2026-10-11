@@ -561,6 +561,18 @@ impl<'src, 'd> Parser<'src, 'd> {
                 if self.at(TokenKind::DoubleColon) && Self::is_name_segment(self.peek_at(1).kind) {
                     self.bump();
                     let member = self.bump().span;
+                    // `rule:enums/class-scoped-enum`: `Order::Status::Paid`, a
+                    // case of an enum the class owns, is the one three-part form.
+                    if self.at(TokenKind::DoubleColon)
+                        && Self::is_name_segment(self.peek_at(1).kind)
+                    {
+                        self.bump();
+                        let case = self.bump().span;
+                        return Type {
+                            kind: TypeKind::Atom(TypeAtom::MemberCase(name, member, case)),
+                            span: name.span.to(case),
+                        };
+                    }
                     let span = name.span.to(member);
                     return Type {
                         kind: TypeKind::Atom(TypeAtom::Member(name, member)),

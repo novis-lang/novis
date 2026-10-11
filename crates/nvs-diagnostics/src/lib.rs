@@ -452,9 +452,14 @@ pub mod code {
     /// downstream of the checker ever sees the name, so an attribute has
     /// nothing to attach to. Parsing the run and dropping it would accept a
     /// declaration saying something the language does not have.
+    ///
+    /// An `enum` in a class body gets the same code for a modifier run, for
+    /// the same reason (`rule:enums/class-scoped-enum`), and keeps its
+    /// attributes.
     pub const E_TYPE_ALIAS_TAKES_NO_MODIFIER_OR_ATTRIBUTE: Code = Code::new("E0133").card(
         "A `type` alias cannot have a modifier such as `public`, or an attribute. Delete them. \
-         An alias can be used wherever its class can be used.",
+         An enum in a class cannot have a modifier either. Both can be used wherever their \
+         class can be used.",
     );
     /// A bare shape type written in front of a local's name (`{x: int}
     /// $point;`) — `rule:types/shape-type`. A statement-initial `{` is a block

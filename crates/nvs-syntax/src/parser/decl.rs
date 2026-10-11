@@ -790,6 +790,24 @@ impl<'src, 'd> Parser<'src, 'd> {
         );
     }
 
+    /// A modifier run in front of a body's `enum` is `E0133`, the code an
+    /// alias's decoration gets. The enum's cases leave the class in every
+    /// return value, so a visibility would hide the name and not the values
+    /// (`rule:enums/class-scoped-enum`). The declaration itself is kept.
+    fn refuse_modifiers_on_a_member_enum(&mut self, modifiers: Span) {
+        self.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_ALIAS_TAKES_NO_MODIFIER_OR_ATTRIBUTE,
+                "an enum in a class body takes no modifier",
+            )
+            .with_primary(modifiers, "remove this")
+            .with_help(
+                "the enum's cases leave the class in every value, so a visibility would hide \
+                 only its name (`rule:enums/class-scoped-enum`)",
+            ),
+        );
+    }
+
     /// The declaration from `type` through its `;`, shared by the file-scope
     /// form and the body member. `doc` is the run the caller already took: a
     /// member's hangs on its [`ClassMember`], so that site passes `None`.
@@ -1083,6 +1101,49 @@ impl<'src, 'd> Parser<'src, 'd> {
                 span: start.to(self.last_span),
                 doc: None,
                 kind: ClassMemberKind::TypeAlias(alias),
+            });
+            return;
+        }
+        // `rule:enums/class-scoped-enum`: the body owns the enum, and its cases
+        // leave the class in every value, so a modifier is refused and the
+        // declaration kept. An attribute group stays on it, as on a
+        // file-scope enum.
+        if self.at_keyword(Keyword::Enum) {
+            if let Some(span) = modifiers_span {
+                self.refuse_modifiers_on_a_member_enum(span);
+            }
+            let decl = self.parse_enum_decl_body(start, attributes, None);
+            out.push(ClassMember {
+                span: start.to(self.last_span),
+                doc: None,
+                kind: ClassMemberKind::Enum(decl),
+            });
+            return;
+        }
+        // A class or interface stays a file-scope declaration
+        // (`rule:classes/a-type-is-declared-at-file-scope`). It is parsed whole so
+        // the refusal is one diagnostic, and nothing of it is kept.
+        if self.at_keyword(Keyword::Class) || self.at_keyword(Keyword::Interface) {
+            let decl = if self.at_keyword(Keyword::Class) {
+                self.finish_class_decl(start, attributes)
+            } else {
+                self.finish_interface_decl(start, attributes)
+            };
+            self.diags.report(
+                Diagnostic::error(
+                    code::E_NESTED_TYPE_DECLARATION_UNSUPPORTED,
+                    "a class or an interface is not declared in a class body",
+                )
+                .with_primary(decl.span, "declared inside another type")
+                .with_help(
+                    "move it to file scope; only an `enum` or a `type` alias may be a member \
+                     (`rule:enums/class-scoped-enum`)",
+                ),
+            );
+            out.push(ClassMember {
+                span: decl.span,
+                doc: None,
+                kind: ClassMemberKind::Error,
             });
             return;
         }
@@ -1513,6 +1574,23 @@ impl<'src, 'd> Parser<'src, 'd> {
         attributes: Vec<AttributeGroup>,
     ) -> Stmt {
         let doc = self.take_doc_comment(start);
+        let decl = self.parse_enum_decl_body(start, attributes, doc);
+        Stmt {
+            span: decl.span,
+            kind: StmtKind::EnumDecl(decl),
+        }
+    }
+
+    /// The declaration from `enum` through its closing brace, shared by the
+    /// file-scope form and the class-body member. `doc` is the run the caller
+    /// already took: a member's hangs on its [`ClassMember`], so that site
+    /// passes `None`.
+    fn parse_enum_decl_body(
+        &mut self,
+        start: Span,
+        attributes: Vec<AttributeGroup>,
+        doc: Option<DocComment>,
+    ) -> EnumDecl {
         self.bump(); // 'enum'
         let name = self.parse_decl_name("an enum name");
         let backing = if self.eat(TokenKind::Colon).is_some() {
@@ -1543,19 +1621,15 @@ impl<'src, 'd> Parser<'src, 'd> {
             );
         }
         let (cases, members) = self.parse_enum_body();
-        let span = start.to(self.last_span);
-        Stmt {
-            span,
-            kind: StmtKind::EnumDecl(EnumDecl {
-                span,
-                doc,
-                attributes,
-                name,
-                backing,
-                implements,
-                cases,
-                members,
-            }),
+        EnumDecl {
+            span: start.to(self.last_span),
+            doc,
+            attributes,
+            name,
+            backing,
+            implements,
+            cases,
+            members,
         }
     }
 
@@ -1656,7 +1730,26 @@ impl<'src, 'd> Parser<'src, 'd> {
                     && members[first..]
                         .iter()
                         .all(|m| matches!(m.kind, ClassMemberKind::TypeAlias(_)));
-                if !alias_only {
+                let an_enum = members.len() > first
+                    && matches!(members[first].kind, ClassMemberKind::Enum(_));
+                if an_enum {
+                    // `rule:enums/class-scoped-enum`: a case list does not own
+                    // another one. The enum is refused and not kept, so nothing
+                    // after the parser meets an enum whose owner is an enum.
+                    members.truncate(first);
+                    let span = before.to(self.last_span);
+                    self.diags.report(
+                        Diagnostic::error(
+                            code::E_ENUM_MEMBER_UNSUPPORTED,
+                            "an enum is not declared in an enum body",
+                        )
+                        .with_primary(span, "not a case")
+                        .with_help(
+                            "declare it in a class or interface body, or at file scope \
+                             (`rule:enums/class-scoped-enum`)",
+                        ),
+                    );
+                } else if !alias_only {
                     let span = before.to(self.last_span);
                     self.diags.report(
                         Diagnostic::error(

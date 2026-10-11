@@ -1231,3 +1231,148 @@ fn a_readonly_property_declares_no_default() {
         assert!(!diags.has_errors(), "{src}: {diags:?}");
     }
 }
+
+/// The members of the one class or interface `src` declares.
+fn owner_members(src: &str) -> Vec<ClassMember> {
+    match parse_stmt_ok(src).kind {
+        StmtKind::ClassDecl(class) => class.members,
+        StmtKind::InterfaceDecl(interface) => interface.members,
+        other => panic!("expected a class or an interface: {other:?}"),
+    }
+}
+
+#[test]
+fn an_enum_is_a_member_of_a_class_body() {
+    // `rule:enums/class-scoped-enum`: the body owns the enum, beside a
+    // property that uses it, and the member is the file-scope declaration.
+    let members = owner_members(
+        "final class Order { \
+             /// Where an order is.\n\
+             #[Meta] enum Status: uint { Open, Paid = 4, } \
+             public Status $status = Status::Open; \
+         }",
+    );
+    assert_eq!(members.len(), 2);
+    let ClassMemberKind::Enum(decl) = &members[0].kind else {
+        panic!("expected an enum member: {:?}", members[0]);
+    };
+    assert_eq!(decl.cases.len(), 2);
+    assert!(decl.backing.is_some());
+    assert_eq!(decl.attributes.len(), 1);
+    assert!(
+        members[0].doc.is_some(),
+        "the `///` run hangs on the member"
+    );
+    assert!(decl.doc.is_none());
+    assert!(matches!(members[1].kind, ClassMemberKind::Property(_)));
+}
+
+#[test]
+fn an_enum_is_a_member_of_an_interface_body() {
+    let members = owner_members(
+        "interface Shipment { enum Carrier { Post, Courier } \
+             public function carrier(): Carrier; }",
+    );
+    assert_eq!(members.len(), 2);
+    assert!(matches!(&members[0].kind, ClassMemberKind::Enum(d) if d.cases.len() == 2));
+}
+
+#[test]
+fn a_modifier_in_front_of_a_member_enum_is_refused() {
+    // One `E0133`, and the declaration is kept.
+    let (s, diags) = parse_stmt_with_diags("class Order { private enum Status { Open } }");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(
+        codes,
+        vec![code::E_TYPE_ALIAS_TAKES_NO_MODIFIER_OR_ATTRIBUTE]
+    );
+    let StmtKind::ClassDecl(class) = s.kind else {
+        panic!("expected a class decl: {s:?}");
+    };
+    assert!(matches!(class.members[0].kind, ClassMemberKind::Enum(_)));
+}
+
+#[test]
+fn a_class_or_interface_in_a_class_body_is_one_diagnostic() {
+    for src in [
+        "class Order { class Line { public int $n = 1; } public int $id = 0; }",
+        "class Order { final class Line {} }",
+        "interface Shop { interface Basket { public function size(): int; } }",
+    ] {
+        let (s, diags) = parse_stmt_with_diags(src);
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(
+            codes,
+            vec![code::E_NESTED_TYPE_DECLARATION_UNSUPPORTED],
+            "{src}"
+        );
+        assert!(
+            matches!(s.kind, StmtKind::ClassDecl(_) | StmtKind::InterfaceDecl(_)),
+            "{src}: the owner still parses"
+        );
+    }
+}
+
+#[test]
+fn an_enum_in_an_enum_body_is_one_diagnostic() {
+    let (s, diags) = parse_stmt_with_diags("enum Status { Open, enum Reason { Late } Paid }");
+    let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_ENUM_MEMBER_UNSUPPORTED]);
+    let StmtKind::EnumDecl(decl) = s.kind else {
+        panic!("expected an enum decl: {s:?}");
+    };
+    assert_eq!(decl.cases.len(), 2, "the cases around it are kept");
+    assert!(decl.members.is_empty(), "the refused enum is not kept");
+}
+
+#[test]
+fn a_type_reaches_a_case_of_a_class_scoped_enum() {
+    let s = parse_stmt_ok(
+        "class Label { public function of(Shop\\Order::Status::Paid|Order::Status $s): void {} }",
+    );
+    let StmtKind::ClassDecl(class) = s.kind else {
+        panic!("expected a class decl: {s:?}");
+    };
+    let ClassMemberKind::Method(m) = &class.members[0].kind else {
+        panic!("expected a method: {:?}", class.members[0]);
+    };
+    let Some(TypeKind::Union(atoms)) = m.params[0].ty.as_ref().map(|t| &t.kind) else {
+        panic!("expected a union: {:?}", m.params[0].ty);
+    };
+    assert!(matches!(
+        atoms[0].kind,
+        TypeKind::Atom(TypeAtom::MemberCase(..))
+    ));
+    assert!(matches!(
+        atoms[1].kind,
+        TypeKind::Atom(TypeAtom::Member(..))
+    ));
+}
+
+#[test]
+fn an_expression_chains_two_double_colons_to_a_case() {
+    // `Order::Status::Paid` in value position is a constant read on a
+    // constant read; which one is the owned enum is the checker's question.
+    let e = parse_ok("Order::Status::Paid");
+    let ExprKind::ClassConstAccess { class, .. } = e.kind else {
+        panic!("expected a class constant access: {e:?}");
+    };
+    assert!(matches!(class.kind, ExprKind::ClassConstAccess { .. }));
+}
+
+#[test]
+fn a_member_enum_is_walked_with_its_cases() {
+    let tree = crate::walk::of_source(
+        "t.nvs",
+        "<?nvs\nfinal class Order {\n    enum Status { Open, Paid }\n}\n",
+    )
+    .expect("parses");
+    let decl = tree
+        .descendants()
+        .into_iter()
+        .find(|n| n.kind == "EnumDecl")
+        .expect("the member enum is a node");
+    let kinds: Vec<_> = decl.children.iter().map(|n| n.kind).collect();
+    assert_eq!(kinds, vec!["EnumCase", "EnumCase"]);
+    assert!(decl.name.is_some());
+}

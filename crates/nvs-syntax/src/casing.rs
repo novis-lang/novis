@@ -543,6 +543,9 @@ fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnost
             ClassMemberKind::TypeAlias(alias) => {
                 check_type_name(alias.name.span, src, "type alias", diags);
             }
+            // An owned enum is named like a file-scope one, and so are its
+            // cases: one production, one answer (`rule:enums/class-scoped-enum`).
+            ClassMemberKind::Enum(decl) => check_enum_decl(decl, src, diags),
             ClassMemberKind::Error => {}
         }
     }

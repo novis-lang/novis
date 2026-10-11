@@ -3516,8 +3516,9 @@ fn binding_ty(
 /// # Panics
 ///
 /// Every atom `rule:types/grammar` has is answered by name, so neither panic
-/// here is a shape this crate refuses. `TypeAtom::Member(..)` is the one atom
-/// the AST cannot answer alone and is guaranteed by
+/// here is a shape this crate refuses. `TypeAtom::Member(..)` and its
+/// three-part form `TypeAtom::MemberCase(..)` are the atoms the AST cannot
+/// answer alone, and are guaranteed by
 /// [`ExprTypeTable::declared_ty`](nvs_types::expr_table::ExprTypeTable::declared_ty),
 /// whose entry the shortcut above takes first; the trailing arm exists because
 /// `nvs_syntax::ast::TypeKind` and `TypeAtom` are `#[non_exhaustive]`, and a
@@ -3641,7 +3642,7 @@ pub(crate) fn lower_decl_type(
         // arriving here means the table lost an entry it records — a bug in
         // whatever built it rather than a representation this crate is
         // missing.
-        TypeKind::Atom(TypeAtom::Member(..)) => panic!(
+        TypeKind::Atom(TypeAtom::Member(..) | TypeAtom::MemberCase(..)) => panic!(
             "nvs-ir: a member-constant type annotation reached lowering with no \
              `ExprTypeTable::declared_ty` entry, which the checker records for every annotation \
              it visits — this is a bug"

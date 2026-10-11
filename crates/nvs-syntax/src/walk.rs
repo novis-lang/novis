@@ -958,6 +958,14 @@ fn member(m: &ClassMember) -> Node {
             name = Some(a.name.span);
             "TypeAliasDecl"
         }
+        // The same node a file-scope enum is, so a tool reading the tree
+        // treats the two alike (`rule:enums/class-scoped-enum`).
+        ClassMemberKind::Enum(decl) => {
+            name = Some(decl.name.span);
+            kids.extend(decl.cases.iter().map(enum_case));
+            kids.extend(decl.members.iter().map(member));
+            "EnumDecl"
+        }
         ClassMemberKind::Error => "Error",
     };
     Node {

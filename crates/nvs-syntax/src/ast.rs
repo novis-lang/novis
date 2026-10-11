@@ -201,6 +201,13 @@ pub enum TypeAtom {
     /// resolved. That is the same division of labour [`Self::Name`] already
     /// has, for the same reason.
     Member(Name, Span),
+    /// `Order::Status::Paid` in type position — a case of an enum a class or
+    /// interface owns (`rule:enums/class-scoped-enum`, `rule:types/enum-case-type`).
+    /// The [`Name`] is the owner, the first [`Span`] the enum member, the
+    /// second the case. Its own atom rather than a path on [`Self::Member`],
+    /// because only an owned enum's case has three parts: a class constant
+    /// and a file-scope enum's case keep the two-part atom they always had.
+    MemberCase(Name, Span, Span),
     /// `iterable`
     Iterable,
     /// `callable`
@@ -1775,6 +1782,11 @@ pub enum ClassMemberKind {
     /// from anywhere and as a bare `Name` inside the owner
     /// (`rule:types/type-alias`).
     TypeAlias(TypeAliasDecl),
+    /// An `enum` the class or interface body owns, reached as `Owner::Name`
+    /// from anywhere and as a bare `Name` inside the owner
+    /// (`rule:enums/class-scoped-enum`). Its `///` run hangs on the
+    /// [`ClassMember`], so the declaration's own `doc` is `None`.
+    Enum(EnumDecl),
     /// A placeholder produced during error recovery — also what a rejected
     /// class-body `use TraitName, ...;` becomes, since `rule:classes/no-traits` leaves no
     /// AST node to carry it.

@@ -4584,9 +4584,9 @@ fn a_backtrace_frame_renders_from_the_source_a_record_would_carry() {
 /// the match itself answers for: an annotation the checker visited takes the
 /// `declared_ty` shortcut instead and never reaches it.
 ///
-/// `TypeAtom::Member` is the single row with no answer off the AST — whether
-/// `Rank::Silver` is an `int`, a `string` or an enum's tag is what resolution
-/// decided — so its row is `None` and the assertion at the end is the shortcut
+/// `TypeAtom::Member` and `TypeAtom::MemberCase` are the rows with no answer
+/// off the AST — whether `Rank::Silver` is an `int`, a `string` or an enum's
+/// tag is what resolution decided — so their rows are `None` and the assertion at the end is the shortcut
 /// that owns it: a checked program's enum-case parameter comes out
 /// [`Ty::Enum`], which no arm of that match can produce.
 #[test]
@@ -4637,6 +4637,7 @@ fn lower_decl_type_answers_every_type_atom_the_grammar_has() {
         (TypeAtom::SingleValueString(at), Some(Ty::Str)),
         (TypeAtom::SingleValueInt(at), Some(Ty::Int)),
         (TypeAtom::Member(name, at), None),
+        (TypeAtom::MemberCase(name, at, at), None),
         (TypeAtom::Iterable, Some(Ty::Tagged)),
         (TypeAtom::Callable, Some(Ty::Object)),
         (
@@ -4653,7 +4654,7 @@ fn lower_decl_type_answers_every_type_atom_the_grammar_has() {
     ];
     assert_eq!(
         atoms.len(),
-        34,
+        35,
         "one row per `nvs_syntax::ast::TypeAtom` variant — write the row in the slice that \
          writes the arm"
     );

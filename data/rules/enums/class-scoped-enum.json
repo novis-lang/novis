@@ -7,5 +7,7 @@
     "classes/a-type-is-declared-at-file-scope",
     "statements/nothing-gets-a-second-name"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-syntax/src/parser/tests/decl.rs"
+  ]
 }
