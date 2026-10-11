@@ -331,7 +331,9 @@ One file set: the files the two searches below print.
 
 **Goal `env-context`: every stage is done, and the goal is claimed reached.** `Core\Env::context()` and `Core\Env::OS` typed `Core\Env::Platform` are on disk with their rule, spec rows, checks and proofs. No file picks its half by catching an error any more. The `$noRequest` files, the 19 nested-request files, 12 more `tests/conformance/core` cases that caught the same `RuntimeError` as `$refused`, and the two `nvs-cli` runner fixtures that caught it as `$notARequest` all branch on `Core\Env::context() == Core\Env::Context::Request`. The Stage 6 check now names `$notARequest` too and exits nonzero. `an-in-process-request-may-not-be-made-from-inside-one.nvst` proves the throw, so it keeps its `catch`.
 
-Gates: `bun nv proofs --verify` is clean for `Core\Html` and `Core\Response`, all 25 changed `.nvst` cases pass, and both fixtures pass under `runner::tests`. `bun nv verify --doc` is green and `bun nv owners --closes env-context` owes nothing. `looper verify` was red on four Rust tests in `nvs-config` (`tests/request.rs:176`), `nvs-runtime` (`tests/allocator_ceiling.rs`) and `nvs-stdlib` (`src/request.rs:6072`). Another agent had uncommitted edits in `crates/nvs-config` and `crates/nvs-runtime/src/ctx` at the time, and no file this goal touched feeds those tests.
+Gates: `bun nv proofs --verify` is clean for `Core\Html` and `Core\Response`, all 25 changed `.nvst` cases pass, and both fixtures pass under `runner::tests`. `bun nv verify --doc` is green and `bun nv owners --closes env-context` owes nothing.
+
+The refused DONE had `env-context-conformance` and `env-os-conformance` red. Both judge the whole `tests/conformance` tree. 56 of its 59 red cases were `ldap-*`, red because the `tests/db/compose.yaml` stack had stopped. The other three hit the memory ceiling while another agent's uncommitted `[limits]` default work was in the tree. With the stack up again, all 59 pass and both checks are green under `looper check`. No file changed. The playbook bullet `the-novis-db-compose-stack-can-be-stopped-rather-than-broken` already names this trap.
 
 ### Next
 
