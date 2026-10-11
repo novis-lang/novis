@@ -1251,7 +1251,9 @@ rather than discovering a `SIGKILL`. A deployment killed inside the bound means 
 reaching some parked wait, which is a defect and not a tuning question.
 
 - **Memory:** an HTTP connection holds one `bool` for the close it has asked for, and each poll of
-  it reads the drain bit once, which the idle poll already paid.
+  it reads the drain bit once, which the idle poll already paid. A WebSocket connection holds one
+  shared flag and one drain registration, so a `receive` already parked is cut by the drain, and each
+  readable wait on it swaps that flag once. A stream that registered no cut pays nothing.
 
 **Declined:**
 - **A fixed drain constant in the server.** Bounded, but an operator could not raise it for a
@@ -1260,13 +1262,20 @@ reaching some parked wait, which is a defect and not a tuning question.
   bounds connections doing something ([`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class)).
 - **A shorter default drain period, so an idle connection costs less.** The period bounds a request
   that is working, and a shorter one cuts a slow response short on every restart.
-- **Closing an idle connection from the accept loop.** The socket belongs to the connection's own
-  task, and a close reached in from outside is the reset this rule prevents.
+- **Closing an idle connection, or cancelling its isolate, from the accept loop.** The socket
+  belongs to the connection's own task, and a close reached in from outside is the reset this rule
+  prevents.
+- **A wake alone, with `receive` reading the drain bit again on each retry.** The retry loop runs
+  inside the host's `read`, under the WebSocket codec, and neither can be told to look at a bit. A
+  wake is only a hint ([`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract)), and treating it as more would break
+  every other wait.
+- **Polling the drain on a short deadline.** Every WebSocket the process holds would be woken every
+  few hundred milliseconds for a question that is almost never yes.
 - **`Connection: close` on the last response.** It covers only a response written after the drain
   began, so a connection that had already answered, and one a browser opened and never used, would
   still wait.
 
-<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0206](../decisions/0206.md), [0209](../decisions/0209.md).</sub>
+<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0209](../decisions/0209.md).</sub>
 
 <a id="concurrency-enqueue-commits-with-your-write"></a>
 
