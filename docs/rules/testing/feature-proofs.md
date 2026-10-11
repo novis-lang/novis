@@ -17,7 +17,10 @@ the name its user types, and `nvs agent show` prints what it does, how it is wri
 throws or reports: a `Core` member's card, a language feature's reference section, a command's or a
 configuration key's own entry. It is written with the feature and changed with it, in the voice of
 AGENTS.md § *Text an end user reads*, because a user and their coding agent look there before
-anywhere else, and a feature the binary cannot show them reads as one that does not exist.
+anywhere else, and a feature the binary cannot show them reads as one that does not exist. The
+features that landed before Help was a proof are listed in `data/proofs/help-backlog.json` and read as
+skips with one shared reason, so a finished goal's floor does not fail over a proof that was not owed
+when it finished; a feature leaves the list when it gains its help.
 
 Each tree's own README owns what a file in it *is*, and this rule restates none of them.
 

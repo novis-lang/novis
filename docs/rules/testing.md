@@ -929,7 +929,10 @@ the name its user types, and `nvs agent show` prints what it does, how it is wri
 throws or reports: a `Core` member's card, a language feature's reference section, a command's or a
 configuration key's own entry. It is written with the feature and changed with it, in the voice of
 AGENTS.md § *Text an end user reads*, because a user and their coding agent look there before
-anywhere else, and a feature the binary cannot show them reads as one that does not exist.
+anywhere else, and a feature the binary cannot show them reads as one that does not exist. The
+features that landed before Help was a proof are listed in `data/proofs/help-backlog.json` and read as
+skips with one shared reason, so a finished goal's floor does not fail over a proof that was not owed
+when it finished; a feature leaves the list when it gains its help.
 
 Each tree's own README owns what a file in it *is*, and this rule restates none of them.
 
@@ -953,7 +956,7 @@ and says so in the audit.
 - **A hand-kept checklist of finished features.** It rots within a day of an unattended run
   ([`testing/roster-is-derived`](testing.md#testing-roster-is-derived)).
 
-<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0216](../decisions/0216.md), [0272](../decisions/0272.md).</sub>
+<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0272](../decisions/0272.md).</sub>
 
 <a id="testing-roster-is-derived"></a>
 

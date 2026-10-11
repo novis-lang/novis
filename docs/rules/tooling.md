@@ -1539,11 +1539,21 @@ hidden commands and flags left out, and the diagnostics crate's code list, which
 the codes writes — and kept nowhere, which is [`testing/roster-is-derived`](testing.md#testing-roster-is-derived)'s shape: a key, a flag
 or a code that lands owes its line at once, and nobody edits a list.
 
-The entries are exact names, never a search of the text under a heading. A full-text match answers
-one word with every section that mentions it, and an empty answer from it no longer means that the
-name does not exist, which is the property [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member) keeps.
+The entries are exact names, never a search of the text under a heading, so an empty answer still
+means that the name does not exist, which is the property [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member)
+keeps. Building the lines is more work per `find`, and it is a command-line lookup that no request
+path reaches.
 
-<sub>See also [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member), [`tooling/a-diagnostic-code-carries-its-card`](tooling.md#tooling-a-diagnostic-code-carries-its-card), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0216](../decisions/0216.md).</sub>
+**Memory:** nothing held. The lines are derived at the call and kept nowhere.
+
+**Declined:**
+- **A full-text search over every section.** It answers one word with every section that mentions
+  it, which an agent has to read through, and an empty answer from it no longer means the name does
+  not exist.
+- **Full text beside the exact entries, exact entries first.** It has the same loose matches after
+  the exact ones, and it is more to build and to test.
+
+<sub>See also [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member), [`tooling/a-diagnostic-code-carries-its-card`](tooling.md#tooling-a-diagnostic-code-carries-its-card), [`testing/feature-proofs`](testing.md#testing-feature-proofs).</sub>
 
 <a id="tooling-a-diagnostic-code-carries-its-card"></a>
 
@@ -1565,7 +1575,15 @@ A code lands with its card, as a `Core` member does ([`core-api/reference-card`]
 landed before cards existed are named in a list of codes still owing one, a test holds the list and
 the cards together, and a code is deleted from the list in the commit that gives it its card.
 
-<sub>See also [`tooling/the-index-names-every-key-command-and-code`](tooling.md#tooling-the-index-names-every-key-command-and-code), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0216](../decisions/0216.md).</sub>
+The contributor's `///` cites rules a user cannot open, so without a card a user who meets an error
+has nothing in the binary to read. An agent reads an empty answer as a name the language lacks
+([`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary)), so a code with no card is a wrong answer, not a missing
+page.
+
+**Memory:** the cards are static strings in the binary, per process and never per request: a few
+hundred bytes per code.
+
+<sub>See also [`tooling/the-index-names-every-key-command-and-code`](tooling.md#tooling-the-index-names-every-key-command-and-code), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`testing/feature-proofs`](testing.md#testing-feature-proofs).</sub>
 
 <a id="tooling-a-primer-claim-is-executed"></a>
 
