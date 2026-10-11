@@ -115,6 +115,7 @@ use crate::imports;
 use crate::index::{CheckScope, DeclKind, Declaration, Site, SymbolIndex, symbol_at};
 use crate::links;
 use crate::position::{encoding_of, offset_at, range_of};
+use crate::query;
 use crate::redactions;
 use crate::regions;
 use crate::selection;
@@ -913,26 +914,12 @@ fn uses_of(
     encoding: PositionEncoding,
 ) -> Option<Vec<Location>> {
     let symbol = symbol_at(analysed, offset)?;
-
-    let mut sites: Vec<&Site> = Vec::new();
-    if include_declaration && let Some(declared) = index.declaration(&symbol) {
-        sites.push(&declared.site);
-    }
     // A `use` line is listed among the uses, in its place in the file, though
     // the CodeLens does not count it ([`SymbolIndex::imports_of`]).
-    let mut uses: Vec<&Site> = index
-        .occurrences(&symbol)
+    let sites: Vec<&Site> = query::references(index, &symbol, include_declaration)
         .into_iter()
-        .map(|occurrence| &occurrence.site)
-        .chain(
-            index
-                .imports_of(&symbol)
-                .into_iter()
-                .map(|import| &import.site),
-        )
+        .map(|reference| reference.site)
         .collect();
-    uses.sort();
-    sites.extend(uses);
     Some(locations(documents, &sites, encoding))
 }
 
@@ -1265,6 +1252,67 @@ fn hierarchy_lenses(index: &SymbolIndex, declared: &Declaration) -> Vec<String> 
     titles
 }
 
+/// One project, analysed and indexed once for one question asked by name.
+///
+/// What `nvs code` reads, and [`crate::query`] is how it reads it. The index
+/// is built here, beside the session's and a `.lspt` case's, because this is
+/// the module that owns one: a caller outside the server holds this value and
+/// never builds an index of its own
+/// (`rule:ide/five-features-are-one-reference-index`). Nothing is open in the
+/// store, so every file is read from disk.
+///
+/// Built by [`workspace`] and dropped with the answer. It holds one index
+/// entry per `.nvs` file under the root for as long as the caller keeps it.
+#[derive(Debug)]
+pub struct Workspace {
+    /// The directory every `.nvs` file under which was indexed.
+    root: PathBuf,
+    /// The store the index was built from, surveyed so an autoloaded file
+    /// resolves through its program's map.
+    documents: Documents,
+    /// The index, at workspace scope over [`Self::root`].
+    index: SymbolIndex,
+}
+
+impl Workspace {
+    /// The directory the workspace was built over.
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// The store an analysis of one of its files reads through.
+    #[must_use]
+    pub const fn documents(&self) -> &Documents {
+        &self.documents
+    }
+
+    /// The one index, built over every `.nvs` file under the root.
+    #[must_use]
+    pub const fn index(&self) -> &SymbolIndex {
+        &self.index
+    }
+}
+
+/// Analyses and indexes every `.nvs` file under `root`, as an editor does for
+/// a workspace at `CheckScope::Workspace`.
+///
+/// The survey runs first, for the reason [`serve`]'s does: an autoloaded file
+/// resolves its names through the map of the program that autoloads it. A file
+/// with errors is indexed with what its analysis recovered. The cost is one
+/// analysis per file under the root.
+#[must_use]
+pub fn workspace(root: &Path) -> Workspace {
+    let mut documents = Documents::new();
+    documents.survey(CheckScope::Workspace, Some(root));
+    let index = SymbolIndex::build(&documents, CheckScope::Workspace, Some(root));
+    Workspace {
+        root: root.to_owned(),
+        documents,
+        index,
+    }
+}
+
 /// The settings one `.lspt` case is answered under.
 ///
 /// The roster's own defaults, with the root set to the directory the runner
@@ -1516,10 +1564,12 @@ fn type_definition(
     }))
 }
 
-/// `textDocument/implementation` — every type the index records as extending or
-/// implementing the one under the cursor.
+/// `textDocument/implementation` — every type below the one under the cursor,
+/// at any depth, or every method that overrides the one under it.
 ///
-/// [`SymbolIndex::subtypes`] is the query, which is
+/// [`query::implementations`] is the answer, the function `nvs code impls`
+/// calls, so the editor and the command list the same declarations. It reads
+/// the index's `subtypes` and `overriders`, which makes this
 /// `rule:ide/five-features-are-one-reference-index`'s type-hierarchy reader
 /// asked from a second place rather than a sixth feature arriving: the
 /// hierarchy shows those edges as a tree and this shows them as a jump list.
@@ -1544,7 +1594,7 @@ fn implementation(
         encoding,
     );
     let symbol = symbol_at(&analysed, offset)?;
-    let found = index.subtypes(&symbol);
+    let found = query::implementations(index, &symbol).below;
     let sites: Vec<&Site> = found.iter().map(|declared| &declared.site).collect();
     Some(GotoDefinitionResponse::Array(locations(
         documents, &sites, encoding,

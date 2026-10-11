@@ -116,6 +116,7 @@ pub mod imports;
 pub mod index;
 pub mod links;
 mod position;
+pub mod query;
 pub mod redactions;
 pub mod regions;
 mod render;
@@ -144,5 +145,5 @@ pub use index::{
 };
 pub use position::{encoding_of, offset_at, position_at, range_at, range_of};
 pub use render::{Action, Edit, Link, Place, Redaction, Region, Response};
-pub use server::{ServerError, run, serve};
+pub use server::{ServerError, Workspace, run, serve, workspace};
 pub use settings::{Client, Settings};

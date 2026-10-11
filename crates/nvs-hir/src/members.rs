@@ -1739,7 +1739,11 @@ fn collect_candidates(
 
 /// Levenshtein distance in characters, two rows wide: the number of single
 /// character insertions, deletions and substitutions that turn `a` into `b`.
-fn edit_distance(a: &str, b: &str) -> usize {
+///
+/// Public because a name the language server's index does not hold is ranked
+/// against the names it does by the same measure (`nvs_lsp::query::nearest`).
+#[must_use]
+pub fn edit_distance(a: &str, b: &str) -> usize {
     let b: Vec<char> = b.chars().collect();
     let mut prev: Vec<usize> = (0..=b.len()).collect();
     let mut row = vec![0; b.len() + 1];

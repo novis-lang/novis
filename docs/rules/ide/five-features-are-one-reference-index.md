@@ -23,6 +23,12 @@ One more reader reads the same index and is not a reference feature: `nvs/fileKi
 recorded as it read each file. It asks what a file declares rather than where a name is used, and it
 builds no walk of its own either.
 
+The same index answers a question asked by name. `nvs_lsp::query` holds the readers that take a
+fully-qualified name instead of a cursor, and the editor feature that asks the same question calls the
+same function: `textDocument/references` and `textDocument/implementation` read the cursor's name and
+call `query`. A caller outside the server, such as `nvs code`, gets a `Workspace` from `server.rs`, which
+builds the index for one question and drops it with the answer.
+
 The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all six
 readers read it. Five features that would each walk the workspace cost one walk between them, and the
 warm index is what keeps references and highlight inside `rule:ide/a-full-reanalysis-stays-under-a-bound`.
