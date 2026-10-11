@@ -1403,13 +1403,15 @@ write the checker could not see throws a `LogicError` naming the property, and n
 an object. A mutable property, an element or any other place is never the thing narrowed:
 `$e->previous != null` proves nothing about the next read of a mutable `$e->previous`, because a
 call in between may have written it, so a nullable one is reached through `?->` or bound to a
-local and tested there.
+local and tested there, and `E0459`'s help on one shows both. Narrowing a `readonly` path spares a
+program the copy into a local it would otherwise write before every test, at one compare and branch
+per narrowed property read.
 
 Narrowing never changes a binding's declared type ([`types/declaration`](types.md#types-declaration)); it changes what the
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0270](../decisions/0270.md).</sub>
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites).</sub>
 
 <a id="types-conversion"></a>
 

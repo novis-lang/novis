@@ -389,12 +389,20 @@ the one written.
 
 A write the checker cannot see — through an `object` or `mixed` receiver, or
 `Core\Reflect\ClassInfo::set` — throws a `RuntimeError` naming the property, and the value stays as
-the constructor wrote it.
+the constructor wrote it. The constructor's own writes and the graph decoder store the slot directly
+and never take that path.
 
 Because the value cannot change once the object is built, a test of a `readonly` property still holds
-at the next read, which is what lets [`types/narrowing`](types.md#types-narrowing) narrow one.
+at the next read, which is what lets [`types/narrowing`](types.md#types-narrowing) narrow one. Narrowing a property needs the
+write-once promise to be true, which is why both halves are enforced rather than described.
 
-<sub>See also [`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/narrowing`](types.md#types-narrowing). Decided in [0270](../decisions/0270.md).</sub>
+**Declined:**
+
+- **Write-once checked only at run time**, where the first write may come from any method of the class
+  and the second throws. The property would be write-once by bookkeeping, and a test of it could not
+  narrow at compile time, because the checker could not know whether the first write had happened.
+
+<sub>See also [`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions), [`classes/property-hooks`](classes.md#classes-property-hooks), [`types/narrowing`](types.md#types-narrowing).</sub>
 
 <a id="classes-lateinit-read-before-write"></a>
 

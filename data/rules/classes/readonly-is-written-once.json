@@ -1,9 +1,7 @@
 {
   "title": "A `readonly` property is written once, by its own class's constructor through `$this`, and every other write is refused or throws",
   "status": "shipped",
-  "because": [
-    "0270"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/lateinit-restrictions",
     "classes/property-hooks",
@@ -16,6 +14,7 @@
     "tests/conformance/reject/a-readonly-property-is-not-written-in-a-constructor-loop.nvst",
     "tests/conformance/reject/an-element-write-is-a-second-readonly-write.nvst",
     "tests/conformance/reject/a-readonly-property-has-no-hook.nvst",
-    "tests/conformance/class/an-erased-write-to-a-readonly-property-throws.nvst"
+    "tests/conformance/class/an-erased-write-to-a-readonly-property-throws.nvst",
+    "tests/conformance/class/a-null-test-narrows-a-readonly-property.nvst"
   ]
 }
