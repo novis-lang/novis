@@ -71,7 +71,15 @@ The name may be written `Owner::Name`, an alias declared as a member of an inter
 body ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)), and it is then resolved exactly as the type `Owner::Name` is,
 the owner's file being autoloaded like any other name the attribute writes. A name is therefore
 written the same way in an attribute and in a type, and an alias that belongs to an interface needs
-no second, file-scope declaration to be usable as an attribute.
+no second, file-scope declaration to be usable as an attribute
+([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)). The checker builds the type atom and lowers it, so an
+alias standing left of `::`, the owner's namespace and imports, and every diagnostic for a name that
+resolves to nothing are the type position's own. Retrieval is structural and never reads the name
+([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)), so `Page::Meta` and the shape it names find the same
+payloads.
+
+- **Memory:** nothing per request. The member form costs one type lowering per attribute while
+  compiling, which the plain form already pays through the alias table.
 
 Three answers, deliberately three. A name nothing declares is the ordinary undefined-name `E0303` —
 an attribute name is not a second namespace, so it gets no refusal of its own; for `Owner::Name` it is
@@ -81,6 +89,11 @@ mismatch `E0401`.
 
 A malformed attribute is one error. The parser skips the rest of its `#[...]` group up to the
 group's own `]`, so the declaration after it still parses and nothing else is reported for it.
+"expected `]`" is reported only if nothing inside the group was reported yet, and the skip counts
+brackets, parentheses and braces. Outside every bracket, a `;`, an unmatched closing bracket or a
+keyword that begins a declaration also ends the skip without being consumed, so a group missing its
+`]` loses only its own tokens. A `::` with no name after it is one error, and that attribute is kept
+as the bare form, so the checker says nothing more about it.
 
 The one exemption is the closed, `Core`-owned roster of compiler-recognized attributes, matched by name
 and naming no shape at all. Each is a plain name, so `Owner::Name` never matches one. Every userland
@@ -90,7 +103,14 @@ and the rule that owns it names them: `#[Core\Path]` is written before a `string
 sites but a property hook and that hook's parameter
 ([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)).
 
-<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0232](../decisions/0232.md), [0275](../decisions/0275.md).</sub>
+**Declined:**
+- **A lookup of its own in the attribute checker** for `Owner::Name`, reading the member alias table
+  directly. It would be a second resolver for one syntax, and the type position's handling of an alias
+  left of `::` and its diagnostics would have to be copied into it.
+- **Matching `Owner::Name` against the recognized roster.** No recognized attribute is a member of
+  anything, so the only effect would be a second way to write a name the compiler acts on.
+
+<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0275](../decisions/0275.md).</sub>
 
 <a id="attributes-payload-is-a-compile-time-constant"></a>
 
