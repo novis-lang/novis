@@ -669,7 +669,12 @@ program holds, and `Core\Path::fromCwd` joins a path typed on a command line to 
 `fromCwd` throws while a request is being answered, because a server's working directory is not the
 app's. Its answer is a plain `string` without `tainted`, so a path from `Core\Cli::arguments` reaches
 a path door through it ([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named) states the exception). The resolver an isolate's script goes through refuses a relative path the same way, for a
-spawn, a queued job, a scheduled entry and a log handler alike. With every path absolute at the check, a relative grant in `nvs.toml`, which resolves against
+spawn, a queued job, a scheduled entry and a log handler alike: a relative path reaching it is a
+defect upstream that is reported, and never a file looked up in the working directory. A pushed
+script that is relative and built at run time throws at the push, before anything is written, and
+the row stores the absolute path, so a worker started in any folder runs the same script. A job
+queued earlier with a relative script is not rewritten: the resolver refuses it when a worker takes
+it, and the job fails like any job whose script does not resolve. With every path absolute at the check, a relative grant in `nvs.toml`, which resolves against
 that file's folder, names the same files as a string literal in a program beside it.
 
 **Declined:**
@@ -682,6 +687,8 @@ that file's folder, names the same files as a string literal in a program beside
 - **`nvs.toml`'s folder as the base.** A program run without a configuration file would have no base,
   and a program's own source would mean something different depending on where the operator keeps
   the file.
+- **Rewriting a stored relative job script against the worker's folder.** That is the
+  working-directory guess this rule removes, made once and then stored.
 - **Canonicalizing the literal while compiling.** The answer would depend on the build machine's
   disk, and a bundle has none to ask.
 - **A `__DIR__` constant.** Every call site would have to write the join, and a forgotten one would
@@ -692,7 +699,7 @@ that file's folder, names the same files as a string literal in a program beside
 - **`thisFile` and `thisDir` answering the entry file.** A library could not name a file beside its
   own code.
 
-<sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0245](../decisions/0245.md).</sub>
+<sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in).</sub>
 
 <a id="programs-program-id"></a>
 

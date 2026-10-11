@@ -1,9 +1,7 @@
 {
   "title": "A relative path resolves against the directory of the file it is written in; a command-line path against the working directory",
   "status": "shipped",
-  "because": [
-    "0245"
-  ],
+  "because": [],
   "seeAlso": [
     "config/include-takes-a-path-or-a-dir",
     "config/app-keys-are-canonicalized-before-matching",
@@ -12,6 +10,7 @@
   "guardedBy": [
     "tests/conformance/core/db-a-sqlite-path-resolves-against-the-file-that-wrote-it.nvst",
     "crates/nvs-config/tests/resolve.rs",
-    "crates/nvs-config/tests/app.rs"
+    "crates/nvs-config/tests/app.rs",
+    "crates/nvs-cli/tests/live_config.rs"
   ]
 }
