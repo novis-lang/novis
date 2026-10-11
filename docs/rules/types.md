@@ -824,20 +824,34 @@ between two kinds.
   with a diagnostic, so a pathological type cannot make checking superlinear.
 - The stdlib's array signatures are parametric in `T`. Type variables belong to declarations the
   compiler owns; a call site may write a type argument only for a compiler-owned member that declares
-  one it cannot infer, and that door is a roster of four — `Core\Arr::shapeAs<T>`,
-  `Core\Json::decodeAs<T>`, `Core\Request::jsonAs<T>` and `Core\Db`'s `queryAs<T>`. What may be
-  written there is a class, an
+  one it cannot infer, such as a decode handed a `string` with nothing else to say what it becomes.
+  That door is a roster the compiler holds, `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` —
+  `Core\Arr::shapeAs<T>`, `Core\Json::decodeAs<T>`, `Core\Request::jsonAs<T>` and `Core\Db`'s
+  `queryAs<T>` among them — so a member gaining the door is a row in that table and the conformance
+  case the coverage gate asks for, not a change to this rule. What may be written there is a class, an
   inline shape ([`types/shape-type`](types.md#types-shape-type)), or an `array<…>` of either where the source is a list;
-  anything else is refused where it is written. User-written generic functions and classes are not
+  anything else is refused where it is written (`E0465`). Nesting stops one level down:
+  `array<array<C>>` is not a document shape any format gives a field. A class and a shape differ only
+  at the call site: a class raises two questions about the rest of the program — whether it carries the
+  deriving attribute, and whether its properties fit the format — which is why a decode site is
+  recorded against it, while a shape declares its own fields where it is written, and its contract is
+  read off the type and emitted beside the call. User-written generic functions and classes are not
   part of this ([`types/no-user-generics`](types.md#types-no-user-generics)).
+- **Memory:** a shape at the type-argument door is compile-time work and one interned descriptor,
+  O(distinct types in the program) and nothing per request.
 
 **Declined:**
 - **Integer keys kept beside string keys.** Two key domains need a rule for converting between them,
   and that rule is where `$a[8]`, `$a["8"]` and `$a["08"]` stop meaning what they look like.
 - **A callback's `$key` handed on as a position on a packed list.** The key's type would then depend
   on how the array happens to be stored, which is the integer-key and string-key split again.
+- **A type-argument door that admits a class alone.** A shaped decode would then need a class declared
+  only to be named once, and a request boundary would be the one place a program must invent a nominal
+  type to describe data it does not own.
+- **The roster listed in prose as the authority.** A list in a document cannot track a table, and the
+  door's members are the compiler's registry.
 
-<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0159](../decisions/0159.md), [0188](../decisions/0188.md), [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
+<sub>See also [`types/mixed-subscript`](types.md#types-mixed-subscript), [`types/array-combination`](types.md#types-array-combination), [`types/preserve-keys`](types.md#types-preserve-keys), [`types/conversion`](types.md#types-conversion), [`types/shape-type`](types.md#types-shape-type). Decided in [0188](../decisions/0188.md), [0238](../decisions/0238.md), [0252](../decisions/0252.md).</sub>
 
 <a id="types-array-combination"></a>
 
