@@ -197,8 +197,8 @@ mod wiring;
 // A glob re-export takes each item at its own visibility, so what these
 // lines decide is only the ceiling. `limits` and `hooks` have no line at all:
 // everything in them is a method on `Ctx`, found through the type rather than
-// through a module path. `isolate` is named for its one exception, the seed a
-// context crosses a thread as.
+// through a module path. `isolate` is named for its two items that are not
+// methods: the seed a context crosses a thread as, and the kind of run.
 pub(crate) use self::current::*;
 // The one item of that module a host needs: `nvs_host`'s stack switch is what
 // carries the pair off the thread and back — see [`CurrentStack`].
@@ -208,7 +208,7 @@ pub use self::deprecated::{OnDeprecated, nvs_deprecated_use};
 pub use self::error::*;
 pub use self::held::*;
 pub use self::inbound::*;
-pub use self::isolate::PlacedIsolate;
+pub use self::isolate::{PlacedIsolate, RunKind};
 pub use self::output::*;
 pub use self::safepoint::*;
 pub use self::trace::*;
@@ -483,6 +483,10 @@ pub struct Ctx {
     /// [`Self::join_tree`] clear it, and [`Self::take_tree_cpu_limit`] sets it
     /// on the isolate a served request runs in.
     tree_root: bool,
+    /// The kind of run the constructor or the host stored, which
+    /// [`Self::run_kind`] reads only after it has ruled out a request and a
+    /// connection. **What it spends:** one byte, beside the flags above.
+    run_kind: RunKind,
     /// What this context has already published into its tree's off-core
     /// counters, or `None` for one that publishes nothing — which is every
     /// context on the root's core and every descendant of a member off it.
@@ -1270,16 +1274,14 @@ pub struct Ctx {
     /// no request here" and "the request sent nothing" are different facts, and
     /// an `Option` is what keeps them different this far down.
     ///
-    /// **Boxed, and that is load-bearing rather than tidy.** A whole `Ctx` is
-    /// handed back from a coroutine inside `nvs_host::scheduler::Finished`, and
-    /// `corosensei` refuses to transfer anything over **1024 bytes** across a
-    /// stack switch — a limit this struct is already close to, and one whose
-    /// breach reads as `type is too big to transfer` from an unrelated test
-    /// rather than as anything about this line.
-    /// `nvs_host::scheduler`'s `a_finished_task_fits_the_stack_switch` is the
-    /// guard, and it is why a per-request aggregate belongs behind one pointer
-    /// here: everything else `Core\Request` still owes — the headers, the
-    /// cookies, the mount captures — grows [`Inbound`] and not this struct.
+    /// **Boxed, to keep this struct from growing per request.** A task's
+    /// context crosses `corosensei`'s stack switch boxed, and that crossing has
+    /// a **1024-byte** limit whose breach reads as `type is too big to
+    /// transfer` from an unrelated test. `nvs_host::scheduler`'s
+    /// `a_tasks_entry_callable_leaves_the_stack_switch_room_to_spare` guards
+    /// the crossing. A per-request aggregate still belongs behind one pointer
+    /// here: everything else `Core\Request` owes — the headers, the cookies,
+    /// the mount captures — grows [`Inbound`] and not this struct.
     ///
     /// **What it spends:** one word per request that has none, and one
     /// allocation holding an [`Inbound`] — itself a few short allocations — for

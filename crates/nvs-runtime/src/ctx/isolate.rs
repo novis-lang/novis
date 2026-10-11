@@ -14,10 +14,69 @@
 //! are the largest thing it does *not* share. They are also the one thing
 //! [`Ctx::method_isolate`] has to arm for itself, `rule:security/isolate-shares-nothing`'s method entry being the only child
 //! that runs its parent's unit.
+//!
+//! The kind of run a context is ([`RunKind`]) is decided here too, for the
+//! same reason: each constructor states it for the context it makes, and a
+//! host that builds a job, a scheduled fire or a test overwrites it once
+//! before the program runs.
 
 use super::*;
 
+/// What kind of run a context is: one value per row of
+/// `rule:tooling/echo-always-has-a-sink`'s table, in that table's order.
+///
+/// [`Ctx::run_kind`] is the one reader. Two of the seven are never stored:
+/// [`Self::Request`] and [`Self::Connection`] are read from what makes a
+/// context one, so a host that forgets to store a kind cannot make a request
+/// read as a command.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum RunKind {
+    /// An HTTP request: the context has an [`Inbound`].
+    Request,
+    /// A CLI program — a script's main task or a `#[Command]` method. What
+    /// [`Ctx::new`] stores.
+    Command,
+    /// A `spawn script` child, a method entry or a tier-3 limit handler. What
+    /// [`Ctx::isolate`] and [`PlacedIsolate::build`] store.
+    Isolate,
+    /// A `[[schedule]]` fire.
+    Schedule,
+    /// A queued job's attempt.
+    Job,
+    /// A `#[Test]` method under `nvs test`.
+    Test,
+    /// A connection isolate from either upgrade door: the context has a peer
+    /// socket or a connection event stream.
+    Connection,
+}
+
 impl Ctx {
+    /// What kind of run this context is.
+    ///
+    /// [`RunKind::Request`] whenever an [`Inbound`] is set and
+    /// [`RunKind::Connection`] whenever a peer or a connection event stream is
+    /// attached, whatever was stored; otherwise the kind the constructor or the
+    /// host stored. Two pointer tests and one load.
+    #[must_use]
+    pub fn run_kind(&self) -> RunKind {
+        if self.inbound().is_some() {
+            RunKind::Request
+        } else if self.has_peer() || self.has_event_stream_connection() {
+            RunKind::Connection
+        } else {
+            self.run_kind
+        }
+    }
+
+    /// Stores the kind of run this context is, for a host that built it for a
+    /// job, a scheduled fire or a test. Written once, before the program runs.
+    /// It cannot hide a request or a connection: [`Self::run_kind`] reads
+    /// those two from the context itself.
+    pub fn set_run_kind(&mut self, kind: RunKind) {
+        self.run_kind = kind;
+    }
+
     /// Moves `rule:concurrency/a-connection-is-a-root-isolate`
     /// 's socket onto the connection isolate's own context.
     ///
@@ -304,7 +363,10 @@ impl Ctx {
         } else {
             OutputSink::Buffer(Vec::new())
         });
-        // Request-wide, and therefore shared or copied.
+        // Request-wide, and therefore shared or copied. The kind of run is
+        // copied as the parent reads it, so a task of a request or of a
+        // connection is that run too, though it has no inbound and no peer.
+        child.run_kind = self.run_kind();
         child.statics = self.statics;
         child.debug = self.debug;
         child.stmt_hits = self.stmt_hits.clone();
@@ -424,6 +486,10 @@ impl Ctx {
     #[must_use]
     pub fn isolate(&self, output: OutputSink) -> Self {
         let mut isolate = Self::new(output);
+        // Whatever the parent is: a `spawn script` child of a request is not
+        // that request, and a host that runs this child as something else
+        // stores that after.
+        isolate.run_kind = RunKind::Isolate;
         // Request-wide, and therefore copied. `statics` is deliberately absent:
         // it stays null until this context is armed with the child unit's own
         // defaults, which is the difference this constructor exists for.
@@ -889,6 +955,7 @@ impl PlacedIsolate {
             cpu: self.cpu_limit,
         };
         let mut child = Ctx::new(output);
+        child.run_kind = RunKind::Isolate;
         child.debug = self.debug;
         child.stmt_hits = self.stmt_hits;
         child.origin = self.origin;
@@ -1186,5 +1253,100 @@ mod tests {
             root.isolate(OutputSink::Sink).deadline_expired(),
             "and so does one spawned afterwards",
         );
+    }
+
+    /// A peer that never sends and accepts everything — enough to make a
+    /// context a connection's.
+    #[derive(Debug)]
+    struct QuietPeer;
+
+    impl crate::peer::PeerSocket for QuietPeer {
+        fn receive(&mut self) -> Result<Option<crate::peer::PeerFrame>, crate::peer::PeerError> {
+            Ok(None)
+        }
+
+        fn send(&mut self, _frame: crate::peer::PeerFrame) -> Result<(), crate::peer::PeerError> {
+            Ok(())
+        }
+
+        fn close(&mut self, _why: crate::peer::Closing) {}
+    }
+
+    #[test]
+    fn a_new_context_is_a_command() {
+        assert_eq!(Ctx::buffered().run_kind(), RunKind::Command);
+        assert_eq!(Ctx::new(OutputSink::Sink).run_kind(), RunKind::Command);
+    }
+
+    /// Whatever the parent is — a command, a request, a job — the child a
+    /// constructor makes is an isolate, by each of the four ways one is made.
+    #[test]
+    fn an_isolate_made_from_any_context_is_an_isolate() {
+        let command = Ctx::buffered();
+        let mut request = Ctx::buffered();
+        request.set_inbound(Inbound::new("GET", "/", ""));
+        let mut job = Ctx::buffered();
+        job.set_run_kind(RunKind::Job);
+        for parent in [&command, &request, &job] {
+            assert_eq!(
+                parent.isolate(OutputSink::Sink).run_kind(),
+                RunKind::Isolate
+            );
+            assert_eq!(
+                parent.method_isolate(OutputSink::Sink).run_kind(),
+                RunKind::Isolate
+            );
+            assert_eq!(
+                parent.handler_isolate(OutputSink::Sink).run_kind(),
+                RunKind::Isolate,
+                "a limit handler has no request of its own"
+            );
+            assert_eq!(
+                parent.placed_isolate().build(OutputSink::Sink).run_kind(),
+                RunKind::Isolate
+            );
+        }
+    }
+
+    /// The inbound decides it, so a host that stored another kind — or none —
+    /// cannot make a request read as anything else, and a task of the request
+    /// is the request too.
+    #[test]
+    fn a_context_answering_a_request_is_a_request_whatever_kind_was_stored() {
+        for stored in [
+            RunKind::Command,
+            RunKind::Job,
+            RunKind::Test,
+            RunKind::Isolate,
+        ] {
+            let mut ctx = Ctx::buffered();
+            ctx.set_run_kind(stored);
+            ctx.set_inbound(Inbound::new("GET", "/", ""));
+            assert_eq!(ctx.run_kind(), RunKind::Request, "stored {stored:?}");
+        }
+        let mut request = Ctx::buffered();
+        request.set_inbound(Inbound::new("GET", "/", ""));
+        // SAFETY: `task` is dropped at the end of this scope, before `request`,
+        // and nothing runs on it.
+        #[expect(unsafe_code, reason = "the child is dropped before its parent")]
+        let task = unsafe { request.child() };
+        assert_eq!(task.run_kind(), RunKind::Request);
+    }
+
+    #[test]
+    fn a_context_with_a_socket_or_an_upgraded_event_stream_is_a_connection() {
+        let mut socket = Ctx::buffered();
+        socket.set_run_kind(RunKind::Isolate);
+        socket.set_peer(Box::new(QuietPeer));
+        assert_eq!(socket.run_kind(), RunKind::Connection);
+
+        let mut stream = Ctx::buffered();
+        stream.mark_event_stream(EventStreamDoor::Connection);
+        assert_eq!(stream.run_kind(), RunKind::Connection);
+
+        // An event stream that is a response's own body makes no connection.
+        let mut own = Ctx::buffered();
+        own.mark_event_stream(EventStreamDoor::Response);
+        assert_eq!(own.run_kind(), RunKind::Command);
     }
 }

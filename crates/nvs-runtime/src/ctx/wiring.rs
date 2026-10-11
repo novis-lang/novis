@@ -92,8 +92,8 @@ impl Ctx {
         self.live.count()
     }
 
-    /// A context writing to the given sink, with nothing pending and every
-    /// flag clear.
+    /// A context writing to the given sink, with nothing pending, every flag
+    /// clear, and [`RunKind::Command`] as its kind of run.
     #[must_use]
     pub fn new(output: OutputSink) -> Self {
         // The stack pointer in *this* frame, which is the closest thing to
@@ -190,6 +190,7 @@ impl Ctx {
             status: None,
             headers: DeclaredHeaders::default(),
             inbound: None,
+            run_kind: RunKind::Command,
             stmt_hits: None,
             counted_stmts: 0,
             counted_calls: 0,
