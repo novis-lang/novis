@@ -68,9 +68,9 @@
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel};
 use nvs_diagnostics::{BytePos, PositionEncoding, Span};
 use nvs_syntax::ast::{
-    Block, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, FnBody, FnExpr, ForInit,
-    ForeachBinding, ForeachBindingTy, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind,
-    TestOperand, Type,
+    Block, CallArgs, ClassMember, ClassMemberKind, EnumDecl, Expr, ExprKind, FnBody, FnExpr,
+    ForInit, ForeachBinding, ForeachBindingTy, Param, PropertyHook, PropertyHookBody, Stmt,
+    StmtKind, TestOperand, Type,
 };
 use nvs_types::ExprInfo;
 use nvs_types::expr_table::ArgSlot;
@@ -213,12 +213,7 @@ impl Hinting<'_> {
             }
             StmtKind::ClassDecl(decl) => self.members(&decl.members),
             StmtKind::InterfaceDecl(decl) => self.members(&decl.members),
-            StmtKind::EnumDecl(decl) => {
-                for case in &decl.cases {
-                    self.opt_expr(case.value.as_ref());
-                }
-                self.members(&decl.members);
-            }
+            StmtKind::EnumDecl(decl) => self.enum_decl(decl),
             StmtKind::NamespaceDecl(decl) => {
                 if let Some(body) = &decl.body {
                     self.block(body);
@@ -242,6 +237,15 @@ impl Hinting<'_> {
         }
     }
 
+    /// Walks an enum's case values and members, at file scope or in the body
+    /// that owns it.
+    fn enum_decl(&mut self, decl: &EnumDecl) {
+        for case in &decl.cases {
+            self.opt_expr(case.value.as_ref());
+        }
+        self.members(&decl.members);
+    }
+
     /// Walks a class, interface or enum body.
     fn members(&mut self, members: &[ClassMember]) {
         for member in members {
@@ -253,6 +257,7 @@ impl Hinting<'_> {
                     }
                 }
                 ClassMemberKind::Const(declared) => self.expr(&declared.value),
+                ClassMemberKind::Enum(decl) => self.enum_decl(decl),
                 ClassMemberKind::Method(method) => {
                     self.params(&method.params);
                     if let Some(body) = &method.body {

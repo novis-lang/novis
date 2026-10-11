@@ -525,7 +525,7 @@ pub(crate) fn owned_enum_decl<'a>(
 
 /// The cases and the members a declaration's body writes, and nothing for a
 /// declaration with no body. Only an enum has cases.
-fn body_of(stmt: &Stmt) -> Option<(&[EnumCase], &[ClassMember])> {
+pub(crate) fn body_of(stmt: &Stmt) -> Option<(&[EnumCase], &[ClassMember])> {
     match &stmt.kind {
         StmtKind::ClassDecl(decl) => Some((&[], &decl.members)),
         StmtKind::InterfaceDecl(decl) => Some((&[], &decl.members)),

@@ -139,8 +139,9 @@ use nvs_diagnostics::{PositionEncoding, SourceFile, Span};
 use nvs_stdlib::registry;
 use nvs_syntax::ast::{
     AttributeGroup, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
-    DestructureTarget, Expr, ExprKind, FnBody, FnExpr, ForInit, MemberName, Name, NewTarget, Param,
-    PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, TestOperand, Type,
+    DestructureTarget, EnumDecl, Expr, ExprKind, FnBody, FnExpr, ForInit, MemberName, Name,
+    NewTarget, Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, TestOperand,
+    Type,
 };
 use nvs_types::expr::quals::{is_secret, is_tainted};
 use nvs_types::{ExprInfo, TypeId};
@@ -696,19 +697,7 @@ impl Named<'_> {
                 }
                 self.members(&decl.members);
             }
-            StmtKind::EnumDecl(decl) => {
-                self.attributes(&decl.attributes);
-                self.name(&decl.name, Kind::Enum);
-                for implemented in &decl.implements {
-                    self.name(implemented, Kind::Interface);
-                }
-                for case in &decl.cases {
-                    self.attributes(&case.attributes);
-                    self.name(&case.name, Kind::EnumMember);
-                    self.opt_expr(case.value.as_ref());
-                }
-                self.members(&decl.members);
-            }
+            StmtKind::EnumDecl(decl) => self.enum_decl(decl),
             StmtKind::TypeAliasDecl(decl) => self.name(&decl.name, Kind::Type),
             StmtKind::NamespaceDecl(decl) => {
                 self.opt_name(decl.name.as_ref(), Kind::Namespace);
@@ -758,6 +747,21 @@ impl Named<'_> {
         }
     }
 
+    /// Walks an enum declaration, at file scope or in the body that owns it.
+    fn enum_decl(&mut self, decl: &EnumDecl) {
+        self.attributes(&decl.attributes);
+        self.name(&decl.name, Kind::Enum);
+        for implemented in &decl.implements {
+            self.name(implemented, Kind::Interface);
+        }
+        for case in &decl.cases {
+            self.attributes(&case.attributes);
+            self.name(&case.name, Kind::EnumMember);
+            self.opt_expr(case.value.as_ref());
+        }
+        self.members(&decl.members);
+    }
+
     /// Walks a class, interface or enum body.
     fn members(&mut self, members: &[ClassMember]) {
         for member in members {
@@ -788,6 +792,9 @@ impl Named<'_> {
                 // `Owner::Meta` from `Owner::META` at a glance is what the
                 // colour is for.
                 ClassMemberKind::TypeAlias(alias) => self.name(&alias.name, Kind::Type),
+                // An enum a body owns is coloured as the file-scope form is,
+                // for the alias's reason (`rule:enums/class-scoped-enum`).
+                ClassMemberKind::Enum(decl) => self.enum_decl(decl),
                 ClassMemberKind::Method(method) => {
                     self.attributes(&method.attributes);
                     self.push(method.name, Kind::Method);

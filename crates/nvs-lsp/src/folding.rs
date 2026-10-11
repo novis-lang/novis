@@ -270,6 +270,12 @@ impl Walk<'_> {
         for member in members {
             match &member.kind {
                 ClassMemberKind::Method(method) => self.method(method),
+                // An enum a body owns folds as the file-scope form does, over
+                // its own span (`rule:enums/class-scoped-enum`).
+                ClassMemberKind::Enum(decl) => {
+                    self.braced(decl.span);
+                    self.members(&decl.members);
+                }
                 // A hook's body is a block on the same terms a method's is;
                 // the `{ get ... set ... }` around the pair is not a span the
                 // tree keeps, so the property itself does not fold.

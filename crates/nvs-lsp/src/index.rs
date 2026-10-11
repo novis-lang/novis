@@ -79,14 +79,16 @@ use nvs_diagnostics::{BytePos, Diagnostics, SourceFile, Span, canonical_key};
 use nvs_hir::autoload::sole_declaration;
 use nvs_hir::{Loaded, QName, SymbolKind};
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, Modifier, NamespaceDecl, Stmt, StmtKind, Type, TypeAtom, TypeKind,
+    ClassMember, ClassMemberKind, EnumCase, Modifier, NamespaceDecl, Stmt, StmtKind, Type,
+    TypeAtom, TypeKind,
 };
 use nvs_syntax::{Token, TokenKind, tokenize, walk};
 use nvs_types::ExprInfo;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::definition::{
-    Target, covers, declared_type, named_at, paired, supertype_names, target_of, text_of,
+    Target, body_of, covers, declared_type, named_at, owned_enum_decl, paired, supertype_names,
+    target_of, text_of,
 };
 use crate::document::{Analysed, Documents, analyse_file};
 
@@ -830,12 +832,12 @@ fn declared_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
         if covers(symbol.decl_span, offset) {
             return Some(symbol.qname.to_string());
         }
-        let (stmt, file) = declared_type(analysed, &symbol.qname)?;
+        let body = declared_body(analysed, &symbol.qname)?;
         let class = symbol.qname.to_string();
-        member_names(stmt)
+        member_names(&body)
             .into_iter()
             .find(|(name, ..)| covers(*name, offset))
-            .and_then(|(name, ..)| member_symbol(&class, file, name))
+            .and_then(|(name, ..)| member_symbol(&class, body.file, name))
     })
 }
 
@@ -908,8 +910,8 @@ fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declar
             construction: declared.and_then(|(stmt, file)| construction_of(stmt, file)),
             parameters: Vec::new(),
         });
-        if let Some((stmt, file)) = declared {
-            members(stmt, file, &class, path, &mut found);
+        if let Some(body) = declared_body(analysed, &symbol.qname) {
+            members(&body, &class, path, &mut found);
         }
     }
 
@@ -917,10 +919,42 @@ fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declar
     found
 }
 
-/// The members `stmt` declares, appended to `found`.
-fn members(stmt: &Stmt, file: &SourceFile, class: &str, path: &Path, found: &mut Vec<Declaration>) {
-    for (name, kind, visibility) in member_names(stmt) {
-        let Some(symbol) = member_symbol(class, file, name) else {
+/// The members and the cases a type's body writes, and the file it is in.
+struct Body<'a> {
+    members: &'a [ClassMember],
+    cases: &'a [EnumCase],
+    file: &'a SourceFile,
+}
+
+/// The body the type `qname` is declared with, or nothing for a name with no
+/// declaration in the analysis.
+///
+/// An enum a class or interface body owns is no statement, so
+/// [`declared_type`] does not find it and [`owned_enum_decl`] finds it through
+/// its owner (`rule:enums/class-scoped-enum`). Both spellings of its name are
+/// one symbol, so its cases are indexed once and found from either.
+fn declared_body<'a>(analysed: &'a Analysed, qname: &QName) -> Option<Body<'a>> {
+    if let Some((stmt, file)) = declared_type(analysed, qname) {
+        let (cases, members) = body_of(stmt)?;
+        return Some(Body {
+            members,
+            cases,
+            file,
+        });
+    }
+    let (_, decl) = owned_enum_decl(analysed, qname)?;
+    let symbol = analysed.module.symbols.get(qname)?;
+    Some(Body {
+        members: &decl.members,
+        cases: &decl.cases,
+        file: analysed.map.file(symbol.decl_span.file),
+    })
+}
+
+/// The members `body` declares, appended to `found`.
+fn members(body: &Body<'_>, class: &str, path: &Path, found: &mut Vec<Declaration>) {
+    for (name, kind, visibility) in member_names(body) {
+        let Some(symbol) = member_symbol(class, body.file, name) else {
             continue;
         };
         found.push(Declaration {
@@ -934,7 +968,7 @@ fn members(stmt: &Stmt, file: &SourceFile, class: &str, path: &Path, found: &mut
             supertypes: Vec::new(),
             construction: None,
             parameters: if kind == DeclKind::Method {
-                parameters_of(stmt, file, name)
+                parameters_of(body, name)
             } else {
                 Vec::new()
             },
@@ -942,15 +976,10 @@ fn members(stmt: &Stmt, file: &SourceFile, class: &str, path: &Path, found: &mut
     }
 }
 
-/// The parameters of the method `stmt` declares at `name`.
-fn parameters_of(stmt: &Stmt, file: &SourceFile, name: Span) -> Vec<Parameter> {
-    let declared: &[ClassMember] = match &stmt.kind {
-        StmtKind::ClassDecl(decl) => &decl.members,
-        StmtKind::InterfaceDecl(decl) => &decl.members,
-        StmtKind::EnumDecl(decl) => &decl.members,
-        _ => return Vec::new(),
-    };
-    declared
+/// The parameters of the method `body` declares at `name`.
+fn parameters_of(body: &Body<'_>, name: Span) -> Vec<Parameter> {
+    let file = body.file;
+    body.members
         .iter()
         .find_map(|member| match &member.kind {
             ClassMemberKind::Method(method) if method.name == name => Some(&method.params),
@@ -1021,7 +1050,7 @@ fn construction_of(stmt: &Stmt, file: &SourceFile) -> Option<Construction> {
     })
 }
 
-/// Every member name `stmt` declares, with what it declares and where it is
+/// Every member name `body` declares, with what it declares and where it is
 /// readable from, in source order.
 ///
 /// One list for the two questions asked about a member name: [`members`] turns
@@ -1029,15 +1058,9 @@ fn construction_of(stmt: &Stmt, file: &SourceFile) -> Option<Construction> {
 /// is on. `ClassMemberKind` is `#[non_exhaustive]` and `Error` is recovery, so
 /// a member shape this crate has not heard of declares no name either of them
 /// could answer about and contributes none.
-fn member_names(stmt: &Stmt) -> Vec<(Span, DeclKind, Visibility)> {
-    let (declared, cases): (&[ClassMember], &[_]) = match &stmt.kind {
-        StmtKind::ClassDecl(decl) => (&decl.members, &[]),
-        StmtKind::InterfaceDecl(decl) => (&decl.members, &[]),
-        StmtKind::EnumDecl(decl) => (&decl.members, &decl.cases),
-        _ => return Vec::new(),
-    };
-
-    let mut names: Vec<(Span, DeclKind, Visibility)> = declared
+fn member_names(body: &Body<'_>) -> Vec<(Span, DeclKind, Visibility)> {
+    let mut names: Vec<(Span, DeclKind, Visibility)> = body
+        .members
         .iter()
         .filter_map(|member| match &member.kind {
             ClassMemberKind::Property(property) => Some((
@@ -1061,7 +1084,7 @@ fn member_names(stmt: &Stmt) -> Vec<(Span, DeclKind, Visibility)> {
     // An enum case takes no modifier list and is reachable wherever the enum's
     // own name is.
     names.extend(
-        cases
+        body.cases
             .iter()
             .map(|case| (case.name.span, DeclKind::EnumCase, Visibility::Public)),
     );

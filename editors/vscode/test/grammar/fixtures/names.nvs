@@ -2,6 +2,8 @@
 namespace App\Orders;
 
 final class Order extends Base {
+    enum Status { Draft, Paid }
+
     public string $label = "unnamed";
 
     public function total(uint $count): decimal {

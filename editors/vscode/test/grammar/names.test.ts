@@ -81,6 +81,12 @@ describe("the name a declaration introduces", () => {
     coloured("function", FUNCTION_KEYWORD);
   });
 
+  it("colours an enum a class body declares as one declared at file scope", () => {
+    // `rule:enums/class-scoped-enum`: the class body has no scope of its own, so the one pattern
+    // that colours `enum Suit` colours `enum Status` inside `Order` too.
+    assert.deepEqual(carrying(ENUM_NAME), ["Status", "Suit"]);
+  });
+
   it("colours a name only where something declares it", () => {
     // `Base` is a name this file mentions rather than introduces, and layer two is what resolves it.
     plain(" Base {");
