@@ -24,12 +24,12 @@ compile-time half wired into `nvs-types` — and, per
 `rule:security/every-grammar-is-a-sink`, all three grammars are
 `tainted` **sinks** alongside `Core\Regex`'s pattern. **`nvs-stdlib`'s member registry gains a per-parameter
 qualifier classification here**, with an unclassified `string`/`bytes` parameter refusing `tainted` and that
-crate's own test suite failing on any member that ships without one (§ 2 of the same ADR); the pass that
+crate's own test suite failing on any member that ships without one (the same rule); the pass that
 marks the existing rows is part of building §§ 1–12 rather than a separate slice. `Duration::parse` shares its grammar and its implementation with
 M1's written duration (`rule:types/duration`), so build that first and this is
 the same parser reached from a second entry point. `Core\Str`'s
 unit is `rule:types/string-is-utf8`'s grapheme cluster, decided and seamed in
-`nvs_stdlib::granularity`; the **lazily cached count** that ADR's *Consequences* names is still owed and
+`nvs_stdlib::granularity`; the **lazily cached count** that rule names is still owed and
 belongs here, in `nvs_runtime::NvsStr`'s header, alongside the O(1) boundary correction a concatenation
 needs at the seam. `Core\Json` also brings the first **compiler-recognized**
 attribute: `rule:core-classes/derive-attribute`'s `#[Json\Derive]`, a `nvs-types`→`nvs-ir` pass that emits
