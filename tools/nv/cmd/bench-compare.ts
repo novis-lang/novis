@@ -272,16 +272,34 @@ export function agreement(c: Case, answers: Map<string, Answer[]>): Disagreement
 // The feature scenarios, and how what a peer did becomes a result.
 // ---------------------------------------------------------------------------------------------------
 
-/** What a row says of one peer: the feature is there, one setting away, code the developer writes, or absent. */
-export type Verdict = "built-in" | "one-setting" | "your-code" | "no";
+/**
+ * What a row says of one peer: the feature is there with no setting, there through a setting the peer
+ * starts with, one setting away, code the developer writes, or absent.
+ */
+export type Verdict = "built-in" | "on-by-default" | "one-setting" | "your-code" | "no";
 
 /** One peer's result in one row, with the measured evidence beside it. */
 export interface RowResult {
   result: Verdict;
-  /** The setting a `one-setting` result names. */
+  /** The setting an `on-by-default` or `one-setting` result names, or the command a `one-setting` one needed. */
   setting?: string;
   evidence: Record<string, string | number | boolean | null>;
 }
+
+/** A setting a row's feature depends on, and whether the peer starts with it on. */
+export interface Setting {
+  name: string;
+  default: boolean;
+}
+
+/** A feature that worked: `built-in` with no setting, else `on-by-default` or `one-setting` naming it. */
+export function passed(setting: Setting | undefined, evidence: RowResult["evidence"]): RowResult {
+  if (setting === undefined) return { result: "built-in", evidence };
+  return { result: setting.default ? "on-by-default" : "one-setting", setting: setting.name, evidence };
+}
+
+/** A setting a row writes before its probe, which the peer does not start with. */
+const written = (edit: TableEdit | undefined): Setting | undefined => (edit === undefined ? undefined : { name: edit.name, default: false });
 
 /** One request's reply, with its header names in lower case. */
 export interface Reply {
@@ -382,19 +400,19 @@ export function coresResult(one: PeerResult, four: PeerResult, inCode: string | 
 }
 
 /** The setting each peer needs before it holds the wait case's connections, where it needs one. */
-export const WAITING_SETTING: Record<string, string> = { php: "pm.max_children" };
+export const WAITING_SETTING: Record<string, Setting> = { php: { name: "pm.max_children", default: false } };
 
 /**
- * Every request answered `200` is built in, or `one-setting` where the peer needs `WAITING_SETTING` for
- * it. A failed request is `no`. The memory each request in flight costs is the evidence beside it:
- * `memory.peak` less the idle `memory.current`, over the requests that can be in flight at once.
+ * Every request answered `200` passes, naming `WAITING_SETTING` where the peer needs it. A failed request
+ * is `no`. The memory each request in flight costs is the evidence beside it: `memory.peak` less the idle
+ * `memory.current`, over the requests that can be in flight at once.
  */
-export function waitingResult(r: PeerResult, inFlight: number, setting: string | undefined): RowResult {
+export function waitingResult(r: PeerResult, inFlight: number, setting: Setting | undefined): RowResult {
   const failed = r.errors + Object.entries(r.status_codes).reduce((n, [code, count]) => (code === "200" ? n : n + count), 0);
   const kib = r.memory_peak_bytes === null || r.memory_idle_bytes === null ? null : Number(((r.memory_peak_bytes - r.memory_idle_bytes) / inFlight / 1024).toFixed(1));
   const evidence = { in_flight: inFlight, kib_per_request: kib, failed_requests: failed };
   if (failed > 0) return { result: "no", evidence };
-  return setting === undefined ? { result: "built-in", evidence } : { result: "one-setting", setting, evidence };
+  return passed(setting, evidence);
 }
 
 /** How long the loop and memory rows' steady load runs, and how long after the load starts the runaway request is sent. */
@@ -417,10 +435,10 @@ export interface Stopped {
 }
 
 /**
- * Built in when the steady load saw no failed request, the runaway request was stopped by the backend,
- * and the backend still runs. `one-setting` where the peer needs a setting for it. Anything else is `no`.
+ * Passes when the steady load saw no failed request, the runaway request was stopped by the backend, and
+ * the backend still runs, naming the setting that stopped it where the peer has one. Anything else is `no`.
  */
-export function runawayResult(load: Steady, runaway: Stopped, running: boolean, setting: string | undefined): RowResult {
+export function runawayResult(load: Steady, runaway: Stopped, running: boolean, setting: Setting | undefined): RowResult {
   const stopped = runaway.status !== null && !NGINX_STATUSES.has(runaway.status);
   const evidence = {
     requests: load.requests,
@@ -432,8 +450,15 @@ export function runawayResult(load: Steady, runaway: Stopped, running: boolean, 
     backend_running: running,
   };
   if (load.failed > 0 || !running || !stopped) return { result: "no", evidence };
-  return setting === undefined ? { result: "built-in", evidence } : { result: "one-setting", setting, evidence };
+  return passed(setting, evidence);
 }
+
+/**
+ * The limit each peer starts with that stops the loop row's and the memory row's runaway request. PHP's
+ * `max_execution_time` and `memory_limit` are on unless an ini turns them off.
+ */
+export const LOOP_DEFAULT: Record<string, Setting> = { php: { name: "max_execution_time", default: true } };
+export const MEMORY_DEFAULT: Record<string, Setting> = { php: { name: "memory_limit", default: true } };
 
 /**
  * The limits a peer needs set before it stops a runaway request, where its defaults set none: the command
@@ -484,8 +509,11 @@ async function stoppedAt(p: Probe, path: string): Promise<Stopped> {
   }
 }
 
-/** Puts steady load on `/`, sends the runaway request at `path` into it, and judges what both saw. */
-async function runawayProbe(p: Probe, path: string): Promise<RowResult> {
+/**
+ * Puts steady load on `/`, sends the runaway request at `path` into it, and judges what both saw. A peer
+ * with no limit at its defaults writes `RUNAWAY_LIMITS` first, and one with a limit names it from `defaults`.
+ */
+async function runawayProbe(p: Probe, path: string, defaults: Record<string, Setting>): Promise<RowResult> {
   const limits = RUNAWAY_LIMITS[p.peer];
   if (limits !== undefined) await applyTableEdit(p, limits);
   ok(await p.get("/"), "the first request");
@@ -493,7 +521,7 @@ async function runawayProbe(p: Probe, path: string): Promise<RowResult> {
   await Bun.sleep(RUNAWAY_START_MS);
   const runaway = stoppedAt(p, path);
   const steady = await load;
-  return runawayResult(steady, await runaway, p.running(), limits?.name);
+  return runawayResult(steady, await runaway, p.running(), written(limits) ?? defaults[p.peer]);
 }
 
 /** Polls the backend's log until it carries `line`: the seconds it took, or `null` after `CHANGE_WAIT_MS`. */
@@ -514,15 +542,16 @@ export function crashResult(crashStatus: number, nextStatus: number, running: bo
   };
 }
 
-/** All three headers, or the developer writes the missing ones. */
-export function headersResult(headers: Record<string, string>): RowResult {
+/** The setting that sends each peer's security headers, where it has one. Novis sends its set with nothing written. */
+export const HEADERS_SETTING: Record<string, Setting> = { nvs: { name: "[http.headers]", default: true } };
+
+/** All three headers pass, naming the peer's `HEADERS_SETTING`. One missing is the developer's to write. */
+export function headersResult(headers: Record<string, string>, setting: Setting | undefined): RowResult {
   const nosniff = (headers["x-content-type-options"] ?? "").trim().toLowerCase() === "nosniff";
   const framePolicy = headers["x-frame-options"] !== undefined || /frame-ancestors/i.test(headers["content-security-policy"] ?? "");
   const referrerPolicy = headers["referrer-policy"] !== undefined;
-  return {
-    result: nosniff && framePolicy && referrerPolicy ? "built-in" : "your-code",
-    evidence: { nosniff, frame_policy: framePolicy, referrer_policy: referrerPolicy },
-  };
+  const evidence = { nosniff, frame_policy: framePolicy, referrer_policy: referrerPolicy };
+  return nosniff && framePolicy && referrerPolicy ? passed(setting, evidence) : { result: "your-code", evidence };
 }
 
 /** The term the escape row prints. A body that carries it raw would run it in a browser. */
@@ -570,17 +599,42 @@ const noCheck = (docs: string): RowResult => ({ result: "no", evidence: { check:
 export const CHANGE_WAIT_MS = 20_000;
 
 /**
- * An edit that shows is built in. One that never shows is `one-setting` where the peer has the setting that
- * would show it, and `no` where it has none. The seconds stay `null` in the evidence either way.
+ * An edit that shows passes, naming the peer's setting when the peer starts with it on. One that never
+ * shows is `one-setting` where the peer has a setting it starts without, and `no` otherwise. The seconds
+ * stay `null` in the evidence either way.
  */
-export function liveEditResult(seconds: number | null, setting: string | undefined): RowResult {
+export function liveEditResult(seconds: number | null, setting: Setting | undefined): RowResult {
   const evidence = { seconds_to_new_answer: seconds, restarts: 0 };
-  if (seconds !== null) return { result: "built-in", evidence };
-  return setting === undefined ? { result: "no", evidence } : { result: "one-setting", setting, evidence };
+  if (seconds !== null) return passed(onByDefault(setting), evidence);
+  return setting === undefined || setting.default ? { result: "no", evidence } : { result: "one-setting", setting: setting.name, evidence };
 }
 
-/** The setting each peer's documentation names for showing an edit without a restart, where it has one. */
-export const LIVE_EDIT_SETTING: Record<string, string> = { php: "opcache.validate_timestamps=1", bun: "bun --hot" };
+/** The setting each peer's documentation names for showing an edit without a restart, and whether the peer starts with it on. */
+export const LIVE_EDIT_SETTING: Record<string, Setting> = {
+  php: { name: "opcache.validate_timestamps", default: true },
+  bun: { name: "bun --hot", default: false },
+};
+
+/** `setting` where the peer starts with it on: the setting a change of files that shows without a step names. */
+export const onByDefault = (setting: Setting | undefined): Setting | undefined => (setting?.default === true ? setting : undefined);
+
+/**
+ * The command that puts a peer back on its own defaults before the live-edit and deploy rows, where the
+ * speed tests turn one off. They run PHP with `opcache.validate_timestamps=0`, so this writes PHP's default
+ * `1` in a later ini and runs `php-fpm reload` to read it, before the row's first request.
+ */
+export const DEFAULT_RESTORE: Record<string, string[]> = {
+  php: ["sh", "-c", "echo 'opcache.validate_timestamps=1' > /usr/local/etc/php/conf.d/zz-row.ini && kill -USR2 1"],
+};
+
+/** Runs the peer's `DEFAULT_RESTORE`, if it has one, and waits until it answers again. */
+async function restoreDefaults(p: Probe): Promise<void> {
+  const restore = DEFAULT_RESTORE[p.peer];
+  if (restore === undefined) return;
+  const done = p.exec(restore);
+  if (done.code !== 0) throw new Fail(`${restore.join(" ")}: ${done.output}`);
+  if ((await secondsUntil(p, (r) => r.status === 200)) === null) throw new Fail("no answer after restoring the defaults");
+}
 
 /** The line the live-edit program prints, and the line the driver edits it to. */
 export const LIVE_EDIT_FROM = "version 1";
@@ -595,8 +649,9 @@ export const DEPLOY_LOAD_SECONDS = 20;
 export const DEPLOY_START_MS = 2_000;
 
 /**
- * How a peer's documentation deploys a new version once the files are in place: a command run in the
- * container, or a restart of it. A peer with no entry runs no command.
+ * How a peer deploys a new version at its defaults once the files are in place: a command run in the
+ * container, or a restart of it. A peer with no entry runs no command: PHP checks its files' timestamps
+ * by default, as Novis does.
  */
 export interface DeployWay {
   name: string;
@@ -604,7 +659,6 @@ export interface DeployWay {
 }
 
 export const DEPLOY_WAYS: Record<string, DeployWay> = {
-  php: { name: "php-fpm reload", run: ["sh", "-c", "kill -USR2 1"] },
   bun: { name: "a restart", run: "restart" },
   go: { name: "a new image and a restart", run: "restart" },
 };
@@ -655,12 +709,13 @@ interface Deploying {
 export const mixedVersions = (body: string) => body.includes("1") && body.includes("2");
 
 /**
- * A deploy with no failed request and no reply that mixes the two versions is built in when it needed no
- * command, and `one-setting` naming the command or restart it needed. A failed request, a mixed reply or a
- * new version that never showed is `no`. A `compiled` peer's reply cannot show the copy, so its new version
- * is its first reply after the restart.
+ * A deploy with no failed request and no reply that mixes the two versions passes when it needed no
+ * command, naming the `setting` that checks the files where the peer has one, and is `one-setting` naming
+ * the command or restart it needed. A failed request, a mixed reply or a new version that never showed is
+ * `no`. A `compiled` peer's reply cannot show the copy, so its new version is its first reply after the
+ * restart.
  */
-export function deployResult(load: Steady, sample: DeploySample, way: DeployWay | undefined, compiled: boolean): RowResult {
+export function deployResult(load: Steady, sample: DeploySample, way: DeployWay | undefined, compiled: boolean, setting?: Setting): RowResult {
   const failed = load.failed + sample.failed;
   const evidence = {
     requests: load.requests + sample.replies,
@@ -674,7 +729,7 @@ export function deployResult(load: Steady, sample: DeploySample, way: DeployWay 
     version_checked: !compiled,
   };
   if (failed > 0 || sample.mixed > 0 || sample.seconds === null) return { result: "no", evidence };
-  return way === undefined ? { result: "built-in", evidence } : { result: "one-setting", setting: way.name, evidence };
+  return way === undefined ? passed(setting, evidence) : { result: "one-setting", setting: way.name, evidence };
 }
 
 /**
@@ -755,7 +810,7 @@ export interface UpgradeWay {
 
 export const UPGRADE_WAYS: Record<string, UpgradeWay> = {
   nvs: { binary: "/usr/local/bin/nvs", way: { name: "a restart", run: "restart" } },
-  php: { binary: "/usr/local/sbin/php-fpm", way: DEPLOY_WAYS.php! },
+  php: { binary: "/usr/local/sbin/php-fpm", way: { name: "php-fpm reload", run: ["sh", "-c", "kill -USR2 1"] } },
   bun: { binary: "/usr/local/bin/bun", way: DEPLOY_WAYS.bun! },
   go: { binary: "/srv/cases/hello", way: DEPLOY_WAYS.go! },
 };
@@ -809,14 +864,14 @@ export const PARALLEL_GRANT: Record<string, TableEdit> = {
 
 /**
  * `four` is the seconds for `PARALLEL_PARTS` parts, `one` for one part. A speedup of `PARALLEL_SPEEDUP` or
- * more over running them one after another is built in, or `one-setting` where the peer needs a setting.
- * Less than that is `no`.
+ * more over running them one after another passes, naming the setting where the peer needs one. Less than
+ * that is `no`.
  */
-export function parallelResult(one: number, four: number, way: string | undefined, setting: string | undefined): RowResult {
+export function parallelResult(one: number, four: number, way: string | undefined, setting: Setting | undefined): RowResult {
   const speedup = Number(((PARALLEL_PARTS * one) / four).toFixed(2));
   const evidence = { seconds_1_part: one, seconds_4_parts: four, speedup, way: way ?? null };
   if (!(speedup >= PARALLEL_SPEEDUP)) return { result: "no", evidence };
-  return setting === undefined ? { result: "built-in", evidence } : { result: "one-setting", setting, evidence };
+  return passed(setting, evidence);
 }
 
 /** The fewest seconds `PARALLEL_TRIES` requests for `parts` parts took, each checked to answer `200`. */
@@ -901,6 +956,7 @@ export const SCENARIOS: Scenario[] = [
     copy: true,
     fixed: { go: { result: "no", evidence: { compiled_into: "the image", restarts: 1 } } },
     probe: async (p) => {
+      await restoreDefaults(p);
       const before = ok(await p.get("/"), "the first version").body;
       if (!before.includes(LIVE_EDIT_FROM)) throw new Fail(`the first version: body ${pyRepr(before.slice(0, 200))}`);
       for (const name of readdirSync(p.dir)) {
@@ -934,6 +990,7 @@ export const SCENARIOS: Scenario[] = [
     copy: true,
     generate: () => Object.assign({ "main.nvs": deployEntry() }, ...Object.values(DEPLOY_EXT).map((ext) => deployParts("1", ext))),
     probe: async (p) => {
+      await restoreDefaults(p);
       const way = DEPLOY_WAYS[p.peer];
       const first = ok(await p.get("/"), "the first version").body.trim();
       if (first !== "1".repeat(DEPLOY_PARTS)) throw new Fail(`the first version: body ${pyRepr(first.slice(0, 200))}`);
@@ -956,7 +1013,7 @@ export const SCENARIOS: Scenario[] = [
       }
       deploying.appliedAt = performance.now();
       const seen = await sample;
-      return deployResult(await load, { ...seen, copy_seconds: copySeconds }, way, p.compiled);
+      return deployResult(await load, { ...seen, copy_seconds: copySeconds }, way, p.compiled, onByDefault(LIVE_EDIT_SETTING[p.peer]));
     },
   },
   {
@@ -980,14 +1037,14 @@ export const SCENARIOS: Scenario[] = [
     tree: "scenarios",
     case: "runaway",
     memory: RUNAWAY_MEMORY,
-    probe: (p) => runawayProbe(p, "/loop"),
+    probe: (p) => runawayProbe(p, "/loop", LOOP_DEFAULT),
   },
   {
     id: "memory",
     tree: "scenarios",
     case: "runaway",
     memory: RUNAWAY_MEMORY,
-    probe: (p) => runawayProbe(p, "/alloc"),
+    probe: (p) => runawayProbe(p, "/alloc", MEMORY_DEFAULT),
   },
   {
     id: "csrf",
@@ -999,7 +1056,7 @@ export const SCENARIOS: Scenario[] = [
     id: "headers",
     tree: "cases",
     case: "hello",
-    probe: async (p) => headersResult(ok(await p.get("/"), "hello").headers),
+    probe: async (p) => headersResult(ok(await p.get("/"), "hello").headers, HEADERS_SETTING[p.peer]),
   },
   {
     id: "waiting",
@@ -1016,7 +1073,7 @@ export const SCENARIOS: Scenario[] = [
       const grant = PARALLEL_GRANT[p.peer];
       if (grant !== undefined) await applyTableEdit(p, grant);
       const one = await fastest(p, 1);
-      return parallelResult(one, await fastest(p, PARALLEL_PARTS), PARALLEL_WAY[p.peer], grant?.name);
+      return parallelResult(one, await fastest(p, PARALLEL_PARTS), PARALLEL_WAY[p.peer], written(grant));
     },
   },
   {
@@ -1041,7 +1098,7 @@ export const SCENARIOS: Scenario[] = [
   },
 ];
 
-/** `built-in`, or `one-setting (limits.memory)` for a result that names its setting. */
+/** `built-in`, or `one-setting (limits.memory)` and `on-by-default ([http.headers])` for a result that names its setting. */
 export const verdictText = (r: RowResult) => (r.setting === undefined ? r.result : `${r.result} (${r.setting})`);
 
 /** The line `--scenarios` prints for a row: `<id>: <peer> <result>, ...` in `PEERS` order. */

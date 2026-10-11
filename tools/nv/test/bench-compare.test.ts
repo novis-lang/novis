@@ -25,6 +25,7 @@ import {
   escapeResult,
   headersResult,
   htmlEntities,
+  LIVE_EDIT_SETTING,
   liveEditResult,
   mixedVersions,
   PEERS,
@@ -202,10 +203,11 @@ describe("the feature scenarios", () => {
   });
 
   test("waiting fails on any request not answered 200, and its memory is per request in flight", () => {
+    const maxChildren = { name: "pm.max_children", default: false };
     expect(waitingResult(timed(100), 1000, undefined)).toEqual({ result: "built-in", evidence: { in_flight: 1000, kib_per_request: 10.2, failed_requests: 0 } });
-    expect(waitingResult(timed(100), 1000, "pm.max_children").result).toBe("one-setting");
+    expect(waitingResult(timed(100), 1000, maxChildren).result).toBe("one-setting");
     expect(waitingResult(timed(100, { status_codes: { "200": 290, "503": 10 } }), 1000, undefined).evidence.failed_requests).toBe(10);
-    expect(waitingResult(timed(100, { errors: 1 }), 1000, "pm.max_children").result).toBe("no");
+    expect(waitingResult(timed(100, { errors: 1 }), 1000, maxChildren).result).toBe("no");
     expect(waitingResult(timed(100, { memory_peak_bytes: null }), 1000, undefined).evidence.kib_per_request).toBeNull();
   });
 
@@ -218,9 +220,14 @@ describe("the feature scenarios", () => {
     }
   });
 
-  test("an edit that shows is built in, and one that never shows names the peer's setting if it has one", () => {
-    expect(liveEditResult(1.5, "bun --hot")).toEqual({ result: "built-in", evidence: { seconds_to_new_answer: 1.5, restarts: 0 } });
-    expect(liveEditResult(null, "bun --hot")).toEqual({ result: "one-setting", setting: "bun --hot", evidence: { seconds_to_new_answer: null, restarts: 0 } });
+  test("an edit that shows names the setting only when the peer starts with it on, and one that never shows names a setting it starts without", () => {
+    const hot = LIVE_EDIT_SETTING.bun!;
+    const timestamps = LIVE_EDIT_SETTING.php!;
+    expect(liveEditResult(1.5, undefined)).toEqual({ result: "built-in", evidence: { seconds_to_new_answer: 1.5, restarts: 0 } });
+    expect(liveEditResult(1.5, hot).result).toBe("built-in");
+    expect(liveEditResult(1.5, timestamps)).toMatchObject({ result: "on-by-default", setting: "opcache.validate_timestamps" });
+    expect(liveEditResult(null, hot)).toEqual({ result: "one-setting", setting: "bun --hot", evidence: { seconds_to_new_answer: null, restarts: 0 } });
+    expect(liveEditResult(null, timestamps).result).toBe("no");
     expect(liveEditResult(null, undefined).result).toBe("no");
   });
 
@@ -243,6 +250,8 @@ describe("the feature scenarios", () => {
       evidence: { requests: 940, failed_requests: 0, failures: null, mixed_replies: 0, seconds_to_copy: 2.5, seconds_to_new_answer: 1.2, command: null, restarts: 0, version_checked: true },
     });
     expect(deployResult(load, clean, restart, false)).toMatchObject({ result: "one-setting", setting: "a restart", evidence: { restarts: 1 } });
+    expect(deployResult(load, clean, undefined, false, LIVE_EDIT_SETTING.php)).toMatchObject({ result: "on-by-default", setting: "opcache.validate_timestamps" });
+    expect(DEPLOY_WAYS.php).toBeUndefined();
     expect(deployResult({ ...load, failed: 3, failures: "502 x3" }, clean, restart, false).result).toBe("no");
     expect(deployResult(load, { ...clean, failed: 1 }, undefined, false).evidence.failed_requests).toBe(1);
     expect(deployResult(load, { ...clean, mixed: 2 }, undefined, false).result).toBe("no");
@@ -299,15 +308,17 @@ describe("the feature scenarios", () => {
   test("a runaway is stopped when the backend answers it, the load saw no failure, and the backend still runs", () => {
     const load = { requests: 900, failed: 0, failures: null, p99_ms: 12.5 };
     const stopped = { status: 500, seconds: 1.2 };
+    const limits = { name: "[limits]", default: false };
     expect(runawayResult(load, stopped, true, undefined).result).toBe("built-in");
-    expect(runawayResult(load, { status: 200, seconds: 30.4 }, true, "[limits]")).toEqual({
+    expect(runawayResult(load, { status: 200, seconds: 30.4 }, true, limits)).toEqual({
       result: "one-setting",
       setting: "[limits]",
       evidence: { requests: 900, failed_requests: 0, failures: null, p99_ms: 12.5, runaway_status: 200, runaway_seconds: 30.4, backend_running: true },
     });
+    expect(runawayResult(load, stopped, true, { name: "memory_limit", default: true })).toMatchObject({ result: "on-by-default", setting: "memory_limit" });
     expect(runawayResult(load, { status: null, seconds: null }, true, undefined).result).toBe("no");
     expect(runawayResult(load, { status: 502, seconds: 3 }, true, undefined).result).toBe("no");
-    expect(runawayResult({ ...load, failed: 1 }, stopped, true, "[limits]").result).toBe("no");
+    expect(runawayResult({ ...load, failed: 1 }, stopped, true, limits).result).toBe("no");
     expect(runawayResult(load, stopped, false, undefined).result).toBe("no");
   });
 
@@ -352,7 +363,10 @@ describe("the feature scenarios", () => {
       result: "built-in",
       evidence: { seconds_1_part: 1, seconds_4_parts: 1.2, speedup: 3.33, way: "goroutines" },
     });
-    expect(parallelResult(1, 1.5, "spawn", "[capabilities.script] spawn")).toMatchObject({ result: "one-setting", setting: "[capabilities.script] spawn" });
+    expect(parallelResult(1, 1.5, "spawn", { name: "[capabilities.script] spawn", default: false })).toMatchObject({
+      result: "one-setting",
+      setting: "[capabilities.script] spawn",
+    });
     expect(parallelResult(1, PARALLEL_PARTS, undefined, undefined).result).toBe("no");
     expect(parallelResult(1, 2.1, "Worker", undefined).result).toBe("no");
   });
@@ -364,15 +378,17 @@ describe("the feature scenarios", () => {
     expect(crashResult(500, 200, false).result).toBe("no");
   });
 
-  test("the headers are built in only with all three, and the frame policy may come from either header", () => {
+  test("the headers pass only with all three, naming a setting the peer starts with, and the frame policy may come from either header", () => {
     const all = { "x-content-type-options": "nosniff", "content-security-policy": "frame-ancestors 'none'", "referrer-policy": "no-referrer" };
-    expect(headersResult(all).result).toBe("built-in");
-    expect(headersResult({ ...all, "content-security-policy": "default-src 'self'", "x-frame-options": "DENY" }).result).toBe("built-in");
-    expect(headersResult({ "x-content-type-options": "nosniff" })).toEqual({
+    const headers = { name: "[http.headers]", default: true };
+    expect(headersResult(all, undefined).result).toBe("built-in");
+    expect(headersResult(all, headers)).toMatchObject({ result: "on-by-default", setting: "[http.headers]" });
+    expect(headersResult({ ...all, "content-security-policy": "default-src 'self'", "x-frame-options": "DENY" }, undefined).result).toBe("built-in");
+    expect(headersResult({ "x-content-type-options": "nosniff" }, headers)).toEqual({
       result: "your-code",
       evidence: { nosniff: true, frame_policy: false, referrer_policy: false },
     });
-    expect(headersResult({ ...all, "x-content-type-options": "sniff" }).result).toBe("your-code");
+    expect(headersResult({ ...all, "x-content-type-options": "sniff" }, undefined).result).toBe("your-code");
   });
 
   test("the escape is built in only when the template and the direct write both escape the term", () => {

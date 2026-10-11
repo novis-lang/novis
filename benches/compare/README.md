@@ -83,9 +83,15 @@ files mount `${TREE}/${CASE}`, and Go builds both trees into its image. A row th
 own answer, as `headers` is about hello's, points at that case and has no folder.
 
 **A result is read off what the peer did, never written down.** Each probe maps its evidence to one of
-four results with a pure function, and the evidence goes beside it: a page that says `no` can show the
+five results with a pure function, and the evidence goes beside it: a page that says `no` can show the
 request that proved it. A row whose Novis result is worse than the goal's facts expect is reported,
 never adjusted.
+
+**A feature that works through a setting names it, and says whether the peer starts with it on.**
+`built-in` has no setting. `on-by-default` names a setting the peer ships turned on, which a reader
+could turn off: Novis's `[http.headers]`, PHP's `max_execution_time` and `memory_limit`. `one-setting`
+names a setting the row had to change, or the command or step the peer needed. The `Setting` tables in
+`bench-compare.ts` say which is which.
 
 **Each peer is written the way its own documentation shows.** The programs are what a developer meets
 first, not the most careful version a peer allows. `escape` prints the term twice. On `/` it uses
@@ -117,8 +123,9 @@ not `no`.
   not a failure. Novis sets no limit by default, so it writes `memory = "16M"` and `cpu_time = "1s"`
   in its `[limits]` table first and is `one-setting`. `nvs serve` admits only as many requests as the
   container's memory affords at `memory` each, and at `64M` the cap admits six, fewer than the row's
-  load, so the value is sized for it. PHP's own `memory_limit` and `max_execution_time` are on by
-  default. The other answers are `no`, and the load's p99 stays in the evidence.
+  load, so the value is sized for it. PHP's own `max_execution_time` and `memory_limit` are on by
+  default, so PHP is `on-by-default` naming the one its row needs. The other answers are `no`, and
+  the load's p99 stays in the evidence.
 - No row tests whether a request sees a value another request set. A process that keeps state
   between requests is a design choice in Bun and Go, not a failure, and a yes or no cannot say which
   of the two a reader wants.
@@ -133,7 +140,8 @@ not `no`.
   `Origin` or a token is code or a library the developer adds.
 - `headers` reads hello's response for `X-Content-Type-Options: nosniff`, a frame policy
   (`X-Frame-Options` or a `frame-ancestors` CSP) and a `Referrer-Policy`. Any one missing is
-  `your-code`.
+  `your-code`. All three from Novis are `on-by-default`, naming `[http.headers]`, whose shipped values
+  send them.
 - `waiting` times the wait case at one cpu. Every request answered `200` is `built-in`, or
   `one-setting` where the peer needs a setting before it holds 1000 connections: FPM's
   `pm.max_children`, whose default pool is a handful of workers. Any other answer is `no`. The memory
@@ -148,20 +156,23 @@ not `no`.
   writes `spawn = true` in its `[capabilities.script]` table first and is `one-setting`. Less than
   2x is `no`.
 - `live-edit` serves a copy of its folder under `generated/`, changes `version 1` to `version 2` in
-  the copy, and polls for 20 seconds. The stacks run in their production setting, so PHP's opcache
-  does not check timestamps and Bun runs without `--hot`. An edit that never shows is
-  `one-setting` where the peer's documentation names the setting that would show it, and the
-  measured `null` stays in the evidence. Go compiles its program into the image, so it runs nothing
-  and is `no`.
+  the copy, and polls for 20 seconds. Each peer runs at its own defaults. The speed tests set
+  `opcache.validate_timestamps=0` for PHP, so before the first version the row writes PHP's default
+  `1` in a later ini and runs `php-fpm reload`; an edit that then shows is `on-by-default` naming it.
+  Bun runs without `--hot`, its default. An edit that never shows is `one-setting` where the peer's
+  documentation names a setting it starts without, and the measured `null` stays in the evidence. Go
+  compiles its program into the image, so it runs nothing and is `no`.
 - `deploy` serves a copy whose program reads 200 part files, each printing its version, so a reply
   shows every part's version. The driver writes the parts, and Novis's entry too, because `require`
-  takes only a path written as literal text. Two seconds into 20 seconds of steady load, it replaces
-  the parts one at a time with a 10 ms pause, then runs the peer's documented deploy step: PHP's
-  `php-fpm reload`, and a restart for Bun and Go. Go compiles its parts into the image, so it only
-  restarts, and its reply is not checked for a version. The row's own requests run the whole time
-  and count replies that mix the two versions. No failed request, no mixed reply and the new
-  version within 20 seconds of the deploy step is `built-in` with no step, or `one-setting` naming
-  the step. Anything else is `no`.
+  takes only a path written as literal text. PHP runs at its default `opcache.validate_timestamps=1`,
+  restored as the `live-edit` row restores it. Two seconds into 20 seconds of steady load, it
+  replaces the parts one at a time with a 10 ms pause, then runs the step the peer needs at its
+  defaults: none for Novis and PHP, which check their files, and a restart for Bun and Go. Go
+  compiles its parts into the image, so it only restarts, and its reply is not checked for a
+  version. The row's own requests run the whole time and count replies that mix the two versions.
+  No failed request, no mixed reply and the new version within 20 seconds of the deploy step is
+  `built-in` with no step, `on-by-default` naming PHP's `opcache.validate_timestamps`, or
+  `one-setting` naming the step. Anything else is `no`.
 - `config` changes one response header in the peer's own config file, inside the container. A bind
   mount shows every file as world-writable, and Novis refuses such a config file, so Novis edits the
   `nvs.toml` its data folder holds. The change applied with no command is `built-in`, after the
