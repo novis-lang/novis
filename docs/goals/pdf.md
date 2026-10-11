@@ -9,7 +9,7 @@ stages:
     status: open
     extra:
       context:
-        rules: [core-api/tier-roster, core-classes/pdf-render-has-no-io, core-classes/pdf-css-subset, core-classes/pdf-output-is-inert, core-classes/pdf-one-engine, core-classes/pdf-page-is-an-image-source, core-classes/pdf-decode-refusals, packaging/pdf-decoding-ships-in-the-image-package, packaging/a-value-crosses-as-its-wit-type, core-api/options-bag, core-api/one-paradigm-per-operation, core-classes/html-template]
+        rules: [core-api/tier-roster, core-classes/pdf-render-has-no-io, core-classes/pdf-css-subset, core-classes/pdf-output-is-inert, core-classes/pdf-one-engine, core-classes/pdf-page-is-an-image-source, core-classes/pdf-decode-refusals, packaging/pdf-decoding-ships-in-the-image-package, packaging/a-value-crosses-as-its-wit-type, core-api/options-bag, core-api/one-paradigm-per-operation, core-classes/html-template, enums/an-enum-lives-in-the-class-that-uses-it]
         shapes: [A rule fragment]
   - id: 3
     title: SVG and PDF open as images

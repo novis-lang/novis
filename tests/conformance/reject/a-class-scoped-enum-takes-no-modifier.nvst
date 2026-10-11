@@ -2,6 +2,7 @@
 A visibility or other modifier in front of an enum in a class body is `E0133`, and an attribute group there is accepted — `rule:enums/class-scoped-enum`
 --FILE--
 <?nvs
+// covers: lang:enums/an-enum-inside-a-class
 // `rule:enums/class-scoped-enum`: an enum's cases leave the class in every
 // return value, so a `private` enum would hide the name and not the values.
 final class Accepted {
@@ -20,10 +21,10 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0133]: an enum in a class body takes no modifier
-   --> case.nvs:10:5
+   --> case.nvs:11:5
 %A
 error[E0133]: an enum in a class body takes no modifier
-   --> case.nvs:12:5
+   --> case.nvs:13:5
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,0 +1,27 @@
+<?nvs
+// Reads the cases of an enum declared in a class. A program meets this when an order keeps its
+// status in an enum of its own.
+// bench: iterations 512
+// bench: calls 0
+// bench: allocations 0
+// bench: complexity constant
+
+final class Order {
+    enum Status { Open, Paid, Shipped = 10, Cancelled }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // The total from the last round picks the case, so each round reads a case again.
+            Order::Status $held = $total % 3 == 0 ? Order::Status::Shipped : Order::Status::Paid;
+            $total = $total + ($held as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(512), "\n";

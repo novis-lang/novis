@@ -1,0 +1,34 @@
+<?nvs
+// Shows an order that declares the enum for its own status.
+
+class Order
+{
+    enum Status { Open, Paid, Shipped, Cancelled }
+
+    // Inside the class, the enum is `Status`.
+    public Status $status = Status::Open;
+
+    public function pay(): void
+    {
+        $this->status = Status::Paid;
+    }
+
+    public function ship(): void
+    {
+        if ($this->status == Status::Paid) {
+            $this->status = Status::Shipped;
+        }
+    }
+}
+
+Order $order = new Order();
+$order->ship();
+
+// The order was not paid, so it is still open. This prints 0.
+echo $order->status as int, "\n";
+
+$order->pay();
+$order->ship();
+
+// Outside the class, the enum is `Order::Status`. This prints `shipped`.
+echo $order->status == Order::Status::Shipped ? "shipped" : "not shipped", "\n";

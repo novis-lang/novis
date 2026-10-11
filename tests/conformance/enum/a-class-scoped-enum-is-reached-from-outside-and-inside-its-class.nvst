@@ -2,6 +2,7 @@
 An enum declared in a class body is reached as `Owner::Name::Case` from anywhere and as a bare `Name::Case` inside its owner, and both spellings are the same constant — `rule:enums/class-scoped-enum`
 --FILE--
 <?nvs
+// covers: lang:enums/an-enum-inside-a-class
 namespace Shop;
 
 // `rule:enums/class-scoped-enum`: inside its owner the enum is `Status`,

@@ -70,8 +70,10 @@ final class Order {
     public function pay(): void { $this->status = Status::Paid; }
 }
 
-function label(Order::Status $s): string {            // the qualified form, anywhere
-    return $s == Order::Status::Paid ? "paid" : "unpaid";
+final class Receipt {
+    public static function label(Order::Status $s): string {   // the qualified form, anywhere
+        return $s == Order::Status::Paid ? "paid" : "unpaid";
+    }
 }
 ```
 
@@ -91,7 +93,7 @@ inlined where it is written, so `Order::Status::Paid` compiles to the same const
   class in every return value and every property, so a `private` enum would hide the name and not the
   values. An attribute group may stand in front of it, as in front of a file-scope enum.
 - **No inheritance.** `Sub::Status`, where only an ancestor of `Sub` declares `Status`, is `E0405`
-  naming the class that does. A subclass that inherited the name would give one enum as many names as
+  in a type and `E0309` in a value, each naming the class that does. A subclass that inherited the name would give one enum as many names as
   its owner has descendants ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
 - **Two spellings and no third.** `self::Status` and `static::Status` are `E0135` where they are
   written, as they are for a class-scoped alias ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)). An enum is resolved

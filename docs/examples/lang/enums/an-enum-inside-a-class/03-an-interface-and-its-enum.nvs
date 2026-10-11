@@ -1,0 +1,45 @@
+<?nvs
+// Shows an interface that declares an enum, and two classes that return its cases.
+
+interface Job
+{
+    enum Result { Done, Retry, Failed }
+
+    public function run(): Result;
+}
+
+// A class that implements `Job` writes the enum as `Job::Result`.
+final class SendMail implements Job
+{
+    public function run(): Job::Result
+    {
+        return Job::Result::Retry;
+    }
+}
+
+final class CleanUp implements Job
+{
+    public function run(): Job::Result
+    {
+        return Job::Result::Done;
+    }
+}
+
+class Report
+{
+    public static function word(Job::Result $r): string
+    {
+        return match ($r) {
+            Job::Result::Done => "done",
+            Job::Result::Retry => "retry",
+            Job::Result::Failed => "failed",
+        };
+    }
+}
+
+array<Job> $jobs = [new SendMail(), new CleanUp()];
+
+// This prints `retry` and then `done`.
+foreach ($jobs as Job $job) {
+    echo Report::word($job->run()), "\n";
+}

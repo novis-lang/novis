@@ -2,6 +2,7 @@
 An interface body declares an enum, and it is reached through the interface's name, in the interface's own signatures and in an implementing class — `rule:enums/class-scoped-enum`
 --FILE--
 <?nvs
+// covers: lang:enums/an-enum-inside-a-class
 namespace Shop;
 
 interface Shipment {

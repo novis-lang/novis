@@ -382,7 +382,7 @@ echo Helper::nothing();
 and `use` or as a member of a class, interface or enum body — never inside a method body, a block or an
 anonymous function, where it is refused by name. A body's alias takes no visibility modifier, is reached as
 `Owner::Name` from anywhere and as a bare `Name` inside its owner, and is not inherited, the same
-way as an enum declared in a class body (see [Declaring an enum](55-enums.md#declaring-an-enum)). The alias is
+way as an enum declared in a class body (see [An enum inside a class](55-enums.md#an-enum-inside-a-class)). The alias is
 a compile-time name only. It may not name a single bare class, interface or enum (`type Bar = Foo;` is
 refused: a class has its own name); `?Foo`, a union, a shape and an `array<…>` are all allowed.
 

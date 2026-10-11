@@ -237,7 +237,8 @@ How a written name resolves:
   is refused, and so is the group form `use A\{B, C};` — write one `use` per name.
 - `Core` is a reserved namespace: `namespace Core;` is refused, so nothing a program declares lives
   under it. A global class may still be named `Str` — only the `Core\` prefix is reserved.
-- A `class`, `interface`, `enum` or `type` alias is declared at file scope, or not at all.
+- A `class` or `interface` is declared at file scope, or not at all. An `enum` or a `type` alias is
+  declared at file scope or in a class or interface body.
 
 # `require`: run another file in this frame
 

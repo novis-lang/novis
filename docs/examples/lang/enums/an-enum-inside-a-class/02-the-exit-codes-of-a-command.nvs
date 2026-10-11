@@ -1,0 +1,25 @@
+<?nvs
+// Shows a command line program that declares its own exit codes as an enum.
+
+final class Import
+{
+    enum Exit: int { Ok = 0, Usage = 64, NoInput = 66 }
+
+    public static function run(array<string> $files): Exit
+    {
+        if (Core\Arr::count($files) == 0) {
+            return Exit::Usage;
+        }
+        return Exit::Ok;
+    }
+}
+
+// `as int` gives the number the shell sees. This prints 64 and then 0.
+echo Import::run([]) as int, "\n";
+echo Import::run(["orders.csv"]) as int, "\n";
+
+// A variable outside the class names the enum with its class.
+Import::Exit $code = Import::Exit::NoInput;
+
+// This prints 66.
+echo $code as int, "\n";

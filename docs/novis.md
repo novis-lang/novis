@@ -491,7 +491,8 @@ How a written name resolves:
   is refused, and so is the group form `use A\{B, C};` — write one `use` per name.
 - `Core` is a reserved namespace: `namespace Core;` is refused, so nothing a program declares lives
   under it. A global class may still be named `Str` — only the `Core\` prefix is reserved.
-- A `class`, `interface`, `enum` or `type` alias is declared at file scope, or not at all.
+- A `class` or `interface` is declared at file scope, or not at all. An `enum` or a `type` alias is
+  declared at file scope or in a class or interface body.
 
 ### `require`: run another file in this frame
 
@@ -993,7 +994,7 @@ echo Helper::nothing();
 and `use` or as a member of a class, interface or enum body — never inside a method body, a block or an
 anonymous function, where it is refused by name. A body's alias takes no visibility modifier, is reached as
 `Owner::Name` from anywhere and as a bare `Name` inside its owner, and is not inherited, the same
-way as an enum declared in a class body (see [Declaring an enum](55-enums.md#declaring-an-enum)). The alias is
+way as an enum declared in a class body (see [An enum inside a class](55-enums.md#an-enum-inside-a-class)). The alias is
 a compile-time name only. It may not name a single bare class, interface or enum (`type Bar = Foo;` is
 refused: a class has its own name); `?Foo`, a union, a shape and an `array<…>` are all allowed.
 
@@ -4411,9 +4412,7 @@ echo Mask::All as uint, "\n";
   else backs an enum — `enum E: string` is refused, and so is a case with a non-integer value.
 - An enum body holds cases and nothing else: a method, a constant or an `implements` clause is
   refused. Put behaviour on a class that takes the enum.
-- An enum in a class body takes no `public` or `private`, and a subclass does not inherit it.
-  Write `Status` inside the class and `Order::Status` outside it: `self::Status` and
-  `use Shop\Order::Status;` are refused.
+- What an enum in a class body may and may not do is in `# An enum inside a class`.
 
 ```nvs error
 <?nvs
@@ -4653,6 +4652,92 @@ echo Open::file(Mode::Exec), "\n";
 ```
 ```output
 expected `Mode::Read|Mode::Write`, found `Mode`
+```
+
+### An enum inside a class
+
+A class or an interface body may declare an enum. Inside that body the enum is `Result`, and a
+case is `Result::Retry`. Everywhere else the enum is `Job::Result`, and a case is
+`Job::Result::Retry`. A case is the same integer a file-scope enum's case is, and it costs nothing
+more at run time. The name a program sees is the owner, `::` and the enum: `Shop\Order::Status`.
+
+```nvs
+<?nvs
+interface Job {
+    enum Result { Done, Retry, Failed }
+
+    public function run(): Result;
+}
+
+final class SendMail implements Job {
+    public function run(): Job::Result {
+        return Job::Result::Retry;
+    }
+}
+
+Job $job = new SendMail();
+Job::Result $r = $job->run();
+echo $r as int, "\n";
+echo $r == Job::Result::Retry ? "retry" : "other", "\n";
+echo Job::Result::class, "\n";
+```
+```output
+1
+retry
+Job::Result
+```
+
+- The enum takes no `public`, `private` or `protected`. Its cases leave the class in every value
+  it returns, so a visibility would hide only the name.
+- A subclass does not inherit it, and neither does a class that implements the interface.
+  `SendMail` above writes `Job::Result`, not `Result`.
+- `self::Status` and `static::Status` do not compile. Write `Status` inside the owner and
+  `Order::Status` outside it.
+- `use Shop\Order::Status;` does not compile. Import the class with `use Shop\Order;` and write
+  `Order::Status`.
+- An enum, a constant and a `type` alias of one class never share a name.
+- An enum body, a method body, a closure and a block declare no enum. A class body declares no
+  class and no interface.
+- The enum `Status` in class `Shop\Order` and a class `Status` in namespace `Shop\Order` are two
+  different types. `Shop\Order::Status` names the first and `Shop\Order\Status` names the second.
+
+```nvs error
+<?nvs
+class Order {
+    private enum Status { Open, Paid }
+}
+```
+```output
+an enum in a class body takes no modifier
+```
+
+```nvs error
+<?nvs
+class Order {
+    enum Status { Open, Paid }
+}
+
+class Refund extends Order {
+}
+
+echo Refund::Status::Paid as int, "\n";
+```
+```output
+`Refund` has no enum named `Status`
+```
+
+```nvs error
+<?nvs
+namespace Shop;
+
+use Shop\Order::Status;
+
+class Order {
+    enum Status { Open, Paid }
+}
+```
+```output
+an import cannot name a member of a class
 ```
 
 ### What an enum does not have

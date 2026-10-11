@@ -9,7 +9,7 @@ stages:
     status: open
     extra:
       context:
-        rules: [core-classes/spreadsheet-has-no-io, core-classes/spreadsheet-bulk-boundary, core-classes/spreadsheet-evaluation-and-roster, core-classes/spreadsheet-formula-is-a-value, core-classes/spreadsheet-output-is-inert, core-classes/decompression-bound, packaging/a-value-crosses-as-its-wit-type, packaging/a-guest-has-no-ambient-authority, core-api/options-bag, core-api/one-paradigm-per-operation]
+        rules: [core-classes/spreadsheet-has-no-io, core-classes/spreadsheet-bulk-boundary, core-classes/spreadsheet-evaluation-and-roster, core-classes/spreadsheet-formula-is-a-value, core-classes/spreadsheet-output-is-inert, core-classes/decompression-bound, packaging/a-value-crosses-as-its-wit-type, packaging/a-guest-has-no-ambient-authority, core-api/options-bag, core-api/one-paradigm-per-operation, enums/an-enum-lives-in-the-class-that-uses-it]
         shapes: [A rule fragment]
   - id: 3
     title: "the component is built in, and the streaming writer"

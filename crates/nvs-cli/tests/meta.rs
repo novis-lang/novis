@@ -539,6 +539,7 @@ fn meta_json_nests_a_class_scoped_alias_under_its_owner() {
 /// `Shop\Order::Status`: the name a program sees (`rule:enums/reflection`).
 /// The file-scope roster does not list it a second time, so a program that
 /// declares no enum at file scope has no top-level `enums` key.
+// covers: lang:enums/an-enum-inside-a-class
 #[test]
 fn a_class_scoped_enum_is_listed_under_its_owner() {
     let entry = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
