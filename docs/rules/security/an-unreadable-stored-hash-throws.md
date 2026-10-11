@@ -9,3 +9,7 @@ notices. A throw wakes an operator (`rule:errors/ambiguous-input-refused`).
 
 The roster having two entries instead of one does not change that property; it moves where the
 boundary sits, and this rule is the boundary's home.
+
+**Declined:**
+- **Answering `false` for an unreadable stored value, as PHP does.** It hides the storage bug behind
+  the login screen, and widening the roster gives no reason to reopen that.

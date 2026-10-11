@@ -1842,7 +1842,7 @@
         [
           "`Core\\Password`",
           "`hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a PHP-stored bcrypt hash (`verify` verifies it, `needsRehash` answers `true`); `hash` writes only Argon2id. Replaces `password_hash`, `password_verify`, `crypt`",
-          "`rule:core-api/no-mode-strings`, [0129](../decisions/0129.md)"
+          "`rule:core-api/no-mode-strings`, `rule:security/bcrypt-read-roster`"
         ],
         [
           "`Core\\Jwt`, `Core\\Jwe`, `Core\\Csrf`, `Core\\Totp`, `Core\\SignedCookie`, `Core\\Signature`",

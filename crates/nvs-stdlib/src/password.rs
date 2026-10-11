@@ -61,7 +61,7 @@
 //! # The read roster has two entries, and only one of them is ever written
 //!
 //! `rule:security/bcrypt-read-roster`
-//! is the whole contract, and its § 1 is the roster: [`nvs_core_password_verify`]
+//! is the whole contract and the roster: [`nvs_core_password_verify`]
 //! reads the Argon2id PHC string [`nvs_core_password_hash`] writes, and a
 //! bcrypt hash under `$2y$`, `$2a$` or `$2b$` — one algorithm under three tags,
 //! verified identically. `$2x$` is not in it, because that tag exists to be
@@ -72,11 +72,13 @@
 //! invertible, so no offline tool can convert it. Only a presented password can
 //! be rehashed, which is what makes the login-time loop *the* migration path:
 //! `verify` proves the password, [`nvs_core_password_needs_rehash`] answers
-//! `true` for every bcrypt row (§ 3), `hash` rewrites it under Argon2id, and the
+//! `true` for every bcrypt row (`rule:security/needs-rehash-answers-weaker`),
+//! `hash` rewrites it under Argon2id, and the
 //! bcrypt column converges to empty with no flag, no tool and no second code
 //! path.
 //!
-//! **The write side is unchanged** (§ 2). `hash` writes Argon2id and nothing
+//! **The write side is unchanged** (`rule:security/hash-writes-argon2id-only`).
+//! `hash` writes Argon2id and nothing
 //! else, and no member gains an algorithm argument — Novis never *produces* a
 //! bcrypt hash, it only stopped refusing to read one.
 //!
@@ -84,9 +86,10 @@
 //! on the calling task (again [AGENTS.md](/AGENTS.md)'s ordering
 //! asking for the number) — the eksblowfish key schedule, against Argon2id's
 //! 19 MiB above. It is O(in-flight logins) for the same reason, and it shrinks
-//! as § 3's loop upgrades the table.
+//! as the rehash loop upgrades the table.
 //!
-//! bcrypt's truncation is reproduced rather than corrected (§ 5): at most 72
+//! bcrypt's truncation is reproduced rather than corrected
+//! (`rule:security/bcrypt-truncation`): at most 72
 //! bytes of the password are hashed and a NUL ends it. `verify` has to accept
 //! exactly the passwords PHP accepted against the same row, so that is the
 //! algorithm speaking and not a choice this module made — and it is one more
@@ -464,7 +467,7 @@ nvs_runtime::nvs_helper! {
         // `rule:security/bcrypt-read-roster`'s second entry, read before the PHC parser sees the
         // string: a bcrypt hash is not a PHC one, and the tag is what says so.
         if let Some(cost) = bcrypt_cost(stored) {
-            // § 4's ceiling, and the whole of "before any work" — the rounds
+            // `rule:security/bcrypt-cost-ceiling`, and the whole of "before any work" — the rounds
             // are `2^cost`, so this is the same denial of service `m` was, one
             // doubling at a time.
             if cost > MAX_BCRYPT_COST {
@@ -629,7 +632,7 @@ mod tests {
         );
     }
 
-    /// `rule:security/needs-rehash-answers-weaker`: every tag in § 1's roster has fallen behind, because a
+    /// `rule:security/needs-rehash-answers-weaker`: every bcrypt tag in the roster has fallen behind, because a
     /// different algorithm is weaker by this member's own rule. Asserted over
     /// the whole roster rather than one tag, so a member that grew a comparison
     /// for one spelling fails here.

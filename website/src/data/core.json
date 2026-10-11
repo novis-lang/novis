@@ -27478,9 +27478,7 @@
       "section": "16. Network, data and crypto",
       "summary": "",
       "surface": "`hash(secret string): string`, `verify(secret string, string): bool`, `needsRehash(string): bool` — **no algorithm argument**. `verify` and `needsRehash` also read a PHP-stored bcrypt hash (`verify` verifies it, `needsRehash` answers `true`); `hash` writes only Argon2id. Replaces `password_hash`, `password_verify`, `crypt`",
-      "adrs": [
-        "0129"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [

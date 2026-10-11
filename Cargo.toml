@@ -669,7 +669,7 @@ argon2 = { version = "0.6", default-features = false, features = [
     "password-hash",
 ] }
 
-# --- reading a PHP-stored bcrypt hash (`Core\Password::verify`, ADR 0129 § 1) ---
+# --- reading a PHP-stored bcrypt hash (`Core\Password::verify`, `rule:security/bcrypt-read-roster`) ---
 # bcrypt is the algorithm PHP's `PASSWORD_DEFAULT` has written since 5.5, so a
 # migrating application's user table is a column of `$2y$` strings and this is
 # the crate that reads one. `rule:packaging/a-c-dependency-answers-two-questions`'s first question is "yes" for the same
@@ -690,7 +690,7 @@ argon2 = { version = "0.6", default-features = false, features = [
 # `getrandom` is **on** here, where it is deliberately off for `argon2` and
 # `chacha20poly1305` above, because this crate makes it non-optional behind
 # `alloc`: its salt generator lives there and `verify` cannot be reached
-# without it. Nothing draws through it — ADR 0129 § 2 is that Novis never
+# without it. Nothing draws through it — `rule:security/hash-writes-argon2id-only` is that Novis never
 # *writes* a bcrypt hash, so the generating half of this crate has no call site
 # — and the crate is already in this tree's lock file for `rand`'s own OS seed,
 # so the one CSPRNG rule `crate::random` owns is untouched.

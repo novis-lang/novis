@@ -10,3 +10,7 @@ written by somebody else.
 
 The write-side parameters and their reasons live with the implementation rather than being spelled at
 a call site, so raising them is one change rather than a sweep.
+
+**Declined:**
+- **An algorithm argument, or a bcrypt write path.** Either reopens the copied-call-site problem the
+  class exists to close, and no new hash should ever be bcrypt.

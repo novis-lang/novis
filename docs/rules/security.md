@@ -2852,7 +2852,11 @@ written by somebody else.
 The write-side parameters and their reasons live with the implementation rather than being spelled at
 a call site, so raising them is one change rather than a sweep.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker). Decided in [0129](../decisions/0129.md).</sub>
+**Declined:**
+- **An algorithm argument, or a bcrypt write path.** Either reopens the copied-call-site problem the
+  class exists to close, and no new hash should ever be bcrypt.
+
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker).</sub>
 
 <a id="security-bcrypt-read-roster"></a>
 
@@ -2861,18 +2865,35 @@ a call site, so raising them is one change rather than a sweep.
 `rule:security/bcrypt-read-roster`
 
 Verification accepts exactly two stored shapes: the modern hash this library writes, and a bcrypt hash
-under three prefixes — one algorithm under three tags, verified identically. **The roster grows only
-by amending this rule, never by accepting what a parser happens to read.**
+under the `$2y$`, `$2a$` or `$2b$` prefix — one algorithm under three tags, verified identically. **The
+roster grows only by amending this rule, never by accepting what a parser happens to read.**
 
-One further prefix is refused: it exists to be bug-compatible with an implementation's
-sign-extension overflow, and verifying it means reimplementing the bug.
+`$2x$` is refused: it exists to be bug-compatible with `crypt_blowfish`'s sign-extension overflow, and
+verifying it means reimplementing the bug.
+
+bcrypt is on the roster because it is what a real population's column holds. PHP's `PASSWORD_DEFAULT`
+has written bcrypt since `password_hash` appeared, and Argon2 never became the default, so the user
+table of almost every migrating application is a bcrypt column. Without a read path that population
+would catch the unreadable-hash throw around every verification, which launders the storage-bug signal
+the throw exists to raise ([`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws)), or build a dual-column
+scheme by hand.
 
 This is what lets an existing user table, hashed by another runtime, verify on day one and rewrite itself one
-successful login at a time ([`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker)). What it spends: a few
-kilobytes transiently per verification of a legacy row, on the calling task — bounded by in-flight
-logins, and shrinking as the table converges.
+successful login at a time ([`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker)). The reader is a pure-Rust
+bcrypt crate with a constant-time comparison of the digest.
 
-<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws). Decided in [0129](../decisions/0129.md).</sub>
+- **Memory:** about 4 KiB, the eksblowfish key schedule, held transiently per verification of a legacy
+  row on the calling task. It is bounded by in-flight logins, and shrinks as the table converges.
+
+**Declined:**
+- **Reading every algorithm a verifier library can read.** Each entry is a parser, an attack surface and
+  a promise kept forever, and two shapes cover the migrating population. A third shape is added the way
+  bcrypt was: by being what a real population's column holds.
+- **An offline tool that converts the column.** A stored hash is not invertible, so only a presented
+  password can be rehashed, and the login-time loop is the only migration path.
+- **A bcrypt write path.** No new hash should ever be bcrypt ([`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only)).
+
+<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws).</sub>
 
 <a id="security-needs-rehash-answers-weaker"></a>
 
@@ -2886,14 +2907,15 @@ always answers `true`.
 
 With the read roster that completes a migration with no flag, no tool and no second code path:
 verification proves the password, this member says the row has fallen behind, hashing rewrites it, and
-the legacy column converges to empty. It reads a legacy hash rather than throwing at it, which is the
+the legacy column converges to empty. A stored hash is not invertible, so a presented password at
+login is the only point where a row can be rewritten, and this loop is the migration. It reads a legacy hash rather than throwing at it, which is the
 one behaviour this member owes the roster.
 
 A check that compares the stored parameters for difference answers `true` when a deployment
 *lowers* its cost as readily as when it raises it. Measuring weakness rather than difference is the
 direction that never rewrites a strong row into a weaker one.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only). Decided in [0129](../decisions/0129.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only).</sub>
 
 <a id="security-bcrypt-cost-ceiling"></a>
 
@@ -2905,15 +2927,15 @@ A stored bcrypt hash carries its own cost, and the cost is the base-2 logarithm 
 CPU-time lever one `UPDATE` away from anyone who can write the table. Verification refuses a stored
 cost above **17** before doing any work, as an ordinary throw.
 
-Seventeen is far above what real deployments write and far below the ceiling's minutes of CPU per
-verification, so it costs no real table anything and closes the denial of service. Refusing *before*
+Seventeen is far above the 10 to 13 real deployments write and far below the minutes of CPU per
+verification that the format's maximum of 31 costs, so it costs no real table anything and closes the denial of service. Refusing *before*
 any work is what makes it a defence rather than a report: a check made afterwards has already spent
 the CPU the attacker was buying.
 
 The same shape guards the modern algorithm's memory parameter, which is the reason this is a ceiling
 on a stored value rather than a validation of a written one.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0129](../decisions/0129.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder).</sub>
 
 <a id="security-bcrypt-truncation"></a>
 
@@ -2930,7 +2952,7 @@ password longer than the limit has a suffix that never mattered, and two passwor
 72 bytes both verify. That is one more reason every such row is marked for rehash under an algorithm
 without the edge ([`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker)).
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker). Decided in [0129](../decisions/0129.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker).</sub>
 
 <a id="security-an-unreadable-stored-hash-throws"></a>
 
@@ -2950,7 +2972,11 @@ notices. A throw wakes an operator ([`errors/ambiguous-input-refused`](errors.md
 The roster having two entries instead of one does not change that property; it moves where the
 boundary sits, and this rule is the boundary's home.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0129](../decisions/0129.md).</sub>
+**Declined:**
+- **Answering `false` for an unreadable stored value, as PHP does.** It hides the storage bug behind
+  the login screen, and widening the roster gives no reason to reopen that.
+
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="security-a-session-id-the-store-did-not-issue-is-rejected"></a>
 
