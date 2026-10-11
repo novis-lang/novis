@@ -2,7 +2,6 @@
   "title": "A file a program autoloads or requires is analysed through that program's `autoload` map, behind its own declarations and without reporting anything for the borrowed ones",
   "status": "shipped",
   "because": [
-    "0198",
     "0207",
     "0208",
     "0257"
@@ -14,6 +13,7 @@
   ],
   "guardedBy": [
     "crates/nvs-lsp/tests/autoload.rs",
-    "crates/nvs-cli/tests/check_borrow.rs"
+    "crates/nvs-cli/tests/check_borrow.rs",
+    "crates/nvs-hir/src/requires.rs"
   ]
 }

@@ -44,3 +44,28 @@ behind its own. A file that declares a
 map, or names nothing undeclared, is checked once and searches nothing; a file no lender reaches keeps
 the first walk's diagnostics. `nvs_hir::lenders` is the one implementation of what a lender is and whom it
 lends to, for the server and the command both.
+
+Nothing is configured for this. Where two lenders reach one file the same way, the first in entry-path
+order lends, and nothing says which. The survey costs one read of each file under the root at startup,
+which the index makes anyway, and one name-resolution walk for each file that holds a keyword. Each
+analysis then costs one `canonicalize` and a prefix test per lender. Nothing is on a request path of the
+runtime.
+
+**Memory:** one resolved map and a few short path lists per lender, held for the session. It grows with
+the number of programs in the workspace, not with edits.
+
+**Declined:**
+- **A setting naming the entry point.** It is exact, but a false error is the default until somebody
+  finds the setting, and a workspace holding several applications needs a list of them.
+- **Analysing the program's entry point and publishing for the open file out of that walk.** The cursor
+  tables, the trivia and the syntax index would be the entry document's, and a class the entry point never
+  names would not be reached at all.
+- **Holding `E0306` back for a file with no map.** Hover, completion and go-to-definition would still lack
+  the type, and a real misspelt import would be hidden with it.
+- **Reporting the file's own `autoload` as an error when it borrows**, as the build does for an
+  autoloaded file. A bootstrap file reached by `require` may sit under a root too, and the build gives it
+  no error.
+- **Repeating a lender's walk on every edit to a file it read.** That set is the whole application, so
+  every keystroke anywhere would repeat the walk.
+- **Surveying by parsing every file.** The keyword search excludes almost every file for the cost of a
+  read the index makes anyway.
