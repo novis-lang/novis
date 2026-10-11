@@ -1987,7 +1987,7 @@ fn http_client_socket_max_message_and_send_timeout_are_bounded_and_runtime_class
     }
 }
 
-/// [ADR 0154] § 5: `[queue]` is in the table, key by key. The keys come from `keys_in`, so the
+/// `[queue]` is in the table, key by key. The keys come from `keys_in`, so the
 /// claim is about **every** key the block accepts rather than about the ones listed here — a fifth
 /// key added to `[queue]` with no row of its own fails this rather than reaching `lookup` and
 /// getting `None`, which is what a reload that changes a key it cannot apply and says nothing looks
@@ -1995,15 +1995,13 @@ fn http_client_socket_max_message_and_send_timeout_are_bounded_and_runtime_class
 ///
 /// Each key answers with its *own* row and not through a prefix: the block has no `queue` row, so
 /// a `covers:` line can name each key as a directive of its own.
-///
-/// [ADR 0154]: ../../../docs/decisions/0154.md
 #[test]
 fn every_queue_key_has_a_directive_row_and_lookup_answers_for_all_four() {
     let keys = keys_in("queue");
     assert_eq!(
         keys.len(),
         4,
-        "`[queue]` accepts {keys:?}, and ADR 0154 § 5's table has four rows: a key added to the \
+        "`[queue]` accepts {keys:?}, and the block has four directive rows: a key added to the \
          block joins the table in the commit that adds it",
     );
 
@@ -2053,7 +2051,7 @@ fn every_queue_row_is_system_class() {
     assert_eq!(
         rows.len(),
         4,
-        "ADR 0154 § 5's table has four rows: {rows:?}"
+        "the directive table has four `[queue]` rows: {rows:?}"
     );
 
     for row in rows {

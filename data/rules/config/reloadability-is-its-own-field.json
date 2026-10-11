@@ -2,7 +2,6 @@
   "title": "Reloadability is a second registry field, `Reload` or `Boot`, orthogonal to the changeability class",
   "status": "shipped",
   "because": [
-    "0154",
     "0175",
     "0219"
   ],

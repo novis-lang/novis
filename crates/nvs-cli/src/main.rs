@@ -4544,8 +4544,8 @@ mod tests {
     /// The command is spelled `serve`, and `service` is the platform's
     /// service-manager namespace beside it rather than a second name for it.
     ///
-    /// `docs/decisions/0154.md` § 6 settles the question the sentence above
-    /// raises: naming three subsystems is what a rename would have been asked to
+    /// `rule:concurrency/one-process-serves-requests-schedules-and-jobs`
+    /// settles the question the sentence above raises: naming three subsystems is what a rename would have been asked to
     /// buy, and it buys it for free. `service` is already taken by
     /// `rule:packaging/a-service-is-one-stored-argv`, whose argv is written into
     /// units on disk, so a rename into it would invalidate deployments as well

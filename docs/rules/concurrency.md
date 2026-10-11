@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*9 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -1486,7 +1486,7 @@ the server or the run's own script is writing is exactly the mixing capture exis
 
 <a id="concurrency-who-runs-a-job-is-configuration"></a>
 
-## Which process runs a job is configuration, and every spelling drives the identical isolate  *(designed — not yet in the compiler)*
+## Which process runs a job is configuration, and every spelling drives the identical isolate
 
 `rule:concurrency/who-runs-a-job-is-configuration`
 
@@ -1515,11 +1515,15 @@ identical claim statement ([`concurrency/claiming-is-one-statement`](concurrency
 is an operational decision and never a behavioural one. There is nothing to install beside the runtime
 and no supervisor to keep alive.
 
-<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs). Decided in [0154](../decisions/0154.md).</sub>
+**Declined:**
+- **Arming the workers once per core.** It multiplies an operator's number by a count they did not
+  write.
+
+<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs).</sub>
 
 <a id="concurrency-one-process-serves-requests-schedules-and-jobs"></a>
 
-## `nvs serve` runs the accept loop, the schedule ticker and the queue's workers in one process, and the drain stops all three  *(designed — not yet in the compiler)*
+## `nvs serve` runs the accept loop, the schedule ticker and the queue's workers in one process, and the drain stops all three
 
 `rule:concurrency/one-process-serves-requests-schedules-and-jobs`
 
@@ -1549,7 +1553,35 @@ running their own workers is the intended deployment rather than a hazard; a sch
 ask whether another host is already firing it. The queue is the subsystem that needed no coordinator,
 and one process is where that pays.
 
-<sub>See also [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/a-push-wakes-an-idle-worker`](concurrency.md#concurrency-a-push-wakes-an-idle-worker), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field). Decided in [0154](../decisions/0154.md), [0230](../decisions/0230.md).</sub>
+**A worker's task root is a worker, not the ticker's request.** A schedule fire is a child of the loop
+that serves, while there is no request beneath a worker to charge a panic to
+([`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper)). `nvs run` arms the same workers and
+stops them when the script's task exits, because a run with a worker that ignored that would never
+end. The two commands differ in that one predicate, which is what keeps moving work between them an
+operational decision ([`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration)).
+
+**The command is still `serve`, and its help names all three subsystems.** The operator's picture of
+one process is what stops them looking for a second one. `service` is the service-manager namespace
+beside it, and its argv is written into units on disk ([`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv)).
+
+- **Memory:** one database connection per worker, on the instance that arms them, held for the life
+  of the process. That is per instance and not per request, and it is what the same workers cost under
+  `nvs run`.
+- **Latency:** workers share the cores the server is already turning, so a busy server and a busy
+  queue contend. That is the trade `workers` lets an operator make. `workers = 0` and a dedicated
+  `nvs run` host is the deployment that wants them isolated. Nothing on the request path changes: a
+  waiting worker is one more parked task, and a parked task costs its stack.
+
+**Declined:**
+- **A `nvs queue work` command.** It is a third process shape with its own argv and lifecycle to
+  supervise, and it would still leave `[queue] workers` doing nothing under `nvs serve`.
+- **A stop flag of the command's own beside the drain.** Two bits would mean the same thing, and the
+  second is the one somebody forgets to set: that is the fail-open direction the accept loop already
+  refuses.
+- **Renaming the command.** A rename would collide with `service` and invalidate the argv stored in
+  deployed units. A help text that names the three subsystems buys the same accuracy.
+
+<sub>See also [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/a-push-wakes-an-idle-worker`](concurrency.md#concurrency-a-push-wakes-an-idle-worker), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field). Decided in [0230](../decisions/0230.md).</sub>
 
 <a id="concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers"></a>
 

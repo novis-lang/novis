@@ -22,3 +22,7 @@ Both spellings drive the identical isolate (`rule:concurrency/a-job-runs-as-a-ro
 identical claim statement (`rule:concurrency/claiming-is-one-statement`), so moving work between them
 is an operational decision and never a behavioural one. There is nothing to install beside the runtime
 and no supervisor to keep alive.
+
+**Declined:**
+- **Arming the workers once per core.** It multiplies an operator's number by a count they did not
+  write.
