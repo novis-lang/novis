@@ -2474,9 +2474,24 @@ and the throw is what makes it worth writing. The guard covers every level of th
 than throw, and so is the read `$a["k"]["j"] ??= $d` makes of its own target: an absent key at either
 depth takes `$d`, and the write that follows is the plain `$a["k"]["j"] = $d`, which builds the row.
 Only the read is guarded, so a nullable row under a `??=` target is refused where it is written, as it
-is under `=`.
+is under `=`: the read and the write share one typed entry per span, and a write through a guarded row
+would lose the `null` the write path checks for.
 
-<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws). Decided in [0254](../decisions/0254.md).</sub>
+The value of `$a ??= $v` is the value `$a` has afterwards, the one written and never a second read of
+the target, so a hooked property runs its `get` hook once and its `set` hook once. Its type is the
+target's type with `null` removed when `$v`'s type has no `null`, and the target's type when it does,
+so `return $this->posts ??= Post::findActive();` compiles against a return type of `array<Post>`.
+Every other compound operator and the plain `=` keep the target's type. The target's declared type
+does not change, and nothing is narrowed on the next line ([`types/narrowing`](types.md#types-narrowing)).
+
+**Declined:**
+
+- **Keeping the throw for an absent `??=` target**, and writing `$a[$k] = $a[$k] ?? $v` instead. `??=`
+  is written as `??`, and a program that writes it means the same "absent or `null`".
+- **Narrowing the target after `??=`.** One write would narrow where no other write does; that is a
+  question for every write at once.
+
+<sub>See also [`types/arrays`](types.md#types-arrays), [`types/declaration`](types.md#types-declaration), [`types/mixed-subscript`](types.md#types-mixed-subscript), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws).</sub>
 
 <a id="types-an-element-write-needs-storage-to-write-back-into"></a>
 
