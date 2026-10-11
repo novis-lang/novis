@@ -1749,7 +1749,7 @@
         [
           "`Core\\Program`",
           "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and `constructors<T, C>()`, the same classes in the same order, each row holding the class name and a `make` callable typed `C` that builds it",
-          "`rule:programs/implementing`, `rule:programs/implementing-with`, [0253](../decisions/0253.md)"
+          "`rule:programs/implementing`, `rule:programs/implementing-with`, `rule:programs/constructors`"
         ],
         [
           "`Core\\Router`",

@@ -28656,9 +28656,7 @@
       "section": "13. Compiler-facing surfaces",
       "summary": "",
       "surface": "`implementing<T>()`, and `implementingWith<I, T>(string $member = \"\")` — the same enumeration with one attribute retrieval joined per class, each row holding the instance and its matching payload or null — and `constructors<T, C>()`, the same classes in the same order, each row holding the class name and a `make` callable typed `C` that builds it",
-      "adrs": [
-        "0253"
-      ],
+      "adrs": [],
       "enums": [],
       "constants": [],
       "members": [
