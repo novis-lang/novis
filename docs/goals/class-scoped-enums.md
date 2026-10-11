@@ -36,7 +36,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 6
     title: the editor and the formatter
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Writing a test case > a go-to-definition", "Tooling > a node added to nvs_syntax::walk"]
@@ -526,26 +526,25 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 5 are done. Stage 6 has its outline, definition, hover, completion and `nvs fmt` halves, both Stage 6 checks pass, and `bun nv verify` is green.**
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 6 are done: both Stage 6 checks pass and `bun nv verify` is green. Stage 7 has not started.**
 
-- An owned enum is no `Stmt`, so `declared_type` misses it. `owned_enum_decl` (`crates/nvs-lsp/src/definition.rs`) finds it through its owner by the name span the symbol recorded, and `site_of`, `owned_cases` (completion) and hover's `owned_enum` read it from there. Its `///` card is on the `ClassMember`.
-- A bare name inside the owner goes through `class_at` (`definition.rs`) and `nvs_hir::owned_enum_in_scope`: `type_name_at` for a type, `owned_named` (completion) for a `Status::` access.
-- `nvs fmt` needed no code: `a_class_scoped_enum_is_laid_out_like_a_file_scope_one` passes on the walker node Stage 3 added.
-- The Stage 6 LSP check ran `bun nv suite lsp-test tests/lsp/`, which `nv suite` refuses. The goal file now runs `bun nv suite tests/lsp/`.
+- The language server reaches an owned enum through `owned_enum_decl` (`crates/nvs-lsp/src/definition.rs`), because an owned enum is no `Stmt`. The index reads both kinds of body through `declared_body` (`crates/nvs-lsp/src/index.rs`), so references find a case from `Order::Status::Draft` and from a bare `Status::Draft` inside the owner.
+- Semantic tokens and hints share one `enum_decl` walk for both declaration sites. The grammar needed no change: it has no class-body scope, so its `enum` rule matches inside a class (`editors/vscode/test/grammar/names.test.ts`).
+- Completion after `Order::Status::` in type position now offers the cases (`owner_written`, `crates/nvs-lsp/src/completion.rs`).
 
 Both rules stay `designed`. `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
 
 ### Next
 
-**Stage 6, the rest: semantic tokens, folding, hints and the grammar** (`rule:enums/class-scoped-enum`). One file set: `crates/nvs-lsp/src/semantic.rs`, `folding.rs`, `hints.rs`, `index.rs`, `editors/vscode/syntaxes/nvs.tmLanguage.json`, `tests/lsp/`.
+**Stage 7, the registry slice, alone** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). One file set: `crates/nvs-stdlib/src/registry.rs`, `crates/nvs-types/src/enums.rs`, `crates/nvs-lsp/src/stubs.rs`, a new `crates/nvs-stdlib/tests/enum_owners.rs`.
 
-- [ ] **Semantic tokens** colour an owned enum's name and its cases as a file-scope enum's: the member match at `crates/nvs-lsp/src/semantic.rs:790` has no `ClassMemberKind::Enum` arm.
-- [ ] **Folding and hints** descend into an owned enum: `crates/nvs-lsp/src/folding.rs:272` and `crates/nvs-lsp/src/hints.rs:249`. A multi-line owned enum folds as a file-scope one does. Write one `tests/lsp/folding/` and one `tests/lsp/semantic/` case. A new construct column owes a case for every request (the coverage-matrix trap).
-- [ ] **The index**: `crates/nvs-lsp/src/index.rs:833` and `:1169` call `declared_type` on every symbol, which misses an owned enum. Use `owned_enum_decl` there, and check references from both spellings.
-- [ ] **The grammar** colours `enum` inside a class body as the declaration rule at `editors/vscode/syntaxes/nvs.tmLanguage.json:108` does at file scope; check whether that rule is reached inside a class body. Then mark Stage 6 done.
+- [ ] **`CoreEnum` names its owner** (`crates/nvs-stdlib/src/registry.rs:3035`). A name such as `Core\Arr::Order` parses to the key `QName::member` builds, so `seed_core` (`crates/nvs-types/src/enums.rs:194`) may need no change; check that first. `registry::core_enum` (`crates/nvs-stdlib/src/registry.rs:3977`) finds the owned spelling.
+- [ ] **The stub tree** writes an owned enum inside its class's stub and no file of its own (`crates/nvs-lsp/src/stubs.rs:129`, `enum_stub` at `:556`). Pinned by `stubs::an_owned_core_enum_is_written_inside_its_class_stub`.
+- [ ] **`crates/nvs-stdlib/tests/enum_owners.rs`**, its three tests as the Stage 7 check names them, reading `ENUMS` and `CLASSES` (`crates/nvs-stdlib/src/registry.rs:3035`). It is red until the renames land, so commit it with the first rename slice or list the not-yet-moved enums in it as a shrinking set.
 
 ### Backlog
 
-- Stages 7 and 8: every `Core` enum, then every built-in component enum, moved by the rename table in `rule:enums/an-enum-lives-in-the-class-that-uses-it`. A registry name `Core\Arr::Order` parses to the same key `QName::member` builds.
-- Completion of a case after `Order::Status::` in **type** position: `owner_written` (`crates/nvs-lsp/src/completion.rs`) reads one name before `::`, so it sees `Status` alone. Value position works.
+- Stage 7's renames, one namespace per slice, by the table in § *Standing decisions*; `bun nv proofs --group types:enum` shows what a slice moved.
+- Stage 8: every built-in component enum (`crates/nvs-ext/src/manifest.rs`, `crates/nvs-types/src/ext_lib.rs`).
+- A bare `Status::` in **type** position inside the owner does not complete the cases. Value position works through `owned_named` (`crates/nvs-lsp/src/completion.rs`).
 - Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs (this goal's file).
