@@ -1,0 +1,36 @@
+--TEST--
+An enum declared in a class body is named `Shop\Order::Status` by `::class` from both spellings and by `Core\Reflect\EnumInfo`, the name a program sees — `rule:enums/reflection`, `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+namespace Shop;
+
+final class Order {
+    enum Status { Open, Paid = 5, Cancelled }
+
+    // Inside its owner the bare name folds to the same string.
+    public static function inside(): string {
+        return Status::class;
+    }
+}
+
+echo Order::Status::class, "\n";
+echo Order::inside(), "\n";
+
+// `rule:enums/reflection` finds the enum by that name and answers it back.
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Order::Status::class);
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+    echo $info->name(), "\n";
+    echo Core\Arr::count($info->cases()), "\n";
+    echo $info->valueOf("Paid"), "\n";
+}
+
+// An owner of the same short name in another position is a class, not the enum.
+echo Order::class, "\n";
+--EXPECT--
+Shop\Order::Status
+Shop\Order::Status
+Shop\Order::Status
+3
+5
+Shop\Order

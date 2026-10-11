@@ -1,0 +1,52 @@
+--TEST--
+A capture declared at an enum its controller's body declares matches on the same spelling a file-scope enum's does, from the bare and the owner-qualified parameter type, and a link writes its case — `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`, `rule:enums/class-scoped-enum`
+--FILE--
+<?nvs
+namespace Shop;
+
+use RuntimeError;
+
+// `Lang` writes both values, so a segment is the integer. `Shelf` counts its
+// cases, so a segment is the case name. One parameter names its enum bare, the
+// other through its owner.
+final class Docs {
+    enum Lang: uint { De = 7, En = 9 }
+    enum Shelf { New, Sale }
+
+    #[Core\Route(path: "/p/{lang}", method: Core\Http\Method::Get, name: "Docs::page")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(Lang $lang): string { return "page"; }
+
+    #[Core\Route(path: "/s/{shelf}", method: Core\Http\Method::Get, name: "Docs::shelf")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function shelf(Docs::Shelf $shelf): string { return "shelf"; }
+}
+
+try {
+    var $written = Core\Test::request(Core\Http\Method::Get, "/p/7");
+    var $outside = Core\Test::request(Core\Http\Method::Get, "/p/De");
+    var $counted = Core\Test::request(Core\Http\Method::Get, "/s/Sale");
+    echo "written ", $written->body(), "\n";
+    echo "outside ", $outside->body(), "\n";
+    echo "counted ", $counted->body(), "\n";
+    echo "link ", Core\Router::url("Docs::page", ["lang" => Docs::Lang::En]), "\n";
+    echo "link ", Core\Router::url("Docs::shelf", ["shelf" => Docs::Shelf::Sale]), "\n";
+} catch (RuntimeError $refused) {
+    // The child, run once per request above (`rule:testing/in-process-request`).
+    // The capture is the case's own constant: `7` for `Lang::De`, `1` for
+    // `Shelf::Sale`.
+    var $matched = Core\Request::route();
+    if ($matched == null) {
+        echo "no match";
+    } else {
+        echo $matched->name() ?? "unnamed",
+             " lang=", $matched->param("lang") ?? "-",
+             " shelf=", $matched->param("shelf") ?? "-";
+    }
+}
+--EXPECT--
+written Docs::page lang=7 shelf=-
+outside no match
+counted Docs::shelf lang=- shelf=1
+link /p/9
+link /s/Sale

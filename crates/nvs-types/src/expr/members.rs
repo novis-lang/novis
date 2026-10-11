@@ -1018,6 +1018,16 @@ pub(crate) fn check_class_name_const(
     // precisely because it is not name-shaped — the four name-shaped sides
     // return above or resolve below, so the `E0319`/`E0321`-on-every-`Foo::`
     // problem this function's docs describe cannot arise.
+    // `Order::Status::class` names the enum `Order`'s body declares
+    // (`rule:enums/class-scoped-enum`), and folds to the name a program sees,
+    // `Shop\Order::Status` (`rule:enums/reflection`).
+    if matches!(class.kind, ExprKind::ClassConstAccess { .. })
+        && let Some(qname) = resolve_class_expr(class, ctx, env)
+    {
+        let value = crate::defaults::ConstArg::Str(qname.to_string());
+        env.exprs.record(expr.span, ExprInfo::CoreConst { value });
+        return env.interner.string();
+    }
     if !matches!(
         class.kind,
         ExprKind::SelfExpr | ExprKind::StaticExpr | ExprKind::ParentExpr | ExprKind::ConstFetch(_)
