@@ -28,7 +28,7 @@ stages:
         shapes: [A rule fragment]
   - id: 5
     title: the feature proofs
-    status: open
+    status: done
     extra:
       context:
         rules: [testing/feature-proofs, testing/one-slice-is-one-feature]
@@ -301,19 +301,27 @@ One file set: `docs/reference/tools/10-cli.md` (a new `# nvs code` section after
 
 ### State
 
-**Stage 4 is done and its check is green.** `PROTOCOL` (`crates/nvs-cli/src/agent.rs:1206`) names `nvs code refs`, `show`, `outline`, `impls` and `types` for questions about the project, instead of grep, and every `nvs code` command's `--json`. The text changed, so an unedited stanza or adapter from an earlier `init` reads as outdated through its fingerprint and the next `init` rewrites it; no `LEGACY_*` was added. `crates/nvs-cli/tests/agent.rs` holds the three tests the check names. The index already listed `command: nvs code` and each verb from the `clap` walk, and the new test pins it. `tooling/an-agent-asks-the-binary` has a closing paragraph on `nvs code`, and `docs/reference/tools/50-agents.md`'s summary, keywords, `init` intro and stanza sketch name it (Stage 0's Stage 4 items). No primer section names `nvs code`: the primer says so only once a chapter's `<!-- primer -->` section does.
+**Stage 5 is done, and every check of the goal is green; the goal is claimed reached.**
+`# nvs code` is a section of `docs/reference/tools/10-cli.md` after `# nvs ast`, which puts
+`tools:cli/nvs-code` on the roster, and `docs/novis.md` is regenerated from it. Its proofs:
+`docs/examples/tools/cli/nvs-code/` (`about.md`, an example of two classes and an interface that shows
+the `refs` and `impls` lines) and `tests/hostile/tools/cli/nvs-code/` (a self-requiring file whose
+`///` comments carry escape and bell bytes and a fake `refs` line). Every test in
+`crates/nvs-cli/tests/code.rs` carries `// covers: tools:cli/nvs-code`, and
+`a_doc_comment_that_writes_to_the_terminal_is_printed_as_text` runs `show` and `outline` over the
+attack file.
 
-Stage 3, for the record of where things are: `nvs code` is `crates/nvs-cli/src/code.rs`, dispatched from `CodeCommand` in `crates/nvs-cli/src/main.rs`, reading `nvs_lsp::workspace` through `nvs_lsp::query`; the rule is `tooling/nvs-code-answers-about-the-project`. Nothing measured the cost of a call on a large project yet. The fixtures are five files.
+The Stage 0 search found one untrue sentence, the `nvs agent init` help in
+`crates/nvs-cli/src/main.rs`, which now names the `nvs code` commands. The `six readers` hits in
+`crates/nvs-lsp/tests/index.rs` stay true, because `nvs_lsp::query` calls those same readers.
+`bun nv verify --doc` and `bun nv owners --closes nvs-code` are clean.
 
 ### Next
 
-**Stage 5: the feature proofs**, one file set: `docs/reference/tools/10-cli.md`, `docs/examples/tools/cli/nvs-code/`, `tests/hostile/tools/cli/nvs-code/`, `docs/novis.md` (generated).
-
-- [ ] **The section** — a `# nvs code` section in `docs/reference/tools/10-cli.md` after `# nvs ast` (`docs/reference/tools/10-cli.md:584`, before `# The compile cache` at `:614`), which puts `tools:cli/nvs-code` on the roster (`rule:testing/feature-proofs`). Then `bun nv reference --no-examples`. Tag `crates/nvs-cli/tests/code.rs`'s tests `// covers: tools:cli/nvs-code`.
-- [ ] **The proofs** — `bun nv proofs --id 'tools:cli/nvs-code'` lists what is owed: `about.md`, the example (two classes and an interface, `refs` and `impls`) and the attack (escape bytes in a `///` comment, a self-require), as § *5. the feature proofs* says (`docs/goals/nvs-code.md:281`). Every comment follows AGENTS.md § *Text an end user reads*; `bun nv proofs --comments` on both trees.
-- [ ] **The Stage 0 search** — `git grep -n -E "two (thin )?clients|six readers|four commands|nothing more" -- docs/rules docs/reference crates/nvs-cli crates/nvs-lsp`, each hit read and made true (§ *Stage 0*, `docs/goals/nvs-code.md:133`), then the goal-end gates (`bun nv verify --doc`, `bun nv owners --closes nvs-code`).
+**Nothing is left in this goal.** The driver retires it, and the chain moves to `env-context`.
 
 ### Backlog
 
-- Optional: a `<!-- primer -->` mark on the new `# nvs code` section, so `nvs agent primer` names it too (`rule:tooling/a-primer-claim-is-executed`).
+- Optional: a `<!-- primer -->` mark on `# nvs code` in `docs/reference/tools/10-cli.md`, so `nvs agent primer` names it (`rule:tooling/a-primer-claim-is-executed`).
 - A timing of one call on a large project. A call too slow for an agent loop is a gap under `data/gaps/` naming `nvs-lsp` and `nvs code`, never a cache (`rule:tooling/nvs-code-answers-about-the-project`).
+- `nvs code show` prints a doc comment's lines unindented, so a line written like a `refs` line reads like one in the text output. The JSON keeps it inside `doc` (`crates/nvs-cli/src/code.rs`).
