@@ -33,6 +33,8 @@ other processing instruction stay markup's own.
 **Declined:**
 - **Gating a request on the client's `triggerCharacter`.** The text before the cursor is what says whether
   a `:` finished `::`, and it reads the same for every client.
+- **Turning on `editor.quickSuggestions` for strings in the extension**, so a path list opens without a
+  trigger. It opens the editor's word list inside every string in the file, not only in path literals.
 - **Deciding `<?` in the client**, as a test on the text before the cursor. It would be a second reading of
   the lexer's open tags in a package that holds no language logic
   (`rule:ide/one-server-two-thin-clients`).

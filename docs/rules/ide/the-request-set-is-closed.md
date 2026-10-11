@@ -22,6 +22,27 @@ literal at a parameter the registry marks `CoreTy::Path`, at one a program marks
 `Core` shape field with the same mark (`rule:programs/relative-paths-resolve-from-their-file`); a
 class-name argument is one at a parameter marked `CoreTy::ClassName`. The mark is read off the call the
 checker resolved, so a literal at any other parameter is ordinary text.
+
+Each of those answers reads what the compiler already resolved, never a second copy of its rule. An
+`autoload` literal's link comes from `nvs_hir::autoload::Site::directories`, which pairs each literal's
+span with the directory `AutoloadMap::build`'s own functions resolve it to and keeps only one that
+exists; a missing root and a malformed glob get no link. A path argument's link reads the checker's own
+join (`ExprTypeTable::path_literal`) for a relative literal and the text itself for an absolute one, so
+a relative literal the checker left alone, its first segment holding a `:`, has none; a path that names
+nothing on disk has none either, since the program may be about to create it. A directory link is a
+`file:` URI ending in `/`, which is what a URI already means by a directory, so the server stays on the
+standard protocol; the VS Code client rewrites such a target into its `revealInExplorer` command, and
+another client opens it however it opens a directory. An `autoload` prefix hovers as the namespace it
+maps, a `{..}` segment shown as the directory name the map uses, and its roots in probe order with a
+missing one marked; it has no `definition`, because a namespace has no declaration. The string of `as
+class<T>` and a class-name argument hover and jump as the class whose whole name the text is, exactly
+as written, because the run-time lookup resolves no `use` line, so `'\App\User'` and a short name
+answer nothing.
+
+- **Memory:** one span per `autoload` literal and per prefix, and one `Vec` of parameter marks per
+  resolved call, per compile, the `Vec` not allocated for a method that marks nothing. In the server,
+  one existence test per literal, root or path argument per link or hover request. Nothing at run time.
+
 M4B's non-standard request is `nvs/redactions`
 (`rule:ide/redaction-ranges-come-from-the-server`), non-standard because LSP has no shape for "do not
 show this to the room".
@@ -98,3 +119,11 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
   is.
 - **Call hierarchy.** It needs a second index of call-site edges that nothing else reads
   (`rule:ide/five-features-are-one-reference-index`).
+- **Resolving an `autoload` root, or joining a path argument's text, in `crates/nvs-lsp`.** Each is a
+  second copy of the compiler's resolution rule, and could disagree with the path the program opens.
+- **Marking a directory link in `data` or `tooltip`.** Both are free-form fields a client has to know
+  about.
+- **`definition` on an `autoload` prefix, to its first root.** A `Location` names a file and a range, and
+  a directory is neither; the link already gives the same ctrl-click.
+- **Resolving the string of `as class<T>` through the file's `use` lines.** The conversion does not, so
+  the editor would jump to a class the program then fails to find.

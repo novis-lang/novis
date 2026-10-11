@@ -453,6 +453,27 @@ literal at a parameter the registry marks `CoreTy::Path`, at one a program marks
 `Core` shape field with the same mark ([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)); a
 class-name argument is one at a parameter marked `CoreTy::ClassName`. The mark is read off the call the
 checker resolved, so a literal at any other parameter is ordinary text.
+
+Each of those answers reads what the compiler already resolved, never a second copy of its rule. An
+`autoload` literal's link comes from `nvs_hir::autoload::Site::directories`, which pairs each literal's
+span with the directory `AutoloadMap::build`'s own functions resolve it to and keeps only one that
+exists; a missing root and a malformed glob get no link. A path argument's link reads the checker's own
+join (`ExprTypeTable::path_literal`) for a relative literal and the text itself for an absolute one, so
+a relative literal the checker left alone, its first segment holding a `:`, has none; a path that names
+nothing on disk has none either, since the program may be about to create it. A directory link is a
+`file:` URI ending in `/`, which is what a URI already means by a directory, so the server stays on the
+standard protocol; the VS Code client rewrites such a target into its `revealInExplorer` command, and
+another client opens it however it opens a directory. An `autoload` prefix hovers as the namespace it
+maps, a `{..}` segment shown as the directory name the map uses, and its roots in probe order with a
+missing one marked; it has no `definition`, because a namespace has no declaration. The string of `as
+class<T>` and a class-name argument hover and jump as the class whose whole name the text is, exactly
+as written, because the run-time lookup resolves no `use` line, so `'\App\User'` and a short name
+answer nothing.
+
+- **Memory:** one span per `autoload` literal and per prefix, and one `Vec` of parameter marks per
+  resolved call, per compile, the `Vec` not allocated for a method that marks nothing. In the server,
+  one existence test per literal, root or path argument per link or hover request. Nothing at run time.
+
 M4B's non-standard request is `nvs/redactions`
 ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)), non-standard because LSP has no shape for "do not
 show this to the room".
@@ -529,8 +550,16 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
   is.
 - **Call hierarchy.** It needs a second index of call-site edges that nothing else reads
   ([`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)).
+- **Resolving an `autoload` root, or joining a path argument's text, in `crates/nvs-lsp`.** Each is a
+  second copy of the compiler's resolution rule, and could disagree with the path the program opens.
+- **Marking a directory link in `data` or `tooltip`.** Both are free-form fields a client has to know
+  about.
+- **`definition` on an `autoload` prefix, to its first root.** A `Location` names a file and a range, and
+  a directory is neither; the link already gives the same ctrl-click.
+- **Resolving the string of `as class<T>` through the file's `use` lines.** The conversion does not, so
+  the editor would jump to a class the program then fails to find.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0268](../decisions/0268.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -1311,6 +1340,25 @@ those values, read off the parameter types the checker records on the call it re
 every attribute's anonymous object, whose shape is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
+A path list is one directory: the text between the opening quote and the cursor is split at its last
+separator, the part before it is joined to the declaring file's directory (the base `require` and
+`autoload` resolve against) or replaces it when absolute, and that directory is listed through
+`nvs_hir::autoload::entries_of`, so a name offered is one resolution would find. Names are offered as the
+disk spells them ([`programs/path-case`](programs.md#programs-path-case)), a name starting with `.` is hidden, and an item replaces
+only the segment after the last separator. A directory item writes a `/` and opens the list again. A
+`require` offers directories and `.nvs` files, an `autoload` literal directories only, and a path
+argument every file, since a path parameter takes a file of any kind. Nothing is offered once the
+directory part holds a `*`. An `autoload` prefix offers namespaces from the workspace index as well as
+the analysis, `Core` excluded, because a prefix usually maps code nothing loads yet. The string of `as
+class<T>` offers each class and interface in the analysis that `nvs_hir::hierarchy::implements_interface`
+says is a `T`, `T` included, and not a class only an autoload root could load, because the run-time
+conversion compares whole names among the classes the program declares and cannot find that one either.
+A name literal's item is a whole name replacing all the text after the opening quote: a `\` typed just
+before the closing quote escapes it, so no list can be answered at that keystroke, and a whole name
+never needs it. `Core\Test::assertThrows` is the one member whose class-name parameter expects an
+error, named in a one-row table in `crate::arguments`, since the mark says only that the text is a class
+name.
+
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
 properties, already reached as members), service-container and facade resolution (constructor injection
 is resolved while compiling, so go-to-definition already goes there), and view-name completion
@@ -1358,8 +1406,14 @@ a running program, which is why no completion source fetches anything.
 - **A PHP name that resolves while the program runs, as an alias of a `Core` member.** It is a second
   name for one member ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)), and it keeps PHP names in
   committed source for good.
+- **A `std::fs` listing in `completion.rs`.** It would bypass the test that keeps every completion
+  source on a table the compiler builds, and could disagree with what resolution finds.
+- **Offering every workspace class for the string of `as class<T>`.** A class the program never loads
+  is one the conversion throws for.
+- **A bound in the class-name mark, so `assertThrows` would carry `Throwable` in the registry.** One
+  member needs it, and a new mark field would be read by nothing but the editor.
 
-<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
+<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
 
 <a id="ide-completion-files-offer-values-at-named-parameters"></a>
 
@@ -1514,11 +1568,13 @@ other processing instruction stay markup's own.
 **Declined:**
 - **Gating a request on the client's `triggerCharacter`.** The text before the cursor is what says whether
   a `:` finished `::`, and it reads the same for every client.
+- **Turning on `editor.quickSuggestions` for strings in the extension**, so a path list opens without a
+  trigger. It opens the editor's word list inside every string in the file, not only in path literals.
 - **Deciding `<?` in the client**, as a test on the text before the cursor. It would be a second reading of
   the lexer's open tags in a package that holds no language logic
   ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
 
-<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
+<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
 
 <a id="ide-an-accepted-type-writes-what-follows-it"></a>
 
