@@ -582,7 +582,7 @@ diagnostic the text renderer prints, with the same codes and spans.
 `nvs check` on the command line analyses what it is given, as it always has — the scope setting of
 [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace) is the editor's, not the CLI's.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0172](../decisions/0172.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen).</sub>
 
 <a id="ide-check-scope-defaults-to-the-workspace"></a>
 
@@ -2189,7 +2189,12 @@ tables: the binary answers, and the client renders. A client that scanned the wo
 classes itself would be a second implementation of the `#[Test]` table, free to disagree with the one
 that runs.
 
-<sub>See also [`testing/report-formats`](testing.md#testing-report-formats), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0172](../decisions/0172.md).</sub>
+**Declined:**
+- **Asking the language server where a test is declared.** It is the client reconstructing what the
+  CLI's document should carry, and a client feature whose CLI surface is missing is the CLI's to fix
+  ([`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency)).
+
+<sub>See also [`testing/report-formats`](testing.md#testing-report-formats), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-the-ast-panel-shells-out-to-the-cli"></a>
 

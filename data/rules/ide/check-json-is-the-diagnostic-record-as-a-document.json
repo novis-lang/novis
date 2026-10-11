@@ -1,9 +1,7 @@
 {
   "title": "`nvs check --json` writes the same diagnostic records the terminal renderer prints, as one `schemaVersion: 1` document",
   "status": "shipped",
-  "because": [
-    "0172"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/diagnostic-record",
     "errors/renderings",

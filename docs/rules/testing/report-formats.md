@@ -28,3 +28,12 @@ document carries one `{class, method, file, line, column}` per call under `liste
 summary, since a summary of zeros is a report of a run that did not happen and a `tests` array missing
 its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
 `--update` and a `.nvst` tree are each refused beside it rather than ignored.
+
+- **Memory:** the compiler holds one span per `#[Test]` row for the life of a compile, on a table that
+  exists only for a program that declares tests. A run holds one resolved path, line and column per
+  reported case.
+
+**Declined:**
+- **A second document for discovery, with its own version.** It is two schemas to freeze and two
+  consumers to write, and a location spelled twice. The version number exists so one document can
+  grow.

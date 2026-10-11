@@ -20,3 +20,8 @@ This is the shape `rule:ide/the-ast-panel-shells-out-to-the-cli` already gives a
 tables: the binary answers, and the client renders. A client that scanned the workspace for test
 classes itself would be a second implementation of the `#[Test]` table, free to disagree with the one
 that runs.
+
+**Declined:**
+- **Asking the language server where a test is declared.** It is the client reconstructing what the
+  CLI's document should carry, and a client feature whose CLI surface is missing is the CLI's to fix
+  (`rule:ide/every-feature-is-staged-behind-its-dependency`).

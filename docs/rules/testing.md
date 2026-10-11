@@ -41,7 +41,7 @@ so a single `use Core\Test;` places both.
 - **A `test*` naming convention.** The compiler reads no meaning out of spelling
   ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)), and a method misspelled `tsetFoo` would silently be nothing.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0172](../decisions/0172.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict).</sub>
 
 <a id="testing-tests-never-reach-a-build"></a>
 
@@ -625,7 +625,16 @@ summary, since a summary of zeros is a report of a run that did not happen and a
 its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
 `--update` and a `.nvst` tree are each refused beside it rather than ignored.
 
-<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli). Decided in [0172](../decisions/0172.md).</sub>
+- **Memory:** the compiler holds one span per `#[Test]` row for the life of a compile, on a table that
+  exists only for a program that declares tests. A run holds one resolved path, line and column per
+  reported case.
+
+**Declined:**
+- **A second document for discovery, with its own version.** It is two schemas to freeze and two
+  consumers to write, and a location spelled twice. The version number exists so one document can
+  grow.
+
+<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli).</sub>
 
 <a id="testing-coverage-report"></a>
 
