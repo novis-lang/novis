@@ -1,9 +1,7 @@
 {
   "title": "The only way out of `tainted` is a `Core` member whose contract names the one sink it is safe for",
   "status": "shipped",
-  "because": [
-    "0248"
-  ],
+  "because": [],
   "seeAlso": [
     "security/assert-trusted",
     "security/launderer-answers-a-carrier",
@@ -14,6 +12,7 @@
     "tests/conformance/core/a-launder-row-hands-a-tainted-value-to-the-sink-it-names.nvst",
     "tests/conformance/core/html-escape-launders-a-tainted-value-and-writes-all-five-characters.nvst",
     "tests/conformance/core/path-from-cwd-gives-a-path-core-io-read-accepts.nvst",
-    "tests/conformance/reject/path-a-tainted-path-not-from-cwd-does-not-reach-io-read.nvst"
+    "tests/conformance/reject/path-a-tainted-path-not-from-cwd-does-not-reach-io-read.nvst",
+    "crates/nvs-stdlib/src/path.rs"
   ]
 }

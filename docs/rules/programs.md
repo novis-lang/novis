@@ -656,7 +656,7 @@ a path door through it ([`security/launderers-are-sink-named`](security.md#secur
 spawn, a queued job, a scheduled entry and a log handler alike. With every path absolute at the check, a relative grant in `nvs.toml`, which resolves against
 that file's folder, names the same files as a string literal in a program beside it.
 
-<sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0241](../decisions/0241.md), [0245](../decisions/0245.md), [0248](../decisions/0248.md), [0249](../decisions/0249.md).</sub>
+<sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0241](../decisions/0241.md), [0245](../decisions/0245.md), [0249](../decisions/0249.md).</sub>
 
 <a id="programs-program-id"></a>
 

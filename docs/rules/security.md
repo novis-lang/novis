@@ -1516,13 +1516,25 @@ command line. It throws while a request is being answered, so request data never
 The user who typed the path can already open any file the process can, and the `fs` grants still
 bound every file its answer names. A request that opens a file named by its own data keeps
 `Core\IO::within($base, $path)`. `fromCwd` removes `tainted` and nothing else: a `secret` argument
-does not compile, as at every launderer.
+does not compile, as at every launderer. A queued job and a spawned isolate answer no request, so
+`fromCwd` runs there whatever text they were handed, and that isolate's `fs` grants bound the file its
+answer names. Without the exception, the one use the member exists for, a command-line tool opening
+the file its user named, needs `Core\Taint::assertTrusted` at every call.
 
 Which return type a launderer takes is a predicate rather than a per-member choice
 ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)). Where no built-in launderer fits, the way out is
 [`security/assert-trusted`](security.md#security-assert-trusted) — written, greppable, and carrying a reason — and never a silent cast.
 
-<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0248](../decisions/0248.md).</sub>
+**Declined:**
+
+- **A new `CoreTy` for "a path from the command line".** It marks the same fact the qualifier already
+  marks, and every path door would have to accept the new type.
+- **Keeping `fromCwd`'s answer `tainted` and documenting `Core\Taint::assertTrusted`.** The greppable
+  escape hatch becomes a line every command-line tool writes, so it stops marking the unusual call.
+- **Laundering `Core\Cli::arguments` itself.** An argument is also a shell word, an SQL value and HTML
+  text, and a launderer names one sink.
+
+<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
 <a id="security-launderer-answers-a-carrier"></a>
 
