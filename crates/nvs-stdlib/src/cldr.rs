@@ -1600,7 +1600,7 @@ fn name_index(
 pub(crate) const NAME: &str = r"Core\Cldr";
 
 /// [`PLURAL_CATEGORY`]'s name, spelled once.
-pub(crate) const PLURAL_CATEGORY_NAME: &str = r"Core\Cldr\PluralCategory";
+pub(crate) const PLURAL_CATEGORY_NAME: &str = r"Core\Cldr::PluralCategory";
 
 /// The cardinal member's name, as its own refusals spell it.
 const PLURAL_MEMBER: &str = r"Core\Cldr::pluralCategory";
@@ -2942,7 +2942,7 @@ fn operands_at(args: &[Value], slot: usize, member: &str) -> Result<Operands, Fa
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cldr::pluralCategory(int|float|decimal $count, string $locale):
-    /// Cldr\PluralCategory` — `rule:programs/framework-core-half`'s row, and the whole of the class.
+    /// Cldr::PluralCategory` — `rule:programs/framework-core-half`'s row, and the whole of the class.
     ///
     /// The count is parameter 1 because it is what the member classifies and
     /// the locale is the rule it is classified under — the same order
@@ -2975,7 +2975,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Cldr::ordinalCategory(int|float|decimal $count, string $locale):
-    /// Cldr\PluralCategory` — the second table, over the first member's shape.
+    /// Cldr::PluralCategory` — the second table, over the first member's shape.
     ///
     /// Everything about the signature is `pluralCategory`'s and for its
     /// reasons: the count first, the locale `Qual::Neutral`, and the same six

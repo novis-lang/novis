@@ -5,6 +5,6 @@ A program uses the category to pick the right word for a number. English uses on
 `One`, like 1. Every language has `Other`, so a program always has a word for it.
 
 `Icu::pluralCategories` returns this enum. `PluralRules::cardinal` and `PluralRules::ordinal` return
-the same cases as `Core\Cldr\PluralCategory`, which most programs use.
+the same cases as `Core\Cldr::PluralCategory`, which most programs use.
 
 **Good to know:** the category is not the number. `One` in Russian also covers 21, 31 and 101.

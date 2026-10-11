@@ -9,7 +9,7 @@
 array<int> $places = [1, 2, 3, 4, 11, 12, 13, 21];
 foreach ($places as int $place) {
     var $form = Core\Cldr::ordinalCategory($place, "en");
-    string $name = $form == Core\Cldr\PluralCategory::One ? "one" : ($form == Core\Cldr\PluralCategory::Two ? "two" : ($form == Core\Cldr\PluralCategory::Few ? "few" : "other"));
+    string $name = $form == Core\Cldr::PluralCategory::One ? "one" : ($form == Core\Cldr::PluralCategory::Two ? "two" : ($form == Core\Cldr::PluralCategory::Few ? "few" : "other"));
     echo $place, ": ", $name, "\n";
 }
 
@@ -19,7 +19,7 @@ foreach ($places as int $place) {
 array<int> $welsh = [0, 1, 2, 3, 5, 10];
 foreach ($welsh as int $place) {
     var $welshForm = Core\Cldr::ordinalCategory($place, "cy");
-    string $welshName = $welshForm == Core\Cldr\PluralCategory::Zero ? "zero" : ($welshForm == Core\Cldr\PluralCategory::One ? "one" : ($welshForm == Core\Cldr\PluralCategory::Two ? "two" : ($welshForm == Core\Cldr\PluralCategory::Few ? "few" : ($welshForm == Core\Cldr\PluralCategory::Many ? "many" : "other"))));
+    string $welshName = $welshForm == Core\Cldr::PluralCategory::Zero ? "zero" : ($welshForm == Core\Cldr::PluralCategory::One ? "one" : ($welshForm == Core\Cldr::PluralCategory::Two ? "two" : ($welshForm == Core\Cldr::PluralCategory::Few ? "few" : ($welshForm == Core\Cldr::PluralCategory::Many ? "many" : "other"))));
     echo "cy ", $place, ": ", $welshName, "\n";
 }
 
@@ -28,14 +28,14 @@ foreach ($welsh as int $place) {
 array<int> $italian = [8, 11, 80, 800, 8000];
 int $marked = 0;
 foreach ($italian as int $place) {
-    if (Core\Cldr::ordinalCategory($place, "it") == Core\Cldr\PluralCategory::Many) {
+    if (Core\Cldr::ordinalCategory($place, "it") == Core\Cldr::PluralCategory::Many) {
         $marked = $marked + 1;
     }
 }
 echo "it marked: ", $marked, " of 5\n";
 
 // Only the language subtag is read, exactly as the plural member reads it.
-echo "en-GB 3: ", Core\Cldr::ordinalCategory(3, "en-GB") == Core\Cldr\PluralCategory::Few ? "few" : "other", "\n";
+echo "en-GB 3: ", Core\Cldr::ordinalCategory(3, "en-GB") == Core\Cldr::PluralCategory::Few ? "few" : "other", "\n";
 --EXPECT--
 1: one
 2: two

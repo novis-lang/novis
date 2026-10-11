@@ -6,9 +6,9 @@
 class Ru {
     public static function word(int $count): string {
         return match (Core\Cldr::pluralCategory($count, "ru")) {
-            Core\Cldr\PluralCategory::One => "файл",
-            Core\Cldr\PluralCategory::Few => "файла",
-            Core\Cldr\PluralCategory::Many => "файлов",
+            Core\Cldr::PluralCategory::One => "файл",
+            Core\Cldr::PluralCategory::Few => "файла",
+            Core\Cldr::PluralCategory::Many => "файлов",
             default => "файла",
         };
     }

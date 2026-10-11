@@ -25,8 +25,8 @@ try {
 
 // The refusal is about the roster and not about the member: a language the
 // table does carry still answers, and answers its own rules.
-echo "pl 2: ", Core\Cldr::pluralCategory(2, "pl") == Core\Cldr\PluralCategory::Few ? "few" : "other", "\n";
-echo "pl 5: ", Core\Cldr::pluralCategory(5, "pl") == Core\Cldr\PluralCategory::Many ? "many" : "other", "\n";
+echo "pl 2: ", Core\Cldr::pluralCategory(2, "pl") == Core\Cldr::PluralCategory::Few ? "few" : "other", "\n";
+echo "pl 5: ", Core\Cldr::pluralCategory(5, "pl") == Core\Cldr::PluralCategory::Many ? "many" : "other", "\n";
 --EXPECT--
 Core\Cldr::pluralCategory carries no plural rules for the language `tlh`: a language is never given another one's rules, because a catalog written against the wrong forms reads correctly for one count and wrongly for the rest
 Core\Cldr::pluralCategory read no language subtag from the locale `-GB`: a tag begins with letters

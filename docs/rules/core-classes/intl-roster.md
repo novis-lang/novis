@@ -7,7 +7,7 @@ source over one manifest class, `Novis\Intl\Icu`, whose static methods are the e
 |---|---|
 | `Collator` | `sort`, `sortKeys` — the strings in the locale's order, or one byte key per string that orders the same way |
 | `NumberFormat` | `decimal`, `percent`, `currency`, `compact` |
-| `PluralRules` | `cardinal`, `ordinal` — each returns `Core\Cldr\PluralCategory` |
+| `PluralRules` | `cardinal`, `ordinal` — each returns `Core\Cldr::PluralCategory` |
 | `DateFormat` | `dateTimes`, `dates`, `times` — over `Core\Time\DateTime`, `Date` and `TimeOfDay` |
 | `RelativeTime` | `format` — a count and a `TimeUnit`, negative in the past |
 | `ListFormat` | `join` — "and", "or" and unit lists |

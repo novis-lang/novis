@@ -9,4 +9,4 @@ each number, in the same order.
 
 **Good to know:** most programs do not call `Icu::pluralCategories` directly. `PluralRules::cardinal`
 and `PluralRules::ordinal` call it, take `int`, `float` and `decimal` values, and return
-`Core\Cldr\PluralCategory` cases.
+`Core\Cldr::PluralCategory` cases.

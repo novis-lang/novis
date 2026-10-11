@@ -10,7 +10,7 @@ array<string> $unmarked = ["de", "ja", "pl", "zu"];
 foreach ($unmarked as string $locale) {
     int $others = 0;
     for (int $n = 1; $n <= 8; $n = $n + 1) {
-        if (Core\Cldr::ordinalCategory($n, $locale) == Core\Cldr\PluralCategory::Other) {
+        if (Core\Cldr::ordinalCategory($n, $locale) == Core\Cldr::PluralCategory::Other) {
             $others = $others + 1;
         }
     }

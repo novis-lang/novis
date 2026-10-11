@@ -5,7 +5,7 @@
 class Inbox {
     public static function word(int $count): string {
         return match (Core\Cldr::pluralCategory($count, "en")) {
-            Core\Cldr\PluralCategory::One => "message",
+            Core\Cldr::PluralCategory::One => "message",
             default => "messages",
         };
     }

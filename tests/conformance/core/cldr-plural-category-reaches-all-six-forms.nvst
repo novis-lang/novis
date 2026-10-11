@@ -1,8 +1,8 @@
 --TEST--
-`Core\Cldr\PluralCategory`'s six cases are all reachable, and Welsh is the language that uses every one of them — `rule:programs/framework-core-half`, `rule:enums/declaration`
+`Core\Cldr::PluralCategory`'s six cases are all reachable, and Welsh is the language that uses every one of them — `rule:programs/framework-core-half`, `rule:enums/declaration`
 --FILE--
 <?nvs
-// covers: Core\Cldr\PluralCategory
+// covers: Core\Cldr::PluralCategory
 //
 // The six case names are CLDR's labels for a language's forms, not amounts:
 // `Many` is not "a lot". Welsh is the clearest statement of that — it marks
@@ -11,12 +11,12 @@
 class Form {
     public static function of(int $count): string {
         return match (Core\Cldr::pluralCategory($count, "cy")) {
-            Core\Cldr\PluralCategory::Zero => "zero",
-            Core\Cldr\PluralCategory::One => "one",
-            Core\Cldr\PluralCategory::Two => "two",
-            Core\Cldr\PluralCategory::Few => "few",
-            Core\Cldr\PluralCategory::Many => "many",
-            Core\Cldr\PluralCategory::Other => "other",
+            Core\Cldr::PluralCategory::Zero => "zero",
+            Core\Cldr::PluralCategory::One => "one",
+            Core\Cldr::PluralCategory::Two => "two",
+            Core\Cldr::PluralCategory::Few => "few",
+            Core\Cldr::PluralCategory::Many => "many",
+            Core\Cldr::PluralCategory::Other => "other",
         };
     }
 }
@@ -40,7 +40,7 @@ echo "distinct: ", Core\Arr::count($seen), "\n";
 array<bool> $japanese = [];
 array<int> $wide = [0, 1, 2, 3, 6, 100];
 foreach ($wide as int $count) {
-    $japanese[Core\Cldr::pluralCategory($count, "ja") == Core\Cldr\PluralCategory::Other ? "other" : "else"] = true;
+    $japanese[Core\Cldr::pluralCategory($count, "ja") == Core\Cldr::PluralCategory::Other ? "other" : "else"] = true;
 }
 echo "ja distinct: ", Core\Arr::count($japanese), "\n";
 --EXPECT--

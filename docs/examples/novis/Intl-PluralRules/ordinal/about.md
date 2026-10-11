@@ -1,6 +1,6 @@
 Gives the category of each number as a place, such as first, second or third.
 
-`PluralRules::ordinal` returns one `Core\Cldr\PluralCategory` for each number, in the same order as
+`PluralRules::ordinal` returns one `Core\Cldr::PluralCategory` for each number, in the same order as
 the list. The category tells you which ending goes with the number. In English, `1` is `One` for
 "1st", `2` is `Two` for "2nd", `3` is `Few` for "3rd", and `4` is `Other` for "4th". `11` is `Other`,
 for "11th", and `22` is `Two`, for "22nd". The locale you pass decides the rules.

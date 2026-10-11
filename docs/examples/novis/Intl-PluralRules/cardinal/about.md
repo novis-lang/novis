@@ -1,6 +1,6 @@
 Gives the plural category of each number, so you can choose the right form of a word.
 
-`PluralRules::cardinal` returns one `Core\Cldr\PluralCategory` for each number, in the same order as
+`PluralRules::cardinal` returns one `Core\Cldr::PluralCategory` for each number, in the same order as
 the list. The category tells you which form of a word goes with the number, as in "1 file" and "2
 files". The locale you pass decides the rules. English has two forms: `One` and `Other`. Russian has
 four: `One`, `Few`, `Many` and `Other`.

@@ -6,12 +6,12 @@ class Catalog {
     // The six form names. A catalog keys its lines on these.
     public static function form(int $count, string $locale): string {
         return match (Core\Cldr::pluralCategory($count, $locale)) {
-            Core\Cldr\PluralCategory::Zero => "zero",
-            Core\Cldr\PluralCategory::One => "one",
-            Core\Cldr\PluralCategory::Two => "two",
-            Core\Cldr\PluralCategory::Few => "few",
-            Core\Cldr\PluralCategory::Many => "many",
-            Core\Cldr\PluralCategory::Other => "other",
+            Core\Cldr::PluralCategory::Zero => "zero",
+            Core\Cldr::PluralCategory::One => "one",
+            Core\Cldr::PluralCategory::Two => "two",
+            Core\Cldr::PluralCategory::Few => "few",
+            Core\Cldr::PluralCategory::Many => "many",
+            Core\Cldr::PluralCategory::Other => "other",
         };
     }
 

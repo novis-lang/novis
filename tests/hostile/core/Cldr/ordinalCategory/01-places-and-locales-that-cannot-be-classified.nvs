@@ -26,7 +26,7 @@ try {
 //    is read, so this must answer the form English uses for 1st.
 string $long = 'en-' . Core\Str::repeat('x', 1000000);
 echo 'step 3 answered ',
-    Core\Cldr::ordinalCategory(1, $long) == Core\Cldr\PluralCategory::One ? 'one' : 'another form',
+    Core\Cldr::ordinalCategory(1, $long) == Core\Cldr::PluralCategory::One ? 'one' : 'another form',
     "\n";
 
 // 4. A place that is not a finite number. It shows no digits to read, so this
@@ -52,17 +52,17 @@ try {
 //    reads the last two digits, and a number is read without its sign.
 int $top = 9223372036854775807;
 echo 'step 6 answered ',
-    Core\Cldr::ordinalCategory($top, 'en') == Core\Cldr\PluralCategory::Other ? 'other' : 'another form',
+    Core\Cldr::ordinalCategory($top, 'en') == Core\Cldr::PluralCategory::Other ? 'other' : 'another form',
     "\n";
 echo 'step 6 answered ',
-    Core\Cldr::ordinalCategory(-1, 'en') == Core\Cldr\PluralCategory::One ? 'one' : 'another form',
+    Core\Cldr::ordinalCategory(-1, 'en') == Core\Cldr::PluralCategory::One ? 'one' : 'another form',
     "\n";
 
 // 7. A place that shows a fraction. The rules are written over whole numbers,
 //    so this must answer `Other` rather than the form 1 takes.
 decimal $fraction = 1.5;
 echo 'step 7 answered ',
-    Core\Cldr::ordinalCategory($fraction, 'en') == Core\Cldr\PluralCategory::Other ? 'other' : 'another form',
+    Core\Cldr::ordinalCategory($fraction, 'en') == Core\Cldr::PluralCategory::Other ? 'other' : 'another form',
     "\n";
 
 // 8. Two hundred thousand calls over many languages. Each call must cost the
@@ -76,12 +76,12 @@ while ($i < 200000) {
     // The language of each call is chosen by the answer before it, so no call
     // can be left out.
     uint $step = 1;
-    if ($form == Core\Cldr\PluralCategory::Other) {
+    if ($form == Core\Cldr::PluralCategory::Other) {
         $step = 3;
     }
     $total = $total + $step;
     $i = $i + 1;
 }
 echo 'step 8 then answered ',
-    Core\Cldr::ordinalCategory(2, 'en') == Core\Cldr\PluralCategory::Two ? 'two' : 'another form',
+    Core\Cldr::ordinalCategory(2, 'en') == Core\Cldr::PluralCategory::Two ? 'two' : 'another form',
     "\n";

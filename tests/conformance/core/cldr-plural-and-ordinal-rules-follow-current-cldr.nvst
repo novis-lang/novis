@@ -6,14 +6,14 @@
 // carries. `Novis\Intl\PluralRules` answers from that data, and the two agree
 // on every language `Core\Cldr` carries rules for.
 class Form {
-    public static function name(Core\Cldr\PluralCategory $category): string {
+    public static function name(Core\Cldr::PluralCategory $category): string {
         return match ($category) {
-            Core\Cldr\PluralCategory::Zero => "zero",
-            Core\Cldr\PluralCategory::One => "one",
-            Core\Cldr\PluralCategory::Two => "two",
-            Core\Cldr\PluralCategory::Few => "few",
-            Core\Cldr\PluralCategory::Many => "many",
-            Core\Cldr\PluralCategory::Other => "other",
+            Core\Cldr::PluralCategory::Zero => "zero",
+            Core\Cldr::PluralCategory::One => "one",
+            Core\Cldr::PluralCategory::Two => "two",
+            Core\Cldr::PluralCategory::Few => "few",
+            Core\Cldr::PluralCategory::Many => "many",
+            Core\Cldr::PluralCategory::Other => "other",
         };
     }
 

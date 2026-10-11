@@ -140,7 +140,7 @@
     {"name": "CurrencyDisplay", "cases": ["Symbol", "Narrow", "Name"], "help": "How a currency is written: as its symbol, such as \"US$\", as its short symbol, such as \"$\", or as its name. The default is `Symbol`."},
     {"name": "CompactDisplay", "cases": ["Short", "Long"], "help": "How a compact number is written: \"1.2K\" is `Short`, the default, and \"1.2 thousand\" is `Long`."},
     {"name": "PluralKind", "cases": ["Cardinal", "Ordinal"], "help": "Which plural rules `Icu::pluralCategories` uses: the rules for counting, such as \"3 items\", or the rules for places, such as \"3rd\"."},
-    {"name": "PluralCategory", "cases": ["Zero", "One", "Two", "Few", "Many", "Other"], "help": "A plural category of the locale. `PluralRules` returns these as `Core\\Cldr\\PluralCategory`."},
+    {"name": "PluralCategory", "cases": ["Zero", "One", "Two", "Few", "Many", "Other"], "help": "A plural category of the locale. `PluralRules` returns these as `Core\\Cldr::PluralCategory`."},
     {"name": "Length", "cases": ["Short", "Medium", "Long"], "help": "How long a formatted date is. The default is `Medium`."},
     {"name": "ZoneStyle", "cases": ["None", "Offset", "Location", "Generic"], "help": "How a formatted date and time shows its time zone: not at all, as its UTC offset, as a place, or as the name of the zone. The default is `None`."},
     {"name": "TimeUnit", "cases": ["Second", "Minute", "Hour", "Day", "Week", "Month", "Quarter", "Year"], "help": "The unit of an amount of time in `RelativeTime::format`."},

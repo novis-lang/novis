@@ -20676,14 +20676,14 @@ Keywords: pluralCategory, ordinalCategory
 
 | Member | Signature |
 |---|---|
-| [`Core\Cldr::pluralCategory`](#core-core-cldr-pluralcategory) | `pluralCategory(int\|float\|decimal $count, string $locale): Core\Cldr\PluralCategory` |
-| [`Core\Cldr::ordinalCategory`](#core-core-cldr-ordinalcategory) | `ordinalCategory(int\|float\|decimal $count, string $locale): Core\Cldr\PluralCategory` |
+| [`Core\Cldr::pluralCategory`](#core-core-cldr-pluralcategory) | `pluralCategory(int\|float\|decimal $count, string $locale): Core\Cldr::PluralCategory` |
+| [`Core\Cldr::ordinalCategory`](#core-core-cldr-ordinalcategory) | `ordinalCategory(int\|float\|decimal $count, string $locale): Core\Cldr::PluralCategory` |
 
 <a id="core-core-cldr-pluralcategory"></a>
 #### `Core\Cldr::pluralCategory`
 
 ```nvs skip
-Core\Cldr::pluralCategory(int|float|decimal $count, string $locale): Core\Cldr\PluralCategory
+Core\Cldr::pluralCategory(int|float|decimal $count, string $locale): Core\Cldr::PluralCategory
 ```
 
 Answers which of CLDR's plural forms `$count` selects in `$locale`, so a message catalog keys its variants on the locale's own rule rather than on `== 1`.
@@ -20693,7 +20693,7 @@ Answers which of CLDR's plural forms `$count` selects in `$locale`, so a message
 | `$count` | `int\|float\|decimal` | The number the message is about. A `decimal` carries its scale, so `1.0` and `1` can select different forms where a locale reads the fraction; an `int` has none, and a `float` is read at the digits it prints. |
 | `$locale` | `string` (neutral) | A BCP 47 tag. Only the language subtag is read and case is ignored, so `en-GB`, `en_US` and `EN` all answer as `en`. |
 
-**Returns** `Core\Cldr\PluralCategory` — The category the language's rules put `$count` in — `Other` for every count in a language that makes no plural distinction.
+**Returns** `Core\Cldr::PluralCategory` — The category the language's rules put `$count` in — `Other` for every count in a language that makes no plural distinction.
 
 **Throws** `LogicError` — The tag carries no language subtag, or names a language whose rules are not among those compiled in — a locale is never given another language's rules.; `RuntimeError` — `$count` is a `float` that is not finite, or one that prints more digits than the rules can be evaluated over.
 
@@ -20701,7 +20701,7 @@ Answers which of CLDR's plural forms `$count` selects in `$locale`, so a message
 #### `Core\Cldr::ordinalCategory`
 
 ```nvs skip
-Core\Cldr::ordinalCategory(int|float|decimal $count, string $locale): Core\Cldr\PluralCategory
+Core\Cldr::ordinalCategory(int|float|decimal $count, string $locale): Core\Cldr::PluralCategory
 ```
 
 Answers which form `$count` takes as a *place* rather than as an amount — English's `1st`, `2nd`, `3rd`, `4th` — so a template writes the suffix its locale marks.
@@ -20711,7 +20711,7 @@ Answers which form `$count` takes as a *place* rather than as an amount — Engl
 | `$count` | `int\|float\|decimal` | The place the message is about. CLDR states its ordinal rules over whole numbers, so a count showing a fraction is outside all of them and answers `Other` — except in the two languages whose rules read the integer part alone, Macedonian and Georgian. |
 | `$locale` | `string` (neutral) | A BCP 47 tag, read exactly as `pluralCategory` reads it: only the language subtag, and case is ignored. |
 
-**Returns** `Core\Cldr\PluralCategory` — The category the language's ordinal rules put `$count` in — `Other` for every count in a language that marks no ordinal form, which is most of them.
+**Returns** `Core\Cldr::PluralCategory` — The category the language's ordinal rules put `$count` in — `Other` for every count in a language that marks no ordinal form, which is most of them.
 
 **Throws** `LogicError` — The tag carries no language subtag, or names a language neither table carries rules for. A language carried for cardinals but marking no ordinal form is not this case: it answers `Other`.; `RuntimeError` — `$count` is a `float` that is not finite, or one that prints more digits than the rules can be evaluated over.
 
@@ -28871,32 +28871,32 @@ Keywords: cardinal, ordinal
 
 | Member | Signature |
 |---|---|
-| [`Novis\Intl\PluralRules::cardinal`](#core-novis-intl-pluralrules-cardinal) | `cardinal(array<int\|float\|decimal> $numbers, string $locale): array<Core\Cldr\PluralCategory>` |
-| [`Novis\Intl\PluralRules::ordinal`](#core-novis-intl-pluralrules-ordinal) | `ordinal(array<int\|float\|decimal> $numbers, string $locale): array<Core\Cldr\PluralCategory>` |
+| [`Novis\Intl\PluralRules::cardinal`](#core-novis-intl-pluralrules-cardinal) | `cardinal(array<int\|float\|decimal> $numbers, string $locale): array<Core\Cldr::PluralCategory>` |
+| [`Novis\Intl\PluralRules::ordinal`](#core-novis-intl-pluralrules-ordinal) | `ordinal(array<int\|float\|decimal> $numbers, string $locale): array<Core\Cldr::PluralCategory>` |
 
 <a id="core-novis-intl-pluralrules-cardinal"></a>
 #### `Novis\Intl\PluralRules::cardinal`
 
 ```nvs skip
-Novis\Intl\PluralRules::cardinal(array<int|float|decimal> $numbers, string $locale): array<Core\Cldr\PluralCategory>
+Novis\Intl\PluralRules::cardinal(array<int|float|decimal> $numbers, string $locale): array<Core\Cldr::PluralCategory>
 ```
 
 `PluralRules::cardinal` returns the category for counting, as in "3 files". The digits a
 number shows count: in English, `1` is `One` and `1.0` is `Other`.
 
-**Returns** `array<Core\Cldr\PluralCategory>`
+**Returns** `array<Core\Cldr::PluralCategory>`
 
 <a id="core-novis-intl-pluralrules-ordinal"></a>
 #### `Novis\Intl\PluralRules::ordinal`
 
 ```nvs skip
-Novis\Intl\PluralRules::ordinal(array<int|float|decimal> $numbers, string $locale): array<Core\Cldr\PluralCategory>
+Novis\Intl\PluralRules::ordinal(array<int|float|decimal> $numbers, string $locale): array<Core\Cldr::PluralCategory>
 ```
 
 `PluralRules::ordinal` returns the category for a place, as in "3rd". In English, `1` is
 `One`, `2` is `Two`, `3` is `Few` and `4` is `Other`.
 
-**Returns** `array<Core\Cldr\PluralCategory>`
+**Returns** `array<Core\Cldr::PluralCategory>`
 
 <a id="core-novis-intl-relativetime"></a>
 ### `Novis\Intl\RelativeTime`
@@ -29531,18 +29531,18 @@ What an open handle may do. There is no binary or text mode: every handle reads 
 | `Core\IO::FileMode::ReadWrite` | Both, creating the file if it is not there and emptying nothing — `fopen`'s `c+`, which is the one of its four `+` forms that surprises nobody. |
 
 <a id="enum-core-cldr-pluralcategory"></a>
-#### `Core\Cldr\PluralCategory`
+#### `Core\Cldr::PluralCategory`
 
 Which of CLDR's six plural forms a count selects. The names are CLDR's own labels for a language's forms, not counts: only `Other` means the same thing everywhere, and a language uses as few of the six as its grammar needs.
 
 | Case | Meaning |
 |---|---|
-| `Core\Cldr\PluralCategory::Zero` | The form a language keeps for none of something — Arabic and Welsh have one; most languages do not. |
-| `Core\Cldr\PluralCategory::One` | The singular, as that language draws it: English's 1, Russian's 1, 21 and 31, French's 0 and 1. |
-| `Core\Cldr\PluralCategory::Two` | The dual — Arabic, Welsh, Slovenian and Irish among the languages carried. |
-| `Core\Cldr\PluralCategory::Few` | The paucal, for the small counts a language groups: Russian's 2 to 4, Arabic's 3 to 10, Welsh's 3 alone. |
-| `Core\Cldr\PluralCategory::Many` | The form above `Few` where a language has both — Russian's 5 to 20, and the whole millions in Romance languages that mark them. |
-| `Core\Cldr\PluralCategory::Other` | The form every language has, and in a language with no plural distinction the only one any count selects. |
+| `Core\Cldr::PluralCategory::Zero` | The form a language keeps for none of something — Arabic and Welsh have one; most languages do not. |
+| `Core\Cldr::PluralCategory::One` | The singular, as that language draws it: English's 1, Russian's 1, 21 and 31, French's 0 and 1. |
+| `Core\Cldr::PluralCategory::Two` | The dual — Arabic, Welsh, Slovenian and Irish among the languages carried. |
+| `Core\Cldr::PluralCategory::Few` | The paucal, for the small counts a language groups: Russian's 2 to 4, Arabic's 3 to 10, Welsh's 3 alone. |
+| `Core\Cldr::PluralCategory::Many` | The form above `Few` where a language has both — Russian's 5 to 20, and the whole millions in Romance languages that mark them. |
+| `Core\Cldr::PluralCategory::Other` | The form every language has, and in a language with no plural distinction the only one any count selects. |
 
 <a id="enum-core-script-exitreason"></a>
 #### `Core\Script\ExitReason`
@@ -29866,7 +29866,7 @@ Which plural rules `Icu::pluralCategories` uses: the rules for counting, such as
 <a id="enum-novis-intl-pluralcategory"></a>
 #### `Novis\Intl\PluralCategory`
 
-A plural category of the locale. `PluralRules` returns these as `Core\Cldr\PluralCategory`.
+A plural category of the locale. `PluralRules` returns these as `Core\Cldr::PluralCategory`.
 
 | Case | Meaning |
 |---|---|

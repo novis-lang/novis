@@ -3,14 +3,14 @@
 // The two members answer differently for the same number.
 
 class Form {
-    public static function name(Core\Cldr\PluralCategory $form): string {
+    public static function name(Core\Cldr::PluralCategory $form): string {
         return match ($form) {
-            Core\Cldr\PluralCategory::Zero => "zero",
-            Core\Cldr\PluralCategory::One => "one",
-            Core\Cldr\PluralCategory::Two => "two",
-            Core\Cldr\PluralCategory::Few => "few",
-            Core\Cldr\PluralCategory::Many => "many",
-            Core\Cldr\PluralCategory::Other => "other",
+            Core\Cldr::PluralCategory::Zero => "zero",
+            Core\Cldr::PluralCategory::One => "one",
+            Core\Cldr::PluralCategory::Two => "two",
+            Core\Cldr::PluralCategory::Few => "few",
+            Core\Cldr::PluralCategory::Many => "many",
+            Core\Cldr::PluralCategory::Other => "other",
         };
     }
 }

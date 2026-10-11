@@ -5513,7 +5513,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "pluralCategory(int|float|decimal $count, string $locale): Core\\Cldr\\PluralCategory",
+          "signature": "pluralCategory(int|float|decimal $count, string $locale): Core\\Cldr::PluralCategory",
           "params": [
             {
               "kind": "param",
@@ -5533,7 +5533,7 @@
             }
           ],
           "options": [],
-          "returnType": "Core\\Cldr\\PluralCategory",
+          "returnType": "Core\\Cldr::PluralCategory",
           "notes": "",
           "qualifier": "",
           "section": "",
@@ -5573,7 +5573,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "ordinalCategory(int|float|decimal $count, string $locale): Core\\Cldr\\PluralCategory",
+          "signature": "ordinalCategory(int|float|decimal $count, string $locale): Core\\Cldr::PluralCategory",
           "params": [
             {
               "kind": "param",
@@ -5593,7 +5593,7 @@
             }
           ],
           "options": [],
-          "returnType": "Core\\Cldr\\PluralCategory",
+          "returnType": "Core\\Cldr::PluralCategory",
           "notes": "",
           "qualifier": "",
           "section": "",
@@ -26274,7 +26274,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "cardinal(array<int|float|decimal> $numbers, string $locale): array<Core\\Cldr\\PluralCategory>",
+          "signature": "cardinal(array<int|float|decimal> $numbers, string $locale): array<Core\\Cldr::PluralCategory>",
           "params": [
             {
               "kind": "param",
@@ -26294,7 +26294,7 @@
             }
           ],
           "options": [],
-          "returnType": "array<Core\\Cldr\\PluralCategory>",
+          "returnType": "array<Core\\Cldr::PluralCategory>",
           "notes": "",
           "qualifier": "",
           "section": "",
@@ -26313,7 +26313,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "ordinal(array<int|float|decimal> $numbers, string $locale): array<Core\\Cldr\\PluralCategory>",
+          "signature": "ordinal(array<int|float|decimal> $numbers, string $locale): array<Core\\Cldr::PluralCategory>",
           "params": [
             {
               "kind": "param",
@@ -26333,7 +26333,7 @@
             }
           ],
           "options": [],
-          "returnType": "array<Core\\Cldr\\PluralCategory>",
+          "returnType": "array<Core\\Cldr::PluralCategory>",
           "notes": "",
           "qualifier": "",
           "section": "",

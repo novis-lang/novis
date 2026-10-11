@@ -1,6 +1,9 @@
 Names the form a language uses for a given count, so one message can be written correctly in every
 language.
 
+`Core\Cldr::PluralCategory` is declared in the class `Core\Cldr`. The methods `pluralCategory` and
+`ordinalCategory` return it.
+
 English has two forms: "1 file" and "3 files". Russian has four, and picks between them by rules that
 put 21 with 1 and 11 with 5. Welsh uses six. `Core\Cldr::pluralCategory` answers which form a count
 selects in a language, as one of `Zero`, `One`, `Two`, `Few`, `Many` and `Other`, and your message

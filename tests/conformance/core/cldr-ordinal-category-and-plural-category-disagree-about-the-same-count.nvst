@@ -6,10 +6,10 @@
 // exact reverse: `2` is its `few` for an amount and is unmarked as a place.
 // One member serving both would have to pick, and either pick is wrong in one
 // of the two directions.
-echo "en 2 as a place: ", Core\Cldr::ordinalCategory(2, "en") == Core\Cldr\PluralCategory::Two ? "two" : "other", "\n";
-echo "en 2 as an amount: ", Core\Cldr::pluralCategory(2, "en") == Core\Cldr\PluralCategory::Other ? "other" : "two", "\n";
-echo "ru 2 as a place: ", Core\Cldr::ordinalCategory(2, "ru") == Core\Cldr\PluralCategory::Other ? "other" : "few", "\n";
-echo "ru 2 as an amount: ", Core\Cldr::pluralCategory(2, "ru") == Core\Cldr\PluralCategory::Few ? "few" : "other", "\n";
+echo "en 2 as a place: ", Core\Cldr::ordinalCategory(2, "en") == Core\Cldr::PluralCategory::Two ? "two" : "other", "\n";
+echo "en 2 as an amount: ", Core\Cldr::pluralCategory(2, "en") == Core\Cldr::PluralCategory::Other ? "other" : "two", "\n";
+echo "ru 2 as a place: ", Core\Cldr::ordinalCategory(2, "ru") == Core\Cldr::PluralCategory::Other ? "other" : "few", "\n";
+echo "ru 2 as an amount: ", Core\Cldr::pluralCategory(2, "ru") == Core\Cldr::PluralCategory::Few ? "few" : "other", "\n";
 
 // Counted rather than read off those four lines: over the first twenty counts
 // the two members disagree twice in English — at 2 and at 3, the counts it

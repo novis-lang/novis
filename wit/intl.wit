@@ -74,7 +74,7 @@ interface icu {
     }
 
     /// CLDR's plural categories, which the Novis half maps by name to
-    /// `Core\Cldr\PluralCategory`.
+    /// `Core\Cldr::PluralCategory`.
     enum plural-category {
         zero,
         one,

@@ -7,17 +7,17 @@ use Novis\Intl\PluralRules;
 final class Names
 {
     // This returns the category names, joined with spaces.
-    public static function of(array<Core\Cldr\PluralCategory> $categories): string
+    public static function of(array<Core\Cldr::PluralCategory> $categories): string
     {
         array<string> $names = [];
-        foreach ($categories as Core\Cldr\PluralCategory $category) {
+        foreach ($categories as Core\Cldr::PluralCategory $category) {
             $names[] = match ($category) {
-                Core\Cldr\PluralCategory::Zero => "Zero",
-                Core\Cldr\PluralCategory::One => "One",
-                Core\Cldr\PluralCategory::Two => "Two",
-                Core\Cldr\PluralCategory::Few => "Few",
-                Core\Cldr\PluralCategory::Many => "Many",
-                Core\Cldr\PluralCategory::Other => "Other",
+                Core\Cldr::PluralCategory::Zero => "Zero",
+                Core\Cldr::PluralCategory::One => "One",
+                Core\Cldr::PluralCategory::Two => "Two",
+                Core\Cldr::PluralCategory::Few => "Few",
+                Core\Cldr::PluralCategory::Many => "Many",
+                Core\Cldr::PluralCategory::Other => "Other",
             };
         }
         return Core\Str::join($names, " ");
@@ -38,7 +38,7 @@ echo Names::of(PluralRules::ordinal([1, 2, 3, 4, 11, 22], "en")), "\n";
 
 // `Core\Cldr::pluralCategory` gives the same category for each number.
 int $same = 0;
-array<Core\Cldr\PluralCategory> $categories = PluralRules::cardinal($counts, "ru");
+array<Core\Cldr::PluralCategory> $categories = PluralRules::cardinal($counts, "ru");
 for (int $i = 0; $i < 6; $i++) {
     if ($categories[$i] == Core\Cldr::pluralCategory($counts[$i], "ru")) {
         $same++;

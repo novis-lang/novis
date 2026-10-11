@@ -5,9 +5,9 @@
 class Polish {
     public static function files(int $count): string {
         return match (Core\Cldr::pluralCategory($count, "pl")) {
-            Core\Cldr\PluralCategory::One => "plik",
-            Core\Cldr\PluralCategory::Few => "pliki",
-            Core\Cldr\PluralCategory::Many => "plików",
+            Core\Cldr::PluralCategory::One => "plik",
+            Core\Cldr::PluralCategory::Few => "pliki",
+            Core\Cldr::PluralCategory::Many => "plików",
             // Polish has one more form, for counts that show a fraction.
             default => "pliku",
         };
