@@ -5,7 +5,7 @@ A visibility or other modifier in front of an enum in a class body is `E0133`, a
 // `rule:enums/class-scoped-enum`: an enum's cases leave the class in every
 // return value, so a `private` enum would hide the name and not the values.
 final class Accepted {
-    #[Note]
+    #[Core\Deprecated(since: "2.0")]
     enum Status { Open, Paid }
 }
 
