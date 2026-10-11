@@ -736,7 +736,7 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 2 is half landed: the fragments and `wit/pdf.wit` are on disk, and three of its four checks are green** (`pdf-the-record-creates-its-fragments`, `image-the-record-creates-the-barcode-roster`, `nvs-stdlib-the-pdf-interface-parses-against-the-world`). Stage 1's floor is whatever the chain carries.
+**Stage 2 is half landed: the fragments and `wit/pdf.wit` are on disk, and its three checks are green** (`pdf-the-record-creates-its-fragments`, `image-the-record-creates-the-barcode-roster`, `nvs-stdlib-the-pdf-interface-parses-against-the-world`). The stage stays open for the items below. Stage 1's floor is whatever the chain carries.
 
 The user's calls in § *Standing decisions* now live in rules, and no session re-decides one. `rule:core-classes/pdf-roster` is the class surface (`Document`, `Page`, `Rendered`, `Pages`, `Reader`, manifest class `Engine`, `Document::Standard`), so no check needed a rename. Nine new ids: `pdf-roster`, `pdf-css-subset-table`, `pdf-tables-across-pages`, `pdf-header-is-a-page-function`, `pdf-standards-and-passwords`, `pdf-factur-x-is-the-one-attachment`, `pdf-reader-and-merge`, `pdf-default-fonts` and `image-barcode-roster`. The seven older `pdf-*` fragments and `rule:packaging/the-first-party-components-are-built-in` (three components) are rewritten. `wit/pdf.wit` is four exports: `render(pass)`, where `pass` is `whole`, `first` or `second(margins)`, then `merge`, `read` and `read-text`. `crates/nvs-stdlib/tests/ext_world.rs` holds it, and the intl test now shares `crossing_problems` with it.
 
