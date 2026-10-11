@@ -427,7 +427,7 @@ fn lower_member_type(
 
     // `rule:enums/class-scoped-enum`: `Order::Status` is the enum the owner's
     // body declares, read after the owner's alias and before a case.
-    if let Some(owned) = nvs_hir::owned_enum(&qname, &case, env.symbols) {
+    if let Some(owned) = owned_enum(&qname, &case, env) {
         let backing = env.enums.backing_of(&owned);
         return env.interner.enum_(owned, backing);
     }
@@ -466,7 +466,7 @@ fn lower_member_case_type(
         Ok(qname) => qname,
         Err(recovered) => return recovered,
     };
-    let Some(owned) = nvs_hir::owned_enum(&owner, &member, env.symbols) else {
+    let Some(owned) = owned_enum(&owner, &member, env) else {
         report_missing_member(span, &owner, &member, "enum", env);
         return env.interner.mixed();
     };
@@ -512,6 +512,21 @@ fn owner_left_of_member(
 fn is_enum_name(qname: &nvs_hir::QName, env: &Env<'_>) -> bool {
     matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum)
         || env.enums.get(qname).is_some()
+}
+
+/// The key of the enum `owner`'s body declares under `name`
+/// (`rule:enums/class-scoped-enum`). A program's is in the symbol table. A
+/// `Core` class declares nothing there, so its enum, `Core\Arr::Order`, is
+/// found in the enum table the registry seeds under the same key.
+pub(crate) fn owned_enum(
+    owner: &nvs_hir::QName,
+    name: &str,
+    env: &Env<'_>,
+) -> Option<nvs_hir::QName> {
+    nvs_hir::owned_enum(owner, name, env.symbols).or_else(|| {
+        let key = nvs_hir::QName::member(owner, name);
+        env.enums.get(&key).is_some().then_some(key)
+    })
 }
 
 /// The expansion the name left of a `::` stands for, when that name is itself a

@@ -122,10 +122,14 @@ pub fn render() -> Tree {
     nvs_footprint::every_class();
     nvs_footprint::every_card();
     for class in registry::CLASSES {
-        let (text, lines) = class_stub(class);
+        let (text, lines, owned) = class_stub(class);
         tree.add(class.name, text, lines);
+        for (name, lines) in owned {
+            tree.add_lines(name, lines);
+        }
     }
-    for core in registry::ENUMS {
+    // An enum a class owns is written inside that class's stub, above.
+    for core in registry::ENUMS.iter().filter(|core| core.owner().is_none()) {
         let (text, lines) = enum_stub(core);
         tree.add(core.name, text, lines);
     }
@@ -154,11 +158,17 @@ pub fn render() -> Tree {
 
 impl Tree {
     fn add(&mut self, name: &str, text: String, lines: Vec<(Option<String>, Line)>) {
-        let index = self.files.len();
         self.files.push(StubFile {
             path: format!("{}.nvs", name.replace('\\', "/")),
             text,
         });
+        self.add_lines(name, lines);
+    }
+
+    /// Records `name`'s lines in the file added last: a class's own, or an
+    /// enum the class owns, whose lines are in its owner's file.
+    fn add_lines(&mut self, name: &str, lines: Vec<(Option<String>, Line)>) {
+        let index = self.files.len() - 1;
         for (member, line) in lines {
             self.lines.insert((name.to_owned(), member), (index, line));
         }
@@ -349,13 +359,17 @@ impl Writer {
 
 /// The short name of a qualified one — `Method` of `Core\Http\Method`.
 fn short(name: &str) -> &str {
-    name.rsplit('\\').next().unwrap_or(name)
+    let tail = name.rsplit('\\').next().unwrap_or(name);
+    tail.split_once("::").map_or(tail, |(_, member)| member)
 }
 
-/// One class: its card, then every constant, every static member, the
-/// constructor `new` reaches where there is one, and every instance member,
-/// each under its own card.
-fn class_stub(class: &CoreClass) -> (String, Vec<(Option<String>, Line)>) {
+/// The lines of each enum a class stub writes in its body, by the enum's name.
+type OwnedLines = Vec<(&'static str, Vec<(Option<String>, Line)>)>;
+
+/// One class: its card, then every enum it owns, every constant, every static
+/// member, the constructor `new` reaches where there is one, and every
+/// instance member, each under its own card.
+fn class_stub(class: &CoreClass) -> (String, Vec<(Option<String>, Line)>, OwnedLines) {
     let mut writer = Writer::open(class.name);
     let mut lines = Vec::new();
     let mut card = class.doc.map_or(String::new(), |doc| doc.short.to_owned());
@@ -383,6 +397,14 @@ fn class_stub(class: &CoreClass) -> (String, Vec<(Option<String>, Line)>) {
     lines.push((None, writer.name(short(class.name))));
     writer.push("\n{\n");
     let mut first = true;
+    let mut owned = Vec::new();
+    for core in registry::ENUMS
+        .iter()
+        .filter(|core| core.owner() == Some(class.name))
+    {
+        separate(&mut writer, &mut first);
+        owned.push((core.name, enum_decl(&mut writer, core, "    ")));
+    }
     for constant in class.constants {
         separate(&mut writer, &mut first);
         writer.doc("    ", constant.desc);
@@ -412,7 +434,7 @@ fn class_stub(class: &CoreClass) -> (String, Vec<(Option<String>, Line)>) {
         ));
     }
     writer.push("}\n");
-    (writer.text, lines)
+    (writer.text, lines, owned)
 }
 
 /// A blank line between two members, and none in front of the first.
@@ -552,28 +574,36 @@ fn quoted(text: &str) -> String {
     out
 }
 
-/// One enum: its card, then every case at its value, each under its line.
+/// One enum its namespace declares, in a file of its own.
 fn enum_stub(core: &CoreEnum) -> (String, Vec<(Option<String>, Line)>) {
     let mut writer = Writer::open(core.name);
+    let lines = enum_decl(&mut writer, core, "");
+    (writer.text, lines)
+}
+
+/// One enum's declaration at `indent`: its card, then every case at its
+/// value, each under its line.
+fn enum_decl(writer: &mut Writer, core: &CoreEnum, indent: &str) -> Vec<(Option<String>, Line)> {
     let mut lines = Vec::new();
     if let Some(doc) = core.doc {
-        writer.doc("", doc.short);
+        writer.doc(indent, doc.short);
     }
-    writer.push("enum ");
-    lines.push((None, writer.name(short(core.name))));
-    writer.push(": int\n{\n");
+    writer.push(&format!("{indent}enum "));
+    lines.push((None, writer.name(core.short_name())));
+    writer.push(&format!(": int\n{indent}{{\n"));
+    let case_indent = format!("{indent}    ");
     for (case, value) in core.cases {
         let desc = core
             .doc
             .and_then(|doc| doc.cases.iter().find(|written| written.name == *case))
             .map_or("", |written| written.desc);
-        writer.doc("    ", desc);
-        writer.push("    ");
+        writer.doc(&case_indent, desc);
+        writer.push(&case_indent);
         lines.push((Some((*case).to_owned()), writer.name(case)));
         writer.push(&format!(" = {value},\n"));
     }
-    writer.push("}\n");
-    (writer.text, lines)
+    writer.push(&format!("{indent}}}\n"));
+    lines
 }
 
 /// One of the interfaces a derive attribute stands for: a name a class may
@@ -752,6 +782,50 @@ enum Method: int\n\
 }\n"
         .replace("{version}", env!("CARGO_PKG_VERSION"));
         assert_eq!(file.text, expected);
+    }
+
+    /// An enum a class owns is declared in the class's stub, so a jump to
+    /// `Core\Arr::Order` opens `Core/Arr.nvs`, and no file of its own exists.
+    #[test]
+    fn an_owned_core_enum_is_written_inside_its_class_stub() {
+        let tree = tree();
+        let owned: Vec<&CoreEnum> = registry::ENUMS
+            .iter()
+            .filter(|core| core.owner().is_some())
+            .collect();
+        assert!(
+            owned.iter().any(|core| core.name == r"Core\Arr::Order"),
+            "`Core\\Arr::Order` is an owned enum"
+        );
+        for core in owned {
+            let owner = core.owner().expect("filtered on an owner");
+            let owner_path = format!("{}.nvs", owner.replace('\\', "/"));
+            let (path, line) = tree
+                .line(core.name, None)
+                .unwrap_or_else(|| panic!("{} has no line", core.name));
+            assert_eq!(
+                path, owner_path,
+                "{} is declared in its owner's stub",
+                core.name
+            );
+            let file = tree
+                .files
+                .iter()
+                .find(|file| file.path == owner_path)
+                .expect("the owner has a stub");
+            let row = file
+                .text
+                .lines()
+                .nth(line.line as usize)
+                .unwrap_or_default();
+            assert_eq!(row, format!("    enum {}: int", core.short_name()));
+            let own_path = format!("{}.nvs", core.name.replace('\\', "/").replace("::", "/"));
+            assert!(
+                tree.files.iter().all(|file| file.path != own_path),
+                "{} has no file of its own",
+                core.name
+            );
+        }
     }
 
     /// A tree is written once per render: the second locate finds the stamp

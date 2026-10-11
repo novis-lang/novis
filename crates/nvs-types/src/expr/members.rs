@@ -874,7 +874,7 @@ pub(crate) fn resolve_class_expr(class_expr: &Expr, ctx: &Ctx<'_>, env: &Env<'_>
                 return None;
             }
             let owner = resolve_class_expr(inner, ctx, env)?;
-            nvs_hir::owned_enum(&owner, span_text(env.src, *name), env.symbols)
+            crate::lower::owned_enum(&owner, span_text(env.src, *name), env)
         }
         _ => None,
     }

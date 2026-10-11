@@ -35,7 +35,7 @@
 //!
 //! # A `Core` enum is declared here too
 //!
-//! The spec's own tables name enums as well as members — `Core\Order` at
+//! The spec's own tables name enums as well as members — `Core\Arr::Order` at
 //! § 2's *Ordering* is the first — so [`ENUMS`] is a second roster beside
 //! [`CLASSES`], and [`CoreTy::Enum`] refers to one by name. Its own doc
 //! comment owns why the two are separate; what belongs here is that
@@ -684,7 +684,7 @@ pub enum CoreTy {
     /// would silently collapse it, while `?void` is not a type at all.
     /// `a_nullable_wraps_something_that_can_be_null` holds both.
     Nullable(&'static CoreTy),
-    /// A `Core`-owned enum, named by its fully-qualified name — `Core\Order`
+    /// A `Core`-owned enum, named by its fully-qualified name — `Core\Arr::Order`
     /// in `sort(array<T> $a, {order?: Order, ...})`.
     ///
     /// The name is resolved against [`ENUMS`], not against the compiled
@@ -3033,8 +3033,11 @@ pub fn constructor_symbol(class: &str) -> Option<&'static str> {
 /// closed, named integer type, declared here rather than in Novis source.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreEnum {
-    /// The fully-qualified name, backslash-separated exactly as written in
-    /// source (`Core\Order`).
+    /// The fully-qualified name exactly as written in source: `Core\Audience`
+    /// for an enum its namespace declares, and `Core\Arr::Order` for one a
+    /// class owns (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The
+    /// owned spelling is the key `nvs_hir::QName::member` builds, so the
+    /// checker seeds both kinds through one `QName::parse`.
     pub name: &'static str,
     /// Its cases, in declaration order. The value is each case's own
     /// constant, written out rather than auto-incremented: `rule:enums/declaration`'s
@@ -3044,6 +3047,23 @@ pub struct CoreEnum {
     /// Its reference card, or `None` for an enum nobody has documented yet —
     /// the same seam [`CoreMethod::doc`] is, on the roster it left out.
     pub doc: Option<&'static EnumDoc>,
+}
+
+impl CoreEnum {
+    /// The class whose body declares this enum, `Core\Arr` for
+    /// `Core\Arr::Order`, or `None` for an enum its namespace declares.
+    #[must_use]
+    pub fn owner(&self) -> Option<&'static str> {
+        self.name.split_once("::").map(|(owner, _)| owner)
+    }
+
+    /// The name a program writes after its owner or namespace: `Order` for
+    /// `Core\Arr::Order`, and `RoundMode` for `Core\RoundMode`.
+    #[must_use]
+    pub fn short_name(&self) -> &'static str {
+        let tail = self.name.rsplit('\\').next().unwrap_or(self.name);
+        tail.split_once("::").map_or(tail, |(_, name)| name)
+    }
 }
 
 /// One enum's reference documentation — `rule:core-api/reference-card`'s card for the values a
@@ -3080,7 +3100,7 @@ pub struct CaseDoc {
 /// A second roster beside [`CLASSES`] rather than a member of it, because an
 /// enum is not a class: `rule:classes/no-free-functions-or-constants`
 /// puts every *callable* on a class, and an enum has none. `nvs_types::enums`
-/// seeds its own table from this, so `Core\Order::Desc` resolves to an integer
+/// seeds its own table from this, so `Core\Arr::Order::Desc` resolves to an integer
 /// constant through exactly the machinery a user-declared `enum` already goes
 /// through — the same "seed a table rather than special-case `Core`" rule
 /// `nvs_types::core_lib` states for members.
@@ -3972,7 +3992,8 @@ pub fn class_type_params(class: &str) -> Option<&'static [&'static str]> {
         .map(|(_, params)| *params)
 }
 
-/// Looks a `Core`-owned enum up by its fully-qualified name.
+/// Looks a `Core`-owned enum up by its fully-qualified name, which for an
+/// enum a class owns is `Core\Arr::Order` ([`CoreEnum::name`]).
 #[must_use]
 pub fn core_enum(name: &str) -> Option<&'static CoreEnum> {
     nvs_footprint::class(name);
@@ -6093,7 +6114,7 @@ mod tests {
         assert!(matches!(options[0].default, Const::Null));
         assert!(matches!(
             options[1].default,
-            Const::EnumCase(r"Core\Order", "Asc")
+            Const::EnumCase(r"Core\Arr::Order", "Asc")
         ));
         assert!(matches!(options[2].default, Const::Null));
         assert!(matches!(options[3].default, Const::Bool(false)));
