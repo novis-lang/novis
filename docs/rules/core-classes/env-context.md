@@ -27,13 +27,21 @@ The member never throws and asks no capability. Like `Core\Env::mode`, it is a f
 and not an effect, and a program that had to catch an error to learn it was reading the answer from
 a side effect of some other member.
 
+`Core\Env::OS` is the same kind of fact and has the same shape: a `Core\Env::Platform` case, one of
+`Windows`, `Darwin`, `Linux`, `BSD`, `Solaris` and `Unknown`. It is folded where a program names it to
+the case's integer, so a comparison is an integer compare, a comparison with a string does not
+compile, and a misspelled case does not compile. Printing a platform needs a `match` to its name
+(`rule:enums/no-class-machinery`). The enum is `Platform` so its name differs from `OS` by more than
+case.
+
 The tradeoffs:
 - **Performance:** nothing on the request path. A call is two pointer tests and one load.
 - **Memory:** one byte per in-flight context, possibly none where it fits the context's padding
   (not checked). Nothing per request beyond that.
 - **Usability:** a program asks one member where it caught an error, and a misspelled case is a
   compile error. A `match` over the seven cases compiles with no default arm.
-- **Simplicity:** one member and one enum, and no new limit or setting.
+- **Simplicity:** one member and two enums, and no new limit or setting. `Platform` costs nothing at
+  run time.
 
 **Declined:**
 - **A boolean `isRequest()`.** It answers one of seven questions, and the next program asks

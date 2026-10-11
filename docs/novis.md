@@ -18626,7 +18626,7 @@ Keywords: get, all, mode, context
 | [`Core\Env::mode`](#core-core-env-mode) | `mode(): Core\Env::Mode` |
 | [`Core\Env::context`](#core-core-env-context) | `context(): Core\Env::Context` |
 | `Core\Env::EOL` | `string` = `"\n" ("\r\n" on Windows)` — The line ending this platform writes: `\r\n` on Windows and `\n` everywhere else. Use it to write text in the platform's own format. `Core\Str::lines` and `Core\IO::lines` do not use it, and split on all three line endings. |
-| `Core\Env::OS` | `string` = `"Linux" ("Windows" or "Darwin" per platform)` — The operating system **family**: `Windows`, `Darwin`, `Linux`, `BSD`, `Solaris`, or `Unknown` for anything else. The value is always one of these six, so a program can compare against it. |
+| `Core\Env::OS` | `Core\Env::Platform` = `Core\Env::Platform::Linux (Windows or Darwin per platform)` — The operating system family, as a `Core\Env::Platform` case. Compare it with a case, such as `Core\Env::OS == Core\Env::Platform::Windows`. |
 | `Core\Env::VERSION` | `string` = `"0.0.1"` — This runtime's version: three numbers separated by dots, the same string `nvs info` prints. To compare versions, split it with `Core\Str::split` and compare the numbers. |
 
 <a id="core-core-env-get"></a>
@@ -29562,6 +29562,20 @@ The kind of run the code is in. `Core\Env::context()` returns one of these seven
 | `Core\Env::Context::Job` | The code runs as a queued job, in a worker. |
 | `Core\Env::Context::Test` | The code runs in a `#[Test]` method under `nvs test`. |
 | `Core\Env::Context::Connection` | The code serves a connection that a request upgraded, a socket or an event stream. The request that upgraded it has already ended. |
+
+<a id="enum-core-env-platform"></a>
+#### `Core\Env::Platform`
+
+The operating system family the program runs on. `Core\Env::OS` is one of these six cases.
+
+| Case | Meaning |
+|---|---|
+| `Core\Env::Platform::Windows` | Microsoft Windows. |
+| `Core\Env::Platform::Darwin` | macOS and iOS. |
+| `Core\Env::Platform::Linux` | Linux, and Android. |
+| `Core\Env::Platform::BSD` | FreeBSD, OpenBSD, NetBSD and DragonFly BSD. |
+| `Core\Env::Platform::Solaris` | Solaris and illumos. |
+| `Core\Env::Platform::Unknown` | Any other operating system. |
 
 <a id="enum-core-http-method"></a>
 #### `Core\Http\Method`

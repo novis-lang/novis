@@ -92,7 +92,7 @@ const CALLED_RE = /(Core\\[A-Za-z0-9_\\]*[A-Za-z0-9_]::[A-Za-z_][A-Za-z0-9_]*)\(
 const PLATFORM_VALUES: Record<string, string> = {
   "Core\\Path::SEPARATOR": '"/" ("\\" on Windows)',
   "Core\\Env::EOL": '"\\n" ("\\r\\n" on Windows)',
-  "Core\\Env::OS": '"Linux" ("Windows" or "Darwin" per platform)',
+  "Core\\Env::OS": "Core\\Env::Platform::Linux (Windows or Darwin per platform)",
 };
 
 /** A refusal that stops the command: printed alone on stderr, exit 1. */
