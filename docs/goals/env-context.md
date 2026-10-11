@@ -37,7 +37,7 @@ stages:
         shapes: ["Feature proofs — an example, an attack, a bench, a `covers:` marker"]
   - id: 6
     title: readers stop catching an error to find out
-    status: open
+    status: done
     extra:
       context:
         rules: []
@@ -96,7 +96,7 @@ checks:
   - id: no-file-catches-an-error-to-find-the-kind-of-run
     stage: 6
     name: "no `.nvs`, `.nvst` or `.md` file picks its half by catching `LogicError $noRequest` or a nested request's `RuntimeError`"
-    run: [git, grep, -l, -E, "catch \\(LogicError \\$noRequest\\)|catch \\(RuntimeError \\$(inside|insideTheRequest)\\)", --, "*.nvs", "*.nvst", "*.md"]
+    run: [git, grep, -l, -E, "catch \\(LogicError \\$noRequest\\)|catch \\(RuntimeError \\$(inside|insideTheRequest|notARequest)\\)", --, "*.nvs", "*.nvst", "*.md"]
     exit: nonzero
 extra:
   milestone: M8
@@ -312,8 +312,11 @@ One file set: the files the two searches below print.
   `benches/members/core/{Html,Response,Test,Test-Response}`, `docs/examples/core/{Test,Test-Response}`,
   `tests/hostile/core/{Test,Test-Response}`, `tests/conformance/core` and
   `website/snippets/guides/testing/test-a-route`.
-- `git grep -l -E 'catch \(RuntimeError \$(inside|insideTheRequest)\)' -- '*.nvs' '*.nvst'`: 19 files,
-  mostly the `Core\Html::later` and `Core\Response::slotted` examples and `tests/conformance/core`.
+- `git grep -l -E 'catch \(RuntimeError \$(inside|insideTheRequest|notARequest)\)' -- '*.nvs' '*.nvst'`:
+  21 files, mostly the `Core\Html::later` and `Core\Response::slotted` examples, `tests/conformance/core`
+  and two `nvs-cli` runner fixtures.
+- The same shape under `$refused`: 12 `tests/conformance/core` cases that call `Core\Test::request`.
+  The check cannot name that variable, because many files catch a real capability error as `$refused`.
 - **A `catch` whose subject is the throw stays.** `docs/examples/core/Server/traceId/03-a-command-line-program-has-no-id.nvs`,
   `tests/conformance/core/server-trace-id-throws-where-no-request-arrived.nvst` and
   `an-in-process-request-may-not-be-made-from-inside-one.nvst` prove the error itself.
@@ -326,19 +329,13 @@ One file set: the files the two searches below print.
 
 ### State
 
-**Goal `env-context`: Stages 2 to 5 are done, and Stage 6's `$noRequest` half is done.** `Core\Env::context()` and `Core\Env::OS` typed `Core\Env::Platform` are on disk with their rule, spec rows, checks and proofs. All 59 files that caught a `LogicError` as `$noRequest` now branch on `Core\Env::context() == Core\Env::Context::Request`: the `Core\Test` and `Core\Test\Response` examples, attacks and benches, the `Html` and `Response` benches, five `an-in-process-*` cases and `website/snippets/guides/testing/test-a-route`. `session-start-where-no-request-arrived-is-a-logic-error.nvst` proves the throw itself, so it keeps its `catch` and names the variable `$refusal`. § 6 no longer quotes the pattern. `bun nv proofs --verify` owes nothing in `Core\Test` or `Core\Test\Response`.
+**Goal `env-context`: every stage is done, and the goal is claimed reached.** `Core\Env::context()` and `Core\Env::OS` typed `Core\Env::Platform` are on disk with their rule, spec rows, checks and proofs. No file picks its half by catching an error any more. The `$noRequest` files, the 19 nested-request files, 12 more `tests/conformance/core` cases that caught the same `RuntimeError` as `$refused`, and the two `nvs-cli` runner fixtures that caught it as `$notARequest` all branch on `Core\Env::context() == Core\Env::Context::Request`. The Stage 6 check now names `$notARequest` too and exits nonzero. `an-in-process-request-may-not-be-made-from-inside-one.nvst` proves the throw, so it keeps its `catch`.
 
-The Stage 6 check stays red on 19 files, all the `RuntimeError` half. The `nvs-stdlib-os-is-a-platform-case` red was the two Redis lease tests: a stopped container engine kept port 16379 open with no store behind it. `lease_case` in `crates/nvs-stdlib/src/cache/redis.rs` now probes with its first round trip and skips. Nothing is blocked.
-
-The § *Standing decisions* calls stand as written. No session re-decides one.
+Gates: `bun nv proofs --verify` is clean for `Core\Html` and `Core\Response`, all 25 changed `.nvst` cases pass, and both fixtures pass under `runner::tests`. `bun nv verify --doc` is green and `bun nv owners --closes env-context` owes nothing. `looper verify` was red on four Rust tests in `nvs-config` (`tests/request.rs:176`), `nvs-runtime` (`tests/allocator_ceiling.rs`) and `nvs-stdlib` (`src/request.rs:6072`). Another agent had uncommitted edits in `crates/nvs-config` and `crates/nvs-runtime/src/ctx` at the time, and no file this goal touched feeds those tests.
 
 ### Next
 
-**Stage 6, second group: the 19 files that catch a nested request's `RuntimeError`.** These files have the halves the other way round. The `try` part is the parent that calls `Core\Test::request`, and the `catch` part is the page. The new shape is `if (Core\Env::context() == Core\Env::Context::Request) { <the catch body> } else { <the try body> }` (`rule:core-classes/env-context`). Each example comment that says the call "throws an error, so the `catch` block runs" is rewritten whole.
-
-- [ ] **The examples and attacks**: `docs/examples/core/Html/later/01-two-parts-of-a-page.nvs:6`, its two siblings, `docs/examples/core/Response/slotted/01-send-the-page-early.nvs:9` and its two siblings, `tests/hostile/core/Html/later/01-fake-and-repeated-placeholders.nvs:22` and `tests/hostile/core/Response/slotted/01-fake-fills-and-late-calls.nvs:23`. Check them with `bun nv proofs --verify --group 'Core\Html'` and `--group 'Core\Response'`.
-- [ ] **The 11 `.nvst` cases**: `tests/conformance/core/html-later-assembles-the-page-in-place-whatever-order-the-slots-finish.nvst:13` and the other ten the Stage 6 check prints, one of them `tests/conformance/lang/text-outside-the-tags-is-written-as-it-is-in-a-request-and-a-hole-is-escaped.nvst:13`. Run them with `bun nv suite tests/conformance/ --case …`.
-- [ ] **Close the goal**: the Stage 6 check (`docs/goals/env-context.md:99`) exits nonzero, then the goal-end gates `bun nv verify --doc` and `bun nv owners --closes env-context`.
+Nothing on this goal. Retire it, and the chain moves on to `pdf`.
 
 ### Backlog
 
