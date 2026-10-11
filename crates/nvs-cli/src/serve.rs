@@ -1363,8 +1363,8 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
 /// This core, offered to the process as a placement destination for as long as
 /// the answer is held.
 ///
-/// ADR 0184 § 5's answer to *which core* a child spawned `on: "worker"` is
-/// started on (`rule:concurrency/on-worker-runs-the-child-on-another-core`):
+/// The answer to *which core* a child spawned `on: "worker"` is started on
+/// under `nvs serve` (`rule:concurrency/on-worker-runs-the-child-on-another-core`):
 /// the threads a served deployment is already turning are pinned, and a second
 /// thread per core for placement work would oversubscribe exactly the cores a
 /// served request's latency depends on. So every serving core registers one
@@ -3320,9 +3320,10 @@ mod tests {
     /// scheduler this command already turns — and the process's destination set
     /// is what it is observable through with no socket bound: a placement
     /// written on another core runs on the registered one, and
-    /// [`nvs_host::worker::cores_started`] is unmoved by it. Both halves are ADR
-    /// 0184 § 5, whose destination under `nvs serve` is a sibling serving core
-    /// and whose threads are the ones already serving.
+    /// [`nvs_host::worker::cores_started`] is unmoved by it. Both halves are
+    /// `rule:concurrency/on-worker-runs-the-child-on-another-core`, whose
+    /// destination under `nvs serve` is a sibling serving core and whose threads
+    /// are the ones already serving.
     ///
     /// A detached drain rather than the process's bit, because what ends the
     /// receptionist here is the offer being withdrawn: the process's bit is one

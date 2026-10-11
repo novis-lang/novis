@@ -107,8 +107,9 @@ Which core it is, is decided by the set that offers one, and **worker cores are 
 bounded at the core count**: a core's scheduler thread starts the first time a program places a child on
 one, so a program that places none has no thread, exactly as a worker with no blocking work has no pool
 threads. **Under `nvs serve` the set is the serving cores themselves**: each one registers its own inbox
-and drains it from a receptionist beside its accept loops, so a placement reaches the sibling serving core
-ADR 0184 § 5 argues for and no thread is started beside threads that are already pinned. A core that
+and drains it from a receptionist beside its accept loops, so a placement reaches a sibling serving core
+and no thread is started beside threads that are already pinned: a second thread per core for placement
+work would oversubscribe exactly the cores a served request's latency depends on. A core that
 offered itself that way stops receiving when the process begins draining and goes once the placements it
 is holding have answered, because those belong to the requests the drain is there to finish. Either way
 the cost is one
@@ -116,7 +117,33 @@ scheduler thread per core at most: O(cores), never O(requests served), and which
 readable from the child, so the destination set is the only thing that changes when a serving core
 registers one.
 
-<sub>See also [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns). Decided in [0184](../decisions/0184.md).</sub>
+A worker placement's latency floor is two copies and two cross-thread wakes, which is why the same-core
+placement is the default and `on: "worker"` is for a child that is CPU-bound and whose values are small.
+The inbox adds no lock to the request path: it has one consumer, the core that owns it, and the core being
+asked is already asleep in a poll that the poke ends, so a start costs the same wake a blocking-pool
+answer costs.
+
+- **Memory:** per worker-placed child in flight, charged to its tree: one task context and one pooled
+  stack on the destination core, plus the argument and the answer each copied at every node, twice what
+  a same-core child pays. Per process: at most one scheduler thread per core, only for cores a child was
+  placed on, and none under `nvs serve`. That is O(cores) and O(in-flight), and nothing grows with
+  requests served.
+
+**Declined:**
+- **Migrating the child to an idle core.** Refcounts are non-atomic and an arena belongs to one core, so
+  this is unsound rather than expensive ([`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task)).
+- **A shared global run queue every core steals from.** It is one piece of contended state on the request
+  path, and it makes which core runs a child unpredictable, which makes the budget, the grants and the
+  cancellation path harder to reason about for no gain. The same objection keeps the blocking pool per
+  worker.
+- **Work stealing between serving cores.** It makes placement implicit, and an implicit placement cannot be
+  reasoned about from the spawn site, which is where a program states what it wants.
+- **A thread per worker-placed child.** It is O(in-flight children) in threads rather than O(cores), and
+  it defeats the pinning the thread-per-core design rests on.
+- **A subprocess for a worker placement.** An OS process costs orders of magnitude more than a task
+  ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
+
+<sub>See also [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns).</sub>
 
 <a id="concurrency-all-answers-a-typed-shape"></a>
 

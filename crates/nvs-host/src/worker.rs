@@ -5,7 +5,7 @@
 //! specification and its one home: *started* is the whole of the placement,
 //! because a task never migrates
 //! (`rule:concurrency/a-wake-never-moves-a-task`), and what crosses in both
-//! directions is a copy. ADR 0184 §§ 2–5 is the reasoning behind each half of
+//! directions is a copy. The rule also gives the reasons behind each half of
 //! the mechanism below.
 //!
 //! # The blocking pool, turned around
@@ -68,7 +68,7 @@
 //!
 //! Everything above describes a core this module started. A core that already
 //! has a thread, a scheduler and a reactor — a serving core — needs none of
-//! that built for it a second time, and ADR 0184 § 5 is why it may not have it:
+//! that built for it a second time, and it may not have it:
 //! those threads are pinned, and a second thread per core for placement work
 //! would oversubscribe exactly the cores the server's own latency depends on.
 //! So [`register_this_core`] puts an inbox in the set and spawns the identical
@@ -88,7 +88,7 @@
 //!
 //! # A placed child is still its parent's child
 //!
-//! ADR 0184 § 4: it dies with its parent, and the parent's call does not return
+//! It dies with its parent, and the parent's call does not return
 //! while it is still running. Cancellation travels the way the start did —
 //! [`Placed::cancelled`] is set on the parent's core, the bell is rung, and the
 //! receptionist's next sweep cancels the child on its own core. The
@@ -482,7 +482,7 @@ impl<T> Posted<T> {
             }
             let resumed = suspend_current(Waiting::Parked);
             if resumed.cancelled() {
-                // ADR 0184 § 4: the cancellation goes across and this call keeps
+                // The cancellation goes across and this call keeps
                 // waiting for the acknowledgement, which arrives as the child's
                 // teardown filling the slot. Ending the wait here would return
                 // with work still running on another core.
@@ -575,7 +575,8 @@ impl WorkerCores {
     /// The draining is the caller's: a core that is already turning a scheduler
     /// spawns a receptionist on it, so what crosses to it is the same [`Start`] a
     /// started core reads and the only difference is whose thread reads it. That
-    /// is ADR 0184 § 5's destination — a serving core's thread exists and is
+    /// is the rule's destination under `nvs serve` — a serving core's thread
+    /// exists and is
     /// pinned already, and a second thread per core for placement work would
     /// oversubscribe exactly the cores the server's latency depends on.
     ///
@@ -610,8 +611,7 @@ impl WorkerCores {
     /// serving core that offered itself is in the very set being asked.
     ///
     /// The idle test first, the bound second, the round robin last — and **a set
-    /// that can reach a registered core never grows itself**, which is ADR 0184
-    /// § 5: a registered core's thread is already running and already pinned, so
+    /// that can reach a registered core never grows itself**: a registered core's thread is already running and already pinned, so
     /// starting one beside it would oversubscribe exactly the core the placement
     /// is trying to use. At the bound the placement joins a queue instead, which
     /// is the bound doing its job: refusing the work would put an error on a
@@ -851,7 +851,8 @@ impl Drop for Registered {
 /// the difference this whole seam exists for. [`run_core`] spawns the identical
 /// task on a scheduler this module started; a core that already has one, has a
 /// reactor and is pinned needs neither of those built for it a second time, and
-/// ADR 0184 § 5 is why a serving fleet may not afford them.
+/// a serving fleet may not afford them: a second thread beside a pinned one
+/// would oversubscribe the core.
 ///
 /// # What it spends
 ///
@@ -1529,7 +1530,9 @@ mod tests {
     /// A set that can reach a core somebody else is running starts none of its
     /// own, and never answers the placing core its own inbox.
     ///
-    /// Both halves are ADR 0184 § 5: the destination under `nvs serve` is a
+    /// Both halves are
+    /// `rule:concurrency/on-worker-runs-the-child-on-another-core`: the
+    /// destination under `nvs serve` is a
     /// *sibling* serving core, and the threads it round-robins over are the ones
     /// already running. A set whose only core is the one asking has nowhere to
     /// put the work, which is the single-CPU arithmetic [`WorkerCores::pick`]'s
