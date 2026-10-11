@@ -21,7 +21,7 @@ array<string> $ceilings = [
 foreach ($ceilings as string $key) {
     echo $key, ': ', Core\Config::set($key, '512M') ? 'yes' : 'no', "\n";
 }
-echo 'memory: ', Core\Config::get('memory') ?? '(unset)', "\n";
+echo 'memory: ', Core\Config::get('memory') ?? '(no value)', "\n";
 
 // 3. Raise the limit to the ceiling exactly. This is allowed.
 echo '64M: ', Core\Config::set('memory', '64M') ? 'yes' : 'no', "\n";

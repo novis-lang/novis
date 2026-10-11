@@ -4,7 +4,7 @@
 
 // 1. Seven files set `limits.memory`. A folder of files is read in name order, as text,
 // so `9-earlier.toml` is read after `10-later.toml` and its `16M` wins.
-echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+echo 'memory: ', Core\Config::get('limits.memory') ?? '(no value)', "\n";
 
 // 2. Three values contain the text `limits.hard.memory = "99G"`. The real ceiling is not `99G`.
 echo 'ceiling: ', Core\Config::get('limits.hard.memory') ?? '(unset)', "\n";

@@ -139,11 +139,11 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Debug::dump`'s reference card — `rule:core-api/reference-card`.
 const DUMP_DOC: MethodDoc = MethodDoc {
-    short: "Writes one rendered node per argument where the sink in force sends it: the \
-            diagnostic channel outside a request — stderr in a CLI program, never stdout — and \
-            a log record at `Debug` inside one, which `[debug] inline` additionally appends to \
-            an HTML response body. This is what `var_dump` is for, minus its writing to \
-            output.",
+    short: "Writes each value in a readable form, for debugging. It replaces `var_dump`, but it \
+            never writes to standard output. Outside a web request, it writes to standard error. \
+            Inside a web request, it writes a log record at the `Debug` level. In production, \
+            that record is not kept unless `[log] level` is `\"Debug\"`. With `[debug] inline`, \
+            the dump is also added to an HTML response.",
     params: &[ParamDoc {
         name: "values",
         desc: "Any number of values, each rendered as a debug record: control bytes and bidi \

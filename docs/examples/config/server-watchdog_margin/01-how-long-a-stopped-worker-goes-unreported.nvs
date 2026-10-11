@@ -4,7 +4,8 @@
 //     [server]
 //     watchdog_margin = "5s"   # when not set: 5 seconds
 
-echo 'watchdog margin: ', Core\Config::get('server.watchdog_margin') ?? '5 seconds (the default)', "\n";
+// This file does not set it, so this prints the default, `5s`.
+echo 'watchdog margin: ', Core\Config::get('server.watchdog_margin') ?? '(no value)', "\n";
 
 // A program cannot change this setting, so this prints `refused`.
 echo 'use 1 second:    ', Core\Config::set('server.watchdog_margin', '1s') ? 'accepted' : 'refused', "\n";

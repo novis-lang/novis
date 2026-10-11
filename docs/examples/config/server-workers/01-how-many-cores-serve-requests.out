@@ -1,2 +1,2 @@
-workers:        one for each CPU core (the default)
+one per core:   yes
 use 64 workers: refused

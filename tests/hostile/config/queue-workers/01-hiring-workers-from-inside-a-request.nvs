@@ -48,13 +48,13 @@ foreach ($keys as string $key) {
 // 3. Writes and reads the value 200,000 times. The value should never change,
 //    so this prints `0`.
 uint $changes = 0;
-string $standing = Core\Config::get('queue.workers') ?? '(nothing written)';
+string $standing = Core\Config::get('queue.workers') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('queue.workers', '64');
     Core\Config::set('queue.workers', '0');
     Core\Config::restore('queue.workers');
-    if ((Core\Config::get('queue.workers') ?? '(nothing written)') != $standing) {
+    if ((Core\Config::get('queue.workers') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }
     $i = $i + 1;
@@ -71,5 +71,5 @@ while ($j < 20000) {
 
 echo 'changes: ', $changes, "\n";
 echo 'work built: ', Core\Arr::count($work), "\n";
-echo 'workers:    ', Core\Config::get('queue.workers') ?? '(nothing written)', "\n";
+echo 'workers:    ', Core\Config::get('queue.workers') ?? '(no value)', "\n";
 echo 'connection: ', Core\Config::get('queue.connection') ?? '(nothing written)', "\n";

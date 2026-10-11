@@ -27,4 +27,4 @@ while ($i < 100000) {
 echo 'accepted changes:   ', $accepted, "\n";
 
 // 6. The grace still has the value from `nvs.toml`.
-echo 'the grace is still: ', Core\Config::get('limits.disconnect_grace') ?? 'not set', "\n";
+echo 'the grace is still: ', Core\Config::get('limits.disconnect_grace') ?? '(no value)', "\n";

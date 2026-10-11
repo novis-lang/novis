@@ -81,4 +81,4 @@ while ($j < 20000) {
 echo 'changes: ', $changes, "\n";
 echo 'payloads built: ', Core\Arr::count($payloads), "\n";
 echo 'connection: ', Core\Config::get('queue.connection') ?? '(nothing written)', "\n";
-echo 'workers:    ', Core\Config::get('queue.workers') ?? '(nothing written)', "\n";
+echo 'workers:    ', Core\Config::get('queue.workers') ?? '(no value)', "\n";

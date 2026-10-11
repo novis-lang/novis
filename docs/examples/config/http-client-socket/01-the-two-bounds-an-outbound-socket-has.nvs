@@ -3,8 +3,8 @@
 // accepts, and how long one frame may wait to be sent. This file sets neither, so both use
 // the built-in default: 4 MiB and 30 seconds. Incoming WebSockets use the same values.
 
-echo 'largest message:  ', Core\Config::get('http.client.socket.max_message') ?? '(nothing, so the built-in default)', "\n";
-echo 'frame may wait:   ', Core\Config::get('http.client.socket.send_timeout') ?? '(nothing, so the built-in default)', "\n";
+echo 'largest message:  ', Core\Config::get('http.client.socket.max_message') ?? '(no value)', "\n";
+echo 'frame may wait:   ', Core\Config::get('http.client.socket.send_timeout') ?? '(no value)', "\n";
 
 // A program may change these two settings, because they affect only the socket it opened.
 // This prints `yes` and then `65536`.
@@ -19,4 +19,4 @@ echo 'name a proxy:     ', Core\Config::set('http.client.proxy.url', 'http://som
 // `Core\Config::restore` deletes the value this program set, so the default applies again.
 // The configuration file cannot remove a limit either: `false` and `0` are not allowed.
 Core\Config::restore('http.client.socket.max_message');
-echo 'restored to:      ', Core\Config::get('http.client.socket.max_message') ?? '(nothing, so the built-in default)', "\n";
+echo 'restored to:      ', Core\Config::get('http.client.socket.max_message') ?? '(no value)', "\n";

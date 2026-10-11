@@ -89,9 +89,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Config::get`'s reference card — `rule:core-api/reference-card`.
 const GET_DOC: MethodDoc = MethodDoc {
-    short: "The configuration value in force for this request, replacing `ini_get`. A directive \
-            this request set with `set` answers with that value; everything else answers with \
-            what the configuration file resolved to.",
+    short: "Returns the value of one setting for this request. It replaces `ini_get`. A setting \
+            this request changed with `set` gives the new value. Any other setting gives the \
+            value from the configuration file, or its built-in default.",
     params: &[ParamDoc {
         name: "name",
         desc: "The directive's dotted name, `log.level`. A bare limit name — `memory`, \
@@ -99,8 +99,9 @@ const GET_DOC: MethodDoc = MethodDoc {
                `[limits]` entry.",
         shape: &[],
     }],
-    ret: "The value as text, however the file spelled it, or `null` where nothing set one and \
-          for a name that holds a table or a list rather than a value.",
+    ret: "The value as text, written the way the configuration file writes it, such as `128M` or \
+          `30s`. The result is `null` for a setting with no default, such as `wall_time`. It is \
+          also `null` for a name that has a group of settings or a list.",
     errors: &[],
 };
 
@@ -133,24 +134,27 @@ const SET_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Config::restore`'s reference card — `rule:core-api/reference-card`.
 const RESTORE_DOC: MethodDoc = MethodDoc {
-    short: "Drops what this request set for a directive, putting the configuration file's own \
-            value back in force — `ini_restore`.",
+    short: "Deletes this request's change to one setting. The value from the configuration file \
+            is in force again, or the built-in default when the file does not write the \
+            setting. It replaces `ini_restore`.",
     params: &[ParamDoc {
         name: "name",
         desc: "The directive's name, read exactly as `get` reads it.",
         shape: &[],
     }],
-    ret: "Nothing. A name this request never set is not an error: there is nothing to undo.",
+    ret: "Nothing. A name this request never changed is not an error. There is nothing to undo.",
     errors: &[],
 };
 
 /// `Core\Config::all`'s reference card — `rule:core-api/reference-card`.
 const ALL_DOC: MethodDoc = MethodDoc {
-    short: "Every directive in force for this request, keyed by dotted name, with what this \
-            request set folded over the file — `ini_get_all`.",
+    short: "Returns every setting in force for this request, with the dotted names as keys. It \
+            replaces `ini_get_all`. A setting this request changed has the new value. A setting \
+            the configuration file does not write has its built-in default.",
     params: &[],
-    ret: "An `array<string, string>` in name order, one entry per value; a name holding a table \
-          contributes its leaves and a name holding a list contributes nothing, on `get`'s rule.",
+    ret: "An `array<string, string>` sorted by name, with one entry per value. A name that has a \
+          group of settings gives one entry for each setting in it. A name that has a list gives \
+          no entry.",
     errors: &[],
 };
 

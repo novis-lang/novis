@@ -7,11 +7,11 @@
 //
 // This file sets `false`. Every server in production should use `false`.
 
-echo 'kept after a run: ', Core\Config::get('debug.keep_temporary') ?? '(no)', "\n";
+echo 'kept after a run: ', Core\Config::get('debug.keep_temporary') ?? '(no value)', "\n";
 
-// `io.temp_root` is where these directories are made. This file sets nothing,
-// so they are made in the `tmp` folder of the data folder.
-echo 'made under:       ', Core\Config::get('io.temp_root') ?? '(the tmp folder in the data folder)', "\n";
+// `io.temp_root` is where these directories are made. Here it is the `tmp` folder of the
+// data folder. The full path differs on each machine, so this prints only `tmp`.
+echo 'made under:       ', Core\Path::basename(Core\Config::get('io.temp_root') ?? ''), "\n";
 
 // A program cannot change `keep_temporary`, so this prints `no`. Otherwise a program
 // could keep every file it makes until the disk is full.

@@ -50,7 +50,7 @@ foreach ($raises as string $value) {
 }
 Core\Config::restore('cache.local.max_size');
 
-// The limit should still be the value from the file. `hot` was deleted in step 4,
-// so this prints `(forgotten)`.
-echo 'cap: ', Core\Config::get('cache.local.max_size') ?? '(the built-in cap)', "\n";
+// The limit should still have the value it started with. `hot` was deleted in
+// step 4, so this prints `(forgotten)`.
+echo 'cap: ', Core\Config::get('cache.local.max_size') ?? '(no value)', "\n";
 echo 'hot: ', $cache->get('hot') ?? '(forgotten)', "\n";

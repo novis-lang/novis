@@ -2,7 +2,8 @@
 // `[queue] max_attempts` is how many times a failing job is tried.
 // The job is then moved to the dead-letter table, where a person can look at it.
 
-echo 'attempts a job gets: ', Core\Config::get('queue.max_attempts') ?? '(nothing written — five of them)', "\n";
+// This file does not set `max_attempts`, so this prints the default, `5`.
+echo 'attempts a job gets: ', Core\Config::get('queue.max_attempts') ?? '(no value)', "\n";
 echo 'queued in:           ', Core\Config::get('queue.connection') ?? '(nothing written)', "\n";
 
 // After the last attempt, the job is not deleted. It stays in the dead-letter

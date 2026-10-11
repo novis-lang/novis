@@ -15,8 +15,8 @@ $cache->put('vat-rate:at', '20');
 echo 'vat rate: ', $cache->get('vat-rate:at') ?? '(work it out again)', "\n";
 
 // This prints the limit as the file writes it: `32M`. Without a `[cache.local]`
-// block, a built-in limit applies and `Core\Config::get` returns `null`.
-echo 'cap:      ', Core\Config::get('cache.local.max_size') ?? '(the built-in cap)', "\n";
+// block, `Core\Config::get` returns the built-in limit, which is also `32M`.
+echo 'cap:      ', Core\Config::get('cache.local.max_size') ?? '(no value)', "\n";
 
 // When the store is full, `put` deletes the entries used least recently to make room.
 // A `put` never fails, but a `get` can return `null`. This key was never stored.

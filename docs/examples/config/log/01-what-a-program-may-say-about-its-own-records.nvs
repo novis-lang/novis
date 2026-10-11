@@ -3,13 +3,15 @@
 // A program may change `log.format` and `log.level`. Only the person who runs the
 // server may change the other keys.
 
-echo 'rendering: ', Core\Config::get('log.format') ?? '(unset — json, which is the default here)', "\n";
-echo 'level:     ', Core\Config::get('log.level') ?? '(unset — Info, which is the default here)', "\n";
+// This file sets neither key, so `get` returns the defaults for production mode.
+// This prints `json` and `Info`.
+echo 'rendering: ', Core\Config::get('log.format') ?? '(no value)', "\n";
+echo 'level:     ', Core\Config::get('log.level') ?? '(no value)', "\n";
 
 // This sets the log level to `Debug` for this request only. Other requests
 // still use the configured level.
 echo 'trace this run: ', Core\Config::set('log.level', 'Debug') ? 'accepted' : 'refused', "\n";
-echo 'level now:      ', Core\Config::get('log.level') ?? '(unset)', "\n";
+echo 'level now:      ', Core\Config::get('log.level') ?? '(no value)', "\n";
 
 // A program cannot change where records go or which script runs when it fails.
 // Both calls return `false`.
@@ -17,6 +19,6 @@ echo 'send them elsewhere: ', Core\Config::set('log.target', 'file:/tmp/mine.log
 echo 'name my own handler: ', Core\Config::set('log.handler', 'scripts/mine.nvs') ? 'accepted' : 'refused', "\n";
 
 // `Core\Config::restore` sets the level back to the configured value.
-// No level is configured here, so the result is `null`.
+// No level is configured here, so the result is the default, `Info`.
 Core\Config::restore('log.level');
-echo 'level after restore: ', Core\Config::get('log.level') ?? '(unset — the default again)', "\n";
+echo 'level after restore: ', Core\Config::get('log.level') ?? '(no value)', "\n";

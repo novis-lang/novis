@@ -1,5 +1,5 @@
 running in: production
-ceiling:    (nothing written — the mode the host started in)
+ceiling:    production
 select production:  accepted
 select development: refused
 still running in:   production

@@ -21,5 +21,5 @@ echo 'socket_mode:          ', Core\Config::set('server.socket_mode', '0777') ? 
 echo 'workers:              ', Core\Config::set('server.workers', '100000') ? 'accepted' : 'refused', "\n";
 
 // 6. Nothing is set, so both settings are still `null`.
-echo 'settle is still:      ', Core\Config::get('opcache.settle') ?? 'not set', "\n";
-echo 'revalidate_freq is:   ', Core\Config::get('opcache.revalidate_freq') ?? 'not set', "\n";
+echo 'settle is still:      ', Core\Config::get('opcache.settle') ?? '(no value)', "\n";
+echo 'revalidate_freq is:   ', Core\Config::get('opcache.revalidate_freq') ?? '(no value)', "\n";

@@ -39,16 +39,16 @@ foreach ($keys as string $key) {
 
 // 3. Try 200000 times in a loop, and count how often the value read back changes.
 uint $changes = 0;
-string $standing = Core\Config::get('server.watchdog_margin') ?? '(not set)';
+string $standing = Core\Config::get('server.watchdog_margin') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('server.watchdog_margin', '1h');
     Core\Config::restore('server.watchdog_margin');
-    if ((Core\Config::get('server.watchdog_margin') ?? '(not set)') != $standing) {
+    if ((Core\Config::get('server.watchdog_margin') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }
     $i = $i + 1;
 }
 
 echo 'changes: ', $changes, "\n";
-echo 'margin:  ', Core\Config::get('server.watchdog_margin') ?? '(not set)', "\n";
+echo 'margin:  ', Core\Config::get('server.watchdog_margin') ?? '(no value)', "\n";

@@ -17,7 +17,7 @@ echo 'long value: ', Core\Config::set('memory', Core\Str::repeat('9', 1000000)) 
 echo "the server's own: ", Core\Config::set('opcache.file_cache_dir', '/tmp/nvs') ? 'changed' : 'refused', "\n";
 
 // 4. Nothing above moved the limit, so it is still what it was.
-echo 'memory: ', Core\Config::get('memory') ?? 'not set', "\n";
+echo 'memory: ', Core\Config::get('memory') ?? '(no value)', "\n";
 
 // 5. The request takes its own memory away: one byte for everything it does
 // next. This step ends the program at its memory limit.

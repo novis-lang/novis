@@ -111,8 +111,9 @@ const LEVEL_DOC: EnumDoc = EnumDoc {
     cases: &[
         CaseDoc {
             name: "Debug",
-            desc: "Detail kept for whoever is looking at this run; `Core\\Debug::dump`'s own \
-                   destination.",
+            desc: "Detail for whoever is debugging this run. `Core\\Debug::dump` writes at this \
+                   level inside a web request. In production, a `Debug` record is not kept unless \
+                   `[log] level` is `\"Debug\"`.",
         },
         CaseDoc {
             name: "Info",

@@ -3,12 +3,12 @@
 // the oldest TLS version it uses, and whether it writes its session secrets to a file for
 // debugging. This file sets the oldest version to `1.2` and does not set the other two.
 
-echo 'oldest version:   ', Core\Config::get('http.client.tls.min_version') ?? '(nothing, so 1.2)', "\n";
+echo 'oldest version:   ', Core\Config::get('http.client.tls.min_version') ?? '(no value)', "\n";
 echo 'secrets written:  ', Core\Config::get('http.client.tls.keylog') ?? '(nothing, so none)', "\n";
 
 // `Core\Config::get` cannot read a list, so it returns `null`. Without `roots`, Novis trusts its
 // built-in certificate authorities. `roots = ["bundled", "/etc/novis/corp-ca.pem"]` adds one more.
-echo 'trust anchors:    ', Core\Config::get('http.client.tls.roots') ?? '(nothing, so the shipped set)', "\n";
+echo 'trust anchors:    ', Core\Config::get('http.client.tls.roots') ?? '(a list: the shipped set)', "\n";
 
 // Every request in this process uses the same TLS client, so a program cannot change
 // these three settings. `Core\Config::set` returns `false`, and each line prints `no`.

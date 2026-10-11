@@ -2,9 +2,13 @@
 // `[opcache] file_cache_dir` is the directory where the server keeps code it has
 // already compiled. No other setting names this directory.
 
-echo 'artifact cache: ', Core\Config::get('opcache.file_cache_dir') ?? '(nothing written — the location this build derives for the account that runs it)', "\n";
-echo 'cache in use:   ', Core\Config::get('opcache.file_cache') ?? '(nothing written — on)', "\n";
-echo 'size limit:     ', Core\Config::get('opcache.file_cache_max_size') ?? '(nothing written — the ceiling this build ships with)', "\n";
+// This file does not set it, so the server uses the `cache` folder in its data folder.
+// The full path differs on each machine, so this prints only the last folder, `cache`.
+echo 'artifact cache: ', Core\Path::basename(Core\Config::get('opcache.file_cache_dir') ?? ''), "\n";
+
+// By default the cache is on, and its size limit is `256M`.
+echo 'cache in use:   ', Core\Config::get('opcache.file_cache') ?? '(no value)', "\n";
+echo 'size limit:     ', Core\Config::get('opcache.file_cache_max_size') ?? '(no value)', "\n";
 
 // A program cannot move this directory, so the call returns `false`. The server
 // runs the compiled code it reads from there.

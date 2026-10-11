@@ -1,2 +1,2 @@
-watchdog margin: 5 seconds (the default)
+watchdog margin: 5s
 use 1 second:    refused

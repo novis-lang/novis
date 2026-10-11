@@ -7,8 +7,8 @@
 //     pool_idle = 16
 //     pool_idle_timeout = "30s"
 
-echo 'how many may be kept: ', Core\Config::get('http.client.pool_idle') ?? '(nothing, so the built-in default)', "\n";
-echo 'how long one may sit: ', Core\Config::get('http.client.pool_idle_timeout') ?? '(nothing, so the built-in default)', "\n";
+echo 'how many may be kept: ', Core\Config::get('http.client.pool_idle') ?? '(no value)', "\n";
+echo 'how long one may sit: ', Core\Config::get('http.client.pool_idle_timeout') ?? '(no value)', "\n";
 
 // `Core\Time\Duration::parse` reads the timeout as a duration. This prints `30 seconds`. Without
 // a timeout, a connection the other server closed stays open here, and the next call on it fails.

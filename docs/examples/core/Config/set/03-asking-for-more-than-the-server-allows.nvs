@@ -11,4 +11,4 @@ if (Core\Config::set("memory", "8G")) {
 
 // A value under the ceiling is allowed, so the job runs in smaller parts.
 Core\Config::set("memory", "384M");
-echo "the job runs inside ", Core\Config::get("memory") ?? "the default", "\n";
+echo "the job runs inside ", Core\Config::get("memory") ?? "no limit", "\n";

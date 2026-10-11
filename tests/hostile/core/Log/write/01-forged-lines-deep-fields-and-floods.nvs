@@ -59,7 +59,7 @@ echo 'step 4: done ', Check::lines($long as string), "\n";
 var $many = Core\Out::capture(fn (): void => {
     uint $i = 0;
     while ($i < 100000) {
-        Core\Log::write(Core\Log::Level::Debug, 'row', ['row' => $i]);
+        Core\Log::write(Core\Log::Level::Info, 'row', ['row' => $i]);
         $i = $i + 1;
     }
 });

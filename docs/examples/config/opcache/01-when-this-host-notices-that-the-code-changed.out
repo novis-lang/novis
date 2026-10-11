@@ -1,8 +1,8 @@
-validate:        (not written, so the default)
-revalidate_freq: (not written, so the default)
-settle:          (not written, so the default)
+validate:        mtime
+revalidate_freq: 2s
+settle:          1s
 check by hash:          not allowed
 check on every request: not allowed
 compile at once:        not allowed
 change the mode:        not allowed
-settle is still:        (not written, so the default)
+settle is still:        1s

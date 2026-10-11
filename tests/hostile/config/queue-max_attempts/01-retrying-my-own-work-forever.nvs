@@ -58,13 +58,13 @@ foreach ($keys as string $key) {
 // 3. Writes and reads the value 200,000 times. The value should never change,
 //    so this prints `0`.
 uint $changes = 0;
-string $standing = Core\Config::get('queue.max_attempts') ?? '(nothing written)';
+string $standing = Core\Config::get('queue.max_attempts') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('queue.max_attempts', '1000000');
     Core\Config::set('queue.max_attempts', '0');
     Core\Config::restore('queue.max_attempts');
-    if ((Core\Config::get('queue.max_attempts') ?? '(nothing written)') != $standing) {
+    if ((Core\Config::get('queue.max_attempts') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }
     $i = $i + 1;
@@ -81,5 +81,5 @@ while ($j < 20000) {
 
 echo 'changes: ', $changes, "\n";
 echo 'jobs built: ', Core\Arr::count($jobs), "\n";
-echo 'max_attempts: ', Core\Config::get('queue.max_attempts') ?? '(nothing written)', "\n";
-echo 'visibility:   ', Core\Config::get('queue.visibility') ?? '(nothing written)', "\n";
+echo 'max_attempts: ', Core\Config::get('queue.max_attempts') ?? '(no value)', "\n";
+echo 'visibility:   ', Core\Config::get('queue.visibility') ?? '(no value)', "\n";

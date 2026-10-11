@@ -36,4 +36,4 @@ while ($i < 1000000) {
 echo 'calls with true:    ', $stopping, "\n";
 
 // 6. The setting still has the value from `nvs.toml`.
-echo 'the limit is still: ', Core\Config::get('server.drain_timeout') ?? 'not set', "\n";
+echo 'the limit is still: ', Core\Config::get('server.drain_timeout') ?? '(no value)', "\n";

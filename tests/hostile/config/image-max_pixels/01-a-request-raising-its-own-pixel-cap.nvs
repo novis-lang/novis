@@ -59,4 +59,4 @@ while ($round < 2000) {
 }
 echo 'refused: ', $refused, "\n";
 
-echo 'cap: ', Core\Config::get('image.max_pixels') ?? '(unset)', "\n";
+echo 'cap: ', Core\Config::get('image.max_pixels') ?? '(no value)', "\n";

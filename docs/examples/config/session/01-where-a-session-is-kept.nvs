@@ -7,9 +7,10 @@
 //     ttl     = "2h"
 //     cookie  = "nvs_session"
 
+// This file does not write `[session]`. So `ttl` and `cookie` are the defaults, `2h` and `nvsid`.
 echo 'records live in: ', Core\Config::get('session.backend') ?? '(nothing written — a program that wants a session says so)', "\n";
-echo 'untouched for:   ', Core\Config::get('session.ttl') ?? '(nothing written — two hours)', "\n";
-echo 'cookie name:     ', Core\Config::get('session.cookie') ?? '(nothing written — the default name)', "\n";
+echo 'untouched for:   ', Core\Config::get('session.ttl') ?? '(no value)', "\n";
+echo 'cookie name:     ', Core\Config::get('session.cookie') ?? '(no value)', "\n";
 
 // There are only two stores. The next request may run on another server, so
 // a local cache is not allowed and this call returns `false`.

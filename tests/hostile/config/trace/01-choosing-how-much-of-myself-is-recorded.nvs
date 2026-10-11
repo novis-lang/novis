@@ -50,7 +50,7 @@ foreach ($flags as string $flag) {
 // 3. Writes all four keys 200,000 times and reads the sample back each time.
 //    The value should never change, so this prints `0`.
 uint $changes = 0;
-string $standing = Core\Config::get('trace.sample') ?? '(nothing written)';
+string $standing = Core\Config::get('trace.sample') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('trace.sample', '1.0');
@@ -58,7 +58,7 @@ while ($i < 200000) {
     Core\Config::set('trace.exporter', 'otlp');
     Core\Config::set('trace.endpoint', 'https://collector.mine/v1');
     Core\Config::restore('trace.sample');
-    if ((Core\Config::get('trace.sample') ?? '(nothing written)') != $standing) {
+    if ((Core\Config::get('trace.sample') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }
     $i = $i + 1;
@@ -75,6 +75,6 @@ while ($j < 20000) {
 
 echo 'changes: ', $changes, "\n";
 echo 'spans built: ', Core\Arr::count($spans), "\n";
-echo 'sample:    ', Core\Config::get('trace.sample') ?? '(nothing written — so none of them)', "\n";
-echo 'exporter:  ', Core\Config::get('trace.exporter') ?? '(nothing written — no spans leave this process)', "\n";
-echo 'propagate: ', Core\Config::get('trace.propagate') ?? '(nothing written)', "\n";
+echo 'sample:    ', Core\Config::get('trace.sample') ?? '(no value)', "\n";
+echo 'exporter:  ', Core\Config::get('trace.exporter') ?? '(no value)', "\n";
+echo 'propagate: ', Core\Config::get('trace.propagate') ?? '(no value)', "\n";

@@ -86,7 +86,7 @@ foreach ($bounds as string $bound) {
 Core\Config::restore('metrics.max_series');
 Core\Config::restore('metrics.exporter');
 
-echo 'exporter on duty: ', Core\Config::get('metrics.exporter') ?? '(nothing written)', "\n";
+echo 'exporter on duty: ', Core\Config::get('metrics.exporter') ?? '(no value)', "\n";
 
 // 4. Lowers the memory limit to `8M` and builds strings until it is used up.
 //    The server should report the failure and keep running.

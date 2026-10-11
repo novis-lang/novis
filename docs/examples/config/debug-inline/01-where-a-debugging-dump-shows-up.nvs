@@ -2,8 +2,9 @@
 // `Core\Debug::dump` always writes to the log. `[debug] inline` says whether an HTML page
 // also shows the dump at its end. This file sets nothing, so the run mode is used.
 // In development mode the page shows the dump. In production mode it does not.
+// This program runs in production mode, so this prints `false`.
 
-echo 'written here: ', Core\Config::get('debug.inline') ?? '(nothing, so the mode decides)', "\n";
+echo 'in force:     ', Core\Config::get('debug.inline') ?? '(no value)', "\n";
 
 // A program may never turn this setting on, so this prints `no`. A dump you forget
 // in your code writes only to the log. It never appears in the response.

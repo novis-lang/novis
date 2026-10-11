@@ -2,8 +2,9 @@
 // `[queue] visibility` is how long a job stays hidden after a worker takes it.
 // During that time, no other worker can see the job.
 
-echo 'a claim is held for: ', Core\Config::get('queue.visibility') ?? '(nothing written — five minutes)', "\n";
-echo 'tries per job:       ', Core\Config::get('queue.max_attempts') ?? '(nothing written — five of them)', "\n";
+// This file sets neither key, so this prints the defaults, `5m` and `5`.
+echo 'a claim is held for: ', Core\Config::get('queue.visibility') ?? '(no value)', "\n";
+echo 'tries per job:       ', Core\Config::get('queue.max_attempts') ?? '(no value)', "\n";
 
 // If a worker stops in the middle of a job, the time runs out. The job is then
 // visible again, and another worker takes it.

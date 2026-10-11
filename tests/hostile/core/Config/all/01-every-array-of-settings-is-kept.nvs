@@ -19,7 +19,7 @@ echo 'entries after a refused change: ', Core\Arr::count(Core\Config::all()) - $
 // itself must still be 32M.
 array<string> $settings = Core\Config::all();
 $settings['limits.memory'] = '1000T';
-echo 'in force: ', Core\Config::get('limits.memory') ?? 'unset', "\n";
+echo 'in force: ', Core\Config::get('limits.memory') ?? '(no value)', "\n";
 
 // 3. Every array of settings is kept, so nothing can be freed. This step ends
 // the program at its memory limit.

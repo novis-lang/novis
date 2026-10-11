@@ -6,8 +6,8 @@
 //     [http.errors]
 //     detail = "generic"
 
-echo 'error detail:    ', Core\Config::get('http.errors.detail') ?? '(nothing, so the built-in default)', "\n";
-echo 'cookies default: ', Core\Config::get('http.cookies.same_site') ?? '(nothing, so the built-in default)', "\n";
+echo 'error detail:    ', Core\Config::get('http.errors.detail') ?? '(no value)', "\n";
+echo 'cookies default: ', Core\Config::get('http.cookies.same_site') ?? '(no value)', "\n";
 echo 'CORS origins:    ', Core\Config::get('http.cors.origins') ?? '(nothing, so no cross-origin call is answered)', "\n";
 
 // A program may change these values for the request it is handling. The next request
@@ -19,7 +19,7 @@ echo 'now in force:    ', Core\Config::get('http.errors.detail') ?? '(nothing)',
 // tokens. With that key, a request could sign its own tokens. This prints `no`.
 echo 'choose the key:  ', Core\Config::set('http.csrf_key', 'whatever-i-like') ? 'yes' : 'no', "\n";
 
-// `Core\Config::restore` deletes the value this program set. `get` then returns the
-// value from the configuration file, which is `null` here.
+// `Core\Config::restore` deletes the value this program set. The file does not set
+// this value, so `get` returns the default again. This prints `generic`.
 Core\Config::restore('http.errors.detail');
-echo 'restored to:     ', Core\Config::get('http.errors.detail') ?? '(nothing, so the built-in default)', "\n";
+echo 'restored to:     ', Core\Config::get('http.errors.detail') ?? '(no value)', "\n";

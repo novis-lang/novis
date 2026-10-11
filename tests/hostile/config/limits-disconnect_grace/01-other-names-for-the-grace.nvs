@@ -24,5 +24,5 @@ foreach ($names as string $name) {
 }
 echo 'accepted writes: ', $accepted, "\n";
 
-// 2. Read the grace. No write was accepted, so it is still not set.
-echo 'grace: ', Core\Config::get('limits.disconnect_grace') ?? 'not set', "\n";
+// 2. Read the grace. No write was accepted, so it still has the value it started with.
+echo 'grace: ', Core\Config::get('limits.disconnect_grace') ?? '(no value)', "\n";

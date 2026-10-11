@@ -1,5 +1,5 @@
 store:    redis://127.0.0.1:16379
 database: (the one the store opens on)
-timeout:  (the built-in bound)
+timeout:  5s
 move:     no
 hurry:    no

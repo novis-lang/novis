@@ -79,13 +79,13 @@ foreach ($bounds as string $bound) {
 
 // 4. Try 200000 times in a loop, and count how often the value read back changes.
 uint $changes = 0;
-string $standing = Core\Config::get('server.listen') ?? '(nothing written)';
+string $standing = Core\Config::get('server.listen') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('server.listen', '0.0.0.0:80');
     Core\Config::set('server.trusted_proxies', '0.0.0.0/0');
     Core\Config::restore('server.listen');
-    if ((Core\Config::get('server.listen') ?? '(nothing written)') != $standing) {
+    if ((Core\Config::get('server.listen') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }
     $i = $i + 1;
@@ -102,6 +102,6 @@ while ($j < 20000) {
 
 echo 'changes: ', $changes, "\n";
 echo 'connections built: ', Core\Arr::count($connections), "\n";
-echo 'listen:          ', Core\Config::get('server.listen') ?? '(nothing written)', "\n";
+echo 'listen:          ', Core\Config::get('server.listen') ?? '(no value)', "\n";
 echo 'trusted_proxies: ', Core\Config::get('server.trusted_proxies') ?? '(nothing written)', "\n";
-echo 'header_timeout:  ', Core\Config::get('server.header_timeout') ?? '(nothing written)', "\n";
+echo 'header_timeout:  ', Core\Config::get('server.header_timeout') ?? '(no value)', "\n";

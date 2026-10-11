@@ -6,7 +6,7 @@
 //     [deferred]
 //     max_concurrent = 256
 
-echo 'requests held per core: ', Core\Config::get('deferred.max_concurrent') ?? '(nothing, so the built-in default)', "\n";
+echo 'requests held per core: ', Core\Config::get('deferred.max_concurrent') ?? '(no value)', "\n";
 
 // The limit counts requests, not pieces of work. A request that adds ten callables counts once.
 // Each of these requests may use up to `limits.hard.memory`, so this prints `512M`.

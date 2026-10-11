@@ -1,7 +1,7 @@
-exporter:  (nothing written — no spans leave this process)
+exporter:  false
 push to:   (nothing written)
-sample:    (nothing written — so none of them)
-propagate: (nothing written)
+sample:    0.0
+propagate: true
 record every request of mine: refused
 record none of them:          refused
 leave the trace behind:       refused

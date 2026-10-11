@@ -6,7 +6,7 @@
 //     [http.client]
 //     pool_idle = 16
 
-echo 'idle connections per core: ', Core\Config::get('http.client.pool_idle') ?? '(nothing, so the built-in default)', "\n";
+echo 'idle connections per core: ', Core\Config::get('http.client.pool_idle') ?? '(no value)', "\n";
 
 // Each core keeps its own connections. A host with 16 cores keeps up to 16 times
 // this number, so this prints `256`.
@@ -22,6 +22,6 @@ echo 'shorten my own call:       ', Core\Config::set('http.client.deadline', '2s
 echo 'now in force:              ', Core\Config::get('http.client.deadline') ?? '(nothing)', "\n";
 
 // `Core\Config::restore` deletes the value this program set. This file sets no
-// deadline, so `get` returns `null`.
+// deadline, so `get` returns the default, `30s`.
 Core\Config::restore('http.client.deadline');
-echo 'back to the file:          ', Core\Config::get('http.client.deadline') ?? '(nothing, so the built-in default)', "\n";
+echo 'back to the file:          ', Core\Config::get('http.client.deadline') ?? '(no value)', "\n";

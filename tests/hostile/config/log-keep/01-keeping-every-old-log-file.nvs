@@ -42,4 +42,4 @@ foreach ($counts as string $count) {
 }
 Core\Config::restore('log.keep');
 
-echo 'keep: ', Core\Config::get('log.keep') ?? '(not set)', "\n";
+echo 'keep: ', Core\Config::get('log.keep') ?? '(no value)', "\n";

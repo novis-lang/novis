@@ -3,12 +3,12 @@
 
 // `validate` is how the server checks a file. `mtime` compares the time the file
 // was last changed, and `hash` reads the whole file. The default is `mtime`.
-echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(not written, so the default)', "\n";
+echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(no value)', "\n";
 
-// `revalidate_freq` is how often the server checks. `settle` is how long the
-// files must stay unchanged before the server compiles them again.
-echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(not written, so the default)', "\n";
-echo 'settle:          ', Core\Config::get('opcache.settle') ?? '(not written, so the default)', "\n";
+// `revalidate_freq` is how often the server checks. Its default is `2s`. `settle` is how long
+// the files must stay unchanged before the server compiles them again. Here its default is `1s`.
+echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(no value)', "\n";
+echo 'settle:          ', Core\Config::get('opcache.settle') ?? '(no value)', "\n";
 
 // Only the person who runs the server may change these settings.
 // A program cannot, so each call below returns `false`.
@@ -19,4 +19,4 @@ echo 'compile at once:        ', Core\Config::set('opcache.settle', '0s') ? 'all
 // The default of `settle` depends on the run mode. It is `1s` in production
 // and `100ms` in development. A program cannot change the mode either.
 echo 'change the mode:        ', Core\Config::set('mode.default', 'development') ? 'allowed' : 'not allowed', "\n";
-echo 'settle is still:        ', Core\Config::get('opcache.settle') ?? '(not written, so the default)', "\n";
+echo 'settle is still:        ', Core\Config::get('opcache.settle') ?? '(no value)', "\n";

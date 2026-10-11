@@ -4,7 +4,9 @@
 //     [server]
 //     workers = 4   # when not set: one worker for each CPU core
 
-echo 'workers:        ', Core\Config::get('server.workers') ?? 'one for each CPU core (the default)', "\n";
+// This file does not set it, so there is one worker for each CPU core. That number
+// differs on each machine, so this compares it with `Core\Os::cpuCount` and prints `yes`.
+echo 'one per core:   ', (Core\Config::get('server.workers') as ?int) == Core\Os::cpuCount() ? 'yes' : 'no', "\n";
 
 // A program cannot change this setting, so this prints `refused`.
 echo 'use 64 workers: ', Core\Config::set('server.workers', '64') ? 'accepted' : 'refused', "\n";

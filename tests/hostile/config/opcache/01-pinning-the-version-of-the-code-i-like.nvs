@@ -57,7 +57,7 @@ foreach ($intervals as string $interval) {
 // 3. The program writes the settings many times and reads `validate` back each time.
 //    `$changes` counts the reads that differ, and it should stay `0`.
 uint $changes = 0;
-string $standing = Core\Config::get('opcache.validate') ?? '(nothing written)';
+string $standing = Core\Config::get('opcache.validate') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('opcache.validate', 'never');
@@ -66,7 +66,7 @@ while ($i < 200000) {
     Core\Config::restore('opcache.validate');
     Core\Config::restore('opcache.revalidate_freq');
     Core\Config::restore('opcache.settle');
-    if ((Core\Config::get('opcache.validate') ?? '(nothing written)') != $standing) {
+    if ((Core\Config::get('opcache.validate') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }
     $i = $i + 1;
@@ -83,6 +83,6 @@ while ($j < 50000) {
 }
 
 echo 'changes: ', $changes, "\n";
-echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(nothing written)', "\n";
-echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(nothing written)', "\n";
-echo 'settle:          ', Core\Config::get('opcache.settle') ?? '(nothing written)', "\n";
+echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(no value)', "\n";
+echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(no value)', "\n";
+echo 'settle:          ', Core\Config::get('opcache.settle') ?? '(no value)', "\n";

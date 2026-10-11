@@ -1,4 +1,4 @@
-configured root: (none: the tmp folder in the data folder)
+root folder:     tmp
 move it:         no
 keep them:       no
 kept today:      false

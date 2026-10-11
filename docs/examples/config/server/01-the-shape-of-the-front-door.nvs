@@ -10,8 +10,10 @@
 //     header_timeout    = "10s"
 //     keepalive_timeout = "75s"
 
-echo 'listening on:   ', Core\Config::get('server.listen') ?? '(nothing written — loopback on port 8000)', "\n";
-echo 'header wait:    ', Core\Config::get('server.header_timeout') ?? '(nothing written — ten seconds)', "\n";
+// This file does not write `[server]`. `listen` is a list, so `get` returns `null`.
+// `header_timeout` is the default, `10s`.
+echo 'listening on:   ', Core\Config::get('server.listen') ?? '(a list: loopback on port 8000)', "\n";
+echo 'header wait:    ', Core\Config::get('server.header_timeout') ?? '(no value)', "\n";
 echo 'believed proxy: ', Core\Config::get('server.trusted_proxies') ?? '(nothing written — no forwarding header is believed)', "\n";
 
 // A program cannot change any setting in this block. `Core\Config::set`

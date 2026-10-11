@@ -16717,7 +16717,7 @@ the dump went to stderr
 Core\Debug::dump(mixed ...$values): void
 ```
 
-Writes one rendered node per argument where the sink in force sends it: the diagnostic channel outside a request — stderr in a CLI program, never stdout — and a log record at `Debug` inside one, which `[debug] inline` additionally appends to an HTML response body. This is what `var_dump` is for, minus its writing to output.
+Writes each value in a readable form, for debugging. It replaces `var_dump`, but it never writes to standard output. Outside a web request, it writes to standard error. Inside a web request, it writes a log record at the `Debug` level. In production, that record is not kept unless `[log] level` is `"Debug"`. With `[debug] inline`, the dump is also added to an HTML response.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -18519,8 +18519,9 @@ Keywords: ini_get, ini_set, ini_restore, ini_get_all, set_time_limit, nvs.toml, 
 `[limits]` entry. `set` changes a directive for this request alone and answers `false`, leaving the value in
 place, for anything it may not do: a directive only the file may set, an unknown name, a value of the wrong
 shape, or a value above the `[limits.hard]` ceiling the operator kept. When `[limits.hard]` does not
-set a limit, its ceiling is the value the request started with, so a program cannot raise it. `restore` puts the file's value back
-and `all` lists what is in force. Without an `nvs.toml`, `get` answers `null` for everything.
+set a limit, its ceiling is the value the request started with, so a program cannot raise it. `restore` puts the file's value back,
+or the built-in default when the file does not write the key. `get` and `all` give the built-in default of every key the file
+does not write, such as `128M` for `memory`. A key with no default, such as `wall_time`, is `null`.
 
 ```toml file=nvs.toml
 [limits]
@@ -18565,13 +18566,13 @@ unknown name refused
 Core\Config::get(string $name): ?string
 ```
 
-The configuration value in force for this request, replacing `ini_get`. A directive this request set with `set` answers with that value; everything else answers with what the configuration file resolved to.
+Returns the value of one setting for this request. It replaces `ini_get`. A setting this request changed with `set` gives the new value. Any other setting gives the value from the configuration file, or its built-in default.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$name` | `string` (neutral) | The directive's dotted name, `log.level`. A bare limit name — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output`, `max_regex_steps` — names the `[limits]` entry. |
 
-**Returns** `?string` — The value as text, however the file spelled it, or `null` where nothing set one and for a name that holds a table or a list rather than a value.
+**Returns** `?string` — The value as text, written the way the configuration file writes it, such as `128M` or `30s`. The result is `null` for a setting with no default, such as `wall_time`. It is also `null` for a name that has a group of settings or a list.
 
 <a id="core-core-config-set"></a>
 #### `Core\Config::set`
@@ -18596,13 +18597,13 @@ Sets a directive for this request only, replacing `ini_set`. The change is writt
 Core\Config::restore(string $name): void
 ```
 
-Drops what this request set for a directive, putting the configuration file's own value back in force — `ini_restore`.
+Deletes this request's change to one setting. The value from the configuration file is in force again, or the built-in default when the file does not write the setting. It replaces `ini_restore`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$name` | `string` (neutral) | The directive's name, read exactly as `get` reads it. |
 
-**Returns** `void` — Nothing. A name this request never set is not an error: there is nothing to undo.
+**Returns** `void` — Nothing. A name this request never changed is not an error. There is nothing to undo.
 
 <a id="core-core-config-all"></a>
 #### `Core\Config::all`
@@ -18611,9 +18612,9 @@ Drops what this request set for a directive, putting the configuration file's ow
 Core\Config::all(): array<string>
 ```
 
-Every directive in force for this request, keyed by dotted name, with what this request set folded over the file — `ini_get_all`.
+Returns every setting in force for this request, with the dotted names as keys. It replaces `ini_get_all`. A setting this request changed has the new value. A setting the configuration file does not write has its built-in default.
 
-**Returns** `array<string>` — An `array<string, string>` in name order, one entry per value; a name holding a table contributes its leaves and a name holding a list contributes nothing, on `get`'s rule.
+**Returns** `array<string>` — An `array<string, string>` sorted by name, with one entry per value. A name that has a group of settings gives one entry for each setting in it. A name that has a list gives no entry.
 
 <a id="core-core-env"></a>
 ### `Core\Env`
@@ -29533,7 +29534,7 @@ How loud a log record is — five cases, each valued by its own syslog severity 
 
 | Case | Meaning |
 |---|---|
-| `Core\Log::Level::Debug` | Detail kept for whoever is looking at this run; `Core\Debug::dump`'s own destination. |
+| `Core\Log::Level::Debug` | Detail for whoever is debugging this run. `Core\Debug::dump` writes at this level inside a web request. In production, a `Debug` record is not kept unless `[log] level` is `"Debug"`. |
 | `Core\Log::Level::Info` | Something the program did that an operator would want in the record. |
 | `Core\Log::Level::Warn` | Something recoverable that nobody chose — a retry, a fallback, a deprecated path still in use. |
 | `Core\Log::Level::Error` | An operation failed. An uncaught `Throwable` is reported at this level. |
@@ -31532,15 +31533,19 @@ replacements for `ini_get`, `ini_set`, `ini_restore` and `ini_get_all`.
 - A name is the dotted path the file writes: `limits.hard.memory`, `log.level`, `mode.default`. A
   **bare limit name** — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` — is the
   `[limits]` entry.
-- `get` answers the value as text, spelled the way the file spelled it, or `null` for a name
-  nothing set and for a name that holds a table or a list (a capability grant, an `[[app]]` block).
+- `get` returns the value in force as text. A value the file writes is spelled the way the file
+  spelled it. A key the file does not write gives its built-in default, spelled the way the shipped
+  `nvs.toml` shows it: `128M`, `30s`. `get` returns `null` for a key with no default, such as
+  `wall_time`, for an unwritten `[log] target`, and for a name that holds a table or a list (a
+  capability grant, an `[[app]]` block).
 - `set` writes an overlay **for this request only**. It is gone when the request ends and is
   invisible to every other request, including a script this one spawns. It returns `false` and
   changes nothing — it never throws — for a `System` directive (only the file may set it), a name no
   directive governs, a value that does not parse in the name's unit, and a value above the
   `[limits.hard]` ceiling. Every directive's class is in the table below.
-- `restore` drops the overlay for one name; `all` answers every value in force, keyed by dotted
-  name in name order, with the overlay folded over the file.
+- `restore` removes the overlay for one name, so the file's value or the default is in force again.
+  `all` returns every value in force, keyed by dotted name in name order. That is the built-in
+  defaults, then the file, then the overlay. The example below prints three of them.
 
 ```toml file=nvs.toml
 [limits]
@@ -31563,7 +31568,9 @@ echo "unknown: ", Config::set("no.such.key", "1") ? "ok" : "refused", "\n";
 Config::set("log.level", "debug");
 
 foreach (Config::all() as string $name => string $value) {
-    echo $name, " = ", $value, "\n";
+    if ($name == "limits.memory" || $name == "log.level" || $name == "session.ttl") {
+        echo $name, " = ", $value, "\n";
+    }
 }
 
 Config::restore("memory");
@@ -31574,7 +31581,6 @@ echo "restored: ", Config::get("memory"), "\n";
 1G: refused
 file_cache_dir: refused
 unknown: refused
-limits.hard.memory = 256M
 limits.memory = 256M
 log.level = debug
 restored: 128M
@@ -31667,6 +31673,7 @@ limits.wall_time       = "30s"
 ## C.4 The HTTP server
 
 Keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
+session.ttl = 2h
 
 ### nvs serve
 

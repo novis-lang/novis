@@ -70,17 +70,17 @@ foreach ($bounds as string $bound) {
 // 4. Writes and reads the directory 200,000 times. The value should never
 //    change, so this prints `0`.
 uint $changes = 0;
-string $standing = Core\Config::get('opcache.file_cache_dir') ?? '(nothing written)';
+string $standing = Core\Config::get('opcache.file_cache_dir') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('opcache.file_cache_dir', '/tmp/mine');
     Core\Config::restore('opcache.file_cache_dir');
-    if ((Core\Config::get('opcache.file_cache_dir') ?? '(nothing written)') != $standing) {
+    if ((Core\Config::get('opcache.file_cache_dir') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }
     $i = $i + 1;
 }
 
 echo 'changes: ', $changes, "\n";
-echo 'artifact cache: ', Core\Config::get('opcache.file_cache_dir') ?? '(nothing written — the location this build derives for the account that runs it)', "\n";
-echo 'cache in use:   ', Core\Config::get('opcache.file_cache') ?? '(nothing written — on)', "\n";
+echo 'artifact cache: ', Core\Config::get('opcache.file_cache_dir') ?? '(no value)', "\n";
+echo 'cache in use:   ', Core\Config::get('opcache.file_cache') ?? '(no value)', "\n";

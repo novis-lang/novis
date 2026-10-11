@@ -50,7 +50,7 @@ while ($i < 100000) {
 echo 'accepted changes:    ', $accepted, "\n";
 
 // 6. Each setting still has the value from `nvs.toml`.
-echo 'requests at one time: ', Core\Config::get('server.max_in_flight') ?? 'not set', "\n";
-echo 'workers:              ', Core\Config::get('server.workers') ?? 'not set', "\n";
-echo 'open connections:     ', Core\Config::get('server.connection.max_open') ?? 'not set', "\n";
-echo 'largest message:      ', Core\Config::get('server.connection.max_message') ?? 'not set', "\n";
+echo 'requests at one time: ', Core\Config::get('server.max_in_flight') ?? '(no value)', "\n";
+echo 'workers:              ', Core\Config::get('server.workers') ?? '(no value)', "\n";
+echo 'open connections:     ', Core\Config::get('server.connection.max_open') ?? '(no value)', "\n";
+echo 'largest message:      ', Core\Config::get('server.connection.max_message') ?? '(no value)', "\n";

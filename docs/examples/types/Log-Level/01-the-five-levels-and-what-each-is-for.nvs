@@ -1,7 +1,8 @@
 <?nvs
-// One record at each of the five levels, quietest first. Nothing here says
-// which levels to keep, so all five are written. Whoever runs the server picks
-// the quietest one they want, and the rest stop being written.
+// One record at each of the five levels, quietest first. In production, a
+// `Debug` record is not kept by default. This program sets the level to
+// `Debug` for this run, so all five are written.
+Core\Config::set("log.level", "Debug");
 
 Core\Log::write(Core\Log::Level::Debug, "the cart held 3 items");
 Core\Log::write(Core\Log::Level::Info, "order ORD-1042 was placed");

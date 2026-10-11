@@ -109,5 +109,5 @@ while ($j < 20000) {
 echo 'changes: ', $changes, "\n";
 echo 'records built: ', Core\Arr::count($records), "\n";
 echo 'backend: ', Core\Config::get('session.backend') ?? '(nothing written)', "\n";
-echo 'ttl:     ', Core\Config::get('session.ttl') ?? '(nothing written)', "\n";
-echo 'cookie:  ', Core\Config::get('session.cookie') ?? '(nothing written)', "\n";
+echo 'ttl:     ', Core\Config::get('session.ttl') ?? '(no value)', "\n";
+echo 'cookie:  ', Core\Config::get('session.cookie') ?? '(no value)', "\n";

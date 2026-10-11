@@ -82,7 +82,7 @@ while ($i < 20) {
 
 // 5. Both settings are the same as before. This prints `not set` two times.
 echo Core\Config::get('log.target') ?? 'not set', "\n";
-echo Core\Config::get('opcache.file_cache_dir') ?? 'not set', "\n";
+echo Core\Config::get('opcache.file_cache_dir') ?? '(no value)', "\n";
 
 // 6. The configuration file is unchanged. This prints `96M` and `no new rights`.
 string $text = Core\IO::read($config);

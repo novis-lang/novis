@@ -2,10 +2,12 @@
 // `[metrics]` sets where Novis sends the numbers it counts about itself. It also
 // sets `max_series`, the most different series one CPU core keeps.
 
-echo 'exporter:   ', Core\Config::get('metrics.exporter') ?? '(nothing written — nothing is exported)', "\n";
+// This file does not write `[metrics]`. The exporter is `false`, so nothing is exported.
+// The series cap is the default, `10000`.
+echo 'exporter:   ', Core\Config::get('metrics.exporter') ?? '(no value)', "\n";
 echo 'scrape at:  ', Core\Config::get('metrics.listen') ?? '(nothing written)', "\n";
 echo 'push to:    ', Core\Config::get('metrics.endpoint') ?? '(nothing written)', "\n";
-echo 'series cap: ', Core\Config::get('metrics.max_series') ?? '(nothing written — the bound this build ships with)', "\n";
+echo 'series cap: ', Core\Config::get('metrics.max_series') ?? '(no value)', "\n";
 
 // Only the person who runs the server may change `[metrics]`. Every call below
 // returns `false`, so a program cannot stop its own metrics.
@@ -15,5 +17,5 @@ echo 'raise the series cap: ', Core\Config::set('metrics.max_series', '100000000
 
 // `[trace]` works the same way. A program cannot turn off its own tracing,
 // so this call returns `false` too.
-echo 'traces go to:         ', Core\Config::get('trace.exporter') ?? '(nothing written — nothing is exported)', "\n";
+echo 'traces go to:         ', Core\Config::get('trace.exporter') ?? '(no value)', "\n";
 echo 'stop tracing me:      ', Core\Config::set('trace.exporter', 'false') ? 'accepted' : 'refused', "\n";

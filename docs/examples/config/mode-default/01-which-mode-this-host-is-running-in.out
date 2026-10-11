@@ -1,5 +1,5 @@
 running in: production
-written:    (nothing — so production)
+in force:   production
 not seeding: real orders live on this host
 select staging: refused
 ask for debug logs: accepted

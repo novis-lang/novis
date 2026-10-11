@@ -3,8 +3,8 @@
 // program has no handler of its own, or when that handler could not run.
 
 echo 'the handler on duty: ', Core\Config::get('log.handler') ?? '(none written — the floor writes the record itself)', "\n";
-echo 'memory held back:    ', Core\Config::get('log.handler_reserve_memory') ?? '(nothing written — the engine sizes it)', "\n";
-echo 'time held back:      ', Core\Config::get('log.handler_reserve_time') ?? '(nothing written — the engine sizes it)', "\n";
+echo 'memory held back:    ', Core\Config::get('log.handler_reserve_memory') ?? '(no value)', "\n";
+echo 'time held back:      ', Core\Config::get('log.handler_reserve_time') ?? '(no value)', "\n";
 
 // A program registers its own handler with `Core\Fatal::onLimit`. This function
 // runs inside the request that failed.

@@ -35,16 +35,16 @@ foreach ($keys as string $key) {
 
 // 3. Try 200000 times in a loop, and count how often the value read back changes.
 uint $changes = 0;
-string $standing = Core\Config::get('server.socket_mode') ?? '(not set)';
+string $standing = Core\Config::get('server.socket_mode') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
     Core\Config::set('server.socket_mode', '0777');
     Core\Config::restore('server.socket_mode');
-    if ((Core\Config::get('server.socket_mode') ?? '(not set)') != $standing) {
+    if ((Core\Config::get('server.socket_mode') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }
     $i = $i + 1;
 }
 
 echo 'changes:     ', $changes, "\n";
-echo 'socket mode: ', Core\Config::get('server.socket_mode') ?? '(not set)', "\n";
+echo 'socket mode: ', Core\Config::get('server.socket_mode') ?? '(no value)', "\n";

@@ -2,7 +2,7 @@
 // A script can start another script, which can start another. `limits.max_script_depth`
 // is how deep this chain may go. A script past that depth does not start.
 
-echo 'nesting allowed:     ', Core\Config::get('limits.max_script_depth') ?? '(unset — sixty-four is used when nobody writes one)', "\n";
+echo 'nesting allowed:     ', Core\Config::get('limits.max_script_depth') ?? '(no value)', "\n";
 
 // `limits.memory` is in the same block. A program may change it for itself.
 echo 'ask for less memory: ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";

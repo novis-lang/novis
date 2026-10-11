@@ -16,7 +16,7 @@ foreach ($other as string $key) {
 }
 
 // 2. Read the settings this program got. They must be this block's values only.
-echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+echo 'memory: ', Core\Config::get('limits.memory') ?? '(no value)', "\n";
 echo 'origin: ', Core\Config::get('origin') ?? '(unset)', "\n";
 echo 'spawn: ', Core\Config::get('capabilities.script.spawn') ?? '(unset)', "\n";
 

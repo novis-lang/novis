@@ -1,11 +1,11 @@
 <?nvs
 // Shows how to undo a change to a setting. `Core\Config::restore` puts back the
-// value the configuration file gives.
+// value the configuration file gives, or the built-in default.
 
-Core\Config::set("max_tasks", "32");
+Core\Config::set("max_regex_steps", "5000");
 
-// This prints 32 and then not set. Nothing in the configuration file here sets
-// this limit, so there is no value to go back to.
-echo Core\Config::get("max_tasks") ?? "not set", "\n";
-Core\Config::restore("max_tasks");
-echo Core\Config::get("max_tasks") ?? "not set", "\n";
+// This prints 5000 and then 1000000. The configuration file here does not set
+// this limit, so `restore` puts back its built-in default.
+echo Core\Config::get("max_regex_steps") ?? "no limit", "\n";
+Core\Config::restore("max_regex_steps");
+echo Core\Config::get("max_regex_steps") ?? "no limit", "\n";

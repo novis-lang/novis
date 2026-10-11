@@ -83,4 +83,4 @@ while ($round < 100000) {
 // Read all settings again. A key that no block set, or any `[[app]]` key, means the attack worked.
 array<string> $all = Core\Config::all();
 echo Core\Arr::count($all), " directive(s) still in force\n";
-echo Core\Config::get('limits.memory') ?? '(unset)', "\n";
+echo Core\Config::get('limits.memory') ?? '(no value)', "\n";

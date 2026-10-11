@@ -6,7 +6,7 @@
 //     socket_mode = "0660"   # the owner and the socket's group may connect
 
 // When the file does not set it, the value is `0660`.
-echo 'socket mode:          ', Core\Config::get('server.socket_mode') ?? '0660 (the default)', "\n";
+echo 'socket mode:          ', Core\Config::get('server.socket_mode') ?? '(no value)', "\n";
 
 // Every account that may write to the socket may connect to the server.
 // A program cannot change this setting, so this prints `refused`.

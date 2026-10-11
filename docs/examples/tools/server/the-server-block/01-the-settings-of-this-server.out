@@ -1,4 +1,4 @@
 health check path:      /up
 requests at one time:   500
-drain timeout:          not set
+drain timeout:          30s
 changed by the program: no

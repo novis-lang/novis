@@ -10,8 +10,8 @@ the record. `Warn` is something recoverable that nobody chose — a retry, a fal
 operation failed. `Critical` is for a program that can no longer do its job at all.
 
 The level a deployment keeps is a floor rather than a filter: set `[log] level` to `Warn` and
-everything louder than `Warn` is kept too. A deployment that has set nothing keeps every record, so a
-`Debug` line you left in your code stays in the log until somebody chooses otherwise.
+everything louder than `Warn` is kept too. When nothing sets the level, production keeps `Info` and
+louder, so a `Debug` record is not written. Development keeps every record.
 
 **Good to know:** the level decides how loud a record is, never who reads it. Where records go is a
 separate setting, and the same record goes to the same place whatever its level.

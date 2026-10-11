@@ -5,9 +5,9 @@
 
 echo 'running in: ', Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production', "\n";
 
-// This configuration does not set the mode, so `Core\Config::get` returns `null`
-// and the mode is `production`.
-echo 'written:    ', Core\Config::get('mode.default') ?? '(nothing — so production)', "\n";
+// This configuration does not set the mode, so `Core\Config::get` returns the
+// default, `production`.
+echo 'in force:   ', Core\Config::get('mode.default') ?? '(no value)', "\n";
 
 // `Core\Env::mode()` returns the current mode, so this runs the `else` branch.
 if (Core\Env::mode() == Core\Env::Mode::Development) {
@@ -23,4 +23,4 @@ echo 'select staging: ', Core\Config::set('mode.default', 'staging') ? 'accepted
 // The mode sets the default of five other settings. You can still change each
 // of them on its own, like `log.level` here.
 echo 'ask for debug logs: ', Core\Config::set('log.level', 'debug') ? 'accepted' : 'refused', "\n";
-echo 'log level is now:   ', Core\Config::get('log.level') ?? '(nothing written)', "\n";
+echo 'log level is now:   ', Core\Config::get('log.level') ?? '(no value)', "\n";

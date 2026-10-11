@@ -4,8 +4,9 @@ are written as their own object next to the message, so a search for that order 
 about it. Inside a web request, the record also has the time and the id of the request.
 
 Whoever runs the server decides where records go, with `[log] target`. When nothing is set, the
-record is printed to the program's output. `[log] level` decides which levels are kept, and
-`[log] format` can choose plain text instead of JSON.
+record is printed to the program's output. `[log] level` decides which levels are kept. In
+production, a `Debug` record is not kept unless `[log] level` is `"Debug"`. `[log] format` can
+choose plain text instead of JSON.
 
 The message may be text that a user sent. A line break in it is written as `\n`, so one record is
 always one line. A `secret` value cannot be the message, and that does not compile.

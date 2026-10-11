@@ -2,10 +2,12 @@
 // `[trace]` sets where request traces are sent and what share of requests is
 // traced. It also sets whether an outgoing call sends the trace header.
 
-echo 'exporter:  ', Core\Config::get('trace.exporter') ?? '(nothing written — no spans leave this process)', "\n";
+// This file does not write `[trace]`. So the exporter is `false`, `sample` is `0.0`
+// and `propagate` is `true`. These are the defaults.
+echo 'exporter:  ', Core\Config::get('trace.exporter') ?? '(no value)', "\n";
 echo 'push to:   ', Core\Config::get('trace.endpoint') ?? '(nothing written)', "\n";
-echo 'sample:    ', Core\Config::get('trace.sample') ?? '(nothing written — so none of them)', "\n";
-echo 'propagate: ', Core\Config::get('trace.propagate') ?? '(nothing written)', "\n";
+echo 'sample:    ', Core\Config::get('trace.sample') ?? '(no value)', "\n";
+echo 'propagate: ', Core\Config::get('trace.propagate') ?? '(no value)', "\n";
 
 // `exporter` and `sample` are separate settings. `sample` starts at `0`, so you
 // must set both before any trace is sent.

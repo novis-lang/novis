@@ -2,6 +2,7 @@ Gives every setting in force for this request, as one array.
 
 The keys are the dotted names a configuration file uses, such as `limits.memory` or `log.level`, and
 they are sorted by name. Every value is text, written the way the configuration file writes it. A
+setting the configuration file does not write is in the array with its built-in default. A
 setting your program changed with `Core\Config::set` is in the array with the new value. A name that
 holds a group of settings is not an entry of its own, and a name that holds a list is not in the
 array at all.

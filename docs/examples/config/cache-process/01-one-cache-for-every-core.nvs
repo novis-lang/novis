@@ -15,11 +15,11 @@ var $cache = Core\Cache::process();
 $cache->put('rates:eur', '0.92');
 echo 'eur rate: ', $cache->get('rates:eur') ?? '(fetch it)', "\n";
 
-echo 'cap:      ', Core\Config::get('cache.process.max_size') ?? '(the built-in cap)', "\n";
+echo 'cap:      ', Core\Config::get('cache.process.max_size') ?? '(no value)', "\n";
 
 // Several requests may call `getSecret` for the same missing value. One fetches it, and the others
 // wait up to `fill_wait` for that result. After that time, `getSecret` throws a `TimeoutError`.
-echo 'wait:     ', Core\Config::get('cache.process.fill_wait') ?? '(the built-in wait)', "\n";
+echo 'wait:     ', Core\Config::get('cache.process.fill_wait') ?? '(no value)', "\n";
 
 // Only the person who runs the server may change these settings.
 // `Core\Config::set` returns `false` both times, so both lines print `no`.

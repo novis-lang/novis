@@ -14,9 +14,9 @@ echo 'store:    ', Core\Config::get('cache.shared.url') ?? '(no shared tier)', "
 // that the entries use.
 echo 'database: ', Core\Config::get('cache.shared.database') ?? '(the one the store opens on)', "\n";
 
-// `timeout` limits the connect and each command.
-// A store that stops answering cannot block a request.
-echo 'timeout:  ', Core\Config::get('cache.shared.timeout') ?? '(the built-in bound)', "\n";
+// `timeout` limits the connect and each command. This file does not set it,
+// so the result is the default, `5s`. A store that stops answering cannot block a request.
+echo 'timeout:  ', Core\Config::get('cache.shared.timeout') ?? '(no value)', "\n";
 
 // Set the password with `password`, or with `password_file`. Write only one of the two.
 // `password_file` names a file that contains the password, which is how a container passes one in.

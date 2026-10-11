@@ -68,6 +68,6 @@ foreach ($values as string $value) {
 }
 Core\Config::restore('cache.process.fill_wait');
 
-// Both settings should still be the values from the file.
-echo 'cap:  ', Core\Config::get('cache.process.max_size') ?? '(the built-in cap)', "\n";
-echo 'wait: ', Core\Config::get('cache.process.fill_wait') ?? '(the built-in wait)', "\n";
+// Both settings should still have the values they started with.
+echo 'cap:  ', Core\Config::get('cache.process.max_size') ?? '(no value)', "\n";
+echo 'wait: ', Core\Config::get('cache.process.fill_wait') ?? '(no value)', "\n";
