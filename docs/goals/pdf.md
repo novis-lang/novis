@@ -6,7 +6,7 @@ context: [crates/nvs-ext/build.rs, crates/nvs-ext/src/builtin.rs, crates/nvs-ext
 stages:
   - id: 2
     title: "the fragments, `wit/pdf.wit` and the font licence"
-    status: open
+    status: done
     extra:
       context:
         rules: [core-api/tier-roster, core-classes/pdf-render-has-no-io, core-classes/pdf-css-subset, core-classes/pdf-output-is-inert, core-classes/pdf-one-engine, core-classes/pdf-page-is-an-image-source, core-classes/pdf-decode-refusals, packaging/pdf-decoding-ships-in-the-image-package, packaging/a-value-crosses-as-its-wit-type, core-api/options-bag, core-api/one-paradigm-per-operation, core-classes/html-template, enums/an-enum-lives-in-the-class-that-uses-it]
@@ -127,6 +127,21 @@ checks:
     name: "nvs-stdlib (`wit/pdf.wit` parses against the world in its types alone, and carries the second pass for header and footer markup)"
     run: [cargo, test, --test, ext_world]
     tests: [the_pdf_interface_parses_against_the_world_in_wit_types_alone, the_pdf_render_export_carries_a_second_pass_for_page_markup]
+  - id: nvs-stdlib-the-image-codec-exports-a-barcode
+    stage: 2
+    name: "nvs-stdlib (`wit/image.wit` exports `barcode` as the ninth entry point, and every `Novis\\Image\\Barcode` member runs in it)"
+    run: [cargo, test, --test, ext_world]
+    tests: [the_image_codec_exports_exactly_the_nine_entry_points, every_image_builder_member_maps_to_an_export_a_plan_step_or_novis_source]
+  - id: deny-the-image-component-graph-passes
+    stage: 2
+    name: "cargo deny: the image component's own `wasm32-wasip2` graph passes `deny.toml`"
+    run: [cargo, deny, --manifest-path, extensions/image/Cargo.toml, --target, wasm32-wasip2, --locked, check]
+    output_ordered: ["advisories ok, bans ok, licenses ok, sources ok"]
+  - id: deny-the-intl-component-graph-passes
+    stage: 2
+    name: "cargo deny: the intl component's own `wasm32-wasip2` graph passes `deny.toml`"
+    run: [cargo, deny, --manifest-path, extensions/intl/Cargo.toml, --target, wasm32-wasip2, --locked, check]
+    output_ordered: ["advisories ok, bans ok, licenses ok, sources ok"]
   - id: nvs-ext-svg-and-pdf-decode-as-images
     stage: 3
     name: "nvs-ext (SVG decodes with no resource resolved, a PDF page rasterises at its dpi under the pixel cap, `info` counts pages without a pixel, and the bomb corpus ends in a throw or a contained trap)"
@@ -252,6 +267,46 @@ checks:
     name: "proofs: the `Novis\\` programs carry comments inside the plain-comment bounds"
     run: [bun, nv, proofs, --comments, docs/examples/novis, tests/hostile/novis, benches/members/novis]
     output_ordered: [each inside the bounds]
+  - id: dossier-novis-pdf-document-owes-nothing
+    stage: 16
+    name: "proofs: `Novis\\Pdf\\Document` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Pdf\\Document"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-pdf-page-owes-nothing
+    stage: 16
+    name: "proofs: `Novis\\Pdf\\Page` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Pdf\\Page"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-pdf-rendered-owes-nothing
+    stage: 16
+    name: "proofs: `Novis\\Pdf\\Rendered` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Pdf\\Rendered"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-pdf-pages-owes-nothing
+    stage: 16
+    name: "proofs: `Novis\\Pdf\\Pages` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Pdf\\Pages"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-pdf-reader-owes-nothing
+    stage: 16
+    name: "proofs: `Novis\\Pdf\\Reader` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Pdf\\Reader"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-pdf-engine-owes-nothing
+    stage: 16
+    name: "proofs: `Novis\\Pdf\\Engine` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Pdf\\Engine"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-image-barcode-owes-nothing
+    stage: 16
+    name: "proofs: `Novis\\Image\\Barcode` owes nothing, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Image\\Barcode"]
+    output_ordered: [nothing owed in]
+  - id: dossier-novis-image-qrcode-owes-nothing
+    stage: 16
+    name: "proofs: `Novis\\Image\\QrCode` owes nothing with `svg` and `giroCode` in it, and its examples and attacks run"
+    run: [bun, nv, proofs, --verify, --group, "Novis\\Image\\QrCode"]
+    output_ordered: [nothing owed in]
 extra:
   milestone: M17
   files: []
@@ -736,24 +791,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 2 is half landed: the fragments and `wit/pdf.wit` are on disk, and its three checks are green** (`pdf-the-record-creates-its-fragments`, `image-the-record-creates-the-barcode-roster`, `nvs-stdlib-the-pdf-interface-parses-against-the-world`). The stage stays open for the items below. Stage 1's floor is whatever the chain carries.
+**Stage 2 is done, and its six checks are green**: `pdf-the-record-creates-its-fragments`, `image-the-record-creates-the-barcode-roster`, `nvs-stdlib-the-pdf-interface-parses-against-the-world`, `nvs-stdlib-the-image-codec-exports-a-barcode`, `deny-the-image-component-graph-passes` and `deny-the-intl-component-graph-passes`. Stage 3 is next and nothing of it is on disk.
 
-The user's calls in § *Standing decisions* now live in rules, and no session re-decides one. `rule:core-classes/pdf-roster` is the class surface (`Document`, `Page`, `Rendered`, `Pages`, `Reader`, manifest class `Engine`, `Document::Standard`), so no check needed a rename. Nine new ids: `pdf-roster`, `pdf-css-subset-table`, `pdf-tables-across-pages`, `pdf-header-is-a-page-function`, `pdf-standards-and-passwords`, `pdf-factur-x-is-the-one-attachment`, `pdf-reader-and-merge`, `pdf-default-fonts` and `image-barcode-roster`. The seven older `pdf-*` fragments and `rule:packaging/the-first-party-components-are-built-in` (three components) are rewritten. `wit/pdf.wit` is four exports: `render(pass)`, where `pass` is `whole`, `first` or `second(margins)`, then `merge`, `read` and `read-text`. `crates/nvs-stdlib/tests/ext_world.rs` holds it, and the intl test now shares `crossing_problems` with it.
-
-Still open in Stage 2: `wit/image.wit` has no barcode export, `docs/plan/m17.md` Parts 1 and 2 are not rewritten, the Stage 16 proofs checks are not written, and OFL-1.1 and the per-component `cargo deny` are not done. The facts from the goal's writing still hold: `extensions/image/src/decode.rs:60` `sniff` rejects SVG and PDF, `deny.toml:38` and `tools/nv/cmd/gen-attribution.ts:66` lack OFL-1.1, and `extensions/pdf` must point `html5ever` at `vendor/html5ever` (`Cargo.toml:1151`).
+- `wit/image.wit` exports `barcode(data, symbology, barcode-options)` as the ninth entry point. Its `format` takes `svg` for an SVG document. The guest returns `runtime` from it (`extensions/image/src/lib.rs:756`), and `rule:core-classes/image-barcode-roster`'s *Not shipped* line says so. `ext_world.rs`'s `IMAGE_MEMBERS` already places `Barcode::render`, `Barcode::svg`, `QrCode::svg` and `QrCode::giroCode`.
+- `docs/plan/m17.md` points Parts 1 and 2 at this goal and its rules. Part 3 is unscheduled.
+- Stage 16 carries eight `bun nv proofs --verify --group` checks, one per class.
+- `OFL-1.1` is in `PREFERENCE` and in `FONT_DATA` (`tools/nv/cmd/gen-attribution.ts`), so `deny.toml` still refuses a crate that offers it. The Liberation notice itself is owed by the slice that adds the font files (Stage 3's `extensions/fonts/`). `bun nv gen-attribution` writes it then.
+- The per-component deny is plain `cargo deny --manifest-path extensions/<c>/Cargo.toml --target wasm32-wasip2 --locked check`. It picks up the root `deny.toml`. Stage 5 adds `extensions/pdf`'s check in the same form.
+- `looper lint` reports AGENTS.md's managed text as edited by hand. AGENTS.md matches HEAD, so the problem was committed before this session. `bun nv plan --check` has six findings for M4, M8 and M10, which were also there before this session. Neither was touched here.
 
 ### Next
 
-**Stage 2, the rest**: the image WIT, the plan, the checks and the font licence. The file set is `wit/image.wit`, `extensions/image/src/lib.rs`, `crates/nvs-stdlib/tests/ext_world.rs`, `docs/plan/m17.md`, `docs/goals/pdf.md` and `tools/nv/cmd/gen-attribution.ts`.
+**Stage 3, the prerequisites and SVG**: the file set is `extensions/image/Cargo.toml`, `extensions/image/src/decode.rs`, `extensions/image/src/info.rs`, `extensions/image/src/lib.rs` and `crates/nvs-ext/tests/image_decode.rs`.
 
-- [ ] **The barcode export in `wit/image.wit`** per `rule:core-classes/image-barcode-roster`: `barcode(data, symbology, options)` with a `symbology` enum (`code128`, `gs1128`, `ean13`, `ean8`, `upc-a`, `code39`, `itf14`, `data-matrix`) and an SVG-or-encoded output. Stub it in the guest with `runtime` beside `qr` (`extensions/image/src/lib.rs:740`). The export count goes from eight to nine in `the_image_codec_exports_exactly_the_eight_entry_points`, which is renamed (`crates/nvs-stdlib/tests/ext_world.rs:735`). QR's SVG output stays Stage 4's.
-- [ ] **`docs/plan/m17.md` Parts 1 and 2** rewritten through a `## milestone: M17` wrap section to point at this goal and the new rules. Part 3 stays unscheduled. `docs/plan/m17.md:1`
-- [ ] **The proofs checks**: one `bun nv proofs --verify --group '<class>'` check per class in Stage 16 of this file's `checks:`. The classes are `Novis\Pdf\Document`, `Page`, `Rendered`, `Pages`, `Reader`, `Engine`, `Novis\Image\Barcode`, and `Novis\Image\QrCode` for its new members. `docs/goals/pdf.md:114`
-- [ ] **OFL-1.1 for font data** in `PREFERENCE`, and a `cargo deny` over each component's own `wasm32-wasip2` graph, with its check added here. `tools/nv/cmd/gen-attribution.ts:66`
+- [ ] **`hayro` builds for `wasm32-wasip2` and passes `deny-the-image-component-graph-passes`** once it is in `extensions/image/Cargo.toml:14` (`rule:core-classes/pdf-page-is-an-image-source`). If either fails, record it and stop the PDF half with `BLOCKED`, because there is no pdfium fallback.
+- [ ] **SVG decodes through `resvg`/`usvg`** with a resolver that reads only the bytes it is given. An external `href` throws (`rule:core-classes/image-format-roster`). `sniff` at `extensions/image/src/decode.rs:60`, and `Input::Encoded` at `extensions/image/src/lib.rs:135`.
+- [ ] **`page` and `dpi` cross from `Image::open`** (`extensions/image/nvs/Image.nvs:61`) into `Input::Encoded`. The WIT mapping in `extensions/image/src/lib.rs` drops them today.
+- [ ] **The Liberation fonts under `extensions/fonts/`**, with their OFL notice through `bun nv gen-attribution`, which ranks the licence at `tools/nv/cmd/gen-attribution.ts:89` (`rule:core-classes/pdf-default-fonts`).
 
 ### Backlog
 
-- Stages 3 and 4: SVG and PDF decoding (the `hayro` prerequisites first), `harfrust` shaping and barcodes, under `extensions/image/` and `crates/nvs-ext/tests/image_*.rs`.
-- Stages 5 to 13: `extensions/pdf/` built in, then the cascade (`extensions/pdf/subset.json`, `rule:core-classes/pdf-css-subset-table`), layout, pagination, header functions, tables, standards and existing PDFs.
+- Stage 3, the PDF half: page rasterising, `info`'s page count and the bomb corpus (`rule:core-classes/pdf-decode-refusals`).
+- Stage 4: `harfrust` shaping and the barcode export's real body, with QR's SVG output (`rule:core-classes/image-barcode-roster`).
+- Stages 5 to 13: `extensions/pdf/` built in, with its own `cargo deny` check, then the cascade, layout, pagination, header functions, tables, standards and existing PDFs.
 - Stages 14 to 16: growth and benches, the editor's custom data, the feature proofs.
-- veraPDF as an external validator of PDF/A and PDF/UA output in CI is not in the acceptance; `krilla`'s own validation is. Adding it is the user's call.
+- veraPDF as an external validator of PDF/A and PDF/UA output in CI is not in the acceptance. `krilla`'s own validation is. Adding it is the user's call.
