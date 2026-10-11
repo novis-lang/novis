@@ -3,12 +3,12 @@
 // requires: samba-ad
 
 class Kind {
-    public static function of(Core\Ldap\Ad\AccountType $type): string {
+    public static function of(Core\Ldap\Entry::AccountType $type): string {
         return match ($type) {
-            Core\Ldap\Ad\AccountType::User => "a person",
-            Core\Ldap\Ad\AccountType::Machine => "a computer",
-            Core\Ldap\Ad\AccountType::Group => "a security group",
-            Core\Ldap\Ad\AccountType::NonSecurityGroup => "an email group",
+            Core\Ldap\Entry::AccountType::User => "a person",
+            Core\Ldap\Entry::AccountType::Machine => "a computer",
+            Core\Ldap\Entry::AccountType::Group => "a security group",
+            Core\Ldap\Entry::AccountType::NonSecurityGroup => "an email group",
             default => "something else",
         };
     }

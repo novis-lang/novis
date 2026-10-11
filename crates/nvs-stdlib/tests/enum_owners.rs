@@ -14,9 +14,6 @@ use nvs_stdlib::registry::{CLASSES, Const, CoreEnum, CoreTy, ENUMS};
 /// their current name. Each rename slice deletes its rows, and the list is
 /// empty when every move has landed.
 const NOT_YET_MOVED: &[&str] = &[
-    r"Core\Ldap\Scope",
-    r"Core\Ldap\Ad\AccountType",
-    r"Core\Ldap\Tls",
     r"Core\Queue\State",
 ];
 

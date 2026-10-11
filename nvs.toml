@@ -1222,18 +1222,18 @@ root = "docs/examples/types/Ldap-ErrorKind"
 connect = ["corp"]
 
 [[app]]
-root = "docs/examples/types/Ldap-Scope"
+root = "docs/examples/types/Ldap-Connection-Scope"
 
 [app.capabilities.ldap]
 connect = ["corp"]
 
 [[app]]
-root = "docs/examples/types/Ldap-Ad-AccountType"
+root = "docs/examples/types/Ldap-Entry-AccountType"
 
 [app.capabilities.ldap]
 connect = ["corp"]
 
-# `Core\Ldap\Tls`'s example opens the test server's plain `ldap://` port on loopback, so it is granted
+# `Core\Ldap::Tls`'s example opens the test server's plain `ldap://` port on loopback, so it is granted
 # that one host for `open` and for `cleartext`, and `net.internal` lets the address through.
 [[app]]
 root = "docs/examples/types/Ldap-Tls"

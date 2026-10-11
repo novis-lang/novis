@@ -10,7 +10,7 @@ class Users {
         array<tainted string> $out = [];
         var $entries = $corp->search(Core\Ldap\Filter::all(Core\Ldap\Filter::equals("objectClass", "user"), $filter), {
             base: "CN=Users,DC=example,DC=test",
-            scope: Core\Ldap\Scope::OneLevel,
+            scope: Core\Ldap\Connection::Scope::OneLevel,
             select: ["cn"],
         });
         foreach ($entries as Core\Ldap\Entry $entry) {

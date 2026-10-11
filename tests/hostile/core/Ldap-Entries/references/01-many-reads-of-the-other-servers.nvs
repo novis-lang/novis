@@ -8,7 +8,7 @@ var $corp = Core\Ldap::connect('corp');
 var $every = Core\Ldap\Filter::present('objectClass');
 
 try {
-    var $entries = $corp->search($every, { scope: Core\Ldap\Scope::Subtree, select: ['cn'] });
+    var $entries = $corp->search($every, { scope: Core\Ldap\Connection::Scope::Subtree, select: ['cn'] });
     uint $read = 0;
     foreach ($entries as Core\Ldap\Entry $entry) {
         $read = $read + 1;
@@ -37,7 +37,7 @@ try {
     uint $total = 0;
     uint $round = 0;
     while ($round < 100) {
-        var $again = $corp->search($every, { scope: Core\Ldap\Scope::OneLevel, select: ['cn'] });
+        var $again = $corp->search($every, { scope: Core\Ldap\Connection::Scope::OneLevel, select: ['cn'] });
         foreach ($again as Core\Ldap\Entry $entry) {
         }
         $total = $total + Core\Arr::count($again->references());
@@ -50,7 +50,7 @@ try {
 
 // 4. A search stopped after its first entry, then its list read. Reading it must not fail.
 try {
-    var $partial = $corp->search($every, { scope: Core\Ldap\Scope::Subtree, select: ['cn'] });
+    var $partial = $corp->search($every, { scope: Core\Ldap\Connection::Scope::Subtree, select: ['cn'] });
     foreach ($partial as Core\Ldap\Entry $entry) {
         break;
     }

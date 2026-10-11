@@ -2290,7 +2290,7 @@ against the outbound address policy, as [`core-classes/db-capabilities`](core-cl
 refuses an unknown key. A block with no `user` binds anonymously. `Ldap\Settings` is the same fields as
 a shape: `url` is a sink with no launderer, as `Settings.host` is for a database; `base` is
 `Dn|string`; `user` accepts `tainted`, being a length-framed protocol field; `password` is `secret
-tainted string`; and `tls` is the enum `Ldap\Tls`.
+tainted string`; and `tls` is the enum `Ldap::Tls`.
 
 **A block's URL list fails over in order**, and so does every address one URL's host resolves to. A
 server that does not answer, or whose TLS handshake fails, moves the walk on. A server that answers and
@@ -2452,7 +2452,7 @@ schema cannot say:
 | `TRUE`/`FALSE` | `bool` |
 | `userAccountControl` with `msDS-User-Account-Control-Computed` | `Ad\AccountFlags` |
 | `groupType` | `Ad\GroupType` |
-| `sAMAccountType` | the enum `Ad\AccountType` |
+| `sAMAccountType` | the enum `Entry::AccountType` |
 
 **A flag field is a readonly object with one `bool` reader method per flag** and an immutable `with`
 taking one `bool` option per flag it may set, where an option left out keeps its bit; `Core` has no

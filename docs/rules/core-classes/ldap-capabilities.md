@@ -11,7 +11,7 @@ against the outbound address policy, as `rule:core-classes/db-capabilities` reas
 refuses an unknown key. A block with no `user` binds anonymously. `Ldap\Settings` is the same fields as
 a shape: `url` is a sink with no launderer, as `Settings.host` is for a database; `base` is
 `Dn|string`; `user` accepts `tainted`, being a length-framed protocol field; `password` is `secret
-tainted string`; and `tls` is the enum `Ldap\Tls`.
+tainted string`; and `tls` is the enum `Ldap::Tls`.
 
 **A block's URL list fails over in order**, and so does every address one URL's host resolves to. A
 server that does not answer, or whose TLS handshake fails, moves the walk on. A server that answers and

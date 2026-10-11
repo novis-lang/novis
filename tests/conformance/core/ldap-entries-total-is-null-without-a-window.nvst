@@ -6,8 +6,8 @@ var $corp = Core\Ldap::connect("corp");
 var $every = Core\Ldap\Filter::present("objectClass");
 var $base = "CN=Users,DC=example,DC=test";
 
-var $plain = $corp->search($every, {base: $base, scope: Core\Ldap\Scope::OneLevel});
-var $sorted = $corp->search($every, {base: $base, scope: Core\Ldap\Scope::OneLevel, sort: "cn"});
+var $plain = $corp->search($every, {base: $base, scope: Core\Ldap\Connection::Scope::OneLevel});
+var $sorted = $corp->search($every, {base: $base, scope: Core\Ldap\Connection::Scope::OneLevel, sort: "cn"});
 echo "plain: ", $plain->total() == null ? "null" : "a number", "\n";
 echo "sorted: ", $sorted->total() == null ? "null" : "a number", "\n";
 

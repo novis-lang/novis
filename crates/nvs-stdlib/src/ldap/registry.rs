@@ -16,7 +16,7 @@ pub(crate) const NAME: &str = r"Core\Ldap";
 pub(crate) const CONNECTION_NAME: &str = r"Core\Ldap\Connection";
 
 /// [`TLS`]' fully-qualified name.
-pub(crate) const TLS_NAME: &str = r"Core\Ldap\Tls";
+pub(crate) const TLS_NAME: &str = r"Core\Ldap::Tls";
 
 /// `Core\Ldap\Entries`' fully-qualified name.
 pub(crate) const ENTRIES_NAME: &str = r"Core\Ldap\Entries";
@@ -46,13 +46,13 @@ pub(crate) const ACCOUNT_FLAGS_NAME: &str = r"Core\Ldap\Ad\AccountFlags";
 pub(crate) const GROUP_TYPE_NAME: &str = r"Core\Ldap\Ad\GroupType";
 
 /// [`ACCOUNT_TYPE`]'s fully-qualified name.
-pub(crate) const ACCOUNT_TYPE_NAME: &str = r"Core\Ldap\Ad\AccountType";
+pub(crate) const ACCOUNT_TYPE_NAME: &str = r"Core\Ldap\Entry::AccountType";
 
 /// `Core\Ldap\Change`'s fully-qualified name.
 pub(crate) const CHANGE_NAME: &str = r"Core\Ldap\Change";
 
 /// [`SCOPE`]'s fully-qualified name.
-pub(crate) const SCOPE_NAME: &str = r"Core\Ldap\Scope";
+pub(crate) const SCOPE_NAME: &str = r"Core\Ldap\Connection::Scope";
 
 /// Every DN parameter's type, `rule:core-classes/ldap-dn-is-the-launderer`'s
 /// `Dn|string`: a [`DN`], or text that refuses `tainted` because the server
@@ -1510,7 +1510,7 @@ const ENTRY_GROUP_TYPE_DOC: MethodDoc = MethodDoc {
 
 /// `Ldap\Entry::accountType`'s reference card — `rule:core-api/reference-card`.
 const ENTRY_ACCOUNT_TYPE_DOC: MethodDoc = MethodDoc {
-    short: "Returns the entry's `sAMAccountType` as a `Core\\Ldap\\Ad\\AccountType`, such as \
+    short: "Returns the entry's `sAMAccountType` as a `Core\\Ldap\\Entry::AccountType`, such as \
             `AccountType::User`.",
     params: &[],
     ret: "The account type, or `null` when the entry has no `sAMAccountType`.",
@@ -2764,7 +2764,7 @@ const GT_WITH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `rule:core-classes/ldap-value-types`'s `Ldap\Ad\AccountType`, the registry half of
+/// `rule:core-classes/ldap-value-types`'s `Ldap\Entry::AccountType`, the registry half of
 /// [`nvs_ldap::value::AccountType`]. The values are declaration ordinals, and
 /// `super::value` joins the two halves by name.
 pub(crate) const ACCOUNT_TYPE: CoreEnum = CoreEnum {
@@ -2831,7 +2831,7 @@ const ACCOUNT_TYPE_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Ldap\Scope`, a search's scope. The values are declaration ordinals.
+/// `Ldap\Connection::Scope`, a search's scope. The values are declaration ordinals.
 pub(crate) const SCOPE: CoreEnum = CoreEnum {
     name: SCOPE_NAME,
     cases: &[("Base", 0), ("OneLevel", 1), ("Subtree", 2)],
@@ -2857,7 +2857,7 @@ const SCOPE_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Ldap\Tls`, a block's or settings value's `tls`. The values are declaration ordinals.
+/// `Ldap::Tls`, a block's or settings value's `tls`. The values are declaration ordinals.
 pub(crate) const TLS: CoreEnum = CoreEnum {
     name: TLS_NAME,
     cases: &[("Required", 0), ("None", 1)],

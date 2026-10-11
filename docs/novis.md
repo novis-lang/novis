@@ -26104,7 +26104,7 @@ Keywords: connect, open
 | Member | Signature |
 |---|---|
 | [`Core\Ldap::connect`](#core-core-ldap-connect) | `connect(string $name): Core\Ldap\Connection` |
-| [`Core\Ldap::open`](#core-core-ldap-open) | `open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn\|string} $settings): Core\Ldap\Connection` |
+| [`Core\Ldap::open`](#core-core-ldap-open) | `open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap::Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn\|string} $settings): Core\Ldap\Connection` |
 
 <a id="core-core-ldap-connect"></a>
 #### `Core\Ldap::connect`
@@ -26127,14 +26127,14 @@ Opens the directory named by an `[ldap.<name>]` block in `nvs.toml`. A second ca
 #### `Core\Ldap::open`
 
 ```nvs skip
-Core\Ldap::open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn|string} $settings): Core\Ldap\Connection
+Core\Ldap::open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap::Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn|string} $settings): Core\Ldap\Connection
 ```
 
 Opens a directory at a URL the program gives. Needs the `ldap.open` capability for the URL's host. The host's address is also checked against the addresses no program may reach, such as private networks.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$settings` | `{url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap\Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn\|string}` | The directory to open and the account to log in with. Keys: `url` (string) One `ldaps://` or `ldap://` URL. It cannot be `tainted`, because the password is sent to this host.; `user` (tainted string) The account to log in as, as a DN, `user@example.test` or `EXAMPLE\user`. Left out, the connection does not log in.; `password` (secret tainted string) The account's password. An empty password throws before anything is sent.; `tls` (Tls) `Tls::Required`, the default, encrypts the connection. `Tls::None` sends everything as plain text, and needs the host in `[capabilities.ldap] cleartext`.; `timeout` (Duration) How long one operation may take. Left out, it is 30 seconds.; `base` (Dn\|string) The DN a search starts from when it does not give its own `base`. Text cannot be `tainted`. |
+| `$settings` | `{url: string, user?: tainted string, password?: secret tainted string, tls?: Core\Ldap::Tls, timeout?: Core\Time\Duration, base?: Core\Ldap\Dn\|string}` | The directory to open and the account to log in with. Keys: `url` (string) One `ldaps://` or `ldap://` URL. It cannot be `tainted`, because the password is sent to this host.; `user` (tainted string) The account to log in as, as a DN, `user@example.test` or `EXAMPLE\user`. Left out, the connection does not log in.; `password` (secret tainted string) The account's password. An empty password throws before anything is sent.; `tls` (Tls) `Tls::Required`, the default, encrypts the connection. `Tls::None` sends everything as plain text, and needs the host in `[capabilities.ldap] cleartext`.; `timeout` (Duration) How long one operation may take. Left out, it is 30 seconds.; `base` (Dn\|string) The DN a search starts from when it does not give its own `base`. Text cannot be `tainted`. |
 
 **Returns** `Core\Ldap\Connection` — A `Core\Ldap\Connection`. It is closed when the request ends.
 
@@ -26149,7 +26149,7 @@ Keywords: whoami, authenticate, search, changes, read, add, modify, delete, rena
 |---|---|
 | [`Core\Ldap\Connection->whoami`](#core-core-ldap-connection-whoami) | `whoami(): string` |
 | [`Core\Ldap\Connection->authenticate`](#core-core-ldap-connection-authenticate) | `authenticate(string $login, secret tainted string $password): void` |
-| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int, showDeleted?: bool}): Core\Ldap\Entries` |
+| [`Core\Ldap\Connection->search`](#core-core-ldap-connection-search) | `search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, scope?: Core\Ldap\Connection::Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int, showDeleted?: bool}): Core\Ldap\Entries` |
 | [`Core\Ldap\Connection->changes`](#core-core-ldap-connection-changes) | `changes(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn\|string, select?: array<string>, cookie?: tainted bytes}): Core\Ldap\Changes` |
 | [`Core\Ldap\Connection->read`](#core-core-ldap-connection-read) | `read(Core\Ldap\Dn\|string $dn, {select?: array<string>}): ?Core\Ldap\Entry` |
 | [`Core\Ldap\Connection->add`](#core-core-ldap-connection-add) | `add(Core\Ldap\Dn\|string $dn, array<mixed> $attributes): void` |
@@ -26195,7 +26195,7 @@ Checks a user's login and password. It opens a new connection to the same server
 #### `Core\Ldap\Connection->search`
 
 ```nvs skip
-$connection->search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, scope?: Core\Ldap\Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int, showDeleted?: bool}): Core\Ldap\Entries
+$connection->search(Core\Ldap\Filter $filter, {base?: Core\Ldap\Dn|string, scope?: Core\Ldap\Connection::Scope, select?: array<string>, pageSize?: int, sizeLimit?: int, sort?: string, descending?: bool, offset?: int, window?: int, showDeleted?: bool}): Core\Ldap\Entries
 ```
 
 Finds the entries that match a filter. The server sends the entries in pages, and the next page is read when a `foreach` loop reaches it.
@@ -26204,7 +26204,7 @@ Finds the entries that match a filter. The server sends the entries in pages, an
 |---|---|---|
 | `$filter` | `Core\Ldap\Filter` | Which entries to return, such as `Filter::equals('sAMAccountName', $login)`. |
 | `{base: …}` | `Core\Ldap\Dn\|string` (default `null`, sink) | The DN the search starts from, as a `Dn` or as text. Left out, it is the `base` of the `[ldap]` block. Text cannot be `tainted`. |
-| `{scope: …}` | `Core\Ldap\Scope` (default `Core\Ldap\Scope::Subtree`) | How far below `base` the search looks. The default is `Scope::Subtree`. |
+| `{scope: …}` | `Core\Ldap\Connection::Scope` (default `Core\Ldap\Connection::Scope::Subtree`) | How far below `base` the search looks. The default is `Scope::Subtree`. |
 | `{select: …}` | `array<string>` (default `null`) | The attributes each entry has, such as `['cn', 'mail']`. Left out, an entry has every attribute the connection's account can read. |
 | `{pageSize: …}` | `int` (default `1000`) | How many entries the server sends at once. The default is 1000. |
 | `{sizeLimit: …}` | `int` (default `0`) | The most entries the search may find. The default, 0, is the server's own limit. |
@@ -26459,7 +26459,7 @@ Keywords: dn, has, isDeleted, string, strings, bytes, int, bool, uuid, sid, sids
 | [`Core\Ldap\Entry->duration`](#core-core-ldap-entry-duration) | `duration(string $name): ?Core\Time\Duration` |
 | [`Core\Ldap\Entry->accountFlags`](#core-core-ldap-entry-accountflags) | `accountFlags(): ?Core\Ldap\Ad\AccountFlags` |
 | [`Core\Ldap\Entry->groupType`](#core-core-ldap-entry-grouptype) | `groupType(): ?Core\Ldap\Ad\GroupType` |
-| [`Core\Ldap\Entry->accountType`](#core-core-ldap-entry-accounttype) | `accountType(): ?Core\Ldap\Ad\AccountType` |
+| [`Core\Ldap\Entry->accountType`](#core-core-ldap-entry-accounttype) | `accountType(): ?Core\Ldap\Entry::AccountType` |
 | [`Core\Ldap\Entry->toArray`](#core-core-ldap-entry-toarray) | `toArray(): array<array<tainted bytes>>` |
 
 <a id="core-core-ldap-entry-dn"></a>
@@ -26701,12 +26701,12 @@ Returns the group's `groupType` as a `Core\Ldap\Ad\GroupType`.
 #### `Core\Ldap\Entry->accountType`
 
 ```nvs skip
-$entry->accountType(): ?Core\Ldap\Ad\AccountType
+$entry->accountType(): ?Core\Ldap\Entry::AccountType
 ```
 
-Returns the entry's `sAMAccountType` as a `Core\Ldap\Ad\AccountType`, such as `AccountType::User`.
+Returns the entry's `sAMAccountType` as a `Core\Ldap\Entry::AccountType`, such as `AccountType::User`.
 
-**Returns** `?Core\Ldap\Ad\AccountType` — The account type, or `null` when the entry has no `sAMAccountType`.
+**Returns** `?Core\Ldap\Entry::AccountType` — The account type, or `null` when the entry has no `sAMAccountType`.
 
 **Throws** `LogicError` — The attribute has more than one value, or its value is not in the form this function reads. The message names the attribute.
 
@@ -29676,43 +29676,43 @@ Why an LDAP operation failed. `Core\Ldap\LdapError::$kind` is one of these, and 
 | `Core\Ldap\ErrorKind::Protocol` | The server sent a message the LDAP protocol does not allow, or a result code no other kind covers. A `LdapError` you create yourself has this kind. |
 
 <a id="enum-core-ldap-tls"></a>
-#### `Core\Ldap\Tls`
+#### `Core\Ldap::Tls`
 
 Whether a connection to a directory is encrypted.
 
 | Case | Meaning |
 |---|---|
-| `Core\Ldap\Tls::Required` | The connection is encrypted. An `ldaps://` URL starts with TLS, and an `ldap://` URL switches to TLS before it logs in. |
-| `Core\Ldap\Tls::None` | The connection is not encrypted. The password and every result cross the network as plain text. The host must be in `[capabilities.ldap] cleartext`. |
+| `Core\Ldap::Tls::Required` | The connection is encrypted. An `ldaps://` URL starts with TLS, and an `ldap://` URL switches to TLS before it logs in. |
+| `Core\Ldap::Tls::None` | The connection is not encrypted. The password and every result cross the network as plain text. The host must be in `[capabilities.ldap] cleartext`. |
 
 <a id="enum-core-ldap-scope"></a>
-#### `Core\Ldap\Scope`
+#### `Core\Ldap\Connection::Scope`
 
 How far below its `base` a search looks.
 
 | Case | Meaning |
 |---|---|
-| `Core\Ldap\Scope::Base` | Only the `base` entry itself. |
-| `Core\Ldap\Scope::OneLevel` | The entries directly below `base`, and not `base` itself. |
-| `Core\Ldap\Scope::Subtree` | `base` and every entry below it, at any depth. This is the default. |
+| `Core\Ldap\Connection::Scope::Base` | Only the `base` entry itself. |
+| `Core\Ldap\Connection::Scope::OneLevel` | The entries directly below `base`, and not `base` itself. |
+| `Core\Ldap\Connection::Scope::Subtree` | `base` and every entry below it, at any depth. This is the default. |
 
 <a id="enum-core-ldap-ad-accounttype"></a>
-#### `Core\Ldap\Ad\AccountType`
+#### `Core\Ldap\Entry::AccountType`
 
 What kind of object an entry is, read from `sAMAccountType`.
 
 | Case | Meaning |
 |---|---|
-| `Core\Ldap\Ad\AccountType::Domain` | The domain itself. |
-| `Core\Ldap\Ad\AccountType::Group` | A global or universal security group. |
-| `Core\Ldap\Ad\AccountType::NonSecurityGroup` | A global or universal distribution group. |
-| `Core\Ldap\Ad\AccountType::Alias` | A domain local security group. |
-| `Core\Ldap\Ad\AccountType::NonSecurityAlias` | A domain local distribution group. |
-| `Core\Ldap\Ad\AccountType::User` | A user account. |
-| `Core\Ldap\Ad\AccountType::Machine` | A computer account. |
-| `Core\Ldap\Ad\AccountType::Trust` | A trust with another domain. |
-| `Core\Ldap\Ad\AccountType::AppBasicGroup` | An application group. |
-| `Core\Ldap\Ad\AccountType::AppQueryGroup` | An application group whose members come from a query. |
+| `Core\Ldap\Entry::AccountType::Domain` | The domain itself. |
+| `Core\Ldap\Entry::AccountType::Group` | A global or universal security group. |
+| `Core\Ldap\Entry::AccountType::NonSecurityGroup` | A global or universal distribution group. |
+| `Core\Ldap\Entry::AccountType::Alias` | A domain local security group. |
+| `Core\Ldap\Entry::AccountType::NonSecurityAlias` | A domain local distribution group. |
+| `Core\Ldap\Entry::AccountType::User` | A user account. |
+| `Core\Ldap\Entry::AccountType::Machine` | A computer account. |
+| `Core\Ldap\Entry::AccountType::Trust` | A trust with another domain. |
+| `Core\Ldap\Entry::AccountType::AppBasicGroup` | An application group. |
+| `Core\Ldap\Entry::AccountType::AppQueryGroup` | An application group whose members come from a query. |
 
 <a id="enum-core-queue-state"></a>
 #### `Core\Queue\State`

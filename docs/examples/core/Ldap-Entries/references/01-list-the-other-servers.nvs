@@ -6,7 +6,7 @@ var $corp = Core\Ldap::connect("corp");
 
 // This search reads the entries directly below the top of the directory.
 var $entries = $corp->search(Core\Ldap\Filter::present("objectClass"), {
-    scope: Core\Ldap\Scope::OneLevel,
+    scope: Core\Ldap\Connection::Scope::OneLevel,
     select: ["cn"],
 });
 

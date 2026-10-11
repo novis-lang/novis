@@ -71,7 +71,7 @@ try {
     $threw = $threw + 1;
 }
 try {
-    Core\Ldap::open({ url: 'ldap://127.0.0.1:1', user: 'CN=Reader,DC=example,DC=test', password: 'Example-Pw1', tls: Core\Ldap\Tls::None });
+    Core\Ldap::open({ url: 'ldap://127.0.0.1:1', user: 'CN=Reader,DC=example,DC=test', password: 'Example-Pw1', tls: Core\Ldap::Tls::None });
 } catch (Throwable $plainText) {
     $threw = $threw + 1;
 }

@@ -25,7 +25,7 @@
 //! its binary form, a `Dn` as its text, an `Instant` as a GeneralizedTime
 //! where the schema gives the attribute that syntax and as a FILETIME
 //! otherwise, a `Duration` as AD's negative interval, a flag object as its
-//! 32 bits, and an `Ad\AccountType` case as its number. A list is one value
+//! 32 bits, and an `Entry::AccountType` case as its number. A list is one value
 //! per element. Anything else is the program's own mistake, a `LogicError`.
 
 use nvs_runtime::{Ctx, Fault, NvsStr, Tag, ThrownClass, Value};

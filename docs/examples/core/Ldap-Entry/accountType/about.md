@@ -1,4 +1,4 @@
-Returns what kind of account an Active Directory entry is, as a `Core\Ldap\Ad\AccountType`. For
+Returns what kind of account an Active Directory entry is, as a `Core\Ldap\Entry::AccountType`. For
 example, a person is `AccountType::User`, a computer is `AccountType::Machine` and a security group
 is `AccountType::Group`.
 

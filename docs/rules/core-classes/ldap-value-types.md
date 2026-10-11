@@ -14,7 +14,7 @@ schema cannot say:
 | `TRUE`/`FALSE` | `bool` |
 | `userAccountControl` with `msDS-User-Account-Control-Computed` | `Ad\AccountFlags` |
 | `groupType` | `Ad\GroupType` |
-| `sAMAccountType` | the enum `Ad\AccountType` |
+| `sAMAccountType` | the enum `Entry::AccountType` |
 
 **A flag field is a readonly object with one `bool` reader method per flag** and an immutable `with`
 taking one `bool` option per flag it may set, where an option left out keeps its bit; `Core` has no

@@ -8,7 +8,7 @@ var $test = Core\Ldap::open({
     url: "ldap://127.0.0.1:16389",
     user: "CN=Reader,OU=Company,DC=example,DC=test",
     password: "Novis-reader-1",
-    tls: Core\Ldap\Tls::None,
+    tls: Core\Ldap::Tls::None,
 });
 
 // `whoami` returns the account the connection uses. This prints `u:EXAMPLE\Reader`.

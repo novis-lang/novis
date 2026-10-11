@@ -5,7 +5,7 @@ A search at the domain root returns the other naming contexts as continuation re
 // covers: Core\Ldap\Entries::references
 var $corp = Core\Ldap::connect("corp");
 var $entries = $corp->search(Core\Ldap\Filter::present("objectClass"), {
-    scope: Core\Ldap\Scope::OneLevel,
+    scope: Core\Ldap\Connection::Scope::OneLevel,
     select: ["cn"],
 });
 array<tainted string> $dns = [];

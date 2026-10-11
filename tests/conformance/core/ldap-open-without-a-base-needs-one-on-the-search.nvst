@@ -9,7 +9,7 @@ var $corp = Core\Ldap::open({
     url: "ldap://127.0.0.1:16389",
     user: "CN=Administrator,CN=Users,DC=example,DC=test",
     password: "Novis-test-1",
-    tls: Core\Ldap\Tls::None,
+    tls: Core\Ldap::Tls::None,
 });
 try {
     var $none = $corp->search(Core\Ldap\Filter::present("objectClass"));
@@ -20,7 +20,7 @@ try {
 int $found = 0;
 var $users = $corp->search(Core\Ldap\Filter::present("objectClass"), {
     base: "CN=Users,DC=example,DC=test",
-    scope: Core\Ldap\Scope::Base,
+    scope: Core\Ldap\Connection::Scope::Base,
 });
 foreach ($users as Core\Ldap\Entry $entry) {
     $found = $found + 1;

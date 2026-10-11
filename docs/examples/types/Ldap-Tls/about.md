@@ -1,5 +1,8 @@
 Says whether a connection to a directory is encrypted.
 
+`Core\Ldap::Tls` is declared in the class `Core\Ldap`. The `tls` field of the settings that
+`Core\Ldap::open` takes is one of its cases.
+
 `Tls::Required` is the default. An `ldaps://` URL starts with TLS, and an `ldap://` URL switches to
 TLS before it sends the password. When TLS is not possible, the connection throws an error.
 

@@ -13,7 +13,7 @@ var $found = $corp->search(
 uint $people = 0;
 uint $other = 0;
 foreach ($found as Core\Ldap\Entry $entry) {
-    if ($entry->accountType() == Core\Ldap\Ad\AccountType::User) {
+    if ($entry->accountType() == Core\Ldap\Entry::AccountType::User) {
         $people = $people + 1;
     } else {
         $other = $other + 1;

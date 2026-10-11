@@ -19853,12 +19853,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\\Ldap\\Tls, timeout?: Core\\Time\\Duration} $settings): Core\\Ldap\\Connection",
+          "signature": "open({url: string, user?: tainted string, password?: secret tainted string, tls?: Core\\Ldap::Tls, timeout?: Core\\Time\\Duration} $settings): Core\\Ldap\\Connection",
           "params": [
             {
               "kind": "param",
               "name": "settings",
-              "type": "{url: string, user?: tainted string, password?: secret tainted string, tls?: Core\\Ldap\\Tls, timeout?: Core\\Time\\Duration}",
+              "type": "{url: string, user?: tainted string, password?: secret tainted string, tls?: Core\\Ldap::Tls, timeout?: Core\\Time\\Duration}",
               "default": null,
               "optional": false,
               "variadic": false

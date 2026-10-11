@@ -550,7 +550,7 @@ pub fn with_flags(bits: i64, changes: impl IntoIterator<Item = (u32, bool)>) -> 
     )
 }
 
-/// `sAMAccountType`'s values, as `Ad\AccountType` names them.
+/// `sAMAccountType`'s values, as `Entry::AccountType` names them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AccountType {
     /// `SAM_DOMAIN_OBJECT`, `0x0`.

@@ -9,7 +9,7 @@ class Users {
         array<tainted string> $out = [];
         var $entries = $corp->search(Core\Ldap\Filter::present("sAMAccountName"), {
             base: "CN=Users,DC=example,DC=test",
-            scope: Core\Ldap\Scope::OneLevel,
+            scope: Core\Ldap\Connection::Scope::OneLevel,
             select: ["sAMAccountName"],
             pageSize: $pageSize,
         });

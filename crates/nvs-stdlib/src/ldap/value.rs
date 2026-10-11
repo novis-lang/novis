@@ -231,7 +231,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$entry->accountType(): ?Ad\AccountType` — `sAMAccountType`, as the
+    /// `$entry->accountType(): ?Entry::AccountType` — `sAMAccountType`, as the
     /// [`ACCOUNT_TYPE`] case [`nvs_ldap::value::AccountType`] names.
     fn nvs_core_ldap_entry_account_type(_ctx, args: [1]) {
         let read = nvs_ldap::value::account_type;

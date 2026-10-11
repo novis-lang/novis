@@ -9,7 +9,7 @@ class Bench {
     public static function run(uint $rounds): uint {
         var $corp = Core\Ldap::connect("corp");
         var $entries = $corp->search(Core\Ldap\Filter::present("objectClass"), {
-            scope: Core\Ldap\Scope::OneLevel,
+            scope: Core\Ldap\Connection::Scope::OneLevel,
             select: ["cn"],
         });
         foreach ($entries as Core\Ldap\Entry $entry) {

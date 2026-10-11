@@ -14,11 +14,11 @@ foreach ($corp->search($either, {select: ["userAccountControl", "groupType", "sA
         bool $machine = $flags->workstationTrustAccount() || $flags->serverTrustAccount();
         $machines = $machines + ($machine ? 1 : 0);
         if ($machine) {
-            $typeAgrees = $typeAgrees && $kind == Core\Ldap\Ad\AccountType::Machine;
+            $typeAgrees = $typeAgrees && $kind == Core\Ldap\Entry::AccountType::Machine;
         } else if ($flags->interdomainTrustAccount()) {
-            $typeAgrees = $typeAgrees && $kind == Core\Ldap\Ad\AccountType::Trust;
+            $typeAgrees = $typeAgrees && $kind == Core\Ldap\Entry::AccountType::Trust;
         } else if ($flags->normalAccount()) {
-            $typeAgrees = $typeAgrees && $kind == Core\Ldap\Ad\AccountType::User;
+            $typeAgrees = $typeAgrees && $kind == Core\Ldap\Entry::AccountType::User;
         }
         int $sum = ($flags->script() ? 1 : 0) + ($flags->disabled() ? 2 : 0)
             + ($flags->homeDirectoryRequired() ? 8 : 0)
@@ -38,9 +38,9 @@ foreach ($corp->search($either, {select: ["userAccountControl", "groupType", "sA
         // A security group is `Group`, or `Alias` when it is domain local.
         // A group without the security bit is a distribution group.
         if ($type->security()) {
-            $typeAgrees = $typeAgrees && $kind == ($type->domainLocal() ? Core\Ldap\Ad\AccountType::Alias : Core\Ldap\Ad\AccountType::Group);
+            $typeAgrees = $typeAgrees && $kind == ($type->domainLocal() ? Core\Ldap\Entry::AccountType::Alias : Core\Ldap\Entry::AccountType::Group);
         } else {
-            $typeAgrees = $typeAgrees && $kind == ($type->domainLocal() ? Core\Ldap\Ad\AccountType::NonSecurityAlias : Core\Ldap\Ad\AccountType::NonSecurityGroup);
+            $typeAgrees = $typeAgrees && $kind == ($type->domainLocal() ? Core\Ldap\Entry::AccountType::NonSecurityAlias : Core\Ldap\Entry::AccountType::NonSecurityGroup);
         }
         int $groupSum = ($type->system() ? 1 : 0) + ($type->global() ? 2 : 0)
             + ($type->domainLocal() ? 4 : 0) + ($type->universal() ? 8 : 0)
@@ -52,7 +52,7 @@ foreach ($corp->search($either, {select: ["userAccountControl", "groupType", "sA
 echo "some machines: ", $machines > 0 ? "yes" : "no", "\n";
 echo "account type agrees with flags: ", $typeAgrees ? "yes" : "no", "\n";
 echo "readers agree with bits: ", $readersAgree ? "yes" : "no", "\n";
-// covers: Core\Ldap\Entry::accountType, Core\Ldap\Entry::accountFlags, Core\Ldap\Entry::groupType, Core\Ldap\Ad\AccountType
+// covers: Core\Ldap\Entry::accountType, Core\Ldap\Entry::accountFlags, Core\Ldap\Entry::groupType, Core\Ldap\Entry::AccountType
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

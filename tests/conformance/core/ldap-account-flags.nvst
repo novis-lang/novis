@@ -1,5 +1,5 @@
 --TEST--
-An account's `userAccountControl` reads as an `Ad\AccountFlags` with one `bool` reader per flag, `bits()` returns the whole number, `mustChangePassword()` reads `pwdLastSet`, and `sAMAccountType` reads as an `Ad\AccountType` — `rule:core-classes/ldap-value-types`
+An account's `userAccountControl` reads as an `Ad\AccountFlags` with one `bool` reader per flag, `bits()` returns the whole number, `mustChangePassword()` reads `pwdLastSet`, and `sAMAccountType` reads as an `Entry::AccountType` — `rule:core-classes/ldap-value-types`
 --FILE--
 <?nvs
 var $corp = Core\Ldap::connect("corp");
@@ -11,7 +11,7 @@ foreach ($names as string $name) {
         echo $name, ": no flags", "\n";
         continue;
     }
-    echo $name, ": bits ", $flags->bits(), ", type ", $user?->accountType() == Core\Ldap\Ad\AccountType::User ? "User" : "not a user", "\n";
+    echo $name, ": bits ", $flags->bits(), ", type ", $user?->accountType() == Core\Ldap\Entry::AccountType::User ? "User" : "not a user", "\n";
     echo "  script ", $flags->script() ? "yes" : "no", "\n";
     echo "  disabled ", $flags->disabled() ? "yes" : "no", "\n";
     echo "  homeDirectoryRequired ", $flags->homeDirectoryRequired() ? "yes" : "no", "\n";

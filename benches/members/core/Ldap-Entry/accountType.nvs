@@ -17,7 +17,7 @@ class Bench {
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            if ($person->accountType() == Core\Ldap\Ad\AccountType::User) {
+            if ($person->accountType() == Core\Ldap\Entry::AccountType::User) {
                 $total = $total + 1 + $total % 2;
             }
             $i = $i + 1;
