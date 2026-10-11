@@ -29,7 +29,7 @@
 //! A drain that only set a bit would be discovered by a connection when its own
 //! idle timer expired, so a stop would take the longest wait a deployment
 //! configured before the drain period even started
-//! ([ADR 0186](/docs/decisions/0186.md) § 3). So a
+//! (`rule:concurrency/a-drain-closes-a-connection-cleanly`). So a
 //! wait that is about to park registers a wake through [`Drain::wake_at_drain`]
 //! and holds the [`DrainWake`] for as long as it is parked;
 //! [`Drain::begin`] fires every one of them.

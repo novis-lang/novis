@@ -1,9 +1,7 @@
 {
   "title": "An enum capture is spelled by a written backing value, and by its case name when the value was counted",
   "status": "shipped",
-  "because": [
-    "0186"
-  ],
+  "because": [],
   "seeAlso": [
     "routing/a-capture-narrows-to-a-closed-set",
     "routing/a-query-parameter-is-declared-like-a-capture",

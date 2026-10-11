@@ -64,7 +64,7 @@ rand.workspace = true
 # On by default, which is what makes the server distribution the ordinary build and
 # `--no-default-features` the deliberate one. The feature enables no dependency,
 # because the exposition format is written here against its specification
-# (`docs/decisions/0186.md` § *Investigation*) and the transport is the `hyper` this
+# (`rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`) and the transport is the `hyper` this
 # crate already rests on; what it saves a CLI binary is the encoder itself.
 [features]
 default = ["exporter"]

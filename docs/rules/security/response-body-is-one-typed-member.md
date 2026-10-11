@@ -39,7 +39,17 @@ the same compiled unit the command line runs, so nothing distinguishes the two u
 There the default decides instead of the refusal — `echo` alone means `text/html`, and a typed member
 written beside it wins the content type it declared last.
 
+**The file member, `sendFile(string $path)`, takes the path alone.** A download name is a
+`Content-Disposition` header, which `setHeader` already admits, and what the file's bytes are called
+is the static-file policy's media-type table, which also owns its `Range` and conditional handling.
+
+- **Memory:** a file body costs the request one path, and the connection one open handle and one
+  range's read buffer while the response is in flight. The file is never copied through the request.
+
 **Declined:**
+- **A filename parameter on the file member.** A download name is a header, and `setHeader` writes it.
+- **A content-type parameter on the file member.** It would let a response declare one type while
+  the static-file policy's range and conditional handling served the same path as another.
 - **Keying the body's rule on its `Content-Type` rather than on the member that wrote it.** The header
   can be set after the first byte of the body is written, so the rule would depend on a fact not yet
   decided where it must be enforced.

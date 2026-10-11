@@ -1798,7 +1798,7 @@ nvs_runtime::nvs_helper! {
     /// finish path lifts it onto a `Completion`, and the server opens the file
     /// and streams it under the static-file policy — which is where the media
     /// type, the range and the conditional already live
-    /// ([0186](/docs/decisions/0186.md) § 4). So a response of any size costs a
+    /// (`rule:security/response-body-is-one-typed-member`). So a response of any size costs a
     /// request one path and one open handle at the connection, never a copy of
     /// the file, and nothing here declares a content type: this member cannot
     /// know what the bytes are called and the policy's table can.

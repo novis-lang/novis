@@ -1154,7 +1154,7 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   safe, `text` accepts tainted because `nosniff` is on by default, and `bytes`' content type is a sink.
   `sendFile` takes the path alone and the path is a sink: a download name is `Content-Disposition`
   through `setHeader`, and what the bytes are called is the static-file policy's media-type table
-  ([0186](../decisions/0186.md) § 4).
+  (`rule:security/response-body-is-one-typed-member`).
   `stream` is the one that writes its body over time: it is told a media type, on `bytes`' terms and for
   `bytes`' reason, and answers a `Core\Response\Stream` whose `write(bytes|string $chunk)` is a union
   carrying no classification and so refuses a tainted argument outright. An event stream is

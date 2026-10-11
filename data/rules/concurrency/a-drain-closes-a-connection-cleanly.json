@@ -2,7 +2,6 @@
   "title": "A shutdown or a reload closes a connection with a defined code after a drain, never with a reset",
   "status": "shipped",
   "because": [
-    "0186",
     "0205",
     "0206",
     "0209"

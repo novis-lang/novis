@@ -211,7 +211,7 @@ compile time; a computed value is substituted and encoded. Which text an enum ca
 a segment, in a link and in the generated document alike — is
 [`routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`](routing.md#routing-an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name).
 
-<sub>See also [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`types/single-value-types`](types.md#types-single-value-types), [`core-classes/validate-has-no-type-predicates`](core-classes.md#core-classes-validate-has-no-type-predicates), [`programs/memory-priority`](programs.md#programs-memory-priority), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0186](../decisions/0186.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`types/single-value-types`](types.md#types-single-value-types), [`core-classes/validate-has-no-type-predicates`](core-classes.md#core-classes-validate-has-no-type-predicates), [`programs/memory-priority`](programs.md#programs-memory-priority), [`routing/a-leftover-link-key-is-a-query-string`](routing.md#routing-a-leftover-link-key-is-a-query-string), [`routing/path-grammar`](routing.md#routing-path-grammar), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="routing-an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name"></a>
 
@@ -259,7 +259,16 @@ short of it is a `#[Query]` value's **arrival**, and not for a reason of this ru
 of any declared type is bound to its parameter yet, which is
 [`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400)'s own unshipped half.
 
-<sub>See also [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked). Decided in [0186](../decisions/0186.md).</sub>
+**Declined:**
+- **The case name always.** It makes a written backing value decorative: an author who wrote
+  `Active = 1` to pin a public number gets `Active` in the URL anyway, and an identifier from the
+  source reaches the URL surface whether or not its author meant it to be public.
+- **The backing value always.** Every counted value is then a public identifier that an insertion
+  moves.
+- **An attribute naming the spelling per enum.** A third place the same fact could be written and
+  disagree with the other two, the objection [`routing/path-grammar`](routing.md#routing-path-grammar) makes to `{id:uint}`.
+
+<sub>See also [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`routing/a-query-parameter-is-declared-like-a-capture`](routing.md#routing-a-query-parameter-is-declared-like-a-capture), [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked).</sub>
 
 <a id="routing-a-trailing-segment-may-be-absent"></a>
 

@@ -1277,7 +1277,7 @@ pub struct Server {
     pub keepalive_timeout: Option<Setting>,
     /// How long a connection keeps being served after this server has begun
     /// draining, spelled like the waits above and bounding a stop rather than an idle socket
-    /// ([ADR 0186](/docs/decisions/0186.md) § 3).
+    /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`).
     pub drain_timeout: Option<Setting>,
     /// How far past its earliest deadline a worker must be before the watchdog reports it as not
     /// turning (`rule:http-server/a-wedged-core-is-detected-by-its-deadline`), spelled like the

@@ -1102,7 +1102,20 @@ loop. The socket belongs to the isolate, so closing it from outside would be wri
 another task is parked on — and a dropped descriptor gives the peer a reset, which is exactly what a
 client cannot tell apart from a network failure.
 
-<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0186](../decisions/0186.md), [0205](../decisions/0205.md), [0206](../decisions/0206.md), [0209](../decisions/0209.md).</sub>
+So a stop is bounded by `drain_timeout` plus the write of whatever response was in flight, which
+`write_idle_timeout` already bounds. With nothing configured that is a minute, inside systemd's own
+default stop timeout of 90 seconds — the generated unit sets no `TimeoutStopSec` — with room for a
+distribution that lowered it. An operator whose requests legitimately run longer raises the directive
+rather than discovering a `SIGKILL`. A deployment killed inside the bound means the wake is not
+reaching some parked wait, which is a defect and not a tuning question.
+
+**Declined:**
+- **A fixed drain constant in the server.** Bounded, but an operator could not raise it for a
+  deployment whose requests are legitimately long, and the answer to that is a directive.
+- **`keepalive_timeout` as the drain period.** It bounds a connection doing nothing, and the drain
+  bounds connections doing something ([`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class)).
+
+<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0205](../decisions/0205.md), [0206](../decisions/0206.md), [0209](../decisions/0209.md).</sub>
 
 <a id="concurrency-enqueue-commits-with-your-write"></a>
 

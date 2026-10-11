@@ -124,7 +124,7 @@ pub struct Waits {
     /// The one field here that is not an idle wait: it bounds a connection that is working, which
     /// is why it is a directive of its own rather than a reuse of
     /// [`keepalive`](Self::keepalive) — an operator who lengthened keep-alive would otherwise have
-    /// lengthened every restart ([ADR 0186](/docs/decisions/0186.md) § 3). A stopping
+    /// lengthened every restart (`rule:http-server/the-server-block-is-boot-class`). A stopping
     /// process is bounded by this plus the write of whatever response was in flight, which
     /// [`write_idle`](Self::write_idle) already bounds.
     pub drain: Duration,
@@ -132,7 +132,7 @@ pub struct Waits {
 
 impl Default for Waits {
     /// § 5's own example, transcribed rather than chosen — the ADR writes every number out. The
-    /// drain period is [ADR 0186](/docs/decisions/0186.md) § 3's, written out the same
+    /// drain period is `rule:concurrency/a-drain-closes-a-connection-cleanly`'s, written out the same
     /// way, and sized so that a stop finishing in `drain` plus one response's write stays inside
     /// systemd's own default with room for a distribution that lowered it.
     fn default() -> Self {

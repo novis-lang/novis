@@ -2213,7 +2213,7 @@ fn finished(mut done: Completion, asked: &HeaderMap) -> Response<Answer> {
 /// **The file is answered by the static policy and by nothing here**, which is
 /// the whole of this function: [`crate::statics::send`] already owns the
 /// media-type table, the `ETag`, the conditional and the range
-/// ([0186](/docs/decisions/0186.md) § 4), and it is the same policy in both
+/// (`rule:security/response-body-is-one-typed-member`), and it is the same policy in both
 /// deployments. So a program that sends a file gets what a mount table serving
 /// the same file gets, rather than a second answer this loop would have to keep
 /// correct — and the bytes are read at the connection, one range's worth,

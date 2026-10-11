@@ -37,3 +37,12 @@ the spelling rows the prepared template carries, and the document lists it. The 
 short of it is a `#[Query]` value's **arrival**, and not for a reason of this rule's: no query value
 of any declared type is bound to its parameter yet, which is
 `rule:routing/a-bad-query-value-is-a-400`'s own unshipped half.
+
+**Declined:**
+- **The case name always.** It makes a written backing value decorative: an author who wrote
+  `Active = 1` to pin a public number gets `Active` in the URL anyway, and an identifier from the
+  source reaches the URL surface whether or not its author meant it to be public.
+- **The backing value always.** Every counted value is then a public identifier that an insertion
+  moves.
+- **An attribute naming the spelling per enum.** A third place the same fact could be written and
+  disagree with the other two, the objection `rule:routing/path-grammar` makes to `{id:uint}`.

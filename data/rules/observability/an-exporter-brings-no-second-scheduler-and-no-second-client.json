@@ -2,7 +2,6 @@
   "title": "An exporter brings no second registry, no second scheduler and no second client, and a crate is taken only for an encoder",
   "status": "shipped",
   "because": [
-    "0186",
     "0274"
   ],
   "seeAlso": [
