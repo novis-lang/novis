@@ -4,7 +4,7 @@ how long it waits.
 Every key is optional. With no block, the server listens on `127.0.0.1:8000` and uses one worker
 for each CPU core. `listen` is a list. An entry is an address with a port, or the path of a Unix
 socket. `max_in_flight` is the number of requests that may run at the same time. A request over
-that number gets the response `503`.
+that number gets the response `503`. So does a request when the server's memory has no room for it.
 
 Four keys are timeouts for a connection that sends nothing or reads nothing. A slow upload that
 still sends data is not closed. `drain_timeout` is the longest time that a connection with no

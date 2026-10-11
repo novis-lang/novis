@@ -68,11 +68,11 @@ maps away. Prices are integer cents formatted with integer division, for `json-a
 `wait` sleeps 50 ms on each peer's own timer at 1000 connections, so its memory figure is what 1000
 requests in flight cost. The FPM pool is `phpChildren(1000)`, 2000 workers, because a worker is held
 for the whole sleep and a pool smaller than the open connections stops rather than slows (the proxied
-leg's `php/pool.conf.in`). `nvs serve` keeps its defaults here as everywhere: in this container it
-states no per-request memory cap and prints no clamp at boot, so its in-flight ceiling is
-`max_in_flight` and no request is answered `503`. A run whose `wait` row shows a `503` in its status
-codes is measuring the ceiling and not the timer, and the Novis stack needs a `limits.memory` that
-affords 1000 before its number stands; `nvs` reads `nvs.toml` from its working directory, not from
+leg's `php/pool.conf.in`). `nvs serve` keeps its defaults here as everywhere: it admits a request
+while the memory the running requests hold leaves room for one more to reach its cap, and a request
+asleep on a timer holds a few kilobytes, so the 1000 waiting requests are admitted while the
+container has room for them and one cap. A run whose `wait` row shows a `503` in its status codes is
+measuring admission and not the timer; `nvs` reads `nvs.toml` from its working directory, not from
 the program's.
 
 ## The feature scenarios
@@ -121,9 +121,8 @@ not `no`.
   with any status but nginx's own `502` or `504`. No failed request under load, the runaway stopped
   and the backend still running is `built-in`. A request `oha` still has open when the load ends is
   not a failure. Novis sets no limit by default, so it writes `memory = "16M"` and `cpu_time = "1s"`
-  in its `[limits]` table first and is `one-setting`. `nvs serve` admits only as many requests as the
-  container's memory affords at `memory` each, and at `64M` the cap admits six, fewer than the row's
-  load, so the value is sized for it. PHP's own `max_execution_time` and `memory_limit` are on by
+  in its `[limits]` table first and is `one-setting`. `nvs serve` admits a request only while the
+  requests already running leave room in the container's memory for it to reach `memory`. PHP's own `max_execution_time` and `memory_limit` are on by
   default, so PHP is `on-by-default` naming the one its row needs. The other answers are `no`, and
   the load's p99 stays in the evidence.
 - No row tests whether a request sees a value another request set. A process that keeps state

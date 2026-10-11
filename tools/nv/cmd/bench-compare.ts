@@ -464,8 +464,8 @@ export const MEMORY_DEFAULT: Record<string, Setting> = { php: { name: "memory_li
  * The limits a peer needs set before it stops a runaway request, where its defaults set none: the command
  * that sets them inside the container, and the setting's name in the row. Novis's `[limits]` keys are
  * commented out in its data folder's `nvs.toml`, so the edit uncomments them inside that table. `nvs serve`
- * admits only as many requests as the container's memory affords at `memory` each, so the value leaves
- * room for the row's load and its runaway: at `64M` a 512 MiB container admits six.
+ * admits a request while the requests running leave room in the container for it to reach `memory`, so
+ * the value is the runaway's ceiling and the room every other request is admitted against.
  */
 export const RUNAWAY_LIMITS: Record<string, TableEdit> = {
   nvs: { table: "limits", set: { memory: '"16M"', cpu_time: '"1s"' }, name: "[limits]" },

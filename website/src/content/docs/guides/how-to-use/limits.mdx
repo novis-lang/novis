@@ -81,17 +81,22 @@ request that waits for a slow query.
 
 ## Memory and the number of requests
 
-The server runs only as many requests at the same time as its memory allows. It takes the memory of
-the machine and keeps `128M` for itself. Then it divides the rest by the memory limit of one request.
-In a container, the server uses the memory limit of the container.
+The server starts a new request only when its memory has room for it. It takes the memory of the
+machine and keeps `128M` for itself. In a container, the server uses the memory limit of the
+container.
 
-With the default limit of `128M`, a machine with 2 GB runs about 15 requests at the same time. A
-machine with 8 GB runs 63, and a machine with 32 GB runs 255. A request over that number gets the
-status `503`.
+Then it counts the memory that the running requests use now. A new request starts when that memory,
+plus the memory limit of one request, fits in the rest. When `[limits.hard] memory` is set, the
+server uses that value as the limit of one request. When no request is running, a request always
+starts. A request that cannot start gets the status `503`.
 
-A smaller `memory` limit, or more memory on the machine, lets more requests run at the same time.
-When `[limits.hard] memory` is set, the server divides by that value. When the number is lower than
-`[server] max_in_flight`, the server writes it to its log when it starts.
+The memory limit is the most memory one request may use. Most requests use much less. A request
+that waits for a slow query uses a few kilobytes, so many such requests can wait at the same time.
+
+If the running requests together grow past the rest of the memory, the server stops the request that
+grew. Its error says that the server's memory is full. The other requests keep running.
+
+`[server] max_in_flight` is a second limit. It is the most requests that may run at the same time.
 
 ## When a request goes over
 

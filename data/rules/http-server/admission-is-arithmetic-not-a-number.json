@@ -1,5 +1,5 @@
 {
-  "title": "The effective in-flight ceiling is the smaller of `max_in_flight` and what the memory budget affords, and a clamp is logged at boot and by every reload",
+  "title": "A request is admitted while the memory every core holds leaves room for it to reach its cap and fewer than `max_in_flight` are in flight, and a growth past that room stops the request that grew",
   "status": "shipped",
   "seeAlso": [
     "http-server/upload-total-is-enforced-on-the-wire",
@@ -11,6 +11,7 @@
   ],
   "guardedBy": [
     "crates/nvs-server/src/admit.rs",
+    "crates/nvs-runtime/tests/server_memory.rs",
     "crates/nvs-config/src/server.rs"
   ]
 }

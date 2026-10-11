@@ -322,15 +322,15 @@ start value, so nothing bounds a set of it either.
 
 **Every built-in default has one home: the config crate's table of defaults.** Each key the shipped
 `nvs.toml` marks `# default` has its value there, and every piece of code that enforces the value
-reads it from there — the runtime, the `Core\Config::set` bound and the admission arithmetic among
-them. A test holds every `# default` line of the shipped file to the table, so the file and the code
+reads it from there — the runtime, the `Core\Config::set` bound and admission among them. A test holds every `# default` line of the shipped file to the table, so the file and the code
 cannot disagree. A default that is not one value is computed when it is read: `cpu_time` by the kind
 of run, the mode table's rows by the mode in force, `[server] dispatch`, `static` and
 `[opcache] settle` by the mode the run started in, `[mode] ceiling` as that mode, and
 `[server] workers` as this machine's cores.
 
-- **Memory:** up to 128 MiB per request in flight where no `[limits] memory` is written, and that is
-  the per-request cap admission divides by ([`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)).
+- **Memory:** up to 128 MiB per request in flight where no `[limits] memory` is written. That is a
+  request's ceiling and not what it is assumed to hold: admission counts what requests hold and
+  leaves room for one more to reach the cap ([`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)).
   It is spent to buy **Security and request isolation**: a host nobody configured can no longer be
   exhausted by one request.
 

@@ -28,9 +28,9 @@ reason to its log, and the other requests keep running.
 A request can start tasks and other programs. They all share the limits of that request. A request
 that starts fifty programs still has one memory limit, and the fifty programs share it.
 
-So the most memory a server can use is easy to calculate. It is the number of requests that run at
-the same time, multiplied by the memory ceiling. The server uses the same calculation the other way
-round. It runs only as many requests at the same time as its memory can hold.
+So the most memory one request can use is easy to know. It is the memory ceiling. The server counts
+the memory that its running requests use now. It starts a new request only when there is room for
+that request to reach its ceiling.
 
 ## Your code can read its own memory
 

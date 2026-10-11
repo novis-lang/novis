@@ -2,4 +2,4 @@
 
 The count is process-wide through one relaxed atomic rather than per core, so one hot core cannot refuse while its neighbours idle; that counter is not on the value path the non-atomic-refcount decision protects. Not accepting at all was rejected: behind a proxy a silent refusal surfaces as a 504 blamed on the wrong component, and gives the proxy no signal to fail over on.
 
-The effective ceiling is an arithmetic, not this number alone: the smaller of what is configured here and what the memory budget affords against the per-request cap, recomputed at boot and by every reload, and clamped and logged when the two disagree. A concurrency ceiling and a per-request memory cap with no stated relationship bound nothing together, and their product is what the machine is actually asked to hold.
+This count is one of two conditions, and the same refusal answers both: a request is also refused while the memory every core holds leaves no room for it to reach its per-request cap (`rule:http-server/admission-is-arithmetic-not-a-number`). The count stays the operator's own number, and is never derived from the memory budget.
