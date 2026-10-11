@@ -46,3 +46,5 @@ The cost is that PHP source does not run unconverted. PHP has no syntax for the 
   initializer once, at the declaration, and the type is then fixed like any other.
 - **An omitted return type defaulting to `mixed`.** It would be a second unchecked position, reached by
   writing nothing rather than by writing `mixed`.
+- **`var` in a `catch`, a destructuring target and the other binding sites.** A `catch` type is the
+  filter rather than an annotation, and the others have no single expression to take a type from.

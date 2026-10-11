@@ -9,8 +9,9 @@ the binding like a written one — `rule:types/declaration`'s "no binding's type
 untouched. It is exact and honest: `var $n = 1;` gives `int`, `var $id = Core\Request::query('id');`
 gives `?tainted string`, `var $doc = Core\Request::json();` gives `mixed`, and a `var` value binding
 over a `mixed` or `iterable` subject gives `mixed`, because that is what the source expression is. A
-qualifier, such as `tainted`, arrives on the binding with the type it qualifies. `inout var $v` binds at the element type itself, so its two sides declare the same
-type by construction.
+qualifier, such as `tainted`, arrives on the binding with the type it qualifies. A `foreach` binding's
+`var` passes through the same `void` and `never` refusal a local's does. `inout var $v` binds at the
+element type itself, so its two sides declare the same type by construction.
 
 A local's initializer is mandatory: `var $n;` is a parse error naming `=`. A `foreach` binding with
 neither a type nor `var` is the parse error it always was.
@@ -24,7 +25,8 @@ types. Those, an empty literal at any depth, and a literal with an element that 
 are `E_VAR_ARRAY_LITERAL_NEEDS_TYPE`, whose help names the declaration to write: the union of the
 element types, `?T` where the other one is `null`, or `array<T>` for an empty literal. A bare literal
 as the subject of a `var` value binding follows the same rule, and the help there is a typed local,
-iterated. The rule is on the expression's own top level only — in `var $x = f([1, 2]);` and
+iterated. A `var` key over a literal is never refused, since its type comes from the array's key and
+not from the elements. The rule is on the expression's own top level only — in `var $x = f([1, 2]);` and
 `foreach (f([1, 2]) as var $x)`, `f`'s parameter is the literal's target.
 
 Every other rule that applies to a typed binding — declare-once, definite assignment, redeclaration
@@ -41,6 +43,8 @@ agreement with the declared one. Nothing after the checker sees it: every bindin
 meet already has a concrete type, exactly the one a written annotation would have given. `var` starts
 nothing else at statement position, so the parser needs no trial parse to tell it apart. What it costs
 is legibility: the type is not on the declaration line, and finding it means reading the initializer.
+An editor's inlay hint shows it; a diff shows nothing. In a `foreach` header that is the price of not
+writing twice the type the subject already states.
 
 - **Memory:** none. `var` is resolved entirely while checking, before any IR exists.
 
@@ -52,3 +56,7 @@ is legibility: the type is not on the declaration line, and finding it means rea
   further `as`, which is a worse trap than a diagnostic at the declaration.
 - **A new keyword instead of `var`.** `var` was already a reserved token with no meaning in Novis, so
   reusing it needed no lexer change and collides with nothing.
+- **A new code for a bare literal under a `var` value binding.** The local's message is true of both
+  sites, and one mistake gets one code.
+- **An untyped `foreach ($xs as $v)` meaning `var`.** The binding would look like PHP's and mean
+  something PHP does not; `var` says in the source that the type was taken.
