@@ -37,11 +37,13 @@ image-heavy page, guest against the same crate native.
   nothing outlives the request. The interpreter and the font substitutes grow the binary by
   single-digit megabytes. CPU is the request's epoch deadline, and bulk rasterising is queue work.
 
-**Not shipped.** There is no PDF decoder in the image component. `Format::Pdf` exists, and `run`
-refuses to encode it (`extensions/image/src/encode.rs`). `page` and `dpi` already cross from
-`Image::open` into the guest, where a page past the end of a one-page source throws, and `hayro`
-0.8 with its default features off builds for `wasm32-wasip2` and passes the component's `cargo
-deny` check, but it is not linked yet.
+A page is drawn on white, so every pixel is opaque, and a side may be at most 65535 pixels, which is
+`hayro`'s renderer's own bound. Symbol and ZapfDingbats are drawn in Liberation Serif and Sans, which
+have few of their glyphs. No predefined CMap is carried, so CJK text in an encoding that names one is
+not drawn; carrying them is `hayro`'s `embed-cmaps` feature. The decoder is
+`extensions/image/src/pdf.rs`, and its fixtures are `crates/nvs-ext/tests/image_decode.rs`.
+
+**Not shipped.** The benchmark of a text page and an image-heavy page, guest against native.
 
 **Declined:**
 - **A `rasterize` member in `Novis\Pdf`.** Every raster would recross the boundary as bytes to reach

@@ -29,8 +29,10 @@ pub struct Info {
 /// Reads the header of `data`. Bytes in a format the component does not read, and a header that
 /// does not parse, return `Parse`.
 pub fn info(data: &[u8]) -> Result<Info, Error> {
-    if crate::decode::sniff(data) == Ok(Format::Svg) {
-        return crate::svg::info(data);
+    match crate::decode::sniff(data) {
+        Ok(Format::Svg) => return crate::svg::info(data),
+        Ok(Format::Pdf) => return crate::pdf::info(data),
+        _ => {}
     }
     let mut reader = ImageReader::new(Cursor::new(data))
         .with_guessed_format()

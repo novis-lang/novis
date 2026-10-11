@@ -1,0 +1,86 @@
+--TEST--
+`Image::open` draws a chosen page of a PDF at a chosen resolution, `Image::info` counts the pages, and a page past the end throws `RuntimeError`: rule:core-classes/pdf-page-is-an-image-source
+--FILE--
+<?nvs
+// covers: Novis\Image\Image::open
+// covers: Novis\Image\Image::info
+use Novis\Image\Format;
+use Novis\Image\Image;
+
+// A PDF with three pages of 144 by 72 points. Page 1 is red, page 2 is green and page 3 is blue.
+string $pdf = "%PDF-1.7\n"
+    . "1 0 obj\n"
+    . "<< /Type /Catalog /Pages 2 0 R >>\n"
+    . "endobj\n"
+    . "2 0 obj\n"
+    . "<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>\n"
+    . "endobj\n"
+    . "3 0 obj\n"
+    . "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 144 72] /Contents 4 0 R >>\n"
+    . "endobj\n"
+    . "4 0 obj\n"
+    . "<< /Length 24 >>\n"
+    . "stream\n"
+    . "1 0 0 rg 0 0 144 72 re f\n"
+    . "endstream\n"
+    . "endobj\n"
+    . "5 0 obj\n"
+    . "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 144 72] /Contents 6 0 R >>\n"
+    . "endobj\n"
+    . "6 0 obj\n"
+    . "<< /Length 24 >>\n"
+    . "stream\n"
+    . "0 1 0 rg 0 0 144 72 re f\n"
+    . "endstream\n"
+    . "endobj\n"
+    . "7 0 obj\n"
+    . "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 144 72] /Contents 8 0 R >>\n"
+    . "endobj\n"
+    . "8 0 obj\n"
+    . "<< /Length 24 >>\n"
+    . "stream\n"
+    . "0 0 1 rg 0 0 144 72 re f\n"
+    . "endstream\n"
+    . "endobj\n"
+    . "xref\n"
+    . "0 9\n"
+    . "0000000000 65535 f \n"
+    . "0000000009 00000 n \n"
+    . "0000000058 00000 n \n"
+    . "0000000127 00000 n \n"
+    . "0000000213 00000 n \n"
+    . "0000000287 00000 n \n"
+    . "0000000373 00000 n \n"
+    . "0000000447 00000 n \n"
+    . "0000000533 00000 n \n"
+    . "trailer\n"
+    . "<< /Size 9 /Root 1 0 R >>\n"
+    . "startxref\n"
+    . "607\n"
+    . "%%EOF\n";
+
+// `Image::info` reads the page count without drawing a page.
+var $info = Image::info($pdf as bytes);
+echo $info->format == Format::Pdf ? "pdf" : "other", " with ", $info->frames, " pages\n";
+
+// A point is 1/72 of an inch, so a page of 144 points at 36 dpi is 72 pixels wide.
+var $raw = Image::open($pdf as bytes, {page: 2, dpi: 36.0})->raw();
+echo $raw->width, "x", $raw->height, "\n";
+echo Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, 0, 4)), "\n";
+
+// With no `dpi`, the page is drawn at 150 dpi.
+var $first = Image::open($pdf as bytes)->raw();
+echo $first->width, "x", $first->height, "\n";
+
+// The document has three pages, so page 7 throws an error.
+try {
+    Image::open($pdf as bytes, {page: 7})->raw();
+} catch (RuntimeError $error) {
+    echo "RuntimeError: ", $error->message, "\n";
+}
+--EXPECT--
+pdf with 3 pages
+72x36
+00ff00ff
+300x150
+RuntimeError: the document has 3 pages, so there is no page 7

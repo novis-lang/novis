@@ -72,6 +72,7 @@ pub fn sniff(data: &[u8]) -> Result<Format, Error> {
         Ok(ImageFormat::WebP) => Ok(Format::Webp),
         Ok(ImageFormat::Gif) => Ok(Format::Gif),
         _ if crate::svg::sniff(data) => Ok(Format::Svg),
+        _ if crate::pdf::sniff(data) => Ok(Format::Pdf),
         _ => Err(Error::Parse(
             "the data is not an image in a format the image component reads".to_string(),
         )),
@@ -113,9 +114,28 @@ fn check_exif(exif: Option<&[u8]>) -> Result<(), Error> {
 
 /// Decodes `data` to RGBA8, refusing an image over `cap` pixels before a buffer is allocated.
 /// With `auto_orient`, the EXIF orientation is applied to the pixels; with `to_srgb`, an embedded
-/// ICC profile is converted to sRGB.
+/// ICC profile is converted to sRGB. A PDF is its first page at the default resolution.
 pub fn decode(data: &[u8], cap: u64, auto_orient: bool, to_srgb: bool) -> Result<Pixels, Error> {
+    decode_page(data, cap, auto_orient, to_srgb, 1, crate::DEFAULT_DPI)
+}
+
+/// Decodes `data` as [`decode`] does, and a PDF as its `page`, counted from 1, drawn at `dpi`.
+/// A `page` other than 1 of a format with one page returns `Runtime` naming the count.
+pub fn decode_page(
+    data: &[u8],
+    cap: u64,
+    auto_orient: bool,
+    to_srgb: bool,
+    page: u64,
+    dpi: f64,
+) -> Result<Pixels, Error> {
     let format = sniff(data)?;
+    if format == Format::Pdf {
+        return crate::pdf::decode(data, cap, page, dpi);
+    }
+    if page != 1 {
+        return Err(crate::past_end(page, 1));
+    }
     if let Some(known) = image_format(format) {
         return decode_with_image(data, known, cap, auto_orient, to_srgb);
     }

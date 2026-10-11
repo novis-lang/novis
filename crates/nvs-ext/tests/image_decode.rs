@@ -2,6 +2,8 @@
 //! image component: `run` decodes each first-wave fixture under `extensions/image/fixtures/` in the
 //! guest, JPEG XL decodes and does not encode, a header over the cap is refused before a buffer is
 //! allocated, and bytes that are no image or carry a malformed IFD return `parse` rather than trap.
+//! An SVG draws with nothing outside it read, and a PDF page rasterises at its `dpi` under the cap
+//! with `rule:core-classes/pdf-decode-refusals`' bomb corpus contained.
 
 use std::future::Future;
 use std::pin::pin;
@@ -9,7 +11,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
-use nvs_ext::call::{Error, Failure, Host, Meter, Request};
+use nvs_ext::call::{Error, Failure, Host, Limit, Meter, Request};
 use nvs_ext::convert::{Key, Value};
 use nvs_ext::load::{Extension, Loader};
 
@@ -549,4 +551,413 @@ fn an_svg_decodes_and_an_external_href_throws() {
         );
     }
     block_on(request.end()).expect("the request ends");
+}
+
+/// A PDF of `objects`, numbered from 1 with the catalog first, and a cross-reference table whose
+/// offsets are the objects' own.
+fn pdf_of(objects: &[String]) -> Vec<u8> {
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (at, body) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend(format!("{} 0 obj\n{body}\nendobj\n", at + 1).bytes());
+    }
+    let xref = out.len();
+    out.extend(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).bytes());
+    for offset in offsets {
+        out.extend(format!("{offset:010} 00000 n \n").bytes());
+    }
+    out.extend(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            objects.len() + 1
+        )
+        .bytes(),
+    );
+    out
+}
+
+fn stream(dict: &str, content: &str) -> String {
+    format!(
+        "<< {dict} /Length {} >>\nstream\n{content}\nendstream",
+        content.len()
+    )
+}
+
+/// A document whose pages are `width` by `height` points, page `n` drawn by `contents[n - 1]`,
+/// with `resources` on every page and `extra` objects numbered after the pages' own.
+fn pages_pdf(
+    width: u32,
+    height: u32,
+    contents: &[String],
+    resources: &str,
+    extra: &[String],
+) -> Vec<u8> {
+    let count = contents.len();
+    let kids: Vec<String> = (0..count).map(|at| format!("{} 0 R", 3 + 2 * at)).collect();
+    let mut objects = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        format!(
+            "<< /Type /Pages /Kids [{}] /Count {count} >>",
+            kids.join(" ")
+        ),
+    ];
+    for (at, content) in contents.iter().enumerate() {
+        objects.push(format!(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] /Resources << {resources} >> /Contents {} 0 R >>",
+            4 + 2 * at
+        ));
+        objects.push(stream("", content));
+    }
+    objects.extend_from_slice(extra);
+    pdf_of(&objects)
+}
+
+/// Three pages of 200 by 100 points, filled red, green and blue.
+fn three_pages() -> Vec<u8> {
+    let fill = |rgb: &str| format!("{rgb} rg 0 0 200 100 re f");
+    pages_pdf(
+        200,
+        100,
+        &[fill("1 0 0"), fill("0 1 0"), fill("0 0 1")],
+        "",
+        &[],
+    )
+}
+
+/// An encoded source of `data` opening `page` at `dpi`, with `maxPixels` set when `cap` is.
+fn page_of(data: Vec<u8>, page: u64, dpi: f64, cap: Option<u64>) -> Value {
+    let mut fields = vec![
+        ("data", Value::Bytes(data)),
+        ("autoOrient", Value::Bool(true)),
+        ("toSrgb", Value::Bool(true)),
+        ("page", Value::Uint(page)),
+        ("dpi", Value::Float(dpi)),
+    ];
+    if let Some(cap) = cap {
+        fields.push(("maxPixels", Value::Uint(cap)));
+    }
+    shape(fields)
+}
+
+/// The RGBA of the pixel at `x`, `y` in a `raw` output `width` pixels wide.
+fn pixel_at(out: &[u8], width: usize, x: usize, y: usize) -> [u8; 4] {
+    let at = 16 + (y * width + x) * 4;
+    out[at..at + 4].try_into().unwrap()
+}
+
+#[test]
+fn a_pdf_page_rasterises_at_the_requested_dpi() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+    // 200 by 100 points at 144 dpi is 400 by 200 pixels, and page 2 is the green one.
+    let out = run(
+        &request,
+        &extension,
+        page_of(three_pages(), 2, 144.0, None),
+        plan(Vec::new(), "Raw"),
+    )
+    .expect("page 2 rasterises");
+    assert_eq!(size_of(&out), (400, 200));
+    assert_eq!(pixel_at(&out, 400, 200, 100), [0, 255, 0, 255]);
+    // With no `dpi`, a page is drawn at 150: each side is rounded up to a whole pixel.
+    let out = run(
+        &request,
+        &extension,
+        encoded(three_pages(), None),
+        plan(Vec::new(), "Raw"),
+    )
+    .expect("page 1 rasterises");
+    assert_eq!(size_of(&out), (417, 209));
+    assert_eq!(pixel_at(&out, 417, 10, 10), [255, 0, 0, 255]);
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn info_counts_pdf_pages_and_allocates_no_pixel() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let meter = Arc::new(Meter::new(Duration::from_secs(30), None));
+    let request = host.request(meter.clone());
+    // A hundred pages of 14400 points square, the largest a page may be: one of them at 72 dpi
+    // is more than 800 MiB of RGBA.
+    let pages: Vec<String> = (0..100)
+        .map(|_| "0 0 1 rg 0 0 10 10 re f".to_owned())
+        .collect();
+    let data = pages_pdf(14_400, 14_400, &pages, "", &[]);
+    let info = block_on(request.call_values(&extension, "info", vec![Value::Bytes(data)]))
+        .expect("`info` answers")
+        .expect("`info` returns a value");
+    let Value::Array(fields) = info else {
+        panic!("a shape was expected")
+    };
+    let get = |name: &str| {
+        fields
+            .iter()
+            .find(|(k, _)| *k == Key::String(name.to_owned()))
+            .map(|(_, v)| v.clone())
+    };
+    assert_eq!(get("format"), Some(Value::Case("Pdf".to_owned())));
+    assert_eq!(get("frames"), Some(Value::Uint(100)));
+    assert_eq!(get("width"), Some(Value::Uint(14_400)));
+    assert_eq!(get("height"), Some(Value::Uint(14_400)));
+    assert!(
+        meter.charged() < 64 << 20,
+        "`info` charged {} bytes",
+        meter.charged()
+    );
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_pdf_page_past_the_end_throws_naming_the_count() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+    assert_eq!(
+        expect_error(run(
+            &request,
+            &extension,
+            page_of(three_pages(), 7, 72.0, None),
+            plan(Vec::new(), "Raw"),
+        )),
+        Error::Runtime("the document has 3 pages, so there is no page 7".to_owned())
+    );
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn a_pdf_page_over_the_pixel_cap_is_refused_before_a_buffer() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let meter = Arc::new(Meter::new(Duration::from_secs(30), None));
+    let request = host.request(meter.clone());
+    // 14400 points square at 600 dpi is 120000 pixels a side: 14.4 billion pixels.
+    let page = vec!["1 0 0 rg 0 0 14400 14400 re f".to_owned()];
+    let data = pages_pdf(14_400, 14_400, &page, "", &[]);
+    assert_eq!(
+        expect_error(run(
+            &request,
+            &extension,
+            page_of(data.clone(), 1, 600.0, None),
+            plan(Vec::new(), "Raw"),
+        )),
+        Error::Runtime(
+            "the image is 120000x120000, which is 14400000000 pixels, over the cap of 25165824 pixels"
+                .to_owned()
+        )
+    );
+    assert!(
+        meter.charged() < 64 << 20,
+        "the refusal charged {} bytes",
+        meter.charged()
+    );
+    // The same page passes at a lower resolution: 14400 points at 7.2 dpi is 1440 pixels.
+    let out = run(
+        &request,
+        &extension,
+        page_of(data, 1, 7.2, None),
+        plan(Vec::new(), "Size"),
+    )
+    .expect("the page passes at 7.2 dpi");
+    assert_eq!(size_of(&out), (1440, 1440));
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_encrypted_pdf_throws_a_parse_error() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+    // The fixture has no user password, so it would open with an empty one.
+    let refused = expect_error(run(
+        &request,
+        &extension,
+        encoded(fixture("encrypted.pdf"), None),
+        plan(Vec::new(), "Raw"),
+    ));
+    let expected = Error::Parse(
+        "the PDF is encrypted. Only a PDF without encryption can be opened as an image".to_owned(),
+    );
+    assert_eq!(refused, expected);
+    match block_on(request.call_values(
+        &extension,
+        "info",
+        vec![Value::Bytes(fixture("encrypted.pdf"))],
+    )) {
+        Err(Failure::Error(error)) => assert_eq!(error, expected),
+        other => panic!("`info` should throw, not return {other:?}"),
+    }
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn an_unembedded_standard_font_renders_with_its_substitute() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+    let font = |name: &str| format!("<< /Type /Font /Subtype /Type1 /BaseFont /{name} >>");
+    let text = |font: &str| vec![format!("BT /{font} 80 Tf 10 20 Td (Hi) Tj ET")];
+    let extra = [font("Helvetica"), font("Courier"), font("Times-Roman")];
+    let resources = "/Font << /Sans 5 0 R /Mono 6 0 R /Serif 7 0 R >>";
+    let mut drawn = Vec::new();
+    for name in ["Sans", "Mono", "Serif"] {
+        let data = pages_pdf(200, 100, &text(name), resources, &extra);
+        let out = run(
+            &request,
+            &extension,
+            page_of(data, 1, 72.0, None),
+            plan(Vec::new(), "Raw"),
+        )
+        .unwrap_or_else(|err| panic!("the {name} page rasterises: {err:?}"));
+        let dark = out[16..]
+            .chunks_exact(4)
+            .filter(|pixel| pixel[0] < 128)
+            .count();
+        assert!(dark > 500, "the {name} text drew {dark} dark pixels");
+        drawn.push(out);
+    }
+    // Each standard font has its own substitute, so the three pages differ.
+    assert_ne!(drawn[0], drawn[1]);
+    assert_ne!(drawn[0], drawn[2]);
+    assert_ne!(drawn[1], drawn[2]);
+    block_on(request.end()).expect("the request ends");
+}
+
+#[test]
+fn two_rasterisations_of_a_pdf_page_are_byte_equal() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let content = vec![
+        "0.2 0.4 0.8 rg 10 10 120 60 re f 1 0 0 RG 4 w 20 90 m 180 15 l S BT /F 40 Tf 30 30 Td (Shop) Tj ET"
+            .to_owned(),
+    ];
+    let extra = ["<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>".to_owned()];
+    let data = pages_pdf(200, 100, &content, "/Font << /F 5 0 R >>", &extra);
+    let mut outs = Vec::new();
+    for _ in 0..2 {
+        let request = host.request(Arc::new(Meter::new(Duration::from_secs(30), None)));
+        outs.push(
+            run(
+                &request,
+                &extension,
+                page_of(data.clone(), 1, 150.0, None),
+                plan(Vec::new(), "Raw"),
+            )
+            .expect("the page rasterises"),
+        );
+        block_on(request.end()).expect("the request ends");
+    }
+    assert_eq!(outs[0], outs[1]);
+}
+
+/// How a case of the bomb corpus ends: the pixel at 10, 10 of its drawn page, or the limit its
+/// request reached.
+type Ends = Result<[u8; 4], Limit>;
+
+/// The outcome of rasterising `data` in a request of its own, with two seconds of CPU and 256 MiB.
+fn bomb(host: &Host, extension: &Extension, data: Vec<u8>) -> Result<Vec<u8>, Failure> {
+    let request = host.request(Arc::new(Meter::new(
+        Duration::from_secs(2),
+        Some(256 << 20),
+    )));
+    let out = run(
+        &request,
+        extension,
+        page_of(data, 1, 72.0, None),
+        plan(Vec::new(), "Raw"),
+    );
+    let _ = block_on(request.end());
+    out
+}
+
+#[test]
+fn the_pdf_bomb_corpus_ends_in_a_throw_or_a_contained_trap() {
+    let host = Host::new(4, |_| Ok(())).expect("the host starts");
+    let extension = component(&host);
+    let form = |content: &str, resources: &str| {
+        stream(
+            &format!(
+                "/Type /XObject /Subtype /Form /BBox [0 0 200 100] /Resources << {resources} >>"
+            ),
+            content,
+        )
+    };
+    let draw = "/X Do ".repeat(16);
+    // Each of ten forms draws the next one 16 times: 16 to the power 10 draws of the last.
+    let mut nested: Vec<String> = (0..10)
+        .map(|at| form(&draw, &format!("/XObject << /X {} 0 R >>", 6 + at)))
+        .collect();
+    nested.push(form("0 0 1 rg 0 0 1 1 re f", ""));
+    const WHITE: [u8; 4] = [255, 255, 255, 255];
+    const RED: [u8; 4] = [255, 0, 0, 255];
+    // Each case ends in a limit the request reached, or in its page drawn whole: `hayro` cuts a
+    // form that draws itself and repairs a broken cross-reference table or stream length, and the
+    // pixel named is the one a reader that is not fooled draws there.
+    let mut corpus: Vec<(&str, Vec<u8>, Ends)> = vec![
+        (
+            "nested form XObjects",
+            pages_pdf(
+                200,
+                100,
+                &["/X Do".to_owned()],
+                "/XObject << /X 5 0 R >>",
+                &nested,
+            ),
+            Err(Limit::Cpu),
+        ),
+        (
+            "a form XObject that draws itself",
+            pages_pdf(
+                200,
+                100,
+                &["/X Do".to_owned()],
+                "/XObject << /X 5 0 R >>",
+                &[form("/X Do /X Do", "/XObject << /X 5 0 R >>")],
+            ),
+            Ok(WHITE),
+        ),
+        (
+            "a deflate bomb",
+            fixture("deflate-bomb.pdf"),
+            Err(Limit::Memory),
+        ),
+    ];
+    // A cross-reference table whose `/Prev` is itself.
+    let mut looped = three_pages();
+    let start = String::from_utf8_lossy(&looped)
+        .rsplit("startxref\n")
+        .next()
+        .and_then(|tail| tail.lines().next())
+        .and_then(|offset| offset.parse::<usize>().ok())
+        .expect("the document has a startxref");
+    let text = String::from_utf8(looped.clone()).unwrap();
+    looped = text
+        .replace("/Root 1 0 R >>", &format!("/Root 1 0 R /Prev {start} >>"))
+        .into_bytes();
+    corpus.push((
+        "a cross-reference table that is its own previous one",
+        looped,
+        Ok(RED),
+    ));
+    // A content stream whose `/Length` claims far more bytes than the file has.
+    let lie = String::from_utf8(three_pages())
+        .unwrap()
+        .replacen("/Length 25 >>", "/Length 999999999 >>", 1)
+        .into_bytes();
+    corpus.push(("a stream length that is a lie", lie, Ok(RED)));
+    for (name, data, ends) in corpus {
+        match (bomb(&host, &extension, data), ends) {
+            (Err(Failure::Limit(got)), Err(limit)) => assert_eq!(got, limit, "{name}"),
+            (Ok(out), Ok(pixel)) => {
+                assert_eq!(size_of(&out), (200, 100), "{name}");
+                assert_eq!(pixel_at(&out, 200, 10, 10), pixel, "{name}");
+            }
+            (got, _) => panic!("{name}: {got:?}"),
+        }
+    }
+    // The host is unharmed: the next request rasterises a page.
+    let out = bomb(&host, &extension, three_pages()).expect("a plain page after the corpus");
+    assert_eq!(size_of(&out), (200, 100));
 }

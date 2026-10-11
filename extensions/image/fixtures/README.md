@@ -29,6 +29,18 @@ Latin TrueType font that kerns through both a `kern` table and `GPOS`, copied un
 `macroquad` crate's examples. It is under the SIL Open Font License 1.1, which
 `DancingScript-OFL.txt` beside it holds with the font's copyright.
 
+`encrypted.pdf` is one page of 200 by 100 points, filled red, encrypted with RC4 at 128 bits. It
+has an owner password and no user password, so a reader that is not careful opens it with no
+password at all. Ghostscript 10.01 wrote it from a three-line PostScript page with this command:
+
+```
+gswin64c -sDEVICE=pdfwrite -sOwnerPassword=owner -dEncryptionR=3 -dKeyLength=128 -dPermissions=-3904 -o encrypted.pdf page.ps
+```
+
+`deflate-bomb.pdf` is one page whose content stream is deflated twice: 1,413 bytes that inflate to
+512 MiB of spaces. Python's `zlib` wrote it, because the tests have no deflater of their own. Every
+other PDF the tests read is built by the test itself.
+
 Inputs that are broken on purpose, such as a header declaring more pixels than the cap or an EXIF
 block with a malformed IFD, are built by the test itself, so they are not files here. So are the
 tagged JPEGs: `image_pipeline.rs` inserts an EXIF block it writes, with an orientation of 6 or a

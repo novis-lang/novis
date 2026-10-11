@@ -21,13 +21,14 @@
 //! decoded. So is the size of every frame the plan and each overlay row makes, from the source's
 //! size and `ops::size`, up to the first step whose size depends on the pixels: a plan that grows
 //! its frame past the cap returns `Runtime` before its first step runs, not after its last one
-//! under the cap. An encoded source's size is its header's, and a `text` source's is its laid-out
-//! box (`text`'s module doc, which says what the `text` step draws too).
+//! under the cap. An encoded source's size is its header's, a PDF's is its chosen page's at its
+//! `dpi` (`pdf`'s module doc), and a `text` source's is its laid-out box (`text`'s module doc,
+//! which says what the `text` step draws too).
 //!
-//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 6.6 MiB, built for
+//! Packed as a `.nvsx` and embedded in every `nvs` binary, the component is 13.7 MiB, built for
 //! release as `crates/nvs-ext/build.rs` always builds it. That is the binary's growth for image,
 //! and `crates/nvs-ext/tests/builtin.rs` fails when this figure drifts past 5% of the bytes the
-//! binary carries.
+//! binary carries. The 12 Liberation fonts under `extensions/fonts/` are 4.3 MiB of it.
 
 mod avif;
 pub mod compare;
@@ -36,13 +37,14 @@ mod encode;
 pub mod hash;
 mod info;
 pub mod ops;
+mod pdf;
 pub mod qr;
 pub mod summary;
 mod svg;
 pub mod text;
 mod webp;
 
-pub use decode::{DEFAULT_MAX_PIXELS, Pixels, decode, sniff};
+pub use decode::{DEFAULT_MAX_PIXELS, Pixels, decode, decode_page, sniff};
 pub use encode::{DEFAULT_JPEG_QUALITY, encode};
 pub use info::{Info, info};
 pub use ops::Op;
@@ -234,6 +236,9 @@ fn known_size(input: &Input<'_>, cap: u64) -> Option<(u32, u32)> {
         }
         Input::Text(layout) => text::measure(&layout).ok()?,
         Input::Encoded {
+            data, page, dpi, ..
+        } if sniff(data) == Ok(Format::Pdf) => pdf::size(data, page, dpi).ok()?,
+        Input::Encoded {
             data, auto_orient, ..
         } => {
             let info = info(data).ok()?;
@@ -288,8 +293,9 @@ fn frame(input: &Input<'_>, cap: u64) -> Result<Pixels, Error> {
             data,
             auto_orient,
             to_srgb,
-            ..
-        } => decode(data, cap, auto_orient, to_srgb),
+            page,
+            dpi,
+        } => decode_page(data, cap, auto_orient, to_srgb, page, dpi),
         Input::Canvas {
             width,
             height,

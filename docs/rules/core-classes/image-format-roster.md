@@ -22,4 +22,5 @@ encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.r
 through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
 APNG is neither decoded as an animation nor encoded. SVG decodes through `resvg` with an image
 resolver that reads only `data:` URIs and throws `RuntimeError` naming any other `href`
-(`extensions/image/src/svg.rs`); its `<text>` is not drawn until the component carries fonts.
+(`extensions/image/src/svg.rs`); its `<text>` is not drawn, because `usvg`'s text feature is off. A
+PDF page rasterises through `hayro` (`extensions/image/src/pdf.rs`).

@@ -3184,7 +3184,10 @@ the guest and refuses to encode JPEG XL (`crates/nvs-ext/tests/image_decode.rs`)
 through `rav1d` on one thread (`extensions/image/src/avif.rs`). JPEG, PNG, WebP, GIF and AVIF
 encode (`extensions/image/src/encode.rs`, `crates/nvs-ext/tests/image_pipeline.rs`): lossy WebP
 through the libwebp that `extensions/image/build.rs` links, and AVIF through `ravif` on one thread.
-APNG is neither decoded as an animation nor encoded.
+APNG is neither decoded as an animation nor encoded. SVG decodes through `resvg` with an image
+resolver that reads only `data:` URIs and throws `RuntimeError` naming any other `href`
+(`extensions/image/src/svg.rs`); its `<text>` is not drawn, because `usvg`'s text feature is off. A
+PDF page rasterises through `hayro` (`extensions/image/src/pdf.rs`).
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap).</sub>
 
@@ -3339,7 +3342,9 @@ sandbox. Every code a test writes is read back by a reader that is a dev-depende
 
 - **Memory:** a code is at most a few thousand modules, so a render is far under the pixel cap.
 
-**Not shipped.** There is no barcode export in the image component.
+**Not shipped.** `wit/image.wit` declares the `barcode` export, and the component returns `runtime`
+from it: no symbology draws yet, and `Barcode`, `QrCode::svg` and `QrCode::giroCode` are not in the
+binary.
 
 **Declined:**
 - **PDF417 and Aztec.** Each is a large encoder for documents almost no web application produces.
@@ -4043,7 +4048,9 @@ and no code under OFL-1.1 is admitted by it.
 - **Memory:** the twelve fonts are part of each component's bytes, a few megabytes of the binary. A
   render holds the faces it uses inside its request's cap.
 
-**Not shipped.** There is no PDF component in the tree.
+**Not shipped.** There is no PDF component in the tree. The twelve files are under
+`extensions/fonts/` with their release recorded in `SOURCE.json`, and the image component embeds
+them.
 
 **Declined:**
 - **Noto or another font with wide script coverage as a default.** Its size grows the binary by tens of
@@ -4099,8 +4106,13 @@ image-heavy page, guest against the same crate native.
   nothing outlives the request. The interpreter and the font substitutes grow the binary by
   single-digit megabytes. CPU is the request's epoch deadline, and bulk rasterising is queue work.
 
-**Not shipped.** There is no PDF decoder in the image component. `Format::Pdf` exists, and `run`
-refuses to encode it (`extensions/image/src/encode.rs`).
+A page is drawn on white, so every pixel is opaque, and a side may be at most 65535 pixels, which is
+`hayro`'s renderer's own bound. Symbol and ZapfDingbats are drawn in Liberation Serif and Sans, which
+have few of their glyphs. No predefined CMap is carried, so CJK text in an encoding that names one is
+not drawn; carrying them is `hayro`'s `embed-cmaps` feature. The decoder is
+`extensions/image/src/pdf.rs`, and its fixtures are `crates/nvs-ext/tests/image_decode.rs`.
+
+**Not shipped.** The benchmark of a text page and an image-heavy page, guest against native.
 
 **Declined:**
 - **A `rasterize` member in `Novis\Pdf`.** Every raster would recross the boundary as bytes to reach
@@ -4141,9 +4153,17 @@ The decoder's fixtures hold this inside the guest, and owe:
 - a fixture carrying an external reference, a JavaScript action and an embedded file that rasterises
   with nothing resolved, nothing executed and no network or filesystem access observable;
 - a **bomb corpus** — recursive form XObjects, an xref loop, a stream-length lie and a deflate bomb —
-  where each case ends in a throw or a contained trap under the epoch deadline, never a hang.
+  where each case ends in a throw, a contained trap under the request's limits, or its page drawn
+  whole as a reader that is not fooled draws it, never a hang. `hayro` repairs a broken
+  cross-reference table and a lying stream length, and cuts a form that draws itself, so those three
+  are drawn; refusing them would refuse every real file with a damaged table.
 
-**Not shipped.** There is no PDF decoder in the image component.
+An encrypted document is opened with a password nobody sets, so one whose user password is empty is
+refused too. A font in an encoding `hayro` cannot draw, and an image that does not decode, throw
+`RuntimeError` naming the page.
+
+**Not shipped.** The fixture carrying an external reference, a JavaScript action and an embedded
+file, and a fixture for each object that throws.
 
 <sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 

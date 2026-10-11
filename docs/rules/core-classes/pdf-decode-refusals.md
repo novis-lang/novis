@@ -22,6 +22,14 @@ The decoder's fixtures hold this inside the guest, and owe:
 - a fixture carrying an external reference, a JavaScript action and an embedded file that rasterises
   with nothing resolved, nothing executed and no network or filesystem access observable;
 - a **bomb corpus** — recursive form XObjects, an xref loop, a stream-length lie and a deflate bomb —
-  where each case ends in a throw or a contained trap under the epoch deadline, never a hang.
+  where each case ends in a throw, a contained trap under the request's limits, or its page drawn
+  whole as a reader that is not fooled draws it, never a hang. `hayro` repairs a broken
+  cross-reference table and a lying stream length, and cuts a form that draws itself, so those three
+  are drawn; refusing them would refuse every real file with a damaged table.
 
-**Not shipped.** There is no PDF decoder in the image component.
+An encrypted document is opened with a password nobody sets, so one whose user password is empty is
+refused too. A font in an encoding `hayro` cannot draw, and an image that does not decode, throw
+`RuntimeError` naming the page.
+
+**Not shipped.** The fixture carrying an external reference, a JavaScript action and an embedded
+file, and a fixture for each object that throws.
