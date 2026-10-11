@@ -14,7 +14,7 @@ stages:
         shapes: []
   - id: 3
     title: the command
-    status: open
+    status: done
     extra:
       context:
         rules: [ide/check-json-is-the-diagnostic-record-as-a-document, tooling/one-json-several-renderers, tooling/meta-json-takes-a-program]
@@ -301,20 +301,20 @@ One file set: `docs/reference/tools/10-cli.md` (a new `# nvs code` section after
 
 ### State
 
-**Stage 2 is done and its check is green.** `nvs_lsp::workspace(root)` (`crates/nvs-lsp/src/server.rs:1305`) surveys and indexes every `.nvs` file under a root and returns a `Workspace` (`:1267`) that owns the `Documents` and the index. `nvs_lsp::query` (`crates/nvs-lsp/src/query.rs`) reads it by name: `references` (`:74`, kinds `declared`/`import`/`use` via `UseKind::label`), `implementations` (`:125`, `below` transitive subtypes or overriders, `above` direct supertypes or overridden), `declaration` (`:167`, the `///` run as hover renders it), `outline` (`:215`), `types` (`:259`, 1-based inclusive lines, `$name` and the type without `: `) and `nearest` (`:301`, case- and backslash-blind, also by last part). `uses_of` and `implementation` in `server.rs` call it, so the editor's Go to Implementation now lists subtypes at every depth and a method's overriders. `nvs_hir::members::edit_distance` is public for `nearest`. `crates/nvs-lsp/tests/query.rs` holds the eight tests.
+**Stage 3 is done and both its checks are green.** `nvs code show|refs|impls|outline|types`, each with `--json`, is `crates/nvs-cli/src/code.rs`, dispatched from `CodeCommand` beside `AgentCommand` in `crates/nvs-cli/src/main.rs`. It reads `nvs_lsp::workspace` through `nvs_lsp::query` and renders. `show` of a name the project does not declare goes to `agent::show` when `agent::has_card` finds it. The signature is `meta::method_signature` and `meta::property_signature`, which `nvs meta` calls too. The stderr count of files with errors is `SymbolIndex::files_with_errors` (`crates/nvs-lsp/src/index.rs`), a flag each `Indexed` entry carries from the analysis that indexed it. `crates/nvs-cli/tests/code.rs` holds the ten tests. The rule is `tooling/nvs-code-answers-about-the-project`, and `ide/one-server-two-thin-clients` and the `nvs-lsp` comment in `crates/nvs-cli/Cargo.toml` now name `nvs code` as the third client (Stage 0's Stage 3 items).
 
-What Stage 3 needs to know. A `Site` carries byte offsets and the canonical path (on Windows a `\\?\` path), so the CLI turns it into a working-directory-relative path and a character column itself. The `Workspace` does not count files with errors yet: Stage 3 needs that count for its stderr line, and `analyse_file`'s diagnostics are where it lives (`crates/nvs-lsp/src/document.rs:661`). A `Declaration` still has no signature: `nvs meta` builds a program method's in `user_method_json` (`crates/nvs-cli/src/meta.rs:924`, `param_signature` `:958`) from a parsed `MethodMember`, which `query::declaration`'s analysis can reach through `crate::definition::site_of`.
+Nothing measured the cost of a call on a large project yet. The fixtures are five files.
 
 ### Next
 
-**Stage 3: the command**, one file set: a new `crates/nvs-cli/src/code.rs`, `crates/nvs-cli/src/main.rs`, `crates/nvs-cli/src/meta.rs`, a new `crates/nvs-cli/tests/code.rs`, `docs/rules/tooling/`, `docs/rules/ide/one-server-two-thin-clients.md`.
+**Stage 4: agents learn of it**, one file set: `crates/nvs-cli/src/agent.rs`, `crates/nvs-cli/src/agent/names.rs`, `crates/nvs-cli/tests/agent.rs`, `docs/reference/tools/50-agents.md`, `docs/rules/tooling/an-agent-asks-the-binary.md`.
 
-- [ ] **The command and its five verbs** — `nvs code show|refs|impls|outline|types`, each with `--json`, beside `Agent` in the `Command` enum (`crates/nvs-cli/src/main.rs:915`), over `nvs_lsp::workspace` (`crates/nvs-lsp/src/server.rs:1305`) and `nvs_lsp::query` (`crates/nvs-lsp/src/query.rs:74`). Output, exit status, escaping and the project root are § *Standing decisions*'; `show` of a `Core` name prints `nvs agent show`'s card.
-- [ ] **The signature, one builder** — what `user_method_json` writes (`crates/nvs-cli/src/meta.rs:924`, `:958`) moves to one function `show` and `nvs meta` both call.
-- [ ] **The rule** — create `tooling/nvs-code-answers-about-the-project` with the tradeoffs and the Declined list from § *Standing decisions*; rewrite `ide/one-server-two-thin-clients` (`docs/rules/ide/one-server-two-thin-clients.md:1`).
-- [ ] **The tests** — `crates/nvs-cli/tests/code.rs` with the ten tests the Stage 3 check names, over the `Shop` fixture `crates/nvs-lsp/tests/query.rs:18` writes.
+- [ ] **The protocol** — `PROTOCOL` (`crates/nvs-cli/src/agent.rs:1204`) names `nvs code refs`, `show` and `outline` for questions about the project, as commands and never as a language fact (`rule:tooling/an-adapter-carries-protocol-and-never-language`). The module doc's description of it (`crates/nvs-cli/src/agent.rs:1`) is rewritten with it.
+- [ ] **The pointer upgrade** — an unedited pointer an earlier `init` wrote is reported outdated and rewritten, through the fingerprint mechanism alone (`crates/nvs-cli/src/agent.rs:1186`); no new `LEGACY_*` fingerprint.
+- [ ] **The index** — `command: nvs code` and each verb come from the `clap` walk (`crates/nvs-cli/src/agent/names.rs:114`); a test pins them. The three tests the Stage 4 check names go in `crates/nvs-cli/tests/agent.rs`.
+- [ ] **The rule and the chapter** — rewrite `tooling/an-agent-asks-the-binary`'s last paragraph (`docs/rules/tooling/an-agent-asks-the-binary.md`), and `docs/reference/tools/50-agents.md:4-5` and `:145` (Stage 0).
 
 ### Backlog
 
-- Stage 4: agents learn of it — the `PROTOCOL` text, the fingerprint upgrade of older pointers, the index lines, and the `tooling/an-agent-asks-the-binary` rewrite.
-- Stage 5: the `# nvs code` reference section, the feature proofs for `tools:cli/nvs-code`, and the Stage 0 search.
+- Stage 5: the `# nvs code` section in `docs/reference/tools/10-cli.md` after `# nvs ast`, the feature proofs for `tools:cli/nvs-code` (example and attack), and the Stage 0 search (`docs/goals/nvs-code.md` § *Stage 0*).
+- A timing of one call on a large project. A call too slow for an agent loop is a gap under `data/gaps/` naming `nvs-lsp` and `nvs code`, never a cache (`rule:tooling/nvs-code-answers-about-the-project`).
