@@ -1,9 +1,9 @@
-A child spawned `on: "worker"` is **started** on a core other than its parent's, and *started* is the
-whole of the placement: a task never migrates (`rule:concurrency/a-wake-never-moves-a-task`), so which
-core runs it is decided once, where it is spawned, and is never revisited while it runs. Everything else
-about it is unchanged — it is an isolate with the boundary
-`rule:security/isolate-shares-nothing` describes, and `on: "here"` is the same child on the parent's own
-core.
+A child spawned `on: "worker"` is **started** on a core other than its parent's whenever one is idle,
+and on its parent's own core only when every other core is busy. *Started* is the whole of the
+placement: a task never migrates (`rule:concurrency/a-wake-never-moves-a-task`), so which core runs it
+is decided once, where it is spawned, and is never revisited while it runs. Everything else about it is
+unchanged — it is an isolate with the boundary `rule:security/isolate-shares-nothing` describes, and
+`on: "here"` is the same child on the parent's own core without the crossing.
 
 What crosses is what `rule:security/isolate-values-cross-by-copy` allows, with one thing subtracted: the
 **move is not available**. A refcount is non-atomic because a value is reachable from one core only, so
@@ -50,6 +50,19 @@ scheduler thread per core at most: O(cores), never O(requests served), and which
 readable from the child, so the destination set is the only thing that changes when a serving core
 registers one.
 
+**The order a core is picked in is: an idle core other than the parent's, a new core if the bound
+allows one, the parent's own core if no placement is running on it, and then the other cores in turn.**
+The parent's core is a destination because a parent that awaits its children is parked and leaves its
+core free: under `nvs serve` on four cores, a request that places four children runs all four at once,
+where queueing the fourth behind a busy sibling took two rounds. It comes last because a child there
+shares the core with its parent. When the child the parent awaits finishes first, the parent waits
+until the child on its own core yields or ends before it runs again, since neither can move. A parent
+that awaits all its children loses nothing to that, and a parent that does work between its awaits
+pays at most one child's turn. One placement at a time is the cap on the parent's core, so a fifth
+child queues behind a sibling rather than doubling up beside its parent. A process whose one core is
+the one asking runs the child where it stands, as `on: "here"` would, because the trip through its own
+inbox would buy two copies and no parallelism.
+
 A worker placement's latency floor is two copies and two cross-thread wakes, which is why the same-core
 placement is the default and `on: "worker"` is for a child that is CPU-bound and whose values are small.
 The inbox adds no lock to the request path: it has one consumer, the core that owns it, and the core being
@@ -63,6 +76,9 @@ answer costs.
   requests served.
 
 **Declined:**
+- **Never placing a child on its parent's core.** With every sibling busy the child queues behind
+  another request's child while the core its own parent parked on sits idle, so a request that places
+  one child per core takes two rounds instead of one.
 - **Migrating the child to an idle core.** Refcounts are non-atomic and an arena belongs to one core, so
   this is unsound rather than expensive (`rule:concurrency/a-wake-never-moves-a-task`).
 - **A shared global run queue every core steals from.** It is one piece of contended state on the request

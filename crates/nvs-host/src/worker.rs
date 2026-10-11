@@ -73,9 +73,10 @@
 //! would oversubscribe exactly the cores the server's own latency depends on.
 //! So [`register_this_core`] puts an inbox in the set and spawns the identical
 //! receptionist on the caller's scheduler, and [`WorkerCores`] holds a member
-//! with no thread of its own to join. A set that can reach one never starts one,
-//! and the core asking is never the core answered — a child is started on a core
-//! *other than* its parent's, and a registered core is in the set it is asking.
+//! with no thread of its own to join. A set that can reach one never starts one.
+//! A registered core is in the set it is asking, so [`WorkerCores::pick`] tries
+//! it last: a child goes to its parent's own core only when every other core is
+//! busy, and that core is idle.
 //!
 //! **Such a core ends with the process's drain, not with its inbox.** The thread
 //! is the caller's and the caller ends it once nothing on it is parked, so a
@@ -605,13 +606,22 @@ impl WorkerCores {
     /// The inbox of a core to place work on, starting one if every core it can
     /// reach is busy and the bound allows another.
     ///
-    /// `mine` is the placing core's own inbox where it registered one, and is
-    /// never the answer: a child is started on a core *other than its parent's*
-    /// (`rule:concurrency/on-worker-runs-the-child-on-another-core`), and a
-    /// serving core that offered itself is in the very set being asked.
+    /// `mine` is the placing core's own inbox where it registered one: a serving
+    /// core that offered itself is in the very set being asked. It is the **last
+    /// idle core** this tries, never the first
+    /// (`rule:concurrency/on-worker-runs-the-child-on-another-core`).
     ///
-    /// The idle test first, the bound second, the round robin last — and **a set
-    /// that can reach a registered core never grows itself**: a registered core's thread is already running and already pinned, so
+    /// The order is: an idle core other than the placing one, then a new core if
+    /// the bound allows one, then the placing core if no placement is running on
+    /// it, then the round robin over the other cores. So with four cores, a
+    /// request that spawns four children runs all four at once: three on the
+    /// siblings and the fourth on its own core, which its parent leaves free
+    /// while it waits. The placing core before the round robin, because a child
+    /// queued behind a busy sibling waits for that sibling's work as well as
+    /// its own, while the placing core is free as soon as the parent parks.
+    ///
+    /// **A set that can reach a registered core never grows itself**: a
+    /// registered core's thread is already running and already pinned, so
     /// starting one beside it would oversubscribe exactly the core the placement
     /// is trying to use. At the bound the placement joins a queue instead, which
     /// is the bound doing its job: refusing the work would put an error on a
@@ -623,7 +633,8 @@ impl WorkerCores {
     /// lists no CPU to pin a core to and an OS that refuses a thread for it, and
     /// a process whose registered cores are the single CPU it was given, where
     /// `on: "worker"` is `on: "here"` by arithmetic. [`place`] then runs the work
-    /// where it stands.
+    /// where it stands, which skips the two copies a trip through its own inbox
+    /// would cost.
     fn pick(&mut self, mine: Option<&Arc<Inbox>>) -> Option<Arc<Inbox>> {
         let elsewhere = |core: &Core| match mine {
             Some(mine) => !Arc::ptr_eq(&core.inbox, mine),
@@ -642,6 +653,15 @@ impl WorkerCores {
             .any(|core| elsewhere(core) && core.worker.is_none());
         if !reaches_a_registered_core && self.cores.len() < self.bound && self.start_one() {
             return self.cores.last().map(|core| Arc::clone(&core.inbox));
+        }
+        // The placing core, while no placement is running on it and only where
+        // some other core exists: a set whose one core is the one asking answers
+        // `None` below, as it would with no core at all.
+        if let Some(mine) = mine
+            && mine.live() == 0
+            && self.cores.iter().any(&elsewhere)
+        {
+            return Some(Arc::clone(mine));
         }
         // Round robin from where the last one left off, over the cores that are
         // not the one asking. `held` is zero only for a set that has neither
@@ -740,7 +760,7 @@ thread_local! {
     /// which core is asking is a property of the thread, and the set is one
     /// process-wide thing every core reads. A thread that registered nothing —
     /// every `nvs run`, every test, and the lazily started cores themselves —
-    /// leaves it `None` and is excluded from nothing.
+    /// leaves it `None`, and every core in the set is an equal candidate.
     static MINE: RefCell<Option<Arc<Inbox>>> = const { RefCell::new(None) };
 }
 
@@ -867,8 +887,8 @@ impl Drop for Registered {
 /// with the process's drain* owns what it does when it is.
 pub fn register_this_core(sched: &mut Scheduler, draining: &Drain) -> Registered {
     let inbox = lock(cores()).register();
-    // This thread's own core, so that a placement written here is answered a
-    // sibling and never this inbox — [`WorkerCores::pick`]'s `mine`.
+    // This thread's own core, so that a placement written here tries every
+    // sibling before this inbox — [`WorkerCores::pick`]'s `mine`.
     MINE.with(|mine| *mine.borrow_mut() = Some(Arc::clone(&inbox)));
     let mine = Arc::clone(&inbox);
     let ending = draining.clone();
@@ -1538,7 +1558,7 @@ mod tests {
     /// put the work, which is the single-CPU arithmetic [`WorkerCores::pick`]'s
     /// own doc names and the one place this answers `None`.
     #[test]
-    fn a_registered_core_is_preferred_to_starting_one_and_is_never_its_own_destination() {
+    fn a_registered_core_is_preferred_to_starting_one_and_to_the_placing_core() {
         let mut cores = WorkerCores::new(4);
         let mine = cores.register();
         let sibling = cores.register();
@@ -1546,7 +1566,7 @@ mod tests {
         let picked = cores.pick(Some(&mine)).expect("a set of two answered none");
         assert!(
             Arc::ptr_eq(&picked, &sibling),
-            "a core was handed its own inbox, which is `on: \"here\"` in costume"
+            "a core was handed its own inbox while a sibling was idle"
         );
         assert_eq!(
             cores.started(),
@@ -1574,6 +1594,48 @@ mod tests {
             "a set with room started nothing"
         );
         assert_eq!(lazily.started(), 1, "the first placement started no core");
+    }
+
+    /// Four serving cores and one request that places four children: three go
+    /// to the siblings and the fourth to the request's own core, so all four
+    /// run in one round. The fifth finds every core holding a placement and
+    /// queues behind a sibling.
+    ///
+    /// `live` is raised by hand after each pick, which is what [`post_to`]
+    /// does with the inbox it was given, so the test reads every placement
+    /// decision without running a child.
+    #[test]
+    fn the_placing_core_takes_a_child_only_once_every_sibling_is_busy() {
+        let mut cores = WorkerCores::new(4);
+        let mine = cores.register();
+        let siblings: Vec<Arc<Inbox>> = (0..3).map(|_| cores.register()).collect();
+
+        let mut picked = Vec::new();
+        for _ in 0..5 {
+            let inbox = cores
+                .pick(Some(&mine))
+                .expect("a set of four answered none");
+            inbox.live.fetch_add(1, Ordering::Relaxed);
+            picked.push(inbox);
+        }
+
+        for (child, sibling) in picked.iter().zip(&siblings) {
+            assert!(
+                Arc::ptr_eq(child, sibling),
+                "a child skipped an idle sibling"
+            );
+        }
+        assert!(
+            Arc::ptr_eq(&picked[3], &mine),
+            "the fourth child queued behind a busy sibling while its own core was free"
+        );
+        assert!(
+            siblings
+                .iter()
+                .any(|sibling| Arc::ptr_eq(&picked[4], sibling)),
+            "a second child went to the placing core while it already held one"
+        );
+        assert_eq!(cores.started(), 0, "a set of registered cores started one");
     }
 
     #[test]
