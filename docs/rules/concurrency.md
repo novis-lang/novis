@@ -334,7 +334,7 @@ goes inside the transaction that made it necessary, in
   zero-retry rule of its own, the way the ladder's tiers have one. That is a new mechanism with its
   own argument to win, and it is not offered as an exception to this rule.
 
-<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`http-server/a-request-outlives-a-client-that-goes-away`](http-server.md#http-server-a-request-outlives-a-client-that-goes-away). Decided in [0265](../decisions/0265.md).</sub>
+<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`http-server/a-request-outlives-a-client-that-goes-away`](http-server.md#http-server-a-request-outlives-a-client-that-goes-away).</sub>
 
 <a id="concurrency-a-deadline-bounds-the-cancel-not-the-return"></a>
 

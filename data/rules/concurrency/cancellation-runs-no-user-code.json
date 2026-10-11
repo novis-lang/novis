@@ -1,9 +1,7 @@
 {
   "title": "A cancelled task runs no `catch`, no cleanup and no handler, and cancellation is not a `Throwable`",
   "status": "shipped",
-  "because": [
-    "0265"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/throwable-hierarchy",
     "errors/escalation-ladder",
