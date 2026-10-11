@@ -23,21 +23,19 @@ type Verdict = 'built-in' | 'one-setting' | 'your-code' | 'no'
 interface RowResult {
   result: Verdict
   setting?: string
+  /** What the row measured, in the shape its judge in bench-compare.ts writes. */
+  evidence?: Record<string, unknown>
 }
 
 interface CompareRecord {
   recorded: true
-  date: string
-  commit: string
-  arm: string
   backend_cpus: number
-  nginx_cpus: number
   requests: number
   reps: number
-  host: { platform?: string; processor?: string; cpus?: number; docker?: string }
+  host: { platform?: string; processor?: string; cpus?: number }
   peers: Record<string, { label: string }>
   cases: Record<string, { concurrency: number; peers: Record<string, PeerFigures> }>
-  scenarios: { date: string; commit: string; rows: Record<string, { folder: string; peers: Record<string, RowResult> }> } | null
+  scenarios: { rows: Record<string, { folder: string; peers: Record<string, RowResult> }> } | null
 }
 
 const raw = data as { recorded: false } | CompareRecord
@@ -53,17 +51,19 @@ const CASE_TEXT: Record<string, { title: string; text: string }> = {
 }
 
 const ROW_TEXT: Record<string, string> = {
-  cores: 'Uses more than one CPU core',
+  cores: 'Many requests at once are spread over four CPU cores',
   isolation: 'A request cannot see a value that another request set',
   runaway: 'A request that loops or uses too much memory is stopped',
-  crash: 'The server keeps running after a request crashes',
+  crash: 'Other requests are still answered after one request crashes',
+  loop: 'A request that loops forever is stopped, and other requests are still answered',
+  memory: 'A request that uses too much memory is stopped, and other requests are still answered',
   escape: 'Text in an HTML page is escaped by default',
   taint: 'A request value in an SQL string is found before the program runs',
   secret: 'A secret in the output is found before the program runs',
   csrf: 'A form sent from another site is rejected',
   headers: 'Security headers are sent by default',
   waiting: 'Answers 1000 waiting requests on one CPU',
-  parallel: 'One request can run its work on four cores',
+  parallel: 'One request can split its work over four CPU cores',
   'live-edit': 'An edited file is served without a restart',
   deploy: 'A new version goes live with no failed request',
   config: 'A change to the config file applies without a restart',
@@ -158,5 +158,41 @@ export const rows: FeatureRow[] = record?.scenarios
     }))
   : []
 
-/** `2026-10-10T08:00:00` as `2026-10-10`. */
-export const day = (stamp: string) => stamp.slice(0, 10)
+/** The evidence a row recorded for each peer, in `peers` order, skipping a peer the row has no result for. */
+function evidenceOf(row: string): { label: string; evidence: Record<string, unknown> }[] {
+  const r = record?.scenarios?.rows[row]
+  if (r === undefined) return []
+  return peers.flatMap((p) => {
+    const evidence = r.peers[p.id]?.evidence
+    return evidence === undefined ? [] : [{ label: p.label, evidence }]
+  })
+}
+
+/** A peer's figure with one core and with four, as the `cores` and `parallel` rows measured it. */
+export interface OneAndFour {
+  label: string
+  /** Requests per second with one core for `cores`, the seconds one part took for `parallel`. */
+  one: number
+  /** Requests per second with four cores for `cores`, the seconds four parts at once took for `parallel`. */
+  four: number
+  /** How the program runs its parts at once, for `parallel`. */
+  way: string | null
+}
+
+/** The `cores` row: the HTML page case's throughput with one core and with four, for every peer. */
+export const manyRequests: OneAndFour[] = evidenceOf('cores').map(({ label, evidence: e }) => ({
+  label,
+  one: e.requests_per_sec_1_cpu as number,
+  four: e.requests_per_sec_4_cpus as number,
+  way: null,
+}))
+
+/** The `parallel` row: one request's work as one part and as four parts, for each peer that has a way to run parts at once. */
+export const oneRequest: OneAndFour[] = evidenceOf('parallel')
+  .filter(({ evidence: e }) => e.way !== null)
+  .map(({ label, evidence: e }) => ({
+    label,
+    one: e.seconds_1_part as number,
+    four: e.seconds_4_parts as number,
+    way: e.way as string,
+  }))

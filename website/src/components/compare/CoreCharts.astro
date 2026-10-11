@@ -1,0 +1,45 @@
+---
+/**
+ * The comparison page's charts for more than one core, from the `cores` and
+ * `parallel` rows of the feature table. `many-requests` is each peer's
+ * throughput with four cores against the best peer's. `one-request` gives
+ * each peer two bars: the seconds one part took, then the seconds four parts
+ * at once took, both against the longest time in the chart.
+ */
+import Bars from './Bars.astro'
+import { manyRequests, oneRequest, record } from '~/lib/compare'
+
+export interface Props {
+  chart: 'many-requests' | 'one-request'
+}
+
+const { chart } = Astro.props
+const number = (n: number) => Math.round(n).toLocaleString('en-US')
+const seconds = (n: number) => `${n.toFixed(2)} s`
+
+const bars = (() => {
+  if (chart === 'many-requests') {
+    const best = Math.max(...manyRequests.map((s) => s.four))
+    return manyRequests.map((s) => ({
+      label: s.label,
+      share: best > 0 ? s.four / best : 0,
+      best: s.four === best,
+      value: `${Math.round((s.four / best) * 100)}%`,
+      figures: `${number(s.four)} requests per second`,
+    }))
+  }
+  const longest = Math.max(...oneRequest.map((s) => Math.max(s.one, s.four)))
+  return oneRequest.flatMap((s) => [
+    { label: s.label, share: s.one / longest, best: false, value: seconds(s.one), figures: '' },
+    { label: '', share: s.four / longest, best: true, value: seconds(s.four), figures: `with ${s.way}` },
+  ])
+})()
+---
+
+{
+  record?.scenarios && bars.length > 0 ? (
+    <Bars bars={bars} />
+  ) : (
+    <p class="compare-empty">No run of the feature table is recorded yet.</p>
+  )
+}

@@ -2,14 +2,19 @@
 /**
  * One bar chart per recorded case on the comparison page. Each bar is a
  * peer's requests per second as a share of the best peer's in that case, and
- * the measured figures are printed beside it, smaller.
+ * the measured figures are printed under it, smaller.
  */
+import Bars from './Bars.astro'
 import { charts, record } from '~/lib/compare'
 
 const percent = (share: number) => `${Math.round(share * 100)}%`
 const number = (n: number) => Math.round(n).toLocaleString('en-US')
-const detail = (p99Ms: number | null, memoryMiB: number | null) =>
-  [p99Ms === null ? null : `p99 ${p99Ms.toFixed(1)} ms`, memoryMiB === null ? null : `peak memory ${memoryMiB.toFixed(0)} MiB`]
+const figures = (requestsPerSec: number, p99Ms: number | null, memoryMiB: number | null) =>
+  [
+    `${number(requestsPerSec)} requests per second`,
+    p99Ms === null ? null : `p99 ${p99Ms.toFixed(1)} ms`,
+    memoryMiB === null ? null : `peak memory ${memoryMiB.toFixed(0)} MiB`,
+  ]
     .filter((s) => s !== null)
     .join(', ')
 ---
@@ -22,66 +27,18 @@ const detail = (p99Ms: number | null, memoryMiB: number | null) =>
         <p>
           {c.text} {c.concurrency.toLocaleString('en-US')} connections at once.
         </p>
-        <ul class="compare-bars">
-          {c.bars.map((b) => (
-            <li class:list={{ best: b.best }}>
-              <span class="peer">{b.label}</span>
-              <span class="track">
-                <span class="bar" style={`width: ${(b.share * 100).toFixed(1)}%`} />
-              </span>
-              <span class="share">{percent(b.share)}</span>
-              <span class="figures">
-                {number(b.requestsPerSec)} requests per second
-                {detail(b.p99Ms, b.memoryMiB) && <>, {detail(b.p99Ms, b.memoryMiB)}</>}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <Bars
+          bars={c.bars.map((b) => ({
+            label: b.label,
+            share: b.share,
+            best: b.best,
+            value: percent(b.share),
+            figures: figures(b.requestsPerSec, b.p99Ms, b.memoryMiB),
+          }))}
+        />
       </section>
     ))
   ) : (
     <p class="compare-empty">No run is recorded yet.</p>
   )
 }
-
-<style>
-  .compare-bars {
-    list-style: none;
-    padding: 0;
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 0.25rem 0.75rem;
-    align-items: center;
-  }
-  .compare-bars li {
-    display: contents;
-  }
-  .compare-bars .peer {
-    font-weight: 600;
-  }
-  .compare-bars .track {
-    height: 1rem;
-    background: var(--sl-color-gray-6);
-    border-radius: 0.25rem;
-    overflow: hidden;
-  }
-  .compare-bars .bar {
-    display: block;
-    height: 100%;
-    background: var(--sl-color-gray-3);
-  }
-  .compare-bars .best .bar {
-    background: var(--sl-color-accent);
-  }
-  .compare-bars .share {
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-  }
-  .compare-bars .figures {
-    grid-column: 2 / 4;
-    margin-top: -0.25rem;
-    margin-bottom: 0.5rem;
-    font-size: var(--sl-text-xs);
-    color: var(--sl-color-gray-3);
-  }
-</style>

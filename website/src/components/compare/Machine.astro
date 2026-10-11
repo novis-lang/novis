@@ -3,19 +3,15 @@
  * The machine and the run behind the comparison page's figures, from
  * src/lib/compare.ts. Before a run is recorded it says so.
  */
-import { day, record } from '~/lib/compare'
+import { record } from '~/lib/compare'
 
 const facts = record
   ? [
-      ['CPU', record.host.processor || 'not recorded'],
+      ['CPU', record.host.processor?.trim() || 'not recorded'],
       ['Cores', String(record.host.cpus ?? 'not recorded')],
       ['Operating system', record.host.platform ?? 'not recorded'],
-      ['Docker', record.host.docker ?? 'not recorded'],
       ['CPUs for each server', String(record.backend_cpus)],
       ['Requests in each test', `${record.requests.toLocaleString('en-US')}, best of ${record.reps}`],
-      ['Commit', record.commit],
-      ['Date', day(record.date)],
-      ...(record.scenarios ? [['Feature table', `commit ${record.scenarios.commit}, ${day(record.scenarios.date)}`]] : []),
     ]
   : []
 ---

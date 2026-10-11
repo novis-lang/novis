@@ -6,6 +6,7 @@ description: The same small web programs in Novis, PHP, Bun and Go, measured on 
 
 import Machine from '@components/compare/Machine.astro'
 import CaseCharts from '@components/compare/CaseCharts.astro'
+import CoreCharts from '@components/compare/CoreCharts.astro'
 import FeatureTable from '@components/compare/FeatureTable.astro'
 
 This page compares Novis with PHP, Bun and Go. Each language runs the same small web programs. One
@@ -42,10 +43,47 @@ This is the machine and the run:
 `p99` is the time within which 99 of 100 requests were answered. Peak memory is the most memory the
 server's container used during the test.
 
+## More than one CPU core
+
+A server can use more than one CPU core in two ways. It can answer many requests at the same time,
+each on its own core. Or one request can split its own work into parts that run at the same time.
+
+### Many requests at once
+
+This test runs the HTML page test with four cores for each server. Each bar shows a server's requests
+per second as a share of the fastest server.
+
+<CoreCharts chart="many-requests" />
+
+Novis, PHP and Go use all the cores with no extra code. One Bun process runs your code on one core.
+So the Bun program starts one Bun process for each core itself.
+
+### One request in four parts
+
+Each request runs the same loop in four parts. The test times one part alone, and then all four
+parts on four cores. The grey bar is the time for one part. The coloured bar is the time for all
+four parts. A shorter bar is faster. When the four parts run at the same time, both bars are about
+the same length.
+
+<CoreCharts chart="one-request" />
+
+The three languages split the work in different ways:
+
+- In Novis, each part is a script with its own memory. It gets a copy of its arguments and cannot
+  change the request's variables. Together, the parts must stay under the request's memory and CPU
+  limits.
+- In Bun, each part is a `Worker` with its own memory. Values are copied between them.
+- In Go, each part is a goroutine. All parts share the same memory, so one part can change a value
+  that another part reads.
+
+PHP is not in this chart. PHP-FPM runs one request on one core, and PHP has no built-in way to split
+it. Novis needs one setting for this: `spawn = true` in the `[capabilities.script]` table.
+
 ## Features
 
 Each row tests one thing a web server needs. A small program for each language tries it, and the
-result comes from what the server did. Each result is one of four values:
+result comes from what the server did. A result says what happened in that test. It is not a
+promise for every program. Each result is one of four values:
 
 - **Built in**: the server does it with no setting and no extra code.
 - **One setting**: the server does it after you change one setting. The cell names the setting.

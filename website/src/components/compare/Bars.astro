@@ -1,0 +1,79 @@
+---
+/**
+ * One bar chart on the comparison page: a row per bar with its label, the
+ * figure the bar shows, and the measured figures under it, smaller. A bar
+ * with `best` takes the accent colour. A row with an empty label continues
+ * the peer named above it, and an empty `figures` prints no line under it.
+ */
+export interface Props {
+  bars: {
+    label: string
+    /** The bar's length, from 0 to 1. */
+    share: number
+    best: boolean
+    /** The figure printed at the end of the bar. */
+    value: string
+    /** The measured figures printed under the bar. */
+    figures: string
+  }[]
+}
+
+const { bars } = Astro.props
+---
+
+<ul class="compare-bars">
+  {
+    bars.map((b) => (
+      <li class:list={{ best: b.best }}>
+        <span class="peer">{b.label}</span>
+        <span class="track">
+          <span class="bar" style={`width: ${(Math.min(b.share, 1) * 100).toFixed(1)}%`} />
+        </span>
+        <span class="value">{b.value}</span>
+        {b.figures && <span class="figures">{b.figures}</span>}
+      </li>
+    ))
+  }
+</ul>
+
+<style>
+  .compare-bars {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.25rem 0.75rem;
+    align-items: center;
+  }
+  .compare-bars li {
+    display: contents;
+  }
+  .compare-bars .peer {
+    font-weight: 600;
+  }
+  .compare-bars .track {
+    height: 1rem;
+    background: var(--sl-color-gray-6);
+    border-radius: 0.25rem;
+    overflow: hidden;
+  }
+  .compare-bars .bar {
+    display: block;
+    height: 100%;
+    background: var(--sl-color-gray-3);
+  }
+  .compare-bars .best .bar {
+    background: var(--sl-color-accent);
+  }
+  .compare-bars .value {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .compare-bars .figures {
+    grid-column: 2 / 4;
+    margin-top: -0.25rem;
+    margin-bottom: 0.5rem;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+</style>
