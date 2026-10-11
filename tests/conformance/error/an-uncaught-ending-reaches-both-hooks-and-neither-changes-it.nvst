@@ -18,7 +18,7 @@ Core\Fatal::onUncaughtThrow(fn (Throwable $failure): void => {
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     echo "exit hook: status ", $report->status(), "\n";
     echo "exit hook: uncaught ",
-        $report->reason() == Core\Script\ExitReason::UncaughtThrow ? "yes" : "no", "\n";
+        $report->reason() == Core\Script\ExitReport::Reason::UncaughtThrow ? "yes" : "no", "\n";
     echo "exit hook: error ", $report->error()?->message ?? "none", "\n";
 });
 

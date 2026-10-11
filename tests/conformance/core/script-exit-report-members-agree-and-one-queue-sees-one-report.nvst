@@ -63,9 +63,9 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     }
 
     string $named = match ($reason) {
-        Core\Script\ExitReason::Normal => "Normal",
-        Core\Script\ExitReason::ExitCall => "ExitCall",
-        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReport::Reason::Normal => "Normal",
+        Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
+        Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
     };
     // The first answer is pinned as well as compared: two identical wrong
     // answers agree exactly as well as two right ones, and a `status` that was
@@ -87,9 +87,9 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     $statuses->add($report->status());
 
     string $named = match ($report->reason()) {
-        Core\Script\ExitReason::Normal => "Normal",
-        Core\Script\ExitReason::ExitCall => "ExitCall",
-        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReport::Reason::Normal => "Normal",
+        Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
+        Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
     };
     echo "second: ", $named, " ", $report->status(), "\n";
 

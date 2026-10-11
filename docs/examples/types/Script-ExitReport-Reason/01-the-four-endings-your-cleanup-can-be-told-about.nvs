@@ -4,12 +4,12 @@
 // by running out of lines, which is the ending called `Normal`.
 
 class Ending {
-    public static function words(Core\Script\ExitReason $reason): string {
+    public static function words(Core\Script\ExitReport::Reason $reason): string {
         return match ($reason) {
-            Core\Script\ExitReason::Normal => "the script ran to the end",
-            Core\Script\ExitReason::ExitCall => "something called exit",
-            Core\Script\ExitReason::UncaughtThrow => "something was thrown and nobody caught it",
-            Core\Script\ExitReason::Finish => "the script stopped itself on purpose",
+            Core\Script\ExitReport::Reason::Normal => "the script ran to the end",
+            Core\Script\ExitReport::Reason::ExitCall => "something called exit",
+            Core\Script\ExitReport::Reason::UncaughtThrow => "something was thrown and nobody caught it",
+            Core\Script\ExitReport::Reason::Finish => "the script stopped itself on purpose",
         };
     }
 }

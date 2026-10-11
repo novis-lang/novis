@@ -2,6 +2,9 @@ Which ending ran your cleanup. A script can register work to do on the way out, 
 work is, its first question is usually how the script ended — you tidy up differently after a clean
 run than after a crash.
 
+`Core\Script\ExitReport::Reason` is declared in the class `Core\Script\ExitReport`. The method
+`reason` returns it.
+
 There are four answers. `Normal` means the last line ran and the script simply finished. `ExitCall`
 means `exit` ended it. `UncaughtThrow` means something was thrown and nothing caught it, and the
 report hands you the error itself. `Finish` means the script stopped itself early on purpose, which

@@ -32,7 +32,7 @@ CLI program that had to flush a buffer or write a summary line *whatever the end
 that code. A root `try/finally` sees a normal end and an uncaught throw and never sees `exit`, and
 taxes every entry file for the coverage it does give.
 
-`ExitReason` is a closed public enum. A future termination kind that should fire the queue is a new
+`ExitReport::Reason` is a closed public enum. A future termination kind that should fire the queue is a new
 case on this queue, decided on its own; a second queue is the wrong answer.
 
 **Declined:**

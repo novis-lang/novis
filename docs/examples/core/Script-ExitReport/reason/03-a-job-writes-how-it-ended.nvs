@@ -4,12 +4,12 @@
 
 final class Job {
     // Returns a short word for each way the job can end.
-    public static function outcome(Core\Script\ExitReason $reason): string {
+    public static function outcome(Core\Script\ExitReport::Reason $reason): string {
         return match ($reason) {
-            Core\Script\ExitReason::Normal => "done",
-            Core\Script\ExitReason::ExitCall => "stopped",
-            Core\Script\ExitReason::UncaughtThrow => "failed",
-            Core\Script\ExitReason::Finish => "nothing to do",
+            Core\Script\ExitReport::Reason::Normal => "done",
+            Core\Script\ExitReport::Reason::ExitCall => "stopped",
+            Core\Script\ExitReport::Reason::UncaughtThrow => "failed",
+            Core\Script\ExitReport::Reason::Finish => "nothing to do",
         };
     }
 }

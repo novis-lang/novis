@@ -3,7 +3,7 @@
 
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     // The reason is `Normal`, so this prints "normal end".
-    if ($report->reason() == Core\Script\ExitReason::Normal) {
+    if ($report->reason() == Core\Script\ExitReport::Reason::Normal) {
         echo "normal end\n";
     }
 });

@@ -26,9 +26,9 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     // There is deliberately no case for a `FATAL` or a cancellation: neither
     // runs a hook, so neither has a reason to report.
     string $reason = match ($report->reason()) {
-        Core\Script\ExitReason::Normal => 'Normal',
-        Core\Script\ExitReason::ExitCall => 'ExitCall',
-        Core\Script\ExitReason::UncaughtThrow => 'UncaughtThrow',
+        Core\Script\ExitReport::Reason::Normal => 'Normal',
+        Core\Script\ExitReport::Reason::ExitCall => 'ExitCall',
+        Core\Script\ExitReport::Reason::UncaughtThrow => 'UncaughtThrow',
     };
     echo 'onExit: ', $reason, ' ', $report->status(), "\n";
 });

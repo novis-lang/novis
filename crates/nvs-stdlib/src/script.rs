@@ -227,16 +227,16 @@ const FINISH_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Script\ExitReason`'s fully-qualified name — `rule:observability/script-on-exit`.
+/// `Core\Script\ExitReport::Reason`'s fully-qualified name — `rule:observability/script-on-exit`.
 ///
-pub(crate) const EXIT_REASON_NAME: &str = r"Core\Script\ExitReason";
+pub(crate) const EXIT_REASON_NAME: &str = r"Core\Script\ExitReport::Reason";
 
 /// The three endings that fire the queue, as the report's own field — `rule:observability/three-endings-fire-the-exit-queue`
 /// 's table, in its order. See [`crate::registry::ENUMS`].
 ///
 /// `ExitCall` carries the suffix `rule:observability/script-on-exit` names: a case spelled `Exit`
 /// would share a spelling with the keyword, and a program writing
-/// `ExitReason::Exit` beside an `exit;` two lines down is reading one word two
+/// `ExitReport::Reason::Exit` beside an `exit;` two lines down is reading one word two
 /// ways. There is deliberately no case for a `FATAL` or a cancellation — § 3
 /// makes those the two terminations no hook observes, so a case for either
 /// would be a value nothing can ever produce.
@@ -366,7 +366,7 @@ const EXIT_REPORT_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Script\ExitReport::reason`'s reference card — `rule:core-api/reference-card`.
 const REASON_DOC: MethodDoc = MethodDoc {
-    short: "Returns how the script ended, as a `Core\\Script\\ExitReason` case.",
+    short: "Returns how the script ended, as a `Core\\Script\\ExitReport::Reason` case.",
     params: &[],
     ret: "`Normal` when the last statement ran, `ExitCall` after `exit`, `UncaughtThrow` after \
           an exception that nothing caught, and `Finish` after `Core\\Script::finish()`.",
@@ -1240,7 +1240,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Script\ExitReport::reason(): Core\Script\ExitReason` — § 2's first
+    /// `Core\Script\ExitReport::reason(): Core\Script\ExitReport::Reason` — § 2's first
     /// column, as the enum integer the slot holds.
     fn nvs_core_script_exit_report_reason(_ctx, args: [1]) {
         slot_of(args, REASON_SLOT, "reason")

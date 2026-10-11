@@ -6,10 +6,10 @@
 // difference from `exit`, which runs none of the three.
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     string $reason = match ($report->reason()) {
-        Core\Script\ExitReason::Normal => 'Normal',
-        Core\Script\ExitReason::ExitCall => 'ExitCall',
-        Core\Script\ExitReason::UncaughtThrow => 'UncaughtThrow',
-        Core\Script\ExitReason::Finish => 'Finish',
+        Core\Script\ExitReport::Reason::Normal => 'Normal',
+        Core\Script\ExitReport::Reason::ExitCall => 'ExitCall',
+        Core\Script\ExitReport::Reason::UncaughtThrow => 'UncaughtThrow',
+        Core\Script\ExitReport::Reason::Finish => 'Finish',
     };
     echo 'exit hook: ', $reason, "\n";
 });

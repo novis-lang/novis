@@ -8,9 +8,9 @@ An `exit` drains the `Core\Script::onExit` queue and runs no `finally`, so the h
 // are asserted here: the `finally` below does not print, and the hook does.
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     string $reason = match ($report->reason()) {
-        Core\Script\ExitReason::Normal => "Normal",
-        Core\Script\ExitReason::ExitCall => "ExitCall",
-        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReport::Reason::Normal => "Normal",
+        Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
+        Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
     };
     // `ExitCall` carries the suffix so the case never shares a spelling with
     // the keyword two lines below. The status is the one the call named, and

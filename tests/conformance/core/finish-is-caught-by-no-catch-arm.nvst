@@ -8,13 +8,13 @@ No `catch` arm admits the ending `Core\Script::finish()` raises, and the exit re
 // all of them, including the widest one a program can write. An implementation
 // that made the marker a `Throwable` subclass would print `caught` here and
 // hand a request's cleanup handler an ending it has no business seeing.
-// covers: Core\Script\ExitReason
+// covers: Core\Script\ExitReport::Reason
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     string $reason = match ($report->reason()) {
-        Core\Script\ExitReason::Normal => "Normal",
-        Core\Script\ExitReason::ExitCall => "ExitCall",
-        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
-        Core\Script\ExitReason::Finish => "Finish",
+        Core\Script\ExitReport::Reason::Normal => "Normal",
+        Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
+        Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReport::Reason::Finish => "Finish",
     };
     // Status `0` and no error, asserted together: a finished script has not
     // failed, and the `UncaughtThrow` reading of the same arrival would report

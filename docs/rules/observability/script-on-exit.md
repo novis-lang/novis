@@ -7,9 +7,9 @@ attributable and capped like any other.
 Each hook receives one readonly `Script\ExitReport`, or may declare no parameter at all:
 
 ```nvs
-enum Script\ExitReason { Normal, ExitCall, UncaughtThrow, Finish }
+enum Script\ExitReport::Reason { Normal, ExitCall, UncaughtThrow, Finish }
 
-Script\ExitReport::reason(): Script\ExitReason
+Script\ExitReport::reason(): Script\ExitReport::Reason
 Script\ExitReport::status(): int
 Script\ExitReport::error(): ?Throwable
 Script\ExitReport::memoryPeak(): int

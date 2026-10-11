@@ -10,7 +10,7 @@ class Bench {
         uint $i = 0;
         while ($i < $rounds) {
             // Chained: the next step depends on the result of this read.
-            if ($report->reason() == Core\Script\ExitReason::Normal) {
+            if ($report->reason() == Core\Script\ExitReport::Reason::Normal) {
                 $total = $total + 1 + $total % 2;
             }
             $i = $i + 1;

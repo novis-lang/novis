@@ -3,7 +3,7 @@
 
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     // The reason is `Finish`, so this prints "finished early".
-    if ($report->reason() == Core\Script\ExitReason::Finish) {
+    if ($report->reason() == Core\Script\ExitReport::Reason::Finish) {
         echo "finished early\n";
     }
 });

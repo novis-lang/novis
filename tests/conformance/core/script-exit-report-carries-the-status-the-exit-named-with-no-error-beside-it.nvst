@@ -22,9 +22,9 @@ int $chosen = 42;
 // holds is what the `exit` below is handed.
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     string $named = match ($report->reason()) {
-        Core\Script\ExitReason::Normal => "Normal",
-        Core\Script\ExitReason::ExitCall => "ExitCall",
-        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReport::Reason::Normal => "Normal",
+        Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
+        Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
     };
     ?Throwable $error = $report->error();
     echo "exit hook: ", $named, " ", $report->status(), " ",

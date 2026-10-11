@@ -7,9 +7,9 @@
 // after the last top-level statement rather than at the call that filled it.
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     string $reason = match ($report->reason()) {
-        Core\Script\ExitReason::Normal => "Normal",
-        Core\Script\ExitReason::ExitCall => "ExitCall",
-        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReport::Reason::Normal => "Normal",
+        Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
+        Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
     };
     // § 2's first row, read off all three fields at once: the last statement
     // ran, so the reason is `Normal`, the status is the 0 the process will

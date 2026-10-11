@@ -7,10 +7,10 @@
 // report's status is `3`, and its peak counts that string.
 Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     string $named = match ($report->reason()) {
-        Core\Script\ExitReason::Normal => "Normal",
-        Core\Script\ExitReason::ExitCall => "ExitCall",
-        Core\Script\ExitReason::UncaughtThrow => "UncaughtThrow",
-        Core\Script\ExitReason::Finish => "Finish",
+        Core\Script\ExitReport::Reason::Normal => "Normal",
+        Core\Script\ExitReport::Reason::ExitCall => "ExitCall",
+        Core\Script\ExitReport::Reason::UncaughtThrow => "UncaughtThrow",
+        Core\Script\ExitReport::Reason::Finish => "Finish",
     };
     echo $named, " ", $report->status(), "\n";
     if ($report->memoryPeak() >= 2097152) {

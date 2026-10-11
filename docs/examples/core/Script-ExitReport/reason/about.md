@@ -1,5 +1,5 @@
 `Core\Script\ExitReport::reason()` returns how the script ended. The result is a case of the
-`Core\Script\ExitReason` enum. `Normal` means the last line of the script ran. `ExitCall` means the
+`Core\Script\ExitReport::Reason` enum. `Normal` means the last line of the script ran. `ExitCall` means the
 script called `exit`. `UncaughtThrow` means an error reached the top of the script and nothing caught
 it. `Finish` means the script called `Core\Script::finish()`.
 

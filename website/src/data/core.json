@@ -34460,7 +34460,7 @@
       "name": "Core\\Script",
       "section": "16. Network, data and crypto",
       "summary": "",
-      "surface": "`onExit(callable(Script\\ExitReport): mixed $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw, `finish`); each receives a readonly `Script\\ExitReport` — `reason: Script\\ExitReason` (`Normal`, `ExitCall`, `UncaughtThrow`, `Finish`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. Replaces `register_shutdown_function`'s non-fatal uses. `finish(): void` ends the script where it is called and does not return: every `finally` between the call and the root runs, then that queue drains with `reason: Finish` at status `0`, which is the ending `exit` is not. The value it raises is a second, parentless root of the exception tree, so no `catch` arm admits it and an arm naming that class is refused at compile time",
+      "surface": "`onExit(callable(Script\\ExitReport): mixed $hook): void` — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, `exit`, uncaught throw, `finish`); each receives a readonly `Script\\ExitReport` — `reason: Script\\ExitReport::Reason` (`Normal`, `ExitCall`, `UncaughtThrow`, `Finish`), `status: int`, `error: ?Throwable` — and may declare no parameter. Never fires on a `FATAL` or a cancellation, and observes the ending rather than changing it. Replaces `register_shutdown_function`'s non-fatal uses. `finish(): void` ends the script where it is called and does not return: every `finally` between the call and the root runs, then that queue drains with `reason: Finish` at status `0`, which is the ending `exit` is not. The value it raises is a second, parentless root of the exception tree, so no `catch` arm admits it and an arm naming that class is refused at compile time",
       "enums": [],
       "constants": [],
       "members": [
@@ -34554,7 +34554,7 @@
       "slug": "script",
       "url": "/reference/core/script/",
       "summaryHtml": "",
-      "surfaceHtml": "<code>onExit(callable(Script\\ExitReport): mixed $hook): void</code> — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, <code>exit</code>, uncaught throw, <code>finish</code>); each receives a readonly <code>Script\\ExitReport</code> — <code>reason: Script\\ExitReason</code> (<code>Normal</code>, <code>ExitCall</code>, <code>UncaughtThrow</code>, <code>Finish</code>), <code>status: int</code>, <code>error: ?Throwable</code> — and may declare no parameter. Never fires on a <code>FATAL</code> or a cancellation, and observes the ending rather than changing it. Replaces <code>register_shutdown_function</code>'s non-fatal uses. <code>finish(): void</code> ends the script where it is called and does not return: every <code>finally</code> between the call and the root runs, then that queue drains with <code>reason: Finish</code> at status <code>0</code>, which is the ending <code>exit</code> is not. The value it raises is a second, parentless root of the exception tree, so no <code>catch</code> arm admits it and an arm naming that class is refused at compile time"
+      "surfaceHtml": "<code>onExit(callable(Script\\ExitReport): mixed $hook): void</code> — FIFO end-of-script hooks, run once as the last user code at every non-fatal ending (normal, <code>exit</code>, uncaught throw, <code>finish</code>); each receives a readonly <code>Script\\ExitReport</code> — <code>reason: Script\\ExitReport::Reason</code> (<code>Normal</code>, <code>ExitCall</code>, <code>UncaughtThrow</code>, <code>Finish</code>), <code>status: int</code>, <code>error: ?Throwable</code> — and may declare no parameter. Never fires on a <code>FATAL</code> or a cancellation, and observes the ending rather than changing it. Replaces <code>register_shutdown_function</code>'s non-fatal uses. <code>finish(): void</code> ends the script where it is called and does not return: every <code>finally</code> between the call and the root runs, then that queue drains with <code>reason: Finish</code> at status <code>0</code>, which is the ending <code>exit</code> is not. The value it raises is a second, parentless root of the exception tree, so no <code>catch</code> arm admits it and an arm naming that class is refused at compile time"
     },
     {
       "id": "Script.ExitReport",
@@ -34571,17 +34571,17 @@
           "static": false,
           "receiver": "exitReport",
           "generics": null,
-          "signature": "reason(): Core\\Script\\ExitReason",
+          "signature": "reason(): Core\\Script\\ExitReport::Reason",
           "params": [],
           "options": [],
-          "returnType": "Core\\Script\\ExitReason",
+          "returnType": "Core\\Script\\ExitReport::Reason",
           "notes": "",
           "qualifier": "",
           "section": "",
           "implemented": true,
           "notesHtml": "",
           "doc": {
-            "shortHtml": "Returns how the script ended, as a <code>Core\\Script\\ExitReason</code> case.",
+            "shortHtml": "Returns how the script ended, as a <code>Core\\Script\\ExitReport::Reason</code> case.",
             "returnHtml": "<code>Normal</code> when the last statement ran, <code>ExitCall</code> after <code>exit</code>, <code>UncaughtThrow</code> after an exception that nothing caught, and <code>Finish</code> after <code>Core\\Script::finish()</code>."
           },
           "slug": "reason",

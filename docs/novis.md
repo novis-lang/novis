@@ -17665,7 +17665,7 @@ Keywords: reason, status, error, memoryPeak
 
 | Member | Signature |
 |---|---|
-| [`Core\Script\ExitReport->reason`](#core-core-script-exitreport-reason) | `reason(): Core\Script\ExitReason` |
+| [`Core\Script\ExitReport->reason`](#core-core-script-exitreport-reason) | `reason(): Core\Script\ExitReport::Reason` |
 | [`Core\Script\ExitReport->status`](#core-core-script-exitreport-status) | `status(): int` |
 | [`Core\Script\ExitReport->error`](#core-core-script-exitreport-error) | `error(): ?Throwable` |
 | [`Core\Script\ExitReport->memoryPeak`](#core-core-script-exitreport-memorypeak) | `memoryPeak(): int` |
@@ -17674,12 +17674,12 @@ Keywords: reason, status, error, memoryPeak
 #### `Core\Script\ExitReport->reason`
 
 ```nvs skip
-$exitReport->reason(): Core\Script\ExitReason
+$exitReport->reason(): Core\Script\ExitReport::Reason
 ```
 
-Returns how the script ended, as a `Core\Script\ExitReason` case.
+Returns how the script ended, as a `Core\Script\ExitReport::Reason` case.
 
-**Returns** `Core\Script\ExitReason` — `Normal` when the last statement ran, `ExitCall` after `exit`, `UncaughtThrow` after an exception that nothing caught, and `Finish` after `Core\Script::finish()`.
+**Returns** `Core\Script\ExitReport::Reason` — `Normal` when the last statement ran, `ExitCall` after `exit`, `UncaughtThrow` after an exception that nothing caught, and `Finish` after `Core\Script::finish()`.
 
 <a id="core-core-script-exitreport-status"></a>
 #### `Core\Script\ExitReport->status`
@@ -29545,16 +29545,16 @@ Which of CLDR's six plural forms a count selects. The names are CLDR's own label
 | `Core\Cldr::PluralCategory::Other` | The form every language has, and in a language with no plural distinction the only one any count selects. |
 
 <a id="enum-core-script-exitreason"></a>
-#### `Core\Script\ExitReason`
+#### `Core\Script\ExitReport::Reason`
 
 How a script ended, as `Core\Script\ExitReport::reason()` returns it. A `FATAL` error and a cancelled script have no case, because they run no exit function.
 
 | Case | Meaning |
 |---|---|
-| `Core\Script\ExitReason::Normal` | The last top-level statement ran. |
-| `Core\Script\ExitReason::ExitCall` | `exit`, `exit($n)` or `exit("msg")` ended the script. No `finally` block runs after `exit`. |
-| `Core\Script\ExitReason::UncaughtThrow` | An exception reached the top of the script and nothing caught it. `Core\Script\ExitReport::error()` returns that exception. |
-| `Core\Script\ExitReason::Finish` | `Core\Script::finish()` ended the script. Every `finally` block runs, and no `catch` block catches it. The status is `0` and there is no error. |
+| `Core\Script\ExitReport::Reason::Normal` | The last top-level statement ran. |
+| `Core\Script\ExitReport::Reason::ExitCall` | `exit`, `exit($n)` or `exit("msg")` ended the script. No `finally` block runs after `exit`. |
+| `Core\Script\ExitReport::Reason::UncaughtThrow` | An exception reached the top of the script and nothing caught it. `Core\Script\ExitReport::error()` returns that exception. |
+| `Core\Script\ExitReport::Reason::Finish` | `Core\Script::finish()` ended the script. Every `finally` block runs, and no `catch` block catches it. The status is `0` and there is no error. |
 
 <a id="enum-core-db-driver"></a>
 #### `Core\Db\Driver`
