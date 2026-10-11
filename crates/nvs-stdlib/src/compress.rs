@@ -7,7 +7,7 @@
 //! free and the ratio rule not at all, and PHP's shape — `$max_length`,
 //! optional, defaulted to unlimited — is the one this class exists to replace.
 //!
-//! **One API, five codec cases, no name-as-string.** `Core\Codec` is a closed
+//! **One API, five codec cases, no name-as-string.** `Core\Compress::Codec` is a closed
 //! enum for the reason `Core\Crypto` has no cipher-name-as-string: a misspelled
 //! algorithm is a compile error rather than a run-time answer of `false`. Raw
 //! deflate, zlib and gzip differ only in which header wraps one deflate stream,
@@ -111,9 +111,9 @@ use crate::registry::{
 /// every message quoting it cannot drift apart.
 pub(crate) const NAME: &str = r"Core\Compress";
 
-/// `Core\Codec`'s fully-qualified name, for [`CODEC`] and for the parameter
+/// `Core\Compress::Codec`'s fully-qualified name, for [`CODEC`] and for the parameter
 /// that takes one.
-pub(crate) const CODEC_NAME: &str = r"Core\Codec";
+pub(crate) const CODEC_NAME: &str = r"Core\Compress::Codec";
 
 /// The format a `Core\Compress` member reads or writes.
 ///
@@ -189,7 +189,7 @@ const DATA: &[CoreTy] = &[
 
 /// `Core\Compress`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
-    short: "Compresses and decompresses data in a format you choose from `Core\\Codec`, such as \
+    short: "Compresses and decompresses data in a format you choose from `Core\\Compress::Codec`, such as \
             gzip. Decompression always has a size limit, so a small input cannot fill the \
             server's memory.",
 };
@@ -267,7 +267,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `Core\Compress::compress`'s reference card — `rule:core-api/reference-card`.
 const COMPRESS_DOC: MethodDoc = MethodDoc {
     short: "Compresses `$data` under `$codec`, replacing `gzencode`, `gzcompress`, `gzdeflate` and \
-            `zlib_encode` at once — the format is a case of `Core\\Codec` rather than a third of a \
+            `zlib_encode` at once — the format is a case of `Core\\Compress::Codec` rather than a third of a \
             function's name.",
     params: &[
         ParamDoc {
@@ -277,7 +277,7 @@ const COMPRESS_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "codec",
-            desc: "The format to write. `Core\\Codec::Gzip` is the one to reach for when the \
+            desc: "The format to write. `Core\\Compress::Codec::Gzip` is the one to reach for when the \
                    result crosses a wire.",
             shape: &[],
         },
@@ -336,7 +336,7 @@ const COMPRESSOR_DOC: MethodDoc = MethodDoc {
             `Core\\Compress\\Compressor` fed by `add` and closed by `finish`.",
     params: &[ParamDoc {
         name: "codec",
-        desc: "The format to write, any `Core\\Codec` case. Fixed for the stream's whole life: a \
+        desc: "The format to write, any `Core\\Compress::Codec` case. Fixed for the stream's whole life: a \
                frame is one format.",
         shape: &[],
     }],
@@ -705,7 +705,7 @@ fn case_of(raw: Option<i64>) -> Option<Codec> {
     }
 }
 
-/// The `Core\Codec` in slot `index`.
+/// The `Core\Compress::Codec` in slot `index`.
 ///
 /// # Errors
 ///
@@ -713,11 +713,11 @@ fn case_of(raw: Option<i64>) -> Option<Codec> {
 /// from source, where the parameter's type is the enum.
 fn codec_of(args: &[Value], index: usize, member: &str) -> Result<Codec, Fault> {
     // unreachable from source: the parameter is `CoreTy::Enum(CODEC_NAME)`, so
-    // anything that is not a `Core\Codec` case is `E0401: expected
-    // 'Core\Codec', found …` before the call runs.
+    // anything that is not a `Core\Compress::Codec` case is `E0401: expected
+    // 'Core\Compress::Codec', found …` before the call runs.
     case_of(args[index].as_int()).ok_or_else(|| {
         Fault::fatal(format!(
-            "Core\\Compress::{member} expected a `Core\\Codec` case, got tag {} value {:?}",
+            "Core\\Compress::{member} expected a `Core\\Compress::Codec` case, got tag {} value {:?}",
             args[index].tag_byte(),
             args[index].as_int()
         ))
@@ -804,13 +804,13 @@ pub(crate) fn compress_to(codec: Codec, data: &[u8]) -> Result<Vec<u8>, Fault> {
         // than a throw for that reason — a compressor failing is a defect here,
         // not a property of the caller's data.
         Err(why) => Err(Fault::fatal(format!(
-            "Core\\Compress::compress could not write a `Core\\Codec::{}` frame: {why}",
+            "Core\\Compress::compress could not write a `Core\\Compress::Codec::{}` frame: {why}",
             codec.spelled()
         ))),
     }
 }
 
-/// The largest decoding window a `Core\Codec::Zstd` frame may ask for.
+/// The largest decoding window a `Core\Compress::Codec::Zstd` frame may ask for.
 ///
 /// A bound the output ceiling cannot stand in for. A zstd frame names its
 /// window in its header and the decoder holds that much memory before it reads
@@ -885,7 +885,7 @@ fn malformed(codec: Codec, why: &str, member: &str) -> Fault {
     Fault::thrown_as(
         ThrownClass::Parse,
         format!(
-            "{member}: not a well-formed `Core\\Codec::{}` frame: {why}",
+            "{member}: not a well-formed `Core\\Compress::Codec::{}` frame: {why}",
             codec.spelled()
         ),
     )
@@ -906,7 +906,7 @@ fn over_bound(codec: Codec, input: usize, bound: Bound, ceiling: u64, member: &s
     Fault::thrown_as(
         ThrownClass::Parse,
         format!(
-            "{member}: a `Core\\Codec::{}` frame decompressing past {half} is refused rather than \
+            "{member}: a `Core\\Compress::Codec::{}` frame decompressing past {half} is refused rather than \
              truncated (rule:core-classes/decompression-bound). `[limits] max_decompressed` and \
              `[limits] max_decompression_ratio` are the operator's ceiling, which a call naming \
              `$maxBytes` or `$maxRatio` lowers and nothing raises.",
@@ -925,7 +925,7 @@ fn over_window(requested: u64, member: &str) -> Fault {
     Fault::thrown_as(
         ThrownClass::Parse,
         format!(
-            "{member}: the `Core\\Codec::Zstd` frame asks for a {requested} octet decoding \
+            "{member}: the `Core\\Compress::Codec::Zstd` frame asks for a {requested} octet decoding \
              window, past the {ZSTD_WINDOW} this process holds for one. Refused before the \
              window is allocated, because a frame's header alone asks for it \
              (rule:core-classes/decompression-bound)."
@@ -1131,7 +1131,7 @@ fn open_stream(
     let receiver = crate::instance::receiver(value, class, member)?;
     // unreachable from source: `compressor` and `decompressor` are the only
     // writers of this slot, and each decodes the ordinal before it writes it,
-    // so an integer no `Core\Codec` case carries cannot be in one.
+    // so an integer no `Core\Compress::Codec` case carries cannot be in one.
     let codec = case_of(crate::instance::slot(receiver, CODEC_SLOT).as_int()).ok_or_else(|| {
         Fault::fatal(format!(
             "{}::{member} received a stream whose `codec` slot is not one `Core\\Compress` wrote",
@@ -1248,7 +1248,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Compress::compressor(Codec $codec): Compress\Compressor` —
     /// replacing `deflate_init`, and the whole of PHP's deflate context.
     ///
-    /// Takes the same `Core\Codec` [`nvs_core_compress_compress`] does, and
+    /// Takes the same `Core\Compress::Codec` [`nvs_core_compress_compress`] does, and
     /// fixes it for the stream's life: a frame is one format, so there is
     /// nothing a later `add` could choose.
     fn nvs_core_compress_compressor(_ctx, args: [1]) {
@@ -1454,7 +1454,7 @@ mod tests {
     /// round-trip test. The count it compares against is derived from the rows
     /// themselves, so a member added to the class either names its format
     /// `codec` and takes the enum, or fails here.
-    // covers: Core\Codec
+    // covers: Core\Compress::Codec
     #[test]
     fn the_codec_is_an_enum_and_there_is_no_name_as_string_spelling() {
         let mut enums = 0;

@@ -2,9 +2,9 @@
 // Shows what happens after a stream is finished. A stream reads one block of
 // data, and then it is over.
 
-bytes $frame = Core\Compress::compress('the only block', Core\Codec::Zstd);
+bytes $frame = Core\Compress::compress('the only block', Core\Compress::Codec::Zstd);
 
-var $stream = Core\Compress::decompressor(Core\Codec::Zstd);
+var $stream = Core\Compress::decompressor(Core\Compress::Codec::Zstd);
 $stream->add($frame);
 echo 'the block holds ', Core\Bytes::length($stream->finish()), " bytes\n";
 

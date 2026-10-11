@@ -7,7 +7,7 @@
 
 // 1. A stream that was given nothing. No pieces are no block, so `finish` must
 //    throw a `ParseError`.
-var $nothing = Core\Compress::decompressor(Core\Codec::Gzip);
+var $nothing = Core\Compress::decompressor(Core\Compress::Codec::Gzip);
 try {
     $nothing->finish();
     echo "step 1 read a block out of no pieces\n";
@@ -26,8 +26,8 @@ try {
 
 // 3. A stream that accepts zero bytes, given a real block. Nothing fits in
 //    nothing, so `finish` must throw a `ParseError`.
-bytes $frame = Core\Compress::compress('a real block of data', Core\Codec::Zstd);
-var $noRoom = Core\Compress::decompressor(Core\Codec::Zstd, 0);
+bytes $frame = Core\Compress::compress('a real block of data', Core\Compress::Codec::Zstd);
+var $noRoom = Core\Compress::decompressor(Core\Compress::Codec::Zstd, 0);
 $noRoom->add($frame);
 try {
     $noRoom->finish();
@@ -40,7 +40,7 @@ try {
 //    kept, so they must not fill memory here.
 uint $done = 0;
 while ($done < 100000) {
-    var $one = Core\Compress::decompressor(Core\Codec::Zstd);
+    var $one = Core\Compress::decompressor(Core\Compress::Codec::Zstd);
     $one->add($frame);
     $one->finish();
     $done = $done + 1;

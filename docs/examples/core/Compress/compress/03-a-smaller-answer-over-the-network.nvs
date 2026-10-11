@@ -3,7 +3,7 @@
 // body once, then send the header that names the format it used.
 
 string $body = Core\Str::repeat("<li>Order 1042 shipped to Berlin</li>\n", 80);
-bytes $frame = Core\Compress::compress($body, Core\Codec::Gzip);
+bytes $frame = Core\Compress::compress($body, Core\Compress::Codec::Gzip);
 
 uint $before = Core\Bytes::length($body as bytes);
 uint $after = Core\Bytes::length($frame);

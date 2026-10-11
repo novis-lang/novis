@@ -11,7 +11,7 @@ class Archive
     public static function many(array<string> $names, bytes $data): bytes
     {
         bytes $crc = Archive::crc($data);
-        bytes $packed = Core\Compress::compress($data, Core\Codec::Deflate);
+        bytes $packed = Core\Compress::compress($data, Core\Compress::Codec::Deflate);
         uint $size = Core\Bytes::length($data);
         uint $length = Core\Bytes::length($packed);
         array<bytes> $locals = [];
@@ -48,7 +48,7 @@ class Archive
     // The CRC-32 checksum of `$data`, low byte first, as a zip archive stores it.
     public static function crc(bytes $data): bytes
     {
-        bytes $high = Core\Hash::of($data, Core\Digest::Crc32);
+        bytes $high = Core\Hash::of($data, Core\Hash::Digest::Crc32);
         return Core\Bytes::join([
             Core\Bytes::slice($high, 3, 1),
             Core\Bytes::slice($high, 2, 1),

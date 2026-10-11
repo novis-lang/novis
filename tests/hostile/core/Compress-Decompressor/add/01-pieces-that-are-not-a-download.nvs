@@ -6,8 +6,8 @@
 // hostile: timeout-ms 60000
 
 // 1. A finished stream takes no more pieces. `add` must throw a `RuntimeError`.
-var $ended = Core\Compress::decompressor(Core\Codec::Gzip);
-$ended->add(Core\Compress::compress('a real frame', Core\Codec::Gzip));
+var $ended = Core\Compress::decompressor(Core\Compress::Codec::Gzip);
+$ended->add(Core\Compress::compress('a real frame', Core\Compress::Codec::Gzip));
 $ended->finish();
 try {
     $ended->add(Core\Bytes::fill(4, 65));
@@ -19,7 +19,7 @@ try {
 // 2. A mebibyte that is no format at all, in a thousand pieces. `add` takes
 //    every one, and `finish` must throw a `ParseError`.
 bytes $junk = Core\Bytes::fill(1024, 90);
-var $nonsense = Core\Compress::decompressor(Core\Codec::Zstd);
+var $nonsense = Core\Compress::decompressor(Core\Compress::Codec::Zstd);
 uint $piece = 0;
 while ($piece < 1024) {
     $nonsense->add($junk);
@@ -34,9 +34,9 @@ try {
 
 // 3. Sixteen mebibytes of one byte, compressed to a small frame and added one
 //    byte at a time to a stream that accepts one mebibyte.
-bytes $bomb = Core\Compress::compress(Core\Bytes::fill(16777216, 48), Core\Codec::Gzip);
+bytes $bomb = Core\Compress::compress(Core\Bytes::fill(16777216, 48), Core\Compress::Codec::Gzip);
 int $size = Core\Bytes::length($bomb) as int;
-var $tight = Core\Compress::decompressor(Core\Codec::Gzip, 1048576);
+var $tight = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 1048576);
 int $at = 0;
 while ($at < $size) {
     $tight->add(Core\Bytes::slice($bomb, $at, 1));

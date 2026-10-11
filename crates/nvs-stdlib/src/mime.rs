@@ -166,11 +166,11 @@ const TYPE_DOC: EnumDoc = EnumDoc {
         },
         CaseDoc {
             name: "Gzip",
-            desc: "`application/gzip`, the format `Core\\Codec::Gzip` writes.",
+            desc: "`application/gzip`, the format `Core\\Compress::Codec::Gzip` writes.",
         },
         CaseDoc {
             name: "Zstd",
-            desc: "`application/zstd`, `Core\\Codec::Zstd`'s frame.",
+            desc: "`application/zstd`, `Core\\Compress::Codec::Zstd`'s frame.",
         },
         CaseDoc {
             name: "Xz",

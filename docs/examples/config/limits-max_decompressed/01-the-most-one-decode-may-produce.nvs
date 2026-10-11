@@ -8,18 +8,18 @@ echo 'the most one decode may produce: ', Core\Config::get('limits.max_decompres
 // This compresses 16 KiB of the letter `A`. The result is only 52 bytes,
 // so the input is small and the output is large.
 bytes $payload = Core\Str::repeat("A", 16384) as bytes;
-bytes $frame = Core\Compress::compress($payload, Core\Codec::Gzip);
+bytes $frame = Core\Compress::compress($payload, Core\Compress::Codec::Gzip);
 echo 'on the wire:                     ', Core\Bytes::length($frame), " octets\n";
 
 // The third argument sets a lower limit for one call. If the output would be
 // bigger, the call throws a `ParseError` and returns no partial data.
 try {
-    Core\Compress::decompress($frame, Core\Codec::Gzip, 16383);
+    Core\Compress::decompress($frame, Core\Compress::Codec::Gzip, 16383);
     echo "one octet short:                 got the whole thing anyway\n";
 } catch (ParseError $bomb) {
     echo "one octet short:                 refused\n";
 }
-echo 'at its own ceiling:              ', Core\Bytes::length(Core\Compress::decompress($frame, Core\Codec::Gzip, 16384)), " octets\n";
+echo 'at its own ceiling:              ', Core\Bytes::length(Core\Compress::decompress($frame, Core\Compress::Codec::Gzip, 16384)), " octets\n";
 
 // A call that sets a higher limit still gets the configured limit. A program
 // cannot change `limits.max_decompressed`, so this returns `false`.

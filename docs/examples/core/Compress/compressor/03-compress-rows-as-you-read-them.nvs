@@ -9,7 +9,7 @@ array<string> $orders = [
     '1044,Oslo,88.00',
 ];
 
-var $export = Core\Compress::compressor(Core\Codec::Gzip);
+var $export = Core\Compress::compressor(Core\Compress::Codec::Gzip);
 foreach ($orders as string $row) {
     $export->add($row);
     $export->add("\n");

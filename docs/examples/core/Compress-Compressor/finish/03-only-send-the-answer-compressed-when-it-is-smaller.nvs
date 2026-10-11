@@ -3,7 +3,7 @@
 // finishes the stream and compares the two sizes first.
 
 string $answer = '{"ok":true}';
-var $stream = Core\Compress::compressor(Core\Codec::Gzip);
+var $stream = Core\Compress::compressor(Core\Compress::Codec::Gzip);
 $stream->add($answer);
 bytes $packed = $stream->finish();
 

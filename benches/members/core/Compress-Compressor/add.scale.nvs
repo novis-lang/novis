@@ -8,7 +8,7 @@ class Bench
     public static function run(uint $size): uint
     {
         string $piece = Core\Str::repeat('Berlin', $size);
-        var $stream = Core\Compress::compressor(Core\Codec::Zstd);
+        var $stream = Core\Compress::compressor(Core\Compress::Codec::Zstd);
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

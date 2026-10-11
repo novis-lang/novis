@@ -2,7 +2,7 @@
 // Shows how to compress data that arrives in pieces. You add each piece, then
 // call `finish` once to get the compressed bytes.
 
-var $stream = Core\Compress::compressor(Core\Codec::Gzip);
+var $stream = Core\Compress::compressor(Core\Compress::Codec::Gzip);
 $stream->add("first line of the report\n");
 $stream->add("second line of the report\n");
 $stream->add("third line of the report\n");
@@ -11,5 +11,5 @@ bytes $frame = $stream->finish();
 echo 'compressed to ', Core\Bytes::length($frame), " bytes\n";
 
 // Reading it back gives the three pieces joined together.
-bytes $back = Core\Compress::decompress($frame, Core\Codec::Gzip);
+bytes $back = Core\Compress::decompress($frame, Core\Compress::Codec::Gzip);
 echo Core\Bytes::length($back), " bytes came back\n";

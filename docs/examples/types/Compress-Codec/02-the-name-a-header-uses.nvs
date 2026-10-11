@@ -8,11 +8,11 @@ string $message = "{\"order\": 1042, \"total\": \"18.40\"}";
 array<string> $headers = ["gzip", "deflate", "br", "zstd", "exi"];
 
 foreach ($headers as string $header) {
-    ?Core\Codec $codec = match ($header) {
-        "gzip" => Core\Codec::Gzip,
-        "deflate" => Core\Codec::Zlib,
-        "br" => Core\Codec::Brotli,
-        "zstd" => Core\Codec::Zstd,
+    ?Core\Compress::Codec $codec = match ($header) {
+        "gzip" => Core\Compress::Codec::Gzip,
+        "deflate" => Core\Compress::Codec::Zlib,
+        "br" => Core\Compress::Codec::Brotli,
+        "zstd" => Core\Compress::Codec::Zstd,
         default => null,
     };
 

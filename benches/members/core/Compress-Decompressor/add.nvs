@@ -15,7 +15,7 @@ class Bench {
             Core\Bytes::fill(64, 66),
             Core\Bytes::fill(64, 67),
         ];
-        var $stream = Core\Compress::decompressor(Core\Codec::Gzip);
+        var $stream = Core\Compress::decompressor(Core\Compress::Codec::Gzip);
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

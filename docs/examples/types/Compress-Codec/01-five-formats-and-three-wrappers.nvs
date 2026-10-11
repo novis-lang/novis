@@ -4,13 +4,13 @@
 // prints the difference in size.
 
 class Format {
-    public static function name(Core\Codec $codec): string {
+    public static function name(Core\Compress::Codec $codec): string {
         return match ($codec) {
-            Core\Codec::Gzip => "Gzip",
-            Core\Codec::Zlib => "Zlib",
-            Core\Codec::Deflate => "Deflate",
-            Core\Codec::Brotli => "Brotli",
-            Core\Codec::Zstd => "Zstd",
+            Core\Compress::Codec::Gzip => "Gzip",
+            Core\Compress::Codec::Zlib => "Zlib",
+            Core\Compress::Codec::Deflate => "Deflate",
+            Core\Compress::Codec::Brotli => "Brotli",
+            Core\Compress::Codec::Zstd => "Zstd",
         };
     }
 }
@@ -18,9 +18,9 @@ class Format {
 string $text = Core\Str::repeat("the quick brown fox jumps over the lazy dog\n", 16);
 bytes $payload = $text as bytes;
 
-uint $bare = Core\Bytes::length(Core\Compress::compress($payload, Core\Codec::Deflate));
-uint $gzip = Core\Bytes::length(Core\Compress::compress($payload, Core\Codec::Gzip));
-uint $zlib = Core\Bytes::length(Core\Compress::compress($payload, Core\Codec::Zlib));
+uint $bare = Core\Bytes::length(Core\Compress::compress($payload, Core\Compress::Codec::Deflate));
+uint $gzip = Core\Bytes::length(Core\Compress::compress($payload, Core\Compress::Codec::Gzip));
+uint $zlib = Core\Bytes::length(Core\Compress::compress($payload, Core\Compress::Codec::Zlib));
 
 echo "Deflate is the stream with nothing around it\n";
 echo "Gzip is that same stream plus ", $gzip - $bare, " octets\n";
@@ -28,15 +28,15 @@ echo "Zlib is that same stream plus ", $zlib - $bare, " octets\n";
 
 // Brotli and Zstd are different compression algorithms. With each of the five
 // codecs, `decompress` returns exactly the original bytes.
-array<Core\Codec> $codecs = [
-    Core\Codec::Gzip,
-    Core\Codec::Zlib,
-    Core\Codec::Deflate,
-    Core\Codec::Brotli,
-    Core\Codec::Zstd,
+array<Core\Compress::Codec> $codecs = [
+    Core\Compress::Codec::Gzip,
+    Core\Compress::Codec::Zlib,
+    Core\Compress::Codec::Deflate,
+    Core\Compress::Codec::Brotli,
+    Core\Compress::Codec::Zstd,
 ];
 
-foreach ($codecs as Core\Codec $codec) {
+foreach ($codecs as Core\Compress::Codec $codec) {
     bytes $frame = Core\Compress::compress($payload, $codec);
     echo Format::name($codec), ": ",
         Core\Hash::equals(Core\Compress::decompress($frame, $codec), $payload)

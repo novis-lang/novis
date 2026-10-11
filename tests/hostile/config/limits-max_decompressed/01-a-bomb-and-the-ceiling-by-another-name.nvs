@@ -58,18 +58,18 @@ Core\Config::restore('limits.max_decompressed');
 
 // 3. Passes limits from `0` to the largest `uint`. A call always gets the smaller
 //    of its own limit and the configured one.
-bytes $small = Core\Compress::compress(Core\Str::repeat('A', 16384) as bytes, Core\Codec::Gzip);
+bytes $small = Core\Compress::compress(Core\Str::repeat('A', 16384) as bytes, Core\Compress::Codec::Gzip);
 array<uint> $asks = [0, 1, 16383, 16384, 16385, 67108864, 67108865, 4294967296, 18446744073709551615];
 foreach ($asks as uint $ask) {
     try {
-        Core\Compress::decompress($small, Core\Codec::Gzip, $ask);
+        Core\Compress::decompress($small, Core\Compress::Codec::Gzip, $ask);
     } catch (ParseError $refused) {
     }
 }
 
 // 4. Sends the same input to a stream one byte at a time. The limit counts the
 //    whole stream, so `finish` should throw a `ParseError`.
-Core\Compress\Decompressor $stream = Core\Compress::decompressor(Core\Codec::Gzip, 1024);
+Core\Compress\Decompressor $stream = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 1024);
 int $at = 0;
 int $len = Core\Bytes::length($small) as int;
 while ($at < $len) {
@@ -84,10 +84,10 @@ try {
 
 // 5. Compresses 80 MB of the letter `A` to about 80 KB. Only the `64M` limit
 //    can stop this, so the decompression should throw a `ParseError`.
-bytes $bomb = Core\Compress::compress(Core\Str::repeat('A', 83886080) as bytes, Core\Codec::Gzip);
+bytes $bomb = Core\Compress::compress(Core\Str::repeat('A', 83886080) as bytes, Core\Compress::Codec::Gzip);
 echo 'on the wire: ', Core\Bytes::length($bomb), " octets\n";
 try {
-    uint $unpacked = Core\Bytes::length(Core\Compress::decompress($bomb, Core\Codec::Gzip));
+    uint $unpacked = Core\Bytes::length(Core\Compress::decompress($bomb, Core\Compress::Codec::Gzip));
     echo 'unpacked to: ', $unpacked, " octets\n";
 } catch (ParseError $refused) {
     echo "the bomb was refused\n";
@@ -98,7 +98,7 @@ try {
 uint $again = 0;
 while ($again < 8) {
     try {
-        Core\Compress::decompress($bomb, Core\Codec::Gzip);
+        Core\Compress::decompress($bomb, Core\Compress::Codec::Gzip);
     } catch (ParseError $refused) {
     }
     $again = $again + 1;

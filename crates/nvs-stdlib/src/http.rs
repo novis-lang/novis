@@ -3019,7 +3019,7 @@ fn wait_of(args: &[Value], at: usize, option: &str) -> Result<Option<Duration>, 
 /// There is nothing to judge on the way through, which is the difference: a
 /// `uint` has no negative value and no infinite one, so what a call writes is
 /// the cap it gets and zero is a cap of zero rather than a spelling for
-/// unbounded — the same word `Core\Codec`'s `maxBytes` is one class over. A
+/// unbounded — the same word `Core\Compress::Codec`'s `maxBytes` is one class over. A
 /// directive that will not read as a size falls through to `fallback` for
 /// [`bound_of`]'s reason: `nvs.toml` is refused where it is loaded, and a
 /// second refusal here would fail a request over a key the operator can no

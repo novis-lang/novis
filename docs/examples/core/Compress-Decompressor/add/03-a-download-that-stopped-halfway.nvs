@@ -2,10 +2,10 @@
 // Shows what a program sees when a download breaks off. `add` accepts every
 // piece, and `finish` is where the incomplete data is refused.
 
-bytes $frame = Core\Compress::compress(Core\Str::repeat("backup row\n", 200), Core\Codec::Zstd);
+bytes $frame = Core\Compress::compress(Core\Str::repeat("backup row\n", 200), Core\Compress::Codec::Zstd);
 int $half = (Core\Bytes::length($frame) / 2) as int;
 
-var $broken = Core\Compress::decompressor(Core\Codec::Zstd);
+var $broken = Core\Compress::decompressor(Core\Compress::Codec::Zstd);
 $broken->add(Core\Bytes::slice($frame, 0, $half));
 echo "the first half was added\n";
 

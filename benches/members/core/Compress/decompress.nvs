@@ -8,16 +8,16 @@
 class Bench {
     public static function run(uint $rounds): uint {
         array<bytes> $frames = [
-            Core\Compress::compress('{"id":1042,"city":"Berlin","state":"shipped"}', Core\Codec::Zstd),
-            Core\Compress::compress('{"id":1043,"city":"Lisbon","state":"packed"}', Core\Codec::Zstd),
-            Core\Compress::compress('{"id":1044,"city":"Oslo","state":"paid"}', Core\Codec::Zstd),
+            Core\Compress::compress('{"id":1042,"city":"Berlin","state":"shipped"}', Core\Compress::Codec::Zstd),
+            Core\Compress::compress('{"id":1043,"city":"Lisbon","state":"packed"}', Core\Compress::Codec::Zstd),
+            Core\Compress::compress('{"id":1044,"city":"Oslo","state":"paid"}', Core\Compress::Codec::Zstd),
         ];
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             // The frame of each round is chosen by the round before it, so no
             // round can be left out.
-            bytes $record = Core\Compress::decompress($frames[($total % 3) as int], Core\Codec::Zstd);
+            bytes $record = Core\Compress::decompress($frames[($total % 3) as int], Core\Compress::Codec::Zstd);
             $total = $total + Core\Bytes::length($record);
             $i = $i + 1;
         }

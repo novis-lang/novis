@@ -11,17 +11,17 @@ A `Core\Compress` stream answers what the whole-buffer pair answers over the con
 string $text = Core\Str::repeat("the quick brown fox jumps over the lazy dog\n", 64);
 bytes $payload = $text as bytes;
 int $size = Core\Bytes::length($payload) as int;
-array<Core\Codec> $codecs = [
-    Core\Codec::Gzip,
-    Core\Codec::Zlib,
-    Core\Codec::Deflate,
-    Core\Codec::Brotli,
-    Core\Codec::Zstd,
+array<Core\Compress::Codec> $codecs = [
+    Core\Compress::Codec::Gzip,
+    Core\Compress::Codec::Zlib,
+    Core\Compress::Codec::Deflate,
+    Core\Compress::Codec::Brotli,
+    Core\Compress::Codec::Zstd,
 ];
 
 int $frames = 0;
 int $round = 0;
-foreach ($codecs as Core\Codec $codec) {
+foreach ($codecs as Core\Compress::Codec $codec) {
     // Three chunks with an empty one among them: an `add` carrying no octets
     // contributes none, which is the boundary a stream that accumulated a
     // length rather than the buffers would get wrong.
@@ -49,8 +49,8 @@ echo "streams round tripping: ", $round, "\n";
 
 // A stream fed nothing at all is the frame of the empty input, written as the
 // identity against the whole-buffer member rather than as a pasted constant.
-var $none = Core\Compress::compressor(Core\Codec::Gzip);
-echo Core\Bytes::compare($none->finish(), Core\Compress::compress("", Core\Codec::Gzip)) == 0
+var $none = Core\Compress::compressor(Core\Compress::Codec::Gzip);
+echo Core\Bytes::compare($none->finish(), Core\Compress::compress("", Core\Compress::Codec::Gzip)) == 0
     ? "empty agrees"
     : "empty differs", "\n";
 --EXPECT--

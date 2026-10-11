@@ -379,7 +379,7 @@ const WIDE_U16: u16 = 0xFFFF;
 /// The stored method: the entry's octets are the entry.
 const STORED: u16 = 0;
 
-/// The deflate method — RFC 1951, the same stream `Core\Codec::Deflate` names.
+/// The deflate method — RFC 1951, the same stream `Core\Compress::Codec::Deflate` names.
 const DEFLATE: u16 = 8;
 
 /// The high nibble of a Unix mode, and the value of it that means symlink.

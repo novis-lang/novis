@@ -59,9 +59,9 @@ Core\Config::restore('limits.max_decompression_ratio');
 //    inputs unpack, and the large ones should throw a `ParseError`.
 array<uint> $sizes = [16384, 65536, 262144, 1048576, 4194304, 8388608];
 foreach ($sizes as uint $size) {
-    bytes $frame = Core\Compress::compress(Core\Str::repeat('A', $size) as bytes, Core\Codec::Gzip);
+    bytes $frame = Core\Compress::compress(Core\Str::repeat('A', $size) as bytes, Core\Compress::Codec::Gzip);
     try {
-        uint $out = Core\Bytes::length(Core\Compress::decompress($frame, Core\Codec::Gzip));
+        uint $out = Core\Bytes::length(Core\Compress::decompress($frame, Core\Compress::Codec::Gzip));
         echo $size, ': ', $out, " octets back\n";
     } catch (ParseError $refused) {
         echo $size, ": refused\n";
@@ -70,8 +70,8 @@ foreach ($sizes as uint $size) {
 
 // 4. Sends a large input to a stream one byte at a time. The ratio counts the
 //    whole stream, so `finish` should throw a `ParseError`.
-bytes $bomb = Core\Compress::compress(Core\Str::repeat('A', 4194304) as bytes, Core\Codec::Gzip);
-Core\Compress\Decompressor $stream = Core\Compress::decompressor(Core\Codec::Gzip);
+bytes $bomb = Core\Compress::compress(Core\Str::repeat('A', 4194304) as bytes, Core\Compress::Codec::Gzip);
+Core\Compress\Decompressor $stream = Core\Compress::decompressor(Core\Compress::Codec::Gzip);
 int $at = 0;
 int $len = Core\Bytes::length($bomb) as int;
 while ($at < $len) {
@@ -90,7 +90,7 @@ try {
 array<uint> $asks = [0, 1, 2, 999, 1000, 1001, 18446744073709551615];
 foreach ($asks as uint $ask) {
     try {
-        Core\Compress::decompress($bomb, Core\Codec::Gzip, 67108864, $ask);
+        Core\Compress::decompress($bomb, Core\Compress::Codec::Gzip, 67108864, $ask);
     } catch (ParseError $refused) {
     }
 }

@@ -8,15 +8,15 @@
 
 // 1. Nothing at all, under every format. An empty input is still a frame, so
 //    each call returns a few bytes of header.
-array<Core\Codec> $formats = [
-    Core\Codec::Gzip,
-    Core\Codec::Zlib,
-    Core\Codec::Deflate,
-    Core\Codec::Brotli,
-    Core\Codec::Zstd,
+array<Core\Compress::Codec> $formats = [
+    Core\Compress::Codec::Gzip,
+    Core\Compress::Codec::Zlib,
+    Core\Compress::Codec::Deflate,
+    Core\Compress::Codec::Brotli,
+    Core\Compress::Codec::Zstd,
 ];
 uint $headers = 0;
-foreach ($formats as Core\Codec $codec) {
+foreach ($formats as Core\Compress::Codec $codec) {
     $headers = $headers + Core\Bytes::length(Core\Compress::compress('', $codec));
 }
 echo 'step 1 wrote ', $headers, " header bytes\n";
@@ -27,7 +27,7 @@ bytes $seed = Core\Str::repeat('novis', 64) as bytes;
 uint $round = 0;
 uint $written = 0;
 while ($round < 100000) {
-    $written = Core\Bytes::length(Core\Compress::compress($seed, Core\Codec::Zstd));
+    $written = Core\Bytes::length(Core\Compress::compress($seed, Core\Compress::Codec::Zstd));
     $round = $round + 1;
 }
 echo 'step 2 wrote ', $written, " bytes every time\n";
@@ -35,7 +35,7 @@ echo 'step 2 wrote ', $written, " bytes every time\n";
 // 3. Sixteen mebibytes of one byte. This is the shape that compresses best, so
 //    the output is tiny and all the work is in reading the input.
 bytes $flat = Core\Bytes::repeat('A' as bytes, 16777216);
-echo 'step 3 wrote ', Core\Bytes::length(Core\Compress::compress($flat, Core\Codec::Gzip)), " bytes\n";
+echo 'step 3 wrote ', Core\Bytes::length(Core\Compress::compress($flat, Core\Compress::Codec::Gzip)), " bytes\n";
 
 // 4. Buffers that keep doubling, from 16 mebibytes upward. The program runs
 //    out of memory in this loop and stops there. Nothing after it runs.
@@ -44,7 +44,7 @@ bytes $growing = $flat;
 uint $doubled = 0;
 while ($doubled < 20) {
     $growing = Core\Bytes::repeat($growing, 2);
-    echo 'step 4 compressed ', Core\Bytes::length(Core\Compress::compress($growing, Core\Codec::Gzip)), " bytes\n";
+    echo 'step 4 compressed ', Core\Bytes::length(Core\Compress::compress($growing, Core\Compress::Codec::Gzip)), " bytes\n";
     $doubled = $doubled + 1;
 }
 echo "step 4 never ran out of memory\n";

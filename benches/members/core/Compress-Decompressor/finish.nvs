@@ -7,14 +7,14 @@
 
 class Bench {
     public static function run(uint $rounds): uint {
-        bytes $frame = Core\Compress::compress(Core\Str::repeat("order 1042\n", 16), Core\Codec::Zstd);
+        bytes $frame = Core\Compress::compress(Core\Str::repeat("order 1042\n", 16), Core\Compress::Codec::Zstd);
         int $size = Core\Bytes::length($frame) as int;
         int $piece = 8;
 
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            var $stream = Core\Compress::decompressor(Core\Codec::Zstd);
+            var $stream = Core\Compress::decompressor(Core\Compress::Codec::Zstd);
             int $at = 0;
             while ($at < $size) {
                 int $take = $size - $at;

@@ -11,7 +11,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            $total = $total + Core\Bytes::length(Core\Compress::compress($record, Core\Codec::Zstd));
+            $total = $total + Core\Bytes::length(Core\Compress::compress($record, Core\Compress::Codec::Zstd));
             $i = $i + 1;
         }
         return $total;

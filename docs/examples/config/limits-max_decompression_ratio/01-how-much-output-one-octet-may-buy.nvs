@@ -7,18 +7,18 @@ echo 'and the absolute ceiling:  ', Core\Config::get('limits.max_decompressed') 
 
 // 16 KiB of the letter `A` compresses to 52 bytes. The ratio is about 315,
 // which is under the configured `1000`.
-bytes $frame = Core\Compress::compress(Core\Str::repeat("A", 16384) as bytes, Core\Codec::Gzip);
+bytes $frame = Core\Compress::compress(Core\Str::repeat("A", 16384) as bytes, Core\Compress::Codec::Gzip);
 echo 'this frame:                ', Core\Bytes::length($frame), " octets in, 16384 out\n";
 
 // The fourth argument sets a lower ratio for one call. At `2`, this input is
 // over the ratio, so the call throws a `ParseError`.
 try {
-    Core\Compress::decompress($frame, Core\Codec::Gzip, 1048576, 2);
+    Core\Compress::decompress($frame, Core\Compress::Codec::Gzip, 1048576, 2);
     echo "at 2 to 1:                 got the whole thing anyway\n";
 } catch (ParseError $bomb) {
     echo "at 2 to 1:                 refused\n";
 }
-echo 'at the deployment\'s ratio: ', Core\Bytes::length(Core\Compress::decompress($frame, Core\Codec::Gzip)), " octets\n";
+echo 'at the deployment\'s ratio: ', Core\Bytes::length(Core\Compress::decompress($frame, Core\Compress::Codec::Gzip)), " octets\n";
 
 // A program cannot change the configured ratio, so this returns `false`.
 echo 'loosen it from here:       ', Core\Config::set('limits.max_decompression_ratio', '1000000') ? 'accepted' : 'refused', "\n";

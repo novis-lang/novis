@@ -1,5 +1,8 @@
 Names the compressed format a program reads or writes.
 
+`Core\Compress::Codec` is declared in the class `Core\Compress`. Every `Core\Compress` method that
+compresses or decompresses takes it as an argument.
+
 Every `Core\Compress` call says which format it means, and says it as a case rather than as part of
 a member's name. There are five cases. `Gzip`, `Zlib` and `Deflate` are the same compressed stream
 under three different wrappers: a gzip header and footer, a short zlib header, or nothing around it

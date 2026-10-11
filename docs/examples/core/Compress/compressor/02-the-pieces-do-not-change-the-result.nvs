@@ -4,13 +4,13 @@
 
 string $text = Core\Str::repeat("every order is one line\n", 30);
 
-var $stream = Core\Compress::compressor(Core\Codec::Zlib);
+var $stream = Core\Compress::compressor(Core\Compress::Codec::Zlib);
 $stream->add(Core\Str::slice($text, 0, 100));
 $stream->add(Core\Str::slice($text, 100, 260));
 $stream->add(Core\Str::slice($text, 360, 360));
 bytes $inPieces = $stream->finish();
 
-bytes $atOnce = Core\Compress::compress($text, Core\Codec::Zlib);
+bytes $atOnce = Core\Compress::compress($text, Core\Compress::Codec::Zlib);
 
 echo 'in pieces: ', Core\Bytes::length($inPieces), " bytes\n";
 echo 'at once: ', Core\Bytes::length($atOnce), " bytes\n";

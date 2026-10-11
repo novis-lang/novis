@@ -8,7 +8,7 @@ A finished `Core\Compress` stream refuses a later `add` and a second `finish`, i
 // implementation needs that rule — the chunks would still be there — and it is
 // written anyway, because a coder is consumed by its own flush and a program
 // that outgrows this shape should not have to change.
-var $writing = Core\Compress::compressor(Core\Codec::Gzip);
+var $writing = Core\Compress::compressor(Core\Compress::Codec::Gzip);
 $writing->add("the first half ");
 $writing->add("and the second");
 echo "frame: ", Core\Bytes::length($writing->finish()) > 0 ? "some octets" : "none", "\n";
@@ -28,8 +28,8 @@ try {
 
 // The decompressing half is the same object rule under a different class, and
 // the message names the class it was asked of rather than `Core\Compress`.
-bytes $frame = Core\Compress::compress("something to decompress", Core\Codec::Zlib);
-var $reading = Core\Compress::decompressor(Core\Codec::Zlib);
+bytes $frame = Core\Compress::compress("something to decompress", Core\Compress::Codec::Zlib);
+var $reading = Core\Compress::decompressor(Core\Compress::Codec::Zlib);
 $reading->add($frame);
 echo "octets: ", Core\Bytes::length($reading->finish()), "\n";
 try {
@@ -43,8 +43,8 @@ try {
 // chunks before the decoder runs, so a bomb costs the ceiling once and a second
 // attempt is a `RuntimeError` about a closed stream rather than a second
 // `ParseError` about the same frame.
-bytes $bomb = Core\Compress::compress(Core\Str::repeat("A", 16384), Core\Codec::Gzip);
-var $refusing = Core\Compress::decompressor(Core\Codec::Gzip, 1024);
+bytes $bomb = Core\Compress::compress(Core\Str::repeat("A", 16384), Core\Compress::Codec::Gzip);
+var $refusing = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 1024);
 $refusing->add($bomb);
 try {
     $refusing->finish();

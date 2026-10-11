@@ -3,7 +3,7 @@
 // arrives, and says up front how much it is willing to unpack.
 
 // In a real program each of these is a part that just arrived over the network.
-bytes $whole = Core\Compress::compress(Core\Str::repeat("1042,Berlin,39.90\n", 300), Core\Codec::Gzip);
+bytes $whole = Core\Compress::compress(Core\Str::repeat("1042,Berlin,39.90\n", 300), Core\Compress::Codec::Gzip);
 int $size = Core\Bytes::length($whole) as int;
 array<bytes> $parts = [
     Core\Bytes::slice($whole, 0, 30),
@@ -13,7 +13,7 @@ array<bytes> $parts = [
 
 // At most one mebibyte of result, and at most 200 bytes of result for each byte
 // that arrives. Both are fixed now and cannot be raised later.
-var $download = Core\Compress::decompressor(Core\Codec::Gzip, 1048576, 200);
+var $download = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 1048576, 200);
 foreach ($parts as bytes $part) {
     $download->add($part);
 }

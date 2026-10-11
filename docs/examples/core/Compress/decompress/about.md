@@ -1,6 +1,6 @@
 Reads compressed data and gives you the original bytes back.
 
-You pass the same `Core\Codec` the data was compressed with. Nothing is guessed, so data that is
+You pass the same `Core\Compress::Codec` the data was compressed with. Nothing is guessed, so data that is
 not that format throws a `ParseError`. If the data arrived from outside your program, the result
 stays tainted: unpacking bytes tells you nothing about what they are safe for.
 

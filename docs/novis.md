@@ -7413,7 +7413,7 @@ id    |003.1|ff
 | [`Core\Str::upperFirst`](#core-core-str-upperfirst) | `upperFirst(string $s): string` |
 | [`Core\Str::lowerFirst`](#core-core-str-lowerfirst) | `lowerFirst(string $s): string` |
 | [`Core\Str::fold`](#core-core-str-fold) | `fold(string $s): string` |
-| [`Core\Str::normalize`](#core-core-str-normalize) | `normalize(string $s, Core\NormalForm $form): string` |
+| [`Core\Str::normalize`](#core-core-str-normalize) | `normalize(string $s, Core\Str::NormalForm $form): string` |
 | [`Core\Str::fromCodePoint`](#core-core-str-fromcodepoint) | `fromCodePoint(uint $codePoint): string` |
 | [`Core\Str::fromCodePoints`](#core-core-str-fromcodepoints) | `fromCodePoints(array<uint> $codePoints): string` |
 | [`Core\Str::format`](#core-core-str-format) | `format(string $template, mixed ...$arguments): string` |
@@ -8007,7 +8007,7 @@ Case-folds `$s`: every letter changes to one fixed form, so text that differs on
 #### `Core\Str::normalize`
 
 ```nvs skip
-Core\Str::normalize(string $s, Core\NormalForm $form): string
+Core\Str::normalize(string $s, Core\Str::NormalForm $form): string
 ```
 
 Changes `$s` into one of the four Unicode normal forms. Two ways to write the same text then give the same string.
@@ -8015,7 +8015,7 @@ Changes `$s` into one of the four Unicode normal forms. Two ways to write the sa
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to normalize. |
-| `$form` | `Core\NormalForm` | Which form to use. `Nfc` and `Nfd` keep every character's meaning. `Nfkc` and `Nfkd` also replace look-alike characters: `ﬁ` becomes `fi`. |
+| `$form` | `Core\Str::NormalForm` | Which form to use. `Nfc` and `Nfd` keep every character's meaning. `Nfkc` and `Nfkd` also replace look-alike characters: `ﬁ` becomes `fi`. |
 
 **Returns** `string` — The normalized string. `Nfc` is the form to store and compare text in. A string of ASCII characters is returned unchanged.
 
@@ -15250,27 +15250,27 @@ Returns the sixteen bytes of the UUID. Use it to store a UUID in a binary databa
 
 Keywords: hash, md5, sha1, sha256, crc32, hash_hmac, hash_equals, openssl_digest, digest, HMAC, checksum, constant-time comparison, of, hmac, equals, stream
 
-`Core\Hash::of` computes any `Core\Digest` case over a `string` or `bytes` and answers the raw
+`Core\Hash::of` computes any `Core\Hash::Digest` case over a `string` or `bytes` and answers the raw
 digest as `bytes` — never hex and never an `int` — so printing one goes through
-`Core\Encoding::toHex`. `hmac` takes only the strong cases: `Core\Digest::Md5`, `Sha1`, `Crc32`,
+`Core\Encoding::toHex`. `hmac` takes only the strong cases: `Core\Hash::Digest::Md5`, `Sha1`, `Crc32`,
 `Crc32c` and `Blake3` are compile errors there, while `of` accepts every case for checksum interop.
 Compare two digests with `equals`, which runs in constant time. Input that arrives in pieces goes
 through `stream`, which opens a `Core\Hash\Stream`.
 
 ```nvs
 <?nvs
-bytes $digest = Core\Hash::of("abc", Core\Digest::Sha256);
+bytes $digest = Core\Hash::of("abc", Core\Hash::Digest::Sha256);
 echo Core\Encoding::toHex($digest), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Md5)), "\n";
-echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Digest::Crc32)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Md5)), "\n";
+echo Core\Encoding::toHex(Core\Hash::of("abc", Core\Hash::Digest::Crc32)), "\n";
 
 bytes $key = "Jefe" as bytes;
-bytes $mac = Core\Hash::hmac("what do ya want for nothing?", $key, Core\Digest::Sha256);
+bytes $mac = Core\Hash::hmac("what do ya want for nothing?", $key, Core\Hash::Digest::Sha256);
 echo Core\Encoding::toHex($mac), "\n";
 
-bytes $again = Core\Hash::of("abc", Core\Digest::Sha256);
+bytes $again = Core\Hash::of("abc", Core\Hash::Digest::Sha256);
 echo Core\Hash::equals($digest, $again) ? "same" : "differ", "\n";
-echo Core\Hash::equals($digest, Core\Hash::of("abd", Core\Digest::Sha256)) ? "same" : "differ", "\n";
+echo Core\Hash::equals($digest, Core\Hash::of("abd", Core\Hash::Digest::Sha256)) ? "same" : "differ", "\n";
 ```
 ```output
 ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
@@ -15283,16 +15283,16 @@ differ
 
 | Member | Signature |
 |---|---|
-| [`Core\Hash::of`](#core-core-hash-of) | `of(bytes\|string $data, Core\Digest $digest): bytes` |
-| [`Core\Hash::hmac`](#core-core-hash-hmac) | `hmac(bytes\|string $data, secret bytes $key, Core\Digest::Sha224\|Core\Digest::Sha256\|Core\Digest::Sha384\|Core\Digest::Sha512\|Core\Digest::Sha512_224\|Core\Digest::Sha512_256\|Core\Digest::Sha3_224\|Core\Digest::Sha3_256\|Core\Digest::Sha3_384\|Core\Digest::Sha3_512 $digest): bytes` |
+| [`Core\Hash::of`](#core-core-hash-of) | `of(bytes\|string $data, Core\Hash::Digest $digest): bytes` |
+| [`Core\Hash::hmac`](#core-core-hash-hmac) | `hmac(bytes\|string $data, secret bytes $key, Core\Hash::Digest::Sha224\|Core\Hash::Digest::Sha256\|Core\Hash::Digest::Sha384\|Core\Hash::Digest::Sha512\|Core\Hash::Digest::Sha512_224\|Core\Hash::Digest::Sha512_256\|Core\Hash::Digest::Sha3_224\|Core\Hash::Digest::Sha3_256\|Core\Hash::Digest::Sha3_384\|Core\Hash::Digest::Sha3_512 $digest): bytes` |
 | [`Core\Hash::equals`](#core-core-hash-equals) | `equals(bytes $a, bytes $b): bool` |
-| [`Core\Hash::stream`](#core-core-hash-stream) | `stream(Core\Digest $digest): Core\Hash\Stream` |
+| [`Core\Hash::stream`](#core-core-hash-stream) | `stream(Core\Hash::Digest $digest): Core\Hash\Stream` |
 
 <a id="core-core-hash-of"></a>
 #### `Core\Hash::of`
 
 ```nvs skip
-Core\Hash::of(bytes|string $data, Core\Digest $digest): bytes
+Core\Hash::of(bytes|string $data, Core\Hash::Digest $digest): bytes
 ```
 
 Computes the digest of `$data` under `$digest`, replacing `hash`, `md5`, `sha1`, `crc32` and `openssl_digest` at once — raw octets, never hex or an `int`.
@@ -15300,7 +15300,7 @@ Computes the digest of `$data` under `$digest`, replacing `hash`, `md5`, `sha1`,
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$data` | `bytes\|string` (neutral) | The octets to hash; a `string` is read as its UTF-8 bytes. |
-| `$digest` | `Core\Digest` | The algorithm, any `Core\Digest` case — the broken ones included, for interop. |
+| `$digest` | `Core\Hash::Digest` | The algorithm, any `Core\Hash::Digest` case — the broken ones included, for interop. |
 
 **Returns** `bytes` — The digest as `bytes`, as many octets as the case's width; every case accepts every input, the empty one included.
 
@@ -15308,7 +15308,7 @@ Computes the digest of `$data` under `$digest`, replacing `hash`, `md5`, `sha1`,
 #### `Core\Hash::hmac`
 
 ```nvs skip
-Core\Hash::hmac(bytes|string $data, secret bytes $key, Core\Digest::Sha224|Core\Digest::Sha256|Core\Digest::Sha384|Core\Digest::Sha512|Core\Digest::Sha512_224|Core\Digest::Sha512_256|Core\Digest::Sha3_224|Core\Digest::Sha3_256|Core\Digest::Sha3_384|Core\Digest::Sha3_512 $digest): bytes
+Core\Hash::hmac(bytes|string $data, secret bytes $key, Core\Hash::Digest::Sha224|Core\Hash::Digest::Sha256|Core\Hash::Digest::Sha384|Core\Hash::Digest::Sha512|Core\Hash::Digest::Sha512_224|Core\Hash::Digest::Sha512_256|Core\Hash::Digest::Sha3_224|Core\Hash::Digest::Sha3_256|Core\Hash::Digest::Sha3_384|Core\Hash::Digest::Sha3_512 $digest): bytes
 ```
 
 Computes RFC 2104's HMAC of `$data` under `$key` and `$digest`, as `hash_hmac` does without its `raw_output` flag — and only under a `StrongDigest`, so `Digest::Md5` or `Digest::Sha1` here is a compile error.
@@ -15317,7 +15317,7 @@ Computes RFC 2104's HMAC of `$data` under `$key` and `$digest`, as `hash_hmac` d
 |---|---|---|
 | `$data` | `bytes\|string` (neutral) | The octets to authenticate; a `string` is read as its UTF-8 bytes. |
 | `$key` | `secret bytes` (neutral) | The secret key, of any length — a long one is hashed down and a short one zero-padded, as RFC 2104 § 2 says. |
-| `$digest` | `Core\Digest::Sha224\|Core\Digest::Sha256\|Core\Digest::Sha384\|Core\Digest::Sha512\|Core\Digest::Sha512_224\|Core\Digest::Sha512_256\|Core\Digest::Sha3_224\|Core\Digest::Sha3_256\|Core\Digest::Sha3_384\|Core\Digest::Sha3_512` | The algorithm, one of the ten SHA-2 and SHA-3 `Core\Digest` cases. |
+| `$digest` | `Core\Hash::Digest::Sha224\|Core\Hash::Digest::Sha256\|Core\Hash::Digest::Sha384\|Core\Hash::Digest::Sha512\|Core\Hash::Digest::Sha512_224\|Core\Hash::Digest::Sha512_256\|Core\Hash::Digest::Sha3_224\|Core\Hash::Digest::Sha3_256\|Core\Hash::Digest::Sha3_384\|Core\Hash::Digest::Sha3_512` | The algorithm, one of the ten SHA-2 and SHA-3 `Core\Hash::Digest` cases. |
 
 **Returns** `bytes` — The MAC as `bytes`, as many octets as the case's width.
 
@@ -15341,14 +15341,14 @@ Compares two digests in constant time, as `hash_equals` does: the running time d
 #### `Core\Hash::stream`
 
 ```nvs skip
-Core\Hash::stream(Core\Digest $digest): Core\Hash\Stream
+Core\Hash::stream(Core\Hash::Digest $digest): Core\Hash\Stream
 ```
 
 Opens an incremental digest under `$digest`, as `hash_init` does — a `Core\Hash\Stream` fed by `update` and closed by `finish`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$digest` | `Core\Digest` | The algorithm, any `Core\Digest` case. |
+| `$digest` | `Core\Hash::Digest` | The algorithm, any `Core\Hash::Digest` case. |
 
 **Returns** `Core\Hash\Stream` — A fresh, open stream that has been fed nothing yet.
 
@@ -15357,20 +15357,20 @@ Opens an incremental digest under `$digest`, as `hash_init` does — a `Core\Has
 
 Keywords: hash_init, hash_update, hash_final, HashContext, incremental hash, streaming digest, chunked input, update, finish
 
-A `Core\Hash\Stream` is opened by `Core\Hash::stream` with a `Core\Digest` case and digests
+A `Core\Hash\Stream` is opened by `Core\Hash::stream` with a `Core\Hash::Digest` case and digests
 everything `update` feeds it, in order, so `finish` answers exactly what `Core\Hash::of` answers
 over the concatenation. `finish` consumes the stream: a second `finish`, or an `update` after one,
 throws `RuntimeError`. Two digests of one input need two streams.
 
 ```nvs
 <?nvs
-var $stream = Core\Hash::stream(Core\Digest::Sha256);
+var $stream = Core\Hash::stream(Core\Hash::Digest::Sha256);
 $stream->update("a");
 $stream->update("bc");
 bytes $streamed = $stream->finish();
 echo Core\Encoding::toHex($streamed), "\n";
 
-bytes $whole = Core\Hash::of("abc", Core\Digest::Sha256);
+bytes $whole = Core\Hash::of("abc", Core\Hash::Digest::Sha256);
 echo Core\Hash::equals($streamed, $whole) ? "same" : "differ", "\n";
 
 try {
@@ -22314,24 +22314,24 @@ Keywords: compress, decompress, compressor, decompressor
 
 | Member | Signature |
 |---|---|
-| [`Core\Compress::compress`](#core-core-compress-compress) | `compress(bytes\|string $data, Core\Codec $codec): bytes` |
-| [`Core\Compress::decompress`](#core-core-compress-decompress) | `decompress(bytes $data, Core\Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes` |
-| [`Core\Compress::compressor`](#core-core-compress-compressor) | `compressor(Core\Codec $codec): Core\Compress\Compressor` |
-| [`Core\Compress::decompressor`](#core-core-compress-decompressor) | `decompressor(Core\Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Core\Compress\Decompressor` |
+| [`Core\Compress::compress`](#core-core-compress-compress) | `compress(bytes\|string $data, Core\Compress::Codec $codec): bytes` |
+| [`Core\Compress::decompress`](#core-core-compress-decompress) | `decompress(bytes $data, Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes` |
+| [`Core\Compress::compressor`](#core-core-compress-compressor) | `compressor(Core\Compress::Codec $codec): Core\Compress\Compressor` |
+| [`Core\Compress::decompressor`](#core-core-compress-decompressor) | `decompressor(Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Core\Compress\Decompressor` |
 
 <a id="core-core-compress-compress"></a>
 #### `Core\Compress::compress`
 
 ```nvs skip
-Core\Compress::compress(bytes|string $data, Core\Codec $codec): bytes
+Core\Compress::compress(bytes|string $data, Core\Compress::Codec $codec): bytes
 ```
 
-Compresses `$data` under `$codec`, replacing `gzencode`, `gzcompress`, `gzdeflate` and `zlib_encode` at once — the format is a case of `Core\Codec` rather than a third of a function's name.
+Compresses `$data` under `$codec`, replacing `gzencode`, `gzcompress`, `gzdeflate` and `zlib_encode` at once — the format is a case of `Core\Compress::Codec` rather than a third of a function's name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$data` | `bytes\|string` | The octets to compress; a `string` is read as its UTF-8 bytes. |
-| `$codec` | `Core\Codec` | The format to write. `Core\Codec::Gzip` is the one to reach for when the result crosses a wire. |
+| `$codec` | `Core\Compress::Codec` | The format to write. `Core\Compress::Codec::Gzip` is the one to reach for when the result crosses a wire. |
 
 **Returns** `bytes` — The compressed frame, as octets. Compressing is never refused for size: the output of a compressor is bounded by its input.
 
@@ -22339,7 +22339,7 @@ Compresses `$data` under `$codec`, replacing `gzencode`, `gzcompress`, `gzdeflat
 #### `Core\Compress::decompress`
 
 ```nvs skip
-Core\Compress::decompress(bytes $data, Core\Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes
+Core\Compress::decompress(bytes $data, Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes
 ```
 
 Decompresses `$data` under `$codec`, **under a bound that cannot be switched off** — replacing `gzdecode`, `gzuncompress`, `gzinflate` and `zlib_decode`, whose `$max_length` was optional and defaulted to unlimited.
@@ -22347,7 +22347,7 @@ Decompresses `$data` under `$codec`, **under a bound that cannot be switched off
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$data` | `bytes` | The compressed frame. Tainted in, tainted out: decompressing tells you nothing about what the octets are safe for. |
-| `$codec` | `Core\Codec` | The format `$data` is in. Nothing is sniffed — a frame that is not this format is refused rather than guessed at. |
+| `$codec` | `Core\Compress::Codec` | The format `$data` is in. Nothing is sniffed — a frame that is not this format is refused rather than guessed at. |
 | `$maxBytes` | `uint` (default `67108864`) | The most output this call will produce, in octets. A call may ask for less than `[limits] max_decompressed` and never for more; `0` is a bound of zero and not a spelling for unbounded. |
 | `$maxRatio` | `uint` (default `1000`) | The most output per octet of input. The second half of the same bound: a bomb is small on the wire, so a byte ceiling alone is a ceiling a small request can still reach. |
 
@@ -22359,14 +22359,14 @@ Decompresses `$data` under `$codec`, **under a bound that cannot be switched off
 #### `Core\Compress::compressor`
 
 ```nvs skip
-Core\Compress::compressor(Core\Codec $codec): Core\Compress\Compressor
+Core\Compress::compressor(Core\Compress::Codec $codec): Core\Compress\Compressor
 ```
 
 Opens an incremental compression under `$codec`, as `deflate_init` does — a `Core\Compress\Compressor` fed by `add` and closed by `finish`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$codec` | `Core\Codec` | The format to write, any `Core\Codec` case. Fixed for the stream's whole life: a frame is one format. |
+| `$codec` | `Core\Compress::Codec` | The format to write, any `Core\Compress::Codec` case. Fixed for the stream's whole life: a frame is one format. |
 
 **Returns** `Core\Compress\Compressor` — A fresh, open stream that has been fed nothing yet.
 
@@ -22374,14 +22374,14 @@ Opens an incremental compression under `$codec`, as `deflate_init` does — a `C
 #### `Core\Compress::decompressor`
 
 ```nvs skip
-Core\Compress::decompressor(Core\Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Core\Compress\Decompressor
+Core\Compress::decompressor(Core\Compress::Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Core\Compress\Decompressor
 ```
 
 Opens an incremental decompression under `$codec`, as `inflate_init` does — a `Core\Compress\Decompressor` fed by `add` and closed by `finish`, **under the same bound that cannot be switched off**.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$codec` | `Core\Codec` | The format the chunks are in. Nothing is sniffed — a frame that is not this format is refused rather than guessed at. |
+| `$codec` | `Core\Compress::Codec` | The format the chunks are in. Nothing is sniffed — a frame that is not this format is refused rather than guessed at. |
 | `$maxBytes` | `uint` (default `67108864`) | The most output this whole stream will produce, in octets — resolved against `[limits] max_decompressed` here, at the opening, and charged once across every chunk rather than once per `add`. |
 | `$maxRatio` | `uint` (default `1000`) | The most output per octet fed to the stream. The second half of the same bound, measured against everything `add` was handed. |
 
@@ -29218,17 +29218,17 @@ Which part of an entry `Core\Arr::diff` and `intersect` compare — spec § 2's 
 | `Core\Arr::SetOn::Keys` | The key alone — `array_diff_key`, `array_intersect_key` and their `u` forms; a `by` here maps the key. |
 | `Core\Arr::SetOn::Both` | The key and the value together — `array_diff_assoc`, `array_intersect_assoc` and their `u` forms. |
 
-<a id="enum-core-normalform"></a>
-#### `Core\NormalForm`
+<a id="enum-core-str-normalform"></a>
+#### `Core\Str::NormalForm`
 
 Which of UAX #15's four normal forms `Core\Str::normalize` rewrites into — composed or decomposed on one axis, canonical or compatibility on the other.
 
 | Case | Meaning |
 |---|---|
-| `Core\NormalForm::Nfc` | Canonical composition: `é` is one code point, and only canonical equivalents are unified — the form to store and compare text in. |
-| `Core\NormalForm::Nfd` | Canonical decomposition: `é` is `e` plus a combining acute, and only canonical equivalents are unified. |
-| `Core\NormalForm::Nfkc` | Compatibility composition: `Nfc`, and a character that merely renders like another — `ﬁ`, `①` — is unified with it too, which does not round-trip. |
-| `Core\NormalForm::Nfkd` | Compatibility decomposition: `Nfd`, plus the same compatibility unification `Nfkc` applies. |
+| `Core\Str::NormalForm::Nfc` | Canonical composition: `é` is one code point, and only canonical equivalents are unified — the form to store and compare text in. |
+| `Core\Str::NormalForm::Nfd` | Canonical decomposition: `é` is `e` plus a combining acute, and only canonical equivalents are unified. |
+| `Core\Str::NormalForm::Nfkc` | Compatibility composition: `Nfc`, and a character that merely renders like another — `ﬁ`, `①` — is unified with it too, which does not round-trip. |
+| `Core\Str::NormalForm::Nfkd` | Compatibility decomposition: `Nfd`, plus the same compatibility unification `Nfkc` applies. |
 
 <a id="enum-core-roundmode"></a>
 #### `Core\RoundMode`
@@ -29286,41 +29286,41 @@ A day of the week, Monday first as ISO 8601 and `date("N")` order them — what 
 | `Core\Weekday::Saturday` | The sixth day of the ISO week. |
 | `Core\Weekday::Sunday` | The seventh and last day of the ISO week. |
 
-<a id="enum-core-digest"></a>
-#### `Core\Digest`
+<a id="enum-core-hash-digest"></a>
+#### `Core\Hash::Digest`
 
 The algorithm a `Core\Hash` method computes. It includes checksums and the two broken digests that other systems still use, and BLAKE3. `StrongDigest` is the ten SHA-2 and SHA-3 cases, which `Core\Hash::hmac` accepts.
 
 | Case | Meaning |
 |---|---|
-| `Core\Digest::Crc32` | CRC-32/ISO-HDLC, a 4-octet checksum. It detects accidental corruption only. |
-| `Core\Digest::Md5` | MD5, 16 octets — collision-broken since 2004, for interop only. |
-| `Core\Digest::Sha1` | SHA-1, 20 octets — collision-broken since 2017, for interop only. |
-| `Core\Digest::Sha256` | SHA-256, 32 octets — the default to reach for; a `StrongDigest`. |
-| `Core\Digest::Sha384` | SHA-384, 48 octets; a `StrongDigest`. |
-| `Core\Digest::Sha512` | SHA-512, 64 octets — faster than SHA-256 on 64-bit hardware; a `StrongDigest`. |
-| `Core\Digest::Sha224` | SHA-224, 28 octets; a `StrongDigest`. |
-| `Core\Digest::Sha512_224` | SHA-512/224, 28 octets — SHA-512 truncated with its own IV (FIPS 180-4 § 5.3.6). It is a `StrongDigest`. |
-| `Core\Digest::Sha512_256` | SHA-512/256, 32 octets — SHA-512's speed at SHA-256's width and length-extension-proof. It is a `StrongDigest`. |
-| `Core\Digest::Sha3_224` | SHA3-224, 28 octets — FIPS 202's Keccak sponge, an independent construction rather than a wider SHA-2; a `StrongDigest`. |
-| `Core\Digest::Sha3_256` | SHA3-256, 32 octets; a `StrongDigest`. |
-| `Core\Digest::Sha3_384` | SHA3-384, 48 octets; a `StrongDigest`. |
-| `Core\Digest::Sha3_512` | SHA3-512, 64 octets; a `StrongDigest`. |
-| `Core\Digest::Crc32c` | CRC-32C/Castagnoli, 4 octets — the checksum S3 and GCS stamp objects with. |
-| `Core\Digest::Blake3` | BLAKE3, 32 octets, and the fastest here. It is not a `StrongDigest`, because it has its own keyed mode and does not use HMAC. |
+| `Core\Hash::Digest::Crc32` | CRC-32/ISO-HDLC, a 4-octet checksum. It detects accidental corruption only. |
+| `Core\Hash::Digest::Md5` | MD5, 16 octets — collision-broken since 2004, for interop only. |
+| `Core\Hash::Digest::Sha1` | SHA-1, 20 octets — collision-broken since 2017, for interop only. |
+| `Core\Hash::Digest::Sha256` | SHA-256, 32 octets — the default to reach for; a `StrongDigest`. |
+| `Core\Hash::Digest::Sha384` | SHA-384, 48 octets; a `StrongDigest`. |
+| `Core\Hash::Digest::Sha512` | SHA-512, 64 octets — faster than SHA-256 on 64-bit hardware; a `StrongDigest`. |
+| `Core\Hash::Digest::Sha224` | SHA-224, 28 octets; a `StrongDigest`. |
+| `Core\Hash::Digest::Sha512_224` | SHA-512/224, 28 octets — SHA-512 truncated with its own IV (FIPS 180-4 § 5.3.6). It is a `StrongDigest`. |
+| `Core\Hash::Digest::Sha512_256` | SHA-512/256, 32 octets — SHA-512's speed at SHA-256's width and length-extension-proof. It is a `StrongDigest`. |
+| `Core\Hash::Digest::Sha3_224` | SHA3-224, 28 octets — FIPS 202's Keccak sponge, an independent construction rather than a wider SHA-2; a `StrongDigest`. |
+| `Core\Hash::Digest::Sha3_256` | SHA3-256, 32 octets; a `StrongDigest`. |
+| `Core\Hash::Digest::Sha3_384` | SHA3-384, 48 octets; a `StrongDigest`. |
+| `Core\Hash::Digest::Sha3_512` | SHA3-512, 64 octets; a `StrongDigest`. |
+| `Core\Hash::Digest::Crc32c` | CRC-32C/Castagnoli, 4 octets — the checksum S3 and GCS stamp objects with. |
+| `Core\Hash::Digest::Blake3` | BLAKE3, 32 octets, and the fastest here. It is not a `StrongDigest`, because it has its own keyed mode and does not use HMAC. |
 
-<a id="enum-core-codec"></a>
-#### `Core\Codec`
+<a id="enum-core-compress-codec"></a>
+#### `Core\Compress::Codec`
 
 The format a `Core\Compress` method reads or writes. The first three are one deflate stream under three different headers. The last two are the other two `Content-Encoding` formats in use.
 
 | Case | Meaning |
 |---|---|
-| `Core\Codec::Gzip` | RFC 1952: a deflate stream under a gzip header. This is `Content-Encoding: gzip`. |
-| `Core\Codec::Zlib` | RFC 1950: the same stream under a zlib header. This is what `Content-Encoding: deflate` means on the wire. |
-| `Core\Codec::Deflate` | RFC 1951: the stream with no header at all. |
-| `Core\Codec::Brotli` | RFC 7932, `Content-Encoding: br`. |
-| `Core\Codec::Zstd` | RFC 8878, `Content-Encoding: zstd`. |
+| `Core\Compress::Codec::Gzip` | RFC 1952: a deflate stream under a gzip header. This is `Content-Encoding: gzip`. |
+| `Core\Compress::Codec::Zlib` | RFC 1950: the same stream under a zlib header. This is what `Content-Encoding: deflate` means on the wire. |
+| `Core\Compress::Codec::Deflate` | RFC 1951: the stream with no header at all. |
+| `Core\Compress::Codec::Brotli` | RFC 7932, `Content-Encoding: br`. |
+| `Core\Compress::Codec::Zstd` | RFC 8878, `Content-Encoding: zstd`. |
 
 <a id="enum-core-crypto-cipher"></a>
 #### `Core\Crypto\Cipher`
@@ -29376,8 +29376,8 @@ What `Core\Mime::detect` read out of a run of octets. Closed, so a program compa
 | `Core\Mime\Type::Ogg` | `application/ogg` — the container, which carries audio and video alike and says which only inside. |
 | `Core\Mime\Type::Wav` | `audio/wav` — a RIFF container whose form is `WAVE`. |
 | `Core\Mime\Type::Zip` | `application/zip`, including every format that *is* a zip archive: `.docx`, `.xlsx`, `.odt`, `.jar`. |
-| `Core\Mime\Type::Gzip` | `application/gzip`, the format `Core\Codec::Gzip` writes. |
-| `Core\Mime\Type::Zstd` | `application/zstd`, `Core\Codec::Zstd`'s frame. |
+| `Core\Mime\Type::Gzip` | `application/gzip`, the format `Core\Compress::Codec::Gzip` writes. |
+| `Core\Mime\Type::Zstd` | `application/zstd`, `Core\Compress::Codec::Zstd`'s frame. |
 | `Core\Mime\Type::Xz` | `application/x-xz`. |
 | `Core\Mime\Type::Wasm` | `application/wasm`, a binary WebAssembly module. |
 | `Core\Mime\Type::Ebml` | `video/matroska`, the EBML container every `.mkv` and every `.webm` is — WebM being a Matroska profile. Which of the two a file is lives in its `DocType` element, which a signature cannot reach, so this case never narrows to `video/webm`. |

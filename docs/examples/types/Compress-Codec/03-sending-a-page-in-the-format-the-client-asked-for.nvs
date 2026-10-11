@@ -6,28 +6,28 @@
 class Response {
     // The server decides the order: Zstd, then Brotli, then Gzip. Almost every
     // client can read Gzip, so it is the last choice.
-    public static function pick(string $accept): ?Core\Codec {
+    public static function pick(string $accept): ?Core\Compress::Codec {
         if (Core\Str::contains($accept, "zstd")) {
-            return Core\Codec::Zstd;
+            return Core\Compress::Codec::Zstd;
         }
         if (Core\Str::contains($accept, "br")) {
-            return Core\Codec::Brotli;
+            return Core\Compress::Codec::Brotli;
         }
         if (Core\Str::contains($accept, "gzip")) {
-            return Core\Codec::Gzip;
+            return Core\Compress::Codec::Gzip;
         }
         return null;
     }
 
     // `header` returns the `Content-Encoding` name. In HTTP, `deflate` means the
     // Zlib format. Plain `Deflate` has no name, so the result is "".
-    public static function header(Core\Codec $codec): string {
+    public static function header(Core\Compress::Codec $codec): string {
         return match ($codec) {
-            Core\Codec::Gzip => "gzip",
-            Core\Codec::Zlib => "deflate",
-            Core\Codec::Deflate => "",
-            Core\Codec::Brotli => "br",
-            Core\Codec::Zstd => "zstd",
+            Core\Compress::Codec::Gzip => "gzip",
+            Core\Compress::Codec::Zlib => "deflate",
+            Core\Compress::Codec::Deflate => "",
+            Core\Compress::Codec::Brotli => "br",
+            Core\Compress::Codec::Zstd => "zstd",
         };
     }
 }
@@ -41,7 +41,7 @@ array<string> $clients = [
 ];
 
 foreach ($clients as string $accept) {
-    ?Core\Codec $codec = Response::pick($accept);
+    ?Core\Compress::Codec $codec = Response::pick($accept);
 
     // If the client accepts none of these formats, the server sends the page
     // without compression.

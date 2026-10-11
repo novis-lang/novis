@@ -7,7 +7,7 @@ A `Core\Compress\Decompressor`'s bound is the whole stream's — the same frame 
 // not be a bound at all — ten chunks would each be given the whole ceiling — so
 // what is asserted here is that the chunking buys nothing.
 bytes $payload = Core\Str::repeat("A", 16384) as bytes;
-bytes $frame = Core\Compress::compress($payload, Core\Codec::Gzip);
+bytes $frame = Core\Compress::compress($payload, Core\Compress::Codec::Gzip);
 int $size = Core\Bytes::length($frame) as int;
 array<int> $splits = [1, 2, 4, 8];
 
@@ -20,8 +20,8 @@ int $atTheBound = 0;
 int $underIt = 0;
 foreach ($splits as int $pieces) {
     int $each = Core\Math::intDiv($size, $pieces);
-    var $exact = Core\Compress::decompressor(Core\Codec::Gzip, 16384);
-    var $short = Core\Compress::decompressor(Core\Codec::Gzip, 16383);
+    var $exact = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 16384);
+    var $short = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 16383);
     int $at = 0;
     for ($at = 0; $at < $pieces; $at = $at + 1) {
         int $length = $at == $pieces - 1 ? $size - $at * $each : $each;
@@ -46,8 +46,8 @@ echo "chunkings refused at 16383: ", $underIt, "\n";
 int $roomy = 0;
 int $tight = 0;
 foreach ($splits as int $pieces) {
-    var $wide = Core\Compress::decompressor(Core\Codec::Gzip, 1048576, 1000);
-    var $narrow = Core\Compress::decompressor(Core\Codec::Gzip, 1048576, 100);
+    var $wide = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 1048576, 1000);
+    var $narrow = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 1048576, 100);
     $wide->add($frame);
     $narrow->add($frame);
     if (Core\Bytes::length($wide->finish()) == 16384) {
@@ -66,10 +66,10 @@ echo "refused at 100:1: ", $tight, "\n";
 // member wrote. The bound is a property of the octets coming out, so which
 // producer wrote the input is not a question it asks — a decompressor that read
 // the producer would be two policies where the rule states one.
-var $written = Core\Compress::compressor(Core\Codec::Gzip);
+var $written = Core\Compress::compressor(Core\Compress::Codec::Gzip);
 $written->add(Core\Bytes::slice($payload, 0, 8192));
 $written->add(Core\Bytes::slice($payload, 8192, 8192));
-var $bounded = Core\Compress::decompressor(Core\Codec::Gzip, 16383);
+var $bounded = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 16383);
 $bounded->add($written->finish());
 try {
     $bounded->finish();
@@ -81,7 +81,7 @@ try {
 // And the refusal is the codec's own, naming the stream's member rather than
 // the whole-buffer one — a program told to lower `$maxBytes` on a member it
 // never called cannot act on the message.
-var $named = Core\Compress::decompressor(Core\Codec::Gzip, 1024);
+var $named = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 1024);
 $named->add($frame);
 try {
     $named->finish();
@@ -95,4 +95,4 @@ chunkings refused at 16383: 4
 accepted at 1000:1: 4
 refused at 100:1: 4
 a streamed frame is bounded the same
-Core\Compress\Decompressor::finish(): a `Core\Codec::Gzip` frame decompressing past the 1024 octet ceiling is refused rather than truncated (rule:core-classes/decompression-bound). `[limits] max_decompressed` and `[limits] max_decompression_ratio` are the operator's ceiling, which a call naming `$maxBytes` or `$maxRatio` lowers and nothing raises.
+Core\Compress\Decompressor::finish(): a `Core\Compress::Codec::Gzip` frame decompressing past the 1024 octet ceiling is refused rather than truncated (rule:core-classes/decompression-bound). `[limits] max_decompressed` and `[limits] max_decompression_ratio` are the operator's ceiling, which a call naming `$maxBytes` or `$maxRatio` lowers and nothing raises.

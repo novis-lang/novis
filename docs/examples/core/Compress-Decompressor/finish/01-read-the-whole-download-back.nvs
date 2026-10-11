@@ -2,10 +2,10 @@
 // Shows what `finish` returns: every piece you added, joined and decompressed
 // in one block.
 
-bytes $frame = Core\Compress::compress(Core\Str::repeat("order 1042\n", 100), Core\Codec::Zlib);
+bytes $frame = Core\Compress::compress(Core\Str::repeat("order 1042\n", 100), Core\Compress::Codec::Zlib);
 int $half = (Core\Bytes::length($frame) / 2) as int;
 
-var $reader = Core\Compress::decompressor(Core\Codec::Zlib);
+var $reader = Core\Compress::decompressor(Core\Compress::Codec::Zlib);
 $reader->add(Core\Bytes::slice($frame, 0, $half));
 $reader->add(Core\Bytes::slice($frame, $half, Core\Bytes::length($frame) as int - $half));
 

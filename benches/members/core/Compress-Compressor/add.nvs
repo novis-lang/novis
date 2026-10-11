@@ -11,7 +11,7 @@
 class Bench {
     public static function run(uint $rounds): uint {
         array<string> $cities = ['Berlin', 'Lisbon', 'Oslo'];
-        var $stream = Core\Compress::compressor(Core\Codec::Zstd);
+        var $stream = Core\Compress::compressor(Core\Compress::Codec::Zstd);
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

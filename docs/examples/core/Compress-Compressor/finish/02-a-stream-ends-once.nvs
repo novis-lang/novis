@@ -2,7 +2,7 @@
 // Shows what happens after a stream is finished. A stream writes one block,
 // and then it is over.
 
-var $stream = Core\Compress::compressor(Core\Codec::Zstd);
+var $stream = Core\Compress::compressor(Core\Compress::Codec::Zstd);
 $stream->add('the first and only block');
 bytes $frame = $stream->finish();
 echo 'the block is ', Core\Bytes::length($frame), " bytes\n";

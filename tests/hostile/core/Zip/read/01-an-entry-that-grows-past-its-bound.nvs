@@ -37,7 +37,7 @@ class Archive
     // The CRC-32 checksum of `$data`, low byte first, as a zip archive stores it.
     public static function crc(bytes $data): bytes
     {
-        bytes $high = Core\Hash::of($data, Core\Digest::Crc32);
+        bytes $high = Core\Hash::of($data, Core\Hash::Digest::Crc32);
         return Core\Bytes::join([
             Core\Bytes::slice($high, 3, 1),
             Core\Bytes::slice($high, 2, 1),
@@ -64,7 +64,7 @@ uint $defaultRatio = 1000;
 // 1. A deflate bomb: 16 MiB of zeros in a few kilobytes. Its header claims it
 // holds one byte. A ceiling of 1 MiB throws while the output grows.
 bytes $zeros = Core\Bytes::fill(16777216, 0);
-bytes $bomb = Archive::one('zeros.bin' as bytes, 8, Core\Compress::compress($zeros, Core\Codec::Deflate), 1, Archive::crc($zeros));
+bytes $bomb = Archive::one('zeros.bin' as bytes, 8, Core\Compress::compress($zeros, Core\Compress::Codec::Deflate), 1, Archive::crc($zeros));
 Archive::tryRead('step 1', $bomb, 'zeros.bin', 1048576, $defaultRatio);
 
 // 2. The same bomb, asking for the largest possible bound. The server's own
@@ -83,7 +83,7 @@ Archive::tryRead('step 3b', $empty, 'empty.txt', 0, $defaultRatio);
 // 4. A ratio one step below what the entry needs throws. The ratio it needs
 // reads the whole entry.
 bytes $text = Core\Bytes::repeat('abcdefgh' as bytes, 131072);
-bytes $packed = Core\Compress::compress($text, Core\Codec::Deflate);
+bytes $packed = Core\Compress::compress($text, Core\Compress::Codec::Deflate);
 bytes $small = Archive::one('text.txt' as bytes, 8, $packed, Core\Bytes::length($text), Archive::crc($text));
 uint $need = 1;
 while ($need * Core\Bytes::length($packed) < Core\Bytes::length($text)) {

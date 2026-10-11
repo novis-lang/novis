@@ -14,7 +14,7 @@ foreach ($orders as array<string> $order) {
 }
 
 // `Core\Compress::compress` returns `bytes`. `Core\Http\Part::bytes` accepts a `bytes` value too.
-bytes $packed = Core\Compress::compress($csv, Core\Codec::Gzip);
+bytes $packed = Core\Compress::compress($csv, Core\Compress::Codec::Gzip);
 Core\Http\Part $report = Core\Http\Part::bytes($packed, "sales.csv.gz", {contentType: "application/gzip"});
 
 // The part is the whole body of the request. The server's address is private, so the

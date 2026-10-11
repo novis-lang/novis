@@ -7,7 +7,7 @@
 // hostile: ends-early 3 FATAL
 
 // 1. A finished stream takes no more pieces. `add` must throw a `RuntimeError`.
-var $ended = Core\Compress::compressor(Core\Codec::Gzip);
+var $ended = Core\Compress::compressor(Core\Compress::Codec::Gzip);
 $ended->add('one piece');
 $ended->finish();
 try {
@@ -20,7 +20,7 @@ try {
 // 2. One buffer of a mebibyte, added a hundred thousand times. `add` keeps the
 //    piece, so this is one buffer; a copy for each would be 100 gibibytes.
 bytes $block = Core\Bytes::fill(1048576, 65);
-var $kept = Core\Compress::compressor(Core\Codec::Zstd);
+var $kept = Core\Compress::compressor(Core\Compress::Codec::Zstd);
 uint $added = 0;
 while ($added < 100000) {
     $kept->add($block);
@@ -31,7 +31,7 @@ echo 'step 2 added ', $added, " pieces\n";
 // 3. The same buffer two thousand times, then the block. `finish` joins two
 //    gibibytes, so the program stops at its memory limit on the last line.
 echo "step 3\n";
-var $joined = Core\Compress::compressor(Core\Codec::Gzip);
+var $joined = Core\Compress::compressor(Core\Compress::Codec::Gzip);
 uint $pieces = 0;
 while ($pieces < 2000) {
     $joined->add($block);

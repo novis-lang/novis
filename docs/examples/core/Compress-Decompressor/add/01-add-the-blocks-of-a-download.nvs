@@ -3,11 +3,11 @@
 // block as it comes in, and `finish` reads all of them together.
 
 bytes $report = Core\Str::repeat("order 1042 shipped to Berlin\n", 200) as bytes;
-bytes $download = Core\Compress::compress($report, Core\Codec::Gzip);
+bytes $download = Core\Compress::compress($report, Core\Compress::Codec::Gzip);
 int $size = Core\Bytes::length($download) as int;
 int $block = 64;
 
-var $reader = Core\Compress::decompressor(Core\Codec::Gzip);
+var $reader = Core\Compress::decompressor(Core\Compress::Codec::Gzip);
 int $at = 0;
 while ($at < $size) {
     // The last block is shorter than the others, so take what is left.

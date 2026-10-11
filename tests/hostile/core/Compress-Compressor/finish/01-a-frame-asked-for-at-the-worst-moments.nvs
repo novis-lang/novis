@@ -8,7 +8,7 @@
 
 // 1. A stream that was given nothing. `finish` must write the block an empty
 //    stream writes, and not stop with an error.
-var $nothing = Core\Compress::compressor(Core\Codec::Gzip);
+var $nothing = Core\Compress::compressor(Core\Compress::Codec::Gzip);
 echo 'step 1 wrote ', Core\Bytes::length($nothing->finish()), " bytes\n";
 
 // 2. The same stream finished again. It must throw a `RuntimeError`, and it
@@ -24,7 +24,7 @@ try {
 //    so they must not fill memory here.
 uint $done = 0;
 while ($done < 100000) {
-    var $one = Core\Compress::compressor(Core\Codec::Zstd);
+    var $one = Core\Compress::compressor(Core\Compress::Codec::Zstd);
     $one->add('a row nobody keeps');
     $one->finish();
     $done = $done + 1;
@@ -35,7 +35,7 @@ echo 'step 3 finished ', $done, " streams\n";
 //    all of it, so the program stops at its memory limit on this line.
 echo "step 4\n";
 bytes $block = Core\Bytes::fill(4194304, 66);
-var $huge = Core\Compress::compressor(Core\Codec::Gzip);
+var $huge = Core\Compress::compressor(Core\Compress::Codec::Gzip);
 uint $blocks = 0;
 while ($blocks < 2000) {
     $huge->add($block);
