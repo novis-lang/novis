@@ -2,7 +2,6 @@
   "title": "The chain in the goals README names the live goal, and a reached goal's file is deleted with none of its checks carried",
   "status": "shipped",
   "because": [
-    "0225",
     "0262"
   ],
   "seeAlso": [
