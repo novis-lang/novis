@@ -2,7 +2,6 @@
   "title": "A reserved word is offered only where the token before it and the nodes around it let the compiler accept it",
   "status": "shipped",
   "because": [
-    "0193",
     "0194"
   ],
   "seeAlso": [

@@ -29,3 +29,10 @@ character after it are cut out of the HTML region they sit in, so the client for
 HTML service does not answer beside the two tags. The extra character is what keeps a cursor at the end of
 the hole out of the region that follows, since a client reads a region as half-open. `<?xml` and every
 other processing instruction stay markup's own.
+
+**Declined:**
+- **Gating a request on the client's `triggerCharacter`.** The text before the cursor is what says whether
+  a `:` finished `::`, and it reads the same for every client.
+- **Deciding `<?` in the client**, as a test on the text before the cursor. It would be a second reading of
+  the lexer's open tags in a package that holds no language logic
+  (`rule:ide/one-server-two-thin-clients`).

@@ -613,7 +613,7 @@ than wrong.
 Both identifiers, with `nvs.codeLens.enable`, `nvs.template.services` and the `nvs/regions` request, are
 added to the extension's frozen roster under that roster's own rule: a name is added and never renamed.
 
-<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0193](../decisions/0193.md).</sub>
+<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows"></a>
 
@@ -1377,10 +1377,19 @@ file, the rest of `Core`, the rest of the workspace, and the reserved words last
 is read off a table an arm already reads — the body's scope, the file's imports, the index's occurrences.
 A member list after `->` or `::` has no tiers.
 
-What it spends is one item per type on every bare-position request, a few hundred for the registry alone,
-built and dropped with the answer.
+- **Memory:** one item per type on every bare-position request, a few hundred for the registry alone, and
+  one more lexing of the document. Both are built and dropped with the answer.
 
-<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0193](../decisions/0193.md).</sub>
+**Declined:**
+- **Accepting a type writes its qualified name.** It edits nothing else, but it is not what the developer
+  would have written by hand, which is the short name and a `use` line.
+- **A `CompletionList` marked `isIncomplete`, so the server matches fuzzily itself.** The client would
+  ask again on every keystroke. The editor already matches across a separator, and a round trip per
+  character is latency spent to do the same match twice.
+- **Namespaces offered as items.** Typing `Core` already lists every `Core` type, and the separator's
+  list takes over at the `\`.
+
+<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
 
 <a id="ide-completion-is-asked-where-a-spelling-ends"></a>
 
@@ -1420,7 +1429,14 @@ HTML service does not answer beside the two tags. The extra character is what ke
 the hole out of the region that follows, since a client reads a region as half-open. `<?xml` and every
 other processing instruction stay markup's own.
 
-<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0193](../decisions/0193.md), [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
+**Declined:**
+- **Gating a request on the client's `triggerCharacter`.** The text before the cursor is what says whether
+  a `:` finished `::`, and it reads the same for every client.
+- **Deciding `<?` in the client**, as a test on the text before the cursor. It would be a second reading of
+  the lexer's open tags in a package that holds no language logic
+  ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
+
+<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
 
 <a id="ide-an-accepted-type-writes-what-follows-it"></a>
 
@@ -1532,7 +1548,7 @@ reserved words by a test. What this adds is when each is offered. It errs toward
 ternary's last operand and a `case` arm's first statement are one position, and both lists are offered
 there.
 
-<sub>See also [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0193](../decisions/0193.md), [0194](../decisions/0194.md).</sub>
+<sub>See also [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0194](../decisions/0194.md).</sub>
 
 <a id="ide-a-template-region-gets-the-editors-services-and-formatter"></a>
 

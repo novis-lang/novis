@@ -22,5 +22,14 @@ file, the rest of `Core`, the rest of the workspace, and the reserved words last
 is read off a table an arm already reads — the body's scope, the file's imports, the index's occurrences.
 A member list after `->` or `::` has no tiers.
 
-What it spends is one item per type on every bare-position request, a few hundred for the registry alone,
-built and dropped with the answer.
+- **Memory:** one item per type on every bare-position request, a few hundred for the registry alone, and
+  one more lexing of the document. Both are built and dropped with the answer.
+
+**Declined:**
+- **Accepting a type writes its qualified name.** It edits nothing else, but it is not what the developer
+  would have written by hand, which is the short name and a `use` line.
+- **A `CompletionList` marked `isIncomplete`, so the server matches fuzzily itself.** The client would
+  ask again on every keystroke. The editor already matches across a separator, and a round trip per
+  character is latency spent to do the same match twice.
+- **Namespaces offered as items.** Typing `Core` already lists every `Core` type, and the separator's
+  list takes over at the `\`.
