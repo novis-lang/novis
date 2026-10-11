@@ -25,3 +25,9 @@ a name under that namespace to the carried file with no `autoload` line
 (`nvs_hir::ExtensionClass::source`), and `nvs run`, `nvs check` and `nvs test` fill that field
 from the set's manifests
 (`tests/conformance/ext/an-extension-source-class-resolves-with-no-autoload-line.nvst`).
+
+**Declined:**
+- **The source in a folder beside the `.nvsx`.** It would sit outside the pin, so it could change
+  under a pinned component.
+- **A minimal package system to carry the source.** It would design half of the package system
+  ahead of the rest of it (`rule:packaging/a-package-is-its-digest`).

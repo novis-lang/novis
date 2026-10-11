@@ -1,9 +1,7 @@
 {
   "title": "A third-party extension is a sandboxed WebAssembly component, never a shared library loaded with `dlopen`",
   "status": "designed",
-  "because": [
-    "0246"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/three-tiers",
     "packaging/values-cross-as-handles",

@@ -2607,9 +2607,10 @@ fn a_reload_whose_extension_pin_does_not_match_is_refused_whole_and_the_previous
 }
 
 /// An `[ext.<name>]` block is checked against the loaded manifest at every
-/// reload (ADR 0246 § 9): a key the manifest does not declare refuses the
-/// whole reload and keeps the running configuration, and a block the
-/// manifest admits is published with the rest of the file.
+/// reload (`rule:packaging/a-guest-has-no-ambient-authority`): a key the
+/// manifest does not declare refuses the whole reload and keeps the running
+/// configuration, and a block the manifest admits is published with the rest
+/// of the file.
 #[test]
 fn a_reload_whose_extension_settings_block_has_an_unknown_key_is_refused_whole() {
     let shelf = Shelf::new("settings-refused");

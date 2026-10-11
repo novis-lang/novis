@@ -2306,7 +2306,13 @@ request's snapshot and its isolate's `grants:` list. Each root of it is a preope
 `connect` set before anything is sent, and the caller's `net.connect` is asked again by the client
 that sends it, so the address policy, TLS trust and the proxy apply (`crates/nvs-ext/tests/http.rs`).
 
-<sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0246](../decisions/0246.md).</sub>
+**Declined:**
+- **The caller's authority alone.** A malicious extension would hold everything the application
+  holds.
+- **The entry's grant alone.** A request narrowed by an isolate would widen again through the
+  extension.
+
+<sub>See also [`packaging/a-guest-has-no-ambient-authority`](packaging.md#packaging-a-guest-has-no-ambient-authority), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
 <a id="security-extension-contagion"></a>
 

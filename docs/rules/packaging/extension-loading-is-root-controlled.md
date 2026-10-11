@@ -12,8 +12,7 @@ convention over a repeated key, which is one reason the configuration format has
 shape (`rule:config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`); the entry lives
 where `rule:config/ownership-is-the-trust-boundary` puts every grant of authority. An entry without a
 pin, or with one that is not 64 hexadecimal digits, is refused at boot and at reload, naming its file
-and line, and `nvs ext pin <file>` prints the entry ready to paste. Signatures are not offered: a pin
-of the exact bytes, written by root, is the stronger check for a file already on the disk.
+and line, and `nvs ext pin <file>` prints the entry ready to paste.
 
 Load refuses, each naming the entry: a file whose digest differs from its pin, a component that does
 not validate, a manifest that is malformed or does not match the exports, an import outside the world,
@@ -39,3 +38,11 @@ stops the boot or refuses the whole reload with the previous set live, naming it
 artifact cache. No named type (an enum, a `Core` value class, a union, a `resource`) passes its
 export check. `nvs ext pin` prints an entry `nvs config check` accepts, for a file that loads
 (`crates/nvs-cli/tests/ext_command.rs`).
+
+**Declined:**
+- **An optional pin.** An entry without one would load whatever bytes are at its path at the next
+  reload.
+- **Signatures on an extension.** A pin of the exact bytes, written by root, is the stronger check for
+  a file already on the disk. A signature matters when new bytes arrive from somewhere else, and key
+  formats and rotation belong with the package registry
+(`rule:packaging/the-registry-keeps-an-append-only-log`).

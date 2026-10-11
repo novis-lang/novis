@@ -21,7 +21,8 @@
 //! creating or truncating a file, making, removing or renaming an entry — answers `read-only`. A
 //! descriptor opened without `write` answers `bad-descriptor` to a write.
 //!
-//! Decisions ADR 0246 § 7 left to this module, under the priority ordering:
+//! Decisions `rule:security/extension-grants-are-an-intersection` leaves to this module, under
+//! the priority ordering:
 //!
 //! - **Links are never made or read.** `symlink-at`, `link-at` and `readlink-at` answer
 //!   `not-permitted`: a guest that could make a link could aim it outside its root, and the check

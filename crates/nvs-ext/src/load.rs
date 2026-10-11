@@ -1,5 +1,5 @@
 //! Loading a `.nvsx` from its `[[extension]]` entry: `rule:packaging/extension-loading-is-root-controlled`'s
-//! checks, in ADR 0246 § 4's order, each refusal naming the entry.
+//! checks, in that rule's order, each refusal naming the entry.
 //!
 //! [`Loader::load`] reads the file and refuses, in this order:
 //!

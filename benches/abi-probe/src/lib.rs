@@ -12,7 +12,7 @@
 //! | `tests/invariants.rs` | the checked-return ABI and coroutine behaviour of `rule:errors/propagation` |
 //! | `tests/unwind_unavailable.rs` | the *premise* of `rule:errors/propagation` — that native unwinding is unavailable |
 //! | `tests/wasm_sandbox.rs` | the sandbox guarantees of `rule:packaging/an-extension-is-a-sandboxed-wasm-component` |
-//! | `tests/wasm_async.rs` | the async bridge of [ADR 0246](/docs/decisions/0246.md) § 5: a guest call parks, yields and traps inside a coroutine |
+//! | `tests/wasm_async.rs` | the async bridge of `rule:packaging/a-guest-call-yields-on-its-core`: a guest call parks, yields and traps inside a coroutine |
 //! | `tests/perf_guards.rs` | order-of-magnitude regressions in the quoted costs |
 //! | [`process`] | the cost of the child process that `rule:security/isolate-shares-nothing` replaces with an in-process isolate |
 //! | `shared/isolate.rs` | the cost of the in-process isolate it is replaced *with* — the other half of that comparison, outside this library because it needs the compiler crates and those are dev-only |

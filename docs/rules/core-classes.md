@@ -3017,7 +3017,7 @@ smaller of the call's and the key's value in the request's snapshot before the c
 (`tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`). The
 `Novis\Image` builder that would pass a program's own `{maxPixels}` is not written.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0246](../decisions/0246.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary).</sub>
 
 <a id="core-classes-image-correct-by-default"></a>
 

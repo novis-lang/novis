@@ -1,5 +1,5 @@
 --TEST--
-An `[ext.<name>]` key the extension's manifest does not declare stops the boot, naming the entry — ADR 0246 § 9
+An `[ext.<name>]` key the extension's manifest does not declare stops the boot, naming the entry
 --EXTENSION--
 ledger
 --FILE nvs.toml--

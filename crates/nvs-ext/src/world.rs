@@ -1,5 +1,5 @@
 //! The `nvs:ext` world's own imports beside `types`: `nvs:ext/log` and `nvs:ext/settings`
-//! (ADR 0246 § 2 and § 9).
+//! (`rule:packaging/a-guest-has-no-ambient-authority`).
 //!
 //! - `log` — `write(level, message)` writes `message` to the calling request's log through
 //!   [`Budget::log`], at the WIT level's [`Level`], with the extension's class as the channel.
@@ -11,8 +11,8 @@
 //!   [`Settings::check`], so a value of another type only reaches here from a budget that skipped
 //!   that check, and it reads as the default.
 //!
-//! Neither import grants anything: a setting narrows what a component does, and § 7 is the only
-//! place I/O is granted.
+//! Neither import grants anything: a setting narrows what a component does, and the entry's grants
+//! are the only place I/O is granted (`rule:security/extension-grants-are-an-intersection`).
 
 use serde_json::Value;
 use wasmtime::component::{Linker, Val};

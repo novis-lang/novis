@@ -276,8 +276,8 @@ pub const DIRECTIVES: &[Directive] = &[
     // per-request default a call may name its own value for.
     Directive { key: "deferred.deadline", class: Class::Runtime, apply: Apply::Reload },
     Directive { key: "extension", class: Class::System, apply: Apply::Reload },
-    // ADR 0246 § 9: an extension's settings block is the operator's, as the `[[extension]]` entry
-    // that loads it is, so `System`. `Reload` because a guest reads it out of its request's
+    // `rule:packaging/a-guest-has-no-ambient-authority`: an extension's settings block is the
+    // operator's, as the `[[extension]]` entry that loads it is, so `System`. `Reload` because a guest reads it out of its request's
     // snapshot (`nvs:ext/settings`), and a reload checks the new block against the manifests the
     // new set loads before it publishes either.
     Directive { key: "ext", class: Class::System, apply: Apply::Reload },

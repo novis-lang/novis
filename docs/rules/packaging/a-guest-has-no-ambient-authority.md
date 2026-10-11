@@ -16,6 +16,13 @@ The same absence is what keeps an extension honest about qualifiers: with no amb
 sink of its own, it can declare what it consumes and produces but cannot launder
 (`rule:security/extension-cannot-launder`).
 
+A manifest may declare one settings block, `[ext.<name>]`, with each key's type — `bool`, `int`,
+`uint`, `float`, `string` or a list of strings — and its default. The block is the operator's, as the
+entry that loads the extension is, so it is `System` and reloads; a key the manifest does not declare
+is refused at boot and at reload, and the guest reads the block through `nvs:ext/settings`. A setting
+only narrows what the component does, as `[image] max_pixels` does, and never grants anything: the
+entry's `grants` are the only place a guest gains I/O.
+
 **Not on disk.** The import list is written as the `extension` world in `wit/nvs-ext/world.wit`, and
 `crates/nvs-stdlib/tests/ext_world.rs` checks it imports exactly the allowed interfaces. `nvs_ext::wasi`
 links every WASI interface of the world, and the loader admits a WASI import only from the
@@ -31,3 +38,11 @@ reach it. `nvs:ext/settings` reads the `[ext.<name>]` block of the request's sna
 (`nvs_cli::extensions::loaded`). `wasi:http`'s outgoing handler sends through
 `nvs_ext::call::Budget::send`, which `nvs serve` and `nvs run` answer with `Core\Http\Client`'s
 transport under the request's own context (`crates/nvs-ext/tests/http.rs`).
+
+**Declined:**
+- **Novis's own imports only, with no WASI.** It is the smallest surface, but C, Go and Zig
+  toolchains would need a shim to build at all, so a guest could no longer be written in any language
+  with a wasm target.
+- **Raw sockets.** A WASI socket connects to an address, so a grant written as a host name would need
+  the host to remember which addresses came from which lookups. That is a second copy of the outbound
+  policy, and TLS would become the guest's own code.

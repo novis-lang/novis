@@ -38,3 +38,9 @@ request's snapshot and its isolate's `grants:` list. Each root of it is a preope
 (`crates/nvs-ext/tests/files.rs`). `nvs_ext::wasi`'s outgoing handler refuses a host outside the
 `connect` set before anything is sent, and the caller's `net.connect` is asked again by the client
 that sends it, so the address policy, TLS trust and the proxy apply (`crates/nvs-ext/tests/http.rs`).
+
+**Declined:**
+- **The caller's authority alone.** A malicious extension would hold everything the application
+  holds.
+- **The entry's grant alone.** A request narrowed by an isolate would widen again through the
+  extension.

@@ -204,8 +204,8 @@ const REFUSED: &[(&str, &str)] = &[
 ];
 
 /// Every interface the `extension` world imports once resolved: its own
-/// three, the WASI ones 0246 § 2 allows, and the `wasi:io` interfaces those
-/// are written in.
+/// three, the WASI ones `rule:packaging/a-guest-has-no-ambient-authority`
+/// allows, and the `wasi:io` interfaces those are written in.
 const ALLOWED_IMPORTS: &[&str] = &[
     "nvs:ext/types@1.0.0",
     "nvs:ext/log@1.0.0",
@@ -670,7 +670,7 @@ fn the_settings_interface_reads_every_setting_type_a_manifest_may_declare() {
     .collect();
     assert_eq!(
         cases, expected,
-        "`setting`'s cases, one per type 0246 § 9 allows"
+        "`setting`'s cases, one per type a settings block allows"
     );
 
     let get = resolve.interfaces[settings]

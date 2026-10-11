@@ -85,9 +85,9 @@ pub struct Config {
     /// `[[extension]]` — a precompiled binary and its pin (`rule:packaging/extension-loading-is-root-controlled`).
     pub extension: Vec<Extension>,
     /// `[ext.<name>]` — one loaded extension's settings block, keyed on the name its manifest
-    /// declares (ADR 0246 § 9). Kept as written, because only that manifest knows the keys and
-    /// their types: the CLI checks each block against it at boot and at reload, and refuses a
-    /// block no loaded extension declares.
+    /// declares (`rule:packaging/a-guest-has-no-ambient-authority`). Kept as written, because
+    /// only that manifest knows the keys and their types: the CLI checks each block against it
+    /// at boot and at reload, and refuses a block no loaded extension declares.
     pub ext: BTreeMap<String, toml::Table>,
     /// `[debug]` — the probe set, default and ceiling in one (`rule:testing/debug-probes`).
     pub debug: Option<Debug>,

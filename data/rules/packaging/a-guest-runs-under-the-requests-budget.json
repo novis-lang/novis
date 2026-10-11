@@ -1,9 +1,7 @@
 {
   "title": "A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core",
   "status": "designed",
-  "because": [
-    "0246"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/on-limit",
     "packaging/a-fresh-instance-per-request"
