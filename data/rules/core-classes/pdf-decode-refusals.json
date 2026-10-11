@@ -1,9 +1,9 @@
 {
-  "title": "An encrypted document and a detectable omission both throw, and everything past rasterising is somebody else's job",
+  "title": "An encrypted document and a detectable omission both throw, and reading and merging are `Novis\\Pdf`'s",
   "status": "designed",
   "seeAlso": [
     "core-classes/pdf-page-is-an-image-source",
-    "core-classes/pdf-render-has-no-io",
+    "core-classes/pdf-reader-and-merge",
     "errors/ambiguous-input-refused"
   ],
   "guardedBy": []

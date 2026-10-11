@@ -1,7 +1,8 @@
 {
-  "title": "PDF generation is a first-party extension that performs no I/O, and an unresolved asset throws",
+  "title": "`Novis\\Pdf` is a built-in component that performs no I/O, and an asset it cannot resolve throws",
   "status": "designed",
   "seeAlso": [
+    "core-classes/pdf-roster",
     "core-classes/pdf-one-engine",
     "core-classes/pdf-output-is-inert",
     "core-classes/spreadsheet-has-no-io"

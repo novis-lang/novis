@@ -1,7 +1,8 @@
 {
-  "title": "The CSS subset is documented, and the render result lists every declaration it dropped",
+  "title": "The render result lists every declaration and element it dropped, every missing glyph and every overflow",
   "status": "designed",
   "seeAlso": [
+    "core-classes/pdf-css-subset-table",
     "core-classes/pdf-one-engine",
     "core-classes/spreadsheet-evaluation-and-roster"
   ],

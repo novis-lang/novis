@@ -1,0 +1,10 @@
+{
+  "title": "Existing PDFs are placed, merged and read in `Novis\\Pdf`, and an encrypted source throws",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/pdf-page-is-an-image-source",
+    "core-classes/pdf-decode-refusals",
+    "core-classes/pdf-factur-x-is-the-one-attachment"
+  ],
+  "guardedBy": []
+}

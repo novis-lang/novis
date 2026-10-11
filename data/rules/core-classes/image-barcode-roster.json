@@ -1,0 +1,10 @@
+{
+  "title": "`Novis\\Image\\Barcode` renders eight 1D and DataMatrix symbologies, and a code and a QR code render as SVG",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/image-one-entry-point-per-job",
+    "core-classes/image-format-roster",
+    "core-classes/pdf-one-engine"
+  ],
+  "guardedBy": []
+}

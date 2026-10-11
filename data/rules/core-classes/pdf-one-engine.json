@@ -1,11 +1,11 @@
 {
-  "title": "The only input language is HTML plus a CSS subset, and every backend answers that one interface",
+  "title": "The only input language is HTML plus a CSS subset, and one engine of our own over Rust crates renders it",
   "status": "designed",
   "seeAlso": [
     "core-classes/pdf-render-has-no-io",
     "core-classes/pdf-css-subset",
     "core-classes/html-parsing",
-    "core-classes/process-is-argv-only"
+    "core-classes/html-template"
   ],
   "guardedBy": []
 }

@@ -1,6 +1,8 @@
-A PDF is a **decode-only format of the image component**, not a member of the PDF generation package:
-a writer and an interpreter share no code, and a raster produced there would have to recross the
-boundary to enter the pipeline that is the whole point of loading one. No new entry point is added;
+Rasterising a PDF page is a **decode-only format of the image component**, not a member of
+`Novis\Pdf`: a raster produced there would have to recross the boundary to enter the pipeline that is
+the whole point of loading one. Reading a PDF's text, metadata and attachments, and merging pages, are
+`Novis\Pdf`'s (`rule:core-classes/pdf-reader-and-merge`), because they return text and bytes rather
+than pixels. No new entry point is added;
 the format enum simply gains a case.
 
 `open` gains two options meaningful for a paged source: a 1-based **page**, default `1`, and a
@@ -17,9 +19,10 @@ whole points. Counting pages is one header-only call that allocates no pixel.
 
 Rasterising is a pure function of the bytes and the options — no clock, no I/O, no system fonts — so
 equal input gives byte-equal output. The interpreter is **hayro**, pure Rust, compiled into the
-sandbox beside the codecs, with substitutes for the standard-14 fonts embedded in the component's data
-section so an unembedded-font document renders. It is linked only once it builds for the component's
-`wasm32` target and its dependency tree passes `deny.toml`. The sandbox is where a parser this large
+sandbox beside the codecs, with the Liberation fonts (`rule:core-classes/pdf-default-fonts`) standing
+in for the standard-14 fonts so an unembedded-font document renders. It is linked only once it builds
+for the component's `wasm32` target and its dependency tree passes `cargo deny` over the component's
+own graph. There is no fallback interpreter. The sandbox is where a parser this large
 belongs: the hostile-bytes surface it leaves is contained by the sandbox's memory cap and epoch
 deadline like every other decoder's, and the build gains no C.
 
@@ -38,7 +41,8 @@ image-heavy page, guest against the same crate native.
 refuses to encode it (`extensions/image/src/encode.rs`).
 
 **Declined:**
-- **A `rasterize` entry on the PDF generation package.** The writer and an interpreter share nothing,
-  and every raster would recross the boundary as bytes to reach `resize`.
-- **pdfium or MuPDF compiled to wasm.** pdfium is a large C++ build no other component needs a
-  toolchain for, and MuPDF is AGPL and outside `deny.toml`, while a pure-Rust interpreter exists.
+- **A `rasterize` member in `Novis\Pdf`.** Every raster would recross the boundary as bytes to reach
+  `resize`.
+- **pdfium or MuPDF compiled to wasm, as the interpreter or as a fallback.** pdfium in wasm needs
+  Emscripten and has no WASI build, and MuPDF is AGPL and outside `deny.toml`, while a pure-Rust
+  interpreter exists.

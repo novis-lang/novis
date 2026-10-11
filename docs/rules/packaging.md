@@ -1589,10 +1589,10 @@ other runtime's packaging is a reason to place a candidate.
 
 `rule:packaging/the-first-party-components-are-built-in`
 
-The image component and the intl component are `.nvsx` bytes embedded in every `nvs` binary and loaded
-before any `[[extension]]` entry. They are always present: a program may `use Novis\Image` or
-`Novis\Intl` on any host, in any bundle and under any configuration, and no setting or Cargo feature
-removes them.
+The image, intl and PDF components are `.nvsx` bytes embedded in every `nvs` binary and loaded
+before any `[[extension]]` entry. They are always present: a program may `use Novis\Image`,
+`Novis\Intl` or `Novis\Pdf` on any host, in any bundle and under any configuration, and no setting or
+Cargo feature removes them.
 
 They are still Tier 1. Each call runs in the sandbox with its own instance per request, under the
 request's CPU and memory caps, with an empty WASI and no grant
@@ -1604,8 +1604,10 @@ reserved for Tier 0 ([`core-api/core-means-always-present`](core-api.md#core-api
 Nothing is paid until a program calls one. The embedded bytes are compiled on a component's first use
 in a process and stored in the artifact cache like any other module
 ([`packaging/a-wasm-module-cache-reuses-the-artifact-cache`](packaging.md#packaging-a-wasm-module-cache-reuses-the-artifact-cache)). What it spends is the binary's size:
-mostly CLDR data and the codecs, on disk and in the page cache. The intl component is ICU4X with every
-CLDR locale compiled in, and its classes are [`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster). Should that growth make
+mostly CLDR data, the codecs and the PDF engine with its fonts, on disk and in the page cache. The intl
+component is ICU4X with every CLDR locale compiled in, and its classes are
+[`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster). The PDF component's classes are [`core-classes/pdf-roster`](core-classes.md#core-classes-pdf-roster).
+Should that growth make
 the single-file executable impractical for CLI programs, the answer is a smaller locale set, never an
 optional component.
 
@@ -1616,7 +1618,7 @@ A build script compiles their Rust crates, under `extensions/` and outside the w
 `wasm32-wasip2`, and packs each with the packer `nvs ext build` uses
 ([`packaging/nvs-ext-is-the-authoring-tool`](packaging.md#packaging-nvs-ext-is-the-authoring-tool)). `rust-toolchain.toml` lists the target, so no contributor installs it by hand. Because the
 crates are outside the workspace, the ordinary `cargo build` never resolves them for the host target.
-A clean build compiles both for wasm, ICU4X's compiled data among them, and an incremental build reuses
+A clean build compiles all three for wasm, ICU4X's compiled data among them, and an incremental build reuses
 their target directory. The one C library is prebuilt
 ([`packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`](packaging.md#packaging-a-prebuilt-wasm-library-is-rebuilt-in-ci)).
 
@@ -1635,13 +1637,14 @@ call (`crates/nvs-cli/src/extensions.rs`), so `Novis\Image\Codec::info` answers 
 embedded the same way as `nvs_ext::builtin::INTL` with its digest folded in beside the image's. Its
 manifest class is `Novis\Intl\Icu`, of whose exports `collateOrder` and `sortKeys` are implemented and
 the others return `runtime`; its Novis half is `Novis\Intl\Collator` (`crates/nvs-ext/tests/intl.rs`).
+The PDF crate, `extensions/pdf/`, does not exist yet; its interface is `wit/pdf.wit`.
 
 **Declined:**
 - **Embedded, but removable by a setting or a Cargo feature.** Whether `Novis\Image` exists would
   depend on configuration again, the failure [`core-api/core-means-always-present`](core-api.md#core-api-core-means-always-present) prevents.
 - **Installed beside the binary, with an `[[extension]]` entry per deployment.** That is one
-  configuration step for two features every web application uses, and a program could not know
-  whether either exists without asking its deployment.
+  configuration step for features every web application uses, and a program could not know
+  whether one exists without asking its deployment.
 - **Both finished `.nvsx` files committed.** Tens of megabytes of binary in git on every CLDR or codec
   update.
 
@@ -2281,7 +2284,7 @@ before either is written.
 
 <a id="packaging-pdf-decoding-ships-in-the-image-package"></a>
 
-## PDF is a decode-only format of `nvs/image`, in the second wave, and never a member of `nvs/pdf`  *(designed — not yet in the compiler)*
+## Rasterising a PDF page is a decode-only format of `Novis\Image`, and never a member of `Novis\Pdf`  *(designed — not yet in the compiler)*
 
 `rule:packaging/pdf-decoding-ships-in-the-image-package`
 
@@ -2290,22 +2293,30 @@ PDF joins the image component's format roster **decode only**, in the second wav
 set of exports are unchanged ([`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster),
 [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source)).
 
-It is not a member of `nvs/pdf`. A writer and an interpreter share no code, and a raster produced in the
-generation package would have to recross the boundary to enter the image pipeline that is the whole
-point of loading one. Generation stays [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)'s; text extraction,
-page manipulation and forms are different jobs and stay in the third-party channel.
+Rasterising is not a member of `Novis\Pdf`. A raster produced in the PDF component would have to
+recross the boundary to enter the image pipeline that is the whole point of loading one. Everything a
+program does with a PDF that ends in text or bytes — reading its text, metadata and attachments,
+merging and splitting pages, placing a page in a document — is `Novis\Pdf`'s
+([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)), and both components compile the same interpreter, `hayro`,
+into their own sandbox.
 
 The usual alternative is ImageMagick delegating to Ghostscript — an installed, unsandboxed
 interpreter with an RCE history long enough that ImageMagick's stock policy ships with the PDF coder
 disabled. A PDF interpreter is a strictly larger hostile-bytes case than any format already on the
 roster, and the sandbox is where a parser that size belongs.
 
+- **Memory:** the interpreter is in both components' bytes, so the binary carries it twice; each
+  request instantiates only the component it calls.
+
 **Declined:**
 - **Leaving PDF rasterising to the third-party channel.** Thumbnailing and counting the pages of an
   uploaded PDF is a universal job, and owning one sandboxed way to do it removes the host-interpreter
   shell-out as a class.
+- **One component for both jobs.** A program thumbnailing an upload would instantiate a layout engine
+  it never calls, and a render would carry the codecs; the second copy of `hayro` costs binary size,
+  which is the cheaper account.
 
-<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads).</sub>
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge), [`packaging/an-extension-package-carries-two-payloads`](packaging.md#packaging-an-extension-package-carries-two-payloads).</sub>
 
 <a id="packaging-a-service-is-one-stored-argv"></a>
 

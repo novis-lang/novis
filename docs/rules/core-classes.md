@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*24 of 99 rules below are **designed** rather than shipped, and are marked where they appear.*
+*33 of 108 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -3311,6 +3311,45 @@ that references an external file and rasterises with the reference unresolved.
 
 <sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
+<a id="core-classes-image-barcode-roster"></a>
+
+## `Novis\Image\Barcode` renders eight 1D and DataMatrix symbologies, and a code and a QR code render as SVG  *(designed — not yet in the compiler)*
+
+`rule:core-classes/image-barcode-roster`
+
+`Novis\Image\Barcode` renders **Code 128, GS1-128, EAN-13, EAN-8, UPC-A, Code 39, ITF-14 and
+DataMatrix**, chosen by `Barcode::Symbology`, each as an SVG string or as any raster format the
+component encodes. QR codes stay `Novis\Image\QrCode`'s, which gains SVG output too.
+
+| Member | What it does |
+|---|---|
+| `Barcode::render(string $data, Barcode::Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format} $options = null): bytes` | the code as an encoded image, PNG by default |
+| `Barcode::svg(string $data, Barcode::Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool} $options = null): string` | the code as an SVG document |
+| `QrCode::svg(string $data, ?{margin?: uint, level?: QrCode::Level} $options = null): string` | a QR code as an SVG document |
+| `QrCode::giroCode({name: string, iban: string, amount?: Core\Decimal, bic?: string, reference?: string, text?: string}): string` | the EPC payment text (GiroCode) a banking app reads, for `QrCode::render` or `QrCode::svg` |
+
+A wrong check digit, or a character the symbology cannot carry, throws `LogicError` naming it; a code
+is never repaired by computing a digit the program did not write. `giroCode` checks the IBAN's checksum
+and the field lengths the EPC layout fixes, and is Novis source: the payload is text, so it needs no
+crossing. SVG output is vector, so a code in a PDF prints sharp at any size; it is the one form a PDF
+document needs ([`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine)).
+
+The 1D codes are `barcoders` and DataMatrix is `datamatrix`, both pure Rust in the image component's
+sandbox. Every code a test writes is read back by a reader that is a dev-dependency of the test only.
+
+- **Memory:** a code is at most a few thousand modules, so a render is far under the pixel cap.
+
+**Not shipped.** There is no barcode export in the image component.
+
+**Declined:**
+- **PDF417 and Aztec.** Each is a large encoder for documents almost no web application produces.
+- **A barcode reader.** Reading a code from a photo is a computer-vision job, outside a codec
+  component.
+- **Computing a missing check digit.** The program wrote a number; the code carries that number or
+  throws.
+
+<sub>See also [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine).</sub>
+
 <a id="core-classes-intl-roster"></a>
 
 ## `Novis\Intl` is eight classes, one per job, over one manifest class, and message formatting is not in it  *(designed — not yet in the compiler)*
@@ -3478,35 +3517,43 @@ fields and the guest converts them.
 
 <a id="core-classes-pdf-render-has-no-io"></a>
 
-## PDF generation is a first-party extension that performs no I/O, and an unresolved asset throws  *(designed — not yet in the compiler)*
+## `Novis\Pdf` is a built-in component that performs no I/O, and an asset it cannot resolve throws  *(designed — not yet in the compiler)*
 
 `rule:core-classes/pdf-render-has-no-io`
 
-PDF generation is a first-party Tier 1 extension package, `nvs/pdf`, sandboxed, with everything a
-program names under `Novis\Pdf` and one registered class. It is not `Core`: a layout engine, a font parser and
-image codecs unsandboxed in every binary would contradict the reason the image component is an
-extension at all. It is not native: nothing in it holds state or privilege.
+PDF generation is the third built-in component ([`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in)):
+everything a program names is under `Novis\Pdf`, present in every binary, and run in the sandbox with
+no grant. It is not `Core`: a layout engine, a font parser and image codecs unsandboxed in every request
+would contradict the reason the image component is a component. It is not native: nothing in it holds
+state or privilege past one request.
 
-**The component performs no I/O of any kind.** Every asset a document uses — images, stylesheets
-beyond the inline ones, fonts — crosses the boundary as bytes in a caller-supplied map, and a
-reference in the HTML resolves against that map and nothing else. A scheme, an absolute path, or a
-name the map lacks **throws** rather than rendering a broken-image gap: a generated document must be
-deterministic, and refusing beats repairing. A program that wants a remote image fetches it itself,
-under the outbound policy, and passes the bytes.
+**The component performs no I/O of any kind.** Every asset a document uses — images, stylesheets beyond
+the inline ones, fonts, and PDFs placed as pages — crosses the boundary as bytes in a caller-supplied
+map, and a reference in the HTML, the CSS or an inline SVG resolves against that map and nothing else. A
+`data:` URI decodes in place, because its bytes are already in the document. A `file:` or `http(s):`
+URL, an absolute path, or a name the map lacks **throws** `LogicError` naming it, rather than rendering
+a broken-image gap: a generated document must be deterministic, and refusing beats repairing. A program
+that wants a remote image fetches it itself, under the outbound policy, and passes the bytes.
 
 The class of exploit that defines HTML-to-PDF rendering — server-side request forgery and local file
-read through a `<img src>` — is thereby absent by construction: there is nothing to trick into
-fetching, because there is no fetching. Fonts follow the same rule, with a small embedded default set
-so a plain document renders out of the box, and the guest needs no clock: a rendered date is text
-the program already put in its HTML. HTML, CSS, font files, embedded images and SVG are still hostile
-bytes, and the sandbox's memory cap and epoch deadline contain that surface.
+read through an `<img src>` — is thereby absent by construction: there is nothing to trick into
+fetching, because there is no fetching. The guest needs no clock either: a date in the document is text
+the program wrote, and the file carries a creation time only when the program passes one
+([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)). HTML, CSS, fonts, images and SVG are still hostile bytes. The
+request's memory cap and deadline contain them, the HTML is held to the parser's element cap
+([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)), and the component adds **no limit of its own**: a bulk or slow
+render belongs in `Core\Queue`.
 
-The component's fixtures owe: a render with **no capability grants** that succeeds, so the no-I/O
-claim is demonstrated rather than asserted; and fixtures referencing `file:///…`, an `http:` URL and
-a name absent from the asset map, each throwing, with no network or filesystem access observable from
-the guest.
+The component's fixtures owe: a render with **no capability grants** that succeeds, so the no-I/O claim
+is demonstrated rather than asserted; a `file:///…` reference, an `http:` URL and a name absent from
+the asset map, each in HTML, CSS and SVG and each throwing, with no network or filesystem access
+observable from the guest; and a `data:` image that renders.
 
-**Not shipped.** There is no PDF package in the tree; M17 builds it.
+- **Memory:** per rendering request, the HTML, the asset map, the layout tree and the output document,
+  all inside the request's memory cap and freed when the request ends. A program that never renders
+  pays nothing.
+
+**Not shipped.** There is no PDF component in the tree.
 
 **Declined:**
 - **`Core`.** A layout engine, a font parser and image decoders would sit unsandboxed in every binary
@@ -3516,109 +3563,496 @@ the guest.
 - **Leaving the category to the third-party channel.** That produces incompatible libraries with
   disjoint CSS subsets, and the popular ones fetch whatever the HTML names, which is the category's
   vulnerability class. One first-party no-I/O way to do the job prevents both.
+- **A fetch hook or an allow-list of hosts.** It brings back the fetching this rule removes, and a
+  program already fetches under its own outbound policy.
+- **A render limit of its own.** A render is a request's work, priced by the request's memory cap and
+  deadline like any other; a second knob would be one more number to tune with no new bound behind it.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io).</sub>
+<sub>See also [`core-classes/pdf-roster`](core-classes.md#core-classes-pdf-roster), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io).</sub>
+
+<a id="core-classes-pdf-roster"></a>
+
+## `Novis\Pdf` is `Document`, `Page`, `Rendered`, `Pages` and `Reader`, with `Engine` the manifest class  *(designed — not yet in the compiler)*
+
+`rule:core-classes/pdf-roster`
+
+`Novis\Pdf` is five classes a program names — `Document` renders, `Page` is one page's facts, `Rendered`
+is a render's result, `Pages` merges and `Reader` reads — and `Engine`, the manifest class whose static
+methods are the WIT exports (`wit/pdf.wit`), the way `Novis\Image\Codec` is the image component's.
+
+| Member | What it does |
+|---|---|
+| `Document::fromHtml(Core\Html\Markup\|string $html): Document` | the document to render |
+| `->asset(string $name, bytes $data): Document` | adds one named asset ([`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)) |
+| `->header(callable $fn, ?{height?: string} $options = null): Document` | a function from `Page` to `Core\Html\Markup`, drawn in the top margin of each page ([`core-classes/pdf-header-is-a-page-function`](core-classes.md#core-classes-pdf-header-is-a-page-function)) |
+| `->footer(callable $fn, ?{height?: string} $options = null): Document` | the same, in the bottom margin |
+| `->slots(callable $fn): Document` | a function from `Page` to `array<string, Core\Html\Markup>`, filling each `<slot name>` in a repeated table row ([`core-classes/pdf-tables-across-pages`](core-classes.md#core-classes-pdf-tables-across-pages)) |
+| `->standard(Document::Standard $standard): Document` | `PdfA2b`, `PdfA3b` or `PdfUa1` ([`core-classes/pdf-standards-and-passwords`](core-classes.md#core-classes-pdf-standards-and-passwords)) |
+| `->invoiceXml(string $xml): Document` | the Factur-X XML ([`core-classes/pdf-factur-x-is-the-one-attachment`](core-classes.md#core-classes-pdf-factur-x-is-the-one-attachment)) |
+| `->password(string $password): Document` | encrypts the output with AES-256 |
+| `->created(Core\Time\Instant $at): Document` | the creation time in the metadata; absent, the file has none |
+| `->render(): Rendered` | one render: one call, two with a header, footer or slot function |
+| `Page->number`, `->count`, `->isFirst()`, `->isLast()`, `->name` | the page's number from 1, the document's page count, and its named page or `null` |
+| `Page->string(string $name): ?string` | the page's `string-set` value |
+| `Page->marks(string $name): array<string>`, `->marksUpTo(string $name): array<string>` | the `data-mark` values on this page, and on every page up to it |
+| `Rendered->bytes`, `->pageCount` | the file and its page count |
+| `Rendered->dropped`, `->missingGlyphs`, `->overflows` | what the render could not do ([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)) |
+| `Pages::of(bytes $pdf, ?array<uint> $pages = null): Pages`, `Pages::merge(array<Pages> $parts): bytes` | merging, splitting and reordering ([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)) |
+| `Reader::open(bytes $pdf): Reader`, `->pageCount`, `->metadata`, `->attachments()`, `->invoiceXml()`, `->text(uint $page): string` | reading a PDF |
+
+`Document` is a value: each method returns a new `Document`, so a base document with its assets and
+footer is shared and varied without one render changing another. `Standard` is declared in
+`Document`, the one class that uses it ([`enums/an-enum-lives-in-the-class-that-uses-it`](enums.md#enums-an-enum-lives-in-the-class-that-uses-it)).
+`Page` and `Rendered` are made only by the component.
+
+**The errors**, each naming what it refuses:
+
+| Throws | When |
+|---|---|
+| `LogicError` | a reference the asset map does not resolve; a broken standard; an invoice XML outside PDF/A-3b; a password beside a PDF/A standard; a page number outside its document in `Pages::of` or `Reader::text` |
+| `ParseError` | a source PDF, font or image that does not parse; an encrypted source PDF; an invoice XML that is not well-formed |
+| `RuntimeError` | page numbers that do not settle after five layout passes (`target-counter()`, `counter(pages)`) |
+
+The request's memory cap and deadline end a render that exceeds them as they end any call.
+
+- **Memory:** a `Document` holds its HTML and its assets until it is freed; the render's own memory is
+  [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)'s.
+
+**Not shipped.** There is no PDF component in the tree.
+
+**Declined:**
+- **A `Pdf` facade with static `render($html, $options)`.** The options a render takes — assets, three
+  functions, a standard, a password — are an options bag too large to read, and a base document could
+  not be shared.
+- **`data-mark-<name>` attributes.** The editor completes fixed attribute names only, so one
+  `data-mark="name:value"` attribute is what completes and explains itself.
+
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-header-is-a-page-function`](core-classes.md#core-classes-pdf-header-is-a-page-function), [`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge), [`core-api/options-bag`](core-api.md#core-api-options-bag).</sub>
 
 <a id="core-classes-pdf-one-engine"></a>
 
-## The only input language is HTML plus a CSS subset, and every backend answers that one interface  *(designed — not yet in the compiler)*
+## The only input language is HTML plus a CSS subset, and one engine of our own over Rust crates renders it  *(designed — not yet in the compiler)*
 
 `rule:core-classes/pdf-one-engine`
 
-The sole input language is **HTML plus the CSS subset plus inline SVG**. The top-down way of building
-a document — append a heading, a table, a page break, mix computed parts with template parts — is a
-Novis-side builder that **emits that same HTML**, and document parts compose by concatenation before
-a single render call.
+The sole input language is **HTML plus the CSS subset plus inline SVG**, and there is one engine. A
+program builds a document the way it builds a page: with ``html`…` `` templates
+([`core-classes/html-template`](core-classes.md#core-classes-html-template)) that compose by concatenation before a single render call. There is
+no Novis-side builder of headings and tables, because a template already is one.
 
-There is no second, imperative engine with its own coordinate model. That would be two spellings for
+There is no second, imperative engine with its own coordinate model. That would be two ways to write
 one job, and a program that owns both a DOM-based renderer and a coordinate-based one maintains two
-layouts of every page. Drawings are inline SVG, the same answer the image component gives for charts.
+layouts of every page. Drawings are inline SVG, the same answer the image component gives for charts,
+and an existing PDF's page is placed with `<img>` ([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)).
 
 The HTML is parsed by the same crate the language's own parser uses
-([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)), compiled into the sandbox rather than linked natively, so the
-language and its PDF component parse HTML identically.
+([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)), the patched copy under `vendor/html5ever`, compiled into the
+sandbox rather than linked natively, so the language and its PDF component parse HTML identically and
+under the same element cap.
 
-**The interface is the contract; the engine is a choice the program states explicitly.** A document
-the subset will never reach — heavy JavaScript-era CSS, a pixel-perfect brand PDF signed off against
-a browser — is served by an **opt-in** second backend behind the same call shape: an external
-headless browser driven under the process capability ([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)),
-never shipped in the default path, and documented as trading the no-I/O guarantee for fidelity. It is
-a second *engine*, not a second API, which is the whole reason a single interface was worth fixing
-first.
-
-No HTML paged-media engine exists to link as a library, so the engine is assembled from production
-Rust crates — `html5ever`, `taffy` for layout, `rustybuzz` for shaping, `resvg` for SVG and
-`krilla`/`pdf-writer` for the file — plus the pagination layer nobody ships, which is ours to write.
-The rules on this component are written against the interface, not the crates: a production-grade Rust
-paged-media engine may replace the assembled one wholesale, and it must still meet them.
+No HTML paged-media engine exists to link as a library, so the engine is **our own cascade, layout and
+pagination** over production Rust crates: `cssparser` and `selectors` for the cascade, `parley` over
+`harfrust` and `skrifa` for text, with `fontique`'s system font discovery off, `hypher` for
+hyphenation, `taffy` for flex and grid, `usvg` and `krilla-svg` for SVG, `hayro` through `krilla`'s
+`pdf` feature for placed pages, and `krilla` for the file. The pagination layer nobody ships is ours to
+write. A crate that does not build for `wasm32-wasip2` is replaced by its nearest pure-Rust equivalent,
+and this paragraph names the replacement. The rules on this component are written against the
+interface, not the crates, so a production-grade paged-media crate may replace the assembled engine
+wholesale and must still meet them.
 
 - **Memory:** per request that renders, the HTML, the asset map, the layout tree and the output
-  document, all inside the extension's memory cap, none of it outliving the request. Wall-clock is
+  document, all inside the request's memory cap, none of it outliving the request. Wall-clock is
   milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
   queue.
 
-**Not shipped.** There is no PDF package in the tree.
+**Not shipped.** There is no PDF component in the tree.
 
 **Declined:**
+- **A Novis-side document builder** that appends headings, tables and page breaks and emits HTML. It
+  is a second way to write what a template already writes, and every element it knows is one more
+  name to learn and keep in step with the subset.
+- **A headless-browser backend**, opt-in or default. It is a browser process per render, hundreds of
+  megabytes outside any request's attribution, with its own sandbox and lifecycle to operate, and it
+  fetches whatever the HTML names. A document the subset cannot reach is written in the subset, or
+  rendered by a program outside Novis.
 - **An engine written in Novis.** It would be a second, unfuzzed implementation of shaping, bidi, line
-  breaking, cascade and layout, buying nothing the wasm build does not already give. Novis code
-  belongs in the builder and the templates.
-- **Headless Chromium as the engine.** It is a browser process per render, hundreds of megabytes
-  outside any request's attribution, with its own sandbox and lifecycle to operate. It is the opt-in
-  fidelity backend above, not the foundation.
+  breaking, cascade and layout, buying nothing the wasm build does not already give.
 - **A first-party imperative PDF API.** The first-party answer to drawing at a coordinate is HTML, CSS
   and SVG; a third-party package may carry one.
+- **`fulgur` or WeasyPrint as a dependency.** `fulgur` has the same design and is young, and WeasyPrint
+  is Python; both are references and test comparisons only.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-template`](core-classes.md#core-classes-html-template).</sub>
 
 <a id="core-classes-pdf-css-subset"></a>
 
-## The CSS subset is documented, and the render result lists every declaration it dropped  *(designed — not yet in the compiler)*
+## The render result lists every declaration and element it dropped, every missing glyph and every overflow  *(designed — not yet in the compiler)*
 
 `rule:core-classes/pdf-css-subset`
 
-The engine implements a **documented subset** of CSS — block and inline flow, tables, flex, fonts,
-images, inline SVG and the page family are the working floor — and handles everything outside it by
-CSS's own forward-compatible parsing: an unknown declaration is dropped, never guessed at.
+The engine implements a **documented subset** of CSS ([`core-classes/pdf-css-subset-table`](core-classes.md#core-classes-pdf-css-subset-table)) and
+handles everything outside it by CSS's own forward-compatible parsing: an unknown declaration is
+dropped, never guessed at.
 
-What this rule adds to that standard behaviour is **visibility**. The render result carries the list
-of dropped declarations, so a test asserts the list is empty and a document that silently depends on
-unsupported CSS cannot survive CI. "Renders fine in the browser, wrong in the library" is the failure
-an invisible drop produces, and a visible list is what turns it into a test. The subset stays a
-permanent compatibility surface: the list names each gap, and does not close it.
+What this rule adds to that standard behaviour is **visibility**. `Rendered::dropped` lists every
+declaration the engine dropped with its property, value, selector and source position, so a test
+asserts the list is empty and a document that silently depends on unsupported CSS cannot survive CI.
+"Renders fine in the browser, wrong in the PDF" is the failure an invisible drop produces, and a visible
+list is what turns it into a test. The same holds for content: an element the subset does not render
+(`<iframe>`, `<video>`, `<canvas>`, a form field) is listed and drawn as nothing, and `<script>` never
+runs and is not listed, because no program expects it to run in a document.
+
+Three other things a render cannot do are **reported, never thrown**, because the document is still
+correct apart from them and a throw would lose the whole file over one character:
+
+- a character no font in the chain has is drawn as the font's empty box and listed in
+  `Rendered::missingGlyphs` with the fonts it tried ([`core-classes/pdf-default-fonts`](core-classes.md#core-classes-pdf-default-fonts));
+- markup in a margin, a header, a footer or a slot taller than its area is listed in
+  `Rendered::overflows` with its page ([`core-classes/pdf-header-is-a-page-function`](core-classes.md#core-classes-pdf-header-is-a-page-function));
+- a declaration the subset lists with a value it does not take is dropped and listed like an unknown
+  one.
 
 The component's fixtures owe a fixture using an unsupported property that renders with that property
-in the dropped-declarations list, and a clean fixture whose list is empty.
+in the dropped list, and a clean fixture whose three lists are empty.
 
-**Not shipped.** There is no PDF package in the tree.
+**Not shipped.** There is no PDF component in the tree.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
+**Declined:**
+- **A strict mode that throws on the first dropped declaration.** A test asserting `dropped` is empty
+  is the strict mode, and it shows every drop at once instead of the first.
+
+<sub>See also [`core-classes/pdf-css-subset-table`](core-classes.md#core-classes-pdf-css-subset-table), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
+
+<a id="core-classes-pdf-css-subset-table"></a>
+
+## The CSS subset is `extensions/pdf/subset.json`, a table a test reads and the editor's data is generated from  *(designed — not yet in the compiler)*
+
+`rule:core-classes/pdf-css-subset-table`
+
+The CSS subset is **data**: `extensions/pdf/subset.json` lists every property, value function,
+at-rule, selector and PDF-specific HTML attribute the engine implements, each with a one-line plain
+description, and nothing restates it item by item. A test reads the file: every property it lists
+parses, and every property it does not list is dropped and reported
+([`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset)). The editor's completion and hover data are generated from it, so
+the editor offers exactly what renders.
+
+What the subset holds, by family — the file is the list, this is the decision:
+
+| Family | In the subset |
+|---|---|
+| Cascade | type, class, id, attribute, descendant, child and sibling selectors, the structural pseudo-classes, `::before` and `::after`, specificity, inheritance, `!important`, `var()`, `calc()`, `@media print` and `all` (never `screen`), `@font-face` |
+| Text | fonts and the font chain, alignment with `justify`, `line-height`, indent, decoration, transform, spacing, `white-space`, `word-break`, `overflow-wrap`, `text-overflow: ellipsis`, `vertical-align`, `font-feature-settings`, bidi, CJK line breaking, `hyphens: auto` |
+| Boxes | margin, padding, borders (solid, dashed, dotted, double), `border-radius`, sizes with min and max, `box-sizing`, background colours, images and gradients, `outline`, `opacity`, `inline-block`, `display: none` |
+| Lists | markers (decimal, roman, alpha, disc), `counter-reset`, `counter-increment`, `content` |
+| Images | JPEG, PNG, GIF, WebP, SVG and a PDF page in `<img>`, inline `<svg>`, `object-fit` |
+| Layout | flex and grid, floats and `clear`, `relative`, `absolute` and `fixed` positioning with `z-index`, 2D transforms |
+| Pages | `@page` with size, margins, `:first`, `:left`, `:right`, `:blank` and named pages; the 16 margin boxes; `counter(page)`, `counter(pages)`, `string-set`, `string()`, `position: running()`, `element()`, `target-counter()`, `leader()`; `break-before`, `break-after`, `break-inside`, the `page-break-*` aliases, `orphans`, `widows` |
+| Tables | [`core-classes/pdf-tables-across-pages`](core-classes.md#core-classes-pdf-tables-across-pages), with `box-decoration-break: slice` |
+| HTML | `data-repeat`, `data-mark`, `<slot name>`, `<a href>` to `http(s):`, `mailto:` and `#anchor`, `<title>`, `<meta>`, `lang` |
+
+**Out of the subset, dropped and reported:** footnotes, multi-column, `box-shadow`, `text-shadow`,
+`filter`, masks, `clip-path`, blend modes, 3D transforms, animation, transitions, `position: sticky`,
+vertical writing modes, ruby, subgrid, `box-decoration-break: clone`, form fields, `<iframe>`,
+`<video>` and `<canvas>`. `<script>` never runs. Splitting one flex line or grid row across pages is
+out too: a row moves to the next page whole.
+
+The line between in and out is one test: **every common case is in, an edge case is in when it is
+easy, and a hard edge case almost nobody needs in a document stays out.** Everything on the out list
+either draws nothing on paper (animation, transitions, `sticky`), needs a second layout model for a
+rare document (footnotes, multi-column, vertical writing, ruby, subgrid) or is a raster effect a
+vector file draws badly (shadows, filters, masks, blend modes).
+
+- **Memory:** none at run time beyond the cascade's computed styles, which are part of the layout tree.
+
+**Not shipped.** There is no PDF component in the tree, and `extensions/pdf/subset.json` is written
+with the cascade.
+
+**Declined:**
+- **The subset as prose only.** A list nothing reads drifts from what the engine parses, and the
+  editor could not complete from it.
+
+<sub>See also [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/pdf-tables-across-pages`](core-classes.md#core-classes-pdf-tables-across-pages), [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter).</sub>
+
+<a id="core-classes-pdf-tables-across-pages"></a>
+
+## A table across pages keeps its columns, repeats its header and footer, never cuts a line and closes its borders  *(designed — not yet in the compiler)*
+
+`rule:core-classes/pdf-tables-across-pages`
+
+A table that runs over several pages follows **eight rules, each a default with no configuration**:
+
+1. **Column widths are computed once for the whole table**, so every page has the same columns.
+2. **`thead` repeats at the top and `tfoot` at the bottom of every page the table is on.** A row
+   inside either says when it shows with `data-repeat`: `every` (the default), `first`, `last`, or
+   `continued`, which shows only where the table goes on to another page.
+3. **A row that fits on a page is never split.** A row taller than a page splits between lines of
+   text, never through a line, an image or a glyph, and each cell continues on the next page.
+4. **Borders are closed at every break**: the table's outer border and collapsed cell borders are
+   drawn on both sides of it. `box-decoration-break: slice` on the table restores CSS's open edge.
+5. **A header is never alone.** `orphans` and `widows` on a table count rows, default 2, and a table
+   never starts at a page bottom with only its `thead`.
+6. **A `<tbody>` and a `rowspan` group stay together** when they fit on a page, and split between
+   rows when they do not.
+7. **The caption shows on the first page only**, and `:nth-child` striping follows source order.
+8. **A `<slot name="…">` in a repeated row** is filled per page by `Document::slots`
+   ([`core-classes/pdf-header-is-a-page-function`](core-classes.md#core-classes-pdf-header-is-a-page-function)). The slot keeps its row's height, so filling it
+   never moves anything, and text that does not fit is listed in `Rendered::overflows`.
+
+They are the rules an invoice, a statement and a long report need, and browsers keep only the second
+half of the second: a table cut through a line of text, a lone header at a page bottom, an open border
+and a carried-forward total that cannot be written are each a reason a program reaches for a second
+tool. Each rule is the reading a person expects, so none needs a setting.
+
+- **Memory:** the table's column widths and each row's height, once, as part of the layout tree.
+
+**Not shipped.** There is no PDF component in the tree.
+
+**Declined:**
+- **A setting per rule.** Each default is the one a document wants; `data-repeat`,
+  `box-decoration-break` and `orphans` already override where a document wants otherwise.
+- **Running totals in the table engine.** `data-mark` and a slot write one, with the arithmetic in
+  Novis.
+
+<sub>See also [`core-classes/pdf-header-is-a-page-function`](core-classes.md#core-classes-pdf-header-is-a-page-function), [`core-classes/pdf-css-subset-table`](core-classes.md#core-classes-pdf-css-subset-table).</sub>
+
+<a id="core-classes-pdf-header-is-a-page-function"></a>
+
+## A header, a footer or a slot is a Novis function called once per page, placed by a second call that never moves the body  *(designed — not yet in the compiler)*
+
+`rule:core-classes/pdf-header-is-a-page-function`
+
+A header, a footer or a table slot that needs the program's own logic is a **Novis function called once
+per page** with that page's `Page`, returning ``html`…` `` markup. Headers that need no logic are CSS:
+the 16 margin boxes, `counter(page)`, `counter(pages)`, `string-set` and running elements, all in the
+subset ([`core-classes/pdf-css-subset-table`](core-classes.md#core-classes-pdf-css-subset-table)).
+
+**A render with a function is two calls to the component.** The first lays out the body, keeps the laid-out
+pages in the request's instance ([`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request)) and returns each
+page's facts with no file. Novis then calls each function once per page, with no crossing. The second
+call carries every page's markup, places it in the margins and slots of the kept pages, and writes the
+file. `wit/pdf.wit`'s `render` takes either pass, and a second pass with no first in the instance
+returns `invalid`.
+
+**A header never moves the body.** Each margin's height is fixed before the body is laid out, by
+`@page`'s margin or the function's `height` option, so the page breaks the function saw are the page
+breaks of the file. Markup taller than its margin is clipped to it and listed in `Rendered::overflows`
+with its page. A slot keeps its row's height, so filling it moves nothing either. Where a margin box and
+a function both fill one margin, the function's markup is drawn.
+
+**`Page`** carries the number, the count, whether it is the first or the last, its named page, its
+`string-set` values and its **marks**. A mark is `data-mark="name:value"` on any element, several
+separated by `;`. `marks(name)` returns the values on that page and `marksUpTo(name)` those on every
+page up to it, as strings, so a carried-forward total is `Core\Decimal` arithmetic in Novis and never
+rounds through a float.
+
+- **Memory:** between the two calls, the request's instance keeps the laid-out body, inside the
+  request's cap, and drops it with the instance. Novis holds one `Page` per page and the markup the
+  functions return.
+
+**Not shipped.** There is no PDF component in the tree.
+
+**Declined:**
+- **A function called from the guest per page.** The world has no export a guest calls back into
+  Novis through, and a crossing per page costs more than one batch.
+- **Laying the body out again with the headers in place.** A header that moved the body would change
+  the page breaks the function saw, and the page count with them.
+- **Running totals computed by the engine.** Which marks add up, in which currency and rounding, is
+  the program's; the engine reports where each mark landed.
+
+<sub>See also [`core-classes/pdf-roster`](core-classes.md#core-classes-pdf-roster), [`core-classes/pdf-tables-across-pages`](core-classes.md#core-classes-pdf-tables-across-pages), [`packaging/a-fresh-instance-per-request`](packaging.md#packaging-a-fresh-instance-per-request), [`core-classes/html-template`](core-classes.md#core-classes-html-template).</sub>
 
 <a id="core-classes-pdf-output-is-inert"></a>
 
-## The writer emits nothing a reader would execute, and equal input gives byte-equal output  *(designed — not yet in the compiler)*
+## The writer emits nothing a reader would execute, the invoice XML is its one attachment, and equal input gives byte-equal output  *(designed — not yet in the compiler)*
 
 `rule:core-classes/pdf-output-is-inert`
 
-The writer never emits JavaScript, launch actions, embedded files, or any construct that makes a
-reader fetch or execute on open. Links exist only where the source wrote one with an `http(s):` or
-`mailto:` target. Rendering `tainted` input is safe by construction — the render is a transform, not
-a sink — and a program embedding untrusted markup that wants its *tags* constrained sanitizes first ([`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)).
+The writer never emits JavaScript, launch actions, an open action, form fields, or any construct that
+makes a reader fetch or execute on open. Links exist only where the source wrote one with an `http(s):`,
+`mailto:` or `#anchor` target. Rendering `tainted` input is safe by construction — the render is a
+transform, not a sink — and a program embedding untrusted markup that wants its *tags* constrained
+sanitizes first ([`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)).
 
-The writer also embeds **no timestamps and no generator entropy**, so two renders of equal input are
-byte-equal. That turns a document test into a byte comparison and removes the class of flaky fixture
-every PDF test suite otherwise grows.
+The one embedded file the writer ever emits is a **Factur-X invoice XML**, under PDF/A-3b only
+([`core-classes/pdf-factur-x-is-the-one-attachment`](core-classes.md#core-classes-pdf-factur-x-is-the-one-attachment)). An embedded file a reader opens is a
+delivery channel for anything, so no other attachment exists, and the invoice XML is data the reader
+parses, never opens.
 
-The second, fidelity backend ([`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine)) makes no exception to any of this:
-it trades the no-I/O guarantee, not the inertness of what it writes.
+The writer embeds **no timestamp unless the program passes one, and no generator entropy**: the
+document id is derived from the content, and nothing depends on hash-map order or on float formatting
+that varies between runs. So two renders of equal input are byte-equal, including encrypted output,
+whose salts and key are derived the same way ([`core-classes/pdf-standards-and-passwords`](core-classes.md#core-classes-pdf-standards-and-passwords)). That
+turns a document test into a byte comparison and removes the class of flaky fixture every PDF test
+suite otherwise grows.
 
 The component's fixtures owe a scanner over the output of the whole fixture corpus that finds no
-`/JavaScript`, `/Launch`, `/OpenAction` or `/EmbeddedFile` object, and the same input rendered twice
-and compared byte for byte.
+`/JavaScript`, `/Launch` or `/OpenAction` object and no `/EmbeddedFile` outside the Factur-X fixtures,
+and the same input rendered twice and compared byte for byte, encrypted output among it.
 
-**Not shipped.** There is no PDF package in the tree.
+**Not shipped.** There is no PDF component in the tree.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source).</sub>
+**Declined:**
+- **Any attachment besides the invoice XML.** A program that needs to send several files sends them
+  beside the PDF.
+- **A creation time read from a clock.** The guest has none, and a time the program did not ask for
+  breaks byte equality.
+
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-factur-x-is-the-one-attachment`](core-classes.md#core-classes-pdf-factur-x-is-the-one-attachment), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source).</sub>
+
+<a id="core-classes-pdf-standards-and-passwords"></a>
+
+## Every PDF is tagged, a chosen PDF/A or PDF/UA standard is validated, and a password encrypts with AES-256 alone  *(designed — not yet in the compiler)*
+
+`rule:core-classes/pdf-standards-and-passwords`
+
+**Every render is a tagged PDF**: headings, paragraphs, lists, tables with their header cells, figures
+with their `alt` text and the document's language come from the HTML, with no option to turn it off.
+`Document::standard` adds one of **PDF/A-2b, PDF/A-3b or PDF/UA-1**, and a document that breaks the
+standard it chose throws `LogicError` naming what broke — an image with no `alt` under PDF/UA-1, a
+font that cannot be embedded under PDF/A — through `krilla`'s own validation. One standard per
+document, because `krilla` validates against one.
+
+**`Document::password`** encrypts with **AES-256, revision 6**, and nothing weaker. Its salts and its
+file key are derived from a hash of the document and the password, so equal input stays byte-equal
+([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)). A password beside a PDF/A standard throws `LogicError`,
+because PDF/A forbids encryption.
+
+Tagging costs a structure tree the size of the element tree and buys a document a screen reader can
+read; it is the default because a program that never thought about accessibility should still produce
+an accessible file. AES-256 alone is offered because every reader made in the last fifteen years opens
+it and the weaker revisions are broken.
+
+- **Memory:** the structure tree, beside the layout tree inside the request's cap.
+
+**Not shipped.** There is no PDF component in the tree.
+
+**Declined:**
+- **RC4 and AES-128 encryption, and owner permissions.** RC4 is broken, and permission flags are a
+  request to the reader that any tool ignores.
+- **Form filling and signatures.** Each is a second model of the file: fields the reader edits, and a
+  signing key and timestamp authority the program must own. A program that signs uses a signing
+  service.
+- **Untagged output.** It saves a few percent of the file and gives up the document's accessibility.
+
+<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/pdf-factur-x-is-the-one-attachment`](core-classes.md#core-classes-pdf-factur-x-is-the-one-attachment).</sub>
+
+<a id="core-classes-pdf-factur-x-is-the-one-attachment"></a>
+
+## A Factur-X XML under PDF/A-3b is the one attachment a rendered PDF carries  *(designed — not yet in the compiler)*
+
+`rule:core-classes/pdf-factur-x-is-the-one-attachment`
+
+`Document::invoiceXml` embeds **exactly one Factur-X (ZUGFeRD) XML file**, under PDF/A-3b only, and it
+is the only attachment the writer ever emits ([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)). The file name,
+the `AFRelationship` and the XMP fields are the ones the standard fixes, so the program passes the XML
+and nothing else. The XML is checked well-formed, inside the request's memory cap and with no entity
+expansion, and is otherwise the program's to build: the component does not read the invoice it
+carries.
+
+An invoice XML without `Document::Standard::PdfA3b` throws `LogicError`, because Factur-X is defined
+only on PDF/A-3. An XML that is not well-formed throws `ParseError`. `Reader::invoiceXml` returns the
+XML of a received invoice ([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)).
+
+An e-invoice is the one attachment businesses are required to send, and a hybrid PDF is how most of
+Europe sends it. Any other attachment is a file a reader may be asked to open, which is the
+delivery channel `pdf-output-is-inert` closes.
+
+- **Memory:** the XML once, inside the request's cap, and the bytes it adds to the output.
+
+**Not shipped.** There is no PDF component in the tree.
+
+**Declined:**
+- **General attachments.** A file a reader opens from inside a PDF is a delivery channel for anything,
+  and a program sends other files beside the PDF.
+- **Building or validating the invoice's content.** The XML schema and the invoice's rules belong to
+  the program's invoicing code, which already knows the invoice.
+
+<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/pdf-standards-and-passwords`](core-classes.md#core-classes-pdf-standards-and-passwords), [`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge).</sub>
+
+<a id="core-classes-pdf-reader-and-merge"></a>
+
+## Existing PDFs are placed, merged and read in `Novis\Pdf`, and an encrypted source throws  *(designed — not yet in the compiler)*
+
+`rule:core-classes/pdf-reader-and-merge`
+
+Existing PDFs are **placed, merged and read in `Novis\Pdf`**; only rasterising a page is the image
+component's ([`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source)).
+
+- **Placing.** `<img src="terms.pdf#page=2">` draws that page of an asset as vector content, and
+  `@page { background-image: url(letterhead.pdf) }` draws it behind every page. Only the page's
+  appearance is kept: its links, form fields and bookmarks are not.
+- **Merging.** `Pages::merge` takes PDFs, each with an optional list of page numbers, and returns one
+  PDF. Merging, splitting, reordering and removing pages are that one call: a list that repeats a
+  page repeats it, and a list that leaves one out removes it.
+- **Reading.** `Reader::open` returns the page count, the metadata (title, author, subject, keywords,
+  creator, producer), the attachments by name, and `invoiceXml()`, the Factur-X XML of a received
+  invoice or `null`. `text($page)` returns a page's text in the order the file stores it, through
+  `hayro`'s interpreter and each font's Unicode map. It does not rebuild tables or columns.
+
+**An encrypted source throws `ParseError`** in all three, as the image side does
+([`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals)), and so does a source that does not parse. A page number
+outside its document throws `LogicError` naming the page count. Each job is one call: `Reader::open`
+reads the count, the metadata and the attachments together, and `text` takes the bytes again with only
+the pages it asks for.
+
+These are the jobs a program does with the PDFs it receives and sends — attach the terms, put a
+letterhead under a letter, read back an uploaded invoice — and each was a reason to install a second
+tool. They live beside the writer because they return text and bytes, never pixels.
+
+- **Memory:** per call, the source bytes and what the call returns, inside the request's cap; a merge
+  holds its sources and the merged file at once.
+
+**Not shipped.** There is no PDF component in the tree.
+
+**Declined:**
+- **Rebuilding tables and columns from extracted text.** That is a layout guess, right for some files
+  and wrong for others; the file's own order is the honest answer.
+- **Decrypting a source with a password.** A received encrypted PDF is opened by the person it was
+  sent to, and the password is theirs.
+- **Editing a page's content in place.** It is a second, imperative model of the file
+  ([`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine)); a new page is HTML.
+
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals), [`core-classes/pdf-factur-x-is-the-one-attachment`](core-classes.md#core-classes-pdf-factur-x-is-the-one-attachment).</sub>
+
+<a id="core-classes-pdf-default-fonts"></a>
+
+## The Liberation fonts render a document with no font of its own, and a missing glyph is reported, never thrown  *(designed — not yet in the compiler)*
+
+`rule:core-classes/pdf-default-fonts`
+
+The PDF component carries **Liberation Sans, Serif and Mono in regular, bold, italic and bold
+italic**, so a plain document renders with no font in its asset map. `sans-serif`, Arial and Helvetica
+map to Sans, `serif`, Times and Times New Roman to Serif, and `monospace` and Courier to Mono. The same
+twelve files stand in for the standard-14 fonts when the image component rasterises a PDF
+([`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source)), and live once in the tree under `extensions/fonts/`.
+
+**The font chain** of a run of text is the `@font-face` fonts its `font-family` names, from the asset
+map, then the default of its generic family. A character no font in the chain has is drawn as the
+font's empty box and listed in `Rendered::missingGlyphs` with the chain it tried. It never throws: the
+rest of the document is right, and a program that must have every glyph asserts the list is empty. A
+font file that does not parse throws `ParseError` naming it. Every font is subset into the output, so
+a document carries only the glyphs it draws.
+
+There is no system font lookup, because the guest has no filesystem, and a render on a laptop and on a
+server gives the same bytes.
+
+The Liberation fonts are under **OFL-1.1**, admitted for font data only: the binary's attribution
+carries their licence and copyright ([`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand)),
+and no code under OFL-1.1 is admitted by it.
+
+- **Memory:** the twelve fonts are part of each component's bytes, a few megabytes of the binary. A
+  render holds the faces it uses inside its request's cap.
+
+**Not shipped.** There is no PDF component in the tree.
+
+**Declined:**
+- **Noto or another font with wide script coverage as a default.** Its size grows the binary by tens of
+  megabytes for scripts most documents never use; a document in another script passes its font as an
+  asset.
+- **Throwing on a missing glyph.** One unknown character in a customer's name would lose the whole
+  invoice.
+
+<sub>See also [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`packaging/the-third-party-notice-is-generated-never-written-by-hand`](packaging.md#packaging-the-third-party-notice-is-generated-never-written-by-hand).</sub>
 
 <a id="core-classes-pdf-page-is-an-image-source"></a>
 
@@ -3626,9 +4060,11 @@ and compared byte for byte.
 
 `rule:core-classes/pdf-page-is-an-image-source`
 
-A PDF is a **decode-only format of the image component**, not a member of the PDF generation package:
-a writer and an interpreter share no code, and a raster produced there would have to recross the
-boundary to enter the pipeline that is the whole point of loading one. No new entry point is added;
+Rasterising a PDF page is a **decode-only format of the image component**, not a member of
+`Novis\Pdf`: a raster produced there would have to recross the boundary to enter the pipeline that is
+the whole point of loading one. Reading a PDF's text, metadata and attachments, and merging pages, are
+`Novis\Pdf`'s ([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)), because they return text and bytes rather
+than pixels. No new entry point is added;
 the format enum simply gains a case.
 
 `open` gains two options meaningful for a paged source: a 1-based **page**, default `1`, and a
@@ -3645,9 +4081,10 @@ whole points. Counting pages is one header-only call that allocates no pixel.
 
 Rasterising is a pure function of the bytes and the options — no clock, no I/O, no system fonts — so
 equal input gives byte-equal output. The interpreter is **hayro**, pure Rust, compiled into the
-sandbox beside the codecs, with substitutes for the standard-14 fonts embedded in the component's data
-section so an unembedded-font document renders. It is linked only once it builds for the component's
-`wasm32` target and its dependency tree passes `deny.toml`. The sandbox is where a parser this large
+sandbox beside the codecs, with the Liberation fonts ([`core-classes/pdf-default-fonts`](core-classes.md#core-classes-pdf-default-fonts)) standing
+in for the standard-14 fonts so an unembedded-font document renders. It is linked only once it builds
+for the component's `wasm32` target and its dependency tree passes `cargo deny` over the component's
+own graph. There is no fallback interpreter. The sandbox is where a parser this large
 belongs: the hostile-bytes surface it leaves is contained by the sandbox's memory cap and epoch
 deadline like every other decoder's, and the build gains no C.
 
@@ -3666,16 +4103,17 @@ image-heavy page, guest against the same crate native.
 refuses to encode it (`extensions/image/src/encode.rs`).
 
 **Declined:**
-- **A `rasterize` entry on the PDF generation package.** The writer and an interpreter share nothing,
-  and every raster would recross the boundary as bytes to reach `resize`.
-- **pdfium or MuPDF compiled to wasm.** pdfium is a large C++ build no other component needs a
-  toolchain for, and MuPDF is AGPL and outside `deny.toml`, while a pure-Rust interpreter exists.
+- **A `rasterize` member in `Novis\Pdf`.** Every raster would recross the boundary as bytes to reach
+  `resize`.
+- **pdfium or MuPDF compiled to wasm, as the interpreter or as a fallback.** pdfium in wasm needs
+  Emscripten and has no WASI build, and MuPDF is AGPL and outside `deny.toml`, while a pure-Rust
+  interpreter exists.
 
-<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals).</sub>
+<sub>See also [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-format-roster`](core-classes.md#core-classes-image-format-roster), [`core-classes/pdf-decode-refusals`](core-classes.md#core-classes-pdf-decode-refusals), [`core-classes/pdf-default-fonts`](core-classes.md#core-classes-pdf-default-fonts).</sub>
 
 <a id="core-classes-pdf-decode-refusals"></a>
 
-## An encrypted document and a detectable omission both throw, and everything past rasterising is somebody else's job  *(designed — not yet in the compiler)*
+## An encrypted document and a detectable omission both throw, and reading and merging are `Novis\Pdf`'s  *(designed — not yet in the compiler)*
 
 `rule:core-classes/pdf-decode-refusals`
 
@@ -3687,11 +4125,11 @@ deterministic, not approximately right, and a silently incomplete raster is a re
 guest can resolve one, and JavaScript, launch actions and embedded files are inert by construction,
 since rasterising reads a page's appearance and never executes an action.
 
-Text extraction, page splitting and merging, form filling, signing and password decryption are
-**different jobs over the same bytes**, and belong to the third-party channel rather than this
-roster. Generation is a separate package entirely. The fidelity escape hatch for a document the
-interpreter renders wrong is an installed external tool under the process capability, and is never
-made first-party.
+Text extraction, metadata, attachments, and splitting and merging pages are **different jobs over the
+same bytes**, and are `Novis\Pdf`'s ([`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge)), which refuses an
+encrypted source the same way. Form filling, signing and password decryption are no component's, and
+belong to the third-party channel. A document the interpreter renders wrong has no first-party
+fallback.
 
 The surface this leaves open is an *approximated* construct — one the interpreter supports but
 renders imperfectly — which is a silent fidelity miss rather than a detectable omission, and is owned
@@ -3707,7 +4145,7 @@ The decoder's fixtures hold this inside the guest, and owe:
 
 **Not shipped.** There is no PDF decoder in the image component.
 
-<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-reader-and-merge`](core-classes.md#core-classes-pdf-reader-and-merge), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="core-classes-spreadsheet-has-no-io"></a>
 

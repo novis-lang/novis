@@ -6,11 +6,11 @@ deterministic, not approximately right, and a silently incomplete raster is a re
 guest can resolve one, and JavaScript, launch actions and embedded files are inert by construction,
 since rasterising reads a page's appearance and never executes an action.
 
-Text extraction, page splitting and merging, form filling, signing and password decryption are
-**different jobs over the same bytes**, and belong to the third-party channel rather than this
-roster. Generation is a separate package entirely. The fidelity escape hatch for a document the
-interpreter renders wrong is an installed external tool under the process capability, and is never
-made first-party.
+Text extraction, metadata, attachments, and splitting and merging pages are **different jobs over the
+same bytes**, and are `Novis\Pdf`'s (`rule:core-classes/pdf-reader-and-merge`), which refuses an
+encrypted source the same way. Form filling, signing and password decryption are no component's, and
+belong to the third-party channel. A document the interpreter renders wrong has no first-party
+fallback.
 
 The surface this leaves open is an *approximated* construct — one the interpreter supports but
 renders imperfectly — which is a silent fidelity miss rather than a detectable omission, and is owned

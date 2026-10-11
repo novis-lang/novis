@@ -4,7 +4,8 @@
   "seeAlso": [
     "core-classes/image-pixel-cap",
     "core-classes/image-format-roster",
-    "core-classes/pdf-decode-refusals"
+    "core-classes/pdf-decode-refusals",
+    "core-classes/pdf-default-fonts"
   ],
   "guardedBy": []
 }

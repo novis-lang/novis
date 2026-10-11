@@ -1,0 +1,11 @@
+{
+  "title": "A header, a footer or a slot is a Novis function called once per page, placed by a second call that never moves the body",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/pdf-roster",
+    "core-classes/pdf-tables-across-pages",
+    "packaging/a-fresh-instance-per-request",
+    "core-classes/html-template"
+  ],
+  "guardedBy": []
+}

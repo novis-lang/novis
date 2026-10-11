@@ -1,0 +1,10 @@
+{
+  "title": "The Liberation fonts render a document with no font of its own, and a missing glyph is reported, never thrown",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/pdf-css-subset",
+    "core-classes/pdf-page-is-an-image-source",
+    "packaging/the-third-party-notice-is-generated-never-written-by-hand"
+  ],
+  "guardedBy": []
+}

@@ -1,0 +1,9 @@
+{
+  "title": "A table across pages keeps its columns, repeats its header and footer, never cuts a line and closes its borders",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/pdf-header-is-a-page-function",
+    "core-classes/pdf-css-subset-table"
+  ],
+  "guardedBy": []
+}

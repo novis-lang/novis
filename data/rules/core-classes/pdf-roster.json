@@ -1,0 +1,11 @@
+{
+  "title": "`Novis\\Pdf` is `Document`, `Page`, `Rendered`, `Pages` and `Reader`, with `Engine` the manifest class",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/pdf-render-has-no-io",
+    "core-classes/pdf-header-is-a-page-function",
+    "core-classes/pdf-reader-and-merge",
+    "core-api/options-bag"
+  ],
+  "guardedBy": []
+}

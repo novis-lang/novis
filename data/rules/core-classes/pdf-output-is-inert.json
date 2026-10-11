@@ -1,9 +1,10 @@
 {
-  "title": "The writer emits nothing a reader would execute, and equal input gives byte-equal output",
+  "title": "The writer emits nothing a reader would execute, the invoice XML is its one attachment, and equal input gives byte-equal output",
   "status": "designed",
   "seeAlso": [
     "core-classes/pdf-render-has-no-io",
     "core-classes/html-sanitize",
+    "core-classes/pdf-factur-x-is-the-one-attachment",
     "core-classes/spreadsheet-output-is-inert",
     "core-classes/pdf-page-is-an-image-source"
   ],

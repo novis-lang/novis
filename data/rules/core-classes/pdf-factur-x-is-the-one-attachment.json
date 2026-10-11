@@ -1,0 +1,10 @@
+{
+  "title": "A Factur-X XML under PDF/A-3b is the one attachment a rendered PDF carries",
+  "status": "designed",
+  "seeAlso": [
+    "core-classes/pdf-output-is-inert",
+    "core-classes/pdf-standards-and-passwords",
+    "core-classes/pdf-reader-and-merge"
+  ],
+  "guardedBy": []
+}
