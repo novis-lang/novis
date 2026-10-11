@@ -1962,7 +1962,12 @@ check that proves more than a suite becomes a test before its goal is reached.
 The runtime state stays git-ignored: the selection store in `.cache/select.sqlite`, and looper's run
 state under `.loop/`. It is per machine, and a fresh clone owes nothing it holds.
 
-<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0222](../decisions/0222.md), [0225](../decisions/0225.md), [0262](../decisions/0262.md).</sub>
+**Declined:**
+- **Keeping the live goal in the git-ignored run state.** A fresh clone has no such file, so it has no
+  live goal: the orientation and CI read nothing, and a push hook that needs the live goal refuses
+  every push.
+
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0225](../decisions/0225.md), [0262](../decisions/0262.md).</sub>
 
 <a id="tooling-a-check-runs-only-when-the-change-reaches-its-footprint"></a>
 
