@@ -2,12 +2,15 @@
   "title": "A JSON file under a `.novis/completion` folder offers values at the string parameters it names, changes only the string the cursor is in, and is read and never run",
   "status": "designed",
   "because": [
-    "0242",
     "0243"
   ],
   "seeAlso": [
     "ide/completion-offers-only-what-the-compiler-derived",
     "ide/completion-is-asked-where-a-spelling-ends"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-lsp/tests/completion_files.rs",
+    "crates/nvs-lsp/tests/completion_file_values.rs",
+    "crates/nvs-lsp/tests/completion.rs"
+  ]
 }
