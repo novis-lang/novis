@@ -1,15 +1,15 @@
 {
   "title": "A stop drains, no control reloads, and the process's console and its lifecycle records go to the event log",
   "status": "shipped",
-  "because": [
-    "0204"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/a-drain-closes-a-connection-cleanly",
     "packaging/a-service-runs-as-a-virtual-account",
     "http-server/the-residue-is-one-named-fault-class"
   ],
   "guardedBy": [
-    "crates/nvs-cli/src/service.rs"
+    "crates/nvs-cli/src/service.rs",
+    "crates/nvs-cli/tests/windows_resource.rs",
+    "tools/service-live.ps1"
   ]
 }

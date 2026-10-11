@@ -2327,8 +2327,12 @@ uninstall` removes it.
 - **Any subcommand hostable, with the argv passed straight through.** Every *parameter* is passable;
   the *subcommand* is what is constrained. That constraint alone keeps `--fault-inject` and a
   crash-looping `nvs test` out of an argv a privileged account runs at every boot.
+- **A refusal for an install that names no output destination.** Its only reason was that stderr went
+  nowhere. With stderr captured by the platform log, it would refuse nothing real. A
+  `[log] target` never answered it anyway: a refused configuration's diagnostic, a boot warning and a
+  `FATAL` go to stderr, not to `Core\Log`.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0204](../decisions/0204.md), [0281](../decisions/0281.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`packaging/a-bundle-may-not-install-itself`](packaging.md#packaging-a-bundle-may-not-install-itself). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="packaging-the-argv-lives-in-imagepath"></a>
 
@@ -2423,7 +2427,26 @@ systemd: a boot warning, a refused configuration's diagnostic and `Core\Log` wri
 land where an administrator looks first, with nothing to configure. Beside them go a small, fixed set
 of lifecycle records — started, stopped, failed to start. Every record's text is its one insertion
 string, and `nvs.exe` carries the message table that renders it
-([`packaging/the-windows-binary-says-what-it-is`](packaging.md#packaging-the-windows-binary-says-what-it-is)). The event-log source is registered at install
+([`packaging/the-windows-binary-says-what-it-is`](packaging.md#packaging-the-windows-binary-says-what-it-is)). Without the table, Event Viewer heads each record
+with "the description for event id … cannot be found" and `Get-WinEvent` shows an empty `Message`.
+
+The dispatcher replaces the standard output and standard error handles with anonymous pipes before the
+server runs, and a thread per pipe writes each non-blank line as one record under the service's
+source: information for stdout, a warning for stderr. `std` asks the platform for the standard handle
+on every write, so the redirect holds for the process's life with no code above it knowing. A pipe
+that cannot be made leaves the handle as it was: the records are how a failure is read, and a start
+refused for want of them would be a failure with no way to read it. The reader threads are not joined,
+so a line written in the last instant before exit can be lost with the process; the lifecycle records
+are written directly and are not affected.
+
+A `[log] target` of `stderr` is a working destination for a hosted service: every `Core\Log` record
+becomes an event-log record, and its volume is the operator's choice, as it is under the journal.
+
+- **Memory:** two pipes and two threads for the life of a hosted process, and one event-log write per
+  line the server prints. Nothing is spent per request unless the operator sends `Core\Log` to
+  stderr.
+
+The event-log source is registered at install
 and removed at uninstall, and `uninstall` leaves nothing behind: no registry key, no source, no unit
 file, no granted ACL.
 
@@ -2436,8 +2459,12 @@ the service's own, so only the service can report it.
 - **Documenting NSSM or WinSW and shipping nothing.** A shim observes the process from outside, so a
   stop is a kill rather than a drain, and a Windows deployment would begin by downloading an unrelated
   binary.
+- **A `--log-file` path stored under the service's `Parameters` key, with the dispatcher redirecting
+  to that file.** It would add a second exception to storing nothing but the argv
+  ([`packaging/the-argv-lives-in-imagepath`](packaging.md#packaging-the-argv-lives-in-imagepath)), and the platform already answers the question: an
+  administrator looks in the event log first, and a file nobody was told about is a second place.
 
-<sub>See also [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class). Decided in [0204](../decisions/0204.md).</sub>
+<sub>See also [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class).</sub>
 
 <a id="packaging-the-unit-is-printed-and-install-is-the-opt-in"></a>
 
