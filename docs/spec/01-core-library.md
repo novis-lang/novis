@@ -476,7 +476,7 @@ call:
 | `strtotime("now")` | `Time::now()->in($z)` |
 | `strtotime("+3 days")` | `Time::now()->in($z)->plus(3, Unit::Day)` — or `Time::now()->plus(72h)` for an exact offset |
 | `strtotime("today")` | `Time::now()->in($z)->startOf(Unit::Day)` |
-| `strtotime("next monday")` | `Time::now()->in($z)->next(Weekday::Monday)` |
+| `strtotime("next monday")` | `Time::now()->in($z)->next(DateTime::Weekday::Monday)` |
 | `strtotime("first day of next month")` | `Time::now()->in($z)->startOf(Unit::Month)->plus(1, Unit::Month)` |
 | `strtotime("last day of this month")` | `Time::now()->in($z)->endOf(Unit::Month)` |
 | `strtotime("2024-03-01")` | `Time::parse($t, "yyyy-MM-dd", $z)` |

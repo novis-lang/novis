@@ -8,7 +8,7 @@ var $run = Core\Time::at(2024, 10, 21, Core\Time\Zone::of("America/Chicago"), {h
 // This prints 28 October, 4 November and 11 November, each at 06:00.
 int $count = 0;
 while ($count < 3) {
-    $run = $run->next(Core\Weekday::Monday);
+    $run = $run->next(Core\Time\DateTime::Weekday::Monday);
     echo $run->format("EEEE d MMMM, HH:mm XXX"), "\n";
     $count = $count + 1;
 }

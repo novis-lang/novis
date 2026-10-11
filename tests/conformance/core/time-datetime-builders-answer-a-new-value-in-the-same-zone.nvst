@@ -64,8 +64,8 @@ foreach ($rows as string $rowText) {
         $checks = $checks + 24;
         $held = $held + Builder::holds($before, $d, $d->plus(1, Core\Unit::Month));
         $held = $held + Builder::holds($before, $d, $d->minus(90, Core\Unit::Day));
-        $held = $held + Builder::holds($before, $d, $d->next(Core\Weekday::Sunday));
-        $held = $held + Builder::holds($before, $d, $d->previous(Core\Weekday::Sunday));
+        $held = $held + Builder::holds($before, $d, $d->next(Core\Time\DateTime::Weekday::Sunday));
+        $held = $held + Builder::holds($before, $d, $d->previous(Core\Time\DateTime::Weekday::Sunday));
         // 02:30 is the wall clock Berlin skips on the first of those two
         // mornings, so these two rows are where question 3 has something to
         // catch.

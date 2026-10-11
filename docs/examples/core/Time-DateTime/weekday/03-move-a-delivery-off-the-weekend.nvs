@@ -9,8 +9,8 @@ array<string> $planned = ["2024-05-17T08:00:00Z", "2024-05-18T08:00:00Z", "2024-
 foreach ($planned as string $text) {
     var $delivery = Core\Time::fromIso($text)->in($warehouse);
     var $day = $delivery->weekday();
-    if ($day == Core\Weekday::Saturday || $day == Core\Weekday::Sunday) {
-        $delivery = $delivery->next(Core\Weekday::Monday);
+    if ($day == Core\Time\DateTime::Weekday::Saturday || $day == Core\Time\DateTime::Weekday::Sunday) {
+        $delivery = $delivery->next(Core\Time\DateTime::Weekday::Monday);
     }
     echo $delivery->format("EEEE d MMMM"), "\n";
 }

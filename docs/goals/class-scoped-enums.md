@@ -276,7 +276,7 @@ green, with its `Core\Ldap` enums at their new names after Stage 7.
 - **The `Core` rename table**, from the registry's own use sites on 2026-10-08:
   `Core\Order` → `Core\Arr::Order`; `Core\SetOn` → `Core\Arr::SetOn`; `Core\NormalForm` →
   `Core\Str::NormalForm`; `Core\Digest` → `Core\Hash::Digest`; `Core\Codec` →
-  `Core\Compress::Codec`; `Core\Weekday` → `Core\DateTime::Weekday`; `Core\Crypto\Cipher` →
+  `Core\Compress::Codec`; `Core\Weekday` → `Core\Time\DateTime::Weekday`; `Core\Crypto\Cipher` →
   `Core\Crypto::Cipher`; `Core\Crypto\KeyFormat` → `Core\Crypto\PublicKey::Format`;
   `Core\Mime\Type` → `Core\Mime::Type`; `Core\Xml\NodeKind` → `Core\Xml\Node::Kind`;
   `Core\Log\Level` → `Core\Log::Level`; `Core\Env\Mode` → `Core\Env::Mode`;
@@ -526,13 +526,14 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 6 are done. In Stage 7 the registry slice and the `arr`, `str`, `hash`, `compress`, `crypto`, `mime`, `xml`, `log`, `env`, `response`, `cli`, `command`, `reflect` and `io` renames have landed, all three Stage 7 checks pass, and `bun nv verify` is green.**
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 6 are done. In Stage 7 the registry slice and the `arr`, `str`, `hash`, `compress`, `crypto`, `mime`, `xml`, `log`, `env`, `response`, `cli`, `command`, `reflect`, `io`, `cldr`, `script` and `time` renames have landed, all three Stage 7 checks pass, and `bun nv verify` is green. The `db`, `ldap` and `queue` renames are left.**
 
 - `CoreEnum::name` is `Core\Arr::Order` for an owned enum, and `CoreEnum::owner()` and `short_name()` read it. The checker finds a `Core` owner's enum through `lower::owned_enum` (`crates/nvs-types/src/lower.rs:521`), because `Core` declares nothing in the symbol table.
 - `crates/nvs-stdlib/tests/enum_owners.rs` decides placement, and its `NOT_YET_MOVED` list (`:16`) shrinks one namespace per slice. Each slice's commit carries its own rows' deletion, so every commit passes that test.
 - `Core\Db\Tls`, `Db\Isolation`, `Db\ErrorKind`, `Ldap\Tls` and `Ldap\ErrorKind` are in the table, but the test sees no single class using them. The `db` and `ldap` slices decide by the rule. The two `ErrorKind`s are used by error classes with no registry row (`nvs_hir::errors::TREE`).
 - A slice is mechanical. Rename the relative form (`Mime\Type` → `Mime::Type`), which also covers `Core\…` and the doubled-backslash Rust and JSON strings, across every tracked file but `docs/rules/enums*`, `docs/goals/`, `docs/agent/playbook*` and `enum_owners.rs`. A reject case's `--> case.nvs:L:C` columns move by the one character `::` adds over `\`, and only the conformance run shows it. Then `git mv` the proof directory to `docs/examples/types/<classTail>/` (`tools/nv/proofs/roster.ts:79`) and add one sentence to its `about.md` naming the declaring class. Then `cargo build` and `bun nv site --stamp syntax/values/enums.mdx --nvs target/debug/nvs.exe`: the stamp needs the new binary. `bun nv proofs --verify --no-perf --nvs target/debug/nvs.exe --group 'Core\Mime'` checks a touched class's examples.
-- A small bun script under `.agent-tmp/` does the rename: for each tracked file outside the exclusions, replace `(?<![A-Za-z0-9_])Ns\\{1,2}Name(?![A-Za-z0-9_])` with the new form. `git ls-files` needs a large `maxBuffer` in `execFileSync`. A bare `Core\Weekday` has no namespace word, so its pattern is `Core\\{1,2}Weekday`.
+- A small bun script under `.agent-tmp/` does the rename: for each tracked file outside the exclusions, replace `(?<![A-Za-z0-9_])Ns\\{1,2}Name(?![A-Za-z0-9_])` with the new form. `git ls-files` needs a large `maxBuffer` in `execFileSync`. A text may also name the enum without `Core\` (`Script\ExitReason` in a rule fragment and in `docs/spec/01-core-library.md`), so a second pass renames that form, then `bun nv rules --render` and `bun nv render` rewrite the generated copies.
+- Read the owner's real name from the registry before renaming: the goal's own table once said `Core\DateTime::Weekday`, and the class is `Core\Time\DateTime`. The fragment's table (`docs/rules/enums/an-enum-lives-in-the-class-that-uses-it.md:19`) was right.
 - Several slices in one session share `docs/novis.md`, `docs/spec/01-core-library.md`, `website/src/data/core.json` and `enum_owners.rs`. Do the slices in order, and after each one's conformance cases pass, `git add -A -- . ':!website/site.lock.json' ':!website/src/content/docs/syntax/values/enums.mdx'` and `git write-tree`. At commit time `git read-tree <tree>` then `git commit -F` for each slice, and the last slice commits everything with the stamp.
 - `tests/hostile/core/IO/write/01-bad-paths-escapes-and-large-content.nvs` fails under the debug binary on Windows: step 2 writes one of its "not a file" paths. The file names no enum and `io.rs` changed only in spelling. Which path is written, and whether HEAD fails too, is not checked.
 - `nvs agent show` matches the exact symbol first, so an enum may share a word with a method of its owner (`Core\Xml\Node::Kind` and `kind`, `Core\Env::Mode` and `mode`).
@@ -543,17 +544,16 @@ Both rules stay `designed`. `bun nv links` still reports `AGENTS.md:403 -> docs/
 
 ### Next
 
-**Stage 7, the `cldr`, `script` and `time` renames, one slice each** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file sets are the declaring file, the rows in `crates/nvs-stdlib/tests/enum_owners.rs:16`, and everything `git grep` finds on the old name. The `cli`, `command`, `reflect` and `io` commits are the latest worked examples.
+**Stage 7, the `db`, `ldap` and `queue` renames, one slice each** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file sets are the declaring file, the rows in `crates/nvs-stdlib/tests/enum_owners.rs:16`, and everything `git grep` finds on the old name. The `cldr`, `script` and `time` commits are the latest worked examples.
 
-- [ ] `Core\Cldr\PluralCategory` → `Core\Cldr::PluralCategory` (`crates/nvs-stdlib/src/cldr.rs:1603`). Leave `Novis\Intl\PluralCategory` alone: it is Stage 8's.
-- [ ] `Core\Script\ExitReason` → `Core\Script\ExitReport::Reason` (`crates/nvs-stdlib/src/script.rs:232`). Its proof directory moves from `types/Script-ExitReason` to `types/Script-ExitReport-Reason`.
-- [ ] `Core\Weekday` → `Core\DateTime::Weekday` (`crates/nvs-stdlib/src/time.rs:1505`, which names it inline). Its proof directory moves from `types/Weekday` to `types/DateTime-Weekday`.
+- [ ] `db`: `Core\Db\Driver` → `Core\Db\Connection::Driver` (`crates/nvs-stdlib/src/db/registry.rs:826`), `Core\Db\ColumnType` → `Core\Db\Column::Type` (`crates/nvs-stdlib/src/db/registry.rs:1132`), `Core\Db\Plan\Grade` → `Core\Db\Plan\Step::Grade` (`crates/nvs-stdlib/src/db/mod.rs:506`). Check each owner's real class name in the registry first. Then decide `Tls`, `Isolation` and `ErrorKind` by the rule.
+- [ ] `ldap`: `Core\Ldap\Scope` → `Core\Ldap\Connection::Scope` (`crates/nvs-stdlib/src/ldap/registry.rs:55`). `Core\Ldap\Ad\AccountType` (`crates/nvs-stdlib/src/ldap/registry.rs:49`) is in `NOT_YET_MOVED` and missing from the fragment's table: apply the rule and add its row. Then decide `Tls` and `ErrorKind`.
+- [ ] `queue`: `Core\Queue\State` → `Core\Queue::State` (`crates/nvs-stdlib/src/queue.rs:88`). After it, `NOT_YET_MOVED` is empty and Stage 7 can close.
 
-Before each rename, `git grep` the old form for a longer word it is a prefix of (`WeekdayX`), and rename only the exact name.
+Before each rename, `git grep` the old form for a longer word it is a prefix of (`ColumnTypeX`), and rename only the exact name.
 
 ### Backlog
 
-- The rest of Stage 7's renames, one namespace per slice, by the fragment's table; `bun nv proofs --group types:enum` shows what a slice moved.
 - Stage 8: every built-in component enum (`crates/nvs-ext/src/manifest.rs`, `crates/nvs-types/src/ext_lib.rs`).
 - A bare `Status::` in **type** position inside the owner does not complete the cases. Value position works through `owned_named` (`crates/nvs-lsp/src/completion.rs`).
 - Stages 9 and 10: the docs, examples and website put enums in classes by default, then the feature proofs (this goal's file).

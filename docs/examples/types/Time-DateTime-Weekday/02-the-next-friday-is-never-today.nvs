@@ -1,6 +1,6 @@
 <?nvs
 // `next` and `previous` move a date to a given day of the week.
-// They always move at least one day. So `next(Core\Weekday::Friday)` on a Friday
+// They always move at least one day. So `next(Core\Time\DateTime::Weekday::Friday)` on a Friday
 // gives the Friday a week later.
 
 var $utc = Core\Time\Zone::UTC;
@@ -8,12 +8,12 @@ var $day = "yyyy-MM-dd";
 var $friday = Core\Time::at(2024, 5, 17, $utc);
 
 echo "today is             ", $friday->format($day), ", a Friday\n";
-echo "next Friday          ", $friday->next(Core\Weekday::Friday)->format($day), "\n";
-echo "next Monday          ", $friday->next(Core\Weekday::Monday)->format($day), "\n";
-echo "the Monday just gone ", $friday->previous(Core\Weekday::Monday)->format($day), "\n\n";
+echo "next Friday          ", $friday->next(Core\Time\DateTime::Weekday::Friday)->format($day), "\n";
+echo "next Monday          ", $friday->next(Core\Time\DateTime::Weekday::Monday)->format($day), "\n";
+echo "the Monday just gone ", $friday->previous(Core\Time\DateTime::Weekday::Monday)->format($day), "\n\n";
 
 // To keep today when it is already a Friday, check `weekday()` first.
 // This code calls `next` only when today is a different day.
-var $wanted = Core\Weekday::Friday;
+var $wanted = Core\Time\DateTime::Weekday::Friday;
 var $thisOrNext = $friday->weekday() == $wanted ? $friday : $friday->next($wanted);
 echo "this Friday, or the next one: ", $thisOrNext->format($day), "\n";

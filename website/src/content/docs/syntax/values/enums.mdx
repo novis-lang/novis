@@ -1,6 +1,6 @@
 ---
 title: Enums
-covers: ['lang:enums/declaring-an-enum', 'lang:enums/a-case-is-its-integer', 'lang:enums/from-an-integer-back-to-a-case', 'lang:enums/comparing-cases', 'lang:enums/match-and-switch-over-an-enum', 'lang:enums/an-enum-as-a-type', 'lang:enums/a-union-of-cases-is-a-narrower-type', 'lang:enums/what-an-enum-does-not-have', 'lang:enums/core-enums', 'Core\Arr::Order', 'Core\Arr::SetOn', 'Core\Str::NormalForm', 'Core\RoundMode', 'Core\Charset', 'Core\Unit', 'Core\Weekday', 'Core\Hash::Digest', 'Core\Compress::Codec', 'Core\Crypto::Cipher', 'Core\Crypto\KeyKind', 'Core\Crypto\PublicKey::Format', 'Core\Mime::Type', 'Core\Xml\Node::Kind', 'Core\Log::Level', 'Core\Env::Mode', 'Core\Http\Method', 'Core\Audience', 'Core\Response::Redirect', 'Core\Response::SameSite', 'Core\Cli::Stream', 'Core\Cli::ColorDepth', 'Core\Command::Shell', 'Core\Reflect::TypeKind', 'Core\IO::FileMode', 'Core\Cldr\PluralCategory', 'Core\Script\ExitReason', 'Core\Db\Driver', 'Core\Db\Tls', 'Core\Db\Isolation', 'Core\Db\ColumnType', 'Core\Db\ErrorKind', 'Core\Db\Plan\Grade', 'Core\Queue\State']
+covers: ['lang:enums/declaring-an-enum', 'lang:enums/a-case-is-its-integer', 'lang:enums/from-an-integer-back-to-a-case', 'lang:enums/comparing-cases', 'lang:enums/match-and-switch-over-an-enum', 'lang:enums/an-enum-as-a-type', 'lang:enums/a-union-of-cases-is-a-narrower-type', 'lang:enums/what-an-enum-does-not-have', 'lang:enums/core-enums', 'Core\Arr::Order', 'Core\Arr::SetOn', 'Core\Str::NormalForm', 'Core\RoundMode', 'Core\Charset', 'Core\Unit', 'Core\Time\DateTime::Weekday', 'Core\Hash::Digest', 'Core\Compress::Codec', 'Core\Crypto::Cipher', 'Core\Crypto\KeyKind', 'Core\Crypto\PublicKey::Format', 'Core\Mime::Type', 'Core\Xml\Node::Kind', 'Core\Log::Level', 'Core\Env::Mode', 'Core\Http\Method', 'Core\Audience', 'Core\Response::Redirect', 'Core\Response::SameSite', 'Core\Cli::Stream', 'Core\Cli::ColorDepth', 'Core\Command::Shell', 'Core\Reflect::TypeKind', 'Core\IO::FileMode', 'Core\Cldr::PluralCategory', 'Core\Script\ExitReport::Reason', 'Core\Db\Driver', 'Core\Db\Tls', 'Core\Db\Isolation', 'Core\Db\ColumnType', 'Core\Db\ErrorKind', 'Core\Db\Plan\Grade', 'Core\Queue\State']
 description: How to declare an enum, convert a case to and from a number, and use enums from Core.
 ---
 import Snippet from '@components/Snippet.astro'
@@ -47,7 +47,7 @@ when the value is a different case.
 ## Enums from Core
 
 Many `Core` methods take an enum from `Core`, such as `Core\Arr::Order`, `Core\RoundMode` or
-`Core\Weekday`. They work like your own enums. [Reference](/reference/core/) lists every one.
+`Core\Time\DateTime::Weekday`. They work like your own enums. [Reference](/reference/core/) lists every one.
 
 <Snippet src="syntax/enums/05-core-enum.nvs" />
 

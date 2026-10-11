@@ -890,7 +890,7 @@
         ],
         [
           "`strtotime(\"next monday\")`",
-          "`Time::now()->in($z)->next(Weekday::Monday)`"
+          "`Time::now()->in($z)->next(DateTime::Weekday::Monday)`"
         ],
         [
           "`strtotime(\"first day of next month\")`",

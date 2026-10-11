@@ -21,7 +21,7 @@ echo $d->startOf(Core\Unit::Second)->format($fmt), " .. ", $d->endOf(Core\Unit::
 echo $d->startOf(Core\Unit::Minute)->format($fmt), " .. ", $d->endOf(Core\Unit::Minute)->format($fmt), "|\n";
 echo $d->startOf(Core\Unit::Hour)->format($fmt), " .. ", $d->endOf(Core\Unit::Hour)->format($fmt), "|\n";
 echo $d->startOf(Core\Unit::Day)->format($fmt), " .. ", $d->endOf(Core\Unit::Day)->format($fmt), "|\n";
-// A week starts on Monday, ISO-8601's own order and `Core\Weekday`'s.
+// A week starts on Monday, ISO-8601's own order and `Core\Time\DateTime::Weekday`'s.
 echo $d->startOf(Core\Unit::Week)->format($fmt), " .. ", $d->endOf(Core\Unit::Week)->format($fmt), "|\n";
 echo $d->startOf(Core\Unit::Month)->format($fmt), " .. ", $d->endOf(Core\Unit::Month)->format($fmt), "|\n";
 echo $d->startOf(Core\Unit::Quarter)->format($fmt), " .. ", $d->endOf(Core\Unit::Quarter)->format($fmt), "|\n";

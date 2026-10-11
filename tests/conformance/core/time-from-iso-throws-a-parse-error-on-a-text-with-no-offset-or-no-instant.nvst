@@ -30,7 +30,7 @@ echo "relative-day|", Iso::of("+1 day"), "\n";
 echo "now|", Iso::of("now"), "\n";
 echo "weekday|", Iso::of("next Thursday"), "\n";
 echo Core\Time::fromIso("2024-02-29T13:45:07Z")->in($utc)->plus(1, Core\Unit::Day)->toInstant()->toEpochSeconds(), "\n";
-echo Core\Time::fromIso("2024-02-29T13:45:07Z")->in($utc)->next(Core\Weekday::Thursday)->format("yyyy-MM-dd"), "\n";
+echo Core\Time::fromIso("2024-02-29T13:45:07Z")->in($utc)->next(Core\Time\DateTime::Weekday::Thursday)->format("yyyy-MM-dd"), "\n";
 
 // A text that is not a date throws an error. So does the empty string.
 echo "garbage|", Iso::of("not a date"), "\n";

@@ -138,57 +138,57 @@ if ($sBYear->plus(1, Core\Unit::Year)->difference($eBYear->plus(1, Core\Unit::Na
 if ((($sBYear->difference($dst, Core\Unit::Nanosecond) >= 0) && ($dst->difference($eBYear, Core\Unit::Nanosecond) >= 0))
     && ($sBYear->difference($eBYear, Core\Unit::Nanosecond) >= 0)) { $brackets = $brackets + 1; }
 
-// `next`/`previous` are the same agreement over `Core\Weekday`: strictly
+// `next`/`previous` are the same agreement over `Core\Time\DateTime::Weekday`: strictly
 // later and strictly earlier, landing on the weekday named, keeping the time
 // of day, and never more than a whole week away. The receiver is itself a
 // Wednesday, which is the row where "strictly later" and "at most seven days"
 // are the same bound seen from both sides.
-var $nMonday = $d->next(Core\Weekday::Monday);
-var $pMonday = $d->previous(Core\Weekday::Monday);
+var $nMonday = $d->next(Core\Time\DateTime::Weekday::Monday);
+var $pMonday = $d->previous(Core\Time\DateTime::Weekday::Monday);
 if (($d->difference($nMonday, Core\Unit::Nanosecond) > 0) && ($pMonday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
-if ((($nMonday->weekday() as int) == (Core\Weekday::Monday as int)) && (($pMonday->weekday() as int) == (Core\Weekday::Monday as int))) { $landed = $landed + 1; }
+if ((($nMonday->weekday() as int) == (Core\Time\DateTime::Weekday::Monday as int)) && (($pMonday->weekday() as int) == (Core\Time\DateTime::Weekday::Monday as int))) { $landed = $landed + 1; }
 if (($nMonday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
     && ($pMonday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
 if (($d->difference($nMonday, Core\Unit::Day) <= 7) && ($pMonday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
-var $nTuesday = $d->next(Core\Weekday::Tuesday);
-var $pTuesday = $d->previous(Core\Weekday::Tuesday);
+var $nTuesday = $d->next(Core\Time\DateTime::Weekday::Tuesday);
+var $pTuesday = $d->previous(Core\Time\DateTime::Weekday::Tuesday);
 if (($d->difference($nTuesday, Core\Unit::Nanosecond) > 0) && ($pTuesday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
-if ((($nTuesday->weekday() as int) == (Core\Weekday::Tuesday as int)) && (($pTuesday->weekday() as int) == (Core\Weekday::Tuesday as int))) { $landed = $landed + 1; }
+if ((($nTuesday->weekday() as int) == (Core\Time\DateTime::Weekday::Tuesday as int)) && (($pTuesday->weekday() as int) == (Core\Time\DateTime::Weekday::Tuesday as int))) { $landed = $landed + 1; }
 if (($nTuesday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
     && ($pTuesday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
 if (($d->difference($nTuesday, Core\Unit::Day) <= 7) && ($pTuesday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
-var $nWednesday = $d->next(Core\Weekday::Wednesday);
-var $pWednesday = $d->previous(Core\Weekday::Wednesday);
+var $nWednesday = $d->next(Core\Time\DateTime::Weekday::Wednesday);
+var $pWednesday = $d->previous(Core\Time\DateTime::Weekday::Wednesday);
 if (($d->difference($nWednesday, Core\Unit::Nanosecond) > 0) && ($pWednesday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
-if ((($nWednesday->weekday() as int) == (Core\Weekday::Wednesday as int)) && (($pWednesday->weekday() as int) == (Core\Weekday::Wednesday as int))) { $landed = $landed + 1; }
+if ((($nWednesday->weekday() as int) == (Core\Time\DateTime::Weekday::Wednesday as int)) && (($pWednesday->weekday() as int) == (Core\Time\DateTime::Weekday::Wednesday as int))) { $landed = $landed + 1; }
 if (($nWednesday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
     && ($pWednesday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
 if (($d->difference($nWednesday, Core\Unit::Day) <= 7) && ($pWednesday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
-var $nThursday = $d->next(Core\Weekday::Thursday);
-var $pThursday = $d->previous(Core\Weekday::Thursday);
+var $nThursday = $d->next(Core\Time\DateTime::Weekday::Thursday);
+var $pThursday = $d->previous(Core\Time\DateTime::Weekday::Thursday);
 if (($d->difference($nThursday, Core\Unit::Nanosecond) > 0) && ($pThursday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
-if ((($nThursday->weekday() as int) == (Core\Weekday::Thursday as int)) && (($pThursday->weekday() as int) == (Core\Weekday::Thursday as int))) { $landed = $landed + 1; }
+if ((($nThursday->weekday() as int) == (Core\Time\DateTime::Weekday::Thursday as int)) && (($pThursday->weekday() as int) == (Core\Time\DateTime::Weekday::Thursday as int))) { $landed = $landed + 1; }
 if (($nThursday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
     && ($pThursday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
 if (($d->difference($nThursday, Core\Unit::Day) <= 7) && ($pThursday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
-var $nFriday = $d->next(Core\Weekday::Friday);
-var $pFriday = $d->previous(Core\Weekday::Friday);
+var $nFriday = $d->next(Core\Time\DateTime::Weekday::Friday);
+var $pFriday = $d->previous(Core\Time\DateTime::Weekday::Friday);
 if (($d->difference($nFriday, Core\Unit::Nanosecond) > 0) && ($pFriday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
-if ((($nFriday->weekday() as int) == (Core\Weekday::Friday as int)) && (($pFriday->weekday() as int) == (Core\Weekday::Friday as int))) { $landed = $landed + 1; }
+if ((($nFriday->weekday() as int) == (Core\Time\DateTime::Weekday::Friday as int)) && (($pFriday->weekday() as int) == (Core\Time\DateTime::Weekday::Friday as int))) { $landed = $landed + 1; }
 if (($nFriday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
     && ($pFriday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
 if (($d->difference($nFriday, Core\Unit::Day) <= 7) && ($pFriday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
-var $nSaturday = $d->next(Core\Weekday::Saturday);
-var $pSaturday = $d->previous(Core\Weekday::Saturday);
+var $nSaturday = $d->next(Core\Time\DateTime::Weekday::Saturday);
+var $pSaturday = $d->previous(Core\Time\DateTime::Weekday::Saturday);
 if (($d->difference($nSaturday, Core\Unit::Nanosecond) > 0) && ($pSaturday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
-if ((($nSaturday->weekday() as int) == (Core\Weekday::Saturday as int)) && (($pSaturday->weekday() as int) == (Core\Weekday::Saturday as int))) { $landed = $landed + 1; }
+if ((($nSaturday->weekday() as int) == (Core\Time\DateTime::Weekday::Saturday as int)) && (($pSaturday->weekday() as int) == (Core\Time\DateTime::Weekday::Saturday as int))) { $landed = $landed + 1; }
 if (($nSaturday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
     && ($pSaturday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
 if (($d->difference($nSaturday, Core\Unit::Day) <= 7) && ($pSaturday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }
-var $nSunday = $d->next(Core\Weekday::Sunday);
-var $pSunday = $d->previous(Core\Weekday::Sunday);
+var $nSunday = $d->next(Core\Time\DateTime::Weekday::Sunday);
+var $pSunday = $d->previous(Core\Time\DateTime::Weekday::Sunday);
 if (($d->difference($nSunday, Core\Unit::Nanosecond) > 0) && ($pSunday->difference($d, Core\Unit::Nanosecond) > 0)) { $strict = $strict + 1; }
-if ((($nSunday->weekday() as int) == (Core\Weekday::Sunday as int)) && (($pSunday->weekday() as int) == (Core\Weekday::Sunday as int))) { $landed = $landed + 1; }
+if ((($nSunday->weekday() as int) == (Core\Time\DateTime::Weekday::Sunday as int)) && (($pSunday->weekday() as int) == (Core\Time\DateTime::Weekday::Sunday as int))) { $landed = $landed + 1; }
 if (($nSunday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))
     && ($pSunday->format("HH:mm:ss.SSSSSSSSS") == $d->format("HH:mm:ss.SSSSSSSSS"))) { $kept = $kept + 1; }
 if (($d->difference($nSunday, Core\Unit::Day) <= 7) && ($pSunday->difference($d, Core\Unit::Day) <= 7)) { $near = $near + 1; }

@@ -100,9 +100,9 @@ foreach ($zones as string $name) {
         $answered = $answered + 1;
         $moment->minus(1, Core\Unit::Month);
         $answered = $answered + 1;
-        $moment->next(Core\Weekday::Monday);
+        $moment->next(Core\Time\DateTime::Weekday::Monday);
         $answered = $answered + 1;
-        $moment->previous(Core\Weekday::Friday);
+        $moment->previous(Core\Time\DateTime::Weekday::Friday);
         $answered = $answered + 1;
         $moment->with({hour: 3});
         $answered = $answered + 1;

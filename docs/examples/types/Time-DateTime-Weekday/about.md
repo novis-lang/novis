@@ -1,5 +1,8 @@
 A day of the week: Monday, Tuesday, Wednesday, Thursday, Friday, Saturday or Sunday.
 
+`Core\Time\DateTime::Weekday` is declared in the class `Core\Time\DateTime`. The methods `weekday`,
+`next` and `previous` use it.
+
 Monday comes first, the way calendars in most of the world print it and the way the ISO week counts
 it, so Saturday and Sunday are the two at the end. Asking a date which day of the week it falls on
 answers one of these, and the members that jump to a named day — the next Friday, the previous

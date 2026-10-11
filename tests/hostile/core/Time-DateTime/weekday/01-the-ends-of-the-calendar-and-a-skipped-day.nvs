@@ -13,7 +13,7 @@ var $hour = Core\Time::at(2011, 12, 29, Core\Time\Zone::of('Pacific/Apia'));
 int $fridays = 0;
 int $step = 0;
 while ($step < 48) {
-    if ($hour->weekday() == Core\Weekday::Friday) {
+    if ($hour->weekday() == Core\Time\DateTime::Weekday::Friday) {
         $fridays = $fridays + 1;
     }
     $hour = $hour->plus(1, Core\Unit::Hour);

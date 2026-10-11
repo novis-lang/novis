@@ -5,9 +5,9 @@
 
 class Bench {
     public static function run(uint $rounds): int {
-        array<Core\Weekday> $days = [
-            Core\Weekday::Monday, Core\Weekday::Tuesday, Core\Weekday::Wednesday, Core\Weekday::Thursday,
-            Core\Weekday::Friday, Core\Weekday::Saturday, Core\Weekday::Sunday,
+        array<Core\Time\DateTime::Weekday> $days = [
+            Core\Time\DateTime::Weekday::Monday, Core\Time\DateTime::Weekday::Tuesday, Core\Time\DateTime::Weekday::Wednesday, Core\Time\DateTime::Weekday::Thursday,
+            Core\Time\DateTime::Weekday::Friday, Core\Time\DateTime::Weekday::Saturday, Core\Time\DateTime::Weekday::Sunday,
         ];
         var $at = Core\Time::at(2024, 4, 3, Core\Time\Zone::of("Europe/Berlin"), {hour: 9, minute: 30});
         int $total = 0;

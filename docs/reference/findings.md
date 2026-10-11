@@ -207,7 +207,7 @@ rows whose owner is an item number, 31 to 35. An item's owner is the row it sits
 - [x] **D2** `Core\Time\Duration ==` is identity: `90m == 1h30m` is false; `compareTo` answers `0`.
       Closed: the binary is `rule:expressions/equality-semantics`'s class row, and `Duration::compareTo`'s card now says so,
       naming `$a->compareTo($b) == 0` as the content comparison. *types-probes*
-- [x] **D3** `Core\Weekday as int` is zero-based (`Friday` → `4`); the enum card says the cases are
+- [x] **D3** `Core\Time\DateTime::Weekday as int` is zero-based (`Friday` → `4`); the enum card says the cases are
       ordered "as `date("N")`" (Friday = 5). Closed: the card keeps `date("N")` for the **order** and
       states the numbering is not its — `Monday as int` is `0`. *coretime-probes `t_enum_int`*
 - [x] **D4** A pattern/duration argument given as a string literal is a **compile error** (E0769), not the

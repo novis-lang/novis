@@ -1,6 +1,6 @@
-Returns the day of the week of a date and time, as a case of the `Core\Weekday` enum.
+Returns the day of the week of a date and time, as a case of the `Core\Time\DateTime::Weekday` enum.
 
-The result is one of seven cases, from `Core\Weekday::Monday` to `Core\Weekday::Sunday`. You
+The result is one of seven cases, from `Core\Time\DateTime::Weekday::Monday` to `Core\Time\DateTime::Weekday::Sunday`. You
 compare it with `==`, for example to check whether a delivery falls on a weekend.
 
 `weekday` reads the day in the time zone of the value. One moment can be a Sunday in Los Angeles

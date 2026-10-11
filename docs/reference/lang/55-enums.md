@@ -347,7 +347,7 @@ has no method named `cases`
 
 # `Core` enums
 
-The enums under `Core` — `Core\Arr::Order`, `Core\RoundMode`, `Core\Weekday` and the rest, each
+The enums under `Core` — `Core\Arr::Order`, `Core\RoundMode`, `Core\Time\DateTime::Weekday` and the rest, each
 listed in Part B — are ordinary enums: a case is named `Core\Arr::Order::Desc`, passed where a
 member asks for it, compared with `==`, and converted with `as int`.
 

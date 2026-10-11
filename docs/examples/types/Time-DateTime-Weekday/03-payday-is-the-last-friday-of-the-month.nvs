@@ -5,10 +5,10 @@
 class Payroll {
     public static function payday(Core\Time\DateTime $anyDayThatMonth): Core\Time\DateTime {
         var $last = $anyDayThatMonth->endOf(Core\Unit::Month)->startOf(Core\Unit::Day);
-        if ($last->weekday() == Core\Weekday::Friday) {
+        if ($last->weekday() == Core\Time\DateTime::Weekday::Friday) {
             return $last;
         }
-        return $last->previous(Core\Weekday::Friday);
+        return $last->previous(Core\Time\DateTime::Weekday::Friday);
     }
 }
 

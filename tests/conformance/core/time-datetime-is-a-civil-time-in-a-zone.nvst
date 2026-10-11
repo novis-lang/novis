@@ -11,7 +11,7 @@ echo $d->format("yyyy-MM-dd HH:mm:ss"), "|\n";
 
 // The component views: a weekday is the enum case, not `date("N")`'s number,
 // and a day-of-year is one-based.
-echo (($d->weekday() as int) == (Core\Weekday::Thursday as int)) as string, "|\n";
+echo (($d->weekday() as int) == (Core\Time\DateTime::Weekday::Thursday as int)) as string, "|\n";
 echo $d->dayOfYear() as string, "|", $d->isLeapYear() as string, "|\n";
 echo $d->zone()->offsetAt($d->toInstant())->toSeconds() as string, "|\n";
 echo $d->toInstant()->toIso(), "|\n";
@@ -32,8 +32,8 @@ echo $d->endOf(Core\Unit::Quarter)->format("yyyy-MM-dd"), "|\n";
 echo $d->startOf(Core\Unit::Hour)->format("HH:mm:ss"), "|\n";
 
 // `next`/`previous` are strictly later and strictly earlier, time preserved.
-echo $d->next(Core\Weekday::Monday)->format("yyyy-MM-dd HH:mm"), "|\n";
-echo $d->previous(Core\Weekday::Thursday)->format("yyyy-MM-dd"), "|\n";
+echo $d->next(Core\Time\DateTime::Weekday::Monday)->format("yyyy-MM-dd HH:mm"), "|\n";
+echo $d->previous(Core\Time\DateTime::Weekday::Thursday)->format("yyyy-MM-dd"), "|\n";
 
 // `with` replaces `setDate`/`setTime`; an omitted option leaves its field.
 echo $d->with({year: 2000, hour: 1, nanos: 5})->format("yyyy-MM-dd HH:mm:ss.SSSSSSSSS"), "|\n";

@@ -1,6 +1,6 @@
 Returns a new date and time on the next day that falls on a given weekday.
 
-You give a case of `Core\Weekday`, such as `Core\Weekday::Monday`. The result is the nearest later
+You give a case of `Core\Time\DateTime::Weekday`, such as `Core\Time\DateTime::Weekday::Monday`. The result is the nearest later
 day with that weekday. The time of day and the time zone stay the same, and the value you call
 `next` on does not change.
 

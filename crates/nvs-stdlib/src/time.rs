@@ -58,7 +58,7 @@
 //!
 //! # There is no `Core\Month`, and there is not going to be one
 //!
-//! § 4 writes no member that takes or answers with one, `Core\Weekday` existing
+//! § 4 writes no member that takes or answers with one, `Core\Time\DateTime::Weekday` existing
 //! only because `$d->weekday()` does, and an enum nothing names is surface with
 //! no spec home. This is written down because it is the question that keeps
 //! being re-asked, not because anything is missing: three earlier notes here
@@ -1494,7 +1494,7 @@ const UNIT_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// Spec § 4's `Core\Weekday`, Monday-first — ISO-8601's own order, which is
+/// Spec § 4's `Core\Time\DateTime::Weekday`, Monday-first — ISO-8601's own order, which is
 /// what `date("N")` already answers and what [`crate::cldr`]'s tables index
 /// by.
 ///
@@ -1502,7 +1502,7 @@ const UNIT_DOC: EnumDoc = EnumDoc {
 /// a case an ordinary integer constant and nothing here reads it as a
 /// day number; `$d->weekday()` answers the case, not the index.
 pub const WEEKDAY: CoreEnum = CoreEnum {
-    name: r"Core\Weekday",
+    name: r"Core\Time\DateTime::Weekday",
     cases: &[
         ("Monday", 0),
         ("Tuesday", 1),
@@ -4111,7 +4111,7 @@ fn unit_of(args: &[Value], at: usize, member: &str) -> Result<(jiff::Unit, i64),
     }
 }
 
-/// The [`Weekday`] a `Core\Weekday` case names.
+/// The [`Weekday`] a `Core\Time\DateTime::Weekday` case names.
 ///
 /// # Errors
 ///
@@ -4121,7 +4121,11 @@ fn weekday_of(args: &[Value], at: usize, member: &str) -> Result<Weekday, Fault>
         .as_int()
         .and_then(|held| i8::try_from(held).ok())
         .and_then(|index| Weekday::from_monday_zero_offset(index).ok())
-        .ok_or_else(|| Fault::fatal(format!("{member} expected a `Core\\Weekday` case")))
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{member} expected a `Core\\Time\\DateTime::Weekday` case"
+            ))
+        })
 }
 
 /// `value` of `unit` as a [`jiff::Span`].
@@ -4199,7 +4203,7 @@ fn floored(at: &Zoned, unit: jiff::Unit, scale: i64, member: &str) -> Result<Zon
             civil::DateTime::from_parts(date.first_of_month(), civil::Time::midnight())
         }
         // ISO-8601's week, which starts on Monday — the same order
-        // `Core\Weekday`'s cases are in.
+        // `Core\Time\DateTime::Weekday`'s cases are in.
         jiff::Unit::Week => civil::DateTime::from_parts(
             date.checked_sub(
                 jiff::Span::new().days(i64::from(date.weekday().to_monday_zero_offset())),
@@ -7484,7 +7488,7 @@ mod tests {
         datetime_rebuilt(member, at, &[Value::int(count), Value::int(unit)])
     }
 
-    /// `member` called on the `DateTime` `at` with the `Core\Weekday` case at
+    /// `member` called on the `DateTime` `at` with the `Core\Time\DateTime::Weekday` case at
     /// index `weekday` (Monday 0 to Sunday 6), the way `next` and `previous`
     /// are called.
     fn datetime_to_weekday(

@@ -4689,7 +4689,7 @@ has no method named `cases`
 
 ### `Core` enums
 
-The enums under `Core` — `Core\Arr::Order`, `Core\RoundMode`, `Core\Weekday` and the rest, each
+The enums under `Core` — `Core\Arr::Order`, `Core\RoundMode`, `Core\Time\DateTime::Weekday` and the rest, each
 listed in Part B — are ordinary enums: a case is named `Core\Arr::Order::Desc`, passed where a
 member asks for it, compared with `==`, and converted with `as int`.
 
@@ -13163,13 +13163,13 @@ echo $d->format("EEEE, d MMMM yyyy 'at' h:mm a"), "\n";
 
 echo $d->plus(1, Core\Unit::Month)->format("yyyy-MM-dd"), "\n";
 echo $d->minus(1, Core\Unit::Week)->format("yyyy-MM-dd"), "\n";
-echo $d->next(Core\Weekday::Monday)->format("yyyy-MM-dd HH:mm"), "\n";
+echo $d->next(Core\Time\DateTime::Weekday::Monday)->format("yyyy-MM-dd HH:mm"), "\n";
 echo $d->with({month: 3, day: 1})->format("yyyy-MM-dd"), "\n";
 echo $d->startOf(Core\Unit::Day)->format("HH:mm"), " ",
     $d->endOf(Core\Unit::Month)->format("dd HH:mm:ss.SSS"), "\n";
 
 echo $d->difference(Core\Time::at(2026, 8, 30, $utc), Core\Unit::Year), "\n";
-echo $d->weekday() == Core\Weekday::Wednesday ? "midweek" : "other", "\n";
+echo $d->weekday() == Core\Time\DateTime::Weekday::Wednesday ? "midweek" : "other", "\n";
 echo $d->dayOfYear(), " ", $d->isLeapYear() ? "leap" : "common", "\n";
 echo $d->toInstant()->toIso(), "\n";
 ```
@@ -13192,8 +13192,8 @@ midweek
 | [`Core\Time\DateTime->format`](#core-core-time-datetime-format) | `format(string $pattern): string` |
 | [`Core\Time\DateTime->plus`](#core-core-time-datetime-plus) | `plus(int $count, Core\Unit $unit): Core\Time\DateTime` |
 | [`Core\Time\DateTime->minus`](#core-core-time-datetime-minus) | `minus(int $count, Core\Unit $unit): Core\Time\DateTime` |
-| [`Core\Time\DateTime->next`](#core-core-time-datetime-next) | `next(Core\Weekday $w): Core\Time\DateTime` |
-| [`Core\Time\DateTime->previous`](#core-core-time-datetime-previous) | `previous(Core\Weekday $w): Core\Time\DateTime` |
+| [`Core\Time\DateTime->next`](#core-core-time-datetime-next) | `next(Core\Time\DateTime::Weekday $w): Core\Time\DateTime` |
+| [`Core\Time\DateTime->previous`](#core-core-time-datetime-previous) | `previous(Core\Time\DateTime::Weekday $w): Core\Time\DateTime` |
 | [`Core\Time\DateTime->with`](#core-core-time-datetime-with) | `with({year?: int, month?: uint, day?: uint, hour?: uint, minute?: uint, second?: uint, nanos?: uint}): Core\Time\DateTime` |
 | [`Core\Time\DateTime->withTime`](#core-core-time-datetime-withtime) | `withTime(Core\Time\TimeOfDay $t): Core\Time\DateTime` |
 | [`Core\Time\DateTime->startOf`](#core-core-time-datetime-startof) | `startOf(Core\Unit $u): Core\Time\DateTime` |
@@ -13203,7 +13203,7 @@ midweek
 | [`Core\Time\DateTime->date`](#core-core-time-datetime-date) | `date(): Core\Time\Date` |
 | [`Core\Time\DateTime->timeOfDay`](#core-core-time-datetime-timeofday) | `timeOfDay(): Core\Time\TimeOfDay` |
 | [`Core\Time\DateTime->zone`](#core-core-time-datetime-zone) | `zone(): Core\Time\Zone` |
-| [`Core\Time\DateTime->weekday`](#core-core-time-datetime-weekday) | `weekday(): Core\Weekday` |
+| [`Core\Time\DateTime->weekday`](#core-core-time-datetime-weekday) | `weekday(): Core\Time\DateTime::Weekday` |
 | [`Core\Time\DateTime->dayOfYear`](#core-core-time-datetime-dayofyear) | `dayOfYear(): uint` |
 | [`Core\Time\DateTime->isLeapYear`](#core-core-time-datetime-isleapyear) | `isLeapYear(): bool` |
 
@@ -13264,14 +13264,14 @@ Moves the value back by `$count` calendar steps of `$unit`, replacing `date_sub`
 #### `Core\Time\DateTime->next`
 
 ```nvs skip
-$dateTime->next(Core\Weekday $w): Core\Time\DateTime
+$dateTime->next(Core\Time\DateTime::Weekday $w): Core\Time\DateTime
 ```
 
 Finds the nearest strictly later day that falls on `$w`, with the time of day preserved — `strtotime("next monday")` as a typed call.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$w` | `Core\Weekday` | The weekday to move to. |
+| `$w` | `Core\Time\DateTime::Weekday` | The weekday to move to. |
 
 **Returns** `Core\Time\DateTime` — A new `DateTime` one to seven days later — a full week when the receiver already falls on `$w`; the receiver is unchanged.
 
@@ -13281,14 +13281,14 @@ Finds the nearest strictly later day that falls on `$w`, with the time of day pr
 #### `Core\Time\DateTime->previous`
 
 ```nvs skip
-$dateTime->previous(Core\Weekday $w): Core\Time\DateTime
+$dateTime->previous(Core\Time\DateTime::Weekday $w): Core\Time\DateTime
 ```
 
 Finds the nearest strictly earlier day that falls on `$w`, with the time of day preserved — `strtotime("last monday")` as a typed call.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$w` | `Core\Weekday` | The weekday to move to. |
+| `$w` | `Core\Time\DateTime::Weekday` | The weekday to move to. |
 
 **Returns** `Core\Time\DateTime` — A new `DateTime` one to seven days earlier — a full week when the receiver already falls on `$w`; the receiver is unchanged.
 
@@ -13434,12 +13434,12 @@ Answers the zone this civil value is in — always one the program named, since 
 #### `Core\Time\DateTime->weekday`
 
 ```nvs skip
-$dateTime->weekday(): Core\Weekday
+$dateTime->weekday(): Core\Time\DateTime::Weekday
 ```
 
 Answers the day of the week, replacing `date("N")` — as the enum case rather than the number.
 
-**Returns** `Core\Weekday` — The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.
+**Returns** `Core\Time\DateTime::Weekday` — The `Weekday` case, `Weekday::Monday` through `Weekday::Sunday`.
 
 <a id="core-core-time-datetime-dayofyear"></a>
 #### `Core\Time\DateTime->dayOfYear`
@@ -29271,20 +29271,20 @@ The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit `st
 | `Core\Unit::Quarter` | Three calendar months, so `plus(1, Unit::Quarter)` is `plus(3, Unit::Month)` and `startOf` lands on January, April, July or October. |
 | `Core\Unit::Year` | One calendar year, with 29 February clamped to the 28th where the target has none. |
 
-<a id="enum-core-weekday"></a>
-#### `Core\Weekday`
+<a id="enum-core-time-datetime-weekday"></a>
+#### `Core\Time\DateTime::Weekday`
 
 A day of the week, Monday first as ISO 8601 and `date("N")` order them — what `$d->weekday()` answers and `next`/`previous` take. The order is theirs and the numbering is not: the cases are zero-based, `Monday as int` is `0` and `Sunday` is `6`, where `date("N")` numbers that same order `1` through `7`.
 
 | Case | Meaning |
 |---|---|
-| `Core\Weekday::Monday` | The first day of the ISO week. |
-| `Core\Weekday::Tuesday` | The second day of the ISO week. |
-| `Core\Weekday::Wednesday` | The third day of the ISO week. |
-| `Core\Weekday::Thursday` | The fourth day of the ISO week. |
-| `Core\Weekday::Friday` | The fifth day of the ISO week. |
-| `Core\Weekday::Saturday` | The sixth day of the ISO week. |
-| `Core\Weekday::Sunday` | The seventh and last day of the ISO week. |
+| `Core\Time\DateTime::Weekday::Monday` | The first day of the ISO week. |
+| `Core\Time\DateTime::Weekday::Tuesday` | The second day of the ISO week. |
+| `Core\Time\DateTime::Weekday::Wednesday` | The third day of the ISO week. |
+| `Core\Time\DateTime::Weekday::Thursday` | The fourth day of the ISO week. |
+| `Core\Time\DateTime::Weekday::Friday` | The fifth day of the ISO week. |
+| `Core\Time\DateTime::Weekday::Saturday` | The sixth day of the ISO week. |
+| `Core\Time\DateTime::Weekday::Sunday` | The seventh and last day of the ISO week. |
 
 <a id="enum-core-hash-digest"></a>
 #### `Core\Hash::Digest`
@@ -29544,7 +29544,7 @@ Which of CLDR's six plural forms a count selects. The names are CLDR's own label
 | `Core\Cldr::PluralCategory::Many` | The form above `Few` where a language has both — Russian's 5 to 20, and the whole millions in Romance languages that mark them. |
 | `Core\Cldr::PluralCategory::Other` | The form every language has, and in a language with no plural distinction the only one any count selects. |
 
-<a id="enum-core-script-exitreason"></a>
+<a id="enum-core-script-exitreport-reason"></a>
 #### `Core\Script\ExitReport::Reason`
 
 How a script ended, as `Core\Script\ExitReport::reason()` returns it. A `FATAL` error and a cancelled script have no case, because they run no exit function.
