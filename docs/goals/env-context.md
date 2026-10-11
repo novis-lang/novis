@@ -9,7 +9,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: []
         rules: [concurrency/a-connection-is-a-root-isolate, config/a-scheduled-run-is-a-root-isolate, concurrency/two-doors-one-isolate]
         shapes: []
@@ -18,7 +17,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Writing a test case > a `Core` member row cannot land"]
         rules: [core-api/reference-card, config/two-modes-and-the-default-is-production]
         shapes: ["A `Core` member — the five edits", "A `.nvst` test case", A rule fragment]
@@ -27,7 +25,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Writing a test case > a case that tries both platforms"]
         rules: [enums/no-class-machinery, core-api/no-mode-strings]
         shapes: []
@@ -36,7 +33,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [testing/feature-proofs, testing/one-slice-is-one-feature]
         shapes: ["Feature proofs — an example, an attack, a bench, a `covers:` marker"]
   - id: 6
@@ -44,7 +40,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
 checks:
@@ -112,7 +107,6 @@ extra:
     wsl:
       targetDir: /var/tmp/nvs-target-wsl
   context:
-    adrs: []
     milestones: []
     plan: [Open now, Blocking]
     playbook: ["Tooling > the end", "Tooling > one call reads", "Tooling > a commit message", "Tooling > another agent", "Tooling > a handoff item can name"]

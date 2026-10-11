@@ -16,9 +16,6 @@
     "toolchain": {
       "type": "string"
     },
-    "adrSlicesLanded": {
-      "type": "string"
-    },
     "openNow": {
       "type": "string"
     },
@@ -31,7 +28,6 @@
     "done",
     "onDisk",
     "toolchain",
-    "adrSlicesLanded",
     "openNow",
     "blocking"
   ],

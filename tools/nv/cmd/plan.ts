@@ -41,7 +41,6 @@ export const FIELDS: [string, string][] = [
   ["Done", "done"],
   ["On disk", "onDisk"],
   ["Toolchain", "toolchain"],
-  ["ADR slices landed", "adrSlicesLanded"],
   ["Open now", "openNow"],
   ["Blocking", "blocking"],
 ];

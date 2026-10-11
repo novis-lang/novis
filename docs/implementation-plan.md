@@ -35,11 +35,6 @@
 > inside the WSL distro alike, at the same version — `cargo-fuzz` 0.13.2 and `valgrind` under a WSL
 > nightly toolchain (docs/setup.md is what a machine installs, and why).
 >
-> **ADR slices landed:** **each ADR's own *Verification* section is the authority on what its slice
-> covers, and this field never restates one** — `bun nv brief --where <keyword>` routes to the ADR
-> that owns a topic, and `bun nv records --stats` shapes the whole set. What a crate still owes is
-> its own module doc's `# Known gaps`. What landed in which session is in `git log`.
->
 > **Open now:** **Looper's chain, `docs/goals/README.md`, is the list of what is open**, in the
 > order the loop walks it, and each goal is its file under `docs/goals/`. This field restates
 > neither. A goal's plan is its own front matter: looper deletes a goal once it is reached and

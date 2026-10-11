@@ -9,7 +9,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/spreadsheet-has-no-io, core-classes/spreadsheet-bulk-boundary, core-classes/spreadsheet-evaluation-and-roster, core-classes/spreadsheet-formula-is-a-value, core-classes/spreadsheet-output-is-inert, core-classes/decompression-bound, packaging/a-value-crosses-as-its-wit-type, packaging/a-guest-has-no-ambient-authority, core-api/options-bag, core-api/one-paradigm-per-operation]
         shapes: [A rule fragment]
   - id: 3
@@ -17,7 +16,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Writing Novis > in extensions/intl/nvs/Collator.nvs"]
         rules: [core-classes/spreadsheet-output-is-inert, core-classes/io-write-stream, packaging/a-wasm-module-cache-reuses-the-artifact-cache, packaging/the-first-party-components-are-built-in, packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci]
         shapes: ["A `.nvst` test case"]
@@ -26,7 +24,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-api/options-bag]
         shapes: ["A `.nvst` test case"]
   - id: 5
@@ -34,7 +31,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/spreadsheet-formula-is-a-value]
         shapes: ["A `.nvst` test case"]
   - id: 6
@@ -42,7 +38,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: []
         shapes: ["A `.nvst` test case"]
   - id: 7
@@ -50,7 +45,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/spreadsheet-evaluation-and-roster, core-classes/xml-refuses-by-construction, security/taint-propagation, security/tainted-sources]
         shapes: ["A `.nvst` test case"]
   - id: 8
@@ -58,7 +52,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: []
         shapes: ["A `.nvst` test case"]
   - id: 9
@@ -66,7 +59,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-api/one-paradigm-per-operation]
         shapes: ["A `.nvst` test case"]
   - id: 10
@@ -74,7 +66,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/spreadsheet-output-is-inert, core-classes/spreadsheet-formula-is-a-value]
         shapes: ["A `.nvst` test case"]
   - id: 11
@@ -82,7 +73,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/spreadsheet-bulk-boundary, core-classes/decompression-bound, core-classes/xml-refuses-by-construction, packaging/a-guest-runs-under-the-requests-budget, testing/hostile-case-contract]
         shapes: []
   - id: 12
@@ -90,7 +80,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [testing/feature-proofs, packaging/the-first-party-components-are-built-in]
         shapes: ["Feature proofs — an example, an attack, a bench, a `covers:` marker"]
   - id: 13
@@ -98,7 +87,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/spreadsheet-output-is-inert]
         shapes: []
   - id: 14
@@ -106,7 +94,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Tooling > `bun nv proofs --verify --group`*"]
         rules: [testing/feature-proofs, core-api/reference-card, testing/hostile-case-contract]
         shapes: ["Feature proofs — an example, an attack, a bench, a `covers:` marker"]
@@ -240,7 +227,6 @@ extra:
     wsl:
       targetDir: /var/tmp/nvs-target-wsl
   context:
-    adrs: []
     milestones: [M17]
     plan: [Open now, Blocking]
     playbook: ["Tooling > the end", "Tooling > one call reads", "Tooling > a commit message", "Tooling > a [context]*", "Tooling > another agent", "Tooling > a crate added to a built-in component", "Running things > a new dependency owes three things", "Running things > target/release/nvs.exe is"]

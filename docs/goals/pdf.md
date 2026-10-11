@@ -9,7 +9,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-api/tier-roster, core-classes/pdf-render-has-no-io, core-classes/pdf-css-subset, core-classes/pdf-output-is-inert, core-classes/pdf-one-engine, core-classes/pdf-page-is-an-image-source, core-classes/pdf-decode-refusals, packaging/pdf-decoding-ships-in-the-image-package, packaging/a-value-crosses-as-its-wit-type, core-api/options-bag, core-api/one-paradigm-per-operation, core-classes/html-template]
         shapes: [A rule fragment]
   - id: 3
@@ -17,7 +16,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/image-format-roster, core-classes/image-pixel-cap, core-classes/pdf-page-is-an-image-source, core-classes/pdf-decode-refusals]
         shapes: ["A `.nvst` test case"]
   - id: 4
@@ -25,7 +23,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/image-one-entry-point-per-job]
         shapes: ["A `.nvst` test case"]
   - id: 5
@@ -33,7 +30,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/pdf-output-is-inert, core-classes/html-parsing, packaging/a-wasm-module-cache-reuses-the-artifact-cache, packaging/the-first-party-components-are-built-in, packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci]
         shapes: ["A `.nvst` test case"]
   - id: 6
@@ -41,7 +37,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/pdf-css-subset]
         shapes: []
   - id: 7
@@ -49,7 +44,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/pdf-css-subset]
         shapes: []
   - id: 8
@@ -57,7 +51,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 9
@@ -65,7 +58,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/pdf-output-is-inert]
         shapes: []
   - id: 10
@@ -73,7 +65,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Writing Novis > in extensions/intl/nvs/Collator.nvs"]
         rules: [packaging/a-fresh-instance-per-request, core-classes/html-template]
         shapes: ["A `.nvst` test case"]
@@ -82,7 +73,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: []
         shapes: ["A `.nvst` test case"]
   - id: 12
@@ -90,7 +80,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/pdf-output-is-inert]
         shapes: ["A `.nvst` test case"]
   - id: 13
@@ -98,7 +87,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [core-classes/pdf-decode-refusals]
         shapes: ["A `.nvst` test case"]
   - id: 14
@@ -106,7 +94,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [packaging/a-nvsx-dependency-embeds-in-the-same-payload, core-classes/pdf-page-is-an-image-source]
         shapes: []
   - id: 15
@@ -114,7 +101,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [ide/a-template-region-gets-the-editors-services-and-formatter, ide/completion-is-asked-where-a-spelling-ends]
         shapes: []
   - id: 16
@@ -122,7 +108,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Tooling > `bun nv proofs --verify --group`*"]
         rules: [testing/feature-proofs, core-api/reference-card, testing/hostile-case-contract]
         shapes: ["Feature proofs — an example, an attack, a bench, a `covers:` marker"]
@@ -276,7 +261,6 @@ extra:
     wsl:
       targetDir: /var/tmp/nvs-target-wsl
   context:
-    adrs: []
     milestones: [M17]
     plan: [Open now, Blocking]
     playbook: ["Tooling > the end", "Tooling > one call reads", "Tooling > a commit message", "Tooling > a [context]*", "Tooling > another agent", "Tooling > a crate added to a built-in component", "Running things > a new dependency owes three things", "Running things > target/release/nvs.exe is"]

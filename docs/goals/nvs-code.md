@@ -9,7 +9,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Tooling > `nvs-lsp`'s one-construction-site", "Writing a test case > a structural \"exactly one construction site\""]
         rules: [ide/check-scope-defaults-to-the-workspace, ide/the-index-answers-the-cursor]
         shapes: []
@@ -18,7 +17,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [ide/check-json-is-the-diagnostic-record-as-a-document, tooling/one-json-several-renderers, tooling/meta-json-takes-a-program]
         shapes: [A rule fragment]
   - id: 4
@@ -26,7 +24,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [tooling/an-adapter-carries-protocol-and-never-language, tooling/a-primer-claim-is-executed, tooling/the-index-names-every-key-command-and-code]
         shapes: [A rule fragment]
   - id: 5
@@ -34,7 +31,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [testing/feature-proofs, testing/one-slice-is-one-feature]
         shapes: []
 checks:
@@ -82,7 +78,6 @@ extra:
     wsl:
       targetDir: /var/tmp/nvs-target-wsl
   context:
-    adrs: []
     milestones: []
     plan: [Open now, Blocking]
     playbook: ["Tooling > the end", "Tooling > one call reads", "Tooling > a commit message", "Tooling > another agent", "Tooling > a handoff item can name"]

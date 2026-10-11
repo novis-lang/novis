@@ -34,7 +34,6 @@ const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export interface GoalContext {
   modules?: string[];
   rules?: string[];
-  adrs?: string[];
   shapes?: string[];
   playbook?: string[];
   plan?: string[];

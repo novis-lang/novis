@@ -6,7 +6,7 @@ import { apply, PLAN, planFields } from "../cmd/plan.ts";
 import { type Scratch, scratch } from "./scratch.ts";
 
 // A plan whose fields aim at 10 bytes and may not grow past 2x that, one milestone with its scope file.
-const STATUS = { status: "s", done: "d", onDisk: "o", toolchain: "t", adrSlicesLanded: "a", openNow: "the old sentence", blocking: "b" };
+const STATUS = { status: "s", done: "d", onDisk: "o", toolchain: "t",openNow: "the old sentence", blocking: "b" };
 const PLAN_MD = [
   "# Plan",
   "",
@@ -16,7 +16,6 @@ const PLAN_MD = [
   "> **Done:** d",
   "> **On disk:** o",
   "> **Toolchain:** t",
-  "> **ADR slices landed:** a",
   "> **Open now:** the old sentence",
   "> **Blocking:** b",
   "",

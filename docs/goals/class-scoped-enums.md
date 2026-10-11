@@ -9,7 +9,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [types/grammar, types/enum-case-type, enums/reflection, ide/the-stub-tree-is-where-core-is-declared, statements/nothing-gets-a-second-name, classes/a-type-is-declared-at-file-scope]
         shapes: [A rule fragment]
   - id: 3
@@ -17,7 +16,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Writing Novis > a new exprkind variant", "Tooling > a node added to nvs_syntax::walk"]
         rules: [types/grammar]
         shapes: [A diagnostic]
@@ -26,7 +24,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [types/enum-case-type, statements/nothing-gets-a-second-name]
         shapes: ["A `.nvst` test case", A diagnostic]
   - id: 5
@@ -34,7 +31,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Tooling > nvs-ir cannot name"]
         rules: [enums/reflection, enums/representation, routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name]
         shapes: ["A `.nvst` test case"]
@@ -43,7 +39,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Writing a test case > a go-to-definition", "Tooling > a node added to nvs_syntax::walk"]
         rules: [tooling/fmt-novis-constructs, tooling/fmt-never-reorders-members]
         shapes: []
@@ -52,7 +47,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         playbook: ["Writing Novis > the enum a core member returns", "Writing Novis > widening a member's declared type"]
         rules: [core-api/no-mode-strings, core-api/reference-card]
         shapes: ["A `.nvst` test case"]
@@ -61,7 +55,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 9
@@ -69,7 +62,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 10
@@ -77,7 +69,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [testing/feature-proofs, testing/one-slice-is-one-feature]
         shapes: []
 checks:
@@ -170,7 +161,6 @@ extra:
     wsl:
       targetDir: /var/tmp/nvs-target-wsl
   context:
-    adrs: []
     milestones: []
     plan: [Open now, Blocking]
     playbook: ["Tooling > the end", "Tooling > one call reads", "Tooling > a commit message", "Tooling > another agent"]

@@ -9,7 +9,6 @@ stages:
     status: done
     extra:
       context:
-        adrs: []
         rules: [routing/matching-is-not-dispatching, routing/the-servers-match-dispatches-nothing, routing/no-wildcard-verb, security/access-is-checked-for-presence-not-meaning]
         shapes: [Citing a document]
   - id: 3
@@ -17,7 +16,6 @@ stages:
     status: done
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 4
@@ -25,7 +23,6 @@ stages:
     status: done
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 5
@@ -33,7 +30,6 @@ stages:
     status: done
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 6
@@ -41,7 +37,6 @@ stages:
     status: done
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 7
@@ -49,7 +44,6 @@ stages:
     status: done
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 8
@@ -57,7 +51,6 @@ stages:
     status: done
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 9
@@ -65,7 +58,6 @@ stages:
     status: done
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 10
@@ -73,7 +65,6 @@ stages:
     status: done
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 11
@@ -81,7 +72,6 @@ stages:
     status: done
     extra:
       context:
-        adrs: []
         rules: []
         shapes: []
   - id: 12
@@ -89,7 +79,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [tooling/a-repository-fact-is-one-json-record]
         shapes: []
   - id: 13
@@ -97,7 +86,6 @@ stages:
     status: open
     extra:
       context:
-        adrs: []
         rules: [tooling/the-chain-names-its-live-goal, tooling/a-repository-fact-is-one-json-record]
         shapes: []
 checks:
@@ -240,7 +228,6 @@ extra:
     wsl:
       targetDir: /var/tmp/nvs-target-wsl
   context:
-    adrs: []
     milestones: []
     plan: [Open now, Blocking]
     playbook: ["Tooling > the end", "Tooling > one call reads", "Tooling > a commit message", "Tooling > another agent"]

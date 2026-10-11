@@ -1,6 +1,6 @@
 // `bun nv pack`: the sections of the orientation pack only Novis has a form for, for one goal and one
-// stage. They are the rules, the decision-record sections, the scoped map, the convention shapes, the
-// plan fields, the milestones and the next free numbers, in that order. The traps are `looper orient`'s.
+// stage. They are the rules, the scoped map, the convention shapes, the plan fields, the milestones and
+// the next free diagnostic codes, in that order. The traps are `looper orient`'s.
 //
 // The goal is `--goal`, else `LOOPER_GOAL_ENV`, else the chain's live goal, read through `lib/chain.ts`.
 // The stage is `--stage`, else `LOOPER_STAGE_ENV`, else the goal's first stage not marked done. The goal's
@@ -30,7 +30,6 @@ export const summary = "the orientation pack's Novis-only sections for one goal 
 const USAGE = "usage: bun nv pack [--goal <slug>] [--stage <n>]";
 
 export const CONVENTIONS = "docs/agent/conventions.md";
-export const DECISIONS = "docs/decisions";
 const DIAGNOSTICS = "crates/nvs-diagnostics/src/lib.rs";
 
 /** The longest list printed whole; a longer one prints as a count. */
@@ -42,16 +41,12 @@ const NAMED_FILES_MAX = 40;
 /** How long a summary derived from a file that is not a crate module may be. */
 const SUMMARY_MAX = 200;
 
-/** Shapes that only make sense together: a decision is the record and the rule's fragment. */
-export const SHAPE_IMPLIES: [string, string][] = [["A decision record", "A rule fragment"]];
-
 /** The plan's status fields as the plan writes them, and each one's key in the record. */
 const PLAN_FIELDS: [string, string][] = [
   ["Status", "status"],
   ["Done", "done"],
   ["On disk", "onDisk"],
   ["Toolchain", "toolchain"],
-  ["ADR slices landed", "adrSlicesLanded"],
   ["Open now", "openNow"],
   ["Blocking", "blocking"],
 ];
@@ -59,7 +54,6 @@ const PLAN_FIELDS: [string, string][] = [
 export interface Context {
   modules?: string[];
   rules?: string[];
-  adrs?: string[];
   shapes?: string[];
   playbook?: string[];
   plan?: string[];
@@ -217,23 +211,10 @@ export function sectionOpening(text: string, words: string): string | null {
   return h ? sliceSection(text, h.title) : null;
 }
 
-/** A decision record's title, metadata and *In short*: everything before its first `##`. */
-function sliceHead(text: string): string {
-  const h = headings(text).find((x) => x.level === 2);
-  return h ? text.split("\n").slice(0, h.index).join("\n").trimEnd() : text.trimEnd();
-}
-
-/** A frozen record's text without the YAML block it opens on. */
-export function stripFrontmatter(text: string): string {
-  if (!text.startsWith("---\n")) return text;
-  const end = text.indexOf("\n---\n", 4);
-  return end < 0 ? text : text.slice(end + 5).replace(/^\n+/, "");
-}
-
 // ------------------------------------------------------------------------ the manifest
 
 /** The fields a stage's `context` may add to. */
-export const STAGE_FIELDS = ["rules", "adrs", "shapes", "playbook", "milestones"] as const;
+export const STAGE_FIELDS = ["rules", "shapes", "playbook", "milestones"] as const;
 
 export interface Manifest {
   present: boolean;
@@ -243,7 +224,6 @@ export interface Manifest {
   applied: number | null;
   modules: string[];
   rules: string[];
-  adrs: string[];
   shapes: string[];
   playbook: string[];
   plan: string[];
@@ -267,7 +247,6 @@ export function manifest(g: GoalValue, stage: number | null): Manifest {
     applied: over ? stage : null,
     modules: field("modules"),
     rules: field("rules"),
-    adrs: field("adrs"),
     shapes: field("shapes"),
     playbook: field("playbook"),
     plan: ctx.plan ?? ["Open now", "Blocking"],
@@ -324,34 +303,6 @@ function runOneRule(book: Map<string, BookRule>, id: string): void {
   emit();
   emit(read(`docs/rules/${id}.md`).replace(/^\n+|\n+$/g, ""));
   emit();
-}
-
-export function runAdrs(m: Manifest): void {
-  if (m.adrs.length === 0) return;
-  section("THE ADR SECTIONS IN SCOPE", "docs/decisions/*.md, sliced live -- never a copy");
-  emit("A section, not the file. If you need one this does not print, open the record at that");
-  emit("heading and add the section to [context] adrs so the next session does not pay twice.");
-  for (const entry of m.adrs) {
-    const parts = entry.replaceAll("§", " ").split(/\s+/).filter(Boolean);
-    if (parts.length === 0) continue;
-    const [number, ...rest] = parts as [string, ...string[]];
-    const wanted = rest.join(" ");
-    const path = `${DECISIONS}/${number}.md`;
-    if (!existsSync(join(root, path))) {
-      warn(`[context] adrs names ADR ${number}, and docs/decisions/ has no ${number}.md`);
-      continue;
-    }
-    const text = stripFrontmatter(read(path));
-    const body = wanted ? sliceSection(text, wanted) : sliceHead(text);
-    if (body === null) {
-      warn(`ADR ${number} has no section matching ${pyRepr(wanted)} -- it was renamed or renumbered`);
-      continue;
-    }
-    emit();
-    emit(`---- ${path}` + (wanted ? `  §${wanted}` : "  (In short)"));
-    emit();
-    emit(body);
-  }
 }
 
 // ---------------------------------------------------------------------------- the map
@@ -587,11 +538,6 @@ export function runShapes(m: Manifest): void {
     warn(`${CONVENTIONS} is missing`);
     return;
   }
-  for (const [shape, implied] of SHAPE_IMPLIES) {
-    if (m.shapes.includes(shape) && !m.shapes.includes(implied)) {
-      warn(`[context] shapes names ${pyRepr(shape)} without ${pyRepr(implied)}. One decision is both files, in one commit -- add ${pyRepr(implied)} to the manifest`);
-    }
-  }
   section("THE SHAPES YOU ARE ABOUT TO WRITE", `${CONVENTIONS}, filtered to [context] shapes`);
   for (const name of m.shapes) {
     const body = sliceSection(text, name);
@@ -604,7 +550,7 @@ export function runShapes(m: Manifest): void {
   }
 }
 
-// ------------------------------------------------------------------- plan and numbers
+// ----------------------------------------------------------- plan, milestones and codes
 
 export function runPlan(m: Manifest): void {
   const status = load(planStatus, root)[0]?.value as Record<string, string> | undefined;
@@ -652,60 +598,41 @@ export function runMilestones(m: Manifest): void {
   emit("rewrites one.");
 }
 
-/** The next free diagnostic code in each band, and the next free decision number. */
-export function runNumbers(): void {
-  section("THE NEXT FREE NUMBER", "nvs-diagnostics (every `Code::new`) and docs/decisions/ filenames");
+/** The next free diagnostic code in each band. */
+export function runDiagnosticCodes(): void {
+  section("THE NEXT FREE DIAGNOSTIC CODE", "nvs-diagnostics (every `Code::new`)");
   const text = read(DIAGNOSTICS);
   if (!text) {
     warn(`could not read ${DIAGNOSTICS} -- it is the diagnostic-code registry`);
-  } else {
-    const legend = new Map<string, string>();
-    const highest = new Map<string, number>();
-    for (const line of text.split("\n")) {
-      const m = /^\/\/\/\s*\|\s*`E(\d{2})xx`\s*\|\s*([^|]+?)\s*\|/.exec(line);
-      if (m) legend.set(m[1]!, m[2]!.trim());
-    }
-    // A retired code is never reused, so the comment naming it holds its band's ceiling up.
-    const decl = [/Code::new\("(E(\d{2})\d{2})"\)/g, /`(E(\d{2})\d{2})`[^`]{0,80}?\bretired\b/g, /\bretired\b[^`]{0,80}?`(E(\d{2})\d{2})`/g];
-    for (const re of decl) {
-      for (const m of text.matchAll(re)) highest.set(m[2]!, Math.max(highest.get(m[2]!) ?? 0, Number(m[1]!.slice(1))));
-    }
-    if (highest.size === 0) {
-      warn(`no \`Code::new("Ennnn")\` declarations in ${DIAGNOSTICS}`);
-    } else {
-      emit("diagnostic codes -- next free in each band (max + 1; a retired code is never");
-      emit("reused, so this is deliberately not the lowest hole):");
-      for (const band of [...highest.keys()].sort()) {
-        const top = highest.get(band)!;
-        const meaning = (legend.get(band) ?? "(no row for this band in that file's legend table)").padEnd(48);
-        // Max-plus-one leaves the band at `Enn00`, and a filled band's next code comes from the
-        // legend's continuation row rather than from the next band's digits.
-        if ((top + 1) % 100 === 0) emit(`  E${band}xx  ${meaning} FULL at E${String(top).padStart(4, "0")}`);
-        else emit(`  E${band}xx  ${meaning} next: E${String(top + 1).padStart(4, "0")}`);
-      }
-      const unlisted = [...legend.keys()].filter((b) => !highest.has(b)).sort();
-      if (unlisted.length > 0) emit(`  bands with a legend row but no code yet: ${unlisted.map((b) => `E${b}xx`).join(", ")}`);
-    }
-  }
-  let numbers: number[];
-  try {
-    numbers = readdirSync(join(root, DECISIONS)).flatMap((f) => {
-      const m = /^(\d{4})\.md$/.exec(f);
-      return m ? [Number(m[1])] : [];
-    });
-  } catch {
-    warn(`no ${DECISIONS}/ directory`);
     return;
   }
-  emit();
-  if (numbers.length === 0) {
-    warn(`no \`NNNN.md\` files in ${DECISIONS}/`);
+  const legend = new Map<string, string>();
+  const highest = new Map<string, number>();
+  for (const line of text.split("\n")) {
+    const m = /^\/\/\/\s*\|\s*`E(\d{2})xx`\s*\|\s*([^|]+?)\s*\|/.exec(line);
+    if (m) legend.set(m[1]!, m[2]!.trim());
+  }
+  // A retired code is never reused, so the comment naming it holds its band's ceiling up.
+  const decl = [/Code::new\("(E(\d{2})\d{2})"\)/g, /`(E(\d{2})\d{2})`[^`]{0,80}?\bretired\b/g, /\bretired\b[^`]{0,80}?`(E(\d{2})\d{2})`/g];
+  for (const re of decl) {
+    for (const m of text.matchAll(re)) highest.set(m[2]!, Math.max(highest.get(m[2]!) ?? 0, Number(m[1]!.slice(1))));
+  }
+  if (highest.size === 0) {
+    warn(`no \`Code::new("Ennnn")\` declarations in ${DIAGNOSTICS}`);
     return;
   }
-  const top = Math.max(...numbers);
-  emit(`ADRs: ${numbers.length} on disk, highest ${String(top).padStart(4, "0")} -- next free is ${String(top + 1).padStart(4, "0")}`);
-  emit("Claim it by creating the file, and re-check this immediately before you do: another");
-  emit("agent working the same tree derives the same answer from the same directory.");
+  emit("diagnostic codes -- next free in each band (max + 1; a retired code is never");
+  emit("reused, so this is deliberately not the lowest hole):");
+  for (const band of [...highest.keys()].sort()) {
+    const top = highest.get(band)!;
+    const meaning = (legend.get(band) ?? "(no row for this band in that file's legend table)").padEnd(48);
+    // Max-plus-one leaves the band at `Enn00`, and a filled band's next code comes from the
+    // legend's continuation row rather than from the next band's digits.
+    if ((top + 1) % 100 === 0) emit(`  E${band}xx  ${meaning} FULL at E${String(top).padStart(4, "0")}`);
+    else emit(`  E${band}xx  ${meaning} next: E${String(top + 1).padStart(4, "0")}`);
+  }
+  const unlisted = [...legend.keys()].filter((b) => !highest.has(b)).sort();
+  if (unlisted.length > 0) emit(`  bands with a legend row but no code yet: ${unlisted.map((b) => `E${b}xx`).join(", ")}`);
 }
 
 // ---------------------------------------------------------------------------- driver
@@ -736,12 +663,11 @@ export async function pack(args: string[], at: string = ROOT): Promise<{ code: n
 
   begin("pack", at);
   runRules(m);
-  runAdrs(m);
   await runMap(m);
   runShapes(m);
   runPlan(m);
   runMilestones(m);
-  runNumbers();
+  runDiagnosticCodes();
   closeLedger();
   return { code: 0, text: printed().join("\n").replace(/^\n+/, "") };
 }

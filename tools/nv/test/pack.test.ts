@@ -9,7 +9,7 @@ import { type Scratch, scratch } from "./scratch.ts";
 // A tree with two rules, one shape, a plan with its fields and one milestone. Goal `g` names the first
 // rule, the shape, a plan field and the milestone, and its stage 2 adds the second rule. Goal `bare`
 // names nothing, and it is the live goal, so a pack that ignored the goal it was given prints nothing.
-const STATUS = { status: "s", done: "d", onDisk: "o", toolchain: "t", adrSlicesLanded: "a", openNow: "the open work", blocking: "nothing blocks" };
+const STATUS = { status: "s", done: "d", onDisk: "o", toolchain: "t",openNow: "the open work", blocking: "nothing blocks" };
 
 // Goal `g`'s stage 1 is done, so its live stage is 2. A goal file's front matter is written as JSON,
 // which is YAML too.
@@ -72,7 +72,7 @@ test("nv pack prints the rules, shapes, plan fields and milestones of the goal a
   expect(r.text).toContain("-- M1 acceptance (docs/plan/m1.md)");
   expect(r.text).toContain("the first milestone runs");
   expect(r.text).not.toContain("TRAPS");
-  const order = ["THE RULES", "THE MAP", "THE SHAPES", "THE PLAN", "THE MILESTONES", "THE NEXT FREE NUMBER"].map((t) => r.text.indexOf(`== ${t}`));
+  const order = ["THE RULES", "THE MAP", "THE SHAPES", "THE PLAN", "THE MILESTONES", "THE NEXT FREE DIAGNOSTIC CODE"].map((t) => r.text.indexOf(`== ${t}`));
   expect(order.every((at, i) => at >= 0 && (i === 0 || at > order[i - 1]!))).toBe(true);
 
   const stage1 = await pack(["--goal", "g", "--stage", "1"], s.root);
