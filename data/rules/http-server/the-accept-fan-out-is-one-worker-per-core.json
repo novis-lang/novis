@@ -1,9 +1,7 @@
 {
   "title": "Every `[server] listen` entry is bound before any core accepts, each core holds its own handle on every listener, and `[server] workers` bounds the count over the machine's available parallelism",
   "status": "shipped",
-  "because": [
-    "0161"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/the-server-block-is-boot-class",
     "http-server/a-unix-socket-listener",
@@ -14,6 +12,7 @@
   ],
   "guardedBy": [
     "crates/nvs-config/src/server.rs",
-    "crates/nvs-cli/src/serve.rs"
+    "crates/nvs-cli/src/serve.rs",
+    "crates/nvs-cli/src/script.rs"
   ]
 }
