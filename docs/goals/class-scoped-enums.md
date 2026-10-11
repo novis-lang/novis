@@ -66,7 +66,7 @@ stages:
         shapes: []
   - id: 10
     title: the feature proofs
-    status: open
+    status: done
     extra:
       context:
         rules: [testing/feature-proofs, testing/one-slice-is-one-feature]
@@ -525,28 +525,23 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 9 are done. Every `Core` and built-in component enum, and every published program's enum, is at its place. Stage 10, the feature proofs, is next.**
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 10 are done, and the goal is claimed reached.**
 
-- `docs/reference/lang/55-enums.md`'s `# Declaring an enum` shows the class-scoped form first and the file-scope form as the shared case. `50-classes.md`, `20-types.md`'s alias section and the class `about.md` name the enum as the one type a class body declares.
-- The website: `syntax/values/enums.mdx` has a section *Declare an enum in the class that uses it* (`website/snippets/syntax/enums/06-in-a-class.nvs`), and the tour, `declaring.mdx` and `objects.mdx` say the same. `bun nv site --stale` lists no stale page.
-- The sweep read the placement rule literally: an enum moves when exactly one class takes, returns or holds it in a property (a shape field of an interface's alias counted as a property, in the `Job` attribute example). An enum used only in method bodies, attributes or top-level code stays where it was, with no comment. A shared one has one comment line above it.
-- The enum features' perf was re-measured after the chapter edit (`docs/perf/members.ndjson`), so `dossier-the-enum-examples-run` is green. Perf staleness is keyed on a feature's own section, so editing one section of a chapter stales only that section's feature.
-- `bun nv site --stale` lists 32 component enums no Syntax page covers (`Novis\Image\Image::Fit`, `Novis\Intl\Collator::Strength` and the rest), left from the Stage 8 renames. `website/src/data/core.json` still names the old component enums.
-- `tests/hostile/core/IO/write/01-bad-paths-escapes-and-large-content.nvs` fails under the debug binary on Windows. Neither it nor `site prose`'s `guides/production/run-as-a-service.mdx:57` (a 7-sentence paragraph) names an enum.
+- `lang:enums/an-enum-inside-a-class` is on the roster from `docs/reference/lang/55-enums.md`'s `# An enum inside a class`, and `bun nv proofs --id` prints `complete.`: `about.md`, three examples, the attack, the bench with its growth, three `.nvst` cases and `crates/nvs-cli/tests/meta.rs::a_class_scoped_enum_is_listed_under_its_owner`, each with a `// covers:` line.
+- The attack `tests/hostile/lang/enums/an-enum-inside-a-class/01-a-class-and-an-enum-with-the-same-name.nvs` declares the class as `Shop\Status`, not `Shop\Order\Status`: a file holds one `namespace` (`rule:statements/one-namespace-statement-per-file`), so the exact same-path pair lives in the two-file conformance case `tests/conformance/enum/a-class-scoped-enum-and-a-class-of-the-same-path-are-two-types.nvst`. Step 4 writes `Order\Status::Paid`, the path of that class.
+- The renames of Stages 7 and 8 staled the perf of every member of a touched registry file. All of it is re-measured in `docs/perf/members.ndjson`, and `bun nv proofs --gate` owes nothing over 1391 features.
+- `pdf` and `spreadsheet` carry `enums/an-enum-lives-in-the-class-that-uses-it` in the `context.rules` of the stage before their Stage 3.
+- Left uncommitted, because this goal did not write them knowingly: `benches/members/core/IO-Metadata/{size,modifiedAt}.nvs` (iterations cut to 1024, `callgrind` added, during the perf re-record) and `benches/compare.json` and `website/src/{data/compare.json,lib/compare.ts}`, which another session's `bench-compare --record` is writing.
 
 Both rules stay `designed`. `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
 
 ### Next
 
-**Stage 10, the feature proofs** (`rule:testing/feature-proofs`, `rule:enums/class-scoped-enum`). The file set is `docs/reference/lang/55-enums.md`, `docs/examples/lang/enums/`, `tests/hostile/lang/enums/`, `benches/members/lang/enums/` and `data/proofs/policy.json`.
-
-- [ ] The section `# An enum inside a class` in `docs/reference/lang/55-enums.md:315` (before `# What an enum does not have`): the member's rules, with an `nvs` and an `nvs error` fence each. Then `bun nv reference --no-examples` for `docs/novis.md`; the binary embeds the chapter (`crates/nvs-cli/src/agent.rs:187`), so `nvs agent show lang:enums/an-enum-inside-a-class` follows.
-- [ ] `docs/examples/lang/enums/an-enum-inside-a-class/`: `about.md` and the three examples the goal names (an order with its status, a command's exit codes, an interface whose enum every implementation returns), each with its `.out`, shaped like `docs/examples/lang/enums/declaring-an-enum/about.md:1`. Then the attack `tests/hostile/lang/enums/an-enum-inside-a-class/01-*.nvs` (`Shop\Order\Status` class vs `Shop\Order::Status` enum) and the bench `benches/members/lang/enums/an-enum-inside-a-class.nvs`, then `bun nv proofs --record-perf --only lang:enums/an-enum-inside-a-class`.
-- [ ] `bun nv proofs --id 'lang:enums/an-enum-inside-a-class'` prints what it still owes (the stage's list is `docs/goals/class-scoped-enums.md:511`). The Stage 10 checks: `dossier-the-enum-feature-owes-nothing`, `dossier-the-enum-programs-carry-plain-comments` and `bun nv proofs --gate`. The `pdf` and `spreadsheet` goal records get `enums/an-enum-lives-in-the-class-that-uses-it` in `context.rules`.
+**None in this goal.** The acceptance sweep judges the Stage 10 checks: `dossier-the-enum-feature-owes-nothing`, `dossier-the-enum-programs-carry-plain-comments` and `dossier-the-whole-roster-owes-nothing-with-class-scoped-enums`. All three were green at the end of this session. The next goal on the chain is `nvs-code`.
 
 ### Backlog
 
-- `docs/rules/enums/class-scoped-enum.md:16` declares a file-scope `function label`, which `rule:classes/no-free-functions-or-constants` refuses. Make it a static method.
 - A bare `Status::` in **type** position inside the owner does not complete the cases. Value position works through `owned_named` (`crates/nvs-lsp/src/completion.rs`).
 - `nvsx.toml`'s `[[enums]]` table has no `owner` key yet (`crates/nvs-cli/src/ext/nvsx_toml.rs:216`), so a third-party extension cannot own an enum. Owner: `rule:enums/an-enum-lives-in-the-class-that-uses-it`.
-- 32 component enums are uncovered by a Syntax page (`bun nv site --stale`). Owner: the website's reference area.
+- 32 component enums are uncovered by a Syntax page (`bun nv site --stale`), and `website/src/data/core.json` still names the old component enums. Owner: the website's reference area.
+- The two `IO-Metadata` bench edits above need an owner's decision: commit them with a reason, or restore them.
