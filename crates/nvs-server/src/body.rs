@@ -55,8 +55,7 @@ use nvs_runtime::RequestBody;
 /// a `nvs_config` row yet — that directive and its `[limits.hard]` ceiling are
 /// the configuration slice's, and this constant is the one line it replaces.
 /// The number is load-bearing either way: § 5 makes it the *only* thing
-/// bounding a streamed body, and `rule:http-server/admission-is-arithmetic-not-a-number` multiplies it by the in-flight
-/// ceiling to get what the machine must hold.
+/// bounding a streamed body.
 ///
 pub const UPLOAD_TOTAL: u64 = 256 * 1024 * 1024;
 

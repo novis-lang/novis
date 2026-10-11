@@ -671,10 +671,10 @@ fn memory(bytes: u64) -> String {
     format!("[limits]\nmemory = {bytes}\n")
 }
 
-/// `limits.memory` is one input of the admission ceiling, so a reload that
-/// moves it moves the ceiling. A cap of a pebibyte a request leaves this
-/// machine room for one request, so while one is held in flight the next is
-/// answered `503`.
+/// `limits.memory` is one input of admission, so a reload that moves it moves
+/// what a request needs room for. No machine has room for a request that may
+/// grow to a pebibyte, so while one request is held in flight the next is
+/// answered `503`. The first request in flight is always admitted.
 #[test]
 fn a_changed_memory_limit_moves_the_admission_ceiling() {
     const SMALL: u64 = 64 * 1024 * 1024;
@@ -682,8 +682,8 @@ fn a_changed_memory_limit_moves_the_admission_ceiling() {
     the_ceiling_follows("memory", &memory(SMALL), &memory(HUGE), "limits.memory");
 }
 
-/// `[server] max_in_flight` is the other input of the admission ceiling. A
-/// ceiling of one, with one request held in flight, answers the next `503`.
+/// `[server] max_in_flight` is the other input of admission. A ceiling of one,
+/// with one request held in flight, answers the next `503`.
 #[test]
 fn a_changed_in_flight_ceiling_moves_the_admission_ceiling() {
     the_ceiling_follows(

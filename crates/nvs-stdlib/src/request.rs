@@ -3851,9 +3851,7 @@ nvs_runtime::nvs_helper! {
     /// **A `max` over the request's memory ceiling is refused, not clamped.** A
     /// clamp would answer a program that asked for 200M with a refusal naming
     /// 64M at some later chunk, which is the same failure one call further from
-    /// the mistake; `rule:http-server/admission-is-arithmetic-not-a-number` clamps because an operator's two directives
-    /// disagreeing must not stop a boot, and a program's own call has no such
-    /// claim on being started.
+    /// the mistake.
     fn nvs_core_request_part_read_all(ctx, args: [2]) {
         let ordinal = part_ordinal(args[0], "readAll")?;
         // unreachable from source: `max` is `CoreTy::Uint` in

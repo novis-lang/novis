@@ -358,7 +358,7 @@ impl Process {
         } = tree;
         // Asked of the incoming set before the publish, so an `[[app]]` block
         // that does not fold for one mounted entry, or a `[limits]` memory
-        // setting the admission arithmetic cannot read in any entry's snapshot,
+        // setting admission cannot read in any entry's snapshot,
         // refuses the reload the way it refuses a boot, and leaves the running
         // set serving. The publish folds the entries again over the carried
         // `Boot` values, so a reload folds each mounted entry twice.
@@ -458,14 +458,12 @@ impl Process {
         self.compiler.reconfigure(&serving.config);
         // `rule:http-server/admission-is-arithmetic-not-a-number` over the set
         // now serving: `limits.memory` reloads in every entry's snapshot, and
-        // `[server] max_in_flight` is whatever the publish carried. The set
-        // passed the same arithmetic above, so the error arm keeps the ceiling
-        // it had and never runs.
+        // `[server] max_in_flight` is whatever the publish carried. Requests
+        // already admitted keep their places. The set passed the same reading
+        // above, so the error arm keeps the numbers it had and never runs.
         if let Ok(capacity) = capacity_of(&self.current.published(), &origins) {
             let ceiling = Ceiling::of(&capacity);
-            if let Some(note) = ceiling.clamp_note() {
-                eprintln!("note: {note}");
-            }
+            ceiling.arm();
             self.admission.resize(&ceiling);
         }
         Ok(report)
@@ -619,8 +617,8 @@ pub(crate) fn check(process: &Arc<Process>) {
     }
 }
 
-/// `rule:http-server/admission-is-arithmetic-not-a-number` over `set`: the
-/// host's ceiling, and the largest per-request cap any entry's snapshot folded
+/// `rule:http-server/admission-is-arithmetic-not-a-number`'s inputs over `set`:
+/// the host's ceiling, and the largest per-request cap any entry's snapshot folded
 /// so far gives, as the boot asks it.
 fn capacity_of(
     set: &nvs_config::Published,

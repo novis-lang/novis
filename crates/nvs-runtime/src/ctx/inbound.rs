@@ -214,8 +214,9 @@ pub struct Inbound {
     /// `rule:http-server/request-body-and-upload-total-are-two-caps` lets one be
     /// `upload_total` large, which is `"256M"` by default
     /// and `"2G"` at its ceiling, so what is held here decides the resident cost
-    /// of every in-flight request and, through `rule:http-server/admission-is-arithmetic-not-a-number`'s arithmetic, the
-    /// number of requests this process may admit at once.
+    /// of every in-flight request and, through what
+    /// `rule:http-server/admission-is-arithmetic-not-a-number` counts, the number of requests this
+    /// process may admit at once.
     body: Option<Box<dyn RequestBody>>,
     /// The address the request came from, as `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing`'s walk decided it —
     /// the socket's own peer, or what a *trusted* proxy said instead.
@@ -1763,11 +1764,10 @@ impl SseSlot {
 /// the larger — the bytes are already resident by the time any member could
 /// apply the tighter number, so `request_body` would be a check over something
 /// already paid for, which is not a bound. What is left is a per-request
-/// resident cost of `upload_total`, multiplied by `max_in_flight` by
-/// `rule:http-server/admission-is-arithmetic-not-a-number`
-/// 's arithmetic: a 2G ceiling against a memory budget divides the effective
-/// admission ceiling to approximately nothing, so the honest configuration and
-/// the working one stop being the same file.
+/// resident cost of `upload_total` for every request in flight, which is what
+/// `rule:http-server/admission-is-arithmetic-not-a-number` counts: at a 2G
+/// ceiling a few uploads fill the memory budget, so the honest configuration
+/// and the working one stop being the same file.
 ///
 /// § 6 closes the remaining option before it is asked: there is no temp file, so
 /// "neither resident nor streamed" is not a place a body can be put. Buffered

@@ -54,7 +54,8 @@ pub const MODE_DEFAULT: &str = mode::PRODUCTION;
 
 /// `[limits] memory`, for every kind of run
 /// (`rule:config/no-configuration-file-is-a-complete-configuration`). **What it spends:** up to
-/// 128 MiB per request in flight, which is what admission reserves for each one.
+/// 128 MiB per request in flight, at most. Admission counts what each request holds, and admits
+/// one more only while there is room for it to grow to this cap.
 pub const LIMITS_MEMORY: u64 = 128 * MIB;
 /// `[limits] cpu_time` for server work. A CLI program and a test run take no CPU ceiling.
 pub const LIMITS_CPU_TIME: Duration = Duration::from_secs(30);

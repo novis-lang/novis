@@ -63,7 +63,7 @@
 //!   ending on, and the one it logs once per window instead of once per
 //!   attempt. [`AcceptBackoff`] is both halves and nothing else in this file
 //!   knows the condition. `max_in_flight` is here too: [`crate::admit`] is the
-//!   arithmetic and the counter, and the refusal is taken in the service below
+//!   memory condition and the counter, and the refusal is taken in the service below
 //!   *before* the handler is asked for a [`Reply`], which is the order § 5 makes
 //!   the whole point of the valve. The four waits are here too:
 //!   [`crate::io::Phase`] is which one is in force, and the connection loop
@@ -2531,8 +2531,7 @@ impl Listening for nvs_host::NvsUnixListener {
 /// one hot core refuse while its neighbours idle. Every connection this loop
 /// hands over gets a handle on the same count.
 ///
-/// `report` is handed the one line [`AcceptBackoff`] produces per window, for
-/// the reason [`crate::admit::Ceiling::clamp_note`] hands its own back as a
+/// `report` is handed the one line [`AcceptBackoff`] produces per window as a
 /// `String`: this crate is given a socket and not a logger, and the boot that
 /// chose where a note goes is the one that owns writing it there.
 ///
@@ -8010,7 +8009,7 @@ pub(crate) mod tests {
 
     /// A valve every case but the last one is not about, beside `rule:http-server/secure-headers-with-nothing-written`'s
     /// shipped header set: § 5's own default ceiling with no memory budget to
-    /// divide it against, which is what an unconfigured tree resolves to.
+    /// admit against.
     fn wide_open() -> Serving {
         Serving::new(
             Arc::new(Admission::new(&Ceiling::of(&Capacity {
@@ -10742,6 +10741,82 @@ pub(crate) mod tests {
         drop(refused);
         hot_worker.join().expect("the hot core panicked");
         idle_worker.join().expect("the idle core panicked");
+    }
+
+    /// `rule:http-server/admission-is-arithmetic-not-a-number` admits by what
+    /// requests hold, so a cap is how much one request may grow and not what
+    /// each one is assumed to take. Sixteen waiting requests under a 1 GiB cap
+    /// and 8 GiB of room are all admitted: each holds a few kilobytes, and
+    /// there is room for one more to reach its cap. Dividing the room by the
+    /// cap would have refused every request past the eighth.
+    #[test]
+    fn many_waiting_requests_under_a_large_cap_are_all_admitted() {
+        const WAITING: usize = 16;
+        const GIB: u64 = 1024 * 1024 * 1024;
+
+        let cpus = nvs_host::cpus();
+        let Some(cpu) = cpus.first().copied() else {
+            // A host that enumerates no CPU has no core thread to publish
+            // what it holds.
+            return;
+        };
+        let admission = Arc::new(Admission::new(&Ceiling::of(&Capacity {
+            configured: 10_000,
+            per_request: Some(GIB),
+            budget: Some(crate::admit::ENGINE_RESERVE + 8 * GIB),
+        })));
+        let serving = Serving::new(
+            Arc::clone(&admission),
+            Arc::new(Secure::default()),
+            Arc::new(Trusted::none()),
+            Arc::new(Cors::default()),
+            Arc::default(),
+        );
+        let socket = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let addr = socket
+            .local_addr()
+            .expect("a bound listener had no address");
+        let (asked, admitted) = std::sync::mpsc::channel();
+        let worker =
+            nvs_host::Worker::spawn(cpu, one_admitting_core(socket, serving, WAITING, asked))
+                .expect("the OS refused a worker thread");
+
+        // Each body is three bytes short, so each run waits holding its place.
+        let mut waiting = Vec::with_capacity(WAITING);
+        for which in 1..=WAITING {
+            let mut socket = TcpStream::connect(addr).expect("the loopback refused a connection");
+            socket
+                .set_read_timeout(Some(CLIENT_PATIENCE))
+                .expect("the socket refused a read timeout");
+            socket
+                .write_all(
+                    b"POST /wait HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\
+                      Content-Length: 5\r\n\r\nab",
+                )
+                .expect("the write failed");
+            admitted.recv_timeout(CLIENT_PATIENCE).unwrap_or_else(|_| {
+                panic!("waiting request {which} was refused, so the cap was taken as what each request holds")
+            });
+            waiting.push(socket);
+        }
+        assert_eq!(admission.in_flight(), WAITING);
+
+        for socket in &mut waiting {
+            socket
+                .write_all(b"cde")
+                .expect("the rest of the body could not be written");
+            let mut answer = String::new();
+            socket
+                .read_to_string(&mut answer)
+                .expect("the response could not be read");
+            assert!(
+                answer.starts_with("HTTP/1.1 200 OK\r\n"),
+                "an admitted request was not answered: {answer}"
+            );
+        }
+        drop(waiting);
+        worker.join().expect("the core panicked");
+        assert_eq!(admission.in_flight(), 0, "a place was not given back");
     }
 
     /// One core that registers with the fleet's watchdog and then keeps

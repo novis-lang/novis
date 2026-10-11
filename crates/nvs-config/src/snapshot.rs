@@ -161,7 +161,7 @@ impl Snapshot {
     /// because no entry file was named for one to match.
     ///
     /// This is what a server reads its process-wide keys from — `[server]`, `[http.client.tls]`,
-    /// the admission arithmetic — and the base every entry's snapshot in a [`Published`] set is
+    /// the numbers admission reads — and the base every entry's snapshot in a [`Published`] set is
     /// folded over. [`mode`](Snapshot::mode), [`origin`](Snapshot::origin) and
     /// [`blocks`](Snapshot::blocks) are empty in it for the same reason.
     ///

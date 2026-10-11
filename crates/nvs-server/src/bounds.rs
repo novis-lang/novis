@@ -35,7 +35,7 @@
 //!   counts requests in flight and a request that upgraded has ended, so a
 //!   connection holding a coroutine, 128 KiB of codec buffer and a root isolate
 //!   would be charged to nothing. The two numbers are the same magnitude for
-//!   the same reason — `rule:http-server/admission-is-arithmetic-not-a-number`'s arithmetic sizes a slot against what one
+//!   the same reason — `rule:http-server/admission-is-arithmetic-not-a-number` makes room for what one
 //!   isolate may hold, and § 1 gives a connection isolate exactly that budget.
 //! - **An event stream's keep-alive** is [`Heartbeat`], derived rather than
 //!   configured: what closes an idle event stream is the response wait

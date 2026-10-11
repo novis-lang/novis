@@ -2491,12 +2491,11 @@ pub mod code {
     /// spelling does not typecheck against it, so removing this valve is not
     /// something the file can say.
     ///
-    /// Only the written magnitude is this code's: the *effective* ceiling is an
-    /// arithmetic against the memory budget
-    /// (`rule:http-server/admission-is-arithmetic-not-a-number`
-    /// ) and a configured number the budget cannot afford is clamped and
-    /// logged rather than refused, because a server that will not boot because
-    /// two directives disagree is the worse outage.
+    /// Only the written magnitude is this code's: admission also asks whether
+    /// the memory the process holds leaves room for one more request
+    /// (`rule:http-server/admission-is-arithmetic-not-a-number`), and that
+    /// condition is separate from this count, so no number written here can
+    /// disagree with it.
     pub const E_NO_ADMISSION: Code = Code::new("E0622").card(
         "`[server] max_in_flight` is `0`, so the server would refuse every request. Write a number \
          above zero, or leave the key out to use the default.",

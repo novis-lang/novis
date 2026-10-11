@@ -1,29 +1,37 @@
-//! `rule:http-server/the-server-block-is-boot-class`
-//! 's in-flight ceiling, as
-//! `rule:http-server/admission-is-arithmetic-not-a-number`
-//! states it: the arithmetic that turns a written `max_in_flight` into an
-//! effective one, and the one relaxed counter that refuses a request over it.
+//! `rule:http-server/the-server-block-is-boot-class`'s admission, as
+//! `rule:http-server/admission-is-arithmetic-not-a-number` states it: a request
+//! is admitted while the memory the process holds now leaves room for it to
+//! reach its own ceiling, and while fewer than `max_in_flight` requests are in
+//! flight.
 //!
-//! # Why an arithmetic and not a number
+//! # Memory held, not memory assumed
 //!
-//! A ceiling on *concurrency* and a cap on *per-request memory* that have no
-//! stated relationship do not bound anything together — their product is what
-//! the machine is actually asked to hold, and where that product exceeds what
-//! it has, the operating system's out-of-memory killer is the real admission
-//! controller. It terminates the process, which is `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers` tier A's failure
-//! arriving through the one door every cap above it was supposed to have
-//! closed. So [`Ceiling::of`] takes the **smaller** of what the file asked for
-//! and what the budget affords, and [`Ceiling::clamp_note`] is the sentence an
-//! operator reads when those two disagree. Clamping rather than refusing to
-//! boot is the rule's own call: a server that will not start because two directives
-//! disagree is the worse outage, and the operator learns the same fact either
-//! way.
+//! `[limits] memory` is the most one request may hold, and most requests hold
+//! a small part of it. So [`Admission::admit`] admits when `used + cap` fits
+//! under `budget − ENGINE_RESERVE`, where `used` is what every core holds as
+//! `nvs_runtime::budget::held_by_cores` reads it and `cap` is the per-request
+//! cap. A newly admitted request always has room to reach its own ceiling. A
+//! tree with no per-request cap (`memory = false`) is admitted while `used`
+//! is under the room, and a host that answers no budget has no memory
+//! condition. `max_in_flight` stays a count, because it is the operator's own
+//! number and the one bound that holds whatever the requests weigh.
 //!
-//! The inputs are `nvs_config::server::Capacity`'s, and reading them is
-//! that module's — including the part that asks the operating system what this
-//! machine has, and prefers a container's limit to the host's. The division is
-//! here because the clamp is an admission decision and the counter that
-//! enforces it has to live beside the thing it refuses.
+//! **With no request in flight, a request is always admitted.** The process
+//! then holds only the engine's own bytes, so a server that refused there
+//! would refuse everything by arithmetic, which is the deployment `E0622`
+//! refuses when it is written down.
+//!
+//! **What is admitted can still grow past the room together.** Each request
+//! was given room for its own ceiling, but two admitted against the same
+//! headroom can both grow into it. [`Ceiling::arm`] gives the runtime the same
+//! limit, and a core whose published balance takes the sum past it stops the
+//! request that grew, with the memory error its own ceiling would raise
+//! (`nvs_runtime::budget::set_process_limit`). The limit is the out-of-memory
+//! killer's job done one request at a time, with the process still running.
+//!
+//! The inputs are `nvs_config::server::Capacity`'s, and reading them is that
+//! module's, including the part that asks the operating system what this
+//! machine has.
 //!
 //! # Refusing before allocating, and not after
 //!
@@ -35,21 +43,20 @@
 //! with `Retry-After: 1` and no body, and there is nowhere for an application
 //! to be asked about it, because being asked is the cost being avoided.
 //!
-//! **One relaxed atomic, counted process-wide rather than per core.** A
-//! per-core share would let one hot core refuse while its neighbours idle,
-//! which is a ceiling that binds the wrong thing. Relaxed is enough because
-//! nothing is published through this counter: it orders no memory and guards no
-//! data, it only answers how many requests are in flight, and it is not on the
-//! value path `rule:programs/memory-priority`'s
-//! non-atomic refcount decision protects.
+//! **Relaxed atomics, counted process-wide rather than per core.** A per-core
+//! share would let one hot core refuse while its neighbours idle, which is a
+//! ceiling that binds the wrong thing. Relaxed is enough because nothing is
+//! published through these numbers: they order no memory and guard no data.
+//! The sum of the gauges is stale by at most one publish step per core, which
+//! is what the runtime's stop at the limit covers.
 //!
-//! **What it spends**, per that ADR: two `usize`s for the whole process — the
-//! count and the ceiling a reload moves — one
-//! [`InFlight`] guard per request being served — a borrow and nothing else, so
-//! O(in-flight) with a zero-sized tail — and the response above, which allocates
-//! no body at all.
+//! **What it spends**, per `rule:programs/memory-priority`: four words for the
+//! whole process — the count and the three numbers a reload moves — one
+//! [`InFlight`] guard per request being served, which is a borrow and nothing
+//! else, and the response above, which allocates no body at all. Each
+//! admission reads one gauge per core and publishes the admitting core's own.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use hyper::{Response, StatusCode};
 use nvs_config::Capacity;
@@ -57,142 +64,164 @@ use nvs_config::Capacity;
 use crate::serve::Answer;
 
 /// What the engine holds whatever the traffic is, subtracted from the budget
-/// before it is divided: the compiled-unit cache, the JIT's own arenas, one
-/// accept loop and one coroutine stack per core.
+/// before requests are admitted against it: the compiled-unit cache, the JIT's
+/// own arenas, one accept loop and one coroutine stack per core.
 ///
 /// **A stated reserve rather than a measurement**, and deliberately generous:
 /// under-reserving is the direction that hands admission back to the
-/// out-of-memory killer, while over-reserving costs an operator a few
-/// concurrent requests they can ask for explicitly. M7's benchmark is what
-/// replaces it with a number, and the plan's *Verify* paragraph is where that
-/// is asked for.
+/// out-of-memory killer, while over-reserving costs an operator a little
+/// headroom. M7's benchmark is what replaces it with a number, and the plan's
+/// *Verify* paragraph is where that is asked for.
 pub const ENGINE_RESERVE: u64 = 128 * 1024 * 1024;
 
-/// The admission arithmetic, done: the two numbers and which of them won.
-///
-/// Kept as all three rather than reduced to [`effective`](Self::effective)
-/// because the clamp has to be *reportable* — an operator whose observed
-/// capacity changed should be able to find out why from a log line rather than
-/// from a benchmark, which is the whole reason the rule rejects clamping silently.
+/// The numbers admission compares against, resolved from one configuration.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Ceiling {
     /// `[server] max_in_flight`, or § 5's own default where it is unwritten.
-    pub configured: u64,
-    /// What the budget affords: the budget less [`ENGINE_RESERVE`], divided by
-    /// the per-request cap. `None` where the tree states no cap or the host
-    /// answered no budget — there is then no second number, and the configured
-    /// one stands.
-    pub afforded: Option<u64>,
-    /// The smaller of the two, and the number [`Admission`] enforces.
-    pub effective: usize,
+    pub max_in_flight: usize,
+    /// The most one request may hold, or `None` where the tree states no cap.
+    pub per_request: Option<u64>,
+    /// The budget less [`ENGINE_RESERVE`], or `None` where the host answered
+    /// no budget. A budget smaller than the reserve leaves a room of `0`, so
+    /// only the first request in flight is admitted.
+    pub room: Option<u64>,
 }
 
 impl Ceiling {
-    /// The arithmetic over the numbers the configuration resolved.
-    ///
-    /// **A machine too small for even one request still admits one.** The floor
-    /// is not a rounding convenience: a ceiling of zero is a process that
-    /// accepts connections and answers `503` to everything, which is the
-    /// deployment `E0622` refuses when it is written down, and reaching it by
-    /// division instead would be the same server arrived at silently.
+    /// The numbers the configuration resolved, with the reserve taken off the
+    /// budget.
     #[must_use]
     pub fn of(capacity: &Capacity) -> Self {
-        let afforded = match (capacity.budget, capacity.per_request) {
-            (Some(budget), Some(cap)) => {
-                let afforded = budget.saturating_sub(ENGINE_RESERVE) / cap;
-                Some(afforded.max(1))
-            }
-            _ => None,
-        };
-        let effective = afforded.map_or(capacity.configured, |afforded| {
-            afforded.min(capacity.configured)
-        });
         Self {
-            configured: capacity.configured,
-            afforded,
-            // Only reachable on a 32-bit host asked to hold four billion
-            // requests, where the memory budget has already been the binding
-            // number for a long time.
-            effective: usize::try_from(effective).unwrap_or(usize::MAX),
+            // Only short of the written number on a 32-bit host asked to hold
+            // four billion requests, where memory binds long before the count.
+            max_in_flight: usize::try_from(capacity.configured).unwrap_or(usize::MAX),
+            per_request: capacity.per_request,
+            room: capacity
+                .budget
+                .map(|budget| budget.saturating_sub(ENGINE_RESERVE)),
         }
     }
 
-    /// The one line the rule asks to be logged at boot when the two numbers
-    /// disagree, naming both directives and both numbers; `None` when the
-    /// configured ceiling is what stands.
+    /// Gives the runtime [`Self::room`] as the process's memory limit, so a
+    /// request that grows past it after admission is stopped.
     ///
-    /// A `String` handed back rather than a log call made here, because this
-    /// crate is given a socket and not a logger — the boot that owns the
-    /// process is what writes it, once.
-    #[must_use]
-    pub fn clamp_note(&self) -> Option<String> {
-        let afforded = self.afforded?;
-        (afforded < self.configured).then(|| {
-            format!(
-                "`server.max_in_flight` is {configured}, but the memory budget affords \
-                 {afforded} requests at `limits.memory` each; {afforded} is the ceiling in force",
-                configured = self.configured,
-            )
-        })
+    /// The boot that owns the process calls this, and so does each reload: the
+    /// limit is the process's, and a server test that armed it would stop
+    /// requests of every other test in the same process.
+    pub fn arm(&self) {
+        nvs_runtime::budget::set_process_limit(self.room);
     }
 }
 
-/// The process-wide count of requests in flight, and the ceiling it refuses
-/// past.
+/// The stored [`Ceiling::room`] where the host answered no budget.
+const NO_BUDGET: u64 = u64::MAX;
+
+/// The stored [`Ceiling::per_request`] where the tree states no cap. A cap of
+/// zero is resolved to no cap by the configuration, so `0` is free to mean it.
+const NO_CAP: u64 = 0;
+
+/// The process-wide count of requests in flight, and the numbers it admits
+/// against.
 ///
 /// Shared across every core rather than divided among them, which the module
 /// doc owns. Nothing here is generic over a clock or a policy: § 5's valve is
-/// one number and one comparison, and a valve with a strategy in it is a
-/// scheduler.
+/// two comparisons, and a valve with a strategy in it is a scheduler.
 #[derive(Debug)]
 pub struct Admission {
-    /// [`Ceiling::effective`] for the snapshot in force, which a reload sets
-    /// through [`Admission::resize`] because `limits.memory` is a `Reload`
-    /// directive and it is one of the arithmetic's inputs. A request already admitted
-    /// keeps its place: the count is not reset, so a lowered ceiling refuses
-    /// new requests until enough of the admitted ones end.
-    ceiling: AtomicUsize,
+    /// [`Ceiling::max_in_flight`] for the snapshot in force.
+    max_in_flight: AtomicUsize,
+    /// [`Ceiling::per_request`], or [`NO_CAP`].
+    per_request: AtomicU64,
+    /// [`Ceiling::room`], or [`NO_BUDGET`].
+    room: AtomicU64,
     /// How many requests are between [`Admission::admit`] and the end of their
     /// answer.
     in_flight: AtomicUsize,
+    /// What every core holds now, in bytes: `nvs_runtime::budget::held_by_cores`
+    /// outside this crate's own tests.
+    held: fn() -> isize,
 }
 
 impl Admission {
-    /// The valve the admission arithmetic settled on.
+    /// The valve for `ceiling`, reading what the process holds from every
+    /// core's gauge.
     #[must_use]
     pub fn new(ceiling: &Ceiling) -> Self {
-        Self {
-            ceiling: AtomicUsize::new(ceiling.effective),
+        let admission = Self {
+            max_in_flight: AtomicUsize::new(0),
+            per_request: AtomicU64::new(NO_CAP),
+            room: AtomicU64::new(NO_BUDGET),
             in_flight: AtomicUsize::new(0),
+            held: nvs_runtime::budget::held_by_cores,
+        };
+        admission.resize(ceiling);
+        admission
+    }
+
+    /// The same valve reading what the process holds from `held`, for a test
+    /// that states the reading.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn reading(ceiling: &Ceiling, held: fn() -> isize) -> Self {
+        Self {
+            held,
+            ..Self::new(ceiling)
         }
     }
 
-    /// Refuses past `ceiling` from the next [`admit`](Self::admit) on.
+    /// Admits against `ceiling` from the next [`admit`](Self::admit) on.
     ///
-    /// Relaxed for the module doc's reason: the number orders no memory, and
-    /// a request that races the store is checked against one of the two
-    /// ceilings, either of which was in force at that moment.
+    /// A reload calls it, because `limits.memory` and `max_in_flight` are both
+    /// inputs. A request already admitted keeps its place: the count is not
+    /// reset, so a lowered ceiling refuses new requests until enough of the
+    /// admitted ones end. Relaxed for the module doc's reason: a request that
+    /// races the stores is checked against numbers each of which was in force
+    /// at that moment.
     pub fn resize(&self, ceiling: &Ceiling) {
-        self.ceiling.store(ceiling.effective, Ordering::Relaxed);
+        self.max_in_flight
+            .store(ceiling.max_in_flight, Ordering::Relaxed);
+        self.per_request
+            .store(ceiling.per_request.unwrap_or(NO_CAP), Ordering::Relaxed);
+        self.room
+            .store(ceiling.room.unwrap_or(NO_BUDGET), Ordering::Relaxed);
     }
 
-    /// A place in the count, or `None` where the ceiling is already met.
+    /// A place in the count, or `None` where the count is at `max_in_flight`
+    /// or the memory the process holds leaves no room for one more request.
     ///
-    /// `fetch_update` rather than a `fetch_add` and a rollback: the rollback
-    /// shape lets the count read above the ceiling for as long as the losing
-    /// racers take to give their increments back, and something has to be true
-    /// about a number named "in flight" for [`in_flight`](Self::in_flight) to
-    /// be worth exporting under
+    /// The admitting core publishes its own balance first, so the reading is
+    /// fresh for the core that asks. `fetch_update` rather than a `fetch_add`
+    /// and a rollback: the rollback shape lets the count read above the
+    /// ceiling for as long as the losing racers take to give their increments
+    /// back, and something has to be true about a number named "in flight"
+    /// for [`in_flight`](Self::in_flight) to be worth exporting under
     /// `rule:observability/the-runtime-exports-what-it-already-measures`.
     #[must_use]
     pub fn admit(&self) -> Option<InFlight<'_>> {
-        let ceiling = self.ceiling();
+        nvs_runtime::budget::publish_held();
+        let max_in_flight = self.max_in_flight();
+        let fits = self.memory_fits();
         self.in_flight
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
-                (current < ceiling).then_some(current + 1)
+                (current < max_in_flight && (current == 0 || fits)).then_some(current + 1)
             })
             .ok()
             .map(|_| InFlight { admission: self })
+    }
+
+    /// Whether the memory every core holds now leaves room for one more
+    /// request to reach its cap.
+    fn memory_fits(&self) -> bool {
+        let room = self.room.load(Ordering::Relaxed);
+        if room == NO_BUDGET {
+            return true;
+        }
+        let used = u64::try_from((self.held)()).unwrap_or(0);
+        match self.per_request.load(Ordering::Relaxed) {
+            NO_CAP => used < room,
+            cap => used.saturating_add(cap) <= room,
+        }
     }
 
     /// How many requests are in flight right now.
@@ -201,11 +230,10 @@ impl Admission {
         self.in_flight.load(Ordering::Relaxed)
     }
 
-    /// The number this valve refuses past — [`Ceiling::effective`] as the last
-    /// boot or reload set it.
+    /// The count this valve refuses at, as the last boot or reload set it.
     #[must_use]
-    pub fn ceiling(&self) -> usize {
-        self.ceiling.load(Ordering::Relaxed)
+    pub fn max_in_flight(&self) -> usize {
+        self.max_in_flight.load(Ordering::Relaxed)
     }
 }
 
@@ -227,6 +255,9 @@ pub struct InFlight<'a> {
 impl Drop for InFlight<'_> {
     fn drop(&mut self) {
         self.admission.in_flight.fetch_sub(1, Ordering::Relaxed);
+        // What the request freed, published as it ends, so the next admission
+        // on any core reads it.
+        nvs_runtime::budget::publish_held();
     }
 }
 
@@ -248,9 +279,11 @@ pub fn over_capacity() -> Response<Answer> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::AtomicIsize;
+
     use super::*;
 
-    /// One mebibyte, so the arithmetic below reads in the units an operator
+    /// One mebibyte, so the numbers below read in the units an operator
     /// writes.
     const MIB: u64 = 1024 * 1024;
 
@@ -262,56 +295,128 @@ mod tests {
         }
     }
 
-    /// The admission rule, from both sides: the budget binds where it is the
-    /// smaller number, the written ceiling binds where it is, and an absent
-    /// half of the arithmetic leaves the written one standing rather than
-    /// producing a zero.
+    /// The reserve comes off the budget, and an absent input stays absent.
     #[test]
-    fn max_in_flight_is_derived_from_the_memory_budget() {
-        // 1 GiB, less the 128 MiB reserve, at 64 MiB a request: 14 places, not
-        // the 10,000 the file asked for.
-        let clamped = Ceiling::of(&capacity(10_000, Some(64 * MIB), Some(1024 * MIB)));
-        assert_eq!(clamped.afforded, Some(14), "the budget was not divided");
-        assert_eq!(clamped.effective, 14, "the larger number won");
-        let note = clamped.clamp_note().expect("a clamp went unreported");
-        assert!(
-            note.contains("10000") && note.contains("14"),
-            "the clamp did not name both numbers: {note}"
+    fn the_ceiling_takes_the_reserve_off_the_budget_and_divides_nothing() {
+        let ceiling = Ceiling::of(&capacity(10_000, Some(64 * MIB), Some(1024 * MIB)));
+        assert_eq!(ceiling.max_in_flight, 10_000, "the written count was moved");
+        assert_eq!(ceiling.per_request, Some(64 * MIB));
+        assert_eq!(ceiling.room, Some(1024 * MIB - ENGINE_RESERVE));
+
+        let no_budget = Ceiling::of(&capacity(10_000, Some(64 * MIB), None));
+        assert_eq!(no_budget.room, None, "an absent budget became a number");
+        let tiny = Ceiling::of(&capacity(10_000, Some(64 * MIB), Some(64 * MIB)));
+        assert_eq!(
+            tiny.room,
+            Some(0),
+            "a budget under the reserve did not floor at zero"
         );
-
-        // The same machine asked for less than it affords: nothing is clamped
-        // and nothing is logged.
-        let asked = Ceiling::of(&capacity(8, Some(64 * MIB), Some(1024 * MIB)));
-        assert_eq!(asked.afforded, Some(14), "the budget stopped being read");
-        assert_eq!(asked.effective, 8, "the configured ceiling did not stand");
-        assert!(
-            asked.clamp_note().is_none(),
-            "a ceiling under the budget was reported as a clamp"
-        );
-
-        // Neither half of the arithmetic on its own is a bound: a tree that
-        // states no per-request cap has nothing for a concurrency ceiling to
-        // have a relationship with, and a host that answers no budget has not
-        // been asked a question this crate can put to it.
-        for absent in [
-            capacity(10_000, None, Some(1024 * MIB)),
-            capacity(10_000, Some(64 * MIB), None),
-            capacity(10_000, None, None),
-        ] {
-            let ceiling = Ceiling::of(&absent);
-            assert_eq!(ceiling.afforded, None, "an absent input became a number");
-            assert_eq!(ceiling.effective, 10_000, "the written ceiling was lost");
-            assert!(ceiling.clamp_note().is_none(), "an absence was reported");
-        }
-
-        // A machine too small for one request still admits one: a ceiling of
-        // zero is the `503`-only server `E0622` refuses when it is written
-        // down, and division must not arrive at it silently.
-        let tiny = Ceiling::of(&capacity(10_000, Some(512 * MIB), Some(64 * MIB)));
-        assert_eq!(tiny.effective, 1, "the floor of one was not held");
     }
 
-    /// The valve itself: places are handed out up to the ceiling, refused past
+    static WAITING: AtomicIsize = AtomicIsize::new(0);
+
+    fn waiting() -> isize {
+        WAITING.load(Ordering::Relaxed)
+    }
+
+    /// Many requests that each hold little are all admitted under a cap that
+    /// the old count would have divided the budget by.
+    #[test]
+    fn many_light_requests_are_admitted_under_a_large_cap() {
+        // A 15 GiB host at 128 MiB a request: 119 places by division.
+        let ceiling = Ceiling::of(&capacity(10_000, Some(128 * MIB), Some(15 * 1024 * MIB)));
+        let admission = Admission::reading(&ceiling, waiting);
+        let mut places = Vec::new();
+        for _ in 0..1_000 {
+            let place = admission
+                .admit()
+                .expect("a light request was refused with room to spare");
+            places.push(place);
+            // Each waiting request holds about 80 KiB.
+            WAITING.fetch_add(80 * 1024, Ordering::Relaxed);
+        }
+        assert_eq!(admission.in_flight(), 1_000);
+        drop(places);
+        assert_eq!(admission.in_flight(), 0, "the count did not return to zero");
+    }
+
+    static HEAVY: AtomicIsize = AtomicIsize::new(0);
+
+    fn heavy() -> isize {
+        HEAVY.load(Ordering::Relaxed)
+    }
+
+    /// A request is refused when what the process holds plus its cap passes
+    /// the room, and admitted again once the room is back. The first request
+    /// in flight is admitted whatever the reading says.
+    #[test]
+    fn a_request_is_refused_when_held_plus_its_cap_passes_the_room() {
+        let room = 1024 * MIB;
+        let ceiling = Ceiling::of(&capacity(
+            10_000,
+            Some(64 * MIB),
+            Some(room + ENGINE_RESERVE),
+        ));
+        let admission = Admission::reading(&ceiling, heavy);
+
+        HEAVY.store(isize::try_from(2 * room).expect("fits"), Ordering::Relaxed);
+        let first = admission
+            .admit()
+            .expect("the first request in flight was refused by arithmetic");
+
+        HEAVY.store(
+            isize::try_from(room - 64 * MIB).expect("fits"),
+            Ordering::Relaxed,
+        );
+        let second = admission
+            .admit()
+            .expect("a request whose cap fits exactly was refused");
+
+        HEAVY.store(
+            isize::try_from(room - 64 * MIB + 1).expect("fits"),
+            Ordering::Relaxed,
+        );
+        assert!(
+            admission.admit().is_none(),
+            "a request was admitted with no room to reach its cap"
+        );
+        drop((first, second));
+    }
+
+    static UNCAPPED: AtomicIsize = AtomicIsize::new(0);
+
+    fn uncapped() -> isize {
+        UNCAPPED.load(Ordering::Relaxed)
+    }
+
+    /// With no per-request cap, a request is admitted while what the process
+    /// holds is under the room. With no budget, memory is not a condition.
+    #[test]
+    fn no_cap_admits_under_the_room_and_no_budget_admits_on_count() {
+        let room = 512 * MIB;
+        let admission = Admission::reading(
+            &Ceiling::of(&capacity(10_000, None, Some(room + ENGINE_RESERVE))),
+            uncapped,
+        );
+        let first = admission.admit().expect("the first request was refused");
+        UNCAPPED.store(isize::try_from(room - 1).expect("fits"), Ordering::Relaxed);
+        let second = admission
+            .admit()
+            .expect("a request under the room was refused");
+        UNCAPPED.store(isize::try_from(room).expect("fits"), Ordering::Relaxed);
+        assert!(
+            admission.admit().is_none(),
+            "a request was admitted with the room used up"
+        );
+
+        admission.resize(&Ceiling::of(&capacity(10_000, Some(64 * MIB), None)));
+        let third = admission
+            .admit()
+            .expect("a host with no budget refused on memory");
+        drop((first, second, third));
+    }
+
+    /// The count: places are handed out up to `max_in_flight`, refused past
     /// it, and given back by the guard's drop rather than by a line after the
     /// answer.
     #[test]
@@ -336,17 +441,23 @@ mod tests {
         assert_eq!(admission.in_flight(), 0, "the count did not return to zero");
     }
 
-    /// A reload moves the ceiling under requests already admitted: they keep
-    /// their places, a lowered ceiling refuses until enough of them end, and a
-    /// raised one admits at once.
+    static RELOADED: AtomicIsize = AtomicIsize::new(0);
+
+    fn reloaded() -> isize {
+        RELOADED.load(Ordering::Relaxed)
+    }
+
+    /// A reload moves both conditions under requests already admitted: they
+    /// keep their places, a lowered ceiling refuses until enough of them end,
+    /// and a raised one admits at once.
     #[test]
     fn a_resized_valve_keeps_the_requests_it_already_admitted() {
-        let admission = Admission::new(&Ceiling::of(&capacity(2, None, None)));
+        let admission = Admission::reading(&Ceiling::of(&capacity(2, None, None)), reloaded);
         let first = admission.admit().expect("the first request was refused");
         let second = admission.admit().expect("the second request was refused");
 
         admission.resize(&Ceiling::of(&capacity(1, None, None)));
-        assert_eq!(admission.ceiling(), 1);
+        assert_eq!(admission.max_in_flight(), 1);
         assert_eq!(admission.in_flight(), 2, "a resize dropped a place");
         drop(first);
         assert!(
@@ -356,6 +467,20 @@ mod tests {
 
         admission.resize(&Ceiling::of(&capacity(3, None, None)));
         let third = admission.admit().expect("a raised ceiling refused");
+
+        // A reload that leaves less room than the cap refuses on memory from
+        // the next request, and keeps the ones in flight.
+        RELOADED.store(isize::try_from(100 * MIB).expect("fits"), Ordering::Relaxed);
+        admission.resize(&Ceiling::of(&capacity(
+            3,
+            Some(64 * MIB),
+            Some(ENGINE_RESERVE + 128 * MIB),
+        )));
+        assert!(
+            admission.admit().is_none(),
+            "a request was admitted past a room a reload lowered"
+        );
+        assert_eq!(admission.in_flight(), 2, "a resize dropped a place");
         drop((second, third));
         assert_eq!(admission.in_flight(), 0, "the count did not return to zero");
     }

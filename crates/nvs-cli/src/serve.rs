@@ -225,15 +225,11 @@ pub(crate) fn run(
         Ok(written) => nvs_server::bounds::Connection::configured(written),
         Err(diagnostic) => return report(diagnostic, &sources),
     };
-    // `rule:http-server/admission-is-arithmetic-not-a-number`: the ceiling is the smaller of what the file asked for and
-    // what this machine affords at the per-request cap, and a clamp is logged
-    // here and by each reload (`crate::reload`), naming both directives and
-    // both numbers. Silently is what
-    // that section rejected — the observed capacity of a small instance changes
-    // with the arithmetic, and an operator surprised by that should be able to
-    // find out why from a line rather than from a benchmark.
+    // `rule:http-server/admission-is-arithmetic-not-a-number`'s inputs: the
+    // written `max_in_flight`, the per-request cap and this machine's budget.
     // The host's numbers are checked here, before anything else is read; the
-    // ceiling itself is taken once the publish below names every entry's cap.
+    // numbers admission uses are taken once the publish below names every
+    // entry's cap.
     if let Err(diagnostic) = capacity_for(&snapshot.config, &origins) {
         return report(diagnostic, &sources);
     }
@@ -366,9 +362,9 @@ pub(crate) fn run(
     // for the fold a reload of `[[app]] origin` asks for (`mounts`'s module doc).
     let mut mounts = written.clone();
     fold_origins(&mut mounts, &published);
-    // `rule:http-server/admission-is-arithmetic-not-a-number`'s ceiling, over
+    // `rule:http-server/admission-is-arithmetic-not-a-number`'s numbers, with
     // the largest cap any mounted entry's own snapshot gives a request, because
-    // that is what one admitted request may hold.
+    // that is what one admitted request may grow to hold.
     let folded = published.snapshots();
     let entries: Vec<&nvs_config::Config> =
         folded.iter().map(|snapshot| &snapshot.config).collect();
@@ -377,9 +373,9 @@ pub(crate) fn run(
         Err(diagnostic) => return report(diagnostic, &sources),
     };
     let ceiling = Ceiling::of(&capacity);
-    if let Some(note) = ceiling.clamp_note() {
-        eprintln!("note: {note}");
-    }
+    // The same room is the process's memory limit, so a request that grows
+    // past it after admission is stopped (`nvs_server::admit`'s module doc).
+    ceiling.arm();
     // Held beside the accept loop's copy because a service manager's drain
     // reports this same count: the valve is where a request is admitted, so
     // asking it is reading the number rather than keeping a second one
@@ -635,6 +631,9 @@ pub(crate) fn run(
              thread accepts on every listener alone"
         );
         let mut sched = nvs_host::Scheduler::new();
+        // This thread is the one core, so it publishes what it holds for
+        // admission to read, as every core `nvs_host::Worker::spawn` starts does.
+        let _gauge = nvs_runtime::budget::CoreGauge::claim();
         let core = Core {
             listeners: rows.swap_remove(0),
             scrapes: scrapes.take(),

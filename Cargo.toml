@@ -238,9 +238,8 @@ windows-sys = { version = "0.61", features = [
     "Win32_Security_Authorization",
     "Win32_Storage_FileSystem",
     "Win32_System_Console",
-    # `GlobalMemoryStatusEx`: `rule:http-server/admission-is-arithmetic-not-a-number` divides
-    # the memory budget by the
-    # per-request cap, and on Windows this is the one call that answers what the budget is.
+    # `GlobalMemoryStatusEx`: `rule:http-server/admission-is-arithmetic-not-a-number` admits
+    # against the memory budget, and on Windows this is the one call that answers what it is.
     "Win32_System_SystemInformation",
     # `ACCESS_ALLOWED_ACE_TYPE` and `ACCESS_DENIED_ACE_TYPE`: `rule:config/ownership-is-the-trust-boundary`'s trust check walks a
     # DACL itself rather than paying `GetEffectiveRightsFromAclW` per principal, and these two name

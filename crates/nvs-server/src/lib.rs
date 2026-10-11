@@ -41,11 +41,12 @@
 //! security model: nothing in that module takes a mode or a switch, so the
 //! `[server]` switches decide only whether step 3 runs.
 //!
-//! [`admit`] is § 5's in-flight ceiling, and it is an **arithmetic** rather than
-//! the number the file wrote: `rule:http-server/admission-is-arithmetic-not-a-number` takes the smaller of `max_in_flight`
-//! and what the memory budget affords against the per-request cap, because a
-//! concurrency ceiling and a memory cap with no stated relationship leave the
-//! out-of-memory killer as the real admission control. The valve is asked before
+//! [`admit`] is § 5's admission, and it reads the memory the process holds
+//! rather than assuming each request takes its cap:
+//! `rule:http-server/admission-is-arithmetic-not-a-number` admits while fewer
+//! than `max_in_flight` requests are in flight and what every core holds leaves
+//! room for one more request to reach its cap, so the out-of-memory killer is
+//! never the real admission control. The valve is asked before
 //! the handler is — a `503` with `Retry-After: 1` and no isolate allocated for
 //! it — and that module's docs own why the order *is* the guarantee.
 //!
