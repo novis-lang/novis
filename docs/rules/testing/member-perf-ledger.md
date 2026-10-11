@@ -44,5 +44,18 @@ gates a build. A regression is a row with a delta on it.
   about fifty times slower, so a sweep of every feature would take hours on one platform, and a
   ledger that expensive is not taken. Valgrind is kept for the growth ramp that does not settle
   (`rule:testing/feature-proofs`).
+- **Hardware performance counters through `perf stat`.** They are near-deterministic and nearly
+  free, but Windows has none and WSL2 does not expose them without host configuration.
+- **A better calibration, with several reference loops instead of one.** It is still a proxy for a
+  clock, and no closer than a tenth.
+- **Refusing to record on a dirty tree.** A dossier session's tree is always dirty with its own proofs
+  when it measures, so the refusal would fire every time. The `impl_hash` and the binary's hash name
+  the code that ran, and `dirty` stays a fact about the tree.
+- **An absolute `units` ceiling per member.** That is the hand-written cost table
+  `rule:testing/bench-counters` refuses. The report's per-complexity ceiling is one advisory number
+  per shape and never a claim about a member.
+- **A symmetric scaling check that also fails a ratio below the declared growth.** A linear member
+  over a short input is dominated by its fixed per-call cost and looks nearly constant, which is not
+  a bug. Only growing faster than declared fails.
 - **A column for PHP or another engine.** This ledger compares Novis with itself
   (`rule:testing/userland-benchmarks` owns the comparison).
