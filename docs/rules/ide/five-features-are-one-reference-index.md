@@ -24,4 +24,14 @@ recorded as it read each file. It asks what a file declares rather than where a 
 builds no walk of its own either.
 
 The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all six
-readers read it.
+readers read it. Five features that would each walk the workspace cost one walk between them, and the
+warm index is what keeps references and highlight inside `rule:ide/a-full-reanalysis-stays-under-a-bound`.
+
+- **Memory:** the index holds one entry per file the workspace's analyses reached, for the life of the
+  server process. It is bounded by the tree `nvs.check.scope` selects and released by the invalidation a
+  keystroke triggers. It is spent in the editor process and never on the request path.
+
+**Declined:**
+- **An index scoped to one `require` graph.** Four readers would work, but unused-member dimming is only
+  correct at workspace scope. It would also make the scope a property of the index rather than of the
+  query, so the fifth reader would need a second construction site.

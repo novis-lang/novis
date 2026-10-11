@@ -408,7 +408,8 @@ edge both ways. Those four, with unused-member dimming, are
 eighth. It was kept out of M4B because it wanted a settings story and the idioms it would show were still
 moving, and it is admitted for the two idioms that stopped moving and no others: a `var` declaration's
 inferred type and a bare literal argument's parameter name, both read out of the type phase's own tables
-and never re-derived. `documentHighlight` waited for the index for a reason of its own: it applies
+and never re-derived. A site those tables hold nothing for gets no hint: an editor draws a hint as if the
+source said it, so a re-derived one is a confident lie. `documentHighlight` waited for the index for a reason of its own: it applies
 resolution to every occurrence of a name, which is a different walk from resolving the one under a cursor.
 
 M10's own second non-standard request is `nvs/regions`
@@ -453,11 +454,18 @@ own scan, recorded once per file as the index reads it. It is non-standard becau
 "what this file is", and a decoration on a file the editor has not opened is not a document request. It
 has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 
-`textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
-definition, so it would answer identically to `textDocument/definition`, and the crate names neither
-spelling of it.
+**Declined:**
+- **`textDocument/declaration`.** It is refused rather than deferred: Novis has no declaration that is
+  not the definition, so it would answer identically to `textDocument/definition`. That is two
+  capabilities and two menu entries for one answer, and the crate names neither spelling of it.
+- **Inlay hints for everything an editor could annotate.** The reason they waited was idioms still
+  moving, and that reason still covers every shape but the two. A third shape — a `foreach` variable, a
+  chained call's intermediate type, a closure's return — is a decision on the same test a new request
+  is.
+- **Call hierarchy.** It needs a second index of call-site edges that nothing else reads
+  ([`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)).
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -1179,7 +1187,17 @@ recorded as it read each file. It asks what a file declares rather than where a 
 builds no walk of its own either.
 
 The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all six
-readers read it.
+readers read it. Five features that would each walk the workspace cost one walk between them, and the
+warm index is what keeps references and highlight inside [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound).
+
+- **Memory:** the index holds one entry per file the workspace's analyses reached, for the life of the
+  server process. It is bounded by the tree `nvs.check.scope` selects and released by the invalidation a
+  keystroke triggers. It is spent in the editor process and never on the request path.
+
+**Declined:**
+- **An index scoped to one `require` graph.** Four readers would work, but unused-member dimming is only
+  correct at workspace scope. It would also make the scope a property of the index rather than of the
+  query, so the fifth reader would need a second construction site.
 
 <sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0268](../decisions/0268.md).</sub>
 

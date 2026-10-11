@@ -2,7 +2,6 @@
   "title": "M4B answers nine standard requests and exactly one of Novis's own, M10 adds eight more on the same test, and that test keeps the list from growing",
   "status": "designed",
   "because": [
-    "0171",
     "0201",
     "0240",
     "0268"
@@ -18,6 +17,7 @@
   ],
   "guardedBy": [
     "crates/nvs-lsp/tests/coverage.rs",
-    "crates/nvs-lsp/tests/navigation.rs"
+    "crates/nvs-lsp/tests/navigation.rs",
+    "crates/nvs-lsp/tests/hints.rs"
   ]
 }

@@ -13,6 +13,7 @@
     "ide/every-feature-is-staged-behind-its-dependency"
   ],
   "guardedBy": [
-    "crates/nvs-lsp/tests/references.rs"
+    "crates/nvs-lsp/tests/references.rs",
+    "crates/nvs-lsp/tests/index.rs"
   ]
 }

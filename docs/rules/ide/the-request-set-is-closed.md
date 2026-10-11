@@ -42,7 +42,8 @@ edge both ways. Those four, with unused-member dimming, are
 eighth. It was kept out of M4B because it wanted a settings story and the idioms it would show were still
 moving, and it is admitted for the two idioms that stopped moving and no others: a `var` declaration's
 inferred type and a bare literal argument's parameter name, both read out of the type phase's own tables
-and never re-derived. `documentHighlight` waited for the index for a reason of its own: it applies
+and never re-derived. A site those tables hold nothing for gets no hint: an editor draws a hint as if the
+source said it, so a re-derived one is a confident lie. `documentHighlight` waited for the index for a reason of its own: it applies
 resolution to every occurrence of a name, which is a different walk from resolving the one under a cursor.
 
 M10's own second non-standard request is `nvs/regions`
@@ -87,6 +88,13 @@ own scan, recorded once per file as the index reads it. It is non-standard becau
 "what this file is", and a decoration on a file the editor has not opened is not a document request. It
 has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 
-`textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
-definition, so it would answer identically to `textDocument/definition`, and the crate names neither
-spelling of it.
+**Declined:**
+- **`textDocument/declaration`.** It is refused rather than deferred: Novis has no declaration that is
+  not the definition, so it would answer identically to `textDocument/definition`. That is two
+  capabilities and two menu entries for one answer, and the crate names neither spelling of it.
+- **Inlay hints for everything an editor could annotate.** The reason they waited was idioms still
+  moving, and that reason still covers every shape but the two. A third shape — a `foreach` variable, a
+  chained call's intermediate type, a closure's return — is a decision on the same test a new request
+  is.
+- **Call hierarchy.** It needs a second index of call-site edges that nothing else reads
+  (`rule:ide/five-features-are-one-reference-index`).
