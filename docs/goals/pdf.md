@@ -791,27 +791,26 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 2 is done, and its six checks are green**: `pdf-the-record-creates-its-fragments`, `image-the-record-creates-the-barcode-roster`, `nvs-stdlib-the-pdf-interface-parses-against-the-world`, `nvs-stdlib-the-image-codec-exports-a-barcode`, `deny-the-image-component-graph-passes` and `deny-the-intl-component-graph-passes`. Stage 3 is next and nothing of it is on disk.
+**Stage 3's SVG half and `page` and `dpi` are on disk, and `looper verify` is green.** The PDF half and the fonts are not on disk. `image-svg-and-pdf-open-as-images` is still red, because its PDF case does not exist yet. `nvs-ext-svg-and-pdf-decode-as-images` is red for the same reason: `an_svg_decodes_and_an_external_href_throws` passes, and the eight PDF tests are not written.
 
-- `wit/image.wit` exports `barcode(data, symbology, barcode-options)` as the ninth entry point. Its `format` takes `svg` for an SVG document. The guest returns `runtime` from it (`extensions/image/src/lib.rs:756`), and `rule:core-classes/image-barcode-roster`'s *Not shipped* line says so. `ext_world.rs`'s `IMAGE_MEMBERS` already places `Barcode::render`, `Barcode::svg`, `QrCode::svg` and `QrCode::giroCode`.
-- `docs/plan/m17.md` points Parts 1 and 2 at this goal and its rules. Part 3 is unscheduled.
-- Stage 16 carries eight `bun nv proofs --verify --group` checks, one per class.
-- `OFL-1.1` is in `PREFERENCE` and in `FONT_DATA` (`tools/nv/cmd/gen-attribution.ts`), so `deny.toml` still refuses a crate that offers it. The Liberation notice itself is owed by the slice that adds the font files (Stage 3's `extensions/fonts/`). `bun nv gen-attribution` writes it then.
-- The per-component deny is plain `cargo deny --manifest-path extensions/<c>/Cargo.toml --target wasm32-wasip2 --locked check`. It picks up the root `deny.toml`. Stage 5 adds `extensions/pdf`'s check in the same form.
-- `looper lint` reports AGENTS.md's managed text as edited by hand. AGENTS.md matches HEAD, so the problem was committed before this session. `bun nv plan --check` has six findings for M4, M8 and M10, which were also there before this session. Neither was touched here.
+- **The prerequisites hold.** `hayro` 0.8 with `default-features = false` built for `wasm32-wasip2` (rustc 1.97.1, `hayro` needs 1.92), and `cargo deny --manifest-path extensions/image/Cargo.toml --target wasm32-wasip2 --locked check` passed with it in the graph. It was taken out again because nothing calls it yet, and `rule:core-classes/pdf-page-is-an-image-source`'s *Not shipped* line records the result. Its default features are `embed-fonts`, `embed-cmaps` and `simd`, so the PDF slice decides whether `embed-cmaps` is needed and gives Liberation to its font resolver in place of `embed-fonts`.
+- SVG decodes in `extensions/image/src/svg.rs` through `resvg` 0.48 with no default features. Its `<image>` resolver reads `data:` URIs only and throws `RuntimeError` naming any other `href`. `<text>` is not drawn, because `usvg`'s `text` feature is off until the fonts exist.
+- `page` and `dpi` cross: `Origin`'s encoded case has `page?: uint, dpi?: float`, and `Image::open` always sends them (1 and 150), because Novis has no way to build a shape with an optional key left out except branching. The guest returns `invalid` for page 0 and a `dpi` that is not more than 0, and a page past 1 of any format but PDF throws via `past_end` (`extensions/image/src/lib.rs:221`).
+- The image component is 6.6 MiB embedded (`resvg` added about 0.8 MiB), recorded in `extensions/image/src/lib.rs`'s module doc.
+- `looper lint` reports AGENTS.md's managed text as edited by hand, and `bun nv plan --check` has six findings for M4, M8 and M10. Both predate this goal's sessions and are not touched here.
 
 ### Next
 
-**Stage 3, the prerequisites and SVG**: the file set is `extensions/image/Cargo.toml`, `extensions/image/src/decode.rs`, `extensions/image/src/info.rs`, `extensions/image/src/lib.rs` and `crates/nvs-ext/tests/image_decode.rs`.
+**Stage 3, the PDF half**: the file set is `extensions/image/Cargo.toml`, `extensions/image/src/decode.rs`, `extensions/image/src/info.rs`, `extensions/image/src/lib.rs`, a new `extensions/image/src/pdf.rs`, `extensions/fonts/` and `crates/nvs-ext/tests/image_decode.rs`.
 
-- [ ] **`hayro` builds for `wasm32-wasip2` and passes `deny-the-image-component-graph-passes`** once it is in `extensions/image/Cargo.toml:14` (`rule:core-classes/pdf-page-is-an-image-source`). If either fails, record it and stop the PDF half with `BLOCKED`, because there is no pdfium fallback.
-- [ ] **SVG decodes through `resvg`/`usvg`** with a resolver that reads only the bytes it is given. An external `href` throws (`rule:core-classes/image-format-roster`). `sniff` at `extensions/image/src/decode.rs:60`, and `Input::Encoded` at `extensions/image/src/lib.rs:135`.
-- [ ] **`page` and `dpi` cross from `Image::open`** (`extensions/image/nvs/Image.nvs:61`) into `Input::Encoded`. The WIT mapping in `extensions/image/src/lib.rs` drops them today.
-- [ ] **The Liberation fonts under `extensions/fonts/`**, with their OFL notice through `bun nv gen-attribution`, which ranks the licence at `tools/nv/cmd/gen-attribution.ts:89` (`rule:core-classes/pdf-default-fonts`).
+- [ ] **The Liberation fonts under `extensions/fonts/`**, four styles of Sans, Serif and Mono, with their OFL notice through `bun nv gen-attribution`, which ranks the licence at `tools/nv/cmd/gen-attribution.ts:89` (`rule:core-classes/pdf-default-fonts`).
+- [ ] **A PDF page rasterises through `hayro`**: `sniff` at `extensions/image/src/decode.rs:61` learns `%PDF-`, `decode` at `extensions/image/src/decode.rs:125` gains the PDF arm with `page` and `dpi`, the pixel price `ceil(w × dpi / 72) × ceil(h × dpi / 72)` is checked before a buffer, a page past the end throws through `past_end` at `extensions/image/src/lib.rs:221`, and an encrypted file throws `ParseError` (`rule:core-classes/pdf-page-is-an-image-source`, `rule:core-classes/pdf-decode-refusals`).
+- [ ] **`info` counts pages without a pixel** at `extensions/image/src/info.rs:31`, and the bomb corpus and the eight PDF tests named by `nvs-ext-svg-and-pdf-decode-as-images` go into `crates/nvs-ext/tests/image_decode.rs`.
+- [ ] **`tests/conformance/novis/image-a-pdf-page-opens-as-an-image.nvst`**, beside the SVG case already on disk, opening a chosen page through `Image::open` at `extensions/image/nvs/Image.nvs:63`.
 
 ### Backlog
 
-- Stage 3, the PDF half: page rasterising, `info`'s page count and the bomb corpus (`rule:core-classes/pdf-decode-refusals`).
+- SVG `<text>`: turn on `usvg`'s `text` feature with the Liberation fonts as its only `fontdb` (`rule:core-classes/image-format-roster`).
 - Stage 4: `harfrust` shaping and the barcode export's real body, with QR's SVG output (`rule:core-classes/image-barcode-roster`).
 - Stages 5 to 13: `extensions/pdf/` built in, with its own `cargo deny` check, then the cascade, layout, pagination, header functions, tables, standards and existing PDFs.
 - Stages 14 to 16: growth and benches, the editor's custom data, the feature proofs.
