@@ -25,7 +25,7 @@ stages:
         rules: [config/an-edit-reaches-the-next-request-without-a-restart, config/a-request-keeps-the-unit-it-resolved, core-classes/html-auto-escape]
   - id: 6
     title: the page
-    status: open
+    status: done
     context: [tools/nv/cmd/render.ts, website/astro.config.ts]
   - id: 7
     title: the first recorded run
@@ -59,7 +59,7 @@ checks:
     min_bytes: 1000
   - id: recorded-run-on-the-website
     stage: 7
-    output_contains: ["\"novis\"", "\"php\"", "\"bun\"", "\"go\"", "\"host\"", "\"scenarios\""]
+    output_contains: ["\"nvs\"", "\"php\"", "\"bun\"", "\"go\"", "\"host\"", "\"scenarios\""]
     file: website/src/data/compare.json
 extra:
   files: []
@@ -284,7 +284,12 @@ File set: `benches/compare.json`, `website/src/data/compare.json`.
 
 ### State
 
-**Side goal `compare-page`: stage 5 is done, and all 15 rows run.** `bun nv bench-compare --scenarios --smoke` exits 0 in Docker, and `every-scenario-runs` is green (`looper check`). `--row <id>` runs one row. Each row maps what a peer did to a `Verdict` through a pure function, unit-tested in `tools/nv/test/bench-compare.test.ts`. `benches/compare/README.md` § *The feature scenarios* is how each row is built and why. `--scenarios` still refuses `--record` (`tools/nv/cmd/bench-compare.ts:1426`), so no row result is recorded yet.
+**Side goal `compare-page`: stage 6 is done; the page exists and shows no run yet.** `page-exists` is green. The record's machine key is now `host` (as `bench-proxied`'s), and stage 7's check named the Novis peer `"novis"` where the record's id is `"nvs"`, so the check now says `"nvs"`.
+
+- **The record**: `--scenarios --record PATH` replaces the `scenarios` key of the record the cases already wrote, under its own date and commit (`withScenarios`, `tools/nv/cmd/bench-compare.ts:1166`). A case run keeps the rows already there. `--row` with `--record` is refused. `benches/compare/README.md` § *One record* is why.
+- **The render step**: `tools/nv/renderers/website-compare.ts`, in both `RENDERERS` and `WEBSITE_RENDERERS`, copies the record to `website/src/data/compare.json` with the marker and `recorded`. With no `benches/compare.json` the copy is `{ recorded: false }`.
+- **The page**: `website/src/content/docs/in-depth/compare.mdx` with `Machine`, `CaseCharts` and `FeatureTable` under `website/src/components/compare/`, reading `website/src/lib/compare.ts`. That file holds the reader's text for each case, row and result, and the build fails on an id it has no text for. Built with a sample record (charts, links and the machine block rendered) and with none.
+- `bun nv render --check` names `data/schema/rule.schema.json` stale on this branch before this session's work. Not this goal's; left alone.
 
 Results as last measured (smoke unless named):
 
@@ -298,16 +303,16 @@ Both surprises are questions for the user, since the standing decisions keep the
 
 ### Next
 
-**Stage 6: the record the page reads, then the page.** File set `tools/nv/cmd/bench-compare.ts`, `tools/nv/cmd/render.ts`, `website/`. Goal prose § *Stage 6*; rule `testing/userland-benchmarks`.
+**Stage 7: the first recorded run.** File set `benches/compare.json`, `website/src/data/compare.json`. Goal prose § *Stage 7*; rule `testing/userland-benchmarks`. The run takes minutes and needs Docker.
 
-- [ ] **Row results in the record**: `buildRecord` (`tools/nv/cmd/bench-compare.ts:1102`) takes the rows under a `scenarios` key, and `--scenarios --record` stops being refused (`tools/nv/cmd/bench-compare.ts:1426`). Unit-test the shape.
-- [ ] **The render step**: a renderer in `WEBSITE_RENDERERS` (`tools/nv/renderers/index.ts:16`) copies `benches/compare.json` to `website/src/data/compare.json`, and `website/src/lib/compare.ts` reads it.
-- [ ] **The page**: `website/src/content/docs/in-depth/compare.mdx` with its components under `website/src/components/compare/`, and a sidebar entry in `website/astro.config.ts:403`. The text follows AGENTS.md § *Text an end user reads*. It closes `page-exists`.
+- [ ] **The cases**: `bun nv bench-compare --record benches/compare.json` (`tools/nv/cmd/bench-compare.ts:1578` is where it writes).
+- [ ] **The rows**: `bun nv bench-compare --scenarios --record benches/compare.json` (`tools/nv/cmd/bench-compare.ts:1478`). The `runaway` hang in the backlog may stall this run; if it does, record what it gives and say so.
+- [ ] **The website copy**: `bun nv render` (`tools/nv/renderers/website-compare.ts:26`), then read the page's figures against the record, and `looper check --name recorded-run-on-the-website`.
 
 ### Backlog
 
-- `runaway`'s Novis hang, for the user: reproduce it outside Docker with `[limits] memory = "16M"` and the `/alloc` loop, then say whether it is a runtime fault. A fix touches the runtime (`tools/nv/cmd/bench-compare.ts:817` is the row).
+- `runaway`'s Novis hang, for the user: reproduce it outside Docker with `[limits] memory = "16M"` and the `/alloc` loop, then say whether it is a runtime fault. A fix touches the runtime (`tools/nv/cmd/bench-compare.ts:865` is the row).
 - `parallel`'s Novis 2x, for the user: whether the parent's parked core should take a child is a runtime decision (`crates/nvs-host/src/worker.rs:627`).
 - `cores`' Bun figure near the front's ceiling: give nginx and `oha` more cpus (`benches/compare/compose.common.yaml:18`, `benches/compare/nginx/http.conf:8`) if the page needs Bun's figure to measure Bun.
 - `wait`: Novis reached 0.39x of best at 1000 connections on one CPU, with no `503`. The page reports it as measured. Why it is slower is not checked.
-- Stage 7: the full run recorded into `benches/compare.json`, goal prose § *Stage 7*.
+- The `taint` and `secret` documentation links are not checked; the page links each cell to its folder, not to them (`website/src/lib/compare.ts`).
