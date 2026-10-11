@@ -100,24 +100,24 @@ escape, the developer calls an escaper, so the result is `your-code` and not `no
   at four backend cpus with every peer, so the row times the case with the most work per request.
   A peer whose four-cpu figure still nears that ceiling measures the front, and the evidence keeps
   both figures so a reader can see it.
-- `isolation` sends 20 requests one after another. Each writes a static or module value from `?v=`
-  and prints the value it found first. One request that found another's value makes the result `no`,
-  because no code the developer writes gives a module back its first state.
-- `runaway` puts 15 seconds of steady load on `/` and, 3 seconds in, sends `/loop`, which never ends,
-  and `/alloc`, which allocates 1 MiB at a time without end. Each backend container has a 512 MiB cap
-  in this row, so an allocation without end stops at the container and not at the host. A runaway
-  request counts as stopped when the backend answers it within 55 seconds, under nginx's 60-second
-  read timeout, with any status but nginx's own `502` or `504`. No failed request under load, both
-  runaways stopped and the backend still running is `built-in`. A request `oha` still has open when
-  the load ends is not a failure. Novis sets no limit by default, so it writes `memory = "16M"` and
-  `cpu_time = "1s"` in its `[limits]` table first and is `one-setting`. `nvs serve` admits only as
-  many requests as the container's memory affords at `memory` each, and at `64M` the cap admits six,
-  fewer than the row's load, so the value is sized for it. PHP's own
-  `memory_limit` and `max_execution_time` are on by default. The other answers are `no`, and the
-  load's p99 stays in the evidence.
 - `crash` sends one request that throws or panics, then one that does not. The second must answer
   `200` from a backend that is still running. No stack sets a restart policy, so a crashed backend
   stays down and shows.
+- `loop` and `memory` each put 15 seconds of steady load on `/` and, 3 seconds in, send one runaway
+  request into it: `loop` sends `/loop`, which never ends, and `memory` sends `/alloc`, which
+  allocates 1 MiB at a time without end. Each backend container has a 512 MiB cap in these rows, so
+  an allocation without end stops at the container and not at the host. The runaway request counts
+  as stopped when the backend answers it within 55 seconds, under nginx's 60-second read timeout,
+  with any status but nginx's own `502` or `504`. No failed request under load, the runaway stopped
+  and the backend still running is `built-in`. A request `oha` still has open when the load ends is
+  not a failure. Novis sets no limit by default, so it writes `memory = "16M"` and `cpu_time = "1s"`
+  in its `[limits]` table first and is `one-setting`. `nvs serve` admits only as many requests as the
+  container's memory affords at `memory` each, and at `64M` the cap admits six, fewer than the row's
+  load, so the value is sized for it. PHP's own `memory_limit` and `max_execution_time` are on by
+  default. The other answers are `no`, and the load's p99 stays in the evidence.
+- No row tests whether a request sees a value another request set. A process that keeps state
+  between requests is a design choice in Bun and Go, not a failure, and a yes or no cannot say which
+  of the two a reader wants.
 - `taint` and `secret` run `nvs check` over a program that puts a request value into an SQL string,
   and over one that prints a secret, in a one-off app container with no stack up. The check must
   fail with the row's own error code, so a program that fails for another reason is not counted.

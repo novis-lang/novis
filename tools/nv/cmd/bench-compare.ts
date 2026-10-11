@@ -397,23 +397,14 @@ export function waitingResult(r: PeerResult, inFlight: number, setting: string |
   return setting === undefined ? { result: "built-in", evidence } : { result: "one-setting", setting, evidence };
 }
 
-/** Requests the isolation row sends, one after another, each writing its own value. */
-export const ISOLATION_REQUESTS = 20;
-
-/** Each body is `<value found> <value written>`. A request found clean state when the first is `0`. */
-export function isolationResult(bodies: string[]): RowResult {
-  const leaked = bodies.filter((b) => !b.startsWith("0 ")).length;
-  return { result: leaked === 0 ? "built-in" : "no", evidence: { requests: bodies.length, saw_another_request: leaked } };
-}
-
-/** How long the runaway row's steady load runs, and how long after the load starts the runaway requests are sent. */
+/** How long the loop and memory rows' steady load runs, and how long after the load starts the runaway request is sent. */
 export const RUNAWAY_LOAD_SECONDS = 15;
 export const RUNAWAY_START_MS = 3_000;
 
 /** How long a runaway request may take to be stopped: under nginx's 60-second read timeout, so a reply is the backend's. */
 export const RUNAWAY_WAIT_MS = 55_000;
 
-/** The backend container's memory cap in the runaway row, so an allocation without end stops there and not at the host. */
+/** The backend container's memory cap in the loop and memory rows, so an allocation without end stops there and not at the host. */
 export const RUNAWAY_MEMORY = "512m";
 
 /** The statuses nginx gives when the backend did not answer: a reply with one of them is not the backend stopping the request. */
@@ -426,23 +417,21 @@ export interface Stopped {
 }
 
 /**
- * Built in when the steady load saw no failed request, both runaway requests were stopped by the backend,
+ * Built in when the steady load saw no failed request, the runaway request was stopped by the backend,
  * and the backend still runs. `one-setting` where the peer needs a setting for it. Anything else is `no`.
  */
-export function runawayResult(load: Steady, loop: Stopped, alloc: Stopped, running: boolean, setting: string | undefined): RowResult {
-  const stopped = (s: Stopped) => s.status !== null && !NGINX_STATUSES.has(s.status);
+export function runawayResult(load: Steady, runaway: Stopped, running: boolean, setting: string | undefined): RowResult {
+  const stopped = runaway.status !== null && !NGINX_STATUSES.has(runaway.status);
   const evidence = {
     requests: load.requests,
     failed_requests: load.failed,
     failures: load.failures,
     p99_ms: load.p99_ms,
-    loop_status: loop.status,
-    loop_seconds: loop.seconds,
-    alloc_status: alloc.status,
-    alloc_seconds: alloc.seconds,
+    runaway_status: runaway.status,
+    runaway_seconds: runaway.seconds,
     backend_running: running,
   };
-  if (load.failed > 0 || !running || !stopped(loop) || !stopped(alloc)) return { result: "no", evidence };
+  if (load.failed > 0 || !running || !stopped) return { result: "no", evidence };
   return setting === undefined ? { result: "built-in", evidence } : { result: "one-setting", setting, evidence };
 }
 
@@ -451,7 +440,7 @@ export function runawayResult(load: Steady, loop: Stopped, alloc: Stopped, runni
  * that sets them inside the container, and the setting's name in the row. Novis's `[limits]` keys are
  * commented out in its data folder's `nvs.toml`, so the edit uncomments them inside that table. `nvs serve`
  * admits only as many requests as the container's memory affords at `memory` each, so the value leaves
- * room for the row's load and its two runaways: at `64M` a 512 MiB container admits six.
+ * room for the row's load and its runaway: at `64M` a 512 MiB container admits six.
  */
 export const RUNAWAY_LIMITS: Record<string, TableEdit> = {
   nvs: { table: "limits", set: { memory: '"16M"', cpu_time: '"1s"' }, name: "[limits]" },
@@ -493,6 +482,18 @@ async function stoppedAt(p: Probe, path: string): Promise<Stopped> {
   } catch {
     return { status: null, seconds: null };
   }
+}
+
+/** Puts steady load on `/`, sends the runaway request at `path` into it, and judges what both saw. */
+async function runawayProbe(p: Probe, path: string): Promise<RowResult> {
+  const limits = RUNAWAY_LIMITS[p.peer];
+  if (limits !== undefined) await applyTableEdit(p, limits);
+  ok(await p.get("/"), "the first request");
+  const load = p.steady("/", RUNAWAY_LOAD_SECONDS);
+  await Bun.sleep(RUNAWAY_START_MS);
+  const runaway = stoppedAt(p, path);
+  const steady = await load;
+  return runawayResult(steady, await runaway, p.running(), limits?.name);
 }
 
 /** Polls the backend's log until it carries `line`: the seconds it took, or `null` after `CHANGE_WAIT_MS`. */
@@ -853,33 +854,6 @@ export const SCENARIOS: Scenario[] = [
     timed: async (t) => coresResult(await t.pass(1), await t.pass(4), CORES_IN_CODE[t.peer]),
   },
   {
-    id: "isolation",
-    tree: "scenarios",
-    case: "isolation",
-    probe: async (p) => {
-      const bodies: string[] = [];
-      for (let v = 1; v <= ISOLATION_REQUESTS; v++) bodies.push(ok(await p.get(`/?v=${v}`), `?v=${v}`).body);
-      return isolationResult(bodies);
-    },
-  },
-  {
-    id: "runaway",
-    tree: "scenarios",
-    case: "runaway",
-    memory: RUNAWAY_MEMORY,
-    probe: async (p) => {
-      const limits = RUNAWAY_LIMITS[p.peer];
-      if (limits !== undefined) await applyTableEdit(p, limits);
-      ok(await p.get("/"), "the first request");
-      const load = p.steady("/", RUNAWAY_LOAD_SECONDS);
-      await Bun.sleep(RUNAWAY_START_MS);
-      const runaways = Promise.all([stoppedAt(p, "/loop"), stoppedAt(p, "/alloc")]);
-      const steady = await load;
-      const [loop, alloc] = await runaways;
-      return runawayResult(steady, loop, alloc, p.running(), limits?.name);
-    },
-  },
-  {
     id: "crash",
     tree: "scenarios",
     case: "crash",
@@ -888,6 +862,20 @@ export const SCENARIOS: Scenario[] = [
       const next = await p.get("/");
       return crashResult(crash.status, next.status, p.running());
     },
+  },
+  {
+    id: "loop",
+    tree: "scenarios",
+    case: "runaway",
+    memory: RUNAWAY_MEMORY,
+    probe: (p) => runawayProbe(p, "/loop"),
+  },
+  {
+    id: "memory",
+    tree: "scenarios",
+    case: "runaway",
+    memory: RUNAWAY_MEMORY,
+    probe: (p) => runawayProbe(p, "/alloc"),
   },
   {
     id: "escape",

@@ -16,11 +16,11 @@ services:
         NVS_BUILD_COMMIT: ${NVS_BUILD_COMMIT:-}
     image: nvs-bench-serve:local
 
-    # `nvs serve` starts one worker per CPU it can see, which is more than the quota, so the quota is
-    # the bound -- as it is for every peer.
+    # `nvs serve` starts one worker per CPU of this quota, because the count it reads follows the
+    # container's CPU limit. The quota is the bound, as it is for every peer.
     cpus: ${BACKEND_CPUS:?the driver sets BACKEND_CPUS}
 
-    # The `runaway` row's cap, so a program that allocates without end stops here and not at the
+    # The `loop` and `memory` rows' cap, so a program that allocates without end stops here and not at the
     # host's memory. The swap limit is the same number, so the container gets no swap beyond it. Every
     # other run sets `0`, which is no cap.
     mem_limit: ${BACKEND_MEMORY:?the driver sets BACKEND_MEMORY}

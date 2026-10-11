@@ -25,7 +25,6 @@ import {
   escapeResult,
   headersResult,
   htmlEntities,
-  isolationResult,
   liveEditResult,
   mixedVersions,
   PEERS,
@@ -169,7 +168,7 @@ describe("the feature scenarios", () => {
   });
 
   test("the rows run in the goal's order, and each id once", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "isolation", "runaway", "crash", "escape", "taint", "secret", "csrf", "headers", "waiting", "parallel", "live-edit", "deploy", "config", "upgrade"]);
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["cores", "crash", "loop", "memory", "escape", "taint", "secret", "csrf", "headers", "waiting", "parallel", "live-edit", "deploy", "config", "upgrade"]);
   });
 
   test("every row either probes a stack or times a case, never both, and a timed row names a case", () => {
@@ -297,25 +296,19 @@ describe("the feature scenarios", () => {
     expect(checkResult(1, "error[E0001]: syntax", "E0401").result).toBe("no");
   });
 
-  test("isolation is built in only when no request found another's value", () => {
-    expect(isolationResult(["0 1", "0 2", "0 3"])).toEqual({ result: "built-in", evidence: { requests: 3, saw_another_request: 0 } });
-    expect(isolationResult(["0 1", "1 2", "2 3"])).toEqual({ result: "no", evidence: { requests: 3, saw_another_request: 2 } });
-    expect(isolationResult(["10 11"]).result).toBe("no");
-  });
-
-  test("a runaway is stopped when the backend answers both, the load saw no failure, and the backend still runs", () => {
+  test("a runaway is stopped when the backend answers it, the load saw no failure, and the backend still runs", () => {
     const load = { requests: 900, failed: 0, failures: null, p99_ms: 12.5 };
     const stopped = { status: 500, seconds: 1.2 };
-    expect(runawayResult(load, stopped, stopped, true, undefined).result).toBe("built-in");
-    expect(runawayResult(load, { status: 200, seconds: 30.4 }, stopped, true, "[limits]")).toEqual({
+    expect(runawayResult(load, stopped, true, undefined).result).toBe("built-in");
+    expect(runawayResult(load, { status: 200, seconds: 30.4 }, true, "[limits]")).toEqual({
       result: "one-setting",
       setting: "[limits]",
-      evidence: { requests: 900, failed_requests: 0, failures: null, p99_ms: 12.5, loop_status: 200, loop_seconds: 30.4, alloc_status: 500, alloc_seconds: 1.2, backend_running: true },
+      evidence: { requests: 900, failed_requests: 0, failures: null, p99_ms: 12.5, runaway_status: 200, runaway_seconds: 30.4, backend_running: true },
     });
-    expect(runawayResult(load, { status: null, seconds: null }, stopped, true, undefined).result).toBe("no");
-    expect(runawayResult(load, stopped, { status: 502, seconds: 3 }, true, undefined).result).toBe("no");
-    expect(runawayResult({ ...load, failed: 1 }, stopped, stopped, true, "[limits]").result).toBe("no");
-    expect(runawayResult(load, stopped, stopped, false, undefined).result).toBe("no");
+    expect(runawayResult(load, { status: null, seconds: null }, true, undefined).result).toBe("no");
+    expect(runawayResult(load, { status: 502, seconds: 3 }, true, undefined).result).toBe("no");
+    expect(runawayResult({ ...load, failed: 1 }, stopped, true, "[limits]").result).toBe("no");
+    expect(runawayResult(load, stopped, false, undefined).result).toBe("no");
   });
 
   test("steady load fails on every status but 200 and every error but the run's own deadline", () => {
@@ -390,7 +383,7 @@ describe("the feature scenarios", () => {
   test("a row's line names each peer's result in the table's order, with a setting where there is one", () => {
     const r = (result: RowResult["result"], setting?: string): RowResult => (setting === undefined ? { result, evidence: {} } : { result, setting, evidence: {} });
     const byPeer = new Map([["go", r("no")], ["nvs", r("one-setting", "limits.memory")], ["php", r("built-in")], ["bun", r("your-code")]]);
-    expect(rowLine("runaway", byPeer)).toBe("runaway: Novis one-setting (limits.memory), PHP built-in, Bun your-code, Go no");
+    expect(rowLine("loop", byPeer)).toBe("loop: Novis one-setting (limits.memory), PHP built-in, Bun your-code, Go no");
   });
 });
 
@@ -463,14 +456,14 @@ describe("the record shape", () => {
   test("the rows keep SCENARIOS order and PEERS order, and each names the folder its programs are in", () => {
     const rows = buildScenarios("2026-10-10T08:00:00", "def5678", new Map([
       ["config", new Map([["php", setting], ["nvs", built]])],
-      ["runaway", new Map([["go", built], ["nvs", built]])],
+      ["loop", new Map([["go", built], ["nvs", built]])],
     ]));
     expect(rows.date).toBe("2026-10-10T08:00:00");
     expect(rows.commit).toBe("def5678");
-    expect(Object.keys(rows.rows)).toEqual(["runaway", "config"]);
+    expect(Object.keys(rows.rows)).toEqual(["loop", "config"]);
     expect(Object.keys(rows.rows.config!.peers)).toEqual(["nvs", "php"]);
     expect(rows.rows.config!.peers.php).toEqual(setting);
-    expect(rows.rows.runaway!.folder).toBe("benches/compare/scenarios/runaway");
+    expect(rows.rows.loop!.folder).toBe("benches/compare/scenarios/runaway");
     expect(rows.rows.config!.folder).toBe("benches/compare/cases/hello");
   });
 
