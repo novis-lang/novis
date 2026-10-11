@@ -350,7 +350,7 @@ its operands' scales, so two scale-20 values want scale 40, and .NET's `System.D
 operation beside division. Where a narrowed product is what the application means,
 `Core\Decimal::round($value, $mode, $scale)` says so at the site.
 
-<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening). Decided in [0261](../decisions/0261.md).</sub>
+<sub>See also [`types/ordering`](types.md#types-ordering), [`types/uint`](types.md#types-uint), [`types/decimal`](types.md#types-decimal), [`types/implicit-widening`](types.md#types-implicit-widening).</sub>
 
 <a id="types-implicit-widening"></a>
 
@@ -1358,7 +1358,7 @@ A guarded branch is cheaper with `is` than without it: the `as` a program wrote 
 - **An `integer`-style spelling matching both integer tags.** It adds surface to hide the `int` and
   `uint` split rather than stating it, and `int|uint` already says it in the grammar a reader knows.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0261](../decisions/0261.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/single-value-types`](types.md#types-single-value-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="types-narrowing"></a>
 
