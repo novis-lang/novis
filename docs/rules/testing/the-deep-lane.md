@@ -7,3 +7,6 @@ the push that introduced it.
 The fuzz corpus is cached between nightly runs and each target's budget is larger there than a push
 could afford. A run that starts from what every previous night found is strictly more coverage than
 a per-push run that starts from nothing, and it costs the push lane nothing at all.
+
+The unsafe audit's counts gate nothing, so a tool install on every push bought a number no push was
+blocked by. It returns to the push lane when it becomes a hard gate.

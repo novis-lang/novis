@@ -27,3 +27,7 @@ came near their ceiling. It reads the mark
 into a core's registry ahead of `rule:observability/past-max-series-a-new-series-is-refused`'s
 bound rather than counted through it, because a `max_series` small enough to refuse them would
 quietly turn "present the moment an exporter is configured" into a different configuration.
+
+**Declined:**
+- **A statement label on `nvs_db_query_duration_seconds`**, normalised SQL beside `operation`.
+  Valuable, and a cardinality question that needs a bound before it is offered.

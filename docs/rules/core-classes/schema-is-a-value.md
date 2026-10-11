@@ -16,3 +16,9 @@ integer display widths, `varchar` promotion, column order, identifier case-foldi
 own spelling of a default are each normalized out on both sides. The acceptance criterion is one
 property — apply a schema, introspect it back, and the resulting plan is **empty**, on all five
 backends. Every normalization rule exists because that property failed without it.
+
+A schema is `Core` by the placement tests (`rule:core-api/tier-placement`). Introspection reads a pooled
+connection the host owns, which a guest re-created per request cannot hold. DDL is a sink its identifiers
+reach unparameterized, and only a `Core` member whose contract names a sink may judge that. And two copies
+would otherwise exist: the job queue's own tables and every framework or application that hand-rolls the
+same job.

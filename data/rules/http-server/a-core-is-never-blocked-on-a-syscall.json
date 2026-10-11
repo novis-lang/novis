@@ -1,12 +1,7 @@
 {
   "title": "A core is never blocked on a syscall: filesystem calls, name resolution and waiting on a child go to a blocking pool bounded at twice the core count",
   "status": "shipped",
-  "because": [
-    "0106",
-    "0072",
-    "0004",
-    "0115"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/the-reactor-reports-readiness",
     "concurrency/the-parking-contract",

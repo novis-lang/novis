@@ -4,9 +4,9 @@
 //! session editing one area does not carry the rest in context. The methods
 //! are `pub(crate)` so they reach across these modules and no further.
 //!
-//! **`current()` outside the protocol throws spec § 10's `LogicError`** — ADR
-//! 0053 § 1 says it throws and does not say what, so this is where that is
-//! decided. Driving a cursor is the calling code's own control flow, so
+//! **`current()` outside the protocol throws spec § 10's `LogicError`**
+//! (`rule:iteration/cursor-out-of-range`). Driving a cursor is the calling
+//! code's own control flow, so
 //! reading an element it never advanced to is a bug in that code rather than a
 //! condition the run produced, which is the whole of the `LogicError` /
 //! `RuntimeError` split. [`lower_generator_current`] is the guard and owns why

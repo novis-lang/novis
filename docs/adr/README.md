@@ -17,7 +17,7 @@ reasoning under `## Context` / `## Decision` / `## Consequences` / `## Alternati
 fragment under `docs/rules/` and names the earlier record only through its own `because`. This file
 sits in `docs/adr/` for historical reasons; the records moved at the docs migration's unit C1.
 
-**A section number is a public identifier.** `0007 § 3` is cited from `crates/`, from the goal
+**A section number is a public identifier.** `NNNN § 3` is cited from `crates/`, from the goal
 manifests and from other records. Sections are never renumbered, and `bun nv records --check`
 reports a citation into a section that does not exist.
 
@@ -25,8 +25,8 @@ reports a citation into a section that does not exist.
 [`benches/abi-probe`](../../benches/abi-probe/). The tests are authoritative; a number written anywhere
 else is a copy that can go stale.
 
-Numbering starts at 0002 and has gaps: **0032** was folded into [0029](../decisions/0029.md) § 1
-before the freeze, and **0140** and **0141** were never claimed. The project-start decisions below
+Numbering starts at 0002 and has gaps: **0032** was folded into the casing record, now
+`rule:core-api/casing-checks-the-leading-character`, before the freeze, and **0140** and **0141** were never claimed. The project-start decisions below
 are what 0001 would have been. [tooling-parity.md](tooling-parity.md) — the PHP tool ecosystem, tool by tool, and where each job
 landed — still lives beside this file.
 
@@ -62,18 +62,18 @@ conversion to offer there.
 platform: LLVM autovectorizes the Rust crates at each target's *baseline* ISA — SSE2 on x86_64, NEON on
 aarch64 — and no further, because a `native` build produces a binary that faults on the next machine. The
 wide, feature-detected SIMD that actually earns its keep arrives through dependencies that hand-wrote it and
-dispatch at runtime: `memchr` behind every `regex` prefilter ([0056](../decisions/0056.md)), `blake3`
-on the artifact-cache path ([0042](../decisions/0042.md)). That is the same trade the
+dispatch at runtime: `memchr` behind every `regex` prefilter (`rule:core-classes/regex-two-tiers`), `blake3`
+on the artifact-cache path (`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`). That is the same trade the
 pure-Rust-dependency rule below already makes — the `unsafe` lives in a fuzzed crate with a user base rather
 than in ours, where `unsafe_code = "forbid"` and a stable-pinned toolchain (so no `std::simd`) bar it
 anyway. When a byte-scanning leaf turns out to be hot — UTF-8 validation, grapheme scanning,
-[0024](../decisions/0024.md)'s HTML auto-escape — reach for such a crate, never for
+the HTML auto-escape (`rule:core-classes/html-auto-escape`) — reach for such a crate, never for
 `core::arch` intrinsics. Cranelift, meanwhile, has no autovectorizer: its vector instructions exist to lower
 wasm's fixed 128-bit SIMD, not to be discovered from scalar loops, so JIT-compiled Novis is scalar by design.
 Little is lost — a request's hot path is refcounting, ordered-hash lookups and tagged dispatch, not the
 dense homogeneous loops a vectorizer needs — and vectorizing a `float` reduction would reassociate its
 additions, which the priority ordering's rank 2 forbids outright. Two things to know before anyone claims a
-win: [0026](../decisions/0026.md)'s instruction counts flatter SIMD, because
+win: the instruction counts of `rule:testing/perf-two-mechanisms` flatter SIMD, because
 callgrind does not model vector port throughput, and Cranelift's own vector support is shaped by wasm's
 fixed 128-bit SIMD, which caps anything built on it there regardless.
 
@@ -87,17 +87,18 @@ immutable and therefore shared across all cores through `Arc` with no copying.
 `a_helper_can_suspend_with_jit_frames_live_above_it` and `a_coroutine_round_trip_stays_cheap` in
 [`benches/abi-probe`](../../benches/abi-probe/). The decisive property is the absence of *function
 colouring*: any Novis function may perform I/O and yield without being marked `async`, so converted PHP call
-chains become concurrent with no rewriting. The cost is a stack per in-flight task (default 64 KiB,
-configurable, grown lazily) and a small audited unsafe core for stack switching, taken as a dependency
+chains become concurrent with no rewriting. The cost is a stack per in-flight task (1 MiB of
+reserved address space, resident only in the pages it touches,
+`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`) and a small audited unsafe core for stack switching, taken as a dependency
 (`corosensei`) rather than hand-rolled. The memory is paid deliberately, under
-[0004](../decisions/0004.md).
+`rule:programs/memory-priority`.
 
 **Isolated workers for CPU parallelism.** Work dispatched to another core gets its own heap; values
 crossing the boundary are deep-copied, or moved when the refcount is 1. Data races are impossible by
 construction rather than by discipline, which is what lets the refcounts stay non-atomic. The same rules
-govern the script-level boundary in [0006](../decisions/0006.md), deliberately: one set of
-value-crossing rules, not two — and [0023](../decisions/0023.md) gives that one
-rule its formal definition, shared with `serialize()`/`unserialize()`.
+govern the script-level boundary in `rule:security/isolate-values-cross-by-copy`, deliberately: one set of
+value-crossing rules, not two — and `rule:classes/graph-copy` gives that one
+rule its formal definition, shared with `Core\Serialize`.
 
 **Strict shared-nothing requests.** Only compiled code survives a request. The consequence — reconnecting
 to the database every request — is accepted for v1; `nvs-host` reserves an unused `PersistentRegistry` seam
@@ -111,9 +112,9 @@ profiler, debugger breakpoints and later deoptimisation. Retrofitting it would m
 it is not deferrable.
 
 **Server-level configuration, not per-project.** `nvs.toml` is root-owned, TOML
-([0064](../decisions/0064.md)), and per-app capability blocks live in the *root* config so an
+(`rule:config/the-file-is-nvs-toml-and-it-is-toml`), and per-app capability blocks live in the *root* config so an
 application can never grant itself rights. What a script may change about its own configuration at runtime
-is per-directive and is argued in [0005](../decisions/0005.md).
+is per-directive and is argued in `rule:config/three-changeability-classes`.
 
 **Pure-Rust dependencies by default.** A memory-safe runtime cannot contain arbitrary C. Deviations are
 explicit, argued and few — currently only SQLite (`rusqlite`), where no credible pure-Rust implementation
@@ -127,10 +128,10 @@ built** — a second-rate implementation of somebody else's specification is a s
 own forever. Anything about *Novis's own* compiler or scheduler has no possible crate and is ours by nature.
 It is the same split the project already lives with: Cranelift compiles, and the IR lowering into it is
 ours; `serde_json` parses, and the derive that emits Novis IR from Novis types
-([0071](../decisions/0071.md)) could not be a crate if we wanted it to be. When a feature is half of each,
+(`rule:core-classes/derive-attribute`) could not be a crate if we wanted it to be. When a feature is half of each,
 say which half is which before writing either.
 
-**Checked-return call sites go through one code path.** See [0002](../decisions/0002.md): a missing
+**Checked-return call sites go through one code path.** See `rule:errors/propagation`: a missing
 status check would silently swallow an exception, so no caller constructs a raw `call` instruction.
 
 **`unsafe` is confined to named crates, each declaring its own policy.** The workspace sets
@@ -166,8 +167,8 @@ that lower to two representations are not reconciled by promoting one into the o
 already typed the whole expression as the *union* of its branches, and `nvs_ir::lower`'s `erase_checked_ty`
 erases a union whose members do not share a representation to the tagged one, so the phi carries that and
 `nvs_ir::lower::Lowering::join_representations` tags each branch in its own block. This is the same line
-integer `/` draws and for the same reason ([0007](../decisions/0007.md) §§ 2 and 4): § 4's promotion
-rows belong to an *operator*, whose result type that table fixes, and § 2's implicit `int`→`float` widening
+integer `/` draws and for the same reason (`rule:types/arithmetic`, `rule:types/implicit-widening`): the
+promotion rows belong to an *operator*, whose result type that table fixes, and the implicit `int`→`float` widening
 happens at a `float` **position** — a binding, a parameter, a `return`. A ternary branch is neither, so
 `$c ? 1 : 2.5` keeps PHP's answer on its truthy path (an `int`, not `1.0`, and exact past 2^53 where the
 widening would have thrown) and `float $x = $c ? 1 : 2.5;` widens exactly once, where the declared type is.
@@ -177,34 +178,34 @@ expression — one whose every path throws has nothing for the position it sits 
 and no value for a merge phi with no incoming edge to carry.
 
 **A method call needs a class label, so an erased receiver is refused rather than dispatched.** `object` is
-[0007](../decisions/0007.md) § 3's opaque top of every class type, and it erases to exactly the
+the opaque top of every class type (`rule:types/object-top`), and it erases to exactly the
 pointer a named class does — `nvs_ir::lower`'s `erase_checked_ty` maps `CheckedTy::Object` and
 `CheckedTy::Shape` onto the same `Ty::Object` a `CheckedTy::Class` gets, so nothing below the checker ever
 wanted the label for *representation*, and `object` is a declared type in every position a class name is.
 What does want it is *resolution*: `$o->m(...)` has no signature to check its arguments against and no
-return type for the position it sits in. [0036](../decisions/0036.md) § 4 already answered the
+return type for the position it sits in. `rule:types/erased-member-access` already answered the
 **property** half of an erased receiver — a name-keyed runtime fetch, and a write checked against the
 field's real declared type — and stopped at properties on purpose. The call half is therefore `E0477` where
 it is written (`nvs_types::expr::calls::report_method_on_erased_receiver`), naming the two narrowings that
 do resolve: `instanceof` proves the class inside the guarded branch, and `as ClassName` converts to it or
-throws. There is no `__call` to fall back on ([0014](../decisions/0014.md)), and § 3's "a dynamic call
-with runtime-checked arguments, at `mixed`'s cost" is deferred for `callable` and was never granted to
+throws. There is no `__call` to fall back on (`rule:classes/no-call-magic`), and a dynamic call
+with runtime-checked arguments, at `mixed`'s cost, is granted to bare `callable` alone and never to
 `object`. **It is one code across every receiver that names no class**, because it is one mistake and the
 resolution it fails is the same one: a union naming no single class, an intersection, and the types that
 can hold no object at all — a scalar, an `array<T>`, a `void` call's result — all take `E0477` too, with
 only the help splitting (narrow it, or convert it, or nothing at all for a value that does not exist).
 That is where the call half parts company with the property one, which splits a *deferral* off from
 `E0495`: a property read through an erased receiver has a name-keyed fetch to defer to and a call has
-nothing. `mixed` is the one receiver deliberately left out — [0007](../decisions/0007.md) § 2 makes
+nothing. `mixed` is the one receiver deliberately left out — `rule:types/unions-and-mixed` makes
 it the one unchecked position, so it defers rather than refuses, and until that lowering exists it is the
 one shape `nvs-ir`'s own panic at `lower/expr.rs` still names; the paragraph below owns *how* it is
 answered. Refusing is the reversible half of that pair: a later decision can turn this diagnostic into
 dispatch, while a program that already dispatched could not be taken back.
 
 **A call through a `mixed` receiver is marshalled by the receiver's own descriptor, not by a per-method
-thunk.** [0036](../decisions/0036.md) § 4 grants the deferral and says nothing about the
+thunk.** `rule:types/erased-member-access` grants the deferral and says nothing about the
 convention, so this paragraph is its home. Almost nothing has to be marshalled at all, which is the fact the
-design turns on: [0002](../decisions/0002.md) makes **one** calling convention normative for every
+design turns on: `rule:errors/propagation` makes **one** calling convention normative for every
 call, so `nvs_runtime::abi::NvsFn` is already a context, an array of 16-byte tagged `Value`s and one tagged
 `out` slot, and `nvs-codegen`'s `store_value`/`load_value` already write each argument and each return
 *with* its tag while a typed callee reads only the payload half. A site holding tagged values therefore has
@@ -217,7 +218,7 @@ the identical hole `nvs_runtime::closure`'s own module docs describe for `callab
 other side. So the method row on `nvs_runtime::ClassDesc` carries them, the way a closure object already
 carries `FN_ARITY` and `FN_PARAM_TAGS`: the same nibble word, the same `CLOSURE_PARAM_TAG_ANY` for a
 parameter whose representation *is* a tag, and `check_param_tags` as the one implementation both paths
-share, so [0007](../decisions/0007.md) § 2's `int`-into-`float` widening is not written down a
+share, so the `int`-into-`float` widening (`rule:types/implicit-widening`) is not written down a
 second time to be got wrong differently. They are resolved once per class in `ClassTable::set_methods`, the
 precedent `ClassDesc::renderer` and `ClassDesc::unwind` set, and cost a word and a byte per method per class
 **once per process** — nothing per instance and nothing per call.
@@ -230,15 +231,15 @@ function per method in every unit whether any `mixed` receiver exists or not, ag
 descriptor (rank 5). The statically typed path pays nothing either way and keeps its fixed label; the erased
 path pays a tag test on the receiver, one binary search of the flattened method table by name, and a shift,
 a mask and a compare per argument. Every failure a program can reach is a catchable throw on
-[0002](../decisions/0002.md)'s error edge and never a fault, worded as the diagnostic that names the
+`rule:errors/propagation`'s error edge and never a fault, worded as the diagnostic that names the
 same mistake where a static type shows it — a receiver whose tag is not an object (`E0477`'s reading), a
 class whose table has no such name (`E0405`'s), and a count or a tag the callee does not admit (`E0402`'s
 and `E0401`'s) — so one mistake reads one way whichever end sees it. Three shapes are answered by that
 throw rather than by dispatch, each because the row cannot describe them and not as a rule about erasure: a
 **non-`public`** member, since a `mixed` receiver is outside every class by construction and the row carries
 the visibility bit that says so; a **variadic or `inout`** parameter list, which is packed and written back
-at the *call site*, the limit `E0721` already names for [0043](../decisions/0043.md)
-§ 4's synthesized forward; and a **`Core`**-owned class, whose members are native symbols that *borrow*
+at the *call site*, the limit `E0721` already names for the synthesized forward
+(`rule:classes/delegation-by-field`); and a **`Core`**-owned class, whose members are native symbols that *borrow*
 argument 0 where a compiled method owns its parameters — the very difference that made `renderer` its own
 descriptor field rather than a row in the table, and reaching them from here wants a second field per
 member that no case asks for yet.
@@ -249,11 +250,12 @@ nibble 7, a nibble naming a representation and four bits having no room for a la
 `nvs_runtime::closure::check_param_tags` refuses a `string $c` handed a `Core\Cli\Text` and would accept
 an unrelated `Marker $c` handed the same value. That acceptance was the **only** way a named-class binding
 came to hold an instance of another class: every other position is checked where it is written, and
-[0036](../decisions/0036.md) § 4's erased receiver carries no label at all and therefore defers
+an erased receiver (`rule:types/erased-member-access`) carries no label at all and therefore defers
 to a name-keyed fetch. A binding that *does* carry a label is read and written at a fixed offset, so the
 lie is a type confusion rather than a wrong answer — two `final` classes and one wrong `Core\Arr::filter`
 callback wrote an `int` over a `string` field and the next read dereferenced it — which is
-[0004](../decisions/0004.md)'s priority 1 and not a matter of taste.
+security and request isolation, the first priority of `rule:programs/memory-priority`, and not a
+matter of taste.
 
 Two boundaries could pay, and the cheaper one is not the safer one's equal. Making every named-class
 property access name-keyed would close it everywhere and spend priority 3 in every program, most of which
@@ -284,13 +286,13 @@ contract between the two ends of one call: `nvs_ir::lower::call` stages a cell a
 its address, and copies back when the call returns — sound precisely because the callee's frame dies first.
 Two declarations break that ordering, and both are refused where they are written rather than lowered. A
 **generator** inverts it outright: calling one runs none of the body, it allocates the state object and
-returns ([0053](../decisions/0053.md) § 4), so the staged cell is gone before the first
+returns (`rule:iteration/generators`), so the staged cell is gone before the first
 `advance()` while the parked frame would still be addressing it — `E0492`,
 `nvs_types::check::check_generator_by_ref_params`. A **closure** has no call site that could stage anything:
 § 2's by-value capture lets it outlive every frame in scope where it was written, so there is no frame whose
 death the copy-back could be ordered against — `E0493`,
 `nvs_types::expr::calls::report_by_reference_parameter`. A written signature
-([0136](../decisions/0136.md)) does not reopen it: that gives a site a parameter list to
+(`rule:types/callable-signature`) does not reopen it: that gives a site a parameter list to
 read and still no call site at which to stage a cell. Neither is a lowering we
 chose not to write: there is no representation either could keep instead, because copying the value in would
 stop being a reference, which is the whole observable point of `inout`. The replacements are the ones those
@@ -298,17 +300,16 @@ ADRs already name — for shared mutable state, § 2's ordinary object captured 
 taking the value and `yield`ing what the body computes from it. **Capturing** an enclosing `inout` parameter
 is a different question and is *not* refused: § 2's capture is by value, so what it owes is a snapshot of
 the cell's value at the literal, which `nvs-ir` has not written yet (its gap 9). **The spelling is
-[0107](../decisions/0107.md)'s** — `inout` before the type and
-again at the call site, `&` rejected in every by-reference position — and this paragraph states the rule in
-it; the tree still spells it `&` until that ADR's M4 items land.
+`rule:statements/inout-is-the-by-reference-spelling`'s** — `inout` before the type and again at the call
+site, `&` rejected in every by-reference position — and this paragraph states the rule in it.
 
 **Architecture assumptions are tested, not remembered.** Several decisions here rest on how Cranelift,
 `corosensei` and Wasmtime behave rather than on our own code, and a dependency bump can invalidate them
 silently. `benches/abi-probe/` checks them on every CI run, including the *premise* of
-[0002](../decisions/0002.md) — that native unwinding through JIT frames is unavailable — so if that
+`rule:errors/propagation` — that native unwinding through JIT frames is unavailable — so if that
 ever changes we are told rather than left paying for a workaround that is no longer needed. It also guards a
 premise about the *platform we are replacing*: that an OS process costs orders of magnitude more than a
-task, which is the whole cost argument for [0006](../decisions/0006.md).
+task, which is the whole cost argument for `rule:security/isolate-shares-nothing`.
 
 **A `static` property's storage is the request's, not the process's.** One slot per declared static per
 in-flight request, armed from the declaration's own initializer when the request's `nvs_runtime::Ctx` is
@@ -317,7 +318,7 @@ is a channel from one request into the next, so a token cached in one is readabl
 next request, and no amount of care in user code closes that. `nvs run` cannot tell the two apart — a CLI
 run is one request — so the divergence is invisible until `nvs serve` at M7, which is exactly when the
 wrong default would have become expensive. What it costs is the PHP idiom of a process-lifetime memo,
-which [0006](../decisions/0006.md) had already removed by making a script's world
+which `rule:security/isolate-shares-nothing` had already removed by making a script's world
 per-execution; a cache that must outlive a request is a `Core` capability with a stated lifetime, not a
 class variable. Because a static therefore has no constructor to assign it, its declaration must carry an
 initializer unless its type admits `null` (`E0409`), and `static::$prop` — which PHP re-resolves against
@@ -335,15 +336,15 @@ inside `E04xx` reuses a retired number, which the same promise forbids. `bun nv 
 whose max-plus-one would leave it as **full** rather than handing out the number past its end, so the
 next session reads this decision off the tool instead of re-deriving it. `E08xx` was held unallocated for
 whichever band filled next, and types is what filled it — a second time, at `E0799` — so
-[0136](../decisions/0136.md) opens **`E08xx` at `E0800`** for the diagnostics a
+`rule:types/callable-signature` opens **`E08xx` at `E0800`** for the diagnostics a
 written `callable` signature needs, a third row in that legend table for the one stage. `E10xx` is the
 reserve that replaces it, `E09xx` being internal compiler errors.
 
 **A `try` has at least one `catch` or a `finally`, and a `catch` clause names exactly one class.** PHP
 refuses a bare `try { … }` too, and the parser here accepted it only by omission. `catch (A | B $e)` is
-refused: `$e` carries one static type ([0007](../decisions/0007.md) § 1's `catch` row), and a body
+refused: `$e` carries one static type (`rule:types/declaration`'s `catch` position), and a body
 shared by two classes is written as two clauses or as one clause on their common ancestor — the shape
-[0119](../decisions/0119.md) § 4 already requires of
+`rule:expressions/catch-expression` already requires of
 an expression arm. Both are parse-time refusals in the rejected-PHP band, and each names its rewrite.
 
 **A class or interface constant writes its type.** PHP 8.3's untyped `public const LIMIT = 9;` parsed
@@ -351,7 +352,7 @@ here and took the type of the value it folded to. That reading is a guess the de
 and it is not available everywhere the form is: an interface constant records no value for `nvs-ir` to
 inline and panicked the lowerer at the first use, and a value with no constant form at all (`[1, 2]`)
 has nothing to read a type from either. Every other binding
-[0007](../decisions/0007.md) § 1 governs — property, parameter, return, local, `foreach`,
+`rule:types/declaration` governs — property, parameter, return, local, `foreach`,
 `catch` — already writes one, so the omission was the single hole in that rule, and closing it removes
 both panics by construction rather than one shape at a time. It is `E0246` at the `const` keyword, in
 the rejected-PHP band, and the rewrite is the type the value already has. What it costs is one word
@@ -359,15 +360,15 @@ per constant in a migrated file; what the inference did is now a check against w
 
 **`namespace X;` is the only namespace statement — once per file, before any declaration.** The braced form
 `namespace X { … }`, and with it a file holding two namespaces, is refused at parse time.
-[0112](../decisions/0112.md) keys authority on the namespace enclosing the
-code and [0104](../decisions/0104.md) keys an application on its entry file; a file
-that is two namespaces is a file whose authority is a function of the line number, and nothing below either
-ADR has a reading to give that. The rewrite is one file per namespace.
+`rule:security/authority-is-the-enclosing-namespace` keys authority on the namespace enclosing the
+code and `rule:config/an-application-is-its-entry-file-path` keys an application on its entry file; a file
+that is two namespaces is a file whose authority is a function of the line number, and neither of
+them has a reading to give that. The rewrite is one file per namespace.
 
 **One `use` names one import; PHP's group form is refused.** `use App\Models\{User, Post};` is `E0238`
-where the `\{` is written, sibling to [0015](../decisions/0015.md) § 2's `E0212` on the other half of
-the same statement. That ADR's rule is that a name is reachable under exactly the spelling it was declared
-with, and the group form does not break it — every short name it introduces is still that name — so this
+where the `\{` is written, sibling to `E0212` on the other half of
+the same statement. `rule:statements/nothing-gets-a-second-name` says a name is reachable under exactly
+the spelling it was declared with, and the group form does not break it — every short name it introduces is still that name — so this
 is priority 4 rather than priority 2: a second spelling of a statement that already exists, whose payoff
 is fewer lines and whose cost is that the set of short names a file introduces is no longer a `grep` for
 `^use` returning one name per line. Novis takes the line-per-import reading, the same trade the alias

@@ -1,12 +1,7 @@
 {
   "title": "HTML parses by the WHATWG algorithm onto `Core\\Xml`'s own tree, and that parse never fails",
   "status": "shipped",
-  "because": [
-    "0122",
-    "0095",
-    "0063",
-    "0223"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/html-sanitize",
     "core-classes/pdf-one-engine",
@@ -21,6 +16,8 @@
     "tests/conformance/core/xml-writing-a-tree-refuses-what-the-html-door-recovered-from.nvst",
     "crates/nvs-stdlib/src/html.rs",
     "tests/hostile/core/Html/parse/02-markup-nested-a-hundred-thousand-deep.nvs",
-    "tests/hostile/core/Html/parse/03-a-tag-with-two-hundred-thousand-attributes.nvs"
+    "tests/hostile/core/Html/parse/03-a-tag-with-two-hundred-thousand-attributes.nvs",
+    "tests/hostile/core/Html/sanitize/02-markup-nested-a-hundred-thousand-deep.nvs",
+    "tests/hostile/core/Html/sanitize/03-a-tag-with-two-hundred-thousand-attributes.nvs"
   ]
 }

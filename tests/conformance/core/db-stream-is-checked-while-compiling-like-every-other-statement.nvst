@@ -16,8 +16,8 @@ var $db = Core\Db::connect("main");
 
 var $walk = $db->stream("select id from accounts where owner = ? and status = ?", ["ada"]);
 
-// And the same question asked of the other class that declares the row. ADR
-// 0043's delegation gives `Core\Db\Transaction` the member under the
+// And the same question asked of the other class that declares the row.
+// `rule:classes/delegation-by-field` gives `Core\Db\Transaction` the member under the
 // connection's symbol, and § 10's list is nominal against the *declaring*
 // class — so a row present on one and absent on the other would be a statement
 // checked or not depending on which receiver the call site happened to hold.

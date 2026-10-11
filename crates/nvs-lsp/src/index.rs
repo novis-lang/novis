@@ -1124,8 +1124,8 @@ fn supertypes_of(analysed: &Analysed, qname: &QName) -> Vec<String> {
 /// are one walk of the statements the analysis already parsed, asking the type
 /// phase's own table what each node resolved to — which is
 /// `rule:ide/five-features-are-one-reference-index`'s occurrence side and
-/// `docs/decisions/0099.md` § 3's "resolution applied to every occurrence
-/// rather than to the one under a cursor". Nothing is
+/// `rule:ide/the-request-set-is-closed`'s resolution applied to every
+/// occurrence rather than to the one under a cursor. Nothing is
 /// re-resolved here: [`target_of`] is the same reading `definition` and `hover`
 /// answer a cursor with, so a reference list and a jump cannot disagree.
 ///

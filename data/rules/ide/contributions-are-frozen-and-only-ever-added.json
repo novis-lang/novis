@@ -2,10 +2,6 @@
   "title": "A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed",
   "status": "designed",
   "because": [
-    "0099",
-    "0101",
-    "0108",
-    "0111",
     "0274"
   ],
   "seeAlso": [
@@ -15,5 +11,7 @@
     "ide/dependencies-are-allowlisted",
     "ide/check-json-is-the-diagnostic-record-as-a-document"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "editors/vscode/test/contributions/contributions.test.ts"
+  ]
 }

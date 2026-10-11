@@ -1,5 +1,5 @@
 --TEST--
-a property nobody documented still answers what it holds, because the declared type is what is left when no `///` run and no registry row reached the cursor, ADR 0099 § 3
+a property nobody documented still answers what it holds, because the declared type is what is left when no `///` run and no registry row reached the cursor
 --FILE--
 <?nvs
 class User

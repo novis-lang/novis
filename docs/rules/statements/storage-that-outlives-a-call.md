@@ -17,5 +17,6 @@ the host at isolate construction instead of by a user initialiser
 of its enum's integer type, inlined at every use site like any other literal.
 
 The last row is the one to read twice. A top-level `$x` in a `.nvs` file is a local of the script's own
-frame and nothing more, so the shared-nothing story holds at file scope for the same reason it holds
-everywhere else.
+frame and nothing more. The script body is a function, so its variables are locals, and with no
+`global` no other function can see them (`rule:statements/no-function-static-and-no-global`). The
+shared-nothing story holds at file scope for the same reason it holds everywhere else.

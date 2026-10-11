@@ -2,13 +2,13 @@
 `{limit, deadline}` is the only way to bound a `Core\Task` call: `timeout` is neither an option nor a member, and `race` is not a member either — `rule:concurrency/limit-and-deadline-are-the-only-bounds`, `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
-// § 3: "The plan's `timeout(...)` is therefore not a member: a timeout on a
-// group of tasks is this option". R2 makes a trailing options shape the form
+// `rule:concurrency/limit-and-deadline-are-the-only-bounds`: `timeout` is not a
+// member, because a timeout on a group of tasks is the `deadline` option. R2 makes a trailing options shape the form
 // of *every* optioned member, so a wrapper function would be a second way to
 // say one thing — which is what `rule:core-api/shape-rules` R20 leaves no room for.
 //
-// `race` is asked for the opposite reason: § 3 does not reject the idea, it
-// defers it under a different spelling (`Core\Task::first`, homogeneous), so
+// `race` is asked for the opposite reason: the same rule does not reject the
+// idea, it defers it under a different spelling (`Core\Task::first`, homogeneous), so
 // naming it here is what stops a `race` arriving by the back door. Both of
 // the three errors below are therefore about a name that must *stay* absent.
 class Bounded {

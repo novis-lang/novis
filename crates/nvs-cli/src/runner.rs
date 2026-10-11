@@ -1,7 +1,7 @@
 //! `rule:testing/test-attribute`'s
-//! runner: the `#[Test]` table a compile already built (§ 1), constructed and
-//! called (§ 20), judged off § 5's ledger — [`run_case`] owns why that and not
-//! the exception state — and reported in one of § 22's formats.
+//! runner: the `#[Test]` table a compile already built (`rule:testing/test-attribute`), constructed and
+//! called (`rule:testing/runner-is-strict`), judged off `rule:testing/failure-ledger`'s ledger — [`run_case`] owns why that and not
+//! the exception state — and reported in one of `rule:testing/report-formats`'s formats.
 //!
 //! # One verdict, every rendering
 //!
@@ -13,7 +13,7 @@
 //! written at the end, because neither JSON nor XML has a prefix worth
 //! streaming.
 //!
-//! **Under a machine format the program's own output goes to stderr.** § 22
+//! **Under a machine format the program's own output goes to stderr.** `rule:testing/report-formats`
 //! writes `nvs test --format=json > results.json`, so stdout has to be the
 //! document and nothing else — a test's `echo` interleaved into it would make
 //! the redirect produce something no parser accepts. It is not captured into
@@ -27,7 +27,7 @@
 //! `nvs_types::ExprTypeTable::tests`, which is a *front-end* table, and the
 //! instance it constructs is a compiled unit's, reached through a `Ctx` — and
 //! `nvs-cli` is the only crate that holds a checked program and a runtime
-//! context in one scope. Neither half is discovered at startup: § 1's table
+//! context in one scope. Neither half is discovered at startup: `rule:testing/test-attribute`'s table
 //! was settled while the program was compiled, so there is no directory scan
 //! and no reflection here, only a walk of what the compile handed over.
 //!
@@ -45,17 +45,17 @@
 //!
 //! # Every test is its own isolate
 //!
-//! § 2's rule is [`run_in_isolate`]'s one call into `nvs_host::Isolate`: a
+//! `rule:testing/isolate-per-test`'s rule is [`run_in_isolate`]'s one call into `nvs_host::Isolate`: a
 //! test's body runs on a context of its own, over the *same* compiled unit, so
 //! a static one test wrote reads its declared initial value in the next and
 //! there is no flag to change it (`rule:statements/an-isolate-has-its-own-statics`'s fresh statics base, armed by
 //! the `install_in` inside the child's own program). The isolate is per
-//! **test** and not per attempt, which is § 20's retry left usable:
+//! **test** and not per attempt, which is `rule:testing/runner-is-strict`'s retry left usable:
 //! [`run_with_retries`] runs inside it.
 //!
-//! Two things cross that boundary and both are copies. § 8's fixtures are
+//! Two things cross that boundary and both are copies. `rule:testing/fixtures`'s fixtures are
 //! built **once per class** in this process's own context and copied into each
-//! test (`nvs_runtime::CrossedFixtures`), which is the whole of what § 8 asks
+//! test (`nvs_runtime::CrossedFixtures`), which is the whole of what `rule:testing/fixtures` asks
 //! for: the expensive setup runs once, and what a test can reach is its own
 //! graph. The verdict crosses the other way as data — [`Outcome`] is decided
 //! on the child's stack, off the child's own ledger, and filed into a cell the
@@ -64,7 +64,7 @@
 //!
 //! # The runner owns the test's task tree
 //!
-//! § 16's first half is [`run_suite_in_a_task`]: the whole suite runs inside
+//! `rule:testing/task-tree-and-virtual-clock`'s first half is [`run_suite_in_a_task`]: the whole suite runs inside
 //! one task, so a test's isolate is a *child* of it and a `Core\Task::all`
 //! written in a test has a calling task to put its own children under. That
 //! function owns why it is one task for the suite rather than one per test,
@@ -88,10 +88,10 @@
 //!
 //! A constructor that declares parameters is
 //! reported as that test failing rather than pretended past
-//! (`nvs_runtime::construct_and_call`): § 7 makes the constructor `setUp` and
-//! §§ 8-9 fill the test method's own parameters, which [`build_fixtures`]
+//! (`nvs_runtime::construct_and_call`): `rule:testing/constructor-is-setup` makes the constructor `setUp` and
+//! `rule:testing/fixtures` and `rule:testing/data-rows` fill the test method's own parameters, which [`build_fixtures`]
 //! builds once per class and [`invocations`] materializes per row. Class order is the roster's own sorted
-//! order rather than § 20's declaration order: `ExprTypeTable::tests` is keyed
+//! order rather than `rule:testing/runner-is-strict`'s declaration order: `ExprTypeTable::tests` is keyed
 //! by class label and records no sequence, so declaration order across a
 //! program's files is a fact only that table can grow. Within a class the
 //! order *is* declaration order, which is what a reader of one file sees.
@@ -103,7 +103,7 @@ use std::time::{Duration, Instant};
 
 use nvs_types::defaults::ConstArg;
 
-/// § 22's report formats.
+/// `rule:testing/report-formats`'s report formats.
 ///
 /// The roster lives here rather than in `main`, because what a format *is* is
 /// this module's question and `main` only has to name one on the command line.
@@ -120,15 +120,15 @@ pub(crate) enum Format {
 /// How one test came out.
 enum Outcome {
     Passed,
-    /// § 20's "a skip states a reason", carrying it.
+    /// `rule:testing/runner-is-strict`'s "a skip states a reason", carrying it.
     Skipped(String),
     /// Why it failed — every failed assertion the ledger recorded, or the one
     /// message a throw or an empty ledger left. A list rather than the first
     /// one, because a test that caught its own failures and carried on has
-    /// several, and reporting one of them would hide exactly what § 5's ledger
+    /// several, and reporting one of them would hide exactly what `rule:testing/failure-ledger`'s ledger
     /// exists to keep.
     Failed(Vec<String>),
-    /// § 20's `retries:`: the test failed and then passed within its
+    /// `rule:testing/runner-is-strict`'s `retries:`: the test failed and then passed within its
     /// allowance, carrying how many attempts it took and what the last failed
     /// one said. It is neither passed nor failed, which is the whole of that
     /// bullet — see [`run_with_retries`].
@@ -163,7 +163,7 @@ impl Outcome {
         match self {
             Self::Passed => "\u{2713}",
             Self::Skipped(_) => "-",
-            // Its own mark rather than the passing one: § 20 reports a retried
+            // Its own mark rather than the passing one: `rule:testing/runner-is-strict` reports a retried
             // test as flaky and never as green, and a reader scanning the
             // marks is the first place that has to be true.
             Self::Flaky { .. } => "!",
@@ -171,7 +171,7 @@ impl Outcome {
         }
     }
 
-    /// § 16's second half folded in: `running` children the test left behind
+    /// `rule:testing/task-tree-and-virtual-clock`'s second half folded in: `running` children the test left behind
     /// when it returned turn any verdict a report could call green into a
     /// failure naming them.
     ///
@@ -194,7 +194,7 @@ impl Outcome {
     /// itself found wrong *around* the test, rather than what the test's own
     /// ledger recorded.
     ///
-    /// [`Self::with_tasks_left_running`] is § 16's caller and this is § 17's,
+    /// [`Self::with_tasks_left_running`] is `rule:testing/task-tree-and-virtual-clock`'s caller and this is `rule:testing/db-transaction`'s,
     /// which is why the fold is here once rather than at each: a verdict a
     /// report could call green becomes a failure, a failure gains a line, and a
     /// skip or an `exit(n)` is untouched — a test that never ran cannot have
@@ -250,7 +250,7 @@ struct Case {
     declared: Option<Declared>,
     outcome: Outcome,
     elapsed: Duration,
-    /// § 14's inline snapshots this test produced a different rendering for,
+    /// `rule:testing/inline-snapshots`'s inline snapshots this test produced a different rendering for,
     /// carried out of the isolate beside the verdict because that is the only
     /// place they exist — the child's context is gone by the time `--update`
     /// runs. Always collected and never reported: what reads it is
@@ -424,7 +424,7 @@ pub(crate) fn run(
         eprintln!("error: could not flush output: {error}");
         return ExitCode::FAILURE;
     }
-    // § 14's splice, after every test has run and before the summary is
+    // `rule:testing/inline-snapshots`'s splice, after every test has run and before the summary is
     // printed, so a reader sees what was rewritten above the counts that made
     // it necessary. It is the one thing `nvs test` writes to a file, and it
     // does not touch the verdicts above.
@@ -489,7 +489,7 @@ pub(crate) fn run(
 /// Without it there is no task beneath a test at all: `nvs_host::Wake::current`
 /// answers `None`, so a test's own isolate runs on this stack rather than as a
 /// child (`nvs_host::isolate::Isolate::start`), a `Core\Task::all` in a test
-/// has no calling task to put children under (`rule:concurrency/a-child-belongs-to-the-calling-task`), and § 16 has no
+/// has no calling task to put children under (`rule:concurrency/a-child-belongs-to-the-calling-task`), and `rule:testing/task-tree-and-virtual-clock` has no
 /// tree to read a leftover off. One task and not one per test: the tests are a
 /// *suite*, and each test's own isolate is a child of it.
 ///
@@ -578,8 +578,8 @@ fn run_suite_in_a_task(
     Ok((suite, finished.ctx))
 }
 
-/// The program `Core\Test::request` answers a synthetic request with — ADR
-/// 0079 § 18, and the far side of [`nvs_runtime::inproc::Answering`].
+/// The program `Core\Test::request` answers a synthetic request with —
+/// `rule:testing/in-process-request`, and the far side of [`nvs_runtime::inproc::Answering`].
 ///
 /// It lives here rather than in `nvs-stdlib` for that seam's stated reason: a
 /// `Core` member may not hold a compiled unit, `nvs-codegen` being above the
@@ -591,7 +591,7 @@ fn run_suite_in_a_task(
 pub(crate) struct UnderTest {
     /// The unit the suite is running, whose script frame is the entry a
     /// synthetic request runs — the same frame a served request would run,
-    /// which is what makes § 18's "the real chain" true rather than a mock.
+    /// which is what makes `rule:testing/in-process-request`'s "the real chain" true rather than a mock.
     unit: Rc<nvs_codegen::Unit>,
     /// `rule:routing/matched-once-before-the-handler`'s table, installed on the child so that a handler reading
     /// its own route reads the same one the door matched against.
@@ -733,7 +733,7 @@ pub(crate) struct Flags {
     pub(crate) list: bool,
 }
 
-/// A whole run's verdict, before any of § 22's renderings has been chosen —
+/// A whole run's verdict, before any of `rule:testing/report-formats`'s renderings has been chosen —
 /// which is also the shape this module's own tests read, a rendering being the
 /// one thing they are not about.
 struct Suite {
@@ -743,7 +743,7 @@ struct Suite {
     exited: Option<i64>,
 }
 
-/// Runs every `#[Test]` `checked` declares that `filter` selects, in § 20's
+/// Runs every `#[Test]` `checked` declares that `filter` selects, in `rule:testing/runner-is-strict`'s
 /// order, reporting each as it arrives under [`Format::Human`] and only
 /// collecting under the other two.
 fn run_suite(
@@ -760,7 +760,7 @@ fn run_suite(
     // test: it is a product of the compile every isolate already shares, and
     // [`TestServer`] is the only thing that reads it — a run whose tests declare
     // no `server:` pays one walk of the program's `#[Route]` rows and nothing
-    // else. `UnderTest` builds its own for § 18's first mechanism, which is
+    // else. `UnderTest` builds its own for `rule:testing/in-process-request`'s first mechanism, which is
     // installed a call above this one and holds it for the whole run.
     let routes = std::sync::Arc::new(crate::runtime_routes(&checked.exprs));
     // The run's coverage table, or `None` when no coverage flag was given.
@@ -787,7 +787,7 @@ fn run_suite(
         if format == Format::Human {
             println!("  {class}");
         }
-        // § 8's "built once, in the parent" is this call: one set per class,
+        // `rule:testing/fixtures`'s "built once, in the parent" is this call: one set per class,
         // built before its first test and dropped after its last, so a fixture
         // is not rebuilt per test and not kept past the class that declared it.
         let mut fixtures = nvs_runtime::Fixtures::new();
@@ -800,7 +800,7 @@ fn run_suite(
                 // A fixture that would not build is reported against every
                 // test that asked for one, rather than against the class: a
                 // test is what a report has a line for, and a suite that lost
-                // a whole class silently is what § 20 is written against.
+                // a whole class silently is what `rule:testing/runner-is-strict` is written against.
                 Some(FixtureFailure::Exited(code)) => (Outcome::Exited(*code), Vec::new()),
                 Some(FixtureFailure::Threw(message)) if !fixtures_needed(case).is_empty() => {
                     (Outcome::Failed(vec![message.clone()]), Vec::new())
@@ -853,7 +853,7 @@ fn run_suite(
     }
 }
 
-/// One `#[Test]` method, run as many times as § 20's `retries:` allows.
+/// One `#[Test]` method, run as many times as `rule:testing/runner-is-strict`'s `retries:` allows.
 ///
 /// **A retry is visible or it is worthless.** That bullet's whole point is
 /// that a suite which retries stays honest about it, so a test that failed and
@@ -871,7 +871,7 @@ fn run_suite(
 /// reported against the next.
 ///
 /// **Every attempt is inside the one isolate**, which is why this loop runs on
-/// the child's stack rather than around it. § 2 gives an isolate to a *test*,
+/// the child's stack rather than around it. `rule:testing/isolate-per-test` gives an isolate to a *test*,
 /// and the attempts are that test: a retry that could not see what the attempt
 /// before it wrote to class storage would make the whole option unusable for
 /// the thing it exists for — a test that succeeds on a second try because the
@@ -879,7 +879,7 @@ fn run_suite(
 ///
 /// **A flaky test does not fail the run.** Its exit code is the passing one,
 /// because retries exist precisely so that a suite can pass in spite of one —
-/// what § 20 takes away is the *silence*, not the green build.
+/// what `rule:testing/runner-is-strict` takes away is the *silence*, not the green build.
 fn run_with_retries(
     unit: &Rc<nvs_codegen::Unit>,
     ctx: &mut nvs_runtime::Ctx,
@@ -921,7 +921,7 @@ enum FixtureFailure {
 /// order, into `fixtures`.
 ///
 /// Only what a test that is going to run actually asks for is built: a fixture
-/// nothing names would be setup nobody wanted, and § 20's `skip:` means the
+/// nothing names would be setup nobody wanted, and `rule:testing/runner-is-strict`'s `skip:` means the
 /// test never runs, so building its fixture would run code the author asked to
 /// skip.
 ///
@@ -1062,16 +1062,16 @@ fn random_seed(case: &nvs_types::testing::TestCase) -> Option<u64> {
 /// state**, and that is the whole of what makes a test hard to pass by
 /// accident. A body that caught its own `Core\Test\Failure` returns normally
 /// and has still failed; a body that asserted nothing at all returns normally
-/// too and fails for a second reason (§ 20). A throw is therefore the *last*
+/// too and fails for a second reason (`rule:testing/runner-is-strict`). A throw is therefore the *last*
 /// thing consulted rather than the first, and it only ever answers for a test
 /// whose ledger is clean — an exception raised by the code under test rather
 /// than by an assertion about it.
 ///
-/// **The instance is constructed inside the isolate, not before it.** § 2's
+/// **The instance is constructed inside the isolate, not before it.** `rule:testing/isolate-per-test`'s
 /// boundary is around the whole test, so everything the test can observe —
 /// its receiver, its statics, its ledger, its `echo` — is built on the child's
 /// own context and released with it. What this function does on the parent's
-/// side is only what has to happen before the child exists: § 9's row, § 8's
+/// side is only what has to happen before the child exists: `rule:testing/data-rows`'s row, `rule:testing/fixtures`'s
 /// copies, and the Rust closure the two are moved into.
 fn run_in_isolate(
     unit: &Rc<nvs_codegen::Unit>,
@@ -1082,7 +1082,7 @@ fn run_in_isolate(
     fixtures: &nvs_runtime::Fixtures,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
 ) -> (Outcome, Vec<nvs_runtime::SnapshotMismatch>) {
-    // § 14's mismatches cross the boundary the verdict crosses, in a cell of
+    // `rule:testing/inline-snapshots`'s mismatches cross the boundary the verdict crosses, in a cell of
     // their own beside it: they are the child's context's and that context is
     // gone by the time this returns, and they are not part of the verdict —
     // nothing about a test's outcome depends on whether it was going to be
@@ -1100,7 +1100,7 @@ fn run_in_isolate(
 /// this module's docs say about the isolate is about this function.
 #[expect(
     clippy::too_many_arguments,
-    reason = "the caller's seven, plus the one cell § 14's mismatches cross in"
+    reason = "the caller's seven, plus the one cell `rule:testing/inline-snapshots`'s mismatches cross in"
 )]
 fn run_the_test(
     unit: &Rc<nvs_codegen::Unit>,
@@ -1115,8 +1115,8 @@ fn run_the_test(
     if let Some(reason) = skip_reason(case) {
         return Outcome::Skipped(reason);
     }
-    // § 18's second mechanism, bound **before** the child exists for the same
-    // reason § 9's row and § 8's copies are: what the test observes of it is one
+    // `rule:testing/in-process-request`'s second mechanism, bound **before** the child exists for the same
+    // reason `rule:testing/data-rows`'s row and `rule:testing/fixtures`'s copies are: what the test observes of it is one
     // string on its own context, and a socket cannot be handed across the heap
     // boundary afterwards. A failure to bind is this test's own failure and
     // nothing has run.
@@ -1134,7 +1134,7 @@ fn run_the_test(
         },
     };
     let listening = served.as_ref().map(|server| server.url.clone());
-    // §§ 8-9's injection: one value per declared parameter, in the order the
+    // `rule:testing/fixtures` and `rule:testing/data-rows`'s injection: one value per declared parameter, in the order the
     // checker resolved them (`nvs_types::testing::TestCase::params`), so
     // nothing here re-derives which fixture answers which parameter or which
     // field answered which name. A fixture's value is this test's own copy and
@@ -1144,7 +1144,7 @@ fn run_the_test(
         .into_iter()
         .map(str::to_owned)
         .collect();
-    // § 8's crossing, made here and not in the child: the source is the
+    // `rule:testing/fixtures`'s crossing, made here and not in the child: the source is the
     // parent's set and the walk consumes a reference to each of its values, so
     // it runs where that set is (`nvs_runtime::CrossedFixtures`).
     let crossed = match nvs_runtime::CrossedFixtures::copy(fixtures, &needed) {
@@ -1195,7 +1195,7 @@ fn run_the_test(
     }
     // The verdict is decided on the child's own stack and filed into a cell
     // its program captured, because a `Completion` carries a value, bytes and
-    // a failure and none of those is § 5's ledger. Nothing about that cell
+    // a failure and none of those is `rule:testing/failure-ledger`'s ledger. Nothing about that cell
     // crosses the heap boundary: an [`Outcome`] is `String`s the runner owns,
     // built while the child's context is still alive and read after it is
     // gone.
@@ -1203,7 +1203,7 @@ fn run_the_test(
     let verdict = Rc::clone(&filed);
     let recorded = Rc::clone(snapshots);
     let allowance = retry_allowance(case);
-    // § 12's clock, resolved on the parent's side so that a malformed `at:` is
+    // `rule:testing/determinism-declared-on-the-test`'s clock, resolved on the parent's side so that a malformed `at:` is
     // this test's own reported failure rather than something the child has to
     // carry back across the boundary — nothing has run at this point, which is
     // what makes the message the whole of what happened.
@@ -1218,12 +1218,12 @@ fn run_the_test(
         }
     };
     let seed = random_seed(case);
-    // § 17's block name, read on the parent's side with every other option and
+    // `rule:testing/db-transaction`'s block name, read on the parent's side with every other option and
     // owned because the Rust closure outlives this frame — but *opened* inside the
     // child, which is the one decision this mechanism makes. A connection is
     // memoized on the context it was opened on, so a transaction begun out here
     // would be on a connection the test's own `Core\Db::connect` could never
-    // reach, and § 17's "a transaction opened inside the test is a savepoint"
+    // reach, and `rule:testing/db-transaction`'s "a transaction opened inside the test is a savepoint"
     // would be two transactions on two connections deadlocking on each other.
     // `nvs_stdlib::db::begin_test_transaction` is the one home of that reading.
     let transacted = wants_db(case).map(str::to_owned);
@@ -1235,22 +1235,22 @@ fn run_the_test(
         // the isolate's context deliberately arrives with none, so this call
         // is the whole of why one test does not read back another's static.
         child_unit.install_in(child);
-        // § 12's fixed clock, armed before a line of the test runs and onto the
+        // `rule:testing/determinism-declared-on-the-test`'s fixed clock, armed before a line of the test runs and onto the
         // *child's* context, which is the only context a test can observe: a
-        // sibling declaring no `at:` still reads the host's clock, because § 2
+        // sibling declaring no `at:` still reads the host's clock, because `rule:testing/isolate-per-test`
         // gave it a context of its own. `Core\Test::advance` moves this same
         // field and nothing else does (`nvs_runtime::Ctx::fixed_clock`).
         if let Some(nanos) = clock {
             child.set_fixed_clock(nanos);
         }
-        // § 12's other half, and armed the same way and in the same place: the
+        // `rule:testing/determinism-declared-on-the-test`'s other half, and armed the same way and in the same place: the
         // generator's state lives on the child's own context, so a sibling that
         // declared no `seed:` still draws from the CSPRNG and one test's draws
         // cannot move another's (`nvs_stdlib::random::draw`).
         if let Some(seed) = seed {
             child.set_random_state(seed);
         }
-        // § 18's listener, armed the same way and in the same place as the two
+        // `rule:testing/in-process-request`'s listener, armed the same way and in the same place as the two
         // above: the address is the *child's* to read, so a sibling that
         // declared no `server:` answers `null` and cannot reach a port this
         // test bound (`nvs_runtime::Ctx::test_server`).
@@ -1259,18 +1259,18 @@ fn run_the_test(
         }
         // Null here, and discharged anyway: the seam's contract is that
         // whatever crossed becomes the isolate's own root's, and a test's
-        // values crossed as § 8's copies instead.
+        // values crossed as `rule:testing/fixtures`'s copies instead.
         child.set_isolate_argument(argument);
         // Both owners go down with the isolate, after the call that borrowed
         // their values has returned.
         let (_crossed, _materialized) = (crossed, materialized);
         let outcome = match transacted.as_deref() {
             None => run_with_retries(&child_unit, child, &class_name, &method, &args, allowance),
-            // § 17, around the whole allowance rather than around one attempt:
+            // `rule:testing/db-transaction`, around the whole allowance rather than around one attempt:
             // `retries:` exists for a test that is flaky against something
             // outside the database, and a retry that started from a pristine
             // database would be a second rule about what a retry re-runs —
-            // § 20 says only that the method is called again. A test whose
+            // `rule:testing/runner-is-strict` says only that the method is called again. A test whose
             // second attempt has to unsee its first attempt's writes has
             // written a test the rollback cannot fix.
             Some(name) => match nvs_stdlib::db::begin_test_transaction(child, name) {
@@ -1301,14 +1301,14 @@ fn run_the_test(
                 }
             },
         };
-        // § 16, read off the tree from inside the test's own task and nowhere
+        // `rule:testing/task-tree-and-virtual-clock`, read off the tree from inside the test's own task and nowhere
         // else: a child spawned here is a child of *this* task, and once this
         // Rust closure returns the scheduler cancels whatever is left rather than
         // reporting it. `nvs_host::children_still_running` owns why an awaited
         // child is already gone from the count.
-        // § 14's mismatches, taken on the child's own stack for the reason its
+        // `rule:testing/inline-snapshots`'s mismatches, taken on the child's own stack for the reason its
         // ledger is taken there: the record is this test's, and this is the
-        // last frame that holds the context carrying it. Every attempt § 20
+        // last frame that holds the context carrying it. Every attempt `rule:testing/runner-is-strict`
         // allowed is in the list, which is why [`update_snapshots`] reads only
         // a test that ended failed — a retried test that went on to pass has
         // the snapshot its last attempt matched.
@@ -1338,7 +1338,7 @@ fn run_the_test(
             )]);
         }
     };
-    // § 2's boundary is around the whole test, and a listener is the one thing
+    // `rule:testing/isolate-per-test`'s boundary is around the whole test, and a listener is the one thing
     // it owns that the child's context does not release for it: the socket was
     // bound out here, so it is retired out here, after the isolate that could
     // still have been talking to it has joined.
@@ -1391,12 +1391,12 @@ fn wants_db(case: &nvs_types::testing::TestCase) -> Option<&str> {
 /// `rule:testing/in-process-request`'s second mechanism, bound: one ephemeral listener over the
 /// program under test, and the task accepting on it.
 ///
-/// **Why a second mechanism at all**, when § 18's first one already runs a
+/// **Why a second mechanism at all**, when `rule:testing/in-process-request`'s first one already runs a
 /// request through the same entry with no socket: what this one answers is
 /// everything between the two — the `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` header set actually arriving on
 /// the wire, chunking, keep-alive, a peer that hangs up mid-body. The in-process
 /// path deliberately never builds a response head, so none of that is a question
-/// it *can* be asked, which is the ADR's "measurably different questions".
+/// it *can* be asked, which is why `rule:testing/in-process-request` keeps a second mechanism.
 ///
 /// **The port is the operating system's**, taken by binding `127.0.0.1:0` and
 /// reading the address back: a fixed port would collide between two `cargo test`
@@ -1419,7 +1419,7 @@ struct TestServer {
     /// bound address, with no trailing slash so a path appends directly.
     url: String,
     /// The accept loop's own task, which is a **sibling** of the test's isolate
-    /// and a child of the suite's task. Sibling and not child on purpose: § 16
+    /// and a child of the suite's task. Sibling and not child on purpose: `rule:testing/task-tree-and-virtual-clock`
     /// reads `nvs_host::children_still_running` from inside the test's own task,
     /// so a server underneath it would be reported as work the test left behind.
     /// `None` where the scheduler refused the spawn, which leaves a bound socket
@@ -1575,7 +1575,7 @@ impl Door {
 }
 
 /// One request off the wire, answered by the program under test — the same
-/// shape `UnderTest::answer` builds for § 18's first mechanism, over a
+/// shape `UnderTest::answer` builds for `rule:testing/in-process-request`'s first mechanism, over a
 /// carrier `hyper` filled instead of one a `Core` member wrote.
 ///
 /// It is a free function rather than a Rust closure's body so that the two halves read
@@ -1674,7 +1674,7 @@ fn answer_on_the_wire(
 }
 
 /// One attempt at one test: a fresh instance of `class`, its `method` called
-/// on that instance with `args`, and § 5's verdict read off the ledger.
+/// on that instance with `args`, and `rule:testing/failure-ledger`'s verdict read off the ledger.
 ///
 /// **Every line of it runs on the isolate's own stack** — the instance, the
 /// ledger and the pending exception are all the child's, and reading any of
@@ -1717,7 +1717,7 @@ fn run_case(
         return Outcome::Failed(vec![message]);
     }
     if ledger.is_empty() {
-        // § 20's first bullet, with the way out that section names: a test
+        // `rule:testing/runner-is-strict`'s first bullet, with the way out that section names: a test
         // whose whole claim is that nothing threw writes
         // `Core\Test::assertDoesNotThrow(callable)`, which records an entry
         // like any other assertion.
@@ -1733,7 +1733,7 @@ fn run_case(
 /// The calls one `#[Test]` method makes — `rule:testing/data-rows`'s "each row is its own
 /// reported case".
 ///
-/// A method with no `#[TestWith]` row is § 1's single call under its own name.
+/// A method with no `#[TestWith]` row is `rule:testing/test-attribute`'s single call under its own name.
 /// A method with rows is one call per row, in the source order the checker
 /// recorded them, each labelled `method#N` — a **label** rather than a field
 /// beside the name, so the plaintext mark, the JSON object and the JUnit
@@ -1759,7 +1759,7 @@ fn selected(filter: Option<&str>, class: &str, label: &str) -> bool {
 }
 
 /// A `skip:`ped method is expanded too and reports one skipped case per row:
-/// what § 20 skips is a *test*, and each row is one.
+/// what `rule:testing/runner-is-strict` skips is a *test*, and each row is one.
 fn invocations(case: &nvs_types::testing::TestCase) -> Vec<Invocation<'_>> {
     if case.rows.is_empty() {
         return vec![Invocation {
@@ -1780,7 +1780,7 @@ fn invocations(case: &nvs_types::testing::TestCase) -> Vec<Invocation<'_>> {
 }
 
 /// One call [`invocations`] hands back: the method to run, the label it is
-/// reported under, and the row it is filled from — `None` for the § 1 method
+/// reported under, and the row it is filled from — `None` for the `rule:testing/test-attribute` method
 /// that has none.
 struct Invocation<'a> {
     case: &'a nvs_types::testing::TestCase,
@@ -1791,7 +1791,7 @@ struct Invocation<'a> {
 /// One folded row field as the value the call takes, owned by `row`.
 ///
 /// The roster is exactly what `nvs_types::defaults::literal_default` folds a
-/// row field to — the scalars and a `string` — because § 9 matches a
+/// row field to — the scalars and a `string` — because `rule:testing/data-rows` matches a
 /// field against its parameter's *declared* type, and that is the closed list
 /// of literals such a parameter can be declared at. Anything else answers
 /// `None` and is reported as the internal inconsistency it would be, rather
@@ -1812,7 +1812,7 @@ fn materialize(
 
 /// The `#[Fixture]` methods `case` asks for, in parameter order.
 ///
-/// A §§ 8-9 parameter list is a list of *sources*
+/// A `rule:testing/fixtures` and `rule:testing/data-rows` parameter list is a list of *sources*
 /// (`nvs_types::testing::Injection`), and only a fixture's has a value to be
 /// built ahead of the call: a row's is folded into the case itself. So this is
 /// the fixture positions alone, which is what both the build order and
@@ -1829,7 +1829,7 @@ fn fixtures_needed(case: &nvs_types::testing::TestCase) -> Vec<&str> {
 
 /// The `skip:` option's reason, or `None` for a test that runs.
 ///
-/// § 20 makes the reason the whole point of the option — `#[Test(skip: true)]`
+/// `rule:testing/runner-is-strict` makes the reason the whole point of the option — `#[Test(skip: true)]`
 /// does not compile — so a `skip` that folded to anything but a string is one
 /// `nvs_types::testing` has already refused, and reading it back as absent
 /// here would be a second answer to a settled question.
@@ -1846,7 +1846,7 @@ struct Counts {
     passed: usize,
     failed: usize,
     skipped: usize,
-    /// § 20's own section: a test that passed within its retry allowance is
+    /// `rule:testing/runner-is-strict`'s own section: a test that passed within its retry allowance is
     /// counted here and in none of the fields above it.
     flaky: usize,
 }
@@ -1857,7 +1857,7 @@ impl Counts {
     }
 }
 
-/// § 22's one line per test: the mark, the method's own name, and how long it
+/// `rule:testing/report-formats`'s one line per test: the mark, the method's own name, and how long it
 /// took.
 fn report(method: &str, outcome: &Outcome, elapsed: Duration) {
     let mark = outcome.mark();
@@ -1883,12 +1883,12 @@ fn report(method: &str, outcome: &Outcome, elapsed: Duration) {
     }
 }
 
-/// § 22's versioned JSON: one object per run, over the very [`Case`] list the
+/// `rule:testing/report-formats`'s versioned JSON: one object per run, over the very [`Case`] list the
 /// plaintext report renders a line at a time.
 ///
 /// The version is at the root because that section promises a *versioned*
 /// schema, and a consumer that reads it knows what the rest of the keys mean.
-/// What § 22 additionally names — a structured diff, `#[Bench]`'s counters, a
+/// What `rule:testing/report-formats` additionally names — a structured diff, `#[Bench]`'s counters, a
 /// shrunk property counterexample and per-data-row results — is absent
 /// because nothing produces any of it yet; each arrives as a new
 /// key beside these, which is the whole of what the version number buys.
@@ -1942,7 +1942,7 @@ fn json_document(
             }
             // A flaky test carries the same `failures` array a failed one
             // does — the last failed attempt's — plus the count that says it
-            // was retried at all. § 20's "never as green" is the `verdict`
+            // was retried at all. `rule:testing/runner-is-strict`'s "never as green" is the `verdict`
             // above; this is what a reader does about it.
             Outcome::Failed(reasons)
             | Outcome::Flaky {
@@ -2078,7 +2078,7 @@ fn location_keys(declared: Option<&Declared>, out: &mut String) {
     }
 }
 
-/// § 22's JUnit XML: the shape every CI system already ingests, over the same
+/// `rule:testing/report-formats`'s JUnit XML: the shape every CI system already ingests, over the same
 /// [`Case`] list.
 ///
 /// One `<testsuite>` per class, in the order the run took them, which is the
@@ -2153,7 +2153,7 @@ fn junit_document(cases: &[Case], counts: Counts, total: Duration) -> String {
                     xml_text(&case.outcome.message().unwrap_or_default(), &mut out);
                     out.push_str("\">");
                     // The body carries every failed assertion where the
-                    // attribute carries the first: § 5's ledger keeps them all,
+                    // attribute carries the first: `rule:testing/failure-ledger`'s ledger keeps them all,
                     // and a format that reported one would hide what it exists
                     // to keep.
                     if let Outcome::Failed(reasons) = &case.outcome {
@@ -2236,7 +2236,7 @@ struct SnapshotSite {
     owner: Option<String>,
 }
 
-/// Every § 14 row the compile recorded, with its file resolved.
+/// Every `rule:testing/inline-snapshots` row the compile recorded, with its file resolved.
 ///
 /// Read before the suite's task takes ownership of `checked`, which is the
 /// only constraint on where this is called.
@@ -2265,7 +2265,7 @@ fn snapshot_sites(checked: &crate::Checked) -> Vec<SnapshotSite> {
 /// A run knows a snapshot by its *text* — `nvs_stdlib::test`'s helper doc owns
 /// why there is no span at run time — so a mismatch is matched to a site by
 /// the expected text **within the test that produced it**. That second half is
-/// what makes the workflow § 14 describes work at all: it starts every
+/// what makes the workflow `rule:testing/inline-snapshots` describes work at all: it starts every
 /// snapshot at `""`, so a program with two of them has two sites sharing a
 /// join key, and only the method tells them apart.
 ///
@@ -2386,7 +2386,7 @@ fn splice_one(
 /// A single-quoted literal has exactly two escapes and no interpolation
 /// (`nvs_syntax`'s lexer, `lex_single_quoted`), so a newline, a `$`, a
 /// backslash run and a `{` all stand for themselves. That is the property
-/// § 14 is written on: the snapshot's whole point is that the diff is read,
+/// `rule:testing/inline-snapshots` is written on: the snapshot's whole point is that the diff is read,
 /// and a multi-line rendering folded onto one line behind `\n` escapes is a
 /// diff nobody reads. The double-quoted form would also have to escape `$` and
 /// `{`, either of which appears in an ordinary `Core\Debug::render` of an
@@ -2457,7 +2457,7 @@ mod tests {
         unit.install_in(&mut ctx);
         // Through the same entry `run` takes, scheduler and all: a suite run
         // off a bare stack would be a different runner from the one shipped,
-        // and § 16 is a claim about the one with a task tree under it.
+        // and `rule:testing/task-tree-and-virtual-clock` is a claim about the one with a task tree under it.
         let (suite, _ctx) = run_suite_in_a_task(
             &unit,
             ctx,
@@ -2506,7 +2506,7 @@ mod tests {
         suite
     }
 
-    /// [`ran`] as § 22's JSON, parsed back.
+    /// [`ran`] as `rule:testing/report-formats`'s JSON, parsed back.
     ///
     /// The document rather than the [`super::Suite`] it is built from, because
     /// what a Test Explorer and a CI job read is this text: a field the run
@@ -2618,7 +2618,7 @@ mod tests {
     /// The location is the JSON document's alone: the other two formats are
     /// the bytes they were before it existed.
     ///
-    /// § 22's JUnit XML is asserted here attribute by attribute, because "the
+    /// `rule:testing/report-formats`'s JUnit XML is asserted here attribute by attribute, because "the
     /// same bytes as before" is only checkable against the shape the writer
     /// emits — a `file=` or `line=` attribute added to a `<testcase>` would be
     /// a schema change nobody versioned, this format having no version to
@@ -2941,7 +2941,7 @@ mod tests {
         // test's `Core\Task::all` has children only because the suite is
         // itself a task (`rule:concurrency/a-child-belongs-to-the-calling-task`'s "a child of the calling task"), so a
         // runner that ran off a bare stack fails it rather than passing it
-        // differently. The second leaves a `spawn script` unawaited: § 16 says
+        // differently. The second leaves a `spawn script` unawaited: `rule:testing/task-tree-and-virtual-clock` says
         // that is a failure and says it by name, where the scheduler on its own
         // would cancel the child at the retire and report green.
         let verdicts = verdicts("task-tree.nvs");
@@ -2995,7 +2995,7 @@ mod tests {
         );
     }
 
-    /// § 16's other half at the same boundary: a body that returned with work
+    /// `rule:testing/task-tree-and-virtual-clock`'s other half at the same boundary: a body that returned with work
     /// of its own still going is the failure, and the message carries the
     /// budget it overran.
     ///

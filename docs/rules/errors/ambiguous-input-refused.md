@@ -19,3 +19,17 @@ origin parser is dangerous in.
 
 Strict parsing is not slower. Validation folds into the pass that already touches every byte to find
 delimiters; it is *lenient* parsing that needs extra work to unfold, re-scan and normalise.
+
+The unusual half is as much of the rule as the refusals: a header name with an underscore, or an
+unknown but well-formed one, is accepted verbatim.
+
+**Declined:**
+
+- **Normalise and continue.** It gives the most interoperability, and it is the posture behind a run of
+  parser vulnerabilities in other runtimes: a folded header line unfolded and parsed, a header line with
+  no colon treated as a header, a long redirect target truncated and followed, a hostname with NUL
+  accepted. It also guarantees that Novis and a proxy in front of it can disagree about what a request
+  says.
+- **Total strictness**, refusing anything that does not match the HTTP grammar exactly. It is simpler to
+  state, and it refuses requests every other origin accepts (underscores in header names are common). It
+  also makes the list open-ended, which the closed list exists to prevent.

@@ -73,8 +73,8 @@
 //! shows it as no popup at all; a `Hover` carrying an empty string is a box
 //! that opens onto nothing every time a name is passed over.
 //!
-//! **A `@see` line is prose here, not a link.** ADR 0099 § 3 wants its target
-//! rendered as one, and a link needs a URI: the target is a member, and the
+//! **A `@see` line is prose here, not a link.** Rendering its target as a link
+//! needs a URI: the target is a member, and the
 //! `file:` URI of its declaration is what a client would follow. That is
 //! [`crate::definition`]'s answer pointed at a name written in a comment rather
 //! than in code, which is a resolution of its own and so a slice of its own.

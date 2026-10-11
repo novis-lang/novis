@@ -1,9 +1,7 @@
 {
   "title": "A constructor parameter is not a member, because visibility is what promotes one",
   "status": "shipped",
-  "because": [
-    "0094"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/written-visibility",
     "classes/promotion-is-constructor-only"

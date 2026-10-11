@@ -24,11 +24,21 @@ if ($x) { ?>html<?nvs }   // unaffected — reopening mid-block was always legal
 
 `<?=` is untouched: it was never a spelling of `<?nvs`, it is sugar for `<?nvs echo`.
 
+`<?php` and `<?nvs` always produced the same token past the parser, so the second tag preserved no
+behaviour, only a spelling, and [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) rules out a second spelling
+of one construct. Converting a file that opens with `<?php` is a five-character substitution with
+nothing to analyse.
+
 One file shape reaches code mode without a tag, and it is not a second spelling of one. A file whose first
 two bytes are `#!` continues in code mode as if `<?nvs` stood there; writing the tag in a shebang file
 before any `?>` is `E0009`.
 
-<sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0049](../decisions/0049.md), [0100](../decisions/0100.md), [0015](../decisions/0015.md).</sub>
+**Declined:**
+- **`<?php` as a permanent alias of `<?nvs`.** It differs in nothing, so it buys only a second thing to
+  teach, the trade [`types/no-legacy-cast`](types.md#types-no-legacy-cast) and [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators) also
+  refuse.
+
+<sub>See also [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword).</sub>
 
 <a id="statements-a-qualified-name-is-absolute"></a>
 
@@ -60,9 +70,28 @@ new Models\User();        // refused: it names `Models\User`, which does not exi
 
 `E0322` is the migration diagnostic, firing on exactly the construct this changes: *`Models\User` does not
 exist; a qualified name is absolute here. Did you mean `App\Models\User`?* A short name for a class in the
-same namespace, every `use` path, and `Core\Str::length($s)` are unaffected.
+same namespace, every `use` path, and `Core\Str::length($s)` are unaffected. A qualified name that
+resolves neither way is the ordinary unresolved-name error.
 
-<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name). Decided in [0113](../decisions/0113.md), [0011](../decisions/0011.md), [0015](../decisions/0015.md), [0112](../decisions/0112.md), [0071](../decisions/0071.md).</sub>
+The rule is decidable from the name alone, by whether it contains a separator, without knowing where the
+name sits. PHP reads a qualified name relative to the current namespace, so inside `namespace App;` the
+name `App\Models\User` means `App\App\Models\User`, and the error names a class nobody wrote. Here that
+mistake cannot be written. The price is typing: reaching into a sub-namespace takes the full path or a
+`use`, and a file wanting several names from one namespace writes one `use` per name.
+
+**Declined:**
+- **PHP's resolution kept as it is.** Two resolution rules and a token buy no meaning, and once a
+  capability grant is keyed on a name's namespace ([`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace)),
+  a name that resolves two ways is a grant that resolves two ways.
+- **Relative qualified names kept, and only the leading separator removed.** It keeps the half where a
+  name means different things in different namespaces, and removes the one way a reader could escape it.
+- **A qualified name's first segment resolved through the imports.** It keeps the namespace-prefix import,
+  at the cost of `App\Models\User` meaning one thing in a file that imports `App` and another in one that
+  does not. `use Core\Json\Derive;` costs one line and reads as what it is.
+- **The leading separator as the only way to write an absolute name.** It makes every `use` path and every
+  `Core\Str` reference wrong, to reach a rule no easier to decide than this one.
+
+<sub>See also [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace), [`statements/a-leading-separator-does-not-parse`](statements.md#statements-a-leading-separator-does-not-parse), [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name).</sub>
 
 <a id="statements-no-fallback-to-the-root-namespace"></a>
 
@@ -91,9 +120,18 @@ second resolution rule to hold alongside the first. Code at the root namespace i
 enclosing namespace *is* the root.
 
 A root-namespace fallback only serves a function or constant call looking for a built-in from inside a
-namespace. With no free functions and no free constants, nothing is left for one to do.
+namespace. With no free functions and no free constants, nothing is left for one to do. The price is one
+line: a namespaced file that catches `Throwable` writes `use Throwable;`, which PHP does not need.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0113](../decisions/0113.md), [0011](../decisions/0011.md).</sub>
+**Declined:**
+- **A fallback to the root for a short name that resolves nowhere else.** Two places could then match one
+  short name, which is the ambiguity [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute) removes.
+- **The reserved exception tree imported automatically.** A closed roster is still a second resolution
+  rule, and `Core` gets no automatic import for the same reason ([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)).
+- **The exception tree moved under `Core`, so that no root-level name exists.** It changes every `catch`
+  clause to remove a case one import line already covers.
+
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-a-leading-separator-does-not-parse"></a>
 
@@ -119,7 +157,15 @@ would restore exactly the two-spellings-one-meaning state removed here with the 
 resolution into style. The formatter does not strip it either — a construct the parser rejects never
 reaches the formatter.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0113](../decisions/0113.md), [0095](../decisions/0095.md), [0029](../decisions/0029.md).</sub>
+PHP gives the token two jobs and one ban, by position. In a `use` it is noise, because the path is already
+absolute. Elsewhere it decides between two resolutions. In `namespace \App;` it is a parse error. A reader
+moves between those three positions constantly, so no habit settles which one applies.
+
+**Declined:**
+- **Accept the leading separator and strip it, in the parser or the formatter.** That is the
+  two-spellings-one-meaning state itself, moved into style.
+
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
 
 <a id="statements-one-function-resolves-every-name"></a>
 
@@ -137,7 +183,7 @@ Because a capability grant is keyed on the namespace enclosing the code that ask
 this name sit in" is an authority question and not only a readability one: a resolution rule with two homes
 is a grant lookup with two homes.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0113](../decisions/0113.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace).</sub>
 
 <a id="statements-nothing-gets-a-second-name"></a>
 
@@ -159,7 +205,11 @@ survives, making a bare `Str` resolve to an unrelated class is structurally unre
 refused, and the symbol table keeps exactly one entry per declared name, with no code path anywhere asking
 whether a name was resolved directly or through an alias.
 
-<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace). Decided in [0015](../decisions/0015.md), [0011](../decisions/0011.md), [0113](../decisions/0113.md), [0043](../decisions/0043.md).</sub>
+**Declined:**
+- **Import `as` kept for two libraries whose short names collide.** The fully-qualified name is more
+  explicit for a little more typing, and a carve-out for collisions only does not stay narrow.
+
+<sub>See also [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute), [`statements/no-fallback-to-the-root-namespace`](statements.md#statements-no-fallback-to-the-root-namespace).</sub>
 
 <a id="statements-an-enum-name-is-a-type-everywhere"></a>
 
@@ -188,7 +238,7 @@ distinguished by what the name resolves to, the way `self`, `static` and `parent
 there. Every binding site that requires a type takes one, with no position that admits a class name and
 refuses an enum's.
 
-<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-require-is-the-only-inclusion-construct"></a>
 
@@ -230,7 +280,7 @@ other three are refused for the behaviour each names, not for being PHP-shaped.
 - **An automatic once-guard as `require`'s only mode.** A template partial required in a loop would
   silently run once, trading one silent PHP behaviour for another.
 
-<sub>See also [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals), [`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed), [`errors/propagation`](errors.md#errors-propagation). Decided in [0049](../decisions/0049.md), [0011](../decisions/0011.md), [0017](../decisions/0017.md).</sub>
+<sub>See also [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals), [`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="statements-a-required-file-shares-declarations-not-locals"></a>
 
@@ -255,7 +305,7 @@ a static.
 Nothing here is isolated: the required file runs in the caller's own process and request, with the
 caller's capabilities. Isolation is what `spawn script` gives, and `require` gives none of it.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-a-require-expression-is-mixed"></a>
 
@@ -272,7 +322,7 @@ boundary value of unknown-until-runtime shape needs before it can populate a typ
 is carved into the type system for `require`, and nothing about the construct is a second unchecked
 position.
 
-<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct).</sub>
 
 <a id="statements-static-is-a-member-modifier"></a>
 
@@ -303,7 +353,11 @@ anonymous function is written in,
 as a written class name would: a static method reached that way reads that class as `static`, whichever
 subclass the enclosing method was called on. An instance method reached that way is called on the
 anonymous function's `$this`, which the call captures, and reads `$this`'s class as `static` as it
-does everywhere.
+does everywhere. For `parent::m()` the class the call is made on is still the one the function is
+written in: the parent is only where the method is looked up. PHP forwards the enclosing method's
+called class into the anonymous function instead, so there a static method reached this way sees the
+subclass. `self::` already means the written class for constants, `::class` and `self::m(...)`, and
+this reading stores nothing new.
 
 A site that sets the called class leaves no late binding to reach an override, so a call from one to an
 `abstract static` method is refused where it is written (`E0835`) unless the class it names, or a class
@@ -320,7 +374,36 @@ The keyword therefore has one meaning per position: a modifier before a member, 
 expression. Nothing about it depends on whether it appears inside a function body, because inside a
 function body it is not a declaration at all — see [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global).
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0144](../decisions/0144.md), [0211](../decisions/0211.md), [0231](../decisions/0231.md).</sub>
+Late static binding stays because fluent builders, record-style models and static factories are
+written with it.
+
+- **Memory:** only code that writes `static::` on a constant pays for the late read. Each read scans
+  the called class's constant table, which is the size its declarations wrote, and builds the name as
+  a fresh string released when the read returns. A `string` constant costs one allocation per read,
+  charged to the isolate, as `static::class` does: the process-wide table's strings are not shared
+  across isolates. `self::NAME` and `Class::NAME` still inline and cost nothing at run time. A
+  `self::m()` or `parent::m()` call inside an anonymous function sets a class fixed at the call site
+  and costs nothing, and only one that reaches an instance method captures `$this`.
+
+**Declined:**
+- **Refusing `static::NAME`.** It would be sound, but it drops a meaning PHP programs rely on: a
+  default method that reads the implementor's constant.
+- **Choosing the constant per called class at compile time.** The checker does not hold the set of
+  classes a body can be called on, since a class in an autoload root nobody has named yet is still a
+  caller.
+- **Reading an `array` constant late.** The table stores a folded scalar, so an array would have to be
+  rebuilt from its constant form on every read, a second constant builder beside the compiler's.
+  `self::` still inlines it.
+- **Carrying the enclosing method's called class into an anonymous function.** It is PHP's meaning
+  and would admit `static::` there too, but the function object has no slot that holds a class, so it
+  is a change to the layout of every anonymous function. It is the better answer if that slot is ever
+  added.
+- **Refusing `self::m()` and `parent::m()` inside an anonymous function, as `static::` is.** Every
+  anonymous function that calls a private static helper would have to name its class in full.
+- **Dropping late static binding along with the storage meanings.** `new static()` compiled as `new
+  self()` returns the wrong class, and no annotation a program could add keeps the original behaviour.
+
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/an-anonymous-function-captures-this-only-where-it-uses-it`](statements.md#statements-an-anonymous-function-captures-this-only-where-it-uses-it), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-no-function-static-and-no-global"></a>
 
@@ -345,7 +428,29 @@ slot, per isolate, with a run-once flag the JIT cannot fold away — and it hide
 function's result depends on how often it has been called. A function static could never outlive its
 request in any case, so nothing a program could rely on across requests is lost.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0008](../decisions/0008.md), [0007](../decisions/0007.md), [0006](../decisions/0006.md).</sub>
+Without it, an isolate has one table of statics, the class statics, with one lifetime and one teardown
+path, so a fresh isolate is fresh by building that one table again. Every use of a function static has a
+better-placed replacement with a name, a type, a visibility and a home: a cache is a `private static
+array<T>` on the class that owns it, where it can also be cleared and inspected; a one-time
+initialisation is a static property or a constant; a call counter is a static property. The rewrite is
+not always local: a free function in a procedural file needs a class to hang the property on, or a
+parameter to carry the state.
+
+`global` hides a function's inputs from its signature in the same way, and a `const` already covers
+everything a read-only global would be used for.
+
+**Declined:**
+- **A function static with a type slot.** It would put the one exception into the definite-assignment
+  analysis that the mandatory annotations pay for ([`types/declaration`](types.md#types-declaration)).
+- **A function static whose initialiser runs when the isolate starts.** A side-effecting initialiser
+  would run at a different time than the code says, and the second table of statics would remain.
+- **`global` for reading only.** The function's inputs are still missing from its signature, and a
+  `const` reaches every read-only value the declared way.
+- **A `#[Memoize]` attribute as the replacement for a cache.** A caching construct has questions of
+  its own (how a key is derived, how long an entry lives, how large the cache may grow), and it is a
+  feature with its own rule if it ever exists, not part of this one.
+
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-storage-that-outlives-a-call"></a>
 
@@ -372,10 +477,11 @@ the host at isolate construction instead of by a user initialiser
 of its enum's integer type, inlined at every use site like any other literal.
 
 The last row is the one to read twice. A top-level `$x` in a `.nvs` file is a local of the script's own
-frame and nothing more, so the shared-nothing story holds at file scope for the same reason it holds
-everywhere else.
+frame and nothing more. The script body is a function, so its variables are locals, and with no
+`global` no other function can see them ([`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global)). The
+shared-nothing story holds at file scope for the same reason it holds everywhere else.
 
-<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals). Decided in [0008](../decisions/0008.md), [0011](../decisions/0011.md), [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/no-function-static-and-no-global`](statements.md#statements-no-function-static-and-no-global), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/a-required-file-shares-declarations-not-locals`](statements.md#statements-a-required-file-shares-declarations-not-locals).</sub>
 
 <a id="statements-an-isolate-has-its-own-statics"></a>
 
@@ -396,7 +502,7 @@ aliases the request's static-property base rather than freshening it, and a chil
 would give one request two copies of every static. Collapsing both into one helper with a flag would leave
 the next field added to the context classified by whoever adds it rather than by whoever needs it fresh.
 
-<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
 <a id="statements-no-host-populated-variables"></a>
 
@@ -423,7 +529,19 @@ an explicit `as` before it populates a typed binding.
 
 Each rejected spelling is diagnosed by name and names the `Core` class that replaces it.
 
-<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0012](../decisions/0012.md), [0011](../decisions/0011.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0006](../decisions/0006.md).</sub>
+A superglobal is untrusted input with no declared boundary: it is simply present, readable and writable
+from any scope. A method call on a named class is a declared, traceable entry point, so a reviewer sees
+which class, and therefore which trust boundary, each line depends on. With this rule a script learns
+anything from outside itself in one way only — a declared class member, an object property or a
+parameter — the same answer [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call) gives for state.
+
+**Declined:**
+- **The superglobals kept as read-only variables.** A read-only bare variable is still not imported
+  or declared anywhere, and it fits no row of [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).
+- **One class for every request and server fact.** One class for unrelated concerns is a global
+  namespace with extra syntax ([`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants)).
+
+<sub>See also [`statements/globals-and-request-are-dropped-outright`](statements.md#statements-globals-and-request-are-dropped-outright), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes).</sub>
 
 <a id="statements-globals-and-request-are-dropped-outright"></a>
 
@@ -446,7 +564,7 @@ and `::cookie()` — already say which one a value came from. A merged accessor 
 re-deriving the `request_order` footgun, or take the order as an argument, at which point it is no shorter
 than naming the source.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0012](../decisions/0012.md), [0008](../decisions/0008.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="statements-an-anonymous-function-captures-this-only-where-it-uses-it"></a>
 
@@ -467,7 +585,7 @@ extend the enclosing object's lifetime. The cost is the corner — a `$this`-fre
 built inside a method and then bound to a *different* object gives a callable that ignores the
 binding, because `bindTo()` and `bind()` return an equivalent callable rather than rebinding anything.
 
-<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier). Decided in [0008](../decisions/0008.md), [0031](../decisions/0031.md).</sub>
+<sub>See also [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier).</sub>
 
 <a id="statements-inout-is-the-by-reference-spelling"></a>
 
@@ -493,7 +611,17 @@ one path that does not reach the write-back, so a caller sees no partial write. 
 is the other mechanism, pushing each assignment through to the array element as it happens. Neither is an
 alias. Which declarations may carry one is unchanged: an anonymous function may not, and a generator may not.
 
-<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0107](../decisions/0107.md), [0031](../decisions/0031.md), [0053](../decisions/0053.md).</sub>
+Languages split on this word by mechanism. Those that alias write `ref`, `&` or `var`; those that copy in
+and copy back write `inout`, as Hack and Swift do. Novis copies, so it takes the second word.
+
+**Declined:**
+- **`ref`.** In the languages that spell it so, `ref` is a true alias, and Novis has no alias: `$a = &$b`
+  is refused because there is nowhere to put a reference. The word describes neither of the two mechanisms
+  above.
+- **`&` kept at the declaration.** It is one of `&`'s five meanings, and it names the aliasing PHP does
+  and Novis does not ([`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker)).
+
+<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local).</sub>
 
 <a id="statements-inout-is-written-at-the-call"></a>
 
@@ -518,7 +646,21 @@ says so where nothing binds it — including a call through a `callable`.
 `foreach` and destructuring have no call site, so for them the declaration spelling
 ([`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling)) is the whole of it.
 
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local). Decided in [0107](../decisions/0107.md), [0080](../decisions/0080.md).</sub>
+Without the marker, `Adder::bump($n)` and `Adder::sum($a, $b)` look the same at the call, and only one of
+them writes its argument. Somebody reviewing code they did not write has to see that write where it
+happens, so an invisible mutation is a security question and not a matter of taste. The price is typing:
+`bump(inout $n)` is longer than `bump($n)`, and it says what `bump($n)` did not.
+
+**Declined:**
+- **`&` at the call site, beside `&` at the declaration.** `f(&$x)` reads as an address-of or a bitwise
+  AND, and `&` keeps every one of its meanings ([`statements/ampersand-is-not-a-by-reference-marker`](statements.md#statements-ampersand-is-not-a-by-reference-marker)).
+  PHP removed call-time `&` for exactly that confusion.
+- **The declaration renamed, with no marker at the call.** It spends a breaking change on the name and
+  leaves the mutation invisible, which is the larger of the two problems.
+- **The marker inferred at the call, with a warning where it is missing.** That is the compiler filling it
+  in, which the paragraph above already rules out.
+
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/an-inout-argument-is-a-local`](statements.md#statements-an-inout-argument-is-a-local).</sub>
 
 <a id="statements-an-inout-argument-is-a-local"></a>
 
@@ -537,7 +679,7 @@ second time.
 The rewrite is the mechanism written out — read into a local, pass the local, store it back — and it is
 what the diagnostic's help says.
 
-<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0107](../decisions/0107.md), [0014](../decisions/0014.md).</sub>
+<sub>See also [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling).</sub>
 
 <a id="statements-there-is-no-out-mode"></a>
 
@@ -552,7 +694,7 @@ It is a separate feature needing its own definite-assignment analysis pointed at
 properties, and nothing asks for it. This is recorded so it is not reopened as a corollary of the `inout`
 spelling.
 
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling). Decided in [0107](../decisions/0107.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling).</sub>
 
 <a id="statements-ampersand-is-not-a-by-reference-marker"></a>
 
@@ -565,7 +707,9 @@ produces an error node — the AST keeps no variant for it. `E0237`: *`&` is not
 Novis — write `inout` before the type.*
 
 `&` keeps its other three jobs unchanged: `$a & $b` is bitwise AND, `$a && $b` is logical AND, and `A&B` is
-an intersection type. The one-token lookahead that told `int &$x` apart from an intersection continuation
+an intersection type. Its other two PHP meanings, a by-reference binding and a by-reference return
+(`function &bump`), are both `E0237`. With them gone, an `&` in a type position always means an
+intersection. The one-token lookahead that told `int &$x` apart from an intersection continuation
 survives the removal of the meaning it was written for, because meaning it and parsing it are two different
 questions: the type parser reaches that `&` first, and consuming it as an intersection member would leave
 the site above it nothing to report but a malformed intersection.
@@ -573,7 +717,7 @@ the site above it nothing to report but a malformed intersection.
 The already-refused spellings keep their own codes and gain the new word in their help text: `$a = &$b` is
 `E0701`, an anonymous function parameter `E0493`, a generator's `E0492`.
 
-<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call). Decided in [0107](../decisions/0107.md), [0031](../decisions/0031.md), [0045](../decisions/0045.md).</sub>
+<sub>See also [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`statements/inout-is-written-at-the-call`](statements.md#statements-inout-is-written-at-the-call).</sub>
 
 <a id="statements-exit-is-the-only-termination-keyword"></a>
 
@@ -589,9 +733,22 @@ process-termination keyword Novis keeps.* The code is `E0228`.
 The pair had no behavioural difference to preserve: both parsed to one shape with one argument, and both
 were type-checked and lowered identically. Of ten other languages with a termination primitive, every one
 keeps at most one plain spelling of it; where a second primitive exists it is a genuinely different
-behaviour — skips cleanup, cannot be caught, crashes instead of exiting — never a bare synonym.
+behaviour — skips cleanup, cannot be caught, crashes instead of exiting — never a bare synonym. PHP's
+`die` is itself a borrowed name without its meaning: Perl's `die` raises a catchable error distinct from
+Perl's `exit`, and PHP kept the word but made it a plain duplicate. A second spelling of one construct is
+what [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) rules out, and rewriting `die(...)` to `exit(...)` is
+a rename with the argument unchanged.
 
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0049](../decisions/0049.md), [0015](../decisions/0015.md).</sub>
+**Declined:**
+- **`die` as a permanent alias of `exit`.** It differs in nothing, so it buys only a second thing to
+  teach.
+- **`die` as a second tier, the way Ruby has `exit!` or Python `os._exit`.** No such distinction exists
+  in the request or process model to hang a second keyword on, and inventing one only to keep two
+  spellings solves nothing.
+- **Dropping only one of `die` and `<?php`.** Both are duplicate spellings with no behavioural
+  difference ([`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag)), so keeping one would need a reason neither has.
+
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
 
 <a id="statements-a-body-never-falls-off-its-end"></a>
 
@@ -621,7 +778,7 @@ that: the declared type is the whole answer.
 A `never` body is asked about the falling-off path like any other, and refused (`E0739`) when one
 reaches its end. That refusal is also what makes counting a `never` call as an exit sound.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`iteration/generators`](iteration.md#iteration-generators), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`iteration/generators`](iteration.md#iteration-generators), [`classes/constructor-is-a-method-named-constructor`](classes.md#classes-constructor-is-a-method-named-constructor).</sub>
 
 <a id="statements-no-return-leaves-a-finally"></a>
 
@@ -640,7 +797,14 @@ loop wholly inside the block keeps both.
 Whether an override was a bug (usually) or intent is the author's call, so the diagnostic names both
 rewrites and picks neither.
 
-<sub>See also [`statements/a-body-never-falls-off-its-end`](statements.md#statements-a-body-never-falls-off-its-end). Decided in [0124](../decisions/0124.md).</sub>
+**Memory:** none. The check runs in the front end and adds no run-time state.
+
+**Declined:**
+- **A run-time deprecation warning, with the spelling still allowed.** The line can be refused where it
+  is written, and a warning would only permit for a while code that is refused afterwards
+  ([`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators)).
+
+<sub>See also [`statements/a-body-never-falls-off-its-end`](statements.md#statements-a-body-never-falls-off-its-end).</sub>
 
 <a id="statements-let-and-is-are-reserved"></a>
 
@@ -668,4 +832,8 @@ The diagnostics name the living spellings: `var` declares an inferred local
 ([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)). Like every reserved word, both match in lower case only
 ([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)).
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`types/type-test`](types.md#types-type-test), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`types/one-type-test`](types.md#types-one-type-test). Decided in [0124](../decisions/0124.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
+**Declined:**
+- **Reserving `is` alone and leaving `let` free.** Reserving the second word costs the same as the
+  first, and freeing it again stays possible where taking it back is not.
+
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`types/type-test`](types.md#types-type-test), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`types/one-type-test`](types.md#types-one-type-test).</sub>

@@ -15,3 +15,7 @@ dynamic one while writing *less*: `$u->name` stops being an erased-receiver fetc
 
 A block-bodied `fn` still declares its own return type; inferring one under an expected type is
 whole-body return-type inference and is not part of this (`rule:types/anonymous-function`).
+
+**Declined:**
+- **Inferring the return type too, under an expected callable type.** It would make every return
+  path the checker reads part of this rule, for a declaration the block body already writes.

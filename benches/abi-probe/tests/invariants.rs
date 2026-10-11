@@ -2,7 +2,7 @@
 //!
 //! If any of these fail after a dependency bump, the plan for M3 (backend) or
 //! M5 (concurrency) is broken and needs revisiting before more code is written
-//! on top of it. See `docs/decisions/0002.md`.
+//! on top of it. See `rule:errors/propagation` and `rule:errors/helper-abi`.
 
 use nvs_abi_probe::{Ctx, FATAL, Helper, NvsFn, OK, Probe, THROWN, Value, call, in_coroutine};
 use nvs_runtime::{TaskRoot, run_task};
@@ -238,7 +238,7 @@ fn many_coroutines_can_be_created_and_driven() {
 }
 
 // ---------------------------------------------------------------------------
-// The outer containment boundary — ADR 0106 § 2
+// The outer containment boundary — `rule:http-server/containment-does-not-end-at-the-helper`
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -266,7 +266,7 @@ fn a_panic_in_a_worker_task_is_contained_at_the_task() {
     assert_eq!(fault.message(), "the worker's own code faulted");
     assert!(
         fault.retires_worker(),
-        "no request owns it, so ADR 0106 § 2 retires the worker rather than \
+        "no request owns it, so the outer containment boundary retires the worker rather than \
          charging it to anyone"
     );
 
@@ -283,7 +283,7 @@ fn a_panic_in_a_worker_task_is_contained_at_the_task() {
 
 #[test]
 fn a_request_owned_panic_leaves_the_worker_running() {
-    // The other half of § 2's split, on the same stack shape: a fault a request
+    // The other half of the containment rule's split, on the same stack shape: a fault a request
     // owns fails that request and nothing else, so the worker is not retired.
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(|_| {}));
@@ -303,7 +303,8 @@ fn a_request_owned_panic_leaves_the_worker_running() {
 
 #[test]
 fn a_teardown_path_that_panics_does_not_recurse() {
-    // ADR 0106 § 3's bullets, which only bite together: a value graph is
+    // `rule:http-server/no-path-reaches-abort`'s bullets, which only bite together: a value
+    // graph is
     // released *while a panic is unwinding*, which is the one place where a
     // recursive teardown or a fallible one stops being containable. A stack
     // overflow or a second panic there aborts the process before any
@@ -342,12 +343,12 @@ fn a_teardown_path_that_panics_does_not_recurse() {
 }
 
 // ---------------------------------------------------------------------------
-// Depth on the engine's own stack — ADR 0106 § 4
+// Depth on the engine's own stack — `rule:http-server/engine-depth-is-bounded-per-decoder`
 // ---------------------------------------------------------------------------
 
 #[test]
 fn engine_recursion_is_bounded_before_the_stack_is() {
-    // ADR 0020 § 1 bounds recursion through Novis frames. A decoder's descent
+    // `rule:errors/stack-depth` bounds recursion through Novis frames. A decoder's descent
     // over request data has no Novis frames in it, so its own counter is the
     // only bound — and the stack that bound has to stay under is not this
     // thread's. Every request runs on a coroutine stack, which is where the
@@ -387,7 +388,7 @@ fn engine_recursion_is_bounded_before_the_stack_is() {
 ///
 /// The message is not read back: `Ctx::take_pending` renders a throw through
 /// its exception object, and no exception class is installed in a context this
-/// bare — what is being asked here is which of ADR 0002's three statuses the
+/// bare — what is being asked here is which of the three call statuses the
 /// decoder chose, which is the half that distinguishes a refusal from a fault.
 fn decode_on_this_stack(document: &str) -> Result<(), i32> {
     let mut ctx = nvs_runtime::Ctx::buffered();

@@ -1,16 +1,7 @@
 {
   "title": "A mount matches on `prefix` or `host`, names one `entry` or one `scan`, and a scan expands against the disk at boot and again whenever a scanned directory changes",
   "status": "shipped",
-  "because": [
-    "0097",
-    "0102",
-    "0104",
-    "0017",
-    "0197",
-    "0200",
-    "0218",
-    "0219"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/a-path-is-never-derived-from-a-url",
     "http-server/a-mount-carries-no-policy",
@@ -21,6 +12,7 @@
   ],
   "guardedBy": [
     "crates/nvs-config/tests/mount.rs",
-    "tests/conformance/core/a-mounts-captures-carry-the-mark-and-its-prefix-does-not.nvst"
+    "tests/conformance/core/a-mounts-captures-carry-the-mark-and-its-prefix-does-not.nvst",
+    "crates/nvs-cli/tests/live_edit.rs"
   ]
 }

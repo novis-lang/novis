@@ -24,5 +24,6 @@ a caller still cannot hand in a session — it hands in a policy value the modul
 policy is part of the pool key
 (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`), so a connection opened
 under `tlsVerify: false` never serves a call that verifies. `tlsMinVersion: "1.3"` needs no grant,
-because it can only tighten. And the boot prints every relaxed grant, every start, one line per grant and
+because it can only tighten, and a value under `[http.client.tls] min_version` throws a `LogicError`
+rather than being raised silently. And the boot prints every relaxed grant, every start, one line per grant and
 host: a weakening nobody is reminded of outlives the incident it was added for.

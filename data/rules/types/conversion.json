@@ -2,19 +2,6 @@
   "title": "`expr as T` is the only conversion, and it produces a `T` or throws",
   "status": "shipped",
   "because": [
-    "0007",
-    "0009",
-    "0024",
-    "0028",
-    "0033",
-    "0047",
-    "0054",
-    "0066",
-    "0125",
-    "0126",
-    "0144",
-    "0237",
-    "0238",
     "0279",
     "0280"
   ],
@@ -33,6 +20,8 @@
     "tests/conformance/lang/a-string-that-is-not-a-number-refuses-to-convert.nvst",
     "tests/conformance/lang/an-as-conversion-to-a-shape-tests-its-fields-and-throws-where-is-answers-false.nvst",
     "tests/conformance/lang/an-array-literal-at-a-float-element-type-stores-floats-and-as-converts-an-int-array.nvst",
-    "tests/conformance/reject/a-nullable-or-union-operand-with-no-array-member-does-not-convert-to-an-array.nvst"
+    "tests/conformance/reject/a-nullable-or-union-operand-with-no-array-member-does-not-convert-to-an-array.nvst",
+    "tests/conformance/reject/an-as-conversion-to-a-shape-no-value-of-the-operand-could-satisfy-does-not-compile.nvst",
+    "crates/nvs-types/tests/classes.rs"
   ]
 }

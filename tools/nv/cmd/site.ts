@@ -9,6 +9,13 @@
 //                                          binary does and show it, and delete an output file it no longer
 //                                          needs
 //     bun nv site --build                  the Astro build, and `site: built` when it succeeds
+//     bun nv site --questions --status     `questions <area>: <n> owed, <n> stale` per area, exit 0
+//     bun nv site --questions --owed [AREA] [--limit N]
+//                                          each owed or stale page, with what its questions are written
+//                                          from
+//     bun nv site --questions --stamp URL...
+//                                          record each entry's feature and hash, after its questions were
+//                                          written or reread
 //
 // `--nvs PATH` names the binary that reads the roster and runs the snippets. Without it, the first built
 // of `target/release` and the `covws` debug build is used.
@@ -53,13 +60,29 @@
 // A language or type feature no page under `syntax/` covers is **uncovered**. `--stamp` is what clears
 // a stale page, and it is run by whoever reread the page, never to quiet the check.
 //
+// **The questions**, `website/src/data/questions.json`, are four to six search questions per built page,
+// keyed by its URL without the site's base, in the words a visitor types before they know a name.
+// `Banner.astro` writes them into an attribute Pagefind indexes. Each entry is `{ feature, hash,
+// questions }`, and `questionSources` says what each page's feature and hash are now: a Core member or
+// CLI page is its roster id and `featureHash`, a Core class page its card and members' names, a
+// configuration block page every feature it shows, and a handwritten page its key and its file. An
+// entry whose feature or hash moved, or that was never stamped, is **stale**. An entry no built page
+// has is **broken**. A built page with no entry is **owed**, and `--check questions` fails on all
+// three, so a new feature's page fails CI until it has questions. The same check holds each entry to
+// four to six questions of at most 15 words, none using a word from AGENTS.md § *Text an end user
+// reads* (`QUESTION_WORDS`), and no question two entries share. A session writes them from what
+// `--questions --owed` prints, and no tool or build calls a language-model service for them. They name
+// no function from another language (`strlen`), and each belongs to the page that answers it best, so
+// two close pages (`trim` and `trimStart`) split the phrasing. They live in an indexed attribute, never
+// in hidden page text. The questions are not a feature proof.
+//
 // The parts of `--check`: `structure` (the nav is the four areas from `website/config/site.mjs`, then
 // Install and Sponsoring, each area is one sidebar group, no retired page or generator is on disk, the
 // footer has no prev/next, the Astro config has no redirect, and no page or sidebar entry links to a URL
 // `builtUrls` does not list), `snippets` (no handwritten page has an
 // inline Novis fence, every `<Snippet src="..."/>` names a file under `website/snippets/`, every snippet
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and has the files § *A snippet*
-// names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `reference` (see
+// names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `questions` (see `questionProblems`),`reference` (see
 // `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `in-depth`
 // (see `inDepthProblems`), `apps` (see `appsProblems`) and `prose` (the countable bounds of AGENTS.md
 // § *Text an end user reads* over every handwritten page's prose: no sentence over 25 words, no dash
@@ -81,7 +104,7 @@ import { ABOUT, EXAMPLES, examplesDir, metaJson, roster, RosterError, type Entry
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
-export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --bless SNIPPET... | --build";
+export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp PAGE... | --check [PART...] | --bless SNIPPET... | --build | --questions --status | --owed [AREA] | --stamp URL...";
 
 export const DOCS = "website/src/content/docs";
 export const SNIPPETS = "website/snippets";
@@ -91,7 +114,7 @@ const GENERATED = ["reference/core/"];
 /** Pages whose wording is fixed by law, and which `prose` does not judge. */
 const LEGAL = ["impressum.mdx", "datenschutz.mdx"];
 
-export const PARTS = ["structure", "snippets", "stale", "reference", "syntax", "guides", "in-depth", "apps", "prose"] as const;
+export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "in-depth", "apps", "prose"] as const;
 type Part = (typeof PARTS)[number];
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
@@ -300,6 +323,192 @@ export function stamp(world: World, keys: string[], root: string = ROOT): string
     }
   }
   if (problems.length === 0) writeLock(root, lock);
+  return problems;
+}
+
+/** Every page's search questions, keyed by the page's URL without the site's base. */
+export const QUESTIONS = "website/src/data/questions.json";
+
+/** One page's search questions, and the feature and hash they were last stamped against. */
+export interface QuestionEntry {
+  feature: string;
+  hash: string;
+  questions: string[];
+}
+
+export type Questions = Record<string, QuestionEntry>;
+
+/** The four areas `--questions --status` counts. */
+export const QUESTION_AREAS = ["core", "config", "cli", "pages"] as const;
+export type QuestionArea = (typeof QUESTION_AREAS)[number];
+
+/** What one built page's questions are written from: its feature, and that feature's hash now. */
+export interface QuestionSource {
+  url: string;
+  area: QuestionArea;
+  feature: string;
+  hash: string;
+  /** The roster features the page shows, which its questions are written from. Empty for a class page
+   * and a handwritten page. */
+  ids: string[];
+}
+
+const digest = (parts: string[]) => {
+  const h = createHash("sha256");
+  for (const p of parts) h.update(`\0${p}`);
+  return h.digest("hex").slice(0, 16);
+};
+
+/** A handwritten page's URL from its key: no extension, no trailing `index`, lower case. */
+export const pageUrl = (key: string) => `/${key.toLowerCase().replace(/\.mdx?$/, "").replace(/(^|\/)index$/, "")}/`.replace(/\/{2,}/g, "/");
+
+/** The questions on disk. An entry that is a bare list of questions has no feature and no hash yet. */
+export function readQuestions(root: string = ROOT): Questions {
+  const text = readAt(root, QUESTIONS);
+  const raw = text ? (JSON.parse(text) as Record<string, QuestionEntry | string[]>) : {};
+  return Object.fromEntries(Object.entries(raw).map(([url, e]) => [url, Array.isArray(e) ? { feature: "", hash: "", questions: e } : e]));
+}
+
+function writeQuestions(root: string, questions: Questions): void {
+  const sorted = Object.fromEntries(Object.keys(questions).sort(comparePaths).map((url) => [url, questions[url]!]));
+  writeFileSync(join(root, QUESTIONS), `${JSON.stringify(sorted, null, 2)}\n`);
+}
+
+/**
+ * Every built page whose questions can be stamped, and what each is written from. A Core member page,
+ * and a CLI page, is its roster feature and `featureHash`. A Core class page is the class, hashed over
+ * its card and its members' names. A configuration block page is its first feature, hashed over every
+ * feature it shows. A handwritten page is its key under `DOCS`, hashed over the file.
+ */
+export function questionSources(world: World, root: string = ROOT): QuestionSource[] {
+  const byId = new Map(world.entries.map((e) => [e.id, e]));
+  const hashOf = (id: string) => {
+    const e = byId.get(id);
+    return e ? featureHash(root, e, world.meta) : "";
+  };
+  const out: QuestionSource[] = [];
+  const core = JSON.parse(readAt(root, DATA_FILE) || "{}") as { classes?: { name: string; url: string; members: { name: string; url: string }[] }[] };
+  for (const cls of core.classes ?? []) {
+    const known = world.meta.classes?.find((c) => c.name === cls.name);
+    out.push({ url: cls.url, area: "core", feature: cls.name, hash: digest([JSON.stringify(known?.doc ?? null), ...(known?.members ?? []).map((m) => m.name)]), ids: [] });
+    for (const m of cls.members) {
+      const id = `${cls.name}::${m.name}`;
+      if (byId.has(id)) out.push({ url: m.url, area: "core", feature: id, hash: hashOf(id), ids: [id] });
+    }
+  }
+  const reference = JSON.parse(readAt(root, REFERENCE_FILE) || "{}") as { pages?: RefPage[] };
+  for (const page of reference.pages ?? []) {
+    const ids = [...(page.intro ? [page.intro.id] : []), ...page.keys.map((k) => k.id)];
+    if (ids.length === 0) continue;
+    const hash = page.area === "cli" && ids.length === 1 ? hashOf(ids[0]!) : digest(ids.flatMap((id) => [id, hashOf(id)]));
+    out.push({ url: page.url, area: page.area, feature: ids[0]!, hash, ids });
+  }
+  for (const page of pages(root)) out.push({ url: pageUrl(page.key), area: "pages", feature: page.key, hash: digest([page.text]), ids: [] });
+  return out;
+}
+
+export interface QuestionStatus {
+  /** An entry whose feature or hash differs from its page's now, or that was never stamped. */
+  stale: QuestionSource[];
+  /** An entry's URL that no built page has. */
+  broken: string[];
+  /** A built page with no entry. */
+  owed: QuestionSource[];
+}
+
+export function questionStatus(world: World, root: string = ROOT): QuestionStatus {
+  const questions = readQuestions(root);
+  const sources = questionSources(world, root);
+  const urls = new Set(sources.map((s) => s.url));
+  return {
+    stale: sources.filter((s) => questions[s.url] && (questions[s.url]!.feature !== s.feature || questions[s.url]!.hash !== s.hash)),
+    broken: Object.keys(questions).filter((url) => !urls.has(url)),
+    owed: sources.filter((s) => !questions[s.url]),
+  };
+}
+
+/**
+ * The words AGENTS.md § *Text an end user reads* keeps out of text a user reads, matched whole. `name`
+ * and `mark` are not here: a visitor's question uses them in their plain sense ("a file's name").
+ */
+const QUESTION_WORDS = ["spelling", "answers", "hands back", "hands you", "asks", "asking", "stands in for", "lets go of", "drops", "refuses", "refused", "refusal", "member", "binding", "holds", "shard", "tier", "slot", "refcount", "lowering", "the registry"];
+
+/** How one entry's questions break the bounds: four to six, at most 15 words each, no word from `QUESTION_WORDS`. */
+function questionShape(url: string, questions: string[]): string[] {
+  const out: string[] = [];
+  if (questions.length < 4 || questions.length > 6) out.push(`shape: ${url}: has ${questions.length} questions, not four to six`);
+  for (const q of questions) {
+    const words = q.trim().split(/\s+/).length;
+    if (words > 15) out.push(`shape: ${url}: "${q}" has ${words} words, more than 15`);
+    const banned = QUESTION_WORDS.filter((w) => new RegExp(`\\b${w}\\b`, "i").test(q));
+    if (banned.length > 0) out.push(`shape: ${url}: "${q}" uses ${banned.map((w) => `"${w}"`).join(", ")}`);
+  }
+  return out;
+}
+
+/**
+ * What `--check questions` fails on: each broken URL, each stale entry, each owed page with the command
+ * that prints what its questions are written from, each entry outside `questionShape`'s bounds, and each
+ * question another entry already has, compared in lower case without punctuation.
+ */
+export function questionProblems(world: World, root: string = ROOT): string[] {
+  const s = questionStatus(world, root);
+  const questions = readQuestions(root);
+  const seen = new Map<string, string>();
+  const repeats: string[] = [];
+  for (const [url, e] of Object.entries(questions)) {
+    for (const q of e.questions) {
+      const key = q.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, "").replace(/\s+/g, " ").trim();
+      const first = seen.get(key);
+      if (first === undefined) seen.set(key, url);
+      else repeats.push(`repeat: ${url}: "${q}" is also a question of ${first}`);
+    }
+  }
+  return [
+    ...s.broken.map((u) => `broken: ${u}: no page has this URL`),
+    ...s.stale.map((x) => `stale: ${x.url} (${x.feature}): reread the page, rewrite its questions, then \`bun nv site --questions --stamp ${x.url}\``),
+    ...s.owed.map((x) => `owed: ${x.url} (${x.feature}): \`bun nv site --questions --owed ${x.area}\` prints what to write its questions from, then add them and \`bun nv site --questions --stamp ${x.url}\``),
+    ...Object.entries(questions).flatMap(([url, e]) => questionShape(url, e.questions)),
+    ...repeats,
+  ];
+}
+
+/** `--questions --status`: one line per area, owed and stale counted. */
+export function questionCounts(world: World, root: string = ROOT): string[] {
+  const s = questionStatus(world, root);
+  const count = (list: QuestionSource[], area: QuestionArea) => list.filter((x) => x.area === area).length;
+  return QUESTION_AREAS.map((a) => `questions ${a}: ${count(s.owed, a)} owed, ${count(s.stale, a)} stale`);
+}
+
+/** What one page's questions are written from, as `--questions --owed` prints it. */
+export function questionMaterial(world: World, source: QuestionSource, root: string = ROOT): string {
+  const byId = new Map(world.entries.map((e) => [e.id, e]));
+  const lines = [`== ${source.url}  ${source.feature}`];
+  if (source.area === "pages") lines.push(readAt(root, `${DOCS}/${source.feature}`).trim());
+  else if (source.ids.length === 0) {
+    const known = world.meta.classes?.find((c) => c.name === source.feature);
+    lines.push(known?.doc?.short ?? "", `methods: ${(known?.members ?? []).map((m) => m.name).join(", ")}`);
+  }
+  for (const id of source.ids) {
+    const e = byId.get(id);
+    if (!e) continue;
+    lines.push(`-- ${id}`, card(root, e, world.meta), readAt(root, `${examplesDir(e)}/${ABOUT}`).trim());
+  }
+  return lines.join("\n");
+}
+
+/** Records each named entry's current feature and hash. Returns what stopped it, if anything. */
+export function stampQuestions(world: World, urls: string[], root: string = ROOT): string[] {
+  const questions = readQuestions(root);
+  const sources = new Map(questionSources(world, root).map((s) => [s.url, s]));
+  const problems: string[] = [];
+  for (const url of urls) {
+    const source = sources.get(url);
+    if (!source) problems.push(`${url}: no built page has this URL`);
+    else if (!questions[url]) problems.push(`${url}: has no questions to stamp`);
+    else questions[url] = { feature: source.feature, hash: source.hash, questions: questions[url]!.questions };
+  }
+  if (problems.length === 0) writeQuestions(root, questions);
   return problems;
 }
 
@@ -1089,6 +1298,9 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     } else if (part === "syntax") {
       w ??= await world(nvs);
       problems = syntaxProblems(w);
+    } else if (part === "questions") {
+      w ??= await world(nvs);
+      problems = questionProblems(w);
     } else {
       w ??= await world(nvs);
       const s = staleness(w);
@@ -1101,6 +1313,41 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     }
   }
   return failed ? 1 : 0;
+}
+
+/** `--questions --status | --owed [AREA] [--limit N] | --stamp URL...`. */
+function questionsMode(w: World, operands: string[]): number {
+  const [sub, ...args] = operands;
+  if (sub === "--status") {
+    for (const line of questionCounts(w)) console.log(line);
+    return 0;
+  }
+  if (sub === "--owed") {
+    const at = args.indexOf("--limit");
+    const limit = at >= 0 ? Number(args[at + 1]) : Infinity;
+    const area = (at >= 0 ? [...args.slice(0, at), ...args.slice(at + 2)] : args)[0];
+    if (area !== undefined && !(QUESTION_AREAS as readonly string[]).includes(area)) {
+      console.error(`nv site: no area ${area}; the areas are ${QUESTION_AREAS.join(", ")}`);
+      return 2;
+    }
+    const s = questionStatus(w);
+    const due = [...s.stale, ...s.owed].filter((x) => area === undefined || x.area === area).sort((a, b) => comparePaths(a.url, b.url));
+    for (const x of due.slice(0, limit)) console.log(`${questionMaterial(w, x)}\n`);
+    console.log(`nv site: ${Math.min(due.length, limit)} of ${due.length} page(s) owe questions`);
+    return 0;
+  }
+  if (sub === "--stamp") {
+    if (args.length === 0) {
+      console.error("nv site: --questions --stamp needs at least one URL");
+      return 2;
+    }
+    const problems = stampQuestions(w, args);
+    for (const p of problems) console.log(`nv site: ${p}`);
+    if (problems.length === 0) console.log(`nv site: stamped ${args.length} page(s) in ${QUESTIONS}`);
+    return problems.length ? 1 : 0;
+  }
+  console.error("nv site: --questions needs --status, --owed or --stamp");
+  return 2;
 }
 
 async function build(): Promise<number> {
@@ -1145,6 +1392,13 @@ export async function run(args: string[]): Promise<number> {
         return 2;
       }
       return await check((operands.length ? operands : [...PARTS]) as Part[], nvs);
+    }
+    if (mode === "--questions") {
+      if (nvs === null) {
+        console.error("nv site: no `nvs` binary: build one, or pass --nvs");
+        return 1;
+      }
+      return questionsMode(await world(nvs), operands);
     }
     if (mode !== "--stale" && mode !== "--stamp") {
       console.error(`nv site: no mode ${mode}\n${summary}`);

@@ -3105,7 +3105,7 @@ impl<'a> Lowering<'a> {
             tags_v,
         );
         // The target's parameter *names*, which only a resolved call knows and
-        // only this crate is still holding — ADR 0006 § *Decision* binds an
+        // only this crate is still holding — `rule:security/isolate-shares-nothing` binds an
         // isolate's `args:` by them, and `Core\Socket::upgrade(Chat::run(...))`
         // is such an entry with no constant beside it to carry them. See
         // `FN_PARAM_NAMES` for why the sibling anonymous function gets no such field.
@@ -3583,7 +3583,7 @@ impl<'a> Lowering<'a> {
     /// a value lowered but never *staged* is one `release_temporaries_since`
     /// cannot see — without both lines below, `Core\Router::url("…", ["id" =>
     /// 7])` leaks its literal array once per call.
-    /// `spawn script <path> with(…)` — ADR 0006 § *Decision*'s isolate spawn,
+    /// `spawn script <path> with(…)` — `rule:security/isolate-shares-nothing`'s isolate spawn,
     /// as one [`InstKind::CoreCall`] answering a `Core\Script\Handle`.
     ///
     /// A `CoreCall` and not an `InstKind` of its own, which is the decision
@@ -3609,7 +3609,7 @@ impl<'a> Lowering<'a> {
     /// ownership root and this frame may not release it afterwards. The path
     /// and the output spelling are borrowed like every other `Core` argument.
     ///
-    /// **Two symbols, one argument list.** ADR 0006 § *Decision*'s method entry
+    /// **Two symbols, one argument list.** `rule:security/isolate-shares-nothing`'s method entry
     /// takes `nvs_types::CORE_SCRIPT_SPAWN_METHOD` and differs in argument 0
     /// alone: a constant `Class::method` label instead of a lowered path
     /// expression, since what the child runs is a method of *this* unit and
@@ -3617,7 +3617,7 @@ impl<'a> Lowering<'a> {
     /// `SPAWN_METHOD_SYMBOL` owns why the fork is a second symbol rather than a
     /// fourth argument, and [`Self::spawn_method_entry`] is the fork itself.
     /// The method symbol does take a **last** argument the path form has no use
-    /// for — the entry's parameter names, for ADR 0006 § *Decision*'s `args:`
+    /// for — the entry's parameter names, for `rule:security/isolate-shares-nothing`'s `args:`
     /// binding — and that one is a value the child needs rather than a branch
     /// this module already took.
     fn lower_spawn_script(
@@ -3628,7 +3628,7 @@ impl<'a> Lowering<'a> {
         cur: &mut BlockId,
     ) -> (ValueId, Ty) {
         let mark = self.temporaries_mark();
-        // ADR 0006 § *Decision*'s two entry forms, told apart by the operand's
+        // `rule:security/isolate-shares-nothing`'s two entry forms, told apart by the operand's
         // own shape exactly as `nvs_types`' `check_entry` tells them apart —
         // and lowered to two symbols, because what differs is what the first
         // argument *means*: a path the child's resolver compiles, or a label
@@ -3673,7 +3673,7 @@ impl<'a> Lowering<'a> {
                 self.account_for_arg(v, ty, ArgOwnership::Borrowed, aliasing, *cur);
                 v
             }
-            // ADR 0006 § *Output is captured by default*, spelled here rather
+            // `rule:security/isolate-output-is-captured`, spelled here rather
             // than defaulted in the helper so that the default is visible in
             // the IR a reader dumps.
             None => {
@@ -3713,7 +3713,7 @@ impl<'a> Lowering<'a> {
         let limits_v = self.lower_spawn_narrowing(written(SpawnOptionKey::Limits), env, cur);
         let grants_v = self.lower_spawn_narrowing(written(SpawnOptionKey::Grants), env, cur);
 
-        // ADR 0006 § *Decision* binds `args:`'s entries to the entry's own
+        // `rule:security/isolate-shares-nothing` binds `args:`'s entries to the entry's own
         // parameters **by name**, which is a question only the declaration
         // answers — so the names travel with the label, as a fourth argument
         // the method symbol alone takes. Comma-separated in declaration order,
@@ -4723,7 +4723,7 @@ impl<'a> Lowering<'a> {
         // `rule:types/property-key-access`'s `$obj->$key`, the one access whose member name is not
         // in this table at all: it arrives as a value when the statement runs,
         // so none of the three facts below — the declaring class, the hook, the
-        // label — is a question this site can ask. § 5 lowers it to `rule:types/erased-member-access`'s erased access with the name taken from the key, which is
+        // label — is a question this site can ask. `rule:types/property-key-access` lowers it to `rule:types/erased-member-access`'s erased access with the name taken from the key, which is
         // `InstKind::KeyGet`.
         if let Some(ExprInfo::KeyedProperty { ty, .. }) = self.exprs.lookup(expr.span) {
             let ty = *ty;
@@ -5189,7 +5189,7 @@ impl<'a> Lowering<'a> {
 
     /// `$obj->$key` — `rule:types/property-key-access`'s keyed read, which is
     /// [`Self::lower_shape_property_access`] with the name lowered rather than
-    /// carried. [`InstKind::KeyGet`] owns why § 5 chose the erased access over
+    /// carried. [`InstKind::KeyGet`] owns why `rule:types/property-key-access` takes the erased access over
     /// a closed-set chain.
     ///
     /// Two temporaries can be staged here where the erased read stages one: the
@@ -5579,8 +5579,8 @@ impl<'a> Lowering<'a> {
     /// subscript chain under a `??`, so a guarded read's own base may be
     /// another one and may therefore be `null` at run time, which
     /// `nvs_array_optional_get` answers with `null` again — takes
-    /// [`AbsentKey::Null`] instead of the throwing answer ADR
-    /// 0007 § 7 row 11 gives every other read, and is therefore infallible and
+    /// [`AbsentKey::Null`] instead of the throwing answer
+    /// `rule:types/absent-storage-is-never-a-zero-value` gives every other read, and is therefore infallible and
     /// [`Ty::Tagged`]. That representation is not a widening for its own sake:
     /// `??` tests its left operand for `null` and needs a tag to test, and
     /// `Self::lower_coalesce` short-circuits away any operand that has none.

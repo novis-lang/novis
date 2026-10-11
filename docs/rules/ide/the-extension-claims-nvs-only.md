@@ -1,6 +1,6 @@
 The extension registers `.nvs` and does not claim `.php`, even though `nvs-syntax` parses it. Claiming it
 would fight every PHP extension a user already has, and losing that fight silently looks like Novis being
-broken.
+broken. A setting that opts `.php` in waits until somebody converting a codebase asks for one.
 
 A file named `nvs.toml` gets one completion provider and nothing else: no language id, file extension or
 grammar for TOML. The provider's selector is the file name, so a TOML extension keeps the file and the

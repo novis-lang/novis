@@ -1,9 +1,7 @@
 {
   "title": "`instanceof` is refused where it is written, and `is` is the one type test",
   "status": "shipped",
-  "because": [
-    "0192"
-  ],
+  "because": [],
   "seeAlso": [
     "types/type-test",
     "types/narrowing",
@@ -11,6 +9,7 @@
     "statements/let-and-is-are-reserved"
   ],
   "guardedBy": [
-    "tests/conformance/reject/instanceof-is-spelled-is.nvst"
+    "tests/conformance/reject/instanceof-is-spelled-is.nvst",
+    "tests/conformance/lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst"
   ]
 }

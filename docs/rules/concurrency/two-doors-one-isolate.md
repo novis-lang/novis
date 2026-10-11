@@ -16,3 +16,7 @@ method.
 Each member names the hand-over *it* is missing, and neither report stands for the other. One slot
 carrying both would be a slot the connection has to ask the *kind* of before it could use it, which
 is a tag standing in for a distinction the types already make.
+
+**Declined:**
+- **Event streams alone, with no WebSocket.** The isolate question has to be answered the moment any
+  stream outlives its request, and once it is answered a WebSocket costs only its framing.

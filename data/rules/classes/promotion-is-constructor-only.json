@@ -1,11 +1,7 @@
 {
   "title": "A visibility keyword on a parameter promotes it to a property only in the `constructor`",
   "status": "shipped",
-  "because": [
-    "0043",
-    "0022",
-    "0094"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/constructor-is-a-method-named-constructor",
     "classes/definite-property-initialization",

@@ -1,9 +1,7 @@
 {
   "title": "An error propagates as a checked return, never by unwinding",
   "status": "shipped",
-  "because": [
-    "0002"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/helper-abi",
     "errors/throw-is-not-slower",

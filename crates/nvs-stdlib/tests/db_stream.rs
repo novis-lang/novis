@@ -390,7 +390,7 @@ fn recorded_refusal(driver: Driver, refused: &io::Error) {
 /// `server_version` setting, which is the string its startup already sent;
 /// MySQL's and MariaDB's `version()`; SQL Server's `ProductVersion`, which
 /// carries a fourth component `LOGINACK` has no room for
-/// ([ADR 0187 § 2](/docs/decisions/0187.md)); and the library version SQLite
+/// (`rule:core-classes/server-version-is-what-the-server-said`); and the library version SQLite
 /// links against, which is a property of this binary either way.
 fn asking_for_the_version(driver: Driver) -> &'static str {
     match driver {
@@ -484,7 +484,7 @@ fn text(cell: Option<Value>) -> String {
 ///
 /// **Not one comparison, because the handshake and the statement do not always
 /// hand over the same string** — and where they differ,
-/// [ADR 0187 § 2](/docs/decisions/0187.md) makes the handshake's word the
+/// `rule:core-classes/server-version-is-what-the-server-said` makes the handshake's word the
 /// answer, so the difference is what this has to know rather than work around.
 /// A MariaDB greeting prefixes the version with `5.5.5-`, which is how a server
 /// too new for MySQL's version field says so, and the statement answers the
@@ -644,7 +644,7 @@ fn a_second_statement_on_a_streaming_connection_is_a_logic_error_on_every_driver
     probe(&mut conn).expect("an ended walk left the connection able to run a statement");
 }
 
-/// [ADR 0187 § 2](/docs/decisions/0187.md)'s member, asserted where the string
+/// `rule:core-classes/server-version-is-what-the-server-said`'s member, asserted where the string
 /// can be wrong: against the server that produced it.
 ///
 /// **Both halves of the sentence are the assertion**, and the in-crate tests

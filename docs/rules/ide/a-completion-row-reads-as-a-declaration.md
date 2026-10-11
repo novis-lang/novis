@@ -15,4 +15,15 @@ member's name, and the document's URI stamped on by the server — and `completi
 card for the one item the editor shows: a `Core` member's reference card from its registry row, a `Core`
 class's, enum's, constant's or case's own line from the same registry, a user declaration's `///` run.
 It is the text hovering the declaration shows, rendered once, so a list and a hover never disagree about
-a name. An item nobody documented resolves to itself.
+a name. An item nobody documented resolves to itself. A `.lspt` case freezes the row and never the
+card, because `nvs_lsp::render` draws no documentation, so the card is held by a Rust test.
+
+- **Memory:** a list carries a few bytes of key per row instead of a card per row. The round trip a
+  resolve costs is paid once per highlighted item, never per keystroke.
+
+**Declined:**
+- **Cards on the list.** It is simpler on the wire, but the bare-name list names every type in reach, so
+  every keystroke would carry every card.
+- **The namespace at the right of a type's row.** The name sits at one end of the row and what it is at
+  the other, with the width of the list between them. The namespace in brackets after the name reads in
+  one run.

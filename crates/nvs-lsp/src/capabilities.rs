@@ -37,8 +37,9 @@ pub const SERVER_NAME: &str = "nvs lsp";
 ///
 /// A semantic token names its type by index into this list, so appending is
 /// the only safe edit: reordering silently recolours every token in every
-/// document. ADR 0099 § 4 chose each one because the TextMate grammar
-/// structurally cannot answer it, and every name here is LSP's own — a type
+/// document. `rule:ide/semantic-tokens-carry-the-qualifiers` chose each one
+/// because the TextMate grammar structurally cannot answer it, and every name
+/// here is LSP's own — a type
 /// outside the standard legend is matched by no theme and renders as unstyled
 /// body text (`rule:ide/novis-ships-names-not-colours`).
 pub const TOKEN_TYPES: &[SemanticTokenType] = &[
@@ -112,8 +113,9 @@ pub fn server_info() -> ServerInfo {
 /// The legend a semantic-token response is decoded against.
 ///
 /// The client registers an equal one or every token lands one type off, which
-/// no unit test on either side can see alone — ADR 0099 § 4 puts that check in
-/// the extension-host run.
+/// no unit test on either side can see alone —
+/// `rule:ide/semantic-tokens-carry-the-qualifiers` puts that check in the
+/// extension-host run.
 #[must_use]
 pub fn semantic_tokens_legend() -> SemanticTokensLegend {
     SemanticTokensLegend {
@@ -161,7 +163,8 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
     ServerCapabilities {
         position_encoding: Some(encoding),
         // `Full` and not `Incremental`: the analysis reparses the whole
-        // document anyway (ADR 0099 § 1 traded incremental reparse away), so
+        // document anyway (`rule:ide/one-grammar-one-tree` traded incremental
+        // reparse away), so
         // applying a range edit here would buy nothing and add a second place
         // a document's text can be wrong. It is also what makes
         // `publishDiagnostics` reachable — diagnostics are published for open

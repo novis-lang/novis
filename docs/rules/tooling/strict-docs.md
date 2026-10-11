@@ -8,6 +8,10 @@ implements a method of the same name that has one, on its parent class, on an in
 on any class or interface those extend or implement in turn. The override says what its ancestor already
 says, and `nvs doc` shows the ancestor's comment under it, naming where it comes from. A property and a
 constant inherit nothing, and a method that overrides an undocumented one is reported like any other.
+A property or constant redeclared on a subclass is a new declaration with its own value, so it needs its
+own sentence. The ancestors are walked over the class graph the compiler already built, and the member
+table records which method names were declared with a doc comment, so the check is a walk over names it
+already has.
 
 Why this cannot become the failure mode it is modelled against: an editor that demands a docblock is
 answered with a generated one, and a generated docblock is noise nobody reads and everybody deletes. Here
@@ -22,3 +26,13 @@ inherits it.
 Until a package manager exists, `--strict-docs` is opt-in only and nothing fires it automatically. If
 publishing turns out to want more than "a public member has a comment" — a minimum length, a required first
 sentence — that is a lint's design and belongs with the publisher.
+
+**Memory:** nothing at run time. The member table holds one more set of method names per class, and
+`--strict-docs` pays one walk up the class graph per undocumented public method.
+
+**Declined:**
+- **An explicit marker such as `/// @inheritdoc`.** It is a third tag, which
+  `rule:tooling/doc-comment-tags-are-see-and-example` refuses, and it is a line that says nothing, which
+  is what this rule exists to prevent.
+- **Inheriting only from interfaces.** Overriding a documented parent method has the same problem, and
+  one rule for both is simpler.

@@ -1,11 +1,7 @@
 {
   "title": "Retry is opt-in, exponential with full jitter that cannot be turned off, and retries only a connection failure, a timeout, `429`, `502`, `503` and `504`",
   "status": "shipped",
-  "because": [
-    "0074",
-    "0058",
-    "0180"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/one-deadline-covers-the-whole-call",
     "http-server/a-non-idempotent-retry-needs-an-idempotency-key",

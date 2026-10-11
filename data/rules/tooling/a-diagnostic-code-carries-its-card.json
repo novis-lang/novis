@@ -1,9 +1,7 @@
 {
   "title": "Every diagnostic code carries a plain card that `nvs agent show` prints, and a terminal rendering names that command once",
   "status": "shipped",
-  "because": [
-    "0216"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/the-index-names-every-key-command-and-code",
     "core-api/reference-card",

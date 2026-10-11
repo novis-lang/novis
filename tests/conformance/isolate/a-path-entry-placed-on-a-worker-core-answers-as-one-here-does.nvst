@@ -1,5 +1,5 @@
 --TEST--
-A child written as a **path** and placed `on: "worker"` answers exactly what the same child placed `on: "here"` answers: the far core compiles it through the resolver the process published — `rule:concurrency/on-worker-runs-the-child-on-another-core`, ADR 0184 § 1
+A child written as a **path** and placed `on: "worker"` answers exactly what the same child placed `on: "here"` answers: the far core compiles it through the resolver the process published — `rule:concurrency/on-worker-runs-the-child-on-another-core`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -46,7 +46,7 @@ var $athome = spawn script "child.nvs" with(output: "capture", on: "here");
 var $local = await $athome;
 
 // Each line is a row of the joined answer, asked of both placements at once.
-// The answer crossed by copy at every node on the way out (ADR 0184 § 2), so
+// The answer crossed by copy at every node on the way out, so
 // agreement here is agreement about values rather than about a shared object.
 echo "ok agrees: ", ($answered->ok == $local->ok) ? "yes" : "no", "\n";
 echo "and both are ", $answered->ok ? "true" : "false", "\n";

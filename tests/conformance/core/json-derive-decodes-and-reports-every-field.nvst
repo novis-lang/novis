@@ -1,5 +1,5 @@
 --TEST--
-`Core\Json::decodeAs<T>` runs the class's own constructor, and one failed decode reports every bad field at once — ADR 0071 §§ 2, 4 and 5
+`Core\Json::decodeAs<T>` runs the class's own constructor, and one failed decode reports every bad field at once — `rule:core-classes/derive-field-list`, `rule:core-api/required-optional-and-nullable`, `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
 // covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
@@ -19,24 +19,24 @@ class Row {
     }
 }
 
-// § 2: a decode is an ordinary `new`, so the decoded object is the one the
+// `rule:core-classes/derive-field-list`: a decode is an ordinary `new`, so the decoded object is the one the
 // constructor built and encodes back to the document it came from.
 var $row = Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":1,\"is_live\":true}");
 echo "name=", $row->name, "\n";
 echo "round=", Core\Json::encode($row), "\n";
 
-// § 4's third row: `?T` accepts a present `null`.
+// `rule:core-api/required-optional-and-nullable`'s third row: `?T` accepts a present `null`.
 var $blank = Core\Json::decodeAs<Row>("{\"name\":\"ada\",\"rank\":null,\"is_live\":false}");
 echo "blank=", Core\Json::encode($blank), "\n";
 
-// § 5: one throw, carrying every field that failed — a missing key, a wrong
+// `rule:core-classes/derive-reports-every-field`: one throw, carrying every field that failed — a missing key, a wrong
 // type and a `null` where the type does not admit one.
 try {
     Core\Json::decodeAs<Row>("{\"rank\":\"first\",\"is_live\":null}");
     echo "not reached\n";
 } catch (ParseError $bad) {
     echo "issues=", Core\Arr::count($bad->issues), "\n";
-    // § 5's whole point is *which* fields, in declaration order — which needs
+    // `rule:core-classes/derive-reports-every-field`'s whole point is *which* fields, in declaration order — which needs
     // the issue's own `path`, read off an `rule:types/erased-member-access` shape receiver.
     foreach ($bad->issues as {path: string, message: string} $issue) {
         echo "  bad=", $issue->path, "\n";

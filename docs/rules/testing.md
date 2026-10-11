@@ -33,7 +33,15 @@ The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
 so a single `use Core\Test;` places both.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0046](../decisions/0046.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0011](../decisions/0011.md), [0029](../decisions/0029.md), [0172](../decisions/0172.md).</sub>
+**Declined:**
+- **A `test` keyword** (`test "a name is trimmed" { ... }`). It reads better, and it costs new
+  grammar, a second scoping rule and a construct the formatter, the language server, the resilient
+  parser and the converter must each learn, for a readability gain over a mechanism the route table
+  already uses.
+- **A `test*` naming convention.** The compiler reads no meaning out of spelling
+  ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)), and a method misspelled `tsetFoo` would silently be nothing.
+
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict).</sub>
 
 <a id="testing-tests-never-reach-a-build"></a>
 
@@ -51,7 +59,7 @@ artifact. Production pays nothing for them, and no test surface is reachable at 
 `nvs check` does type-check test code. That is the one place tests and non-tests are treated alike,
 and deliberately so: a test cannot rot silently while the code around it changes.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test).</sub>
 
 <a id="testing-isolate-per-test"></a>
 
@@ -74,7 +82,16 @@ Each test isolate spends its parent's budget, so a suite has the same enforceabl
 and CPU that a request has, and a runaway test is terminated rather than left to consume the
 machine.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0079](../decisions/0079.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
+- **Memory:** each test in flight holds one isolate, one copy of each fixture it declares and one
+  ledger entry per assertion it executes, all released when it joins. That is O(tests running), not
+  O(tests in the suite): a suite of any size costs at one instant what its running tests cost.
+
+**Declined:**
+- **One isolate per test class.** It is cheaper and familiar, and it restores exactly the ordering
+  dependence between cases that makes real suites flaky. Fixtures recover the setup cost it would
+  save without the coupling ([`testing/fixtures`](testing.md#testing-fixtures)).
+
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics).</sub>
 
 <a id="testing-private-in-the-same-file"></a>
 
@@ -89,7 +106,7 @@ This is the narrowest rule that avoids the failure it exists to prevent: a `publ
 exists only because a test needed to reach it. White-box testing stays possible where the author has
 already chosen to put the test next to the code; everything at a distance tests behaviour.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build).</sub>
 
 <a id="testing-assertions-are-typed"></a>
 
@@ -114,7 +131,20 @@ years later.
 The roster is wide on purpose. Ranking the right member by the subject's type at the call site is
 the language server's job, and not a reason to reshape the API into a chain.
 
-<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots). Decided in [0079](../decisions/0079.md), [0063](../decisions/0063.md), [0013](../decisions/0013.md), [0090](../decisions/0090.md), [0007](../decisions/0007.md).</sub>
+**Declined:**
+- **A fluent matcher chain** (`Core\Test::that($actual)->equals($expected)`). A chain's one
+  advantage over a static roster is matchers scoped to the subject's type, and that needs members
+  that exist only at some instantiations of a generic class, which Novis does not have. Without it
+  every matcher is declared for every subject, so `that(5)->startsWith("x")` checks the prefix and
+  not the subject: the chain type-checks strictly less than the roster, and also costs a builder and
+  a second shape unlike every other `Core` member. Only member specialization would reopen it, never
+  the roster's size.
+- **Static members for scalars beside a per-kind assertion class for collections.** It does scope
+  its matchers correctly, and it buys not repeating the subject across consecutive lines at the cost
+  of two ways to assert about an array and a boundary between them to defend forever. Each repeated
+  line also carries its own failure location.
+
+<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/inline-snapshots`](testing.md#testing-inline-snapshots).</sub>
 
 <a id="testing-failure-ledger"></a>
 
@@ -139,7 +169,12 @@ rather than from what came back, so a body that caught its own failure has still
 which nothing failed is itself a failure; and the passing assertions inside a discharged body stay,
 because they really ran.
 
-<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0079](../decisions/0079.md), [0024](../decisions/0024.md), [0020](../decisions/0020.md).</sub>
+**Declined:**
+- **A failure that escalates past `catch`.** It is the strongest guarantee, and it makes a
+  user-written assertion helper, a retry wrapper and a soft-assert block impossible to express. The
+  ledger gives the same guarantee without that loss.
+
+<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
 
 <a id="testing-constructor-is-setup"></a>
 
@@ -156,7 +191,7 @@ A test class's constructor therefore declares no parameters. One that does is re
 failing rather than pretended past: the runner constructs the class with no arguments, and a test
 method's own parameters are filled by [`testing/fixtures`](testing.md#testing-fixtures) and [`testing/data-rows`](testing.md#testing-data-rows) instead.
 
-<sub>See also [`testing/after-hook`](testing.md#testing-after-hook), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md), [0022](../decisions/0022.md).</sub>
+<sub>See also [`testing/after-hook`](testing.md#testing-after-hook), [`testing/fixtures`](testing.md#testing-fixtures), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
 <a id="testing-after-hook"></a>
 
@@ -171,7 +206,7 @@ inside it with it, which is what leaves this marker one narrow job rather than a
 Every such residue is capability-bearing, so there is nothing `#[After]` can usefully do until a
 test run can hold a capability.
 
-<sub>See also [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
 <a id="testing-fixtures"></a>
 
@@ -194,7 +229,12 @@ Only a fixture that a test which will actually run asks for is built — a skipp
 setup nobody wanted. Resolution runs once the whole class is collected rather than as the walk
 descends, because a test may be written above the fixture that supplies it.
 
-<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md), [0023](../decisions/0023.md).</sub>
+- **Memory:** a class's built fixtures are held from before its first test to after its last, and
+  each test that declares one holds its own copy of it, made with the one graph copy `spawn` uses,
+  for that test's life. A suite whose copies come to dominate its cost is answered by a copy-on-write
+  path for immutable fixtures, measured first, never by sharing an isolate between tests.
+
+<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/constructor-is-setup`](testing.md#testing-constructor-is-setup), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
 <a id="testing-data-rows"></a>
 
@@ -218,7 +258,7 @@ this method's own parameter list, while a fixture answers every method of the cl
 row's values are folded to constants in parameter order rather than in written order, because that
 is the order the call is made in, and are released when that call returns.
 
-<sub>See also [`testing/fixtures`](testing.md#testing-fixtures), [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../decisions/0079.md), [0046](../decisions/0046.md), [0071](../decisions/0071.md).</sub>
+<sub>See also [`testing/fixtures`](testing.md#testing-fixtures), [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats).</sub>
 
 <a id="testing-doubles"></a>
 
@@ -241,7 +281,7 @@ backtrace. There is no builder, no matcher mini-language and no notion of a "nic
 double — that last one is not a choice, since a double of `now(): Instant` has nothing legal to
 return by default. Every double is strict because nothing else is expressible.
 
-<sub>See also [`testing/interaction-after-the-fact`](testing.md#testing-interaction-after-the-fact), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0036](../decisions/0036.md), [0031](../decisions/0031.md), [0052](../decisions/0052.md), [0043](../decisions/0043.md).</sub>
+<sub>See also [`testing/interaction-after-the-fact`](testing.md#testing-interaction-after-the-fact), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
 <a id="testing-interaction-after-the-fact"></a>
 
@@ -263,7 +303,7 @@ method's own name.
 There is no `expects()`. An expectation declared before the exercise reads backwards and reports its
 failure from a line that is no longer where the problem is.
 
-<sub>See also [`testing/doubles`](testing.md#testing-doubles), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/doubles`](testing.md#testing-doubles), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
 <a id="testing-determinism-declared-on-the-test"></a>
 
@@ -283,7 +323,13 @@ the test where it is visible and inert everywhere else, in the same category as 
 `nvs.toml` — and a test declaration reaches no built artifact, so none of this exists in production
 even in principle.
 
-<sub>See also [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build). Decided in [0079](../decisions/0079.md), [0008](../decisions/0008.md).</sub>
+**Declined:**
+- **A clock parameter as the only way to control time.** It is strictly honest and mirrors the
+  seeded generator being a separate type, and it taxes every time-aware class in every program with a
+  constructor parameter forever. The attribute is configuration declared at the point of use, and it
+  cannot reach production ([`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build)).
+
+<sub>See also [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build).</sub>
 
 <a id="testing-task-tree-and-virtual-clock"></a>
 
@@ -301,8 +347,9 @@ work.
 Because the clock is under the test's control, a `Duration` sleep inside a task elapses instantly.
 That makes retry, backoff and timeout logic — some of the most error-prone code anyone writes, and
 the least tested — testable in microseconds rather than in the seconds it describes.
+`Core\Test::assertCompletes(fn, {within: Duration})` states a budget against that same clock.
 
-<sub>See also [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test). Decided in [0079](../decisions/0079.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
 <a id="testing-db-transaction"></a>
 
@@ -324,7 +371,7 @@ contend rather than nest.
 The rollback is armed around the whole retry allowance rather than around one attempt, because a
 retry calls the method again.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict). Decided in [0079](../decisions/0079.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict).</sub>
 
 <a id="testing-in-process-request"></a>
 
@@ -368,9 +415,17 @@ is the operating system's and the address is loopback, so two suites on one mach
 and no suite serves the program under test to a network. The listener is a **sibling** of the test's
 isolate rather than a child — leftover work is read off the test's own task — and it is retired when
 the test that asked for it has joined. It serves under the **default** policy rather than the tree's:
-reading a deployment's configuration would make the test's subject the deployment.
+reading a deployment's configuration would make the test's subject the deployment. The two
+mechanisms are both kept because they answer measurably different questions: the in-process path
+never builds a response head, so the wire is not something it can be asked about.
 
-<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock). Decided in [0079](../decisions/0079.md), [0077](../decisions/0077.md), [0102](../decisions/0102.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md), [0058](../decisions/0058.md).</sub>
+`Core\Test::serverUrl(): ?string` reads the listener's address back, and is `null` where none was
+bound, so it can be called from anywhere. A test reaching its own listener needs the outbound pair
+granted — `net.connect` for the host and `net.internal` for loopback
+([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)) — because nothing about the listener being the
+test's own widens that policy.
+
+<sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock).</sub>
 
 <a id="testing-an-outbound-call-is-answered-from-a-table"></a>
 
@@ -407,7 +462,41 @@ everything below the table — the pool, the framing, a content coding, a redire
 is proved against a loopback origin instead. A described session is what a handshake *reports*, not a
 handshake: nothing verifies its chain and no anchor trusts its CA.
 
-<sub>See also [`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/doubles`](testing.md#testing-doubles), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address). Decided in [0180](../decisions/0180.md), [0217](../decisions/0217.md).</sub>
+`tlsSession` is what puts the seven `Core\Http\TlsInfo` members within a Novis program's reach without
+a network, so each has its example, bench and attack ([`testing/feature-proofs`](testing.md#testing-feature-proofs)), and a test of a
+program that audits its outbound sessions can be written. Every option has a default: `TLSv1.3` over
+`TLS_AES_128_GCM_SHA256` (`TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` for `TLSv1.2`, the AES-128-GCM
+suite each version uses with the leaf's ECDSA key), verified, subject `CN=example.com`, issuer
+`CN=Novis Test CA`, and an expiry 90 days after `Core\Time::now()`, so a test with a fixed clock gets
+the same value every run. A cipher must be one this build negotiates over that version; a subject or
+issuer takes the keys `CN`, `O`, `OU`, `C`, `ST` and `L`, each at most once; an expiry lies between
+1950 and the end of 9999. Anything else is a `LogicError` naming the field. The chain is two
+certificates, leaf first, each over a fresh P-256 key, because a real server sends its leaf and an
+intermediate and a `peerChain()` example should show that order. A prefix row whose URL names no
+scheme is not checked for `http://`.
+
+Neither member refuses a call outside a test, for the reason `answerHttp` already gives: nothing
+trusts what they build, a reply that reports the session came from the program's own table, which has
+already taken it off the network, and no request input reaches the certificate issuer.
+
+- **Memory:** one copy of a described chain, about 1 KB, per registered answer that names a session,
+  for the life of the test's context, and a fresh `Core\Http\TlsInfo` per reply that answer serves,
+  released with the reply. A program outside a test pays nothing.
+
+**Declined:**
+- **Skipping the Novis proofs for `Core\Http\TlsInfo`.** Rust tests alone leave seven public members
+  with no example a reader can learn from, and the audit test above still could not be written.
+- **A local TLS test server beside `Core\Test::serverUrl`.** A real handshake would need a certificate
+  and trust setup and far more code than reading a session back needs. It stays open as a question of
+  its own.
+- **The session's fields as a nested bag in `answerHttp`'s `tls` option.** An option is never itself a
+  bag, so that form would need a compiler change; a member of its own takes an ordinary bag.
+- **Seven flat `tls*` options on `answerHttp` in place of the one `tls` option.** They would give
+  that member ten options instead of four.
+- **A PEM the test pastes in.** It puts a block of base64 in every example, and one certificate
+  compiled into the binary could not show three different uses of `subject`.
+
+<sub>See also [`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/doubles`](testing.md#testing-doubles), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address).</sub>
 
 <a id="testing-an-outbound-socket-is-answered-by-a-scripted-peer"></a>
 
@@ -435,7 +524,7 @@ What a scripted peer cannot reach is proved against a loopback peer in Rust, not
 masking, fragmentation, the close handshake and a ping are `tungstenite`'s behaviour rather than Novis's
 surface, and a table that pretended to them would be asserting its own implementation.
 
-<sub>See also [`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call). Decided in [0183](../decisions/0183.md).</sub>
+<sub>See also [`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table), [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call).</sub>
 
 <a id="testing-property-testing"></a>
 
@@ -454,7 +543,7 @@ A failure shrinks to a minimal counterexample and reports the seed that reproduc
 `string` is valid UTF-8 including combining marks and grapheme clusters, because that is what a
 `string` is — a property that only holds for ASCII is a property that is not true.
 
-<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0071](../decisions/0071.md), [0009](../decisions/0009.md).</sub>
+<sub>See also [`testing/data-rows`](testing.md#testing-data-rows), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
 <a id="testing-inline-snapshots"></a>
 
@@ -479,7 +568,13 @@ a diff. A run that rewrote a snapshot still reports the test as failed; the re-r
 new text is the one the author meant. The rendering is canonical, ordered, and redacts a `secret`,
 so a snapshot cannot become the place secrets get committed.
 
-<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0079](../decisions/0079.md), [0033](../decisions/0033.md).</sub>
+**Declined:**
+- **Separate snapshot files.** They are better for very large payloads, and worse at the thing that
+  actually goes wrong: a reviewer approving a snapshot diff unread.
+- **Snapshots in a library.** The updater needs the written literal's span, which only the compiler
+  records, so a library version would be permanently worse rather than merely external.
+
+<sub>See also [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed), [`testing/report-formats`](testing.md#testing-report-formats).</sub>
 
 <a id="testing-mutation-testing"></a>
 
@@ -501,7 +596,7 @@ hundred mutants that is the difference between minutes and most of a day.
 
 The operator set is enumerated where it is implemented, so adding an operator changes no rule.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs).</sub>
 
 <a id="testing-runner-is-strict"></a>
 
@@ -525,7 +620,7 @@ Report order is **declaration order**, even though execution is unordered. Total
 execution order semantically irrelevant, so nothing is bought by randomizing it and stable output is
 worth a great deal.
 
-<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/db-transaction`](testing.md#testing-db-transaction). Decided in [0079](../decisions/0079.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/db-transaction`](testing.md#testing-db-transaction).</sub>
 
 <a id="testing-report-formats"></a>
 
@@ -535,7 +630,8 @@ worth a great deal.
 
 Human output is the default and is written as the run goes, which is what keeps a long suite
 legible. A JUnit XML document and a versioned JSON one are each written whole at the end, because
-neither has a prefix worth streaming. All three render the same case list and a verdict is decided
+neither has a prefix worth streaming. JUnit XML rather than a Novis-native document, because it is
+what every CI system already ingests. All three render the same case list and a verdict is decided
 **once**, so the plaintext mark, the JSON string and the XML element cannot disagree about how a
 test came out.
 
@@ -563,7 +659,16 @@ summary, since a summary of zeros is a report of a run that did not happen and a
 its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
 `--update` and a `.nvst` tree are each refused beside it rather than ignored.
 
-<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0040](../decisions/0040.md), [0172](../decisions/0172.md).</sub>
+- **Memory:** the compiler holds one span per `#[Test]` row for the life of a compile, on a table that
+  exists only for a program that declares tests. A run holds one resolved path, line and column per
+  reported case.
+
+**Declined:**
+- **A second document for discovery, with its own version.** It is two schemas to freeze and two
+  consumers to write, and a location spelled twice. The version number exists so one document can
+  grow.
+
+<sub>See also [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/data-rows`](testing.md#testing-data-rows), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/the-test-tree-is-discovered-and-run-through-the-cli`](ide.md#ide-the-test-tree-is-discovered-and-run-through-the-cli).</sub>
 
 <a id="testing-coverage-report"></a>
 
@@ -595,7 +700,29 @@ context the run makes from it — each test's isolate, a fixture, an in-process 
 `server: true` test sends — counts into that one table. Novis code cannot read it. A run that does not
 ask makes no table.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0235](../decisions/0235.md), [0273](../decisions/0273.md).</sub>
+The IR keeps its ids per function, so an edit in one function does not renumber every other one, and
+only codegen and the report need a program-wide number. A unit loaded from the compile cache was
+compiled by the same walk, so the runner computes the tables from the lowered program without the
+compile. One table handed down with the flag word reaches every context the same way the flag does,
+including a request a `server: true` test sends, which runs in a context no test owns, and a placed
+isolate, which ends on another core. A connection the server accepts starts from a fresh context, so
+the runner's request program installs the table and the flag on it itself. A context with the flag and
+no table counts nothing. A line takes the largest count of its statements, not their sum, so a `while`
+and the block it opens are not counted twice. A file's own top-level statements do not run under
+`nvs test`, so they read `0`.
+
+**Memory:** per run that asks, one `u64` per statement and per edge in the program, and one file and
+line pair per statement for the report. A run that does not ask spends nothing. With coverage on, each
+statement executed costs one relaxed atomic add beside the call the probe already made.
+
+**Declined:**
+- **Program-wide statement numbers in the IR.** An edit in one function would renumber every other
+  one, and nothing outside a coverage run needs a program-wide number.
+- **Copying each isolate's counts back to its parent when it ends.** A request a `server: true` test
+  sends runs in a context no test owns, and a placed isolate ends on another core, so each path would
+  need its own copy step.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0273](../decisions/0273.md).</sub>
 
 <a id="testing-nvst-is-separate"></a>
 
@@ -612,7 +739,7 @@ The two formats answer different questions and are not unified, now or later. `n
 both — a path of `.nvst` files, or a program's compiled test table — and reports each in the shape
 that fits it.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="testing-a-directory-of-programs-is-one-test-program"></a>
 
@@ -644,7 +771,6 @@ the same files by hand would.
   hold no `require` walks nothing first.
 - **One program per call.** A second path beside a program is refused with a sentence about the
   count: `nvs test .` over the root is how a project with tests in two places runs them together.
-
 - **Name order, not test order.** The order the files are required in decides nothing a reader can
   see: classes are reported in name order and methods in declaration order, whatever brought them in.
 - **A file is a program, a directory of files is a program, and a directory holding both `.nvs` and
@@ -657,7 +783,30 @@ the same files by hand would.
   requires the bootstrap is analysed through that bootstrap's map
   ([`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map)).
 
-<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`programs/autoload`](programs.md#programs-autoload), [`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map). Decided in [0208](../decisions/0208.md).</sub>
+A new test file is in the suite the moment it exists, and nothing is added to the language, the
+configuration or the command line for it. The cost is one directory walk per invocation before the
+compile, and a compile that requires as many files as a hand-written entry naming each one would.
+Nothing is on a request path of the runtime.
+
+**Memory:** the written entry is one string, held for the run.
+
+**Declined:**
+- **A glob in a literal `require`**, `require 'tests/*Test.nvs';`. A `require` site is one call to
+  one file's script frame, and a site that expands to many files reaches into the type checker and
+  the compiler for a feature the tests never execute.
+- **A `[test]` block naming a bootstrap and directories.** The configuration is per server and an
+  application's tests are per application, the editor reads no `--config`, and a suite would need a
+  setting before its first run.
+- **A `--bootstrap` flag beside the directory.** Every run would spell it, and the editor cannot
+  see it.
+- **Running each `.nvs` file under the directory as its own program.** A test file that requires
+  nothing resolves nothing, and a report per file has no summary.
+- **Requiring the bootstrap from every test file.** It is one line per file across the suite, the
+  same list an entry naming every file is.
+- **Reading the directory as a program only when it holds no `index.nvs`.** It is a convention on a
+  name the runner would have to explain, for a case the mixed-directory refusal already covers.
+
+<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`programs/autoload`](programs.md#programs-autoload), [`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map).</sub>
 
 <a id="testing-one-slice-is-one-feature"></a>
 
@@ -676,7 +825,10 @@ carrying a context manifest naming that file set and each gated by a command tha
 Regenerating the chain is how it stays current: a group that owes nothing is left out, so a second
 emission writes the chain that is *left*.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived). Decided in [0134](../decisions/0134.md).</sub>
+**Declined:**
+- **One proof per session.** It buys the same understanding of the feature once per proof.
+
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived).</sub>
 
 <a id="testing-examples-live-in-the-repository"></a>
 
@@ -690,7 +842,12 @@ copies it into `website/`, so there is no mirror to rebuild and no second copy t
 They live in the repository because the same sweep that tests a feature writes its examples, and a
 sweep cannot write into a tree it is not allowed to touch.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped). Decided in [0134](../decisions/0134.md), [0263](../decisions/0263.md).</sub>
+**Declined:**
+- **Examples in the website's own tree, written by a person after the feature ships.** Written that
+  way, almost no member ever had one. The sweep that understands the feature is the one that writes
+  them.
+
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/website-pages-are-stamped`](testing.md#testing-website-pages-are-stamped). Decided in [0263](../decisions/0263.md).</sub>
 
 <a id="testing-website-pages-are-stamped"></a>
 
@@ -708,6 +865,14 @@ session made stale itself: the session that changes a feature rereads the pages 
 them and runs `bun nv site --stamp`, the same way it owes the feature's proofs. CI's `proofs` job runs
 `bun nv site --check` over the whole tree, so a stale page the wrap did not attribute is still caught
 before a merge. A stamp is written by whoever reread the page, never to quiet the check.
+
+**A page's search questions are stamped as the page is.** Each entry of `website/src/data/questions.json`
+records the feature its questions were written from and that feature's hash, and an entry whose hash
+moved is stale. `bun nv site --check questions` fails on every stale or broken entry and on every
+built page with no entry, so a new page fails CI until it has questions. It also holds each entry to
+four to six questions of at most 15 words, in the words of § *Text an end user reads*, with no question
+two pages share. `bun nv site --questions --stamp` is run by whoever rewrote or reread them. The
+questions are not a feature proof.
 
 Every snippet a page shows lives under `website/snippets/`, and that same CI step checks each file
 beside it against the real binary. A `.err` is the diagnostic `nvs check` must report for a program that
@@ -759,7 +924,7 @@ Freezing the output instead is refused: every one of these programs is written t
 nobody can predict, and a suite whose expectations must be maintained is a suite that gets weakened
 until it passes.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0134](../decisions/0134.md), [0244](../decisions/0244.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0244](../decisions/0244.md).</sub>
 
 <a id="testing-feature-proofs"></a>
 
@@ -786,7 +951,10 @@ the name its user types, and `nvs agent show` prints what it does, how it is wri
 throws or reports: a `Core` member's card, a language feature's reference section, a command's or a
 configuration key's own entry. It is written with the feature and changed with it, in the voice of
 AGENTS.md § *Text an end user reads*, because a user and their coding agent look there before
-anywhere else, and a feature the binary cannot show them reads as one that does not exist.
+anywhere else, and a feature the binary cannot show them reads as one that does not exist. The
+features that landed before Help was a proof are listed in `data/proofs/help-backlog.json` and read as
+skips with one shared reason, so a finished goal's floor does not fail over a proof that was not owed
+when it finished; a feature leaves the list when it gains its help.
 
 Each tree's own README owns what a file in it *is*, and this rule restates none of them.
 
@@ -797,7 +965,20 @@ policy nothing can check. A single feature excused from a single proof is a skip
 **the reason as its value**, so "this cannot be measured" and "nobody wrote one" never look the same
 in the audit.
 
-<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md), [0079](../decisions/0079.md), [0117](../decisions/0117.md), [0216](../decisions/0216.md), [0272](../decisions/0272.md).</sub>
+The proofs are a cost spent up front, per feature, and spent on security and correctness: an attack
+per feature is a security question asked before a user asks it. What keeps the audit affordable to
+re-run is that its gate runs no program. It checks what exists on disk, so a sweep over a finished
+tree is a walk of the directories. An audit that reads mostly red is the honest number, never a
+reason to loosen what a kind owes; turning one proof off for the whole roster changes what is owed
+and says so in the audit.
+
+**Declined:**
+- **Line coverage instead of a test from Rust.** A coverage run says which lines ran, not which
+  feature is proven, and a coverage percentage is a threshold rather than a finished feature.
+- **A hand-kept checklist of finished features.** It rots within a day of an unattended run
+  ([`testing/roster-is-derived`](testing.md#testing-roster-is-derived)).
+
+<sub>See also [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/proof-attribution`](testing.md#testing-proof-attribution), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0272](../decisions/0272.md).</sub>
 
 <a id="testing-roster-is-derived"></a>
 
@@ -817,7 +998,7 @@ owes them on the next sweep. Nobody edits a list, so no list is ever stale — a
 wrong within a day of an unattended run, and it under-reports silently, which is the failure mode
 that looks like success.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md), [0117](../decisions/0117.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution).</sub>
 
 <a id="testing-proof-attribution"></a>
 
@@ -838,7 +1019,7 @@ That written spelling is the only inference made. Crediting a bare `->method(` c
 case happens to name is unsound rather than merely loose, and no tightening fixes it without a type
 checker.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository).</sub>
 
 <a id="testing-a-failing-proof-is-fixed-or-recorded"></a>
 
@@ -864,7 +1045,7 @@ whatever fix eventually lands.
 skipping the feature each turn a finding into a green check, which is the single outcome this rule
 exists to prevent. A skip is for a proof that *cannot exist*, never for one that fails.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature).</sub>
 
 <a id="testing-capability-completeness-test"></a>
 
@@ -888,7 +1069,7 @@ A second completeness test covers the other half: nothing in the standard librar
 system except through a door. Neither test subsumes the other — one catches a member that goes
 through a door undeclared, the other a member that reaches the OS with no door at all.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract).</sub>
 
 <a id="testing-attribution-is-diffed-in-ci"></a>
 
@@ -898,12 +1079,19 @@ through a door undeclared, the other a member that reaches the OS with no door a
 
 `bun nv gen-attribution --check` regenerates the third-party notice and compares it,
 failing when the lockfile has moved and the notice has not. It runs beside the dependency-policy
-job, which it completes: one decides what may be linked, this decides what must be shipped.
+job, which it completes: one decides what may be linked, this decides what must be shipped. The two
+fail differently. A license the policy does not allow fails loudly the moment its dependency is added;
+a missing notice fails silently, and only at distribution, unless this job catches it.
 
 Committing a generated file is deliberate. It makes the notice reviewable in a diff at the moment a
-dependency changes, and it keeps the build from depending on network access or on Python.
+dependency changes, and it keeps the build from depending on network access or on fetched sources.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0065](../decisions/0065.md), [0143](../decisions/0143.md).</sub>
+**Declined:**
+- **Generating the notice at build time instead of committing it.** Every build would depend on the
+  generator and on fetched sources, and the reviewable diff, which is how a human notices a new
+  component at all, would be gone.
+
+<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes).</sub>
 
 <a id="testing-debug-mode-directive"></a>
 
@@ -922,9 +1110,15 @@ reconnaissance channel over call arguments and timing, which is not a trade this
 Writing a trace or a profile is its own capability — `debug.trace` and `debug.profile`, each granted
 to named roots, deny-by-default, and **separate from the grant to write a file**. Being able to
 write an ordinary file is not permission to persist a continuous log of every call's arguments,
-which can carry request data a coverage-only deployment never needed to expose.
+which can carry request data a coverage-only deployment never needed to expose. A grant of
+`debug.trace` is still a channel from request data to disk, so an operator names its roots
+explicitly, the same way a path-rooted spawn grant is named.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface). Decided in [0018](../decisions/0018.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md).</sub>
+**Declined:**
+- **`[debug] mode` as a directive a request may set freely.** Observability of a request's own
+  internals is not a request-local decision, for the reason above.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-surface`](testing.md#testing-debug-surface).</sub>
 
 <a id="testing-debug-probes"></a>
 
@@ -950,7 +1144,23 @@ safepoint poll already pays. Turning a bit on for a running request is exactly s
 recompilation, no re-resolution, no second compiled unit. That is what makes starting and stopping
 coverage **mid-request** work at all, which a compiled-in-advance instrumented tier cannot do.
 
-<sub>See also [`testing/debug-surface`](testing.md#testing-debug-surface), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/bench-counters`](testing.md#testing-bench-counters). Decided in [0018](../decisions/0018.md), [0079](../decisions/0079.md), [0041](../decisions/0041.md).</sub>
+The probe sites are their own, not the safepoint poll's. Safepoints sit only at loop back-edges and
+function entry, deliberately sparse, and line and branch counting need a site at every statement and
+edge. So the probes add more checks than the poll has, each of the same cheap shape, and the
+all-bits-off cost per site is a measured guard rather than an assumption. If that guard ever shows a
+real regression, the fix is coarsening the site to one per basic block, never dropping the flag word.
+A debugger's breakpoints stay on the safepoint poll itself: a debugged request may or may not also
+collect coverage, and the two are independent mechanisms.
+
+**Declined:**
+- **A second, instrumented compiled tier chosen per request.** A request's tier is fixed once it is
+  resolved, so starting coverage mid-request would need frames already running to have been
+  instrumented from the start. That either costs every request whether or not it asks, or leaves the
+  per-test bracketing a coverage harness relies on broken.
+- **Hooking a central dispatch routine, the way an interpreter's tracer does.** There is none to hook:
+  typed scalar operations lower to native instructions with no common dispatch point.
+
+<sub>See also [`testing/debug-surface`](testing.md#testing-debug-surface), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/bench-counters`](testing.md#testing-bench-counters).</sub>
 
 <a id="testing-debug-surface"></a>
 
@@ -965,18 +1175,33 @@ change at all, which is the ergonomics CI uses day to day.
 
 What comes out is what existing tooling already reads: Clover and lcov for coverage, Callgrind for
 the profile. The trace is newline-delimited JSON, because no third-party tooling widely consumes any
-trace format either.
+trace format either. A coverage report opens in the CI dashboard a project already has configured,
+and a profile opens in KCachegrind or Webgrind unmodified, so there is no client to write. The price
+is three exporters to keep correct instead of one, and a low barrier to entry is worth it.
 
-Line and branch counters are bounded by the code a request touches, not by how often a loop
-iterates, so they live in the request's arena and are dropped with it. Trace and profile data are
-call-count-proportional, so they **stream to a sink** named when they start rather than accumulating
-in memory — nothing to bound with a limit this rule would otherwise have to invent.
+The profiler is deterministic: it times every call and attributes exact self and inclusive time per
+function. A sampling profiler answers a different question, a low-overhead view affordable in
+production, and the two stay separate tools.
+
+- **Memory:** line and branch counters are bounded by the code a request touches, not by how often a
+  loop iterates, so they live in the request's arena and are dropped with it. Trace and profile data
+  are call-count-proportional, so they **stream to a sink** named when they start and hold nothing in
+  memory, which leaves no buffer to bound with a new limit.
 
 A spawned isolate starts from its parent's current flag word and may only narrow it. Its own data
 never merges into the parent's live state; it comes back as fields on the result, by the same
 copy-out rule a value, an error and a usage figure already use.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats). Decided in [0018](../decisions/0018.md), [0006](../decisions/0006.md), [0011](../decisions/0011.md).</sub>
+**Declined:**
+- **A Novis-native coverage and profile format with a converter.** Both already have dominant
+  consumers, and a conversion step is friction for every project that uses them.
+- **Xdebug's own trace-file format.** Nothing beyond Xdebug's own tooling reads it widely, so
+  matching it would buy no consumer.
+- **Merging a child's coverage or trace into the parent's live state.** That needs mutable state
+  crossing the arena boundary isolation exists to keep ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)),
+  and returning it on the result costs nothing new.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/report-formats`](testing.md#testing-report-formats).</sub>
 
 <a id="testing-probes-on-is-a-tested-configuration"></a>
 
@@ -997,7 +1222,7 @@ rules say under that one codegen, and this bug class lives only where a probe-at
 build of the same program prints something else. The cost is CI wall-clock proportional to the added
 axes, and nothing at all at run time.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0018](../decisions/0018.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
 
 <a id="testing-writing-a-debug-record-to-disk-is-its-own-gate"></a>
 
@@ -1021,7 +1246,7 @@ second key said yes, and a tree that writes no `[debug]` block gets no debug str
 With the gate off nothing reaches the disk, so a debug record that survives into a deployment costs
 the predicted-not-taken branch [`testing/debug-probes`](testing.md#testing-debug-probes) already pays and nothing further.
 
-<sub>See also [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/log-level`](errors.md#errors-log-level). Decided in [0163](../decisions/0163.md).</sub>
+<sub>See also [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/log-level`](errors.md#errors-log-level).</sub>
 
 <a id="testing-the-debug-stream-reaches-the-service-through-the-disk"></a>
 
@@ -1048,7 +1273,25 @@ unsealed and untouched for longer than any live writer would take is swept by th
 The seal interval is the latency between a dump and its appearing, which is what buys everything
 above.
 
-<sub>See also [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0163](../decisions/0163.md).</sub>
+**The records are at rest, so the spool is guarded like a secret.** The spool and its directory are
+created for the service's account alone, in a directory that must pass the same ownership check a
+configuration file gets. A byte cap with oldest-first eviction is mandatory rather than advisory,
+because nothing drains the spool while the service is stopped. Because the files are the transport,
+a container needs none: the developer already mounts the project directory, and the same property
+makes the service a viewer for a copied-down log directory or a CI artifact.
+
+- **Memory:** one write buffer per writer, held while the writer lives, and no queue anywhere.
+
+**Declined:**
+- **A socket collector with the application as its client.** It needs a bounded queue, a background
+  drain, a circuit breaker, a retry window, a drop counter, a connect timeout on the request path and
+  its own authentication. Every one of those exists only to survive the collector being absent or
+  slow, and a file is absent-proof by construction.
+- **One file per record.** It costs a create, a write, a close and a later delete per record. On
+  Windows real-time antivirus scans each new file on close, and an undrained directory of small files
+  takes seconds to enumerate.
+
+<sub>See also [`testing/writing-a-debug-record-to-disk-is-its-own-gate`](testing.md#testing-writing-a-debug-record-to-disk-is-its-own-gate), [`testing/debug-surface`](testing.md#testing-debug-surface), [`errors/engine-floor`](errors.md#errors-engine-floor).</sub>
 
 <a id="testing-the-ingester-runs-whether-or-not-anyone-is-looking"></a>
 
@@ -1075,8 +1318,10 @@ sequence for a spool record, the file identity and byte offset for a tailed one.
 
 The order is read, insert, commit, **then** delete. A crash in that window re-ingests, which the
 dedupe key makes a no-op. The index holds nothing that cannot be rebuilt from the files, which is
-what licenses running it in its fastest mode and makes a corrupt index a cache miss to discard rather
-than a failure to resolve.
+what licenses running it in its fastest mode — write-ahead logging, so the one writer and the readers
+do not block each other, and synchronous writes off — and makes a corrupt index a cache miss to
+discard rather than a failure to resolve. The documented risk of that mode is corruption rather than
+lost transactions, so the viewer offers discarding and re-ingesting the index as an action.
 
 **The viewer is pushed a watermark, not records** — a monotonic sequence published after each
 committed batch, with the browser fetching the delta through the same query path it uses for
@@ -1085,7 +1330,7 @@ the ingester buffer, and a browser that was closed needs no replay buffer. That 
 record's own timestamp, orders the live view, which makes it immune to clock skew between writers and
 to a garbage timestamp in a corrupt file.
 
-<sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined), [`errors/log-write`](errors.md#errors-log-write). Decided in [0163](../decisions/0163.md).</sub>
+<sub>See also [`testing/the-debug-stream-reaches-the-service-through-the-disk`](testing.md#testing-the-debug-stream-reaches-the-service-through-the-disk), [`testing/a-bad-line-degrades-and-a-bad-file-is-quarantined`](testing.md#testing-a-bad-line-degrades-and-a-bad-file-is-quarantined), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="testing-a-bad-line-degrades-and-a-bad-file-is-quarantined"></a>
 
@@ -1113,7 +1358,7 @@ Work is bounded per source per pass and sources are taken in turn, so one enormo
 the live spool. A disk that is full or an index that errors backs off rather than spinning, and never
 deletes a spool file whose batch did not commit.
 
-<sub>See also [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking). Decided in [0163](../decisions/0163.md).</sub>
+<sub>See also [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking).</sub>
 
 <a id="testing-the-viewer-shows-the-stream-and-hands-off-every-artifact"></a>
 
@@ -1147,7 +1392,23 @@ it with elision and resolved every repeat to an identity before it was written �
 as a link to the node it names and expansion needs no fetch. Children are built from data already
 loaded.
 
-<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0163](../decisions/0163.md).</sub>
+**The listener is the service's own.** The viewer is a subcommand, binds loopback by default, and is
+never mounted on the application's listener: there every path-normalization bug and proxy
+misconfiguration would become disclosure, and a reserved path prefix would collide with the
+compile-time route table. A non-loopback bind needs TLS and a token read from a file, and boot fails
+if the file is absent. Because it is a browser-facing local listener, `Host` and `Origin` are
+allowlisted against DNS rebinding, its renderer builds DOM rather than assigning markup, and it runs
+no Novis code.
+
+The viewer's assets ship in every binary. What keeps that cheap is reachability rather than size: a
+server process never has a viewer in it.
+
+**Declined:**
+- **Fetching a value tree lazily as the developer expands it.** The tree is already bounded before it
+  is written, so a fetch per expansion would add round trips and server-side state to make a bounded
+  thing safe again.
+
+<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`observability/speedscope-timeline-export`](observability.md#observability-speedscope-timeline-export), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`errors/record-transformations`](errors.md#errors-record-transformations).</sub>
 
 <a id="testing-bench-counters"></a>
 
@@ -1171,7 +1432,16 @@ this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0041](../decisions/0041.md), [0026](../decisions/0026.md), [0004](../decisions/0004.md).</sub>
+**Declined:**
+- **Wall-clock benchmarks with statistical treatment.** It is what other languages ship, and it
+  produces a number CI cannot gate on. The counters cost less and produce one it can.
+- **Instruction counts under callgrind.** They are Linux-only, many times slower than a plain run
+  and blind to symbols inside JIT frames, so a user benchmarking on Windows has none
+  ([`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms) keeps them for measuring Novis itself).
+- **A declared per-member cost table.** It would be more faithful for code that spends its time in
+  native members, at the price of hundreds of hand-written numbers, none of them guarded.
+
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger).</sub>
 
 <a id="testing-perf-two-mechanisms"></a>
 
@@ -1190,6 +1460,27 @@ the CI log and fails nothing, and only the **hard** one, an order of magnitude f
 of the change of kind it guards, fails, after re-measuring. A count has one bound and fails at once.
 They answer "did this commit regress".
 
+A timing past its hard bound is measured again, up to three attempts, and only the last attempt is
+judged: a burst of load that lands on one attempt passes on the next, and a change of kind is past
+the bound on every attempt. The soft-bound warning is written straight to standard output, because
+libtest holds back what a passing test prints; on GitHub Actions it is a `::warning` command, which
+lists it among the run's annotations, and a line in the file `GITHUB_STEP_SUMMARY` names. Each
+attempt sits between two readings of a yardstick, a fixed scalar loop, and is labelled `noisy` when
+they differ by more than 25% of the faster one and `steady` otherwise; every printed time gives its
+ratio to the yardstick. Neither label nor ratio is judged: they are what a reader of a warning has
+for telling a busy machine from a slower program. Each test binary carries its own `judge`, so a
+change to how a timing is judged is made in `perf_guards.rs` and in the LSP's `latency.rs` both.
+
+Allocations, emitted calls and executed statements read the same on any machine however loaded, so
+where a guard's question can be asked as a count, the count is the check that fails and a timing
+beside it is a sanity bound. A slowdown between the two bounds no longer fails CI, and one with no
+count behind it, such as a layout that misses the cache more often, shows only as a warning until it
+reaches the hard bound; catching it is the job of a same-machine comparison and of the counts. A
+warning is answered by measuring the commit before it on the machine that warned.
+
+**Memory:** none per request or per task; this is test code. A test run pays two yardstick readings
+per attempt, and up to two further attempts when a figure is past its hard bound.
+
 The **historical dashboard** compiles a fixed workload on a dedicated, non-shared Linux or WSL
 runner and records the aggregate retired-instruction count under callgrind. It answers "is Novis's
 own implementation getting faster, in a sense comparable across whoever's machine produced each
@@ -1199,7 +1490,26 @@ from one.
 
 Benchmarking an Novis **program's** own code is neither of these — that is [`testing/bench-counters`](testing.md#testing-bench-counters).
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger). Decided in [0026](../decisions/0026.md), [0143](../decisions/0143.md), [0228](../decisions/0228.md).</sub>
+The dashboard's runner is one more piece of infrastructure to keep alive. That cost is accepted,
+because the guards cannot answer its question: a self-relative ratio says whether a commit regressed
+against itself, never whether Novis got faster in an absolute sense.
+
+**Declined:**
+- **One bound per timing.** A bound chosen on one machine is enforced on every other, and load moves
+  a figure inside one run, so a single bound is either loose enough to pass the change of kind the
+  guard exists for or tight enough to fail with no change behind it.
+- **Counting VM opcodes or dispatch-loop iterations.** There is no interpreter tier to count.
+- **The hardware's instructions-retired counter** (`perf`, ETW, Instruments). It is locked to one
+  architecture and is a different tool on each OS, so it compares across machines of one
+  architecture and never across operating systems. Callgrind's emulated instruction stream has
+  neither limit.
+- **A fixed reference workload, such as a SHA-256 or matrix loop, timed on every machine.** The
+  guards' same-run ratios already normalize more simply for regressions, and the instruction count
+  is more precise for the trend with no extra reference binary to keep.
+- **Callgrind as the gate on every pull request.** Its emulation is one to two orders of magnitude
+  slower, which every pull request would pay, and it runs on only one of the three CI platforms.
+
+<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/bench-counters`](testing.md#testing-bench-counters), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger).</sub>
 
 <a id="testing-perf-secondary-figures"></a>
 
@@ -1220,7 +1530,7 @@ An instruction count is a proxy, and it can in principle improve while real late
 two figures exist to catch that divergence, so the dashboard is read together with them and never
 from the count alone.
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0026](../decisions/0026.md).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks).</sub>
 
 <a id="testing-perf-history-file"></a>
 
@@ -1239,7 +1549,7 @@ figures, because the process reads a file and compiles it before any of the work
 lower of the two is what gets recorded.** A trend line reads perfectly well at that resolution; a
 guard asserting equality between two runs would not, so no such guard exists.
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl). Decided in [0026](../decisions/0026.md).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl).</sub>
 
 <a id="testing-member-perf-ledger"></a>
 
@@ -1280,14 +1590,43 @@ A reference chapter that implements a language feature is hashed as its text. Th
 currency rule is what makes a roster of hundreds affordable, and the code rather than the commit is
 what lets a session measure before the wrap commits the tests it spliced into that same file. A
 comment, a card or a reformat cannot change what the binary does, so none of them stales a figure.
-The granularity is still the file rather than the member, which is conservative in the only safe
+An edit to a string literal, an attribute or any other token of shipped code does. A file with a
+bidirectional-text character in any comment keeps its comments in the hash, so there a comment edit
+stales its figures too. The granularity is still the file rather than the member, which is conservative in the only safe
 direction: the cost of being wrong is one command rather than a wrong number.
 
 The gate accepts a record from any machine and only the report's clock columns insist on this one's,
-so a fresh clone owes nothing it already has a current record for. Nothing here gates a build. A
-regression is a row with a delta on it.
+so a fresh clone owes nothing it already has a current record for. Gating on a record from this
+machine would make every new machine owe every figure in the ledger on its first run. Nothing here
+gates a build. A regression is a row with a delta on it.
 
-<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0134](../decisions/0134.md), [0026](../decisions/0026.md), [0191](../decisions/0191.md), [0220](../decisions/0220.md), [0224](../decisions/0224.md), [0226](../decisions/0226.md).</sub>
+**Declined:**
+- **Instruction counts under callgrind as the recorded figure.** Callgrind runs on Linux only and
+  about fifty times slower, so a sweep of every feature would take hours on one platform, and a
+  ledger that expensive is not taken. Valgrind is kept for the growth ramp that does not settle
+  ([`testing/feature-proofs`](testing.md#testing-feature-proofs)).
+- **Hardware performance counters through `perf stat`.** They are near-deterministic and nearly
+  free, but Windows has none and WSL2 does not expose them without host configuration.
+- **Hashing the file with its reference cards kept.** A card is text a hover and `nvs agent show`
+  print, and the bench never reads it, so a card edit would owe a measurement that cannot come out
+  different.
+- **A hash per member rather than per file.** It needs the registry's dispatch mapped onto source
+  ranges, and the file already errs in the safe direction.
+- **A better calibration, with several reference loops instead of one.** It is still a proxy for a
+  clock, and no closer than a tenth.
+- **Refusing to record on a dirty tree.** A dossier session's tree is always dirty with its own proofs
+  when it measures, so the refusal would fire every time. The `impl_hash` and the binary's hash name
+  the code that ran, and `dirty` stays a fact about the tree.
+- **An absolute `units` ceiling per member.** That is the hand-written cost table
+  [`testing/bench-counters`](testing.md#testing-bench-counters) refuses. The report's per-complexity ceiling is one advisory number
+  per shape and never a claim about a member.
+- **A symmetric scaling check that also fails a ratio below the declared growth.** A linear member
+  over a short input is dominated by its fixed per-call cost and looks nearly constant, which is not
+  a bug. Only growing faster than declared fails.
+- **A column for PHP or another engine.** This ledger compares Novis with itself
+  ([`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks) owns the comparison).
+
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks).</sub>
 
 <a id="testing-userland-benchmarks"></a>
 
@@ -1309,7 +1648,7 @@ It changes nothing about the historical dashboard, whose headline metric stays t
 count. Which workloads populate that dashboard is a benchmark-design question rather than a language
 decision, and it grows as real compiled programs exist to measure.
 
-<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0026](../decisions/0026.md), [0100](../decisions/0100.md).</sub>
+<sub>See also [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`testing/member-perf-ledger`](testing.md#testing-member-perf-ledger), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
 
 <a id="testing-valgrind-on-wsl"></a>
 
@@ -1327,9 +1666,12 @@ need no Linux-only tooling and run everywhere.
 Per-function attribution inside JIT-compiled code is unavailable through callgrind, which sees no
 symbols for frames the backend registered none for; the aggregate total is unaffected, being a raw
 instruction count either way, and root-causing falls back to platform-native profiling on whichever
-machine reproduces the regression.
+machine reproduces the regression. The dashboard needs an aggregate trend rather than a call graph,
+so no symbol-registration shim exists; callgrind still runs JIT-compiled pages correctly, and an
+8-frame JIT call chain counts the same instructions on every run
+(`benches/abi-probe/examples/callgrind_spike.rs`).
 
-<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane). Decided in [0026](../decisions/0026.md).</sub>
+<sub>See also [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/perf-history-file`](testing.md#testing-perf-history-file), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane).</sub>
 
 <a id="testing-ci-lanes"></a>
 
@@ -1352,7 +1694,18 @@ release gate in the same edit.
 
 Nothing has left the suite. What a push skips is work whose answer its own diff cannot change.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/a-deferred-job-is-skipped-never-absent`](testing.md#testing-a-deferred-job-is-skipped-never-absent), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything). Decided in [0143](../decisions/0143.md).</sub>
+The lanes spend nothing from security, latency or simplicity of the language. The dependency policy
+still gates every change that can alter the dependency set, and the sanitizer still gates every
+change to a crate that holds unsafe code. What they cost is one table to read before a job is added,
+and a job the nightly shows the push lane should have run is one entry in that table.
+
+**Declined:**
+- **A second workflow holding the heavy jobs.** It needs a second copy of the toolchain and cache
+  setup, and the release gate would be put together from two files that drift apart.
+- **Deleting the jobs a push defers.** Miri and the fuzzers are the memory-safety evidence a
+  JIT-compiled runtime has to keep producing. The question is only how often they run.
+
+<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/the-deep-lane`](testing.md#testing-the-deep-lane), [`testing/a-deferred-job-is-skipped-never-absent`](testing.md#testing-a-deferred-job-is-skipped-never-absent), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything).</sub>
 
 <a id="testing-lane-table"></a>
 
@@ -1378,7 +1731,19 @@ develops or pushes from, so no platform's coverage is ever traded away by a path
 contributor who never sees a Windows failure until the nightly is precisely the one who cannot
 reproduce it.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0143](../decisions/0143.md), [0026](../decisions/0026.md), [0068](../decisions/0068.md).</sub>
+**Declined:**
+- **A third-party path-filter action.** It would sit on the critical path of every run, pinned and
+  audited by whoever updates it, to compute a diff this repository's own tools already compute. The
+  supply chain is a security question.
+- **Narrowing the platform matrix by path**, so a push builds one platform unless its diff looks
+  native. It is the largest saving on offer. It rests on a claim nothing enforces, that a change
+  outside the native crates cannot change per-platform behaviour, and that claim is false as soon as
+  a front-end change alters what gets compiled or a command-line change touches a path, a line ending
+  or a file mode.
+- **A workflow-level path filter.** It breaks required status checks
+  ([`testing/a-deferred-job-is-skipped-never-absent`](testing.md#testing-a-deferred-job-is-skipped-never-absent)).
+
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/unknown-base-runs-everything`](testing.md#testing-unknown-base-runs-everything), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
 
 <a id="testing-unknown-base-runs-everything"></a>
 
@@ -1392,7 +1757,7 @@ base commit it can diff against. Every such case resolves to **every lane true**
 The failure mode of guessing wrong in the other direction is a merged commit nothing checked, and
 there is no version of this that is worth one of those.
 
-<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/lane-table`](testing.md#testing-lane-table), [`testing/ci-lanes`](testing.md#testing-ci-lanes).</sub>
 
 <a id="testing-the-deep-lane"></a>
 
@@ -1410,7 +1775,10 @@ The fuzz corpus is cached between nightly runs and each target's budget is large
 could afford. A run that starts from what every previous night found is strictly more coverage than
 a per-push run that starts from nothing, and it costs the push lane nothing at all.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl). Decided in [0143](../decisions/0143.md).</sub>
+The unsafe audit's counts gate nothing, so a tool install on every push bought a number no push was
+blocked by. It returns to the push lane when it becomes a hard gate.
+
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/probes-on-is-a-tested-configuration`](testing.md#testing-probes-on-is-a-tested-configuration), [`testing/valgrind-on-wsl`](testing.md#testing-valgrind-on-wsl).</sub>
 
 <a id="testing-a-deferred-job-is-skipped-never-absent"></a>
 
@@ -1425,7 +1793,7 @@ a required status check; a workflow filtered out by a path rule never reports at
 check on it waits forever. The second is a branch that cannot be merged, discovered by whoever turns
 branch protection on months from now.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table). Decided in [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table).</sub>
 
 <a id="testing-every-push-gets-a-verdict"></a>
 
@@ -1440,4 +1808,4 @@ reads, and what a loop committing one slice at a time needs.
 The concurrency group is keyed by event as well, so a long nightly never sits in front of a short
 push.
 
-<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table). Decided in [0143](../decisions/0143.md).</sub>
+<sub>See also [`testing/ci-lanes`](testing.md#testing-ci-lanes), [`testing/lane-table`](testing.md#testing-lane-table).</sub>

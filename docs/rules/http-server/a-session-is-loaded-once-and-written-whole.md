@@ -13,5 +13,15 @@ writes — and an application for which that matters has state that is not sessi
 counters and idempotency keys go to the shared tier or the database directly
 (`rule:concurrency/cross-request-state-is-explicit`).
 
-Memory is O(in-flight): one encoded record per request that started a session, released with the
-request heap. A cancelled task is the one end that sends nothing, because the send parks.
+A cancelled task is the one end that sends nothing, because the send parks.
+
+- **Memory:** one encoded record per request that started a session, released with the request
+  heap. Nothing accumulates per session served, so it is O(in-flight).
+
+**Declined:**
+- **A per-key write instead of a whole-record one.** It narrows the lost update to the key actually
+  contended, but one session becomes many entries, so `clear`, `regenerate` and `destroy` each become
+  a multi-key operation, and the shared tier has no multi-key atomic step
+  (`rule:core-classes/ratelimit-two-members`).
+- **A request-long lock.** It closes the lost update exactly, but the failure it brings is a wedged
+  session, on the request path of every application whether or not it has concurrent writers.

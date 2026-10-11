@@ -17,3 +17,7 @@ The diagnostics name the living spellings: `var` declares an inferred local
 (`rule:types/var-inference`), `is` tests (`rule:types/narrowing`) and `as` converts
 (`rule:expressions/nullable-conversion`). Like every reserved word, both match in lower case only
 (`rule:classes/reserved-spellings-are-lower-case`).
+
+**Declined:**
+- **Reserving `is` alone and leaving `let` free.** Reserving the second word costs the same as the
+  first, and freeing it again stays possible where taking it back is not.

@@ -25,7 +25,7 @@ tsan = []
 
 [dependencies]
 nvs-runtime.workspace = true
-# ADR 0020 § 3's tier-3 handler is an isolate, so the spawn is `src/ladder.rs`'s — and the record it
+# `rule:errors/handler-script`'s tier-3 handler is an isolate, so the spawn is `src/ladder.rs`'s — and the record it
 # is handed is `nvs_render::Record`, which that module names in its own signature. A leaf crate
 # already in this binary through `nvs-runtime`'s floor; the direct line only makes the spelling
 # sayable here, and closes no cycle because `nvs-render` depends on nothing of ours.
@@ -37,7 +37,8 @@ corosensei.workspace = true
 core_affinity.workspace = true
 # Readiness, one contract over epoll/kqueue/AFD. Not an async runtime — the
 # workspace `Cargo.toml`'s comment above this dependency answers `rule:packaging/a-c-dependency-answers-two-questions`'s
-# two questions, and ADR 0115 § 1 says why a poller is not a `tokio`.
+# two questions, and `rule:concurrency/the-reactor-reports-readiness` says
+# why a poller is not a `tokio`.
 mio.workspace = true
 # TLS, as a wrapper over the stream above rather than a transport beside it —
 # `src/tls.rs` is the whole of it and its module doc owns the trust anchor
@@ -45,7 +46,8 @@ mio.workspace = true
 # `rule:packaging/a-c-dependency-answers-two-questions`, including the part that is spent rather than met.
 rustls.workspace = true
 webpki-roots.workspace = true
-# ADR 0180 § 11's `tlsPin`, which is the SHA-256 of the peer's
+# `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s `tlsPin`,
+# which is the SHA-256 of the peer's
 # SubjectPublicKeyInfo and reaches `src/tls.rs` as the `sha256//<base64>`
 # spelling `curl --pinnedpubkey` already made the one an operator knows:
 # `x509-parser` finds the field in a certificate `rustls` hands over as raw
@@ -54,7 +56,7 @@ webpki-roots.workspace = true
 x509-parser.workspace = true
 sha2.workspace = true
 base64.workspace = true
-# `Core\Test::tlsSession`'s chain (ADR 0217): `src/tls.rs`'s `described` issues a
+# `Core\Test::tlsSession`'s chain: `src/tls.rs`'s `described` issues a
 # real leaf and CA certificate, so every `Core\Http\TlsInfo` member reads a
 # session a test describes exactly as it reads a peer's. The handshake tests in
 # `src/tls.rs` and `net.rs` sign the certificates their real peers present

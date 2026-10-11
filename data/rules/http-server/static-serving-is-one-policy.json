@@ -1,10 +1,7 @@
 {
   "title": "Static serving is one policy in both modes: the exact file, never a listing, one `ETag`, one `Range`, and a `.nvs` file is never served as source",
   "status": "shipped",
-  "because": [
-    "0097",
-    "0074"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/a-request-resolves-in-five-steps",
     "http-server/an-unsafe-or-unbounded-default-is-a-defect"

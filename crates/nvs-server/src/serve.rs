@@ -2213,7 +2213,7 @@ fn finished(mut done: Completion, asked: &HeaderMap) -> Response<Answer> {
 /// **The file is answered by the static policy and by nothing here**, which is
 /// the whole of this function: [`crate::statics::send`] already owns the
 /// media-type table, the `ETag`, the conditional and the range
-/// ([0186](/docs/decisions/0186.md) § 4), and it is the same policy in both
+/// (`rule:security/response-body-is-one-typed-member`), and it is the same policy in both
 /// deployments. So a program that sends a file gets what a mount table serving
 /// the same file gets, rather than a second answer this loop would have to keep
 /// correct — and the bytes are read at the connection, one range's worth,
@@ -8583,8 +8583,9 @@ pub(crate) mod tests {
         // Two framings at once, which is the pair every published technique is
         // built on. RFC 9112 *disambiguates* this one rather than refusing it —
         // the chunked encoding wins and the length is ignored — and `hyper`
-        // follows it, so these two rows are a measured divergence from ADR
-        // 0095's "refused, never repaired" and are asserted as one rather than
+        // follows it, so these two rows are a measured divergence from
+        // `rule:errors/ambiguous-input-refused`'s "refused, never repaired"
+        // (`rule:errors/http-message-defects` names it) and are asserted as one rather than
         // left out of the suite. What makes it safe is the second half of the
         // same rule, and it is what these rows are really about: **the
         // connection does not survive the message**, so the bytes the proxy
@@ -9921,8 +9922,8 @@ pub(crate) mod tests {
         );
     }
 
-    /// A request that fails is a **response**, not a dropped connection: ADR
-    /// 0006's failure is a value, so a request that gave up still leaves the
+    /// A request that fails is a **response**, not a dropped connection: an
+    /// isolate's failure is a value (`rule:security/isolate-failure-is-a-value`), so a request that gave up still leaves the
     /// connection able to answer, and what it answers is `answer`'s decision —
     /// a status and no body.
     ///

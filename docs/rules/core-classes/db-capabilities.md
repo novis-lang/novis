@@ -14,4 +14,17 @@ full.
 `Settings.host` refuses `tainted` and has **no launderer**: no string check can establish that a
 hostname is safe to send credentials to, since a malicious server can answer any query with a
 `LOCAL INFILE` request. `Core\Taint::assertTrusted` is the only way through. `database` and `user`
-accept `tainted` freely, and `password` is `secret tainted string`.
+accept `tainted` freely, being length-prefixed protocol fields rather than parsed text, and `password`
+is `secret tainted string`.
+
+A SQLite file named in a configuration block is covered by `db.connect`; a path a program supplies
+through `open` additionally needs `fs.read` and `fs.write`, and is a path sink. An ungranted name
+throws naming the capability. What the split buys is that the set of databases a deployment can
+reach is enumerable from its configuration; what it costs is that code building a connection target
+at run time does not run until the operator adds a `db.open` grant.
+
+**Declined:**
+- **A host pattern under `db.connect` or `net.connect`.** `db.connect` names configuration blocks, not
+  hosts, and a pattern under `net.connect` would widen the reachable set to every name an attacker
+  can get into that zone's DNS, which is what the pinned address of
+  `rule:http-server/allow-url-pins-the-address` exists to bound.

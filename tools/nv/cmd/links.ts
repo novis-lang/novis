@@ -8,9 +8,9 @@
 // `docs/agent/conventions.md` § *Citing a document* is the home of that rule:
 //
 // - A markdown file is rendered by GitHub and by the website, which resolve a link against the file,
-//   so its links are relative (`../decisions/0067.md`).
+//   so its links are relative (`../agent/conventions.md`).
 // - A source file (`.rs`, `.nvs`, `.nvst`) is rendered by nothing, so its links are absolute from the
-//   repository root (`/docs/decisions/0067.md`). Two shapes there are not paths and are skipped: a
+//   repository root (`/docs/agent/conventions.md`). Two shapes there are not paths and are skipped: a
 //   rustdoc intra-doc link has no `/`, and a link to a rustdoc page ends in `.html`.
 // - A `.py` file is read for bare path mentions only, anchored at a top-level directory. A link in a
 //   tool is usually text it emits into a generated page, and resolves from that page, not from here.

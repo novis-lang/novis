@@ -22,8 +22,8 @@ Rank $r = Rank::Bronze;
 object $o = new Plain();
 
 // PHP orders every one of these by converting an operand first — two
-// strings byte by byte, an array by length, `null` against `false`. ADR
-// 0007 § 2 has no implicit conversion for any of them to be, so the
+// strings byte by byte, an array by length, `null` against `false`.
+// `rule:types/implicit-widening` allows no implicit conversion for any of them, so the
 // ordering does not exist rather than answering something plausible.
 mixed $a1 = $s < $s;
 mixed $a2 = $s <= $s;

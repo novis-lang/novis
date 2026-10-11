@@ -195,7 +195,7 @@ fn an_awaited_result_s_ok_is_not_assignable_to_a_string() {
     );
 }
 
-/// `rule:concurrency/an-upgrade-is-spawn-shaped` opens a connection with "0006's operand", so the rule above
+/// `rule:concurrency/an-upgrade-is-spawn-shaped` opens a connection with `spawn script`'s operand, so the rule above
 /// has a second site — and the accepted method form is the half a member call
 /// could not have got for free: `Chat::run(...)` is a `callable`-typed
 /// expression, and at a `string` parameter it was an ordinary mismatch.
@@ -341,7 +341,7 @@ fn a_secret_fails_to_compile_through_upgrade_args_or_publish() {
     assert!(!plain.has_errors(), "{plain:?}");
 }
 
-/// ADR 0006 § *Failure is a value, not an exception* makes `error` present
+/// `rule:security/isolate-failure-is-a-value` makes `error` present
 /// exactly when `ok` is false, so its type is nullable and a plain binding to
 /// the failure shape is refused.
 #[test]

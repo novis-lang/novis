@@ -31,9 +31,38 @@ A reference chapter that implements a language feature is hashed as its text. Th
 currency rule is what makes a roster of hundreds affordable, and the code rather than the commit is
 what lets a session measure before the wrap commits the tests it spliced into that same file. A
 comment, a card or a reformat cannot change what the binary does, so none of them stales a figure.
-The granularity is still the file rather than the member, which is conservative in the only safe
+An edit to a string literal, an attribute or any other token of shipped code does. A file with a
+bidirectional-text character in any comment keeps its comments in the hash, so there a comment edit
+stales its figures too. The granularity is still the file rather than the member, which is conservative in the only safe
 direction: the cost of being wrong is one command rather than a wrong number.
 
 The gate accepts a record from any machine and only the report's clock columns insist on this one's,
-so a fresh clone owes nothing it already has a current record for. Nothing here gates a build. A
-regression is a row with a delta on it.
+so a fresh clone owes nothing it already has a current record for. Gating on a record from this
+machine would make every new machine owe every figure in the ledger on its first run. Nothing here
+gates a build. A regression is a row with a delta on it.
+
+**Declined:**
+- **Instruction counts under callgrind as the recorded figure.** Callgrind runs on Linux only and
+  about fifty times slower, so a sweep of every feature would take hours on one platform, and a
+  ledger that expensive is not taken. Valgrind is kept for the growth ramp that does not settle
+  (`rule:testing/feature-proofs`).
+- **Hardware performance counters through `perf stat`.** They are near-deterministic and nearly
+  free, but Windows has none and WSL2 does not expose them without host configuration.
+- **Hashing the file with its reference cards kept.** A card is text a hover and `nvs agent show`
+  print, and the bench never reads it, so a card edit would owe a measurement that cannot come out
+  different.
+- **A hash per member rather than per file.** It needs the registry's dispatch mapped onto source
+  ranges, and the file already errs in the safe direction.
+- **A better calibration, with several reference loops instead of one.** It is still a proxy for a
+  clock, and no closer than a tenth.
+- **Refusing to record on a dirty tree.** A dossier session's tree is always dirty with its own proofs
+  when it measures, so the refusal would fire every time. The `impl_hash` and the binary's hash name
+  the code that ran, and `dirty` stays a fact about the tree.
+- **An absolute `units` ceiling per member.** That is the hand-written cost table
+  `rule:testing/bench-counters` refuses. The report's per-complexity ceiling is one advisory number
+  per shape and never a claim about a member.
+- **A symmetric scaling check that also fails a ratio below the declared growth.** A linear member
+  over a short input is dominated by its fixed per-call cost and looks nearly constant, which is not
+  a bug. Only growing faster than declared fails.
+- **A column for PHP or another engine.** This ledger compares Novis with itself
+  (`rule:testing/userland-benchmarks` owns the comparison).

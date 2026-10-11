@@ -115,7 +115,7 @@ you have questions and answers them in one call:
 bun nv peek crates/nvs-ir/src/lower/expr.rs:3065-3120 \
             crates/nvs-types/src/expr/members.rs:@public_property_names \
             rule:types/conversion \
-            docs/decisions/0036.md:"### 4" \
+            docs/agent/conventions.md:"## A rule fragment" \
             "crates/nvs-runtime/src/*.rs:re:slot_get"
 bun nv peek --locate nvs_object_slot_get SlotSet ClassDesc   # file:line, no bodies
 ```
@@ -310,7 +310,7 @@ bun nv select --mutate FILE       # apply each batch of breaking edits FILE list
 bun nv select --mutate FILE --batch N --jobs 16   # one batch only, 16 runs at once
 ```
 
-**The full run catches what the keys missed.** `--full` is the safety net ADR 0226 § 6 names: an atom
+**The full run catches what the keys missed.** `--full` is the safety net `rule:tooling/a-check-runs-only-when-the-change-reaches-its-footprint` names: an atom
 red in it whose last verdict was green and which the selection did not pick is a selection miss. It is
 kept in the store under `select-miss:<platform>:<atom>` until a full run finds the atom green, and the
 command exits 1 while there is one. The loop runs it when the floor gate opens by its count. `--mutate
@@ -457,8 +457,7 @@ refused by name, and the harness warns when the binary is older than the newest 
 timings and their baseline-subtracted halves are printed; wall clock is a **same-host, same-minute** ratio
 and is not comparable across machines, which is why the cross-machine history in
 `rule:testing/perf-two-mechanisms` is counted in instructions instead. This
-suite is the § 3 secondary figure of [0026](../decisions/0026.md), the record behind that rule, in
-runnable form.
+suite is the PHP-ratio secondary figure of `rule:testing/perf-secondary-figures`, in runnable form.
 
 ## The server's throughput, in three legs that are not one series
 

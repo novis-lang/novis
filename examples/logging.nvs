@@ -1,28 +1,7 @@
 <?nvs
-// The escalation ladder's reporting half, as a program: two records a
-// program writes for itself, and the rung above an ordinary `catch`.
-//
-// [ADR 0020](/docs/decisions/0020.md) is the design and
-// its load-bearing claim is about *sameness*: `Core\Log`'s JSON-Lines
-// writer is the same native serialiser the engine floor calls directly, so
-// the two can never disagree about log shape. Two writers that agree today
-// is the failure this arrangement prevents, and it is the same reasoning
-// goal `concurrency` used for one graph copy reached twice rather than two copies.
-//
-// `Core\Log::write` refuses a `secret` argument at the call site — a sink
-// on ADR 0033's axis — while accepting `tainted` freely, because a field is
-// *data* and logging untrusted input is the entire point (ADR 0088 § 7).
-//
-// The third line comes from the child, not from here. An uncaught throw
-// climbs past every `catch` to the operator's handler script, which is
-// named by that entry's own block in `nvs.toml`; the child's failure is a
-// value on this side, exactly as in `examples/capability.nvs`, so this
-// program still exits 0 having watched another one not.
-//
-// The three lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`, and each record names the line it was produced at
-// (`rule:errors/a-record-names-where-it-was-produced`) — so moving a write
-// below moves what that check expects.
+// This program writes two log records, and then runs a child script that fails.
+// `Core\Log::write` does not accept a `secret` value. It accepts a `tainted` value (data from a request).
+// The third line of output comes from the child script. This program still exits with `0`.
 
 Core\Log::write(Core\Log\Level::Info, 'started');
 

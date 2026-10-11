@@ -48,9 +48,9 @@
 //! `rule:http-server/the-floor-cannot-fill-the-disk`
 //! : the floor writes unconditionally, which is correct, so a request that
 //! faults in a loop writes in a loop. [`report`] therefore holds
-//! § 10's second bound — repeated identical records inside
+//! the sink's second bound — repeated identical records inside
 //! [`COALESCING_WINDOW`] become one record carrying [`nvs_render::Envelope::count`].
-//! It sits here rather than on either caller because § 10 puts both bounds on
+//! It sits here rather than on either caller because the rule puts both bounds on
 //! the *sink*, so that no caller has to be trusted to be rare, and here rather
 //! than on [`Ctx::write_diagnostic`] beneath it because this is the layer that
 //! still has a [`Record`] to add a count field to rather than bytes to guess
@@ -722,7 +722,7 @@ mod tests {
         );
     }
 
-    /// ADR 0092 § *Verification*'s M4 bullet: a `secret`-typed property on an
+    /// `rule:errors/record-transformations`: a `secret`-typed property on an
     /// object in a stack frame is redacted in the uncaught record too.
     ///
     /// Novis's frames carry a label and nothing else —

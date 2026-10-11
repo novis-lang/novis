@@ -288,8 +288,7 @@ async function body(transport: Transport, url: string, file: string): Promise<Ui
  * machine costs one small request rather than a download that is refused at the end of it. Nothing
  * here writes anything: a mismatch returns no bytes to a caller who has nothing to remove yet,
  * which is what makes "verify before unpacking" a property of the call rather than a discipline the
- * caller has to keep (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`, and
- * [ADR 0155](../../../docs/decisions/0155.md) § 5).
+ * caller has to keep (`rule:ide/the-extension-guides-an-install-and-never-bundles-one`).
  */
 export async function downloadVerified(
   version: string,

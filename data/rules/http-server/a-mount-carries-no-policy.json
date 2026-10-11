@@ -1,12 +1,7 @@
 {
   "title": "A mount's key set is `prefix`, `host`, `scan`, `entry` and `origin`; `mode`, limits and capabilities belong to the `[[app]]` block",
   "status": "shipped",
-  "because": [
-    "0097",
-    "0104",
-    "0005",
-    "0091"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/a-mount-table-expands-at-boot",
     "http-server/the-mode-ceiling-defaults-to-the-startup-mode",

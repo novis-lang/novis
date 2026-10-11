@@ -3,7 +3,7 @@
 
 # Tooling
 
-*15 of 63 rules below are **designed** rather than shipped, and are marked where they appear.*
+*10 of 63 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -37,7 +37,26 @@ Windows with no edit; Windows gains no kernel shebang support, and its distribut
 single-file executable. This is one lexer branch at offset 0: no parser rule, HIR shape or runtime
 behaviour changes.
 
-<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0100](../decisions/0100.md), [0049](../decisions/0049.md), [0099](../decisions/0099.md), [0095](../decisions/0095.md).</sub>
+**It is a second way a file may begin, and not a second spelling of one.** `<?nvs` separates code
+from the template text around it, and a shebang file has no template text: the marker the operating
+system already requires selects a file kind, a program rather than a template. Every scripting
+engine strips a leading `#!` line, and PHP does too, yet PHP still needs `<?php` on line 2. Python,
+Ruby, Perl, Node and `sh` are in code mode from byte 0. The cost is one sentence of language surface,
+and there is no runtime, latency or memory consequence.
+
+**Declined:**
+- **`<?nvs` still required after a shebang, as PHP requires `<?php`.** One file opening, one rule,
+  but it charges every CLI script a disambiguation that cannot arise. PHP pays it for files older
+  than its command-line mode, and Novis has none.
+- **A second extension, `.nvss`, in code mode from byte 0.** The shebang has to be in the file
+  anyway, so an extension is a second thing to get right, and it splits tooling, editor
+  associations and `require` resolution for no gain.
+- **Every file in code mode by default, with an opt-in for template mode.** The cleanest design
+  from the command line, declined on scope: it overturns inline HTML and `<?=` to save one line in
+  a CLI script. It is the alternative to reopen if the template half of the language is ever
+  reconsidered on its own terms.
+
+<sub>See also [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree).</sub>
 
 <a id="tooling-no-repl"></a>
 
@@ -68,7 +87,7 @@ wherever Novis is compared to Python. It reopens only on evidence that "what is 
 build, and what would be built then is a debugger-shaped inspector over a paused isolate, not a
 general evaluator.
 
-<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink). Decided in [0100](../decisions/0100.md), [0011](../decisions/0011.md), [0042](../decisions/0042.md), [0022](../decisions/0022.md), [0015](../decisions/0015.md), [0079](../decisions/0079.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`tooling/python-claims`](tooling.md#tooling-python-claims), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`testing/test-attribute`](testing.md#testing-test-attribute), [`errors/debug-dump`](errors.md#errors-debug-dump), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file), [`packaging/the-installer-is-a-sink`](packaging.md#packaging-the-installer-is-a-sink).</sub>
 
 <a id="tooling-reflection-and-source-parsing-are-core-features"></a>
 
@@ -94,7 +113,14 @@ observer ordinary code at that site would face, and there is no `setAccessible(t
 into execution, because `eval` does not exist. Neither touches the filesystem, the network or another
 process, so neither needs a capability grant ([`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability)).
 
-<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0019](../decisions/0019.md).</sub>
+**Declined:**
+- **Ship reflection and leave source parsing to a library.** That is the split that lets a
+  third-party grammar drift from the engine's, and avoiding it costs nothing because the compiler's
+  parser already exists.
+- **`setAccessible(true)` or any equivalent.** It would make every access modifier advisory and skip
+  a declared property observer without a trace ([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
+
+<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="tooling-python-claims"></a>
 
@@ -106,6 +132,16 @@ The claim Novis makes against Python is the one Python is worst at: **the tool t
 somebody else.** It is [`programs/audience`](programs.md#programs-audience)'s existing purchase pointed at the command line — a
 second audience below the first and never above it — and it adds no priority, reorders nothing, and
 schedules no milestone of its own.
+
+Python holds the quick script through three things Novis takes none of: the REPL and the notebook,
+being allowed to be wrong and still run, and a numeric stack that is C and Fortran under a Python
+surface. So Novis does not compete there. Handing a Python program to a colleague means a virtualenv,
+an interpreter version or a bundler; a Novis tool is one file. At the command line the missing
+ecosystem also costs far less than on the web: what a quick tool imports — an HTTP client, JSON, CSV,
+regex, a URI parser, hashing, a path type, an argument parser — is already in `Core`. And the
+standing top findings of a Python tooling review, a shell command built from a string, a secret in a
+log line and an interpolated query, are each a compile error here and cannot be retrofitted into
+Python.
 
 **Permitted:** that a Novis CLI program ships as one file with no interpreter, virtualenv or package
 install; that argument parsing, help, completions, colour, prompts and progress are in the binary;
@@ -128,7 +164,16 @@ and no numeric or machine-learning stack and no route to one ([`security/no-ffi`
 No check enforces a forbidden phrasing and none should; the rule exists so a reviewer has something
 to point at.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler). Decided in [0100](../decisions/0100.md), [0080](../decisions/0080.md), [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0048](../decisions/0048.md), [0052](../decisions/0052.md).</sub>
+**Declined:**
+- **Saying nothing about Python.** The command-line surface is built either way, and the two
+  readings of it lead to different builds: a REPL and dynamic escapes under one, neither under the
+  other. A question that changes what gets built is a decision.
+- **Aiming at the prototype: a REPL, relaxed type rules for a script, an unchecked mode.** That niche
+  is decided by the package index and the notebook, and Novis has neither. Loosening the rules to
+  compete there spends the one durable difference, that being wrong does not compile, on a market it
+  cannot win ([`tooling/no-repl`](tooling.md#tooling-no-repl)).
+
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`tooling/no-repl`](tooling.md#tooling-no-repl), [`tooling/bench-engine-list-is-data`](tooling.md#tooling-bench-engine-list-is-data), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/no-ffi`](security.md#security-no-ffi), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host), [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler).</sub>
 
 <a id="tooling-echo-always-has-a-sink"></a>
 
@@ -158,8 +203,7 @@ else.** That is the fail-closed direction, for the terminal sink's own reason: i
 uniform rather than tty-dependent precisely because a CI log is written to a pipe and read by a human
 later, which is exactly what a scheduled run's and a job worker's output is. A context with no
 attached sink does not exist, so `echo` never has an undefined meaning — and where the meaning had to
-be chosen, it was chosen to neutralize. Routing a sinkless context's `echo` to `Core\Log` instead was
-rejected: it silently reshapes free text into the structured writer.
+be chosen, it was chosen to neutralize.
 
 The same table selects a rendering ([`errors/renderings`](errors.md#errors-renderings)): the sink in force decides not only
 where a log record, a dump, a trace or a diagnostic goes but whether it is drawn as plaintext, JSON or
@@ -168,7 +212,14 @@ HTML, so no call site names a format. It also gives `Core\Out::capture` its answ
 than an `echo` the HTML sink would escape into corruption
 ([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate). Decided in [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0092](../decisions/0092.md), [0177](../decisions/0177.md).</sub>
+**Declined:**
+- **Routing `echo` to `Core\Log` in a context with no response and no tty.** It silently reshapes free
+  text into the structured writer, and a scheduled script's output is read by an operator in a terminal
+  often enough that the terminal sink's neutralization is the property that matters there.
+- **Making `echo` a compile error in a context with no sink.** The terminal default leaves no such
+  context, and an error for a construct with a safe, obvious meaning is friction that buys no security.
+
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`errors/renderings`](errors.md#errors-renderings), [`config/a-scheduled-run-is-a-root-isolate`](config.md#config-a-scheduled-run-is-a-root-isolate).</sub>
 
 <a id="tooling-terminal-output-is-a-sink"></a>
 
@@ -182,6 +233,9 @@ and `TAB` pass through; every other C0 byte, `ESC` and `CR` included, becomes it
 Picture (`ESC` → `␛`, `CR` → `␍`); `DEL` becomes `␡`; a C1 code point becomes `�`; an unterminated
 bidirectional control becomes `�` while a balanced one passes ([`security/bidi-predicate`](security.md#security-bidi-predicate)). Twelve
 terminal CVEs in 2022–23 were reached through exactly the output `git`, `less` and `kubectl` print.
+`CR` is on the list because a bare `CR` overwriting its own line is the oldest way to hide text, and
+it needs no `ESC`. A C1 code point loses its identity because several terminals still parse one as a
+CSI introducer, the U+2400 block has no glyph for it, and it is never legitimate text.
 
 The rule is **uniform**. It does not depend on whether the value is `tainted`, because that would make
 *whether output is escaped* hinge on a fact invisible at the `echo` line; and it does not depend on
@@ -196,7 +250,16 @@ is the sink's named launderer, performing exactly this table, for the program th
 neutralized form as a value. A `secret` value is refused outright with no carrier bypass
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), because substitution does nothing for confidentiality.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
+**Memory:** nothing is held. The substitution is one scan over bytes already being written.
+
+**Declined:**
+- **Deleting control bytes rather than substituting them.** It is silently lossy, and it gives up the
+  property that makes the default defensible: the rule shows itself in the output.
+- **Refusing `tainted` at the sink and requiring an explicit launderer.** It puts friction on the most
+  common CLI operation, printing data just read, and that friction trains a developer to reach for a
+  blanket launderer. With no launder step on the ordinary path, there is no omitted call to get wrong.
+
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/an-escape-in-source-text-is-a-compile-error`](tooling.md#tooling-an-escape-in-source-text-is-a-compile-error), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named).</sub>
 
 <a id="tooling-text-is-the-one-raw-path"></a>
 
@@ -219,7 +282,7 @@ sends both the same bytes. Closing it would make the sink's carrier
 ([`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier)) two representations instead of one, and that trade is
 not worth making while `echo` writes standard output and nothing else can observe the difference.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier).</sub>
 
 <a id="tooling-an-escape-in-source-text-is-a-compile-error"></a>
 
@@ -238,7 +301,7 @@ time is to print a **computed** escape sequence, which is the attack the sink ex
 The diagnostic names `Cli\Text` so that a developer who wants colour finds the one raw path
 ([`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path)) instead of concluding that colour does not work.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path).</sub>
 
 <a id="tooling-styling-is-a-value-not-a-grammar"></a>
 
@@ -264,7 +327,15 @@ colours are class constants — `Color::RED` *is* `Color::index(1)`, written sho
 use site as any scalar constant is — and `Color::rgb(uint, uint, uint)` and `Color::index(uint)`
 construct the rest.
 
-<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md).</sub>
+**Memory:** each use of a named colour is one allocation in the request where it appears. Nothing
+is stored for it, and nothing is shared between isolates.
+
+**Declined:**
+- **Raw `"\e[31m"` escapes, or a `"<red>…</red>"` markup string.** Each is a fifth grammar, as above.
+  Typed values cost more keystrokes at the call site, and they are what lets a `Cli\Text` guarantee
+  that it carries no injected sequence ([`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path)).
+
+<sub>See also [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>
 
 <a id="tooling-the-terminal-profile-resolves-once"></a>
 
@@ -288,7 +359,9 @@ presentation one. Resolving once is what makes two reads of the width in one run
 construction, so a program that measures at the top and draws at the bottom cannot tear a frame; the
 cost is that a resize is not noticed until the process restarts.
 
-<sub>See also [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`tooling/display-width-measures-what-the-sink-writes`](tooling.md#tooling-display-width-measures-what-the-sink-writes), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink). Decided in [0086](../decisions/0086.md).</sub>
+**Memory:** one profile of scalar fields for the life of the process, charged to no request.
+
+<sub>See also [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar), [`tooling/display-width-measures-what-the-sink-writes`](tooling.md#tooling-display-width-measures-what-the-sink-writes), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink).</sub>
 
 <a id="tooling-display-width-measures-what-the-sink-writes"></a>
 
@@ -314,7 +387,7 @@ the two [`types/bytes`](types.md#types-bytes) fixed — bytes for `bytes`, graph
 property of the renderer, not of the string; putting it on `Core\Str` would imply a string has an
 intrinsic width, the confusion [`types/string-is-utf8`](types.md#types-string-is-utf8) exists to remove.
 
-<sub>See also [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0086](../decisions/0086.md).</sub>
+<sub>See also [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes).</sub>
 
 <a id="tooling-no-raw-handle-onto-standard-output"></a>
 
@@ -339,7 +412,7 @@ the sink closes. Spinners and table rendering, which are pure text composition o
 than Tier 0 ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). And a TUI widget layer — panes, focus, event loops —
 which is an application framework, not a language surface.
 
-<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0086](../decisions/0086.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink), [`tooling/text-is-the-one-raw-path`](tooling.md#tooling-text-is-the-one-raw-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/tier-placement`](core-api.md#core-api-tier-placement).</sub>
 
 <a id="tooling-the-tty-belongs-to-the-main-task"></a>
 
@@ -358,7 +431,7 @@ throws is claiming the *terminal*; writing text never does. An isolate's `echo` 
 parent owns, never a tty ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)), which is why the two rules are
 consistent rather than in tension.
 
-<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments).</sub>
 
 <a id="tooling-in-place-output-is-a-scoped-live-region"></a>
 
@@ -391,7 +464,16 @@ at that end on every path including a throw. Cursor primitives — `moveUp`, `cl
 survive a resize, they interleave incoherently when two tasks write, and a program that dies holding
 them leaves the operator's shell unusable.
 
-<sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions). Decided in [0086](../decisions/0086.md), [0067](../decisions/0067.md).</sub>
+A resize is not repainted: the profile is resolved once
+([`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once)), so the width a region clamps its rows to is
+fixed for its life. The mutable `Cli\Live` and `Cli\Progress` handles are stateful objects, not value
+types, so the immutability of value types does not bind them, and `progress` is a closed, named
+behaviour built on `live` rather than a second way to write the same thing.
+
+**Memory:** a region holds two frames, the one on screen and the one waiting for the timer, each at
+most the terminal's width times its height, for as long as its `live` call runs.
+
+<sub>See also [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once), [`tooling/no-raw-handle-onto-standard-output`](tooling.md#tooling-no-raw-handle-onto-standard-output), [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions).</sub>
 
 <a id="tooling-a-prompt-is-a-core-member"></a>
 
@@ -416,7 +498,7 @@ controlling terminal, not standard input** — `/dev/tty`, `CONIN$` — so `cat 
 still ask a question; without that, piping and prompting are mutually exclusive, which is the defect
 in every hand-rolled version.
 
-<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/no-ffi`](security.md#security-no-ffi), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0086](../decisions/0086.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0052](../decisions/0052.md).</sub>
+<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/no-ffi`](security.md#security-no-ffi), [`core-api/options-bag`](core-api.md#core-api-options-bag).</sub>
 
 <a id="tooling-a-prompt-never-blocks"></a>
 
@@ -445,7 +527,7 @@ five prompts already meet, so a sixth inherits it. A scripted line wins over a t
 and a queue with nothing left is the unattended run above, so scripting too few answers is assertable
 rather than a hang.
 
-<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute). Decided in [0086](../decisions/0086.md), [0074](../decisions/0074.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/test-attribute`](testing.md#testing-test-attribute).</sub>
 
 <a id="tooling-the-terminal-is-restored-on-every-exit-path"></a>
 
@@ -469,7 +551,7 @@ guard was skipped, so the stack can never keep a region nobody can reach. What i
 the last frame; what is restored is the cursor, and the row below the region is where the next `echo`
 lands.
 
-<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0086](../decisions/0086.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`tooling/the-tty-belongs-to-the-main-task`](tooling.md#tooling-the-tty-belongs-to-the-main-task), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`errors/engine-floor`](errors.md#errors-engine-floor).</sub>
 
 <a id="tooling-commands-are-compiled"></a>
 
@@ -500,7 +582,7 @@ command line is [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](to
 `clap`-shaped builder registered at run time — loses all three compile errors and the generated
 completions, and is the design every other ecosystem already has.
 
-<sub>See also [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`tooling/command-run-dispatches-and-help-is-generated`](tooling.md#tooling-command-run-dispatches-and-help-is-generated), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host). Decided in [0086](../decisions/0086.md), [0077](../decisions/0077.md), [0061](../decisions/0061.md), [0071](../decisions/0071.md).</sub>
+<sub>See also [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`tooling/command-run-dispatches-and-help-is-generated`](tooling.md#tooling-command-run-dispatches-and-help-is-generated), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`programs/implementing`](programs.md#programs-implementing), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`](packaging.md#packaging-nvs-build-compile-appends-the-program-to-a-copy-of-the-host).</sub>
 
 <a id="tooling-a-parameter-is-an-argument-unless-it-is-an-option"></a>
 
@@ -525,7 +607,7 @@ set of allowed values by its word ([`routing/a-capture-narrows-to-a-closed-set`]
 — no new laundering rule exists for the command line. An `#[Option]` written outside a `#[Command]`
 method supplies nothing, because there is no table for it to be a row of.
 
-<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type), [`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments).</sub>
 
 <a id="tooling-command-run-dispatches-and-help-is-generated"></a>
 
@@ -549,7 +631,7 @@ mapping — and baking a convention in would fight it. A CLI has one entry point
 question, so the reason the router stops does not exist here, and stopping anyway would copy its
 shape rather than its reasoning.
 
-<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword). Decided in [0086](../decisions/0086.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`tooling/commands-are-compiled`](tooling.md#tooling-commands-are-compiled), [`tooling/a-parameter-is-an-argument-unless-it-is-an-option`](tooling.md#tooling-a-parameter-is-an-argument-unless-it-is-an-option), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing), [`statements/exit-is-the-only-termination-keyword`](statements.md#statements-exit-is-the-only-termination-keyword).</sub>
 
 <a id="tooling-fmt-is-one-canonical-style"></a>
 
@@ -879,7 +961,7 @@ Each construct with no PER precedent has one layout, chosen once:
 Several of these have exactly one contributor and no convention to defer to. Changing one later is a
 breaking rewrite of every formatted file, the same cost class casing already accepted.
 
-<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template). Decided in [0169](../decisions/0169.md), [0173](../decisions/0173.md), [0267](../decisions/0267.md).</sub>
+<sub>See also [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per), [`tooling/fmt-trailing-commas`](tooling.md#tooling-fmt-trailing-commas), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type), [`enums/declaration`](enums.md#enums-declaration), [`core-classes/html-template`](core-classes.md#core-classes-html-template). Decided in [0267](../decisions/0267.md).</sub>
 
 <a id="tooling-fmt-normalizes-only-reserved-spellings"></a>
 
@@ -924,7 +1006,7 @@ formatter that inserted `public` would make a file's *meaning* depend on whether
 over it, and would restore an implicit default for anyone who formats on save. A file that does not
 compile still does not compile after `nvs fmt`, and its author writes the level they mean.
 
-<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per). Decided in [0094](../decisions/0094.md), [0089](../decisions/0089.md).</sub>
+<sub>See also [`core-api/written-visibility`](core-api.md#core-api-written-visibility), [`tooling/fmt-base-style-is-per`](tooling.md#tooling-fmt-base-style-is-per).</sub>
 
 <a id="tooling-fmt-never-reorders-members"></a>
 
@@ -1023,7 +1105,7 @@ one thing only, since formatting and repair are never one command
 
 <a id="tooling-doc-comment-is-three-slashes"></a>
 
-## A doc comment is exactly `///`; `////` and longer runs are ordinary comments, and `#` never is one  *(designed — not yet in the compiler)*
+## A doc comment is exactly `///`; `////` and longer runs are ordinary comments, and `#` never is one
 
 `rule:tooling/doc-comment-is-three-slashes`
 
@@ -1060,11 +1142,20 @@ request path. A doc comment rendered
 to HTML crosses the bidi boundary the lexer already checks for every comment span
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)), and reuses that check rather than growing a second one.
 
-<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0213](../decisions/0213.md).</sub>
+**Declined:**
+- **`/** */` as the doc comment.** It is the form every PHPDoc tutorial teaches and every editor
+  autocompletes tags into, and a habit is harder to refuse than a grammar.
+- **Refusing a `/** … */` block above a declaration.** It would refuse a comment, which no other rule
+  does, and would turn every converted PHP file into a page of errors before a single `///` was
+  written.
+- **An attribute, `#[Doc("…")]`.** Its payload is a compile-time constant expression, which makes
+  several paragraphs of Markdown hard to write and harder to read in place.
+
+<sub>See also [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case).</sub>
 
 <a id="tooling-doc-comment-attaches-to-the-next-declaration"></a>
 
-## A `///` run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic  *(designed — not yet in the compiler)*
+## A `///` run attaches to the declaration below it across no blank line, and a doc comment attached to nothing is a diagnostic
 
 `rule:tooling/doc-comment-attaches-to-the-next-declaration`
 
@@ -1079,11 +1170,11 @@ written; but then a note and a document are the same token, and only the author 
 Requiring the marker
 ([`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes)) and refusing an orphan keeps the two apart.
 
-<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/strict-docs`](tooling.md#tooling-strict-docs). Decided in [0137](../decisions/0137.md).</sub>
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/strict-docs`](tooling.md#tooling-strict-docs).</sub>
 
 <a id="tooling-doc-comment-tags-are-see-and-example"></a>
 
-## A doc comment is Markdown plus `@see` and `@example`, each of which must resolve, and any other `@tag` is a diagnostic  *(designed — not yet in the compiler)*
+## A doc comment is Markdown plus `@see` and `@example`, each of which must resolve, and any other `@tag` is a diagnostic
 
 `rule:tooling/doc-comment-tags-are-see-and-example`
 
@@ -1123,11 +1214,17 @@ type is in the signature*, and likewise for `@throws` and `@returns`.
 The two tags survive because each buys a *check* — a cross-reference that must resolve, an example that
 must still compile — and a third has to meet the same standard, never merely improve a rendering.
 
-<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0275](../decisions/0275.md).</sub>
+**Declined:**
+- **Prose only, with no tags.** A Markdown link and a fenced block buy neither check.
+- **Per-parameter documentation as a tag.** If a published package needs it the way a `Core` member
+  has it, it is a registry-shaped field in the JSON [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program) emits,
+  never an `@param` line.
+
+<sub>See also [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`types/callable-signature`](types.md#types-callable-signature), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0275](../decisions/0275.md).</sub>
 
 <a id="tooling-strict-docs"></a>
 
-## Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it  *(designed — not yet in the compiler)*
+## Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it
 
 `rule:tooling/strict-docs`
 
@@ -1141,6 +1238,10 @@ implements a method of the same name that has one, on its parent class, on an in
 on any class or interface those extend or implement in turn. The override says what its ancestor already
 says, and `nvs doc` shows the ancestor's comment under it, naming where it comes from. A property and a
 constant inherit nothing, and a method that overrides an undocumented one is reported like any other.
+A property or constant redeclared on a subclass is a new declaration with its own value, so it needs its
+own sentence. The ancestors are walked over the class graph the compiler already built, and the member
+table records which method names were declared with a doc comment, so the check is a walk over names it
+already has.
 
 Why this cannot become the failure mode it is modelled against: an editor that demands a docblock is
 answered with a generated one, and a generated docblock is noise nobody reads and everybody deletes. Here
@@ -1156,7 +1257,17 @@ Until a package manager exists, `--strict-docs` is opt-in only and nothing fires
 publishing turns out to want more than "a public member has a comment" — a minimum length, a required first
 sentence — that is a lint's design and belongs with the publisher.
 
-<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0137](../decisions/0137.md), [0234](../decisions/0234.md).</sub>
+**Memory:** nothing at run time. The member table holds one more set of method names per class, and
+`--strict-docs` pays one walk up the class graph per undocumented public method.
+
+**Declined:**
+- **An explicit marker such as `/// @inheritdoc`.** It is a third tag, which
+  [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example) refuses, and it is a line that says nothing, which
+  is what this rule exists to prevent.
+- **Inheriting only from interfaces.** Overriding a documented parent method has the same problem, and
+  one rule for both is simpler.
+
+<sub>See also [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`tooling/doc-comment-attaches-to-the-next-declaration`](tooling.md#tooling-doc-comment-attaches-to-the-next-declaration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
 
 <a id="tooling-a-todo-is-a-comment-the-tools-list"></a>
 
@@ -1210,19 +1321,27 @@ own ([`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-
 What it adds to the document is reading, never deciding. A page names the class's parent and interfaces
 from the document's `extends` and `implements`, and a method with no doc comment of its own shows the one
 it inherits by following those same keys to the nearest documented method of the same name — the comment
-[`tooling/strict-docs`](tooling.md#tooling-strict-docs) accepts for it. A name with a page in the same run becomes a link, and one
-without stays code.
+[`tooling/strict-docs`](tooling.md#tooling-strict-docs) accepts for it, after a line `Inherited from <Owner::name>.` naming where it
+comes from. A method inherited from a `Core` class or interface shows no inherited comment, because a
+`Core` member has no page in the run. A name with a page in the same run becomes a link, and one
+without stays code. `parent::` in a `@see` names the page's `extends`, and a member whose `kind` is
+`static` is printed with `static ` in front of its signature.
 
 It renders text the lexer has already accepted, so it needs no bidi check of its own
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)). This repository does not itself need it — the one-file reference and the
 website already cover every in-tree consumer — and it exists for a user's own project and for the package
 ecosystem that does not exist yet, which is why it is kept cheap to replace.
 
-<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program). Decided in [0137](../decisions/0137.md), [0234](../decisions/0234.md).</sub>
+**Declined:**
+- **Copying an inherited comment into the `nvs meta --json` document.** The document would then say a
+  member has a doc comment it does not have, and a consumer could not tell the two apart. The renderer
+  follows the `extends` and `implements` edges the document already carries.
+
+<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program).</sub>
 
 <a id="tooling-one-json-several-renderers"></a>
 
-## `nvs meta --json` is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content  *(designed — not yet in the compiler)*
+## `nvs meta --json` is the one machine-readable source of documentation, every renderer consumes it, and no renderer is authoritative for content
 
 `rule:tooling/one-json-several-renderers`
 
@@ -1250,7 +1369,7 @@ The fourth arm answers a coding agent rather than a reader ([`tooling/an-agent-a
 and it is on this diagram for the reason the others are: it renders at the call and holds nothing, so
 the binary that compiles a program is the binary that documents it.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md), [0167](../decisions/0167.md).</sub>
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/nvs-doc-renders-and-decides-nothing`](tooling.md#tooling-nvs-doc-renders-and-decides-nothing), [`core-api/reference-card`](core-api.md#core-api-reference-card).</sub>
 
 <a id="tooling-meta-json"></a>
 
@@ -1278,7 +1397,7 @@ succeed by printing nothing. A consumer ignores fields it does not know, so a fi
 renamed or moved; a consumer on a toolchain without the subcommand treats it as "no registry docs yet",
 never as an error. `docs/novis.md` and the website's core data are both built from this command alone.
 
-<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers). Decided in [0117](../decisions/0117.md), [0167](../decisions/0167.md).</sub>
+<sub>See also [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/field-wise-precedence`](core-api.md#core-api-field-wise-precedence), [`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name), [`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers).</sub>
 
 <a id="tooling-meta-json-takes-a-program"></a>
 
@@ -1305,12 +1424,28 @@ A user class also names its lineage: `extends` is its parent class and `implemen
 lists, in the order written, and an interface's `extends` is the list of interfaces it extends. Every one
 of them is **fully qualified**, resolved through the declaring file's namespace and `use` imports the way
 the compiler resolves it, and each key is omitted when the declaration has none. Only what the declaration
-itself writes is listed; an interface reached through the parent is on the parent's entry.
+itself writes is listed; an interface reached through the parent is on the parent's entry. The resolution
+is `nvs_hir::resolve_ref`, the function the compiler uses, so a consumer reads a class's lineage without
+resolving a name itself, and a consumer that wants every ancestor walks the edges. A static method's
+`static` is the member's `kind`, never part of its `signature`, which is the member's own spelling as the
+registry writes it.
 
 The no-argument form must emit byte-identical output before and after the argument exists: the seam is
 one input added to one document, never a fork.
 
-<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0137](../decisions/0137.md), [0117](../decisions/0117.md), [0233](../decisions/0233.md).</sub>
+**Memory:** nothing at run time; this is compile-time output. The document grows by one short string per
+lineage edge.
+
+**Declined:**
+- **The names as written.** `Item` means `Shop\Item` only in the file that imported it, so a renderer
+  would have to repeat the compiler's resolution to link it, which is the second resolver
+  [`statements/one-function-resolves-every-name`](statements.md#statements-one-function-resolves-every-name) forbids.
+- **The transitive closure of every ancestor.** It repeats each edge on every descendant, and a
+  renderer could no longer tell a direct parent from an inherited one.
+- **`static` inside `signature`.** The signature is the member's own spelling, the same as the
+  registry's, where `kind` already carries `static`; adding it would make the two halves disagree.
+
+<sub>See also [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case).</sub>
 
 <a id="tooling-an-agent-asks-the-binary"></a>
 
@@ -1328,7 +1463,9 @@ describe a version that is not installed.
 
 A keyword is grammar and no member is named for it, so the registry alone leaves `autoload`, `require`
 and `match` unfindable, and an agent told that an empty `find` means "no such name" concludes the
-language lacks them. The chapters are therefore on the same index under the same two verbs, and not
+language lacks them. Every syntactic form the language has is therefore a heading `find` reaches,
+and an empty `find` says that a keyword may sit under a heading that does not name it. The chapters
+are on the same index under the same two verbs, and not
 behind a fifth command: `nvs agent init`'s pointers name these four, and a verb added later is one no
 agent learns of until every installed pointer has been rewritten to name it.
 
@@ -1349,8 +1486,39 @@ exit status says it failed. The shape is sketched in `crates/nvs-cli/src/agent.r
 The protocol is three calls and a check: read `primer` once, `find` a name, `show` its card, then
 `nvs check`. A diagnostic is the cheapest documentation the system has — it is read only by the agent
 that got something wrong — so the check loop is part of the surface rather than an alternative to it.
+That is why two diagnostics name their own fix: an undefined member gives a `help:` line with the
+nearest declared name (`crates/nvs-hir/src/members.rs:1463`), and a capability denial gives one naming
+the `nvs.toml` table that grants it (`crates/nvs-runtime/src/capability.rs:256`).
 
-<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`tooling/an-adapter-carries-protocol-and-never-language`](tooling.md#tooling-an-adapter-carries-protocol-and-never-language), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document). Decided in [0167](../decisions/0167.md).</sub>
+The surface exists because no model has Novis in its weights, so every agent writes it from what it is
+handed at the time, on every session. The prior a model does hold is the harder part: Novis reads like
+PHP and rejects most of PHP's syntax, so a confident guess is wrong in a systematic way. And the whole
+reference is far larger than a context window while the flattened `Core` surface is small, so an
+agent can hold every name the language has and still have room to work; what it cannot hold is the
+prose around them. A primer read once and a lookup of a few hundred tokens each is the cost that fits.
+
+- **Memory:** nothing on the request path. `nvs agent` is a CLI-only path over the document the binary
+  already builds for `nvs meta --json`, and no server, isolate or request reaches it. What it spends is
+  simplicity: one subcommand and one renderer in the binary.
+
+**Declined:**
+- **A smaller hand-written document.** It goes stale while the language is still adding members, and
+  its completeness is whatever its author remembered, so an empty search over it proves nothing.
+- **An MCP server.** It answers the same questions over a protocol fewer harnesses speak, needs a
+  running process, and buys nothing over a subcommand any agent can already run. It would be one more
+  pointer ([`tooling/an-adapter-carries-protocol-and-never-language`](tooling.md#tooling-an-adapter-carries-protocol-and-never-language)).
+- **Vendoring the primer and the index into the user's project.** A copy on disk goes stale silently,
+  adds diff noise to the user's repository, and brings back the shell-quoting trap `find` removes. An
+  agent handed a broken pointer to such a copy rebuilds it from the binary, so the binary is the pointer.
+- **Teaching the agent through the LSP.** `nvs-lsp` answers an editor's questions at a cursor; an agent
+  has no cursor, and most harnesses do not speak the protocol.
+- **An embedded form, `nvs agent init --embed`, writing the primer to disk** for a sandbox that cannot
+  run the binary per session. Nothing has asked for it, and it is stale the moment it exists.
+- **A heading for every lexer keyword.** The keyword table carries every spelling Novis refuses too,
+  `and`, `goto` and `global` among them, and a heading per refused word is the wrong shape. The guard
+  is a fixed list of the syntactic forms Novis has.
+
+<sub>See also [`tooling/one-json-several-renderers`](tooling.md#tooling-one-json-several-renderers), [`tooling/meta-json`](tooling.md#tooling-meta-json), [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`tooling/an-adapter-carries-protocol-and-never-language`](tooling.md#tooling-an-adapter-carries-protocol-and-never-language), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document).</sub>
 
 <a id="tooling-the-index-is-one-line-per-member"></a>
 
@@ -1375,7 +1543,8 @@ on, written after it in brackets: `Core\IO::read(string $path): string  [fs.read
 joined from [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)'s one table at render time, never
 copied onto a member row — that table's own rule refuses a per-member field, and this reads it rather
 than reshaping it. So an agent learns the gate from the name of the thing it is about to call, which is
-where every arm of `0167`'s investigation was stopped.
+where an agent nobody told about capabilities is stopped: a correct program that reads a file does not
+run until `nvs.toml` grants the read.
 
 A chapter's line is `<id>  chapter: <title>` and a heading's is `<id>#<slug>  section: <heading>`, the
 slug being the heading in lowercase with every run of anything but a letter or a digit written as one
@@ -1385,7 +1554,7 @@ and a `#` is in no other symbol, so a section can never shadow one.
 A line carries no behaviour: what `header: true` does to a row is the card's answer, which is what
 `show` is for.
 
-<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/meta-json`](tooling.md#tooling-meta-json), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door). Decided in [0167](../decisions/0167.md).</sub>
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/meta-json`](tooling.md#tooling-meta-json), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door).</sub>
 
 <a id="tooling-the-index-names-every-key-command-and-code"></a>
 
@@ -1408,11 +1577,21 @@ hidden commands and flags left out, and the diagnostics crate's code list, which
 the codes writes — and kept nowhere, which is [`testing/roster-is-derived`](testing.md#testing-roster-is-derived)'s shape: a key, a flag
 or a code that lands owes its line at once, and nobody edits a list.
 
-The entries are exact names, never a search of the text under a heading. A full-text match answers
-one word with every section that mentions it, and an empty answer from it no longer means that the
-name does not exist, which is the property [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member) keeps.
+The entries are exact names, never a search of the text under a heading, so an empty answer still
+means that the name does not exist, which is the property [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member)
+keeps. Building the lines is more work per `find`, and it is a command-line lookup that no request
+path reaches.
 
-<sub>See also [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member), [`tooling/a-diagnostic-code-carries-its-card`](tooling.md#tooling-a-diagnostic-code-carries-its-card), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0216](../decisions/0216.md).</sub>
+**Memory:** nothing held. The lines are derived at the call and kept nowhere.
+
+**Declined:**
+- **A full-text search over every section.** It answers one word with every section that mentions
+  it, which an agent has to read through, and an empty answer from it no longer means the name does
+  not exist.
+- **Full text beside the exact entries, exact entries first.** It has the same loose matches after
+  the exact ones, and it is more to build and to test.
+
+<sub>See also [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member), [`tooling/a-diagnostic-code-carries-its-card`](tooling.md#tooling-a-diagnostic-code-carries-its-card), [`testing/feature-proofs`](testing.md#testing-feature-proofs).</sub>
 
 <a id="tooling-a-diagnostic-code-carries-its-card"></a>
 
@@ -1434,7 +1613,15 @@ A code lands with its card, as a `Core` member does ([`core-api/reference-card`]
 landed before cards existed are named in a list of codes still owing one, a test holds the list and
 the cards together, and a code is deleted from the list in the commit that gives it its card.
 
-<sub>See also [`tooling/the-index-names-every-key-command-and-code`](tooling.md#tooling-the-index-names-every-key-command-and-code), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0216](../decisions/0216.md).</sub>
+The contributor's `///` cites rules a user cannot open, so without a card a user who meets an error
+has nothing in the binary to read. An agent reads an empty answer as a name the language lacks
+([`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary)), so a code with no card is a wrong answer, not a missing
+page.
+
+**Memory:** the cards are static strings in the binary, per process and never per request: a few
+hundred bytes per code.
+
+<sub>See also [`tooling/the-index-names-every-key-command-and-code`](tooling.md#tooling-the-index-names-every-key-command-and-code), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`testing/feature-proofs`](testing.md#testing-feature-proofs).</sub>
 
 <a id="tooling-a-primer-claim-is-executed"></a>
 
@@ -1464,7 +1651,11 @@ agent that writes a PHP habit meets the diagnostic for it at its first `nvs chec
 Its budget is a low four figures of tokens, and it is met by what the primer selects — never by
 trimming what a selected section says.
 
-<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member). Decided in [0167](../decisions/0167.md), [0274](../decisions/0274.md).</sub>
+**Declined:**
+- **A size gate on the primer.** Trimming prose against a tripwire cuts what a section says rather
+  than what the primer selects, so the budget is held by review and nothing else.
+
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/the-index-is-one-line-per-member`](tooling.md#tooling-the-index-is-one-line-per-member). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="tooling-an-adapter-carries-protocol-and-never-language"></a>
 
@@ -1504,7 +1695,7 @@ That is what keeps the adapter list open. Another harness is another short point
 decides nothing and reopens nothing, and none of them can disagree with the language, because none of
 them says anything about it.
 
-<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0167](../decisions/0167.md), [0256](../decisions/0256.md), [0260](../decisions/0260.md).</sub>
+<sub>See also [`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary), [`tooling/a-primer-claim-is-executed`](tooling.md#tooling-a-primer-claim-is-executed), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0256](../decisions/0256.md), [0260](../decisions/0260.md).</sub>
 
 <a id="tooling-bench-engine-list-is-data"></a>
 
@@ -1533,9 +1724,23 @@ need it and carries a comment saying why.
 
 **Neither Python nor Bun is a toolchain dependency.** A missing twin skips that engine with a warning
 and an uninstalled engine is narrowed away with `--engines`, so neither can turn a build, a test or a
-loop session red — nothing outside this suite reads any of it.
+loop session red — nothing outside this suite reads any of it. The cost is that a default run is
+slower, because CPython is far behind the other engines on these loops and pays that on every rep;
+`--engines nvs,php` and the case patterns are the escape. Every twin is one more file to keep in
+step, and the byte-identical gate is what stops one rotting silently.
 
-<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims). Decided in [0100](../decisions/0100.md), [0026](../decisions/0026.md), [0065](../decisions/0065.md).</sub>
+**Declined:**
+- **A Python column transliterated from the PHP cases.** A transliteration measures how badly one
+  language writes another's idiom, and the arithmetic exception is stated as one so it is not read
+  as licence for more.
+- **PyPy as well as CPython, or instead of it.** CPython is what a tool is actually run under, and a
+  second Python engine doubles the twins to sharpen a comparison the command-line audience never
+  meets. `--engines` makes adding one later a flag.
+- **Leaving Bun out because the command-line audience is not switching from it.** Bun is the
+  closest engine to what Novis is trying to be, a fast JIT behind a scripting surface with the
+  batteries in the binary, so its numbers are the ones that test this project's own claims.
+
+<sub>See also [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks), [`testing/perf-secondary-figures`](testing.md#testing-perf-secondary-figures), [`tooling/python-claims`](tooling.md#tooling-python-claims), [`programs/three-claims`](programs.md#programs-three-claims).</sub>
 
 <a id="tooling-telemetry-is-two-opt-ins"></a>
 
@@ -1556,14 +1761,27 @@ everything held locally. What is recorded is a closed set of operator actions
 sent ([`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload)).
 
 The verb is `update-check`, not `update`, on purpose: `nvs update` is the package resolver's, and the two
-never collide. Opt-out telemetry gives bigger numbers and is the wrong default for a runtime whose first
-priority is that operators can trust it; the undercount is accepted and stated, with download counts and
-cronned update checks as the correction.
+never collide.
+
+The population worth measuring is the developers and operators who run `nvs`, most of them as an HTTP
+server. `nvs serve` is itself a command, so the boundary is not the CLI against the server: it is
+operator actions against traffic, and local writes against network uploads. Download and pull counts
+need no runtime code and keep working for hosts that never opt in; they are the floor this sits on.
+The undercount is accepted and stated: opt-in telemetry reports a small share of the real population,
+and a deployed server whose operator never runs another command records forever and uploads never.
+Download counts and cronned update checks are the correction.
 
 **Not shipped.** Nothing in `crates/` implements any of this; the implementing slices are scheduled after
 the parity chain's goals reach acceptance, and the reference says nothing of it until then.
 
-<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest). Decided in [0130](../decisions/0130.md).</sub>
+**Declined:**
+- **Opt-out telemetry.** It gives bigger numbers and is the wrong default for a runtime whose first
+  priority is that operators can trust it.
+- **An `X-Powered-By`-style response header as measurement.** It measures nothing by itself, since only
+  someone else's crawl counts it, and it discloses a version on every response to visitors who never
+  consented. That spends security and request isolation for data the project never receives.
+
+<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`packaging/a-package-is-its-digest`](packaging.md#packaging-a-package-is-its-digest).</sub>
 
 <a id="tooling-telemetry-counters-are-a-closed-set"></a>
 
@@ -1585,11 +1803,13 @@ no environment.
 **Nothing derived from traffic is ever counted.** `nvs serve` incrementing `invocation.serve` at startup
 records the operator's action; request counts, routes, headers and anything else the internet sent belong
 to the site's visitors, who never consented, and are permanently out of schema — not merely off by
-default. The counter file is provably a function of what the operator did. What it spends: a few KiB in
-one local file per user and one buffered append per invocation — for `nvs serve`, once at startup before
-the listener binds — and nothing on the request path.
+default. The counter file is provably a function of what the operator did.
 
-<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures). Decided in [0130](../decisions/0130.md).</sub>
+- **Memory:** a few KiB in one local file per user, and one buffered append per invocation. For
+  `nvs serve` that append happens once, at startup, before the listener binds. Nothing is spent on the
+  request path.
+
+<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/telemetry-show-prints-the-payload`](tooling.md#tooling-telemetry-show-prints-the-payload), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures).</sub>
 
 <a id="tooling-telemetry-show-prints-the-payload"></a>
 
@@ -1608,7 +1828,7 @@ user-facing statement of what is collected. The service side's contract is publi
 only, no IP retention, and the aggregated data itself public, so anyone can see exactly what the project
 sees.
 
-<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration). Decided in [0130](../decisions/0130.md).</sub>
+<sub>See also [`tooling/telemetry-counters-are-a-closed-set`](tooling.md#tooling-telemetry-counters-are-a-closed-set), [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration).</sub>
 
 <a id="tooling-a-serving-process-never-uploads"></a>
 
@@ -1623,16 +1843,20 @@ never sent, and a second upload inside the same week is refused locally.
 The upload is carried by the next short-lived, user-initiated invocation that notices "telemetry is on and
 a finished week is unsent". `nvs update-check` is the natural carrier — an ops team cronning it on
 production boxes is exactly the short-lived process this rule wants — and `nvs telemetry upload` exists
-for schedulers that want only that. There is no daemon, no timer and no background process; that is the
-shape people distrust even when opted in, and a second long-lived process to secure.
+for schedulers that want only that. There is no daemon, no timer and no background process.
 
 **A process that has bound a socket records and never uploads.** The auditable claim is one sentence:
 `nvs serve` makes zero outbound telemetry connections, under load, while still incrementing
-`invocation.serve`. Uploading from the serving process even once at startup was rejected because it breaks
-that sentence. Every claim here is testable against a local listener, because the endpoint is
+`invocation.serve`. Every claim here is testable against a local listener, because the endpoint is
 configuration ([`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration)).
 
-<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns). Decided in [0130](../decisions/0130.md).</sub>
+**Declined:**
+- **A background daemon or timer that phones home.** It is the shape people distrust even when opted
+  in, and a second long-lived process to secure. An upload is carried, never initiated by a resident
+  process.
+- **Uploading from the serving process, even once at startup.** It breaks the one-sentence claim above.
+
+<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns).</sub>
 
 <a id="tooling-a-failed-upload-never-fails-the-command"></a>
 
@@ -1650,7 +1874,7 @@ An operator who opted in is lending a command they ran for another reason
 one honest line, never a failed cron job or a changed exit code
 ([`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture)).
 
-<sub>See also [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture). Decided in [0130](../decisions/0130.md).</sub>
+<sub>See also [`tooling/a-serving-process-never-uploads`](tooling.md#tooling-a-serving-process-never-uploads), [`tooling/update-check-states-the-whole-picture`](tooling.md#tooling-update-check-states-the-whole-picture).</sub>
 
 <a id="tooling-update-check-states-the-whole-picture"></a>
 
@@ -1669,7 +1893,7 @@ when something is slow, and follows the terminal's conventions. The exit status 
 update exists and whether or not a telemetry send succeeded
 ([`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command)); automation reads the JSON.
 
-<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink). Decided in [0130](../decisions/0130.md).</sub>
+<sub>See also [`tooling/telemetry-is-two-opt-ins`](tooling.md#tooling-telemetry-is-two-opt-ins), [`tooling/a-failed-upload-never-fails-the-command`](tooling.md#tooling-a-failed-upload-never-fails-the-command), [`config/telemetry-and-update-endpoints-are-configuration`](config.md#config-telemetry-and-update-endpoints-are-configuration), [`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink).</sub>
 
 <a id="tooling-the-repository-tools-are-one-bun-program"></a>
 
@@ -1689,9 +1913,18 @@ of the `covws` build, and it has no dependencies. `bun nv audit python` fails on
 name as allowed, and on a document that tells a reader to run a Python tool.
 
 This is the repository's tooling, not the language's: nothing here reaches the `nvs` binary, a Novis
-program or a request.
+program or a request. What it costs is that every developer and every CI job needs Bun, which is one
+binary on Windows, macOS and Linux.
 
-<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited). Decided in [0221](../decisions/0221.md), [0224](../decisions/0224.md), [0226](../decisions/0226.md).</sub>
+**Declined:**
+- **Keeping the Python scripts.** Each script carried its own parser for a shape another script also
+  parsed, and two readers of one shape drifted apart.
+- **More runtime dependencies**, such as a schema or a command-line library. Each one is a
+  supply-chain input to every contributor's machine, and the schema builder is a few hundred lines.
+- **Reading Rust source with regular expressions over lexed text.** A wrong match there does not fail
+  loudly: it gives two different programs one digest, and a check that should run is skipped.
+
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited).</sub>
 
 <a id="tooling-a-repository-fact-is-one-json-record"></a>
 
@@ -1703,17 +1936,23 @@ A fact a repository tool reads — a goal, the chain, a rule's structure, a deci
 a playbook bullet, a plan field — is one JSON file under `data/`, holding one entity. Its type is
 declared once in `tools/nv/schema/`, and that declaration is the static type, the runtime check and
 the JSON Schema together. `tools/nv/lib/store.ts` is the only code that writes a record: keys in
-schema order, two-space indent, LF and one trailing newline. So one value has one text, and git merges
-two edits to one record line by line.
+schema order, two-space indent, LF and one trailing newline. So one value has one text, loading a
+record and writing it back changes nothing, and git merges two edits to one record line by line. No
+record is TOML.
 
 An id is a slug or a number, and it never changes. A reference is an id, and `bun nv check` fails on
 one that names no record.
 
 Prose stays under `docs/` at its own path — a rule fragment, a decision record, a goal's prose, a
 reference chapter — so every citation into it still resolves. Where a prose file repeats a field a
-record holds, the record is the authority and a check compares the copy to it.
+record holds, the record is the authority and a check compares the copy to it. A shape that once had
+a checker of its own is a schema, and `bun nv check` is the one audit of all of them.
 
-<sub>See also [`tooling/the-repository-tools-are-one-bun-program`](tooling.md#tooling-the-repository-tools-are-one-bun-program), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited). Decided in [0221](../decisions/0221.md).</sub>
+**Declined:**
+- **TOML records.** A second writer cannot reproduce a TOML file's text from its value without a
+  formatting library, and JSON is what the website and the editors already read.
+
+<sub>See also [`tooling/the-repository-tools-are-one-bun-program`](tooling.md#tooling-the-repository-tools-are-one-bun-program), [`tooling/a-rendered-file-is-committed-and-never-edited`](tooling.md#tooling-a-rendered-file-is-committed-and-never-edited).</sub>
 
 <a id="tooling-a-rendered-file-is-committed-and-never-edited"></a>
 
@@ -1730,9 +1969,13 @@ The command that writes it has a check form that writes nothing and fails when t
 matches its sources — `bun nv render --check` for the website's pages and data, `bun nv rules --render
 --check` for the rulebook's chapters and `docs/ground-rules.md`. CI's `docs` job runs both. After a
 merge conflict in a rendered file, it is rendered again from the merged
-records, never merged by hand.
+records, never merged by hand. A rendered file shows in a diff beside the record change that caused it.
 
-<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0221](../decisions/0221.md).</sub>
+**Declined:**
+- **Rendering on demand and committing nothing generated.** GitHub would show no rulebook, and a
+  reader would need Bun to read the rules.
+
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record).</sub>
 
 <a id="tooling-the-chain-names-its-live-goal"></a>
 
@@ -1757,7 +2000,16 @@ check that proves more than a suite becomes a test before its goal is reached.
 The runtime state stays git-ignored: the selection store in `.cache/select.sqlite`, and looper's run
 state under `.loop/`. It is per machine, and a fresh clone owes nothing it holds.
 
-<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0222](../decisions/0222.md), [0225](../decisions/0225.md), [0226](../decisions/0226.md), [0262](../decisions/0262.md).</sub>
+**Declined:**
+- **Keeping the live goal in the git-ignored run state.** A fresh clone has no such file, so it has no
+  live goal: the orientation and CI read nothing, and a push hook that needs the live goal refuses
+  every push.
+- **Carrying a reached goal's test checks into a floor, whole or reduced to one check per crate and
+  per case tree.** Most of them re-run what `bun nv verify` already runs, and the floor grows with
+  every goal reached. A check written for an early goal also pins that goal's view of the engine, so
+  when the engine moves on a session has to edit the record of a goal it has never seen.
+
+<sub>See also [`tooling/a-repository-fact-is-one-json-record`](tooling.md#tooling-a-repository-fact-is-one-json-record). Decided in [0262](../decisions/0262.md).</sub>
 
 <a id="tooling-a-check-runs-only-when-the-change-reaches-its-footprint"></a>
 
@@ -1784,6 +2036,14 @@ starts. A bench is judged on the release build, so `bun nv affected --run` judge
 change itself reaches, and the loop judges every selected bench, owed, red and new ones included,
 whenever its floor gate is open. `tools/nv/select/` is the one engine all four ask, `select.ts` there holds the rule and
 `keys.ts` the keys, and `bun nv select --explain <atom>` says why one atom was chosen or not.
+
+The footprint is observed rather than predicted because a prediction at crate granularity cannot tell
+a function body a program runs from one it does not: an edit to one body re-ran thousands of cases,
+and every narrowing of it was a claim someone had to prove and remember. An atom's footprint is the
+union of its runs since its definition last changed, pruned of items that no longer exist, so a path
+a run takes only sometimes is kept once it has been seen. Footprints are kept per platform, because
+what an atom does differs between Windows and a Linux leg, and `bun nv select --seed` records every
+atom from nothing for a new platform or a lost store.
 
 What coverage cannot see is closed over the reference graph `tools/nv-scan --items` reads: a const, a
 static, a type or a table moves every item whose name Rust can resolve to it, which in another package
@@ -1816,8 +2076,14 @@ read records `*`, which every change reaches until a twin is read again. A check
 is never answered from the store, and
 `bun nv loop --goal-only --full` runs every atom of every check.
 
-**Every third goal end runs every heavy check and both legs**, whatever changed. That is the safety net
-for the twins' keys. The goal-end sweeps between those run what their goal reached.
+A heavy check keyed on every file of every crate it builds would be reached by almost any Rust change,
+so the goal-end sweep would pay for all of them at nearly every goal end; the twin is what keeps a
+change that reaches none of its code from running it. A twin is paid only when its heavy check runs.
+
+**Every third goal end runs every heavy check and both legs**, whatever changed, and so does a store
+with no count yet. That is the safety net for the twins' keys, and it is what holds the code no twin
+observes: a path only a release build takes, and server-only dialect code outside `nvs-db` that the
+SQLite leg never calls. The goal-end sweeps between those run what their goal reached.
 
 **The full run is the safety net.** `bun nv select --full` runs and records every atom that is not
 heavy, whatever changed, and the loop runs it when the floor gate opens by its count. An atom red there
@@ -1827,4 +2093,30 @@ nothing: it applies one batch of breaking edits at a time, runs every atom that 
 copy of the store named by `NV_SELECT_STORE`, requires every red atom to have been selected, and
 reverts the edits.
 
-<sub>See also [`tooling/the-chain-names-its-live-goal`](tooling.md#tooling-the-chain-names-its-live-goal), [`tooling/the-repository-tools-are-one-bun-program`](tooling.md#tooling-the-repository-tools-are-one-bun-program). Decided in [0226](../decisions/0226.md), [0227](../decisions/0227.md).</sub>
+- **Memory:** nothing at run time; this is the development machine's disk, never a request's. The
+  store and the coverage-map cache under `.cache/select/covmap/` are per machine and git-ignored, and
+  grow with the number of atoms and builds, never with the number of runs. Each run's raw profile is
+  deleted as it is read. The `covws` build takes the place of the pipeline's `target/debug`, at about
+  the same size, and a selected proof program runs twice.
+
+**Declined:**
+- **Refining the static keys with finer tiers, more partitions and more exception lists.** Each
+  refinement moved the over-selection somewhere else rather than removing it.
+- **A static call graph read with `syn`.** Dynamic dispatch, the registry's lookup by name, JIT code
+  calling Rust helpers through `no_mangle` symbols and closures passed across crates all hide the
+  edges that matter, so the graph is unsound exactly where the runtime is interesting.
+- **Judging proof programs on an instrumented optimized build.** Instrumentation slows an attack
+  severalfold and some far more, which changes what an attack's time limit means. Recording on a
+  second debug run costs no build and leaves the verdict on the uninstrumented one. A perf guard's
+  margins would change meaning the same way, so no release test is recorded on an instrumented build.
+- **Keying a Linux leg on a copy of its fixtures' footprints.** The copy goes stale between leg runs
+  when a fixture's own footprint grows. Selecting the leg through the fixtures' own atoms reads the
+  live footprints.
+- **Running a Linux leg over only the fixtures the change reached.** A fixture reached while the floor
+  gate is shut would need a Linux owed state of its own. The leg's cost is fixed, so what is cut is how
+  often it runs.
+- **Running every heavy check at every goal end, or at a much longer interval.** Every goal end is the
+  cost the twins remove. A long interval lets a missed heavy regression wait too long, and one in three
+  is about as often as the floor gate's full run.
+
+<sub>See also [`tooling/the-chain-names-its-live-goal`](tooling.md#tooling-the-chain-names-its-live-goal), [`tooling/the-repository-tools-are-one-bun-program`](tooling.md#tooling-the-repository-tools-are-one-bun-program).</sub>

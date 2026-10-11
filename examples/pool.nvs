@@ -2,7 +2,7 @@
 // The pool has a ceiling, and a request that arrives at it waits before it is
 // refused.
 //
-// [ADR 0067](/docs/decisions/0067.md) § 13 sizes a pool per core: `max` is
+// A pool is sized per core. `max` is
 // how many connections one core may hold open under a block — so a
 // deployment's ceiling on the server is `cores × max`, which is the number an
 // operator sizes `max_connections` against — and `acquire` is how long a
@@ -130,7 +130,7 @@ echo 'usable=', Ceiling::one($db, 'select 1 as n'), "\n";
 // § 13's wait is a **park**: the core is handed back while a request queues for
 // a slot, so it runs other work in the meantime rather than standing still.
 // This is the only shape that can show it from a program — `Core\Task::all`
-// (ADR 0072 § 1) puts two children on this core, one asking the full pool for
+// puts two children on this core, one asking the full pool for
 // the connection `$db` is still holding and one doing plain work beside it. A
 // task child sees this request's configuration, which is what lets a
 // capability-gated member run inside one at all (`Ctx::child`'s doc owns why

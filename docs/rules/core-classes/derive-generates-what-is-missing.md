@@ -19,3 +19,16 @@ one lookup in the method table the walk is already holding, taken once per insta
 per field, and paid on the encoding side by a refcount pair per level of the document while that
 member runs. Footprint is O(derived classes in compiled code), not O(objects) and not O(requests), and
 a program that neither carries the attribute nor writes a half pays nothing at all, including no pass.
+
+**Declined:**
+- **Hand-written codecs only.** A ten-property class costs twenty lines per format that restate the
+  property list above them, and an encoder and a decoder that drift apart fail in silence.
+- **Encoding every public property with no attribute.** A class's public shape would be a wire
+  contract nobody wrote (`rule:core-api/written-participation`).
+- **A derive for the graph copy.** It already handles every object with no opt-in, so a derive would
+  be a second path to an operation that works (`rule:classes/two-copy-depths`).
+- **Validation in the codec.** Checking that a value looks right belongs to `Core\Validate` and user
+  code, and folding it in is how a derive attribute grows into a framework.
+- **Omitting a `null` field and a naming policy** are declined where their rules live
+  (`rule:core-api/required-optional-and-nullable`, `rule:core-classes/derive-field-list`). Until either
+  exists, a payload that needs one takes a hand-written encoder.

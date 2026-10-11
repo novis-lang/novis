@@ -30,3 +30,12 @@ one variant test per line comment in the lexer, one `/**` test per block comment
 request path. A doc comment rendered
 to HTML crosses the bidi boundary the lexer already checks for every comment span
 (`rule:security/bidi-boundaries`), and reuses that check rather than growing a second one.
+
+**Declined:**
+- **`/** */` as the doc comment.** It is the form every PHPDoc tutorial teaches and every editor
+  autocompletes tags into, and a habit is harder to refuse than a grammar.
+- **Refusing a `/** … */` block above a declaration.** It would refuse a comment, which no other rule
+  does, and would turn every converted PHP file into a page of errors before a single `///` was
+  written.
+- **An attribute, `#[Doc("…")]`.** Its payload is a compile-time constant expression, which makes
+  several paragraphs of Markdown hard to write and harder to read in place.

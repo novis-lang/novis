@@ -17,9 +17,9 @@
 //! core that is turning never leaves one behind the clock for longer than one
 //! poll. A published deadline that is still a *margin* in the past therefore
 //! says the core has not turned in that long — not that a request is slow, and
-//! not that a handler is taking its time. That is the fault § 7 exists for: an
+//! not that a handler is taking its time. That is the fault this watchdog exists for: an
 //! engine deadlock, or a loop with no poll site in it, which no other mechanism
-//! in that ADR answers because the worker is not faulting in any way it could
+//! in the server answers because the worker is not faulting in any way it could
 //! be asked about.
 //!
 //! # Report and shed, never kill
@@ -28,7 +28,7 @@
 //! default target — and does nothing else to the core. A thread cannot be
 //! safely killed in-process and `rule:http-server/the-residue-is-one-named-fault-class` declines the process boundary
 //! that would make it possible, so detection is the whole of what happens here.
-//! The other half of § 7's sentence — the core stops accepting new work and
+//! The other half of the rule's sentence — the core stops accepting new work and
 //! `max_in_flight` accounts for its share as unavailable — belongs to admission
 //! control, which is `nvs_server::admit` and does not subscribe to this report
 //! yet (`rule:http-server/a-wedged-core-is-shed-never-killed` is `designed`);
@@ -954,7 +954,7 @@ mod tests {
         assert_eq!(dog.shared.sweep(later + margin).len(), 1);
     }
 
-    /// § 7 end to end, on real threads and a real reactor: a worker that stops
+    /// The watchdog rule end to end, on real threads and a real reactor: a worker that stops
     /// turning is reported, and one that turns throughout a longer interval is
     /// not — which is the pair a per-request heartbeat cannot tell apart,
     /// because both of them are running a request the whole time.
@@ -1015,7 +1015,7 @@ mod tests {
             );
         }
 
-        // And a core that files a deadline and then never polls again — § 7's
+        // And a core that files a deadline and then never polls again — the watchdog rule's
         // own example, a loop with no poll site in it. It stays wedged until
         // the test has its report, however long the watchdog thread waits for
         // a CPU; dropping `release` is what lets it go.

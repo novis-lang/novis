@@ -13,7 +13,8 @@ The placements the tests produce, outside the `Core` classes the spec lists:
   archive's real defects are `../` and absolute-path entries, symlink entries and decompression bombs.
   Those are policy, and policy must be non-optional: a sandboxed decoder gets the memory cap and not the
   traversal rules. `Core\Os` is `posix` minus `fork`, and `Core\Signal` is the graceful-shutdown part of
-  `pcntl` and nothing else (`rule:security/isolate-shares-nothing`).
+  `pcntl` and nothing else (`rule:security/isolate-shares-nothing`). `Core\Html`'s parse reads hostile
+  markup too, and is Core because the sanitizer must parse to filter (`rule:core-classes/html-parsing`).
 - **Native, by test 1 or test 3.** `Core\Db` and the shared-cache backend behind `Core\Cache` hold
   connections across requests; `Core\Ldap` holds a bound directory session, and its escaper is in `Core`
   by test 2. `Core\Crypto` (AEAD only, TLS over `rustls`), `Core\Http\Client`, `Core\Net`, `Core\Mail`'s

@@ -8,8 +8,8 @@ mod common;
 use common::*;
 use nvs_diagnostics::code;
 
-// ADR 0033 §§ 2-4: `secret`, the same shape as `tainted` on an
-// independent axis.
+// `rule:security/secret-propagation` and `rule:security/secret-sinks-refuse`:
+// `secret`, the same shape as `tainted` on an independent axis.
 
 #[test]
 fn a_plain_string_is_assignable_into_a_secret_typed_target() {

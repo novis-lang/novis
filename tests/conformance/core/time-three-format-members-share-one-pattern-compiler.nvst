@@ -24,10 +24,10 @@ var $clock = Core\Time\TimeOfDay::at(14, 5, {second: 9});
 // grammar cannot drift between them, and the accepted side is the very
 // spelling the message suggests.
 //
-// Only the `$dt` sites read their pattern out of a variable, and that is ADR
-// 0057 § 1's asymmetry rather than style: `Core\Time\DateTime::format` is on
-// its list, so a literal malformed pattern there is a compile error (§ 2),
-// while `Core\Time\Date::format` and `Core\Time\TimeOfDay::format` are not on
+// Only the `$dt` sites read their pattern out of a variable, and that is the
+// intrinsic list's asymmetry rather than style: `Core\Time\DateTime::format` is
+// on it (`rule:expressions/intrinsic-list-is-closed`), so a literal malformed
+// pattern there is a compile error, while `Core\Time\Date::format` and `Core\Time\TimeOfDay::format` are not on
 // it and still throw from a literal.
 string $letterJ = "j";
 string $quoteLeftOpen = "'unclosed";

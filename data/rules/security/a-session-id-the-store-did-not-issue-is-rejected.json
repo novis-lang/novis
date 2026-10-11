@@ -1,11 +1,7 @@
 {
   "title": "A session id the store did not issue is rejected, always, with no toggle",
   "status": "designed",
-  "because": [
-    "0124",
-    "0139",
-    "0012"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/session-is-started-explicitly",
     "core-api/session-roster"

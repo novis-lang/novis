@@ -1,9 +1,7 @@
 {
   "title": "A default that is unsafe inbound or unbounded outbound is a defect, not a neutral starting point",
   "status": "shipped",
-  "because": [
-    "0074"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/secure-headers-with-nothing-written",
     "http-server/cors-is-closed-until-origins-are-named",

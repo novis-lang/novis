@@ -14,8 +14,13 @@ and cost every group a word the watchdog has to find. There is no default deadli
 none is bounded by its request's `wall_time` and `cpu_time`, and both are uncapped unless the
 deployment writes them.
 
-These two are the whole vocabulary. There is no `timeout` member — a timeout over a group is this
-option, and a timeout on one I/O call is that call's own option — and there is no `race`: over a
-heterogeneous shape its answer would be a union the caller must discriminate, which is `mixed` and a
-cast in practice. The homogeneous case that is actually wanted, hedging one request across two
-replicas, has a name reserved for it so it cannot arrive twice.
+These two are the whole vocabulary, and an optional argument is an options field, never a wrapper
+function (`rule:core-api/options-bag`).
+
+**Declined:**
+- **A `timeout` member.** A timeout over a group is `deadline`, and a timeout on one I/O call is
+  that call's own `timeout` option (`rule:core-classes/db-one-api`).
+- **`race`.** Over a heterogeneous shape its answer is a union the caller must discriminate, which
+  is `mixed` and a cast in practice. The case actually wanted, hedging one request across two
+  replicas, is homogeneous: `Core\Task::first(array<T>, callable, {deadline?})` is the name kept for
+  it, so it cannot arrive as a second `race`, and it lands additively when a program needs it.

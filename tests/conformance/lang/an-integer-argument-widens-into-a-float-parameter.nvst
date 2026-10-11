@@ -3,8 +3,8 @@ An `int` or `uint` argument widens into an anonymous function's `float` paramete
 --FILE--
 <?nvs
 // `rule:types/conversion`: an `int` or `uint` in a `float` position is the one implicit
-// conversion the language has. A `callable` carries no parameter list (ADR
-// 0031 § 1), so no checker saw this call site to insert it — the comparison in
+// conversion the language has. A bare `callable` carries no parameter list,
+// so no checker saw this call site to insert it — the comparison in
 // `nvs_runtime::call_callable` applies it where it would otherwise refuse.
 callable $half = fn (float $f): float => $f / 2.0;
 

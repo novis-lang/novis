@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*28 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*24 of 95 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -24,11 +24,10 @@ invoked, which is a process-wide fact rather than a per-isolate one, so a spawne
 fakes nor suppresses it the way it does for request state. A program reading arguments a *request*
 supplied wants [`core-classes/script-args`](core-classes.md#core-classes-script-args) instead.
 
-The record this rule comes from specified `args()`/`argc()` and a throw when called while serving
-HTTP. The shipped member is `arguments()`, and inside a request it answers empty rather than throwing
-— the launcher writes the command line and only the CLI entry point writes one.
+Inside a request the array is empty: the launcher writes the command line, and only the CLI entry
+point writes one.
 
-<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0012](../decisions/0012.md), [0086](../decisions/0086.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`core-classes/script-args`](core-classes.md#core-classes-script-args), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables).</sub>
 
 <a id="core-classes-script-args"></a>
 
@@ -50,7 +49,7 @@ and consistency is the whole of the reason: an ambient, undeclared variable is t
 introduced itself is no better for having been introduced deliberately. Each isolate's arguments are
 its own.
 
-<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0012](../decisions/0012.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md).</sub>
+<sub>See also [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics).</sub>
 
 <a id="core-classes-process-is-argv-only"></a>
 
@@ -75,7 +74,19 @@ What this costs is the one case where a shell genuinely was the feature — a pi
 redirect. Those are written in Novis, or by spawning the shell explicitly and owning the quoting at
 that call site.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn). Decided in [0044](../decisions/0044.md), [0024](../decisions/0024.md), [0118](../decisions/0118.md).</sub>
+The two members differ only in whether the caller waits, which is an axis worth keeping. Shell string
+against argv is the axis this class removes: there is no escaping function to forget, because there is
+no string position to escape into.
+
+**Declined:**
+- **One member with a `$useShell` flag.** A flag that looks like an ordinary parameter switches a call
+  site between an argv and a shell string whose escaping is the caller's problem, and it invites
+  passing `true` to get something working.
+- **A separate, clearly named shell member** such as `runViaShell(string $command)`. It is still a
+  convenience handed out for the one operation this class makes inconvenient on purpose. Spawning
+  `sh -c` or `cmd.exe /c` through the argv API is one line longer and visibly the caller's own risk.
+
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target), [`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn).</sub>
 
 <a id="core-classes-process-run"></a>
 
@@ -106,7 +117,13 @@ allowed to produce, which is a refusal in [`security/denial-is-a-runtime-error`]
 who ran a chattier child than it meant to can catch it and run a different one. `Core\IO::read` holds
 a file to the same directive out of the same pair of methods, so the two answer a program alike.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion). Decided in [0044](../decisions/0044.md), [0009](../decisions/0009.md), [0005](../decisions/0005.md).</sub>
+**Declined:**
+- **Blocking the core's thread for the wait** until profiling showed a problem. With one thread per
+  core and nothing shared between cores, one blocked wait stalls every other request on that core.
+  That is a correctness property, so there was nothing to measure first
+  ([`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall)).
+
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`types/bytes`](types.md#types-bytes), [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="core-classes-process-options"></a>
 
@@ -128,7 +145,9 @@ program `process.exec` approved, and it can change its own folder the moment it 
 parent's — explicit replacement is simpler to reason about than merge semantics. Every key and value
 is plain `string`, so an API key held as a `secret` needs [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal) first;
 this is a new sink reusing an existing escape hatch, not a new mechanism. A name that is empty or holds
-`=` or a NUL, and a value that holds a NUL, are refused before anything starts.
+`=` or a NUL, and a value that holds a NUL, are refused before anything starts. Left out, `env`
+inherits the parent's environment whole, the default Python, Go, Rust, Node and PHP's `proc_open` all
+share.
 
 `timeout` counts from the start of the child, and is no timer of its own: it bounds the waits the two
 members already park on. `run`'s wait for the exit and every `Core\Process\Handle` member that parks —
@@ -137,7 +156,7 @@ coroutine into a `TimeoutError` naming the member. A handle whose timeout has pa
 error from every later member but `kill`. A timeout that is not a positive length of time is a
 `RuntimeError` before anything starts, as `Core\Net\Listener::accept`'s bound is.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="core-classes-process-spawn"></a>
 
@@ -185,7 +204,7 @@ report does not change the exit status.
 Both members take the same options bag, [`core-classes/process-options`](core-classes.md#core-classes-process-options), and its `timeout` bounds
 every handle member that parks.
 
-<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only).</sub>
 
 <a id="core-classes-process-refuses-a-shell-target"></a>
 
@@ -196,6 +215,13 @@ every handle member that parks.
 A target the platform can only run by handing it to a second command-line parser — `.bat` and `.cmd`
 to `cmd.exe`, `.ps1` to `powershell.exe` — is refused before spawning, with a diagnostic naming the
 extension and the reason.
+
+On Windows a process receives one command-line string, not an argument vector, and each program
+splits it by its own quoting convention. Quoting an argument vector into that string is a solved
+problem for an ordinary executable, but a batch file is not a process image: Windows runs it by
+handing the command line to `cmd.exe`, whose grammar (`^`, `&`, `|`, `%` and its quote handling) has
+no clean escaping once an argument a caller did not choose reaches it. `.ps1` is the same shape one
+layer up.
 
 The check runs on **every platform build**, not only on Windows, even though the underlying risk (a
 second parser re-reading an already-quoted argument) is real only there. Behaviour that silently
@@ -211,7 +237,12 @@ There is no convenience for the case where a batch file really is the target: a 
 `cmd.exe` explicitly, through the same argv API, and takes the quoting risk visibly rather than
 through a flag that looks as safe as every other call.
 
-<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0044](../decisions/0044.md).</sub>
+**Declined:**
+- **Careful quoting for `.bat` and `.cmd` targets instead of refusing them.** Node and Rust both
+  shipped that and then patched it after a published vulnerability (CVE-2024-27980,
+  CVE-2024-24576). Quoting it carefully is choosing to write the same bug eventually.
+
+<sub>See also [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-run`](core-classes.md#core-classes-process-run).</sub>
 
 <a id="core-classes-io-write-stream"></a>
 
@@ -236,7 +267,7 @@ It is general on purpose: a request body, a decompressed archive, an outbound re
 upload part all reach disk through this one implementation, so the partial-write cleanup lives in one
 place rather than in every call site that hand-wrote the loop.
 
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run). Decided in [0105](../decisions/0105.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/process-run`](core-classes.md#core-classes-process-run).</sub>
 
 <a id="core-classes-temporary-dir-sweep"></a>
 
@@ -264,16 +295,45 @@ its folder when the run ends, and a killed run's folder is an orphan like any ot
 The runtime keeps a per-script list of the paths it handed out and deletes each surviving entry when
 the script ends — after the exit queue on a CLI ending, after the after-response work on a request,
 and off the request path, so a response never waits on a deletion. It covers normal end, `exit`, an
-uncaught throw, and a request that died mid-flight.
+uncaught throw, and a request that died mid-flight, because the worker survives that request. A
+`FATAL` on the CLI ends the process without that sweep, and its directory is an orphan for
+[`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep). Each directory is named `nvs-<pid>-<nonce>`, and
+the pid is what that sweep reads.
+
+These deletions are work a correct program owed anyway, so the default case costs nothing new, and
+the work moves off the request path. What a manual rule never covered is the failure case: an
+uncaught throw skips cleanup code, and code that must run whatever the ending cannot be every entry
+file's `try/finally`.
 
 **The sweep never throws and never alters a response.** A path already gone is the goal state reached
 early. A deletion the OS refuses is one log line, and the directory waits for the next sweep. An
 operator may set `[debug] keep_temporary` to keep everything *visibly* — each kept path is logged —
 and there is no in-language setter, because a program that can exempt its own files can be made to
 hoard them. The program's own `remove` and `removeDir` are unchanged and still throw: a deliberate
-action's failure is the program's to hear about.
+action's failure is the program's to hear about. Unifying the two in either direction gives either a
+throwing sweep or a silent `remove`.
 
-<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0131](../decisions/0131.md), [0127](../decisions/0127.md), [0072](../decisions/0072.md), [0106](../decisions/0106.md), [0078](../decisions/0078.md), [0059](../decisions/0059.md), [0004](../decisions/0004.md), [0281](../decisions/0281.md).</sub>
+`[debug] keep_temporary` is reloadable, so an operator can turn it on around one problematic request
+and off again. Kept directories stay in the owned root, and the operator's cleanup command is how a
+debugging session's keepings are cleared.
+
+**Memory:** one path per directory a script created, request-local and charged to the request's
+memory limit, and released when the script ends. A script that never calls `temporaryDir` holds
+nothing. On disk, the rare orphan of a hard-killed script waits on a machine with no server until
+the operator runs the cleanup command.
+
+**Declined:**
+- **Sweeping on the next `temporaryDir` call.** A program that never calls again never sweeps, so
+  leftovers grow with the scripts run, which is a leak. It also bills one request for another's
+  deletions, on the request path.
+- **Wall-clock lifetimes, such as "delete after ten minutes".** They delete files a long-running
+  process still holds ([`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep)).
+- **A per-call `persist:` option.** One forgotten argument ships the leak to production, and a
+  temporary that outlives its script is cross-request state
+  ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)). The operator-only key covers the one honest
+  use, debugging, with no code change.
+
+<sub>See also [`core-classes/temporary-dir-orphan-sweep`](core-classes.md#core-classes-temporary-dir-orphan-sweep), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/propagation`](errors.md#errors-propagation). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="core-classes-temporary-dir-orphan-sweep"></a>
 
@@ -284,8 +344,9 @@ action's failure is the program's to hear about.
 A process killed outright ran no end-of-script sweep. Its leftovers are reclaimed by the orphan
 sweep, which walks the owned root and deletes each entry **whose owning pid is not alive**.
 
-It runs in exactly two places: once at server boot, before traffic, and whenever an operator runs the
-cleanup command, which prints each path it removes and supports a dry run. It runs on no other
+It runs in exactly two places: once at `nvs serve` boot, before traffic, and whenever an operator runs
+`nvs tmp clean`, which prints each path it removes and with `--dry-run` deletes nothing. Both read
+one predicate, so the two can never disagree about whose entry is whose. It runs on no other
 invocation — taxing every CLI start with a root walk to insure against a rare hard kill prices the
 common case for the exceptional one. The deliberate consequence is that on a machine where the server
 never runs and nobody runs the command, a hard-killed script's directory persists: bounded by crash
@@ -295,9 +356,14 @@ The predicate is owner liveness, **never age**. An age rule is precisely what de
 process's files out from under it; liveness cannot, because a live owner's entries are skipped no
 matter how old. Every failure mode falls the safe way — a recycled pid makes a dead owner's entry
 look alive and it leaks until a later sweep, never the reverse — so the sweep may under-delete and
-can never over-delete. There is no force flag that overrides liveness.
+can never over-delete. There is no force flag that overrides liveness, so the worst the command can
+do is nothing.
 
-<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep). Decided in [0131](../decisions/0131.md).</sub>
+Like the end-of-script sweep, this one never throws. A deletion the OS refuses is a log line at boot
+and a printed line under `nvs tmp clean`, the command still succeeds, and the entry waits for the
+next sweep.
+
+<sub>See also [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep).</sub>
 
 <a id="core-classes-regex-two-tiers"></a>
 
@@ -316,6 +382,13 @@ are different facts, and one falsy return would conflate them. Per
 [`errors/escalation-ladder`](errors.md#errors-escalation-ladder) this is an ordinary throw rather than a resource-limit fatal, so the
 request may catch it and answer 400. The linear tier has no budget, because it needs none.
 
+A backtracking engine run against a crafted subject is exponential: `(a+)+$` can pin a core for
+minutes. Under thread-per-core that is not one slow request but a lost core, and availability is
+part of request isolation. A step limit whose exhaustion reads as "no match" turns that hang into a
+wrong answer, which for an authorization or validation pattern is worse than the hang. The linear
+engine removes the class outright at the call sites it covers, which are most of them, and it is
+typically the faster engine there too.
+
 What this costs is that a pattern's performance class is a property of the pattern rather than
 something a caller can override. That is the trade taken deliberately: an engine choice a developer
 cannot see is the failure mode the whole design exists to avoid.
@@ -327,7 +400,19 @@ constant `crates/nvs-stdlib/src/regex.rs` states. `false` does not spell an unbo
 reads as that same constant, because a pattern allowed to backtrack forever is the hang this rule
 exists to stop.
 
-<sub>See also [`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0056](../decisions/0056.md), [0005](../decisions/0005.md), [0020](../decisions/0020.md).</sub>
+**Declined:**
+- **One backtracking engine for every pattern.** Perfect compatibility and no tiers to explain, but
+  it keeps the exponential hang as a live risk in a runtime where one request holds a core.
+- **The linear engine only, with lookaround and backreferences refused.** The strongest guarantee,
+  but those constructs are common in real validation patterns, and refusing them pushes developers
+  to hand-rolled parsing that is more likely to be wrong than the pattern was.
+- **A time limit instead of a step limit.** Easier to configure, but it makes the outcome depend on
+  machine speed and load, so the same program is deterministic on one host and not on another.
+- **A per-pattern modifier that opts into backtracking.** The engine already knows the tier, the
+  developer would have to keep the annotation in step with the pattern, and a wrong annotation is
+  worse than none.
+
+<sub>See also [`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering), [`core-classes/regex-syntax`](core-classes.md#core-classes-regex-syntax), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder).</sub>
 
 <a id="core-classes-regex-compile-time-tiering"></a>
 
@@ -354,7 +439,7 @@ rather than discovered.
 
 The third consequence is not built: there is no `[regex]` block, so `deny` cannot be written yet.
 
-<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0056](../decisions/0056.md), [0057](../decisions/0057.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed).</sub>
 
 <a id="core-classes-regex-syntax"></a>
 
@@ -375,7 +460,7 @@ to avoid.
 
 There is no `/e` modifier: a pattern never evaluates its replacement as code.
 
-<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes). Decided in [0056](../decisions/0056.md), [0009](../decisions/0009.md).</sub>
+<sub>See also [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes).</sub>
 
 <a id="core-classes-html-auto-escape"></a>
 
@@ -413,7 +498,17 @@ never writes ([`core-classes/html-later`](core-classes.md#core-classes-html-late
 escaped visitor string can contain, so it composes with `+`, `Core\Html::join` and a partial like any
 other fragment, and `Markup` keeps its one slot.
 
-<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0087](../decisions/0087.md), [0088](../decisions/0088.md), [0086](../decisions/0086.md), [0169](../decisions/0169.md), [0266](../decisions/0266.md).</sub>
+**Declined:**
+- **An explicit escape call at every interpolation site, with no default.** It leaves security to a
+  person remembering every time, and an omitted call is exactly the bug this rule closes; escaping
+  unless the source opts out with a literal is strictly safer.
+- **`Markup . string` escapes and lifts the other operand.** `.` produces a `string`, so composing a
+  carrier through it loses exactly what the carrier carries, and an operator that escaped silently
+  would bring back the invisible second transform [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier) removes.
+  And `.` would give a `string` or a `Markup` depending on its operands, so a reader could not tell
+  what `$a . $b` is without knowing both types.
+
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`core-classes/html-later`](core-classes.md#core-classes-html-later), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0266](../decisions/0266.md).</sub>
 
 <a id="core-classes-html-template"></a>
 
@@ -453,16 +548,22 @@ must begin with `$`, so `{Money::format($c)}` is text exactly as it is in a doub
 every other `{` is text, so a `<style>` block's braces need no escape; `\{` writes a plain brace.
 A brace directly before a class path — `{Page::TITLE}`, `{Money::format($c)}` — is the one text a
 page prints that was almost never meant, so it is warned about where it is written, `W1012`, with the
-help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a double-quoted string says
-nothing.
+help naming `<?= Page::TITLE ?>` and `\{`; the bytes stay text, and a `$name` inside them still
+interpolates. It is a warning and not a refusal because the program is correct; only its page prints
+the wrong string. A double-quoted string says nothing: its grammar is PHP's own, and a string is not
+a page.
 The second is the output tag a page already uses: `<?= expr ?>` opens a hole that takes **any**
 expression and closes on the first `?>` outside a nested string or template, so a constant, a static
 call and a nested template reach the page without a local — `<?= App::VERSION ?>`,
 `<?= Money::format($c) ?>`, `<?= $on ? html`<b>on</b>` : html`<i>off</i>` ?>` — and a `}` inside it
-is an ordinary brace. Both holes are escaped by the same rule;
+is an ordinary brace. `<?=` occurs in no HTML, CSS or JavaScript, so no page text needs an escape
+to make room for it. Both holes are escaped by the same rule;
 the tag differs from the brace only in what it lets in. A double-quoted string takes no `<?=`: a
-string is not a page, and a `<?=` in one is text. A `<?nvs` tag inside a template is `E0010`, since a
-template is one expression and a loop around markup is code mode outside it.
+string is not a page, a `<?=` in one is text, and a code generator that writes PHP into a string
+would break if it were a hole. A `<?nvs` tag inside a template is `E0010`, reported once at the tag
+with `<?= expr ?>` and composition named, and is then text: a template is one expression, a code
+block inside it would need a new mechanism to capture statements' output as a value, and a loop
+around markup is code mode outside it.
 
 A `secret` value in either hole is refused where it is written ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)); a
 `tainted` one is accepted, because the sink never distinguishes the two. An unterminated template or hole
@@ -482,6 +583,10 @@ pool, as a duration is ([`types/duration`](types.md#types-duration)), so it allo
 `as Core\Html\Markup` allocates one object per lift. A template with holes in a sink position lowers to
 a run of writes — segment, escaped hole, segment — with no carrier materialised, since a value born and
 consumed at one sink is unobservable. In value position it is one `Markup` holding the joined bytes.
+A hole whose value is a constant is still escaped on every execution, as every hole is. Scanning
+for `<?=` is one three-byte test beside the two-byte test for `{$`, in the template body only, and a
+tag hole reaches the parser as the same part a brace hole does. `W1012` adds one byte test per `{`
+in a template's text, at compile time only.
 
 `Core\Html::join(array<Core\Html\Markup> $parts, Core\Html\Markup $separator): Core\Html\Markup`
 concatenates a list of fragments; every element is already a carrier, so it neither trusts nor escapes
@@ -495,7 +600,38 @@ segments could only ever be plain text, which needs no trust, because
 string is already accepted everywhere the carrier is. A third carrier is measured against that
 predicate rather than against the count.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration`](types.md#types-duration), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar). Decided in [0169](../decisions/0169.md), [0202](../decisions/0202.md), [0213](../decisions/0213.md).</sub>
+**What it spends is surface, not memory.** It is one more literal form, with a `nvs fmt` layout, an
+editor region and a converter row behind it, and a reader meets two ways to write markup: a page of
+inline HTML, and an expression that returns a fragment. It also makes the sink's blind spot easier to
+write into: ``html`<a href="{$url}">` `` lets a `javascript:` URL through exactly as
+`<a href="<?= $url ?>">` does, and convenience raises how often that is written. In return, PHP's
+`'<b>' . htmlspecialchars($x) . '</b>'` has one faithful Novis form, ``html`<b>{$x}</b>` ``.
+
+**Declined:**
+- **A template that refuses the holes it cannot escape correctly**: an unquoted attribute, a URL
+  attribute, an `on*` handler, a `<script>` or `<style>` body, a tag or attribute name, a comment body.
+  It would make the template stricter than `<?= ?>`, so the same hazard would be an error in the newer
+  syntax and legal in the older one. It would also need the compiler to hold an HTML position model.
+  The hazard belongs to the sink, where one answer covers both spellings.
+- **A bare string literal lifted implicitly in a sink position.** `echo '<b>' . $x` and
+  `echo '<b>', $x` would produce different documents with nothing visible to say why, and `+` would
+  stay as it was.
+- **No template form, leaving fragments to the framework's template files.** `Web\Response::view`
+  renders a page ([`programs/first-party-framework`](programs.md#programs-first-party-framework)); a function returning a table row or a
+  component is expression position, which is where the ceremony was.
+- **A ``text`…` `` form for `Core\Cli\Text`, for symmetry.** It fails the predicate above.
+- **`{Name::…}` opening a brace hole.** It covers a constant and a static call and nothing else, so
+  `{new App()}` and `{1 + 2}` stay text, and it adds a clause to the string grammar that a string
+  does not have.
+- **A second brace opener, `{= … }`, `{> … }` or `{{ … }}`.** Each collides with a template language
+  a page may embed: `{{` is Vue, Twig and Handlebars, `{>` is a Handlebars partial and `{=` is
+  Mustache's delimiter tag. Each would force `\{` escapes into client-side templates.
+- **Refusing `{Class::…}` in a template.** It would grow the hole grammar by a negative, a brace that
+  is text unless it looks like this, and the program it refuses is correct.
+- **`W1012` inside a double-quoted string.** Every PHP programmer already knows that limit of the
+  string grammar, and the defect the warning exists for is a wrong string reaching a page.
+
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`types/duration`](types.md#types-duration), [`tooling/styling-is-a-value-not-a-grammar`](tooling.md#tooling-styling-is-a-value-not-a-grammar).</sub>
 
 <a id="core-classes-html-later"></a>
 
@@ -556,7 +692,7 @@ replacement character. Escaping `<`, `>`, `&` and quotes does nothing about disp
 that rule a bidi payload would survive the auto-escape sink intact. A balanced control is legitimate
 mixed-direction text and passes through.
 
-<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize).</sub>
 
 <a id="core-classes-html-to-source"></a>
 
@@ -576,12 +712,15 @@ nobody wrote.
 
 Its legitimate callers are the ones that need the bytes and not the guarantee — caching a rendered
 fragment, storing one in a column, writing one to a file, handing one to a sink that is not this one.
+Storing or logging escaped HTML as text therefore costs a call and a written reason at each site. That
+is a real restriction, and the case it slows down is usually the bug: escaped markup kept in a
+database is a classic one.
 
 The name is deliberate. `to…` is the conversion verb, `source` is spelled out, and it is neither
 `raw` — which in every template language means the opposite direction — nor `unescape`, which is
 reserved for the operation that actually inverts `escape` and which this is not.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="core-classes-html-sanitize"></a>
 
@@ -614,7 +753,7 @@ added to the list in a commit that says why.
 The acceptance property is **mutation XSS**: sanitizing an answer again changes nothing, which is what
 says the approved document is the one a browser will build.
 
-<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0122](../decisions/0122.md).</sub>
+<sub>See also [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
 <a id="core-classes-html-parsing"></a>
 
@@ -636,20 +775,38 @@ Serialization follows the door: WHATWG rules through one, XML rules through the 
 through its sample DOM, and the same crate is compiled into the PDF component — the language and its
 PDF renderer parse HTML identically: one behaviour to document, one parser to fuzz.
 
-What it spends, per parse: the materialised tree, proportional to the document, attributed to the
-request and gone with it.
+**Browser equivalence is the point, and so it is a compatibility surface.** A parser that builds a
+different tree from the one a browser builds is a security defect, not a nuisance: mutation XSS is
+exactly a sanitizer approving one document while the browser renders another. Parsing by the browser's
+own algorithm leaves no second parse to disagree with, which is what [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)
+stands on. What `html5ever` parses is what Novis parses, so a divergence from WHATWG is an upstream bug
+to fix, never a dialect to document. HTML parsing is request-path work over hostile input, and the
+sanitizer in Core must parse to filter, so the parser is Core and not a component.
+
+**Memory:** each parse holds the materialised tree, proportional to the document, attributed to the
+request and freed with it. It is the same account `Core\Xml`'s tree opens, spent once because the tree
+is one implementation. On top of it each parse holds a random hashing key and, for an element that
+gained attributes after it was created, a set of their names.
 
 **The stack of open elements holds at most 512 elements**, the depth Chromium, Firefox and WebKit all
 cap a tree at. A start tag that arrives with 512 elements open first closes the current element, as
 WebKit does, and the new element becomes its sibling: nesting past the cap flattens, and every
 element, attribute and character of the document still arrives. The close is an end tag for the
 current element's own name, a token the algorithm already has a rule for, so the parse still never
-fails. The cap is a constant and not a setting, because it is what bounds the work one token costs:
+fails. The builder only ever sees a token stream a document could have held, so a `table`,
+`template` or `select` closed this way resets the insertion mode as its own end tag always does. An
+end tag for an element the cap closed is ignored or closes an open ancestor of the same name. If a
+rule ignores the closing end tag and the stack does not shrink, the start tag is dropped. The cap is a constant and not a setting, because it is what bounds the work one token costs:
 every scope check the algorithm makes walks that stack, and without the cap a document costs time in
-the square of its depth. It is part of the parse, so the PDF renderer holds it too. The two other
+the square of its depth. A setting could only buy that path back, and no document a person writes
+comes near the cap. It is part of the parse, so the PDF renderer holds it too. The two other
 checks that grow with a document — a tag's attributes against each other for a duplicate, and the
 active formatting elements against a new one for an equal entry — cost time in proportion to what
-they check, and neither changes what the parse produces.
+they check, and neither changes what the parse produces. A tag with fewer than ten attributes is
+scanned for a duplicate name, and one with more uses a hash set; the first value of a repeated name
+is kept. Each active formatting entry carries an order-independent hash of its name and attributes,
+keyed at random for each parse so a document cannot be written to collide, and the full comparison
+runs only when two hashes match.
 
 **The tree came first and this parse is written against it**, rather than beside it: the tree and the
 builder interface are one implementation, so whichever was built second would otherwise have been
@@ -663,7 +820,30 @@ rather than gaps. A `<!DOCTYPE …>` leaves nothing behind, which is this door's
 other door refuses outright. A `<template>`'s contents stay on the element, because the DOM's
 separate fragment has no kind here and a program looks for them under the element it wrote.
 
-<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0122](../decisions/0122.md), [0095](../decisions/0095.md), [0063](../decisions/0063.md), [0223](../decisions/0223.md).</sub>
+**Declined:**
+- **An HTML mode on `Core\Xml`.** Two opposite failure contracts under one API, switched by a flag, is
+  the ambiguity [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation) and [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)
+  exist to prevent, and it is the design behind two decades of HTML parsed differently from every
+  browser.
+- **A separate HTML node type.** It doubles every query and serializer for no gain in meaning.
+- **`xml5ever` as `Core\Xml`'s parser.** It implements the error-recovering XML5 draft, the wrong
+  contract for a door whose malformed input throws.
+- **Writing the parser ourselves.** An unfuzzed reimplementation of one of the largest parsing
+  specifications buys nothing `html5ever` does not already give, and loses on security and speed.
+- **Leaving HTML parsing to a component or the ecosystem.** The sanitizer is Core and must parse to
+  filter ([`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize)).
+- **Indexing the stack of open elements instead of capping it.** Every walk over the stack would need
+  an index kept correct under every push, pop, insertion and removal the adoption agency makes, which
+  is the largest change to `html5ever` of all.
+- **Dropping start tags past the cap.** Text would still arrive, but the elements and their
+  attributes would not, links included.
+- **Stopping at the cap.** Throwing breaks the parse's never-fails contract, and truncating drops
+  content.
+- **Tracking the stack from the tree builder of ours.** Several of `html5ever`'s pops never reach it,
+  and the one public view of the stack costs a walk per call.
+- **Capping a tag's attributes.** No browser does, and the hash set makes a cap unnecessary.
+
+<sub>See also [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="core-classes-xml-tree-and-stream"></a>
 
@@ -692,11 +872,17 @@ Both shapes answer the same node family, the one [`core-classes/html-parsing`](c
 produce, so a program that outgrows the tree does not learn a second vocabulary. The split is stated
 once, in `crates/nvs-stdlib/src/xml.rs`'s module doc, and no member card re-argues it.
 
-What it spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): the tree is proportional to the document,
-attributed to the request that parsed it and released with its arena; reading through the stream holds
-one window, and writing through it holds the document being built and no tree of nodes at all.
+**Memory:** the tree is proportional to the document, attributed to the request that parsed it and
+released with its arena; reading through the stream holds one window, and writing through it holds the
+document being built and no tree of nodes at all.
 
-<sub>See also [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/xml-refuses-by-construction`](core-classes.md#core-classes-xml-refuses-by-construction), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation). Decided in [0168](../decisions/0168.md).</sub>
+**Declined:**
+- **A tree only.** It cannot serve a document larger than the request's memory ceiling, which is a real
+  workload.
+- **A stream only.** Every program that wants random access would write its own tree, once per program
+  and unreviewed, and the node family would stop being shared with `Core\Html`.
+
+<sub>See also [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/xml-refuses-by-construction`](core-classes.md#core-classes-xml-refuses-by-construction), [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation).</sub>
 
 <a id="core-classes-xml-refuses-by-construction"></a>
 
@@ -738,7 +924,24 @@ back. Both refusals are `ParseError` throws naming what was written, per
 [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused); `Core\Html`'s WHATWG entry is the door for input that is
 HTML-shaped rather than well-formed, and it never fails ([`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing)).
 
-<sub>See also [`core-classes/xml-tree-and-stream`](core-classes.md#core-classes-xml-tree-and-stream), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0168](../decisions/0168.md).</sub>
+The cost is real: a document carrying any `<!DOCTYPE …>`, `<!DOCTYPE html>` included, does not parse.
+SOAP envelopes, XHTML documents and generator output that writes a doctype out of habit are in that
+population, and their authors strip the declaration first. `Core\Html` takes the HTML-shaped half, so
+what is left is XML naming a DTD it does not need. What it buys is the XXE class closed for every
+program with no setting to get wrong, closed so that reopening it means writing a resolver rather than
+flipping a default.
+
+**Declined:**
+- **An internal subset expanded under [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound)'s ratio and ceiling.** It
+  buys back only documents that declare their own entities, which writing the characters out serves.
+  It turns an absent class of bug into a bounded one, and a bound is a number someone will want
+  configurable. And a ratio measures the bytes an expansion produces, not whatever a resolver was
+  pointed at.
+- **A mode flag on the parser**, such as `allowDtd: true` or an HTML mode. The flag's default becomes
+  the real security boundary while the signature says nothing about it, which is the `LIBXML_*` matrix
+  again.
+
+<sub>See also [`core-classes/xml-tree-and-stream`](core-classes.md#core-classes-xml-tree-and-stream), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="core-classes-validate-has-no-type-predicates"></a>
 
@@ -759,7 +962,12 @@ What survives is the roster that names no type: `isEmail`, `isIp`, `isMac`, `isD
 `isPrintable`. None has an `as` equivalent, because none names a type
 ([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)).
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`types/conversion`](types.md#types-conversion). Decided in [0066](../decisions/0066.md), [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **Keeping `isInteger`, `isFloat` and `isBoolean`.** A validation class with `isEmail` and no
+  `isInteger` reads as a hole, but the hole is only apparent: the removed three name types and the
+  survivors name formats, and only a type has an `as`.
+
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="core-classes-secret-reveal"></a>
 
@@ -783,7 +991,7 @@ safe to keep comes out", and each such function's author carries responsibility 
 
 `reveal` removes `secret` and nothing else: a value that was also `tainted` stays `tainted`.
 
-<sub>See also [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source), [`core-classes/process-options`](core-classes.md#core-classes-process-options), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra).</sub>
 
 <a id="core-classes-reflect"></a>
 
@@ -795,7 +1003,9 @@ safe to keep comes out", and each such function's author carries responsibility 
 extension a deployment might not have compiled in. It reaches classes, interfaces, enums, methods,
 properties, constants, parameters and attributes, from a value or from a class name, and it reports
 which methods an interface declares as part of its contract versus as an internal helper. Traits are
-absent because they do not exist.
+absent because they do not exist. The descriptions are a family of classes, one per kind of
+declaration: `Core\Reflect\ClassInfo`, `MethodInfo`, `PropertyInfo`, `ParameterInfo`,
+`ConstantInfo`, `AttributeInfo` and `EnumInfo`.
 
 Reflective access **enforces the same checks ordinary code would**: there is no
 `setAccessible(true)`, so a private property is not readable through this door either, and a
@@ -806,7 +1016,11 @@ What it costs is that a serializer or a container cannot reach state its author 
 is the trade: the alternative is a reflection API that makes every access modifier in the language
 advisory.
 
-<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access). Decided in [0019](../decisions/0019.md), [0043](../decisions/0043.md).</sub>
+**Memory:** each `forClass` or `forObject` call builds one description and one row object per
+declared property, method and constant, charged to the request that asked and freed with the
+description. A program that describes the same class in a loop pays on every call.
+
+<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access).</sub>
 
 <a id="core-classes-ast-is-inert"></a>
 
@@ -847,7 +1061,21 @@ path. A program can walk a tree, print it, or rewrite it into a new source strin
 or a file — never a way to run what it describes. Shipping this is therefore not `eval` under a
 different name; it is the same refusal restated.
 
-<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`types/declaration`](types.md#types-declaration), [`programs/compile-target`](programs.md#programs-compile-target). Decided in [0019](../decisions/0019.md), [0006](../decisions/0006.md).</sub>
+A handler that passes request text to `parse` makes the parser reachable by whoever sent the
+request, so its bounds hold at run time as they do at compile time: nesting past 96 levels stops the
+parse with an error, and once it stops, the rest of the input costs at most one step per token. The
+same seed corpus the parser's fuzz target reads is replayed through `Core\Ast::parse`, and a fuzz
+target of its own drives the member with arbitrary input.
+
+**Memory:** one object per node of the parsed source, plus one array per node with children,
+charged to the request that called `parse` and freed with the tree. The source's line table is held
+only for the length of the call.
+
+**Declined:**
+- **An untyped array for the tree.** That is the `mixed`-shaped shortcut [`types/declaration`](types.md#types-declaration)
+  closes everywhere else.
+
+<sub>See also [`core-classes/reflect`](core-classes.md#core-classes-reflect), [`types/declaration`](types.md#types-declaration), [`programs/compile-target`](programs.md#programs-compile-target).</sub>
 
 <a id="core-classes-topic"></a>
 
@@ -877,11 +1105,19 @@ most 256 bytes; past either, the member throws a `LogicError` and the table is u
 subscribers have all ended is swept by a later insert even when nobody names it again, so the table
 is O(live connections) and never O(connections served).
 
-It is **not** built on the shared cache, which is deliberately lossy — right for a cache and wrong
-for a message a subscriber is waiting on. Cross-machine fan-out is not the runtime's: a fleet bridges
-topics to a broker in application code.
+There is no way to broadcast without it and no way for one connection to reach another directly,
+which is what keeps a connection an isolate rather than a thread with a socket. Cross-machine fan-out
+is not the runtime's: a fleet bridges topics to a broker in application code.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0083](../decisions/0083.md), [0023](../decisions/0023.md), [0033](../decisions/0033.md), [0059](../decisions/0059.md), [0076](../decisions/0076.md).</sub>
+**Declined:**
+- **Building it on the shared cache.** The cache is deliberately lossy
+  ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)), which is right for a cache and wrong for a
+  message a subscriber is waiting on, and one mechanism with two contracts would make both harder to
+  reason about.
+- **A bus between machines.** It would mean owning a distributed system's failure modes, which the
+  placement tests leave to a dependency ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)).
+
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="core-classes-db-one-api"></a>
 
@@ -910,7 +1146,24 @@ one injection into a compromise; `LOAD DATA LOCAL INFILE`; `PDO::quote` and
 `lastInsertId` state; `PDO::ATTR_*`; and `PDO::inTransaction`. Query builders, ORMs and migration
 tooling are not `Core` at all.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0028](../decisions/0028.md), [0063](../decisions/0063.md).</sub>
+A dynamic identifier, a table or column name SQL cannot bind, goes through `Core\Db::quoteIdentifier`
+or an allowlist check.
+
+**Declined:**
+- **Mirroring PDO**: `prepare`/`execute`, fetch-mode constants, `quote()`, `lastInsertId()`,
+  `errorInfo()`. It is the most familiar shape and the easiest conversion target, and each piece breaks
+  a `Core` rule: the flag constants are mode arguments ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)), the error
+  accessors are ambient state where a throw belongs ([`core-api/failure-throws`](core-api.md#core-api-failure-throws)), the binding is
+  by reference, the prepare/query pair is two names for one operation
+  ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)), and the escaper is the weaker answer above.
+- **Drivers as sandboxed extensions.** A connection pool is state that outlives a request, which is
+  the one thing a sandbox boundary cannot hold ([`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum)).
+- **A query text that must be a literal in the source.** It would block legitimate dynamic assembly,
+  such as pagination or an allowlisted sort column, to buy a guarantee the untainted rule does not
+  need. If real programs show untainted text too easy to build without validation, this is the
+  stricter mode to reconsider.
+
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="core-classes-db-connection-is-named"></a>
 
@@ -926,8 +1179,12 @@ Both memoize per request: `connect` keys on the *name*, `open` on a hash of *eve
 Keying `connect` on the name keeps two identically-configured blocks as two connections, because an
 operator who wrote two blocks meant two. Hashing all of `open`'s fields means a second call differing
 only in `timeout` gets its own connection rather than silently inheriting the first caller's.
+Hashing a `secret` password is safe, because a hash of a secret is neutral.
 `{shared: false}` bypasses memoization, which is how a program writes an audit row that must survive
-a rollback or holds session-scoped state off the shared connection.
+a rollback, holds session-scoped state — advisory locks, `SET LOCAL`, temporary tables — off the
+shared connection, or writes while a stream occupies another. It bypasses memoization within the
+request, not the pool across requests: a dedicated connection is still drawn from and returned to
+its core's pool ([`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary)).
 
 `Db\Settings` is a discriminated union over enum-case types rather than one loose shape: SQLite takes
 a `path` and has no `host`, so a `host` on a SQLite settings object is a compile error rather than a
@@ -937,7 +1194,12 @@ A connection is released by the runtime at request teardown — the job a destru
 done by the arena instead. `close()` releases one early, and the name is then free for the next
 `connect`.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0067](../decisions/0067.md), [0064](../decisions/0064.md), [0103](../decisions/0103.md), [0033](../decisions/0033.md), [0047](../decisions/0047.md).</sub>
+**Declined:**
+- **A DSN string**, `connect("pgsql:host=db;dbname=shop", $user, $pass)`. It is a mode string
+  encoding structure the type system should carry ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)), and it puts
+  credentials in source by default.
+
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api).</sub>
 
 <a id="core-classes-db-capabilities"></a>
 
@@ -961,9 +1223,22 @@ full.
 `Settings.host` refuses `tainted` and has **no launderer**: no string check can establish that a
 hostname is safe to send credentials to, since a malicious server can answer any query with a
 `LOCAL INFILE` request. `Core\Taint::assertTrusted` is the only way through. `database` and `user`
-accept `tainted` freely, and `password` is `secret tainted string`.
+accept `tainted` freely, being length-prefixed protocol fields rather than parsed text, and `password`
+is `secret tainted string`.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults). Decided in [0067](../decisions/0067.md), [0058](../decisions/0058.md), [0024](../decisions/0024.md), [0118](../decisions/0118.md), [0145](../decisions/0145.md).</sub>
+A SQLite file named in a configuration block is covered by `db.connect`; a path a program supplies
+through `open` additionally needs `fs.read` and `fs.write`, and is a path sink. An ungranted name
+throws naming the capability. What the split buys is that the set of databases a deployment can
+reach is enumerable from its configuration; what it costs is that code building a connection target
+at run time does not run until the operator adds a `db.open` grant.
+
+**Declined:**
+- **A host pattern under `db.connect` or `net.connect`.** `db.connect` names configuration blocks, not
+  hosts, and a pattern under `net.connect` would widen the reachable set to every name an attacker
+  can get into that zone's DNS, which is what the pinned address of
+  [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address) exists to bound.
+
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults).</sub>
 
 <a id="core-classes-db-safe-connection-defaults"></a>
 
@@ -984,7 +1259,7 @@ object naming a weaker mode does not compile. **The connection charset is forced
 The cost is one connection option a deployment cannot turn down, which is the point: an unsafe
 default that can be restored is an unsafe default a misconfigured deployment still has.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`types/bytes`](types.md#types-bytes). Decided in [0067](../decisions/0067.md), [0009](../decisions/0009.md).</sub>
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`types/bytes`](types.md#types-bytes).</sub>
 
 <a id="core-classes-db-drivers-are-an-enum"></a>
 
@@ -995,12 +1270,13 @@ default that can be restored is an unsafe default a misconfigured deployment sti
 The five drivers are one enum — PostgreSQL, MySQL, MariaDB, SQL Server, SQLite — each variant owning
 its own state machine, error-code table and reset. `Core\Db`'s entry points `match` once.
 
-Three reasons, in priority order. **The set is closed**: a new backend is a decision record, not a
+Three reasons, in priority order. **The set is closed**: a new backend is a change to `Core`, not a
 plugin, and a sandboxed extension cannot host one anyway, since a pool is the thing a sandbox
 boundary cannot hold — open-set extensibility is the one property a trait buys and this design does
-not want it. **A trait wide enough for all five would be half unimplemented**: `executeMany` is one
-prepare and N executions on four drivers and a bulk protocol message on the fifth, a prepare is a
-round trip on two and free on one, and a reset is four command sequences and a rollback on the fifth.
+not want it. **A trait wide enough for all five would be half unimplemented**: a prepare is a round trip on
+two and free on one, the TLS handshake sits at a different layer on SQL Server, a local socket is a
+directory on one, a file on two and absent on SQL Server, and a reset is four command sequences and a
+rollback on the fifth.
 A trait method four drivers implement by returning an error is a lie the type system helped tell.
 **Static dispatch on the request path** costs no allocation and no indirect call.
 
@@ -1008,9 +1284,15 @@ Where a signature repeats five times, it repeats. What keeps the five honest is 
 assertion set run against five real servers. What is shared is the half with no driver in it — the
 placeholder rewriter, the statement cache, the pool, the Novis side of the type map, and error-kind
 normalisation, whose per-driver code tables are *data* each driver supplies rather than behaviour it
-overrides.
+overrides. A sixth backend is a variant, a state machine, an error table, a reset and a row in the
+matrix harness.
 
-<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0003](../decisions/0003.md).</sub>
+**Declined:**
+- **A `dyn Driver` trait.** It is an allocation and an indirect call per connection operation, it
+  buys only the open set this design does not want, and it makes four drivers lie about the fifth's
+  differences.
+
+<sub>See also [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-unix-socket-path`](core-classes.md#core-classes-db-unix-socket-path).</sub>
 
 <a id="core-classes-db-unix-socket-path"></a>
 
@@ -1039,7 +1321,11 @@ takes — and answer a server the same way over either, which is what
 `a_driver_answers_the_same_over_either_transport` asserts. `crates/nvs-db/src/tds/mod.rs` refuses a
 path in `TdsTarget::resolve`, as `BlockError`'s `NoSocketTransport`.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0132](../decisions/0132.md).</sub>
+**Declined:**
+- **A full socket path for Postgres**, uniform with MySQL's. No existing Postgres connection string is
+  written that way, so the uniformity would be paid for by every migrating deployment.
+
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum).</sub>
 
 <a id="core-classes-server-version-is-what-the-server-said"></a>
 
@@ -1070,7 +1356,14 @@ connection was already told. [`core-classes/schema-plan`](core-classes.md#core-c
 and reads it off the connection it already holds, so the same refusal keeps a grade from costing a
 statement of its own.
 
-<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan). Decided in [0187](../decisions/0187.md).</sub>
+**Declined:**
+- **A `SELECT version()` on first use.** The reason is above; on SQLite it would also answer the same
+  string a library call gives for nothing.
+- **Normalising every driver's version to a `(major, minor, patch)` triple.** It throws away what a
+  server chose to say about itself — the build, the vendor suffix, the distribution's patch marker —
+  which is most of why anyone reads the member.
+
+<sub>See also [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan).</sub>
 
 <a id="core-classes-db-connection-busy-state"></a>
 
@@ -1095,9 +1388,16 @@ the only answer that is provable.
 
 An abandoned stream is not automatically poison: a driver that can cancel and drain deterministically
 returns to `Idle` and pools the connection, and one that cannot poisons it. That choice is per
-driver, in the driver.
+driver, in the driver. A poisoned connection costs one full handshake on the next acquire, on a path
+that only a deadline or a protocol error reaches.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
+**Declined:**
+- **Busy state on the parking stream.** It would put protocol knowledge in a generic stream, and
+  SQLite, which owes the same `LogicError`, has no stream to put it on.
+- **Draining a poisoned wire and pooling it anyway.** It trusts framing that has already failed, to
+  save one handshake on a path that is rare by construction.
+
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum).</sub>
 
 <a id="core-classes-db-statement-members"></a>
 
@@ -1119,9 +1419,22 @@ one, which composes with savepoint nesting and with retry. It is one prepare and
 every driver, including MariaDB: its bulk-execute command ends on a refusal where the loop attempts
 every later set, and it cannot route a statement that answers with a result set, so taking it would
 mean one program leaving different rows in two servers. The price is N round trips where one command
-would do, and it is recorded here rather than hidden.
+would do, and it is recorded here rather than hidden. An empty set list is a no-op answering `0`.
+`INSERT … ON DUPLICATE KEY UPDATE` reports `2` for a row it updated on MySQL and MariaDB; that is the
+server's number and it is not rewritten.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0067](../decisions/0067.md), [0004](../decisions/0004.md), [0063](../decisions/0063.md).</sub>
+- **Memory:** a buffered `query` holds its whole result for the rest of the request, counted against
+  the request's memory cap. A program that does not reach for `stream` meets the cap, not a slow path.
+
+**Declined:**
+- **A transaction inside `executeMany`.** A hidden `BEGIN` in a member whose name does not mention
+  one would silently change lock duration on a large batch, and the caller's own `transaction()`
+  already composes ([`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)).
+- **MariaDB's `COM_STMT_BULK_EXECUTE`.** Taking it would spend a property of the surface on round
+  trips. `MARIADB_CLIENT_BULK_UNIT_RESULTS`, which answers per set, reopens it only once a real server
+  is shown to continue past a refused set under it.
+
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state).</sub>
 
 <a id="core-classes-db-parameters"></a>
 
@@ -1145,7 +1458,7 @@ type, so a `mixed` that turned out to be a list would reshape the query instead 
 `NOT IN`, the rewriter cannot tell which it is in, and picking one silently is worse than making the
 caller branch. Expansion changes the statement's arity, so the statement cache keys on it.
 
-<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members). Decided in [0067](../decisions/0067.md), [0007](../decisions/0007.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members).</sub>
 
 <a id="core-classes-db-compile-time-query-checking"></a>
 
@@ -1166,9 +1479,16 @@ vendors' grammars in the front end forever. That refusal covers DDL as well as q
 parsing the `CREATE TABLE` a server prints.
 
 What this costs is that a column name typo survives to run time. What it buys is that the compiler
-never has to be right about a dialect it does not own.
+never has to be right about a dialect it does not own. The host check reads the grant through the
+same predicate a request does, so the two cannot disagree about a pattern.
 
-<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0067](../decisions/0067.md), [0057](../decisions/0057.md), [0145](../decisions/0145.md).</sub>
+**Declined:**
+- **Schema-aware checking now**, validating literal queries and `queryAs<T>` shapes against a live
+  schema. It is the most valuable idea here, and it needs a reachable database at check time, so it
+  can only be a developer-machine mode; a schema read off a live server into a file
+  ([`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection)) is the cache it would read.
+
+<sub>See also [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments).</sub>
 
 <a id="core-classes-db-column-types"></a>
 
@@ -1193,9 +1513,33 @@ so `CURRENT_TIMESTAMP` agrees.
 There is deliberately **no universal string**: the universal path is `get(): mixed` plus the
 language's own `as`, so `Core\Db` never grows a second stringification table. Every value a row
 yields is `tainted` where its type can carry it, which closes stored injection by the same mechanism
-as reflected. The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed).
+as reflected. Only `string` and `bytes` carry the qualifier, so arithmetic on an `int`, `decimal` or
+`Instant` column needs no laundering.
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion). Decided in [0067](../decisions/0067.md), [0054](../decisions/0054.md), [0009](../decisions/0009.md), [0024](../decisions/0024.md), [0036](../decisions/0036.md), [0063](../decisions/0063.md), [0071](../decisions/0071.md), [0145](../decisions/0145.md).</sub>
+`query` yields a dynamic `Db\Row` whose typed readers answer `?T`, a NULL column being an ordinary
+absence; `queryAs<T>` hydrates an inline shape or a `Core\Db\Codec` class, the same split as
+`Json::decode` and `decodeAs<T>`. Field names match column names exactly, so there is no
+snake-to-camel layer; `AS` in the SQL, or a derived codec's per-field `name`
+([`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list)), is the way to rename. SQLite has no date or time types: its mapping
+keys off the *declared* column type and throws on a value that does not parse. The declared zone is
+a property of one database, written by the operator who knows what its columns mean, not an ambient
+process or request default ([`core-api/no-ambient-state`](core-api.md#core-api-no-ambient-state)).
+
+The same table is read the other way by [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed): one table
+used twice rather than two to keep in step.
+
+**Declined:**
+- **`string` as a universal column reader.** It ports PHP code almost unchanged, and it needs a second
+  conversion table and makes the stringly-typed style frictionless; PHP's everything-is-a-string is an
+  artefact of the MySQL text protocol.
+- **Decoding JSON columns automatically.** It would work on three drivers and not on MariaDB, and
+  `Core\Json::decode` is one call.
+- **A `Zone` argument at every read.** `queryAs<T>` has no call site to pass it at.
+- **`interval` as `Duration`.** An interval carries months, which a duration cannot.
+- **A named zone sent to the server.** Named zones need MySQL's zone tables populated, which they
+  usually are not, so the zone is sent as a numeric offset.
+
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`types/decimal`](types.md#types-decimal), [`types/uint`](types.md#types-uint), [`types/conversion`](types.md#types-conversion).</sub>
 
 <a id="core-classes-db-streaming"></a>
 
@@ -1218,7 +1562,7 @@ cannot park. This rule is the member's contract — constant memory, the connect
 statement refused — and the read state each driver leaves between two steps is
 [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection), which is the mechanism under it.
 
-<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection). Decided in [0067](../decisions/0067.md), [0132](../decisions/0132.md), [0187](../decisions/0187.md).</sub>
+<sub>See also [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/a-stream-parks-its-read-on-the-connection`](core-classes.md#core-classes-a-stream-parks-its-read-on-the-connection).</sub>
 
 <a id="core-classes-a-stream-parks-its-read-on-the-connection"></a>
 
@@ -1250,10 +1594,24 @@ the fallback for a protocol that has no parked form, not a state any of the five
 **An abandoned stream drains rather than poisons.** Each wire protocol frames its remaining rows
 self-describingly to a terminating packet or `DONE` token, so the read back to a message boundary is
 deterministic, bounded by the result set the caller asked for, and the connection returns to `Idle`
-and to the pool. A read that *fails* mid-message is `Poisoned` and closed, as it is for every other
-statement.
+and to the pool. Closing instead would spend a full connection handshake, and a TLS one, on what is
+ordinarily a program taking the first row of a sorted query. A read that *fails* mid-message is
+`Poisoned` and closed, as it is for every other statement.
 
-<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum). Decided in [0187](../decisions/0187.md).</sub>
+**Memory:** an open stream holds one row plus the result set's column descriptions, on every driver.
+On SQLite it also holds one pooled thread until the walk ends, so a program that opens many streams
+and drains none can exhaust that pool. That is the same shape as holding many connections, and it is
+bounded by the pool the host already sizes.
+
+**Declined:**
+- **Buffering a result set behind `stream`.** It breaks the member's one promise, constant memory,
+  and makes a request's memory a function of a table's size, the unbounded-by-input shape
+  [`core-classes/output-that-scales-with-its-input-bounds-the-input`](core-classes.md#core-classes-output-that-scales-with-its-input-bounds-the-input) refuses everywhere else.
+- **Refusing `stream` on the drivers without a portal.** It turns [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s
+  single API into four APIs with a footnote, and no protocol among the five needs it.
+- **A chunk-size option.** [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming) gives the reason.
+
+<sub>See also [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum).</sub>
 
 <a id="core-classes-db-transactions"></a>
 
@@ -1279,9 +1637,25 @@ the owning frame acts on the flag, not on catching the signal.
 Nesting on one connection issues `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`, which removes the reason
 `commit()`, `rollBack()` on the connection and `inTransaction()` each existed. `{retries: n}` re-runs
 the callable on deadlock and serialization failure only, outermost transactions only, and defaults to
-`0` because re-running a callable that sends mail is worse than surfacing the conflict.
+`0` because re-running a callable that sends mail is worse than surfacing the conflict. A retry
+waits with exponential backoff and jitter by suspending the task, never by blocking the core.
+`Isolation` is `ReadUncommitted`, `ReadCommitted`, `RepeatableRead`, `Snapshot` and `Serializable`,
+and a level the driver lacks throws. `Transaction` is the first `Core` type to use `by` delegation.
 
-<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation). Decided in [0067](../decisions/0067.md), [0028](../decisions/0028.md), [0043](../decisions/0043.md), [0002](../decisions/0002.md).</sub>
+DDL inside `transaction()` is already committed on MySQL and MariaDB, so a later throw rolls back
+nothing there; PostgreSQL is transactional for DDL. No API shape prevents this.
+
+**Declined:**
+- **A `Db\Transaction` with its own query members.** It is the obvious way to type "inside a
+  transaction", and it would be a second copy of the query surface
+  ([`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation)); delegation gives the same type safety with one
+  implementation.
+- **An explicit savepoint API, `commit()`, `rollBack()` on the connection, and `inTransaction()`.**
+  Savepoint nesting removes the reason each existed.
+- **Retrying by default.** Re-running a callable with side effects outside the database is worse than
+  surfacing a conflict.
+
+<sub>See also [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`core-classes/db-statement-members`](core-classes.md#core-classes-db-statement-members), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="core-classes-db-error"></a>
 
@@ -1295,17 +1669,25 @@ the callable on deadlock and serialization failure only, outermost transactions 
 `SerializationFailure`, `ConnectionLost`, `Timeout`, `Syntax`, `Permission`, `Other` — across four
 drivers and five dialects, MariaDB carrying its own code table rather than MySQL's. SQLite's
 `SQLITE_BUSY` and `SQLITE_LOCKED` map to `Deadlock`, so [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)'s retry
-option works there too. The raw values stay available for what normalisation does not cover.
-
-A class per condition was refused: it would add ten types to a deliberately small closed exception
-set, and some boundaries are driver-dependent.
+option works there too. The raw values stay available for what normalisation does not cover. A
+driver that exposes only SQLSTATE and a vendor integer is why code elsewhere matches on
+`"Duplicate entry"` or hard-codes `1062`; a normalised kind removes that string match.
 
 **Bound parameters never appear on the error, in the message, or in a trace** — a `Throwable` message
 is a `secret` sink. The SQL text may, being developer-authored. The four raw values ride the throw on
 one boxed slice, which is eight bytes narrower than the single slot it replaced and costs one
-allocation on a path that is already allocating the object, the message and the backtrace.
+allocation on a path that is already allocating the object, the message and the backtrace. All four
+are nullable, so a slot never written already reads `null` and absence costs nothing.
 
-<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0067](../decisions/0067.md), [0033](../decisions/0033.md), [0063](../decisions/0063.md), [0002](../decisions/0002.md).</sub>
+**Declined:**
+- **A class per condition.** It would add ten types to a deliberately small closed exception set, and
+  some boundaries are driver-dependent.
+- **Carrying the raw values inline on the fault.** The fault is the error half of every helper's
+  result, so its width is paid on every successful call; five pairs inline would nearly triple it, and
+  keeping the single pair beside a boxed slice saves nothing and adds a third arm at every site that
+  destructures a fault.
+
+<sub>See also [`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record).</sub>
 
 <a id="core-classes-db-crate-boundary"></a>
 
@@ -1329,9 +1711,40 @@ The rule the driver table encodes: **a codec is borrowed, a state machine is wri
 framing, value encoding and authentication mechanisms are large, fiddly and identical for everyone,
 which is exactly what a sans-IO crate is. Sequencing — what to send next, what a park in the middle
 means, when the connection is reusable — is where this project's own decisions live, and borrowing it
-is what would have dragged an async runtime in. TDS has no such crate and is written by hand.
+is what would have dragged an async runtime in. TDS has no such crate and is written by hand,
+including its authentication and its tunnelled TLS: that is the price of SQL Server being in the
+matrix at all.
 
-<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md).</sub>
+| Driver | Borrowed codec | Written here |
+|---|---|---|
+| PostgreSQL | `postgres-protocol`, `postgres-types` | startup, SASL, the extended-query state machine, the reset |
+| MySQL | `mysql_common` | handshake and auth sequencing, `COM_STMT_*` sequencing, the `LOCAL INFILE` refusal |
+| MariaDB | `mysql_common`, with its own auth plugins and error table | the same, plus `RETURNING` |
+| SQL Server | none | all of TDS 7.4 |
+| SQLite | `rusqlite` | nothing on a wire |
+
+SQLite has no wire: it is a C library doing synchronous file I/O, and it cannot park, so each call
+goes to the host's blocking pool. A `Core` member either parks on readiness or hands the core to that
+pool, and there is no third option. `rusqlite` brings the tree's one accepted C dependency,
+`libsqlite3-sys`, recorded in the attribution ledger whose gate fails on any other C crate in the
+graph; MariaDB's extra auth plugins are a Rust implementation or a documented refusal, never a second
+C dependency.
+
+**Memory:** per open connection, a read buffer, a write buffer, the statement cache sized by
+`statement_cache`, and for a TLS connection the session state. That is O(in-flight connections),
+released when the connection is destroyed and bounded by the pool's `max` per core. Per process it
+adds nothing: the trust anchors are the same one set every TLS client in the tree uses.
+
+**Declined:**
+- **`sqlx`, `tokio-postgres`, `tiberius` or the sync `postgres` crate, with `tokio` behind a feature
+  flag.** Each needs an async runtime that spawns, which would be a second reactor on a runtime whose
+  design is that a core is never blocked and a task never migrates. The flag makes it worse, by
+  turning the runtime's presence into a build property.
+- **One crate per driver.** Five crates that all depend on the same shared half, are never used
+  independently, and bring back the feature matrix this rule refuses. The audit argument for one
+  separate crate does not extend to splitting it five ways.
+
+<sub>See also [`core-classes/db-drivers-are-an-enum`](core-classes.md#core-classes-db-drivers-are-an-enum), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection).</sub>
 
 <a id="core-classes-schema-is-a-value"></a>
 
@@ -1358,7 +1771,13 @@ own spelling of a default are each normalized out on both sides. The acceptance 
 property — apply a schema, introspect it back, and the resulting plan is **empty**, on all five
 backends. Every normalization rule exists because that property failed without it.
 
-<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`types/arrays`](types.md#types-arrays). Decided in [0145](../decisions/0145.md), [0090](../decisions/0090.md), [0071](../decisions/0071.md), [0067](../decisions/0067.md).</sub>
+A schema is `Core` by the placement tests ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)). Introspection reads a pooled
+connection the host owns, which a guest re-created per request cannot hold. DDL is a sink its identifiers
+reach unparameterized, and only a `Core` member whose contract names a sink may judge that. And two copies
+would otherwise exist: the job queue's own tables and every framework or application that hand-rolls the
+same job.
+
+<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="core-classes-schema-vocabulary-is-closed"></a>
 
@@ -1368,7 +1787,10 @@ backends. Every normalization rule exists because that property failed without i
 
 The vocabulary is tables, columns, primary keys, unique constraints and indexes — the constructs all
 five backends genuinely share. A column carries a name, a type, nullability, a default, and whether
-it is the table's **identity**, which every backend has and spells differently. A unique constraint
+it is the table's **identity**, which every backend has and spells differently. Identity is in because
+it meets the admission test exactly: every backend has it, it is introspectable, and no schema anybody
+writes fits a vocabulary in which a table cannot have an `id`. It carries the three rules the five
+spellings share: an integer type, at most one per table, and a member of the primary key. A unique constraint
 is the canonical spelling of uniqueness, so an index in the vocabulary is never unique: admitting
 both would make one schema expressible two ways. Its nulls are distinct on every backend
 ([`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct)), which is a property of the vocabulary and
@@ -1393,7 +1815,23 @@ to mean a construct that is in the vocabulary — SQLite's `CREATE UNIQUE INDEX`
 a constraint, SQL Server's filtered index for a nullable unique key — and the introspector reads that
 spelling back as the construct it stands for.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0187](../decisions/0187.md).</sub>
+The vocabulary grows only when a construct exists on **all five backends** *and* something concrete
+needs it, never because a release note appeared. Foreign keys are the exclusion most likely to be lifted,
+and they are harder than they look: the backends agree on the syntax and disagree on the behaviour.
+SQLite enforces them only under a pragma, adding one is `Locking` because the server validates existing
+rows, and several backends create an implicit index for one, which is the normalization trap the
+empty-plan property has to survive. They come in once that property holds on all five without them.
+
+Identifiers are **validated, never delimited**: a table or column name that is not a plain identifier is
+refused where it enters a schema value, by the same judgement `Core\Db::quoteIdentifier` makes, and is
+never escaped into safety by a second answer.
+
+**Declined:**
+- **A raw SQL fragment inside a schema value.** It is the one change that would let the vocabulary cover
+  everything, and it ends the diff's totality: a plan over an opaque fragment is best-effort, and every
+  guarantee above becomes a hedge.
+
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct).</sub>
 
 <a id="core-classes-a-unique-key-reads-nulls-as-distinct"></a>
 
@@ -1435,7 +1873,13 @@ semantics are what [`core-classes/db-one-api`](core-classes.md#core-classes-db-o
 and [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table)'s `dedupe_pending` is one reader of them rather than
 the reason for them.
 
-<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0187](../decisions/0187.md).</sub>
+**Declined:**
+- **A computed column that maps a null to a unique value.** It is the same objection as the token
+  column, with an extra vocabulary entry attached.
+- **Leaving SQL Server with nulls that collide, and documenting it.** A silent correctness difference
+  between backends is what the one-API promise exists to prevent.
+
+<sub>See also [`core-classes/schema-vocabulary-is-closed`](core-classes.md#core-classes-schema-vocabulary-is-closed), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="core-classes-schema-converges"></a>
 
@@ -1459,7 +1903,20 @@ changes and fleet locking stay a blocked gap in the first-party framework
 stops there deliberately: every one of those open questions is a question convergence does not have
 to answer.
 
-<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0145](../decisions/0145.md), [0082](../decisions/0082.md).</sub>
+Planning is not on the request path in any expected deployment: it is an operator's act, issuing a
+handful of catalog queries rather than one per table.
+
+**Memory:** introspection holds the catalog rows of the tables under comparison, which is O(schema) and
+never O(data), and a plan holds each step's SQL as text. Both are bounded by the schema's size and freed
+with the request. Nothing is cached across requests, because a plan computed from a stale catalog is the
+failure convergence exists to remove.
+
+**Declined:**
+- **Versioned migrations with a history table.** They need ordering, locking, a runner, reversibility and
+  a source of truth inside the target database, and they are wrong after any change the history table did
+  not record. Convergence needs none of it and is correct against a database it has never seen.
+
+<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-introspection`](core-classes.md#core-classes-schema-introspection), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner).</sub>
 
 <a id="core-classes-schema-introspection"></a>
 
@@ -1482,7 +1939,11 @@ anyway, and the introspector must exist for the diff regardless — so a parser 
 worse implementation of a job already done. Offline `.sql` input, if it is ever wanted, is a separate
 tool with its own decision.
 
-<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md).</sub>
+**Declined:**
+- **Parsing `CREATE TABLE` to read an existing database.** It means four vendors' DDL grammars, maintained
+  forever, to reproduce what the catalog already gives as rows.
+
+<sub>See also [`core-classes/schema-is-a-value`](core-classes.md#core-classes-schema-is-a-value), [`core-classes/db-compile-time-query-checking`](core-classes.md#core-classes-db-compile-time-query-checking), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges).</sub>
 
 <a id="core-classes-schema-plan"></a>
 
@@ -1514,7 +1975,22 @@ to be: SQL Server's filtered unique index for a nullable unique key
 ([`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct)) is `Locking` built over an existing table
 and `Safe` inside a `CREATE TABLE`, exactly as the constraint form is on the other dialects.
 
-<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0187](../decisions/0187.md).</sub>
+**SQLite's non-additive alters are a create-copy-drop-rename rebuild, graded `Destructive`
+unconditionally.** Its `ALTER TABLE` adds, renames and drops a column and little else, so anything past
+that copies the table's data, and `Destructive` is the honest grade for a copy. Refusing the rebuild would
+make SQLite second-class in the one place a development machine's SQLite is most useful.
+
+The grader ages upward by design. Servers relax constraints faster than the grade tables track them, so a
+plan over-reports `Locking` on a server new enough to make a step instant.
+
+**Declined:**
+- **Two grades.** Either merge of the middle grade is wrong, as above, and the middle grade is the class
+  that actually causes production incidents.
+- **One emitter per driver rather than per dialect.** MariaDB and MySQL share SQL text exactly and differ
+  only in authentication and error tables, which no DDL reaches. A fifth emitter would be a copy of
+  MySQL's to keep in step.
+
+<sub>See also [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/schema-absence-never-destroys`](core-classes.md#core-classes-schema-absence-never-destroys), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/a-unique-key-reads-nulls-as-distinct`](core-classes.md#core-classes-a-unique-key-reads-nulls-as-distinct).</sub>
 
 <a id="core-classes-schema-absence-never-destroys"></a>
 
@@ -1538,9 +2014,14 @@ no `allowDrops` and no strict mode: the escape hatch is the SQL the plan already
 A report is a step the plan carries and never applies, which is what keeps `applySafe` usable at all:
 every plan against a shared database holds reports, and a rule reading *every* step's grade would
 refuse every plan ever computed against a real database. `applySafe` reads the grades of the steps it
-would run.
+would run. Reports are still counted, printed and given complete SQL: a report the plan did not show
+would be worse than one it will not apply.
 
-<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md), [0084](../decisions/0084.md).</sub>
+**Declined:**
+- **Dropping what the schema value omits, behind a flag or a strict mode.** Such a flag is correct only
+  when the application owns the entire database, so its use anywhere else is a data-loss bug.
+
+<sub>See also [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="core-classes-schema-apply-capability"></a>
 
@@ -1561,7 +2042,14 @@ step it would run is not `Safe`, and throws naming the first that is not.
 **`applyIncludingRisky()`** says so where it is written, so a reviewer reading the call sees the
 claim being made. `nvs schema plan|apply|dump` is the operator's spelling of the same thing.
 
-<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0084](../decisions/0084.md).</sub>
+**Declined:**
+- **`applySafe` as the only entry point.** A tool that cannot express a risky change is a tool operators
+  stop using, and they then hand-write the risky change with no grade at all. Naming the risk at the call
+  site is stronger than refusing to have one.
+- **One apply member with a `{risky: true}` option.** The option hides the claim inside an anonymous
+  object, where the member's name puts it in front of the reviewer.
+
+<sub>See also [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`core-classes/schema-plan`](core-classes.md#core-classes-schema-plan), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="core-classes-derive-attribute"></a>
 
@@ -1593,9 +2081,24 @@ never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` names
 This is a carve-out of exactly one sentence, and it is the only one: attribute *retrieval* stays
 structural, unchanged ([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)). Every future compiler-recognized
 attribute joins the closed list; nothing else is ever matched by name. The list itself is a single
-table in the compiler, which is what stops a per-record running total from going stale.
+table in the compiler (`nvs_types::derive::ATTRIBUTES`), and a rule adding an entry says its attribute
+joins the list and states no running total, because a count restated beside each entry goes stale.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval). Decided in [0071](../decisions/0071.md), [0062](../decisions/0062.md), [0067](../decisions/0067.md), [0102](../decisions/0102.md).</sub>
+The nominal match is what lets the compiler generate code from an attribute at all: it acts on
+**this** attribute, and never on a framework's own literal that happens to have the same shape. The
+list is also the control on the attribute surface. Each entry is cheap to add, and a set of
+attributes added because they were cheap is a second, undocumented language, so each entry is
+argued on its own.
+
+**Declined:**
+- **Matching a compiler-recognized attribute structurally**, the way retrieval matches. The
+  derive's payload is an empty shape, which structurally matches every attribute in a program, and
+  even a non-empty one would generate code from a third-party literal that happens to fit.
+- **One shared `#[Derive]` and `#[Field]` for both formats.** It forces a JSON key and a column
+  name to be the same string, which is wrong often enough that two attributes would be needed at
+  once. A class using both formats with the same rename writes it twice, and that is visible.
+
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/derive-generates-what-is-missing`](core-classes.md#core-classes-derive-generates-what-is-missing), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval).</sub>
 
 <a id="core-classes-derive-field-list"></a>
 
@@ -1613,7 +2116,10 @@ lists are literally the same declaration, so this costs nothing. It is worth its
 decode is an ordinary `new`: the generated decoder fills locals and calls the constructor, so a
 decoded object is indistinguishable from a hand-built one and every invariant the constructor
 establishes still holds. A `lateinit` property cannot be a field, being by definition not
-constructor-assigned.
+constructor-assigned; `readonly` is unaffected, because the constructor assigns it like any other.
+Because the two lists are checked to agree at compile time, `fromJson(toJson($x))` rebuilding `$x`
+is a property of the mechanism rather than of the care taken writing two functions, and a renamed
+property breaks loudly: every reader of the old key gets a missing-field issue with its path.
 
 A field's type must be codec-reachable — a scalar, one of the named `Core` value types, an enum, an
 inline shape, an `array<T>` or `?T` of one of those, or another class that itself has a codec.
@@ -1629,10 +2135,22 @@ above, and a class keeping it as a parameter anyway stays well formed — it sti
 program can still build one itself. What such a class cannot do is be **decoded**: the contract names
 no key for that position, and a default carried on a field cannot be read for a position that has no
 field. So the refusal is of the call that asks for a whole instance out of a document or a row rather
-than of the declaration, at every door that reads a derived codec. There is no whole-class naming policy — that would make a wire
-format depend on a setting rather than on the source.
+than of the declaration, at every door that reads a derived codec. A field's default key or column
+is the property's own name, exactly, with no case mapping between the two.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0071](../decisions/0071.md), [0022](../decisions/0022.md), [0030](../decisions/0030.md), [0067](../decisions/0067.md).</sub>
+**Declined:**
+- **Building the object without its constructor**, the way a serializer for a language with no
+  constructors does. Every decoded object would be one that never ran its class's invariants, and
+  the deliberately narrow reflection bypass of [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws)
+  would become a hot path.
+- **Deriving from the constructor's parameters alone.** The encoder has nothing to read for a
+  parameter that is not promoted, and the two halves would come from two lists that can disagree
+  in silence, which is the failure hand-written codecs already have.
+- **A whole-class naming policy** such as `snake_case`. It is a mode string
+  ([`core-api/shape-rules`](core-api.md#core-api-shape-rules) R11), and it makes a wire format depend on a setting rather than on
+  the source being read.
+
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types).</sub>
 
 <a id="core-classes-derive-reports-every-field"></a>
 
@@ -1650,14 +2168,24 @@ located. For a row decode it is the column name. `ParseError` carries the list; 
 class was added for it, because `ParseError` is already exactly the right node: *input did not match
 a format this code declared*.
 
-The accumulator is allocated only when the first issue is recorded, so the successful path — every
-request that is not an error — allocates nothing for it.
+A whole list is the point: a submitted form has to tell its user about every bad field at once, not
+one per round trip.
 
-One thing the record describes has not landed: `Core\Db\DbError` has no `issues` slot of its own, so
-the row half's per-field refusals are reported on a `ParseError` instead. Gap 4 in
-`crates/nvs-stdlib/src/db/mod.rs` is where that is recorded.
+`Core\Db\DbError` has no `issues` slot of its own yet, so the row half's per-field refusals are
+reported on a `ParseError` instead. Gap 4 in `crates/nvs-stdlib/src/db/mod.rs` is where that is
+recorded.
 
-<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0071](../decisions/0071.md), [0002](../decisions/0002.md), [0067](../decisions/0067.md).</sub>
+- **Memory:** the accumulator is allocated only when the first issue is recorded, so the successful
+  path — every request that is not an error — allocates nothing for it.
+
+**Declined:**
+- **Reporting the first failed field only.** It suits a configuration file and fails a form, whose
+  user would be told about one mistake at a time.
+- **A new exception class per format.** The closed `Throwable` set exists so that `catch` is
+  learnable ([`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy)), and what was missing was a field on an existing
+  class, not a new class.
+
+<sub>See also [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`core-classes/db-error`](core-classes.md#core-classes-db-error), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
 
 <a id="core-classes-derive-generates-what-is-missing"></a>
 
@@ -1687,7 +2215,20 @@ per field, and paid on the encoding side by a refcount pair per level of the doc
 member runs. Footprint is O(derived classes in compiled code), not O(objects) and not O(requests), and
 a program that neither carries the attribute nor writes a half pays nothing at all, including no pass.
 
-<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0023](../decisions/0023.md), [0029](../decisions/0029.md), [0042](../decisions/0042.md), [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **Hand-written codecs only.** A ten-property class costs twenty lines per format that restate the
+  property list above them, and an encoder and a decoder that drift apart fail in silence.
+- **Encoding every public property with no attribute.** A class's public shape would be a wire
+  contract nobody wrote ([`core-api/written-participation`](core-api.md#core-api-written-participation)).
+- **A derive for the graph copy.** It already handles every object with no opt-in, so a derive would
+  be a second path to an operation that works ([`classes/two-copy-depths`](classes.md#classes-two-copy-depths)).
+- **Validation in the codec.** Checking that a value looks right belongs to `Core\Validate` and user
+  code, and folding it in is how a derive attribute grows into a framework.
+- **Omitting a `null` field and a naming policy** are declined where their rules live
+  ([`core-api/required-optional-and-nullable`](core-api.md#core-api-required-optional-and-nullable), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list)). Until either
+  exists, a payload that needs one takes a hand-written encoder.
+
+<sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/anonymous-object`](types.md#types-anonymous-object), [`types/shape-type`](types.md#types-shape-type).</sub>
 
 <a id="core-classes-ldap-filter-is-a-value"></a>
 
@@ -1807,14 +2348,28 @@ it would be a schema no existing deployment could converge to, while a nullable 
 
 DDL is an injection sink and a privileged act, so **the runtime never issues it implicitly**, not at
 boot and not from a request; applying the plan takes `db.schema` like any other DDL
-([`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability)).
+([`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability)). A server whose queue database is behind that schema
+does not create what is missing: it refuses to serve and names `nvs queue migrate`. That makes the
+migrate command one more operator step a deployment has to get right, and implicit DDL from a running
+server is worse in every way that matters here.
 
 It may be the application's own database, and that is the recommended configuration, because a
 transactional enqueue — the property the whole design rests on — requires it. A separate queue
 database is permitted and silently gives up that property, which is why the documentation says so at
-the point the option is offered.
+the point the option is offered. The cost of the recommended configuration is write load on the
+application's primary database, and that cost is the reason `[queue] connection` is a setting at all.
 
-<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0084](../decisions/0084.md), [0145](../decisions/0145.md), [0067](../decisions/0067.md), [0024](../decisions/0024.md), [0153](../decisions/0153.md), [0187](../decisions/0187.md).</sub>
+**Declined:**
+- **A runtime-owned durable log on disk.** It ties a job to one machine's disk, so a second instance
+  cannot see it and a rescheduled container loses it, and durability becomes the runtime's to prove
+  rather than the database's to provide.
+- **`Core\Cache` as the store.** It must always be correct to find nothing in the cross-request store
+  ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)), which is right for a cache and disqualifying
+  for a job somebody is waiting on.
+- **Creating the tables at boot or on first use.** DDL is a privileged act an operator takes, never one
+  a running server takes on its own.
+
+<sub>See also [`core-classes/schema-converges`](core-classes.md#core-classes-schema-converges), [`core-classes/schema-apply-capability`](core-classes.md#core-classes-schema-apply-capability), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities).</sub>
 
 <a id="core-classes-session-is-started-explicitly"></a>
 
@@ -1836,7 +2391,11 @@ own rather than a sweeper's.
 What this costs is one line per request that uses sessions. What it buys is that a request that does
 not use them pays nothing, which the ambient version could never promise.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args). Decided in [0012](../decisions/0012.md), [0139](../decisions/0139.md), [0059](../decisions/0059.md), [0008](../decisions/0008.md).</sub>
+**Declined:**
+- **A session that starts on the first `Core\Session` access.** A read that starts a session is a side
+  effect at a distance, the kind of hidden step the explicit `start` exists to remove.
+
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments), [`core-classes/script-args`](core-classes.md#core-classes-script-args).</sub>
 
 <a id="core-classes-ratelimit-two-members"></a>
 
@@ -1854,6 +2413,16 @@ admits up to 800.
 
 They are not two tiers of one operation, and a flag on one member could not carry the difference.
 
+The class exists for the limits only the application can key: five failed logins per *account*, a
+quota per tenant plan, ten exports per user per hour. Per-account login throttling is what stops
+credential stuffing, which per-IP throttling does not, because the attacker has many addresses and
+the victim has one account — and no proxy knows which account a request authenticates as. Left
+without a class, an application writes one of two wrong limiters: a counter in the per-core tier,
+which silently admits `cores ×` the limit, or an insert-and-count against the database, which puts
+a write on the hot path of the endpoint it protects. The price of `consume`'s coherence is a network
+round trip on that path, the same floor the shared cache tier accepts, and it is why `shed` exists
+for the cases that do not need it.
+
 Four things are deliberately absent. **Edge and flood limiting** — no per-IP, per-path or connection
 limit as a deployment feature: a proxy owns it earlier and cheaper, and doing it here means paying
 for the request in order to reject it. **All configuration** — a limit is application policy, so
@@ -1861,7 +2430,23 @@ there is no `[ratelimit]` block at all. **Any automatic enforcement** — the me
 and writes no `429`. **Distributed reservation** and multi-key atomic checks, which are considerably
 more machinery with no named use case yet.
 
-<sub>See also [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0075](../decisions/0075.md), [0059](../decisions/0059.md), [0063](../decisions/0063.md), [0074](../decisions/0074.md), [0077](../decisions/0077.md).</sub>
+**Declined:**
+- **Only the shared tier.** The two names work only if both exist. With one, the first program that
+  needs approximate load shedding uses `consume` for it, and puts a round trip on a path that did not
+  need one.
+- **One member with a `coherent: true` option.** The default is chosen once and copied, and the wrong
+  choice fails silently — the reason `Core\Cache` has two members
+  ([`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers)).
+- **Naming them `local` and `shared`** to mirror `Core\Cache`. That presents them as two tiers of one
+  operation: a per-core policy limiter is not a weaker coherent one, it is a different thing used for
+  a different reason.
+- **A middleware or attribute that applies a limit to a route.** It needs a dispatch pipeline Novis
+  does not have ([`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered)), and what to do about a limit is
+  application logic.
+- **Backing it with `Core\Db`.** It puts a write on the hot path of every protected endpoint, on the
+  database that is usually the scarcest resource in the deployment.
+
+<sub>See also [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/topic`](core-classes.md#core-classes-topic).</sub>
 
 <a id="core-classes-ratelimit-gcra"></a>
 
@@ -1886,10 +2471,15 @@ and `null` exactly when `allowed` is true — absence is `?T`, not a sentinel ze
 qualifier-neutral. The key **accepts `tainted`**, since a tenant or account id is user-derived by
 nature and the store's protocol is length-prefixed, so a key cannot reshape a command; it
 **refuses `secret`**, because using a signing key as a rate-limit key writes it into a store with a
-TTL. The in-process tier is an existing crate; the shared tier is a small script of our own, an
-algorithm over our own state.
+TTL. A program that needs to limit on a secret keys on a hash of it (`Core\Hash::of`). The
+in-process tier is an existing crate; the shared tier is a small script of our own, an algorithm
+over our own state.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
+**Declined:**
+- **A sliding-window counter or log.** The counter cannot give an exact `retryAfter`, and the log
+  holds O(requests in window) per key in a store somebody pays for.
+
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-unreachable-store-throws`](core-classes.md#core-classes-ratelimit-unreachable-store-throws), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal), [`types/duration`](types.md#types-duration).</sub>
 
 <a id="core-classes-ratelimit-unreachable-store-throws"></a>
 
@@ -1909,7 +2499,13 @@ can question.
 `shed` cannot fail this way, its state being in the core's own memory, which is one more reason the
 two are different members rather than one with a flag.
 
-<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation). Decided in [0075](../decisions/0075.md), [0063](../decisions/0063.md), [0002](../decisions/0002.md).</sub>
+**Declined:**
+- **Failing open**, returning `allowed: true` with a logged warning. A security control that has
+  stopped working would look like one that is working.
+- **Failing closed**, returning `allowed: false`. A store outage would take the whole application
+  down, and a quota check is not worth that.
+
+<sub>See also [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-classes/ratelimit-gcra`](core-classes.md#core-classes-ratelimit-gcra), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="core-classes-crypto-interop-tier"></a>
 
@@ -1925,7 +2521,10 @@ and X25519, and four signature algorithms — RSASSA-PKCS1-v1_5 and RSASSA-PSS o
 P-256, and Ed25519. AES Key Wrap and the Concat KDF are internal to PBES2 and ECDH-ES and never members.
 Out, permanently: AES-CBC, AES-CTR, AES-128, RSA encryption in any form, RSA key generation, P-384,
 ES384, RS384, RS512, PS384, PS512, ES256K, and JWE's `A*CBC-HS*` content encryption. A closed roster that
-is only a habit reopens at the first ticket, so the list is written down.
+is only a habit reopens at the first ticket, so the list is written down. Unauthenticated and legacy
+modes are out by [`core-api/tier-roster`](core-api.md#core-api-tier-roster); the size variants are out because two of everything
+doubles the surface for no property a program can name; RSA encryption is out because RSA1_5 is a
+padding oracle and RSA-OAEP buys nothing ECDH-ES does not, at a fraction of the key size.
 
 **Where two algorithms take the same parameters they are one member with a closed enum argument**, the
 way `Core\Hash::of` takes a `Core\Digest`; where the parameters differ they are separate members. **No
@@ -1942,27 +2541,58 @@ remain the pair to prefer when both ends are Novis — advice on the member's re
 default. The nonce is drawn by the member and there is no nonce parameter, so AES-GCM carries its
 birthday bound around 2^32 messages under one key; that bound is the price of reading what a browser
 wrote, and the answer when a program approaches it is the other cipher rather than a counter the caller
-keeps.
+keeps, which is a worse failure with a wider blast radius. Opening under the wrong cipher is a forgery,
+never plausible bytes: both constructions authenticate before they decrypt, so a mismatched
+`Crypto\Cipher` gets the same one `RuntimeError` sentence as every other message that is not authentic.
 
 **A key is validated where it is read, not where it is used.** Every public key is checked at `read` — on
 the curve for P-256, inside 2048–8192 bits for RSA — and an all-zero X25519 shared secret is refused at
 `agree`, so there is no later site at which the check could be forgotten. An RSA key's scheme is fixed
 when it is read, which is [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key) held for the one key type two JWS
-algorithms share, and an RSA pair is never generated. A key off the wire that fails is a `RuntimeError`;
-a malformed key the program built is a `LogicError`.
+algorithms share. An RSA pair is never generated: `generateKeyPair` refuses both RSA kinds with a
+`LogicError` naming `Crypto\KeyPair::read`, because a program is handed its RSA key by whoever issued
+it. A key off the wire that fails is a `RuntimeError`; a malformed key the program built is a
+`LogicError`. A JWK `read` accepts what a browser exports, `ext` and `key_ops` included, and refuses one
+carrying `d`, because a private key handed over as a public one is a bug rather than an attack. A
+private key leaves a `Crypto\KeyPair` only as `secret bytes` PKCS#8, and `Crypto\KeyPair::read` takes
+DER or one PEM `PRIVATE KEY` block, the form a service-account file carries, and refuses PKCS#1 and
+encrypted PKCS#8.
+
+**PBKDF2's iteration count is required**, because the other end of an already-agreed protocol chose it
+and a default would be a number that is either wrong or ignored. Its floor and ceiling are frozen in the
+vector set as refusals, so neither number moves without that set being regenerated
+([`security/jwe-compact-subset`](security.md#security-jwe-compact-subset) gives the bounds and why the ceiling matters).
 
 The interop claim is checkable rather than intended: `bun nv webcrypto-vectors` freezes WebCrypto's
-own output for every algorithm here, derived from labels so a rerun writes the same bytes.
+own output for every algorithm here, derived from labels so a rerun writes the same bytes. A suite
+written against our own implementation proves only that our encoder and our decoder agree; the other
+side's output is what proves interoperability.
 
-<sub>See also [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jwe-compact-subset`](security.md#security-jwe-compact-subset), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0179](../decisions/0179.md).</sub>
+- **Memory:** per call, a few hundred bytes of cipher or curve state on the stack and one output buffer
+  charged to the request's budget before it is allocated. A `Crypto\KeyPair` holds its private scalar for
+  as long as the program holds the object. Nothing is held between calls, so all of it is O(in-flight).
+
+**Declined:**
+- **A `string` algorithm argument, or one enum spanning every primitive.** One member taking any
+  algorithm is how a program ends up with `aes-256-ecb` in one file. An enum is safer than a string but
+  still lets `seal` be handed a signature algorithm; separate members where the parameters differ make
+  that unrepresentable.
+- **Defaulting the cipher to XChaCha20-Poly1305.** A default is invisible at the call site, and the call
+  sites that matter are the interoperating ones, where the cipher is not ours to choose.
+- **RSA-OAEP, for an issuer that encrypts ID tokens.** It is rare and opt-in at every provider, and it
+  would bring RSA encryption's whole padding surface in for one feature.
+- **JWK export of a private key, an additional-data parameter, and streaming encryption.** None is on the
+  surface; JWE uses additional data internally, where the protocol fixes what it is.
+
+<sub>See also [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jwe-compact-subset`](security.md#security-jwe-compact-subset), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="core-classes-signature"></a>
 
-## `Core\Signature` signs a canonicalized payload, and the lifetime rides inside the signed bytes  *(designed — not yet in the compiler)*
+## `Core\Signature` signs a canonicalized payload, and the lifetime rides inside the signed bytes
 
 `rule:core-classes/signature`
 
-`Core\Signature::sign` takes a map and an options bag carrying a key ring and an optional expiry, and
+`Core\Signature::sign` takes a map and an options bag carrying a key ring and a written lifetime, and
 answers a token; `verify` takes a token and a key ring and answers the payload or throws.
 
 **The input is a map, never text.** `sign` canonicalizes the payload itself — keys sorted, each value
@@ -1972,27 +2602,25 @@ beside them, so a holder cannot edit it and there is no second parameter to keep
 is URL-safe by construction — unpadded URL-safe base64 — so every octet is a legal cookie octet and a
 legal query-string value and nothing downstream escapes it again. The key ring is newest-first:
 signing uses the head, verifying tries the ring in order, rotating is prepending and retiring is
-dropping the tail. One rotation vocabulary in the language, not two.
+dropping the tail. It is the signed cookie's ring and shape, so there is one rotation vocabulary in
+the language, not two.
 
 **A verified payload is `tainted`.** A token minted by one service and read by another is not the
 signed-cookie case, where the plaintext was the application's own when it went in; "we authored this
 payload" is not a property the checker can see, so it is not one the return type may assume.
 
-**Not shipped.** There is no `Core\Signature` in `crates/nvs-stdlib/src/`; the nearest landed member
-is `signed_cookie.rs`, whose key-ring shape this one adopts.
-
-<sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0146](../decisions/0146.md), [0060](../decisions/0060.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url), [`core-classes/uri-removable-components`](core-classes.md#core-classes-uri-removable-components), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="core-classes-router-signed-url"></a>
 
-## `Core\Router` signs a route name and its parameters, so a signature survives a remount  *(designed — not yet in the compiler)*
+## `Core\Router` signs a route name and its parameters, so a signature survives a remount
 
 `rule:core-classes/router-signed-url`
 
-`Core\Router` keeps its own signing pair — one that mints a signed URL from a route name and its
-typed parameters, and one that verifies against the match the server already made. Parsing a built
-URL and signing it would reach most of this, and convenience alone would not justify two more
-members.
+`Core\Router` keeps its own signing pair — `urlSigned`, which mints a signed URL from a route name and
+its typed parameters, and `signedRoute`, which verifies against the match the server already made and
+answers that `Router\Match` or throws. Parsing a built URL and signing it would reach most of this, and
+convenience alone would not justify two more members.
 
 **One property does.** A compiled route table may be served at one mount prefix or another, so a
 signed *path* stops verifying the moment a mount moves. Signing the route **name** and its parameters
@@ -2002,10 +2630,7 @@ survives a remount, and verification reads the existing match rather than re-par
 signature for you, because the program that renders the refusal is the program that should decide
 when to ask.
 
-**Not shipped.** `crates/nvs-stdlib/src/router.rs` carries neither member, and
-[`core-classes/signature`](core-classes.md#core-classes-signature) — the payload half both would sign — is not built either.
-
-<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0146](../decisions/0146.md), [0097](../decisions/0097.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature).</sub>
 
 <a id="core-classes-uri-removable-components"></a>
 
@@ -2037,7 +2662,21 @@ query string gains no second canonicalization. The name a parameter is reached b
 so an array value is what writes brackets — which is what makes the pair a round trip rather than
 two members that each invented a spelling.
 
-<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature). Decided in [0147](../decisions/0147.md), [0146](../decisions/0146.md).</sub>
+The pair is singular and reached by name, the same operation `Core\Request::query(string $name)` performs
+on the same bracket convention from the other side of a request. A query keeps exactly one syntax per
+state: pairs are written by this pair, an empty query is `with({query: ""})`, and no query is
+`with({query: null})`. There is no plural `withQueryParameters` and no `withoutQueryParameter`: setting
+several is the member twice or the existing parse-and-build pair, and removing is `null`.
+
+`userInfo` is not a key of the `with` bag at all, so `with` neither adds nor drops a credential.
+
+**Declined:**
+- **One member per removable component, such as `withoutFragment()`.** It multiplies the surface by the
+  number of clearable components on every class that has any. Symmetric naming
+  ([`core-api/symmetric-names`](core-api.md#core-api-symmetric-names)) would then want `with` and `without` treated as a pair, which they
+  are not: one takes an anonymous object and the other would take names.
+
+<sub>See also [`core-classes/signature`](core-classes.md#core-classes-signature).</sub>
 
 <a id="core-classes-output-that-scales-with-its-input-bounds-the-input"></a>
 
@@ -2048,7 +2687,10 @@ two members that each invented a spelling.
 A `Core` member whose output scales with its input takes one of exactly two obligations: it allocates
 that output through the value allocator the memory ceiling guards, or it bounds the input it accepts.
 There is no third option, and a member that took neither is how a request holds many times its own
-`[limits] memory` in one call.
+`[limits] memory` in one call. The obligation is general rather than one member's paragraph because
+the residual is a small format factor for the members that ship and a thousandfold one for the first
+member with a large expansion ratio; stating it before that member exists is cheaper than finding
+which members quietly took neither branch.
 
 The ceiling is asked in front of a value allocation, so a member that grows a Novis `string` or
 `array` as it goes is bounded by construction: the first allocation past the ceiling is refused and
@@ -2067,7 +2709,7 @@ breach it raises is named there, and a caller may lower it and never raise it. A
 takes the first branch says so — its result is built through the value allocator and it holds no
 buffer of its own that the ceiling has not seen.
 
-<sub>See also [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`](errors.md#errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself). Decided in [0174](../decisions/0174.md).</sub>
+<sub>See also [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`](errors.md#errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself).</sub>
 
 <a id="core-classes-decompression-bound"></a>
 
@@ -2200,7 +2842,7 @@ pixel source is held to the default pixel cap, not the `[image]` one.
   component declines to own, and a C codebase that size is still one to build and audit inside the
   sandbox.
 
-<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0063](../decisions/0063.md), [0003](../decisions/0003.md), [0276](../decisions/0276.md).</sub>
+<sub>See also [`core-classes/image-pixel-model`](core-classes.md#core-classes-image-pixel-model), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`core-classes/image-one-entry-point-per-job`](core-classes.md#core-classes-image-one-entry-point-per-job). Decided in [0276](../decisions/0276.md).</sub>
 
 <a id="core-classes-image-pixel-model"></a>
 
@@ -2313,7 +2955,7 @@ smaller of the call's and the key's value in the request's snapshot before the c
 (`tests/conformance/novis/image-a-bomb-is-refused-before-it-is-decoded.nvst`). The
 `Novis\Image` builder that would pass a program's own `{maxPixels}` is not written.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0005](../decisions/0005.md), [0055](../decisions/0055.md), [0020](../decisions/0020.md), [0095](../decisions/0095.md), [0246](../decisions/0246.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary). Decided in [0246](../decisions/0246.md).</sub>
 
 <a id="core-classes-image-correct-by-default"></a>
 
@@ -2397,7 +3039,7 @@ text and what the box is, and `Image::text`, `Image::measureText` and `Font::fro
 checks only the file's first four bytes and calls no export. SVG is not, and its fixtures owe an SVG
 that references an external file and rasterises with the reference unresolved.
 
-<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed). Decided in [0079](../decisions/0079.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline), [`core-classes/image-pixel-cap`](core-classes.md#core-classes-image-pixel-cap), [`testing/assertions-are-typed`](testing.md#testing-assertions-are-typed).</sub>
 
 <a id="core-classes-intl-roster"></a>
 
@@ -2544,7 +3186,7 @@ the guest.
   disjoint CSS subsets, and the popular ones fetch whatever the HTML names, which is the category's
   vulnerability class. One first-party no-I/O way to do the job prevents both.
 
-<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io). Decided in [0058](../decisions/0058.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`core-classes/pdf-one-engine`](core-classes.md#core-classes-pdf-one-engine), [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io).</sub>
 
 <a id="core-classes-pdf-one-engine"></a>
 
@@ -2596,7 +3238,7 @@ paged-media engine may replace the assembled one wholesale, and it must still me
 - **A first-party imperative PDF API.** The first-party answer to drawing at a coordinate is HTML, CSS
   and SVG; a third-party package may carry one.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0122](../decisions/0122.md), [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/pdf-css-subset`](core-classes.md#core-classes-pdf-css-subset), [`core-classes/html-parsing`](core-classes.md#core-classes-html-parsing), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only).</sub>
 
 <a id="core-classes-pdf-css-subset"></a>
 
@@ -2645,7 +3287,7 @@ and compared byte for byte.
 
 **Not shipped.** There is no PDF package in the tree.
 
-<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source). Decided in [0024](../decisions/0024.md), [0079](../decisions/0079.md).</sub>
+<sub>See also [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize), [`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert), [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source).</sub>
 
 <a id="core-classes-pdf-page-is-an-image-source"></a>
 
@@ -2734,7 +3376,7 @@ The decoder's fixtures hold this inside the guest, and owe:
 
 **Not shipped.** There is no PDF decoder in the image component.
 
-<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md), [0044](../decisions/0044.md).</sub>
+<sub>See also [`core-classes/pdf-page-is-an-image-source`](core-classes.md#core-classes-pdf-page-is-an-image-source), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="core-classes-spreadsheet-has-no-io"></a>
 
@@ -2784,7 +3426,7 @@ surfaced as data and nothing resolved.
 - **Exposing the crates' surfaces directly.** That is three disjoint APIs for one job inside a single
   component.
 
-<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io). Decided in [0055](../decisions/0055.md).</sub>
+<sub>See also [`core-classes/spreadsheet-formula-is-a-value`](core-classes.md#core-classes-spreadsheet-formula-is-a-value), [`core-classes/spreadsheet-bulk-boundary`](core-classes.md#core-classes-spreadsheet-bulk-boundary), [`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io).</sub>
 
 <a id="core-classes-spreadsheet-formula-is-a-value"></a>
 
@@ -2811,7 +3453,7 @@ rather than the builder's state.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0024](../decisions/0024.md).</sub>
+<sub>See also [`core-classes/spreadsheet-has-no-io`](core-classes.md#core-classes-spreadsheet-has-no-io), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
 
 <a id="core-classes-spreadsheet-bulk-boundary"></a>
 
@@ -2897,7 +3539,7 @@ stream in, and the same input serialized twice and compared byte for byte.
 
 **Not shipped.** There is no spreadsheet package in the tree.
 
-<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert), [`core-classes/spreadsheet-evaluation-and-roster`](core-classes.md#core-classes-spreadsheet-evaluation-and-roster).</sub>
 
 <a id="core-classes-net-one-api-three-transports"></a>
 
@@ -2930,34 +3572,44 @@ The connected transports answer a `Read` and a `Write` shaped like every other s
 A datagram socket does not, because it has no stream to read: it sends and receives whole messages,
 addressed one at a time.
 
-<sub>See also [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`core-classes/net-udp-carries-no-reliability-layer`](core-classes.md#core-classes-net-udp-carries-no-reliability-layer). Decided in [0162](../decisions/0162.md).</sub>
+**Memory:** each open socket costs one reactor registration, held by the request that opened it
+([`core-classes/net-a-socket-does-not-outlive-its-request`](core-classes.md#core-classes-net-a-socket-does-not-outlive-its-request)).
+
+**Declined:**
+- **A stream-shaped surface where one member opens any transport.** It is PHP's shape, and the
+  argument's text would decide what gets opened, which [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url) forbids.
+- **A second event loop for the sockets a program opens.** Two poll structures must be made to agree
+  by hand and disagree only under load ([`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler)).
+- **A member for a connected pair of anonymous sockets.** [`core-classes/net-has-no-socket-pair`](core-classes.md#core-classes-net-has-no-socket-pair).
+
+<sub>See also [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`core-classes/net-udp-carries-no-reliability-layer`](core-classes.md#core-classes-net-udp-carries-no-reliability-layer).</sub>
 
 <a id="core-classes-net-a-socket-does-not-outlive-its-request"></a>
 
-## A `Core\Net` socket closes with the request that opened it, so there is no persistent connection and no pool across requests  *(designed — not yet in the compiler)*
+## A `Core\Net` socket closes with the request that opened it, so there is no persistent connection and no pool across requests
 
 `rule:core-classes/net-a-socket-does-not-outlive-its-request`
 
 A socket opened through `Core\Net` closes with the request that opened it. There is no persistent
 connection, no pool held across requests and no handle a later request can find, which is
 [`security/no-cross-request-state`](security.md#security-no-cross-request-state) applied to sockets, the subsystem where a persistent connection
-is the most tempting shape: no member opens one.
+is the most tempting shape: no member opens one. PHP's `pfsockopen` maps to `Core\Net::connect` with its
+persistent half dropped.
 
-What this spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): one reactor registration per open socket,
-attributable to the request that opened it and released with its arena. The process therefore holds
-one registration per socket **in flight** and nothing per socket served, which is the O(in-flight)
-bound that separates a cost from a leak.
+**Memory:** one reactor registration per open socket, attributable to the request that opened it and
+released with its arena. The process holds one registration per socket **in flight** and nothing per
+socket served, which is the O(in-flight) bound that separates a cost from a leak.
 
 A program that wants a connection to survive a request wants a store, and the stores are the ones
 already granted by name — [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)'s shared
 cache and [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s database — where the endpoint is an operator's and the
 lifetime is the runtime's.
 
-<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0162](../decisions/0162.md).</sub>
+<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="core-classes-net-udp-carries-no-reliability-layer"></a>
 
-## A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them  *(designed — not yet in the compiler)*
+## A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them
 
 `rule:core-classes/net-udp-carries-no-reliability-layer`
 
@@ -2974,4 +3626,19 @@ where it lands.
 A program that builds ordering or retries over this surface is making that choice explicitly, which is
 the point: the trade is visible in the program rather than hidden in a member's contract.
 
-<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`core-api/tier-placement`](core-api.md#core-api-tier-placement). Decided in [0162](../decisions/0162.md).</sub>
+<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`core-api/tier-placement`](core-api.md#core-api-tier-placement).</sub>
+
+<a id="core-classes-net-has-no-socket-pair"></a>
+
+## There is no `Core\Net` socket pair: PHP's `stream_socket_pair` is dropped, because no process boundary can receive one
+
+`rule:core-classes/net-has-no-socket-pair`
+
+`Core\Net` has no member that opens a connected pair of anonymous sockets, and PHP's
+`stream_socket_pair` is a `dropped` row. A socket pair exists to be handed to a forked child. Novis has
+no fork, and the one process boundary it has is an isolate, which shares nothing
+([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)) and so cannot receive a descriptor. A member for it would have
+no caller, and a PHP function with no Novis answer is a `dropped` row, never a member written to fill a
+hole.
+
+<sub>See also [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing).</sub>

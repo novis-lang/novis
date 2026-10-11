@@ -6,7 +6,7 @@
 //! benchmark harness and is not interesting.
 //!
 //! Baselined on x86_64-pc-windows-msvc as the slope across the chain depths
-//! below. See `docs/decisions/0002.md`.
+//! below. See `rule:errors/throw-is-not-slower`.
 
 // `criterion_group!` expands to an undocumented public function, and a
 // benchmark harness has no public API worth documenting anyway.

@@ -6,9 +6,9 @@
 //! `rule:core-classes/db-capabilities`'s TLS leg verifies a server's certificate against, and
 //! [`Database::path`](crate::tree::Database::path), the file a SQLite block opens. Both are here
 //! rather than in [`mod@crate::secret`] because neither is a secret: nothing about a CA bundle, or
-//! about a database file's *name*, is confidential, and § 7's whole shape — one value, materialized
+//! about a database file's *name*, is confidential, and `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s whole shape — one value, materialized
 //! into a sibling directive, kept out of the merged table — is the wrong one for a file a connection
-//! re-reads by path. What the bundle *shares* with § 7 is the trust boundary, which is why both run
+//! re-reads by path. What the bundle *shares* with `rule:config/a-secret-is-a-file-whose-content-is-the-value` is the trust boundary, which is why both run
 //! at resolve time and neither at use time.
 //!
 //! **A CA bundle is a trust-boundary file.** Whoever can rewrite it decides which server this
@@ -25,7 +25,7 @@
 //! file, which is the right question about a set of trust anchors and the wrong one about a
 //! database: that file is the deployment's own data, written by exactly the account the check would
 //! be objecting to, and it usually does not exist at boot at all — SQLite creates it on first open,
-//! so a boot-time `trust` would refuse every first run. What a `path` still owes is § 5's
+//! so a boot-time `trust` would refuse every first run. What a `path` still owes is `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`'s
 //! resolution, for the reason below — and only when it is a relative file at all, which
 //! [`is_relative_file`] is and owns, several of SQLite's spellings not being paths.
 //!
@@ -37,7 +37,7 @@
 //! resolved against that configuration, and what a program computed is not.
 //!
 //! **The paths are rewritten in place**, absolute, exactly as [`mod@crate::app`] canonicalizes a
-//! block's key and for its second reason: § 9's `nvs config dump` then prints the file the
+//! block's key and for its second reason: `rule:config/check-and-dump-audit-the-tree-offline`'s `nvs config dump` then prints the file the
 //! handshake will actually open rather than a fragment whose meaning depends on which file in the
 //! tree wrote it. A connection opened from a working directory that is not the configuration's —
 //! every request, since `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` resolves against the *file* — would otherwise read a different
@@ -176,7 +176,7 @@ pub(crate) fn written_in<'a>(origins: &'a BTreeMap<String, Origin>, key: &str) -
 /// deadlock case is written on. Prefixing any of them with a directory produces a file name
 /// nothing can open, which is exactly the failure this predicate exists to have already prevented.
 ///
-/// **A rooted path is skipped for the other half of the same reason**: § 5 resolves what is
+/// **A rooted path is skipped for the other half of the same reason**: `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` resolves what is
 /// *relative*, and rootedness is the honest test where [`Path::is_absolute`] is not — on Windows a
 /// path written `/etc/novis.db` is not absolute (it names no drive) and is plainly not relative to
 /// anything either, so joining it onto a base directory would move it to the base's drive rather

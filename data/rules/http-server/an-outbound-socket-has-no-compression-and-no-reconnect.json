@@ -1,0 +1,13 @@
+{
+  "title": "An outbound socket negotiates no `permessage-deflate` and never reconnects on its own",
+  "status": "shipped",
+  "because": [],
+  "seeAlso": [
+    "http-server/an-outbound-socket-is-opened-like-an-outbound-call",
+    "http-server/an-outbound-socket-belongs-to-the-task-that-opened-it",
+    "http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap"
+  ],
+  "guardedBy": [
+    "crates/nvs-stdlib/src/http/socket.rs"
+  ]
+}

@@ -113,7 +113,7 @@ pub fn queue_for(
             "queue.max_attempts",
             "0",
             "a job that may never be attempted is dead-lettered by the enqueue that created it, \
-             and § 6 has no spelling for unbounded retries either",
+             and there is no way to write unbounded retries either",
             "write the attempts a job gets before it is dead-lettered, as `5`",
             origins,
         ));
@@ -131,7 +131,7 @@ pub fn queue_for(
                 "queue.visibility",
                 &crate::value::as_written(written),
                 "a lease that expires as it is taken makes every job visible to every worker at \
-                 once, which is § 4's claim doing nothing",
+                 once, so claiming a job would do nothing",
                 "write how long a worker holds a job before another may retry it, as `5m`",
                 origins,
             ));
@@ -148,7 +148,7 @@ pub fn queue_for(
     }))
 }
 
-/// § 2's `connection`, proven to name a block the merged tree holds.
+/// The `connection` of `rule:core-classes/queue-storage-is-a-table`, proven to name a block the merged tree holds.
 ///
 /// The refusal lists the names that *do* exist, because the mistake this catches is almost always a
 /// typo or a block an include was expected to bring in, and both are answered by the roster.
@@ -161,7 +161,7 @@ fn connection_of(
         return Err(refuse(
             "queue.connection",
             "unset",
-            "§ 2 stores jobs in a database an operator names, and there is no default one — the \
+            "jobs are stored in a database an operator names, and there is no default one — the \
              recommended configuration is the application's own, because that is what makes an \
              enqueue commit with the write that caused it",
             "name a `[db.<name>]` block, as `connection = \"main\"`",

@@ -23,3 +23,22 @@ The line is trivia on every platform, so one file runs as `./app` on Unix and as
 Windows with no edit; Windows gains no kernel shebang support, and its distribution answer is the
 single-file executable. This is one lexer branch at offset 0: no parser rule, HIR shape or runtime
 behaviour changes.
+
+**It is a second way a file may begin, and not a second spelling of one.** `<?nvs` separates code
+from the template text around it, and a shebang file has no template text: the marker the operating
+system already requires selects a file kind, a program rather than a template. Every scripting
+engine strips a leading `#!` line, and PHP does too, yet PHP still needs `<?php` on line 2. Python,
+Ruby, Perl, Node and `sh` are in code mode from byte 0. The cost is one sentence of language surface,
+and there is no runtime, latency or memory consequence.
+
+**Declined:**
+- **`<?nvs` still required after a shebang, as PHP requires `<?php`.** One file opening, one rule,
+  but it charges every CLI script a disambiguation that cannot arise. PHP pays it for files older
+  than its command-line mode, and Novis has none.
+- **A second extension, `.nvss`, in code mode from byte 0.** The shebang has to be in the file
+  anyway, so an extension is a second thing to get right, and it splits tooling, editor
+  associations and `require` resolution for no gain.
+- **Every file in code mode by default, with an opt-in for template mode.** The cleanest design
+  from the command line, declined on scope: it overturns inline HTML and `<?=` to save one line in
+  a CLI script. It is the alternative to reopen if the template half of the language is ever
+  reconsidered on its own terms.

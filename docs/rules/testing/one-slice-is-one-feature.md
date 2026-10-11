@@ -8,3 +8,6 @@ The generated work chain is one goal per group of features sharing an implementi
 carrying a context manifest naming that file set and each gated by a command that exits non-zero.
 Regenerating the chain is how it stays current: a group that owes nothing is left out, so a second
 emission writes the chain that is *left*.
+
+**Declined:**
+- **One proof per session.** It buys the same understanding of the feature once per proof.

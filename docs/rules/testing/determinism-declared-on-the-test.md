@@ -9,3 +9,9 @@ Nothing holds state behind a function's back here. The clock is *isolate configu
 the test where it is visible and inert everywhere else, in the same category as a time zone set in
 `nvs.toml` — and a test declaration reaches no built artifact, so none of this exists in production
 even in principle.
+
+**Declined:**
+- **A clock parameter as the only way to control time.** It is strictly honest and mirrors the
+  seeded generator being a separate type, and it taxes every time-aware class in every program with a
+  constructor parameter forever. The attribute is configuration declared at the point of use, and it
+  cannot reach production (`rule:testing/tests-never-reach-a-build`).

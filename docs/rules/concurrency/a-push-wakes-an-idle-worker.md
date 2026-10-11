@@ -29,3 +29,29 @@ runtime's cross-thread wake (`rule:concurrency/a-handle-given-up-by-its-task-wak
 lets a worker take one per wait). It is never a message a database sends: there is no `LISTEN` and
 `NOTIFY` and no other backend's notification channel, so a backend that has none behaves exactly as
 one that has, and there is one path to test (`rule:concurrency/no-broker-and-no-driver-interface`).
+
+**A push wakes every idle worker, not one.** A transaction that pushes many jobs wakes once, at its
+commit, and every woken worker claims at once, so the batch is shared out instead of run one job after
+another while the rest wait. The cost is that one push may cost each idle worker one claim that finds
+nothing left. A wake that lands between a worker's empty claim and the start of its wait is not lost:
+the worker sees it and claims again.
+
+- **Memory:** one number per database connection a request has open, and one wake per idle worker
+  for as long as it waits. Nothing grows with requests served or jobs pushed.
+- **Latency:** a push costs one uncontended lock and one cross-thread wake per idle worker. Nothing
+  else on the request path changes.
+
+**Declined:**
+- **`LISTEN` and `NOTIFY` on PostgreSQL, and the nearest thing on each other backend.** It would cover
+  a push from another process, but it is one mechanism per driver, SQLite has none, and each is a
+  second connection state to keep correct. The one-second bound covers that case on every backend.
+- **A wait that grows while the queue stays empty.** A job's delay would then depend on how long the
+  queue had been idle, which an operator cannot read off anything.
+- **A `[queue]` key for the interval.** With the wake in place the interval only bounds work this
+  process was not told about, and a key would be one more number to choose for a case a second serves.
+- **Waking at the statement inside a transaction.** The workers would ask before the row is visible,
+  find nothing, and the job would wait out the second: the exact case the wake exists for.
+- **Waking one worker per push.** A transaction that pushes many jobs wakes once, so one woken worker
+  would run them all in turn while the rest waited out the second.
+- **A shorter wait and no wake.** Any interval short enough to feel immediate is a poll an idle server
+  pays all day.

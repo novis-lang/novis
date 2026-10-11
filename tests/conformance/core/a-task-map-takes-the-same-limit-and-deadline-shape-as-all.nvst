@@ -2,13 +2,13 @@
 `Core\Task::map` is bounded by the same `{limit, deadline}` shape as `Core\Task::all` and by no other spelling: `timeout` is still not an option, `limit` is still a `uint`, and there is no second member carrying a bound — `rule:concurrency/map-preserves-keys-and-order` and `rule:concurrency/limit-and-deadline-are-the-only-bounds`, `rule:core-api/shape-rules` R2
 --FILE--
 <?nvs
-// § 3 gives `all` and `map` one options shape between them, so the question
+// `rule:concurrency/limit-and-deadline-are-the-only-bounds` gives `all` and `map` one options shape between them, so the question
 // worth asking of the second member is not what it accepts but whether it
 // *agrees* with the first. A member that grew its own bounds would still look
 // right read on its own line; it fails here.
 //
 // The three refusals are the three ways that agreement could have been lost.
-// `timeout` is the name § 3 spends a paragraph refusing, and R2's trailing
+// `timeout` is the name `rule:concurrency/limit-and-deadline-are-the-only-bounds` spends a paragraph refusing, and R2's trailing
 // options shape is what leaves no room for it. `limit: "two"` asks whether the
 // option's declared type survived being written a second time. And a
 // `mapLimit` naming its bound in the member is the shape R20 forbids outright

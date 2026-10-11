@@ -1,11 +1,7 @@
 {
   "title": "An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after `nvs fmt`, indented from the Novis code around it",
   "status": "shipped",
-  "because": [
-    "0108",
-    "0169",
-    "0173"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/redaction-ranges-come-from-the-server",
     "programs/first-party-framework",

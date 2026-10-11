@@ -1,7 +1,7 @@
 [package]
 name = "nvs-ir"
 build = "../../tools/build/tests_without_pdb.rs"
-description = "Novis CFG/SSA IR: basic blocks, SSA values, stable per-statement/per-edge ids for ADR 0018 probes"
+description = "Novis CFG/SSA IR: basic blocks, SSA values, stable per-statement/per-edge ids for the coverage and trace probes"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -19,8 +19,8 @@ nvs-diagnostics.workspace = true
 # `rule:errors/a-record-names-where-it-was-produced`'s three parts are
 # `nvs_render::Source`, built once in `lower::Lowering::source` so the record a
 # producer carries and the backtrace frame beside it read one datum rather than
-# two that agree today. ADR 0092 § 1 keeps that crate below every other, so this
-# edge runs downward like the rest of them.
+# two that agree today. `rule:errors/diagnostic-record` keeps that crate below
+# every other, so this edge runs downward like the rest of them.
 nvs-render.workspace = true
 nvs-syntax.workspace = true
 nvs-types.workspace = true

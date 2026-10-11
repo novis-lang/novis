@@ -2,8 +2,8 @@
 //! `rule:errors/log-level`'s `Core\Log\Level` beside it because that member is the only thing that
 //! takes one.
 //!
-//! **The level enum's integers are the syslog severities, not ordinals.** ADR
-//! 0092 § 2 fixes the mapping — `Debug` 7, `Info` 6, `Warn` 4, `Error` 3,
+//! **The level enum's integers are the syslog severities, not ordinals.**
+//! `rule:errors/log-level` fixes the mapping — `Debug` 7, `Info` 6, `Warn` 4, `Error` 3,
 //! `Critical` 2 — because `rule:errors/engine-floor` names `syslog` as a target and a
 //! severity is not optional there. Writing the severity as each case's own
 //! constant makes the enum *be* the mapping rather than the first of two
@@ -11,7 +11,7 @@
 //! integers out for the same reason and spends them differently. Two
 //! consequences a reader should have in hand: the roster is deliberately not
 //! monotonic in ordinal order (`Warn` is 4, skipping syslog's `Notice` 5, which
-//! § 2 rejects along with the rest of PSR-3's eight), and `[log] level`'s
+//! that rule declines along with the rest of PSR-3's eight), and `[log] level`'s
 //! minimum is a `<=` over these numbers rather than a `>=`, because a smaller
 //! severity is a louder record.
 //!

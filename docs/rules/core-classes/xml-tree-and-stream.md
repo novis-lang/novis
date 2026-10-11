@@ -19,6 +19,12 @@ Both shapes answer the same node family, the one `rule:core-classes/html-parsing
 produce, so a program that outgrows the tree does not learn a second vocabulary. The split is stated
 once, in `crates/nvs-stdlib/src/xml.rs`'s module doc, and no member card re-argues it.
 
-What it spends, per `rule:programs/memory-priority`: the tree is proportional to the document,
-attributed to the request that parsed it and released with its arena; reading through the stream holds
-one window, and writing through it holds the document being built and no tree of nodes at all.
+**Memory:** the tree is proportional to the document, attributed to the request that parsed it and
+released with its arena; reading through the stream holds one window, and writing through it holds the
+document being built and no tree of nodes at all.
+
+**Declined:**
+- **A tree only.** It cannot serve a document larger than the request's memory ceiling, which is a real
+  workload.
+- **A stream only.** Every program that wants random access would write its own tree, once per program
+  and unreviewed, and the node family would stop being shared with `Core\Html`.

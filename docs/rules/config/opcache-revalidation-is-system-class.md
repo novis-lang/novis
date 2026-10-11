@@ -19,3 +19,8 @@ wins, because the mode supplies a default and nothing more.
 
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
+
+**Declined:**
+- **Keeping `never` for operators who want it.** It is the outage a restart-free deploy removes, and
+  the cost it saved is one background `stat` per file per window. A value kept for compatibility
+  would keep that outage.

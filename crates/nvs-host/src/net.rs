@@ -9,8 +9,8 @@
 //! and loop.** Optimistic and not pessimistic, because the first read of an
 //! accepted connection almost always finds the request bytes already there —
 //! they arrived with the connection — and a poll-then-read order would pay the
-//! microsecond-class registration on every one of those. § 3's cost table is
-//! that argument in full.
+//! microsecond-class registration on every one of those. The rule's cost
+//! comparison is that argument in full.
 //!
 //! [`NvsTcp`] implements nothing but [`std::io::Read`] and [`std::io::Write`].
 //! That is the point: a helper reads a socket with the call it would use on a
@@ -21,7 +21,7 @@
 //!
 //! # The registration is kept, not taken down per park
 //!
-//! § 3's last line, and it is where the repeat-park cost goes. A stream that
+//! The rule's last paragraph, and it is where the repeat-park cost goes. A stream that
 //! parks a second time on the same interest issues **no syscall at all**: the
 //! poller is level-triggered and the registration is still filed under this
 //! task, so it already reports what the new wait needs. Changing interest —
@@ -213,7 +213,8 @@ pub type NvsTcp = NvsStream<mio::net::TcpStream>;
 /// How far apart [`NvsTcp::connect_racing`] starts its attempts.
 ///
 /// RFC 8305's own recommendation, and a constant rather than a directive
-/// because it trades against nothing an operator can see — ADR 0180 § 14.
+/// because it trades against nothing an operator can see
+/// (`rule:http-server/an-outbound-call-tries-every-approved-address`).
 /// Shorter spends a second socket on a set whose first address was about to
 /// answer; longer leaves a call sitting on a black hole for most of its budget.
 pub const ATTEMPT_DELAY: Duration = Duration::from_millis(250);
@@ -291,7 +292,8 @@ impl<S: Source> NvsStream<S> {
     /// Whether this stream currently holds a registration with its core's
     /// reactor.
     ///
-    /// Here because it is what a test asserting § 3's optimistic order has to
+    /// Here because it is what a test asserting the optimistic order of
+    /// `rule:concurrency/try-the-syscall-then-park` has to
     /// ask: a first read that found buffered bytes must never have touched the
     /// reactor at all.
     #[must_use]
@@ -1733,7 +1735,8 @@ mod tests {
         )
     }
 
-    /// § 3's whole reason for trying first: the common case must not touch the
+    /// `rule:concurrency/try-the-syscall-then-park`'s whole reason for trying
+    /// first: the common case must not touch the
     /// reactor at all.
     #[test]
     fn a_first_read_that_finds_buffered_bytes_never_touches_the_reactor() {
@@ -1954,7 +1957,8 @@ mod tests {
         drop(listener);
     }
 
-    /// The accepting half's § 3, and the same question the first read asks: a
+    /// The accepting half's `rule:concurrency/try-the-syscall-then-park`, and
+    /// the same question the first read asks: a
     /// connection already in the backlog is handed over having touched nothing.
     #[test]
     fn an_accept_that_finds_a_connection_waiting_never_touches_the_reactor() {

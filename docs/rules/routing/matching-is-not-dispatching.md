@@ -24,15 +24,22 @@ it as a case of the enum `E` the call site writes, and `null` when it is not one
 `access()` answers the resolved name of the constant `allow:` wrote, which is the only reading of a
 class constant.
 
-What the router deliberately does not do, because each is a framework opinion: **no dispatch** —
-nothing calls the annotated method; **no controller convention** — no base class, naming rule or
-directory layout; **no return-value-to-response rule** — what a handler returns is between it and
-whoever called it; **no middleware, filters, groups or route-level rate limit**
-(`rule:core-classes/ratelimit-two-members` declines the last for the same reason); **no
-`HEAD`-implies-`GET`, no automatic `OPTIONS`, no trailing-slash normalisation** — each is somebody's
-wrong default, and the server decides them above the table, visibly. A framework can build dispatch
-on top, use `url` alone, or ignore all of it, and none of those choices is penalised.
+A framework can build dispatch on top, use `url` alone, or ignore all of it, and none of those
+choices is penalised; stopping at matching is what makes the table adoptable. The cost is a
+`switch` mapping names to behaviour, which is more code than a router that invokes.
 
 Typed `callable` would not move this line: routes share no signature and handlers no return type, so
 routing is not a case that forces `rule:types/grammar`'s deferral. Signing a route's identity is
 `rule:core-classes/router-signed-url`.
+
+**Declined**, each because it is a framework opinion:
+- **Dispatch.** Nothing calls the annotated method (`rule:routing/a-match-is-not-invocable`).
+- **A controller convention.** No base class, naming rule or directory layout.
+- **A return-value-to-response rule.** What a handler returns is between it and whoever called it.
+- **Middleware, filters, groups or a route-level rate limit.** There is no dispatch to attach them
+  to, and `rule:core-classes/ratelimit-two-members` declines to decide what a limit does for the
+  same reason.
+- **`HEAD`-implies-`GET`, an automatic `OPTIONS`, trailing-slash normalisation.** Each is somebody's
+  wrong default. The server decides them above the table, visibly
+  (`rule:http-server/head-runs-as-get`, `rule:http-server/a-preflight-is-answered-before-any-code-runs`,
+  `rule:http-server/a-trailing-slash-is-never-normalised`).

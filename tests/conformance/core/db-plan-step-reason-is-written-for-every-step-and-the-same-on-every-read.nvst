@@ -13,7 +13,7 @@ use Core\Db\Schema;
 
 var $db = Db::connect("main");
 
-// A table this schema does not name. § 7 reports it and never drops it, so the
+// A table this schema does not name. `rule:core-classes/schema-absence-never-destroys` reports it and never drops it, so the
 // plan holds a report beside a change: two steps of different kinds.
 $db->execute("create table leftovers (id integer primary key)", []);
 
@@ -44,7 +44,7 @@ foreach ($steps as Step $step) {
 }
 echo "written ", $written, "\n";
 
-// § 6 grades and explains each change on its own, so the report and the create
+// `rule:core-classes/schema-plan` grades and explains each change on its own, so the report and the create
 // cannot be explained by one sentence.
 echo "distinct ", Core\Arr::count(Core\Arr::unique($read)), "\n";
 

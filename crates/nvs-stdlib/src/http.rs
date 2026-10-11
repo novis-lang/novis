@@ -4863,7 +4863,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\Http\TlsInfo::peerChain(): array<tainted string>` — the peer's
     /// certificates as PEM, leaf first.
     ///
-    /// The slot holds DER and this writes PEM, per ADR 0180 § 13: DER is what
+    /// The slot holds DER and this writes PEM, per
+    /// `rule:http-server/a-reply-reports-its-tls-session`: DER is what
     /// `rustls` hands over, and PEM is the form a program can paste into
     /// anything else.
     ///

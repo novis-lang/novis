@@ -1,9 +1,7 @@
 {
   "title": "A debug record reaches the service through a sealed spool file that one writer owns, never over a socket",
   "status": "designed",
-  "because": [
-    "0163"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/writing-a-debug-record-to-disk-is-its-own-gate",
     "testing/debug-surface",

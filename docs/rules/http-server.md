@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*7 of 81 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -15,9 +15,16 @@ The built-in server has exactly two deployments. A **development server** speaks
 
 Everything a proxy does earlier and better is absent by name, and the list is closed: no TLS listener (`rustls` stays for the outbound client and `Core\Db`), no h2c or HTTP/2 — **HTTP/1.1 only**, because a proxy's multiplexed streams would pile onto one core of a thread-per-core runtime that never migrates a request — no FastCGI, no compression in either direction (an inbound `Content-Encoding` body passes through untouched and the application decompresses under its own memory bound), no per-IP or flood limiting, no asset-caching policy, and no rewrite rules. A production deployment with no proxy therefore has no edge protection at all; putting one in front is a stated requirement, not a gap.
 
+Each absence removes a surface as well as a feature. Without a TLS listener there is no certificate loading, rotation across a reload, SNI, ALPN or cipher policy, and no session-ticket key, which would be secret state shared across the whole process. Without HTTP/2 the Rapid Reset and `CONTINUATION`-flood attack classes do not apply, and a connection upgrade stays on HTTP/1.1, where it is native. Browsers therefore always speak HTTP/1.1 to Novis, which costs nothing in development and nothing behind a proxy that speaks h2 or h3 to the client. A proxy or CDN compresses responses better and off the request path, and an application that decompresses a body itself sets the decompression-bomb budget as its own `[limits] memory`, where the server would have to pick a ratio blind. Novis cannot be a single-binary HTTPS origin, and the installed service and the bundle both describe something that runs behind a proxy.
+
 The parsing half is not delegated. Request smuggling is a proxy/origin parser differential, so an origin that always has a proxy in front is precisely where a lenient parser is dangerous: [`errors/http-message-defects`](errors.md#errors-http-message-defects) stands whole.
 
-<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`security/one-tls-client`](security.md#security-one-tls-client), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0097](../decisions/0097.md), [0083](../decisions/0083.md), [0075](../decisions/0075.md), [0074](../decisions/0074.md), [0095](../decisions/0095.md).</sub>
+**Declined:**
+- **h2c behind a directive, off by default.** The attack surface still ships, the pile-up on one core becomes a support question rather than an impossibility, and a directive with its documentation and tests is not free.
+- **Transparent decompression of a request body.** The server would choose a bomb-ratio policy for an application whose intent it cannot know, with its own directive and class, and it would silently transform input.
+- **A transport abstraction kept for a future FastCGI.** Its one implementor is hypothetical, and HTTP over a Unix socket already covers it. The internal request-to-response function stays, because the test runner's synthetic request and `#[Test(server: true)]` are two real callers of it.
+
+<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`security/one-tls-client`](security.md#security-one-tls-client), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members).</sub>
 
 <a id="http-server-the-server-block-is-boot-class"></a>
 
@@ -52,7 +59,13 @@ The whole block is `System`-class ([`config/three-changeability-classes`](config
 
 The accept loop backs off on descriptor exhaustion and logs once per window rather than once per attempt, and a core that stops making progress is reported and shed by a watchdog reading the in-flight deadline each worker already keeps; `watchdog_margin` is how far past that deadline it must be, and is refused as `false` or `0` like the waits. The waits, the valve, the probe and the drain period are their own rules: [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). `drain_timeout` is the one key here that bounds a connection which is working rather than an idle one, which is why it is not `keepalive_timeout` under another name: an operator lengthening the keep-alive a proxy needs would otherwise have lengthened every restart.
 
-<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off). Decided in [0097](../decisions/0097.md), [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0106](../decisions/0106.md), [0161](../decisions/0161.md), [0186](../decisions/0186.md), [0219](../decisions/0219.md).</sub>
+**Declined:**
+- **Making `listen` reloadable.** Binding a port below 1024 again needs the process to keep a
+  privilege for its whole life, and security is not traded for a restart saved.
+- **Resizing `workers` while the server runs.** Each core holds its own runtime state, and resizing
+  that live is a large change for a key set once per machine.
+
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off).</sub>
 
 <a id="http-server-a-mount-table-expands-at-boot"></a>
 
@@ -74,7 +87,7 @@ prefix = "/admin"
 entry  = "Backoffice/public/index.nvs"    # an explicit mount overrides a scanned one
 ```
 
-A mount matches on `prefix`, on `host`, or on both, and names **either** `entry` (one literal file) **or** `scan` (a glob); both or neither is a boot error. A scan expands against the disk **at boot** into ordinary mounts, and again, in every mode, whenever the background check of [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart) sees a scanned directory's stamp move: a new module is compiled, has the `origin` check run on it, and is served; a removed one answers `404`; a new one that does not compile fails its own requests and nothing else. An explicit mount whose entry file appears or disappears is the same case. `*` matches exactly one segment; a capture must match `[A-Za-z0-9._-]+`, may not begin with a dot, and is refused if it names a reserved Windows device. `{n}` expands to the nth capture exactly as the disk spells it, and `{n:lower}` to the same capture in ASCII lower case — so a directory named `Blog` for the namespace it holds is served at `/blog` by `prefix = "/{1:lower}"`, while `Core\Request::mount()` still returns `Blog`. `lower` is the only transform. Any other brace in `prefix`, `host` or `origin` is a boot error and an `nvs config check` error: a reference past the last `*`, braces around anything that is not `n` or `n:lower`, and a brace that pairs with nothing. A host is held in ASCII lower case, which is how a request's `Host` is compared, so two hosts that differ only in case are one key. **`[server] root` is always written.** A server is told which directory it serves out of, and a mount only maps a URL onto a file under it; a mount table with no root is a boot error and an `nvs config check` error, because a root that defaulted to the directory the process was started in would make the executable set a property of the shell. A relative root resolves against the file it is written in. Every resolved path is checked to lie inside `[server] root` each time the table is expanded, and a match boot would refuse is logged and left out of a later expansion while the rest of the table is published. An explicit mount overrides a scanned one at the same key; two explicit mounts at one key is a boot error. With no block written there is one implicit mount, `{ prefix = "/", entry = "public/index.nvs" }`.
+A mount matches on `prefix`, on `host`, or on both, and names **either** `entry` (one literal file) **or** `scan` (a glob); both or neither is a boot error. A scan expands against the disk **at boot** into ordinary mounts, and again, in every mode, whenever the background check of [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart) sees a scanned directory's stamp move: a new module is compiled, has the `origin` check run on it, and is served; a removed one answers `404`; a new one that does not compile fails its own requests and nothing else. An explicit mount whose entry file appears or disappears is the same case. `*` matches exactly one segment; a capture must match `[A-Za-z0-9._-]+`, may not begin with a dot, and is refused if it names a reserved Windows device. `{n}` expands to the nth capture exactly as the disk spells it, and `{n:lower}` to the same capture in ASCII lower case — so a directory named `Blog` for the namespace it holds is served at `/blog` by `prefix = "/{1:lower}"`, while `Core\Request::mount()` still returns `Blog`. `lower` is the only transform. Any other brace in `prefix`, `host` or `origin` is a boot error and an `nvs config check` error: a reference past the last `*`, braces around anything that is not `n` or `n:lower`, and a brace that pairs with nothing. A host is held in ASCII lower case, which is how a request's `Host` is compared, so two hosts that differ only in case are one key. **`[server] root` is always written.** A server is told which directory it serves out of, and a mount only maps a URL onto a file under it; a mount table with no root is a boot error and an `nvs config check` error (`E0621`, at the first block), because a root that defaulted to the directory the process was started in would make the executable set a property of the shell. A relative root resolves against the file it is written in. Every resolved path is checked to lie inside `[server] root` each time the table is expanded, and a match boot would refuse is logged and left out of a later expansion while the rest of the table is published. An explicit mount overrides a scanned one at the same key; two explicit mounts at one key is a boot error. With no block written there is one implicit mount, `{ prefix = "/", entry = "public/index.nvs" }`.
 
 The matched prefix is stripped: `Core\Request::path()` is the remainder, `Core\Request::mount()` answers what was removed and the `tainted` captures ([`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount)), and `Core\Router::url` prepends the prefix ([`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix)). A module is therefore relocatable — the same compiled route table serves at `/ModuleA` or at `/` with no recompile. `origin` is per mount, `System`-class and reloadable, with the `[[app]]` block's `origin` as the fallback ([`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot)).
 
@@ -83,7 +96,32 @@ snapshot a reload published, and a reload that changes either expands the table 
 wait for `settle`. A reload that changes `[[app]] origin` folds it into the rows again. Either way the
 `origin` check is asked of every row that changed.
 
-<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0097](../decisions/0097.md), [0102](../decisions/0102.md), [0104](../decisions/0104.md), [0017](../decisions/0017.md), [0197](../decisions/0197.md), [0200](../decisions/0200.md), [0218](../decisions/0218.md), [0219](../decisions/0219.md).</sub>
+Because a scan reads the disk, dropping a directory in place makes a module reachable, and a
+deployment that did not intend that must not put an unexpected directory under `[server] root`.
+`nvs info --config` prints the expanded table, which is what makes that inspectable.
+
+**Declined:**
+- **One entry point per process.** A document root of many modules, each with its own
+  `public/index.nvs`, is the normal shape of a PHP deployment. One entry point per process answers it
+  with one process, one unit cache and one resident footprint per module, giving up the shared
+  compiled-code cache, to defend an invariant ([`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url))
+  that a table of any size already keeps.
+- **A `case = "lower"` key on the mount block.** It reopens the closed key set
+  ([`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy)), and it cannot say "lower in the prefix, verbatim in
+  the origin's path"; a transform on the reference can.
+- **Lower-casing every capture in a prefix unasked.** It would move the URLs of every existing
+  mixed-case deployment.
+- **An unwritten `[server] root` resolved beside the configuration file.** A service would then find
+  what the shell found, but it is still a root nobody wrote, and the directory a server executes files
+  out of is the one setting that is never inferred.
+- **A root required only by `nvs service install`.** One configuration would then mean one set of
+  files from one shell and another from a second, and be refused by a third command.
+- **An `upper` transform.** No deployment asks for it, and the closed set is one line to extend.
+- **A brace that is not a reference, read as a literal brace.** A host name never carries a brace and a
+  URL path carries one only percent-encoded, while the prefix is compared with the path as sent, so such
+  a mount boots and nothing reaches it.
+
+<sub>See also [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`routing/a-request-reads-its-mount`](routing.md#routing-a-request-reads-its-mount), [`routing/link-carries-the-mount-prefix`](routing.md#routing-link-carries-the-mount-prefix), [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals).</sub>
 
 <a id="http-server-a-mount-carries-no-policy"></a>
 
@@ -105,7 +143,10 @@ mode = "production"
 
 The two usually cover the same tree, and that is the intended shape. An application's identity is its entry file path, not its mount, so `nvs run` on the command line has one too and per-app configuration is reachable with no server at all. A mixed-application host — production by default, each application selecting its own mode — is expressed here, not in a mount key ([`http-server/the-mode-ceiling-defaults-to-the-startup-mode`](http-server.md#http-server-the-mode-ceiling-defaults-to-the-startup-mode)).
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/the-mode-ceiling-defaults-to-the-startup-mode`](http-server.md#http-server-the-mode-ceiling-defaults-to-the-startup-mode), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path). Decided in [0097](../decisions/0097.md), [0104](../decisions/0104.md), [0005](../decisions/0005.md), [0091](../decisions/0091.md).</sub>
+**Declined:**
+- **A `mode`, limits or capabilities on the mount.** The `[[app]]` block owns those facts, and a second home for them is worse than none.
+
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/the-mode-ceiling-defaults-to-the-startup-mode`](http-server.md#http-server-the-mode-ceiling-defaults-to-the-startup-mode), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path).</sub>
 
 <a id="http-server-the-served-file-is-optional"></a>
 
@@ -130,7 +171,15 @@ A named file never overrides a written table. One that is not among the mounted 
 
 `nvs service install` stores `serve` with no file only where the configuration the argv names writes a mount table that mounts at least one entry on disk, and refuses it otherwise (`E0630`): a server with nothing to serve exits at once, which a service manager reports as a crash loop. A table with no `[server] root` never gets that far, since the configuration does not resolve ([`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)).
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first). Decided in [0200](../decisions/0200.md), [0271](../decisions/0271.md).</sub>
+The two refusals of a start are one sentence on standard error and exit status 1, with no span: the command line is what is incomplete, and every line of the configuration is well formed.
+
+**Declined:**
+- **The file optional wherever the mount table expands, the implicit mount included.** A bare `nvs serve` would then run a file that neither the command line nor the configuration named, found from a root that is itself a default.
+- **Keeping the argument required and letting the installer pick a mounted entry.** The stored argv would name a file nobody chose, and the service would still stop starting when that one module is removed.
+- **Folding into one snapshot every `[[app]]` block that matches any mounted entry.** A union is a configuration no one application was written against, and a capability one block grants would reach every mount.
+- **The configuration file's own path as the entry a start with no file folds by.** An `[[app]]` block whose `root` covers the configuration's directory would match it, which reads as applying to the host and is not what the block says.
+
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy), [`http-server/a-path-is-never-derived-from-a-url`](http-server.md#http-server-a-path-is-never-derived-from-a-url), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first). Decided in [0271](../decisions/0271.md).</sub>
 
 <a id="http-server-a-unix-socket-listener"></a>
 
@@ -144,7 +193,7 @@ A `[server] listen` entry beginning with a path separator names a Unix-domain so
 
 A Unix-socket listener is implicitly trusted for the forwarded headers ([`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing)), because the operating system enforces who may connect to it. The operator warning that belongs beside that: a `0660` socket is trusted by *group membership*, so adding a tenant to that group on a multi-tenant host grants them the ability to forge those headers.
 
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it). Decided in [0097](../decisions/0097.md), [0093](../decisions/0093.md).</sub>
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`](config.md#config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it).</sub>
 
 <a id="http-server-the-mode-ceiling-defaults-to-the-startup-mode"></a>
 
@@ -164,7 +213,7 @@ A Unix-socket listener is implicitly trusted for the forwarded headers ([`http-s
 
 For the mixed host, per-app configuration is the primary answer and the in-code flip is the escape hatch: the `[[app]]` block involves no application code and nothing the application can get wrong ([`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy)). `Core\Config::set` is for when the application knows something the operator does not.
 
-<sub>See also [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy). Decided in [0091](../decisions/0091.md), [0005](../decisions/0005.md), [0104](../decisions/0104.md).</sub>
+<sub>See also [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy).</sub>
 
 <a id="http-server-a-development-server-on-a-public-interface-warns-and-serves"></a>
 
@@ -174,11 +223,14 @@ For the mixed host, per-app configuration is the primary answer and the in-code 
 
 When the server binds a non-loopback address while the mode is `development`, it emits an unmissable startup banner **and** a `Warn` record naming the bound address ([`errors/log-level`](errors.md#errors-log-level)), then serves. Bound to loopback it emits neither.
 
-Refusing the bind outright behind an unlock directive is not taken: binding `0.0.0.0` inside a container or a VM is the normal case, not the exceptional one, and a refusal would put a required directive in front of every containerised development workflow. The banner alone is not enough either — it scrolls past in a container log — which is why it is *also* a `Warn` record: it lands in the same JSON-Lines stream everything else does, queryable after the fact rather than only observable at the moment of startup.
+The banner alone is not enough — it scrolls past in a container log — which is why it is *also* a `Warn` record: it lands in the same JSON-Lines stream everything else does, queryable after the fact rather than only observable at the moment of startup.
 
 This is the one place where letting the mode flag win over the file ([`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file)) is paid for, and the payment is deliberately visible: the banner is what stands between a stale `--mode=development` in a deploy script and a public debug surface.
 
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`errors/log-level`](errors.md#errors-log-level). Decided in [0091](../decisions/0091.md), [0092](../decisions/0092.md).</sub>
+**Declined:**
+- **Refusing the bind behind an `allow_public_development` unlock.** It would turn a development server exposed to the internet into a startup error for the price of one directive, but binding `0.0.0.0` inside a container or a VM is the normal case, not the exceptional one, and a refusal would put a required directive in front of every containerised development workflow.
+
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`errors/log-level`](errors.md#errors-log-level).</sub>
 
 <a id="http-server-an-unsafe-or-unbounded-default-is-a-defect"></a>
 
@@ -206,7 +258,17 @@ limiting — stays the proxy's. Two things do not: how a message is parsed, whic
 [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)'s, and how long a connection may idle, which this rule
 covers as it covers a client call.
 
-<sub>See also [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written), [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named), [`http-server/cookies-are-secure-httponly-and-lax`](http-server.md#http-server-cookies-are-secure-httponly-and-lax), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0074](../decisions/0074.md).</sub>
+The cost is that a secure default breaks something on somebody's first deployment: a site that
+framed itself, a cookie a script needed to read, an origin that was allowed only because there was
+no policy. Each becomes one deliberate line of configuration, and that is the trade.
+
+**Declined:**
+- **Shipping no defaults and documenting the headers.** Documentation-shaped security produces the
+  adoption it produces: a minority of production sites send `nosniff`, fewer send a framing policy,
+  and cookies without `HttpOnly` or `SameSite` are routine, because adding them never reaches the
+  top of a backlog. A class of bug is removed here rather than described.
+
+<sub>See also [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written), [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named), [`http-server/cookies-are-secure-httponly-and-lax`](http-server.md#http-server-cookies-are-secure-httponly-and-lax), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers).</sub>
 
 <a id="http-server-the-accept-fan-out-is-one-worker-per-core"></a>
 
@@ -222,9 +284,19 @@ covers as it covers a client call.
 
 **A listener the server cannot bind is refused once, before any core starts.** The classification of a `listen` entry belongs to the configuration and not to a core ([`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener)), so one deployment mistake is one refusal — a fan-out that bound as it started would report the same wrong entry once per core and would leave a process half-listening while it did.
 
-What it costs, per [`programs/memory-priority`](programs.md#programs-memory-priority): one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). It holds strictly less than a per-core compiled-unit cache would, which is the shape this one replaces.
+**Each core accepts on its own handle, so no connection passes through a thread every other connection also passes through.** The kernel picks which blocked acceptor a connection wakes: there is no handoff, no shared queue and no accepting core to become the bottleneck the fan-out exists to remove. A request stays on the core that accepted it.
 
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart). Decided in [0161](../decisions/0161.md), [0181](../decisions/0181.md).</sub>
+- **Memory:** one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). The shared compiled unit holds strictly less than per-core caches would, so the fleet's compiled-code footprint does not grow with the core count.
+
+**Declined:**
+- **One acceptor handing connections to N request workers.** The acceptor is one thread paying a syscall and a handoff per connection, which moves the bottleneck rather than removing it.
+- **One process per core, as php-fpm runs.** N processes compile every source N times, hold N caches and split one memory budget N ways; the built-in server is one process with one budget and one compiled unit.
+- **A compiled-unit cache per core.** It costs N compiles of the same file, and "compile exactly once" would mean something different at four cores than at one.
+- **Clamping `workers` to the machine's parallelism.** The count is already bounded by the file, a container's CPU quota is in general invisible from inside the process, and a directive silently overridden is a value the file cannot state.
+- **An `auto` value for `workers`.** A second way to write the default is a second thing to explain; leaving the key out already asks the machine.
+- **Reading the core count from the environment.** The configuration is the one place a deployment is stated, and a second input for one number would be the first exception.
+
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart).</sub>
 
 <a id="http-server-max-in-flight-refuses-before-allocating"></a>
 
@@ -238,7 +310,7 @@ The count is process-wide through one relaxed atomic rather than per core, so on
 
 The effective ceiling is an arithmetic, not this number alone: the smaller of what is configured here and what the memory budget affords against the per-request cap, recomputed at boot and by every reload, and clamped and logged when the two disagree. A concurrency ceiling and a per-request memory cap with no stated relationship bound nothing together, and their product is what the machine is actually asked to hold.
 
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`errors/on-limit`](errors.md#errors-on-limit), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number). Decided in [0097](../decisions/0097.md), [0106](../decisions/0106.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`errors/on-limit`](errors.md#errors-on-limit), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number).</sub>
 
 <a id="http-server-admission-is-arithmetic-not-a-number"></a>
 
@@ -252,7 +324,7 @@ The effective ceiling is an arithmetic, not this number alone: the smaller of wh
 
 Clamping rather than refusing to start: a server that will not boot because two directives disagree is a worse outage than the one being prevented, and the operator learns the same fact either way. Clamping *silently* was rejected because the observed capacity of a small instance drops where the clamp binds — a real change in a number people notice, and one an operator should find in the log rather than in a benchmark.
 
-<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0106](../decisions/0106.md), [0097](../decisions/0097.md), [0004](../decisions/0004.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class).</sub>
 
 <a id="http-server-four-idle-waits-all-finite"></a>
 
@@ -266,7 +338,7 @@ This is the division of labour with the proxy in one sentence: **a proxy owns si
 
 `keepalive_timeout` must exceed the proxy's upstream keep-alive. If the origin closes an idle connection the proxy still believes is live, the proxy writes into a closing socket and the client sees an intermittent 502. nginx's upstream default is 60s; 75s is deliberately above it, and a deployment that raises the proxy's must raise this one. None of the four notices a worker that is alive and never returns; that is the watchdog's job, named in [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class).
 
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0097](../decisions/0097.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite).</sub>
 
 <a id="http-server-the-accept-loop-backs-off"></a>
 
@@ -278,7 +350,7 @@ An `accept` that fails with `EMFILE`/`ENFILE` returns immediately and will fail 
 
 **The loop applies a bounded backoff on a descriptor-exhaustion error and logs once per window**, not once per attempt: the wait doubles to a ceiling and a successful accept puts it back. No other accept failure is waited out, because no other one is a condition that will clear on its own. Descriptors are already charged to a request under [`errors/multipart-part-count`](errors.md#errors-multipart-part-count)'s per-request accounting, so the condition is bounded from the other side too; this closes the behaviour when it happens anyway.
 
-<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0106](../decisions/0106.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count).</sub>
 
 <a id="http-server-a-request-resolves-in-five-steps"></a>
 
@@ -296,11 +368,16 @@ An `accept` that fails with `EMFILE`/`ENFILE` returns immediately and will fail 
 
 In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip, run the entry. In development the sequence is `try_files $uri /index.nvs`, the front-controller pattern web servers already deploy. Both directives are `System`-class startup defaults a mode selects and no request may flip ([`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped)), because a flip would appear to change `dispatch` for a request already dispatched. Both reload: a request reads them from the snapshot it cloned, so a reload reaches the next request, and a request already dispatched keeps the table it was dispatched by.
 
-**No step takes its case rule from the filesystem.** A prefix is matched exactly, and in steps 3 and 4 a remainder that differs from the file on disk only in case is a file that is not there: `/STYLE.CSS` does not serve `style.css` on Windows or macOS, because it would not on Linux. It is [`programs/path-case`](programs.md#programs-path-case)'s comparison, at the same cost — the canonical path is already in hand. The host is the one part that folds ([`http-server/host-matching-is-on-the-host-part-only`](http-server.md#http-server-host-matching-is-on-the-host-part-only)), because its specification says it does.
+**No step takes its case rule from the filesystem.** A prefix is matched exactly, and in steps 3 and 4 a remainder that differs from the file on disk only in case is a file that is not there: `/STYLE.CSS` does not serve `style.css` on Windows or macOS, because it would not on Linux. It is [`programs/path-case`](programs.md#programs-path-case)'s comparison, at the same cost — the canonical path is already in hand, and the comparison allocates only when the two paths already differ. A symlink whose own name is its target's in another case is declined with the rest, because nothing at hand tells it from the filesystem folding the name. The host is the one part that folds ([`http-server/host-matching-is-on-the-host-part-only`](http-server.md#http-server-host-matching-is-on-the-host-part-only)), because its specification says it does.
 
 `[server] static` is a boolean and the *path* is each mount's own root, which is what makes assets work for a fleet of modules rather than for one. What serving a file means in either mode is [`http-server/static-serving-is-one-policy`](http-server.md#http-server-static-serving-is-one-policy). A URL that maps to a file in production too is rejected: production has a front controller and a compiled route table, and every extra URL-to-file resolution is surface on the hot path bought for a scratch workflow.
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/static-serving-is-one-policy`](http-server.md#http-server-static-serving-is-one-policy), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler). Decided in [0097](../decisions/0097.md), [0091](../decisions/0091.md), [0197](../decisions/0197.md), [0219](../decisions/0219.md).</sub>
+**Declined:**
+- **Case-insensitive prefix matching.** One resource gains many URLs, and every request pays a fold;
+  `{n:lower}` lets an operator choose the lower-case URL instead ([`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)).
+- **A redirect to the canonical case.** It still does not let an operator choose which case is canonical.
+
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/static-serving-is-one-policy`](http-server.md#http-server-static-serving-is-one-policy), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler).</sub>
 
 <a id="http-server-trusted-proxies-is-empty-and-empty-reads-nothing"></a>
 
@@ -316,7 +393,7 @@ Non-empty, `clientIp` is the **rightmost** `X-Forwarded-For` entry that is not i
 
 One `Warn` at boot when the mode is `production`, every listener is loopback or a Unix socket, and `trusted_proxies` is empty — a proxied deployment that forgot the line and will now log the proxy's address as every client's. It is asked only of a tree that wrote a `[server]` block: `nvs serve app.nvs` with no configuration is the development server, and a line every dev run prints is one every operator learns to skip.
 
-<sub>See also [`http-server/x-forwarded-for-is-the-only-address-header`](http-server.md#http-server-x-forwarded-for-is-the-only-address-header), [`http-server/a-forwarded-token-is-read-withheld-or-refused`](http-server.md#http-server-a-forwarded-token-is-read-withheld-or-refused), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0097](../decisions/0097.md), [0080](../decisions/0080.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/x-forwarded-for-is-the-only-address-header`](http-server.md#http-server-x-forwarded-for-is-the-only-address-header), [`http-server/a-forwarded-token-is-read-withheld-or-refused`](http-server.md#http-server-a-forwarded-token-is-read-withheld-or-refused), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`security/tainted-sources`](security.md#security-tainted-sources).</sub>
 
 <a id="http-server-x-forwarded-for-is-the-only-address-header"></a>
 
@@ -330,7 +407,10 @@ One `Warn` at boot when the mode is `production`, every listener is loopback or 
 
 **An `X-Forwarded-For` from an untrusted peer is ignored silently, never refused.** Any client can set the header, so refusing on its presence would let anyone deny service by sending it. Refusal is reserved for a value that was about to be *used*, and the `Warn` above is raised only for a peer that was allowed to speak: a stranger must not be able to turn on a log line per request.
 
-<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/a-forwarded-token-is-read-withheld-or-refused`](http-server.md#http-server-a-forwarded-token-is-read-withheld-or-refused), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md).</sub>
+**Declined:**
+- **Reading RFC 7239 `Forwarded` beside `X-Forwarded-For`.** Two sources that can disagree are the ambiguity the server refuses, and the price would be paid for a header no common proxy sends by default.
+
+<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/a-forwarded-token-is-read-withheld-or-refused`](http-server.md#http-server-a-forwarded-token-is-read-withheld-or-refused), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="http-server-a-forwarded-token-is-read-withheld-or-refused"></a>
 
@@ -346,7 +426,7 @@ A token that **withholds** the address — `unknown`, or an obfuscated `_hidden`
 
 A token that neither names an address nor withholds one is a **`400`**: the value was about to be used and cannot be read. That row, and a request path containing a dot-segment or an encoded separator, are the two the server adds to [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)'s closed list.
 
-<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/x-forwarded-for-is-the-only-address-header`](http-server.md#http-server-x-forwarded-for-is-the-only-address-header), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md).</sub>
+<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/x-forwarded-for-is-the-only-address-header`](http-server.md#http-server-x-forwarded-for-is-the-only-address-header), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only"></a>
 
@@ -360,7 +440,7 @@ It does **not** feed redirects: `Core\Response::redirect` emits `Location` as gi
 
 There is **no `X-Forwarded-Host` and no absolute-URL generation from `Host`**. `Core\Router::url` answers with a path ([`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching)), so Novis never needs to know its own external origin, and deriving one from a header is host-header injection. An external origin, where an application needs one, is configuration: [`routing/an-origin-is-per-mount-and-checked-at-boot`](routing.md#routing-an-origin-is-per-mount-and-checked-at-boot).
 
-<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/host-matching-is-on-the-host-part-only`](http-server.md#http-server-host-matching-is-on-the-host-part-only), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0097](../decisions/0097.md), [0074](../decisions/0074.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/host-matching-is-on-the-host-part-only`](http-server.md#http-server-host-matching-is-on-the-host-part-only), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect).</sub>
 
 <a id="http-server-host-matching-is-on-the-host-part-only"></a>
 
@@ -374,7 +454,7 @@ A deployment that declares only host mounts gets a `404` for an unknown host, wi
 
 The proxy note that belongs in the operator documentation: nginx's `proxy_pass` sends `Host: $proxy_host` unless told otherwise, so a host-mounted deployment must set `proxy_set_header Host $host;` or every request arrives with the wrong name and lands on the fallback — silently.
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md), [0197](../decisions/0197.md).</sub>
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`](http-server.md#http-server-x-forwarded-proto-sets-the-scheme-and-hsts-only), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="http-server-a-path-is-never-derived-from-a-url"></a>
 
@@ -388,7 +468,10 @@ This is the rule the rest of the server is built to keep. FastCGI's vulnerabilit
 
 So every path the server can execute is known at boot, printed by `nvs info --config`, and fixed until a reload. That is what makes [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)'s wildcards safe: a glob expanded against the disk at boot yields a fixed table, whereas the same glob evaluated per request would be `cgi.fix_pathinfo` with a different spelling. A path carrying a dot-segment or an encoded separator is refused before any mount is selected ([`errors/path-component-refusals`](errors.md#errors-path-component-refusals)).
 
-<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md).</sub>
+**Declined:**
+- **Rewrite rules evaluated per request.** They are the FastCGI defect with another syntax: a URL segment put into a filesystem path at request time. They would also put a regex on the request path and make the mount table impossible to enumerate. The boot-time scan gives the same one line for every module and keeps the executable set enumerable.
+
+<sub>See also [`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals).</sub>
 
 <a id="http-server-a-trailing-slash-is-never-normalised"></a>
 
@@ -400,7 +483,7 @@ So every path the server can execute is known at boot, printed by `nvs info --co
 
 Of the three conventions applied above the route table this is the only one a proxy does trivially, and the one the never-repair instinct ([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)) argues hardest against: a normalisation the server invents is an equivalence the application did not write. It is distinct from [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), where a route *declares* that its last segment may be missing — that is the application stating the equivalence, which is exactly where the decision belongs.
 
-<sub>See also [`http-server/head-runs-as-get`](http-server.md#http-server-head-runs-as-get), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0097](../decisions/0097.md), [0095](../decisions/0095.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`http-server/head-runs-as-get`](http-server.md#http-server-head-runs-as-get), [`routing/a-trailing-segment-may-be-absent`](routing.md#routing-a-trailing-segment-may-be-absent), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="http-server-head-runs-as-get"></a>
 
@@ -414,7 +497,7 @@ Of the three conventions applied above the route table this is the only one a pr
 
 This is one of three conventions the server applies above the compiled route table; the other two are [`http-server/a-preflight-is-answered-before-any-code-runs`](http-server.md#http-server-a-preflight-is-answered-before-any-code-runs) and [`http-server/a-trailing-slash-is-never-normalised`](http-server.md#http-server-a-trailing-slash-is-never-normalised). They are three different questions, which is why they are three rules.
 
-<sub>See also [`http-server/a-preflight-is-answered-before-any-code-runs`](http-server.md#http-server-a-preflight-is-answered-before-any-code-runs), [`http-server/a-trailing-slash-is-never-normalised`](http-server.md#http-server-a-trailing-slash-is-never-normalised), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching). Decided in [0097](../decisions/0097.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`http-server/a-preflight-is-answered-before-any-code-runs`](http-server.md#http-server-a-preflight-is-answered-before-any-code-runs), [`http-server/a-trailing-slash-is-never-normalised`](http-server.md#http-server-a-trailing-slash-is-never-normalised), [`routing/matching-is-not-dispatching`](routing.md#routing-matching-is-not-dispatching).</sub>
 
 <a id="http-server-a-preflight-is-answered-before-any-code-runs"></a>
 
@@ -428,7 +511,7 @@ That is the one point in a request's life at which the server genuinely has no r
 
 A plain `OPTIONS` — missing either header — is not a preflight and is **passed through** rather than answered. An application that wants to answer one has `Core\Router::methodsFor` for the `Allow:` header, and which convention to adopt stays its choice rather than the server's.
 
-<sub>See also [`http-server/head-runs-as-get`](http-server.md#http-server-head-runs-as-get), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named). Decided in [0097](../decisions/0097.md), [0074](../decisions/0074.md), [0102](../decisions/0102.md).</sub>
+<sub>See also [`http-server/head-runs-as-get`](http-server.md#http-server-head-runs-as-get), [`routing/matched-once-before-the-handler`](routing.md#routing-matched-once-before-the-handler), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named).</sub>
 
 <a id="http-server-the-body-is-read-on-demand-under-two-caps"></a>
 
@@ -442,7 +525,7 @@ Two caps bound a request body, each a `Runtime` default with a `[limits.hard]` c
 
 `Core\Request::bodyStream(): Iterable<bytes>` is the raw-body reader, for a body larger than a request's memory budget or a content type `files()` does not describe. It yields `tainted` chunks and is a **streaming** reader, so it keeps nothing, consumes the body, and may only be the first reader of it — [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is which readers may follow which, for every member that reads a body. It is bounded by `request_body` on what a consumer retains, by the connection's `body_idle_timeout`, and by the multipart part-count cap ([`errors/multipart-part-count`](errors.md#errors-multipart-part-count)), which no byte cap bounds.
 
-<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file). Decided in [0097](../decisions/0097.md), [0105](../decisions/0105.md), [0005](../decisions/0005.md), [0053](../decisions/0053.md), [0095](../decisions/0095.md), [0156](../decisions/0156.md).</sub>
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`security/tainted-sources`](security.md#security-tainted-sources), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file).</sub>
 
 <a id="http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it"></a>
 
@@ -472,7 +555,13 @@ A reader that arrives after the body was consumed throws `LogicError` naming the
 
 The kinds are not a roster to maintain: a member is buffering exactly when it fills the hold, which is a fact the runtime already has, so a body reader added later classifies itself. The alternative — a closed exclusive set of three members with `post()` and then `json()` each carved out of it — was rejected on the second carve-out, because two exceptions to a rule are the rule, unwritten.
 
-<sub>See also [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0156](../decisions/0156.md).</sub>
+**Declined:**
+- **Adding `json()` and `jsonAs<T>()` to the exclusive set.** `json()` after `body()` would throw where nothing was consumed, and a handler that logs `body()` and then decodes `json()` is not a defect.
+- **Re-reading the wire for a second buffering reader.** A body already off the wire cannot be read again, and answering empty instead is the ambiguity [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) refuses.
+- **Letting `bodyStream()` follow `body()` by replaying the hold.** The member would mean two things depending on what ran before it: bounded by the connection's idle timeout in one case and by nothing in the other. A streaming reader reads the wire or it is refused.
+- **Deciding a reader's kind by `Content-Type`.** A mislabelled but valid document is read, as `post()` reads one, and the kind of a reader is a property of the member, never of the request.
+
+<sub>See also [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps), [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="http-server-static-serving-is-one-policy"></a>
 
@@ -486,7 +575,7 @@ Freshness is `Cache-Control: no-cache` with a strong `ETag` over `(size, mtime_n
 
 **A `.nvs` file is never served as source**, under any dispatch, from any mount.
 
-<sub>See also [`http-server/a-request-resolves-in-five-steps`](http-server.md#http-server-a-request-resolves-in-five-steps), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0097](../decisions/0097.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/a-request-resolves-in-five-steps`](http-server.md#http-server-a-request-resolves-in-five-steps), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect).</sub>
 
 <a id="http-server-health-path-is-off-and-checks-nothing"></a>
 
@@ -500,7 +589,7 @@ It performs **no dependency checks** — a health endpoint that pings the databa
 
 `Core\Server::isDraining()` gives an application the same bit for an endpoint of its own; a program that is not being served reads `false`, which is the answer rather than an error. What draining does to the connections still open is [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly).
 
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0097](../decisions/0097.md).</sub>
+<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly).</sub>
 
 <a id="http-server-the-trace-id-is-the-request-identifier"></a>
 
@@ -514,7 +603,7 @@ The trace id is the request identifier, and there is no second one. A trace id e
 
 **An inbound `X-Request-ID` is ignored** and appears nowhere. Honouring it would need a validation rule against log injection for a fact Novis already has, and two identifiers for one fact is how people grep the wrong one.
 
-<sub>See also [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default), [`errors/log-fields`](errors.md#errors-log-fields), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request). Decided in [0097](../decisions/0097.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default), [`errors/log-fields`](errors.md#errors-log-fields), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request).</sub>
 
 <a id="http-server-the-access-log-is-a-mode-default"></a>
 
@@ -528,7 +617,7 @@ It renders through the one diagnostic record — text in development, JSON in pr
 
 **An error is logged unconditionally**, whatever `access` says: a `5xx` is a diagnostic rather than access telemetry, and losing one because access logging was off would be the wrong failure.
 
-<sub>See also [`http-server/the-trace-id-is-the-request-identifier`](http-server.md#http-server-the-trace-id-is-the-request-identifier), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/renderings`](errors.md#errors-renderings), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures). Decided in [0097](../decisions/0097.md), [0091](../decisions/0091.md), [0092](../decisions/0092.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`http-server/the-trace-id-is-the-request-identifier`](http-server.md#http-server-the-trace-id-is-the-request-identifier), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/renderings`](errors.md#errors-renderings), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures).</sub>
 
 <a id="http-server-secure-headers-with-nothing-written"></a>
 
@@ -554,7 +643,12 @@ A header the response already wrote is left alone
 ([`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins)), and HSTS is the one
 member of the set with a condition of its own ([`http-server/hsts-follows-the-effective-scheme`](http-server.md#http-server-hsts-follows-the-effective-scheme)).
 
-<sub>See also [`http-server/hsts-follows-the-effective-scheme`](http-server.md#http-server-hsts-follows-the-effective-scheme), [`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0074](../decisions/0074.md).</sub>
+**Declined:**
+- **A full default `Content-Security-Policy`.** A wrong CSP breaks the page with no diagnostic,
+  which is how CSP gets disabled for good after one incident. Framing is the safe subset, and it is
+  the one shipped; a further default waits for a shape that is safe for every application.
+
+<sub>See also [`http-server/hsts-follows-the-effective-scheme`](http-server.md#http-server-hsts-follows-the-effective-scheme), [`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
 <a id="http-server-hsts-follows-the-effective-scheme"></a>
 
@@ -571,11 +665,15 @@ sent — the safe direction for a header that cannot be revoked from a client. `
 plain HTTP is unaffected.
 
 The max-age is `[http.headers] hsts`, shipped as `365d`, and `false` disables it.
-`hsts_subdomains` defaults to `false`: `includeSubDomains` is the HSTS setting that has actually
-taken deployments down — a sibling subdomain on plain HTTP becomes unreachable, for a year, with
-no way back — and whether every subdomain is TLS-only is knowledge the runtime does not have.
+`hsts_subdomains` defaults to `false`.
 
-<sub>See also [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written), [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns). Decided in [0074](../decisions/0074.md), [0097](../decisions/0097.md).</sub>
+**Declined:**
+- **`hsts_subdomains = true` by default.** `includeSubDomains` is the HSTS setting that has
+  actually taken deployments down: a sibling subdomain on plain HTTP becomes unreachable for the
+  max-age, with no way to revoke it from the client, and whether every subdomain is TLS-only is
+  knowledge the runtime does not have.
+
+<sub>See also [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written), [`http-server/trusted-proxies-is-empty-and-empty-reads-nothing`](http-server.md#http-server-trusted-proxies-is-empty-and-empty-reads-nothing), [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns).</sub>
 
 <a id="http-server-cors-is-closed-until-origins-are-named"></a>
 
@@ -598,7 +696,7 @@ A plain `OPTIONS` and a cross-origin `GET` are not preflights and are handed to 
 route that needs its own policy sets it for itself, request-locally
 ([`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins)).
 
-<sub>See also [`http-server/a-wildcard-origin-with-credentials-is-refused`](http-server.md#http-server-a-wildcard-origin-with-credentials-is-refused), [`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins). Decided in [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/a-wildcard-origin-with-credentials-is-refused`](http-server.md#http-server-a-wildcard-origin-with-credentials-is-refused), [`http-server/policy-headers-are-runtime-class-and-setheader-wins`](http-server.md#http-server-policy-headers-are-runtime-class-and-setheader-wins).</sub>
 
 <a id="http-server-a-wildcard-origin-with-credentials-is-refused"></a>
 
@@ -620,7 +718,11 @@ The two mechanisms are held to one implementation of each condition: the guard a
 and `Core\Config::set` *agree* over a table of moves into and out of each pair, rather than
 asserting what either answered on its own.
 
-<sub>See also [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named), [`http-server/cookies-are-secure-httponly-and-lax`](http-server.md#http-server-cookies-are-secure-httponly-and-lax), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false). Decided in [0074](../decisions/0074.md).</sub>
+**Declined:**
+- **A warning instead of the refusal.** The configuration has no correct meaning to warn about, and
+  a boot warning is read once.
+
+<sub>See also [`http-server/cors-is-closed-until-origins-are-named`](http-server.md#http-server-cors-is-closed-until-origins-are-named), [`http-server/cookies-are-secure-httponly-and-lax`](http-server.md#http-server-cookies-are-secure-httponly-and-lax), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false).</sub>
 
 <a id="http-server-cookies-are-secure-httponly-and-lax"></a>
 
@@ -644,7 +746,7 @@ A cookie's *name* is not this rule's business: [`errors/cookie-name-bytes`](erro
 matches byte for byte with no substitution, and `__Host-` and `__Secure-` semantics are enforced
 on read and on write. The two rules meet at the same header and are otherwise independent.
 
-<sub>See also [`http-server/a-wildcard-origin-with-credentials-is-refused`](http-server.md#http-server-a-wildcard-origin-with-credentials-is-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`core-api/shape-rules`](core-api.md#core-api-shape-rules). Decided in [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/a-wildcard-origin-with-credentials-is-refused`](http-server.md#http-server-a-wildcard-origin-with-credentials-is-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`core-api/shape-rules`](core-api.md#core-api-shape-rules).</sub>
 
 <a id="http-server-policy-headers-are-runtime-class-and-setheader-wins"></a>
 
@@ -661,17 +763,23 @@ overrides a policy-owned header on **one** response with no configuration involv
 header the response already carries is left alone when the policy set is filled in.
 
 This costs nothing in security because the alternative buys nothing. A request can already write
-any response header it likes through `setHeader` — that is what a response object is — so making
-the policy narrowing-only would forbid the legitimate case (one API route with an open CORS policy
-beside an application that has none; one embeddable widget route that permits framing) while
-stopping nothing. `RuntimeTighten` is for grants, where "may drop rights, never add them" is the
-whole mechanism; a response header is not a grant.
+any response header it likes through `setHeader` — that is what a response object is. A
+compromised handler can therefore turn its own response's protections off, and could before any
+of these blocks existed. Per-request override is what keeps the policy usable: an API route with
+its own CORS policy and an embeddable route that permits framing are both ordinary, and neither
+needs a second configuration mechanism.
 
-A policy-owned header replaced through `setHeader` is **not** logged. It is ordinary output the
-request wrote deliberately, and a line per response on any route that customises one is noise
-that trains people to ignore the log.
+A policy-owned header replaced through `setHeader` is **not** logged.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written). Decided in [0074](../decisions/0074.md).</sub>
+**Declined:**
+- **`RuntimeTighten` policy blocks.** Narrowing-only would forbid the legitimate case (one API
+  route with an open CORS policy beside an application that has none) while stopping nothing.
+  `RuntimeTighten` is for grants, where "may drop rights, never add them" is the whole mechanism
+  ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)); a response header is not a grant.
+- **Logging an override.** The header is ordinary output the request wrote deliberately, and a
+  line per response on any route that customises one is noise that trains people to ignore the log.
+
+<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written).</sub>
 
 <a id="http-server-a-session-store-answers-four-operations"></a>
 
@@ -697,7 +805,14 @@ record crosses the store boundary as the byte carrier a `Core\Cache` entry does
 ([`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary)). `start` is the one member that
 talks to the store ([`core-api/session-roster`](core-api.md#core-api-session-roster)).
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary). Decided in [0139](../decisions/0139.md), [0124](../decisions/0124.md), [0059](../decisions/0059.md).</sub>
+**Declined:**
+- **A signed cookie holding the record itself, with no store.** It costs no round trip, but a store
+  that holds nothing cannot answer *did I issue this id*
+  ([`security/a-session-id-the-store-did-not-issue-is-rejected`](security.md#security-a-session-id-the-store-did-not-issue-is-rejected)). A logged-out session would
+  stay valid until its own expiry, and the record's size limit would be a cookie header's.
+  `Core\SignedCookie` remains for an application that wants exactly this.
+
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary).</sub>
 
 <a id="http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot"></a>
 
@@ -730,7 +845,17 @@ changed backend reaches the next request, and no record moves from the old store
 which signs every user out. An absent block is
 not a default backend ([`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store)).
 
-<sub>See also [`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent), [`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0139](../decisions/0139.md), [0059](../decisions/0059.md), [0005](../decisions/0005.md), [0219](../decisions/0219.md).</sub>
+Both backends cost a session one round trip on a read and two on a write. That is latency spent to
+buy security and request isolation: the local tier would cost none, and it is refused because a
+session there is not coherent across cores.
+
+**Declined:**
+- **A file backend.** It is per-machine, so a fleet either shares a filesystem or loses sessions on
+  every deploy, and a file cannot expire itself, which brings back the sweeper
+  [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store) declines. A single-machine deployment loses
+  nothing it cannot get from the shared tier on loopback or a socket.
+
+<sub>See also [`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent), [`http-server/no-session-block-means-no-store`](http-server.md#http-server-no-session-block-means-no-store), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers).</sub>
 
 <a id="http-server-no-session-block-means-no-store"></a>
 
@@ -749,7 +874,7 @@ A block that names `shared` but a tree with no `[cache.shared]` is the same shap
 `start` reaches the one store that block names, and says which block is missing when there is
 none, rather than opening a store of its own.
 
-<sub>See also [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly). Decided in [0139](../decisions/0139.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly).</sub>
 
 <a id="http-server-a-session-is-loaded-once-and-written-whole"></a>
 
@@ -772,10 +897,20 @@ writes — and an application for which that matters has state that is not sessi
 counters and idempotency keys go to the shared tier or the database directly
 ([`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)).
 
-Memory is O(in-flight): one encoded record per request that started a session, released with the
-request heap. A cancelled task is the one end that sends nothing, because the send parks.
+A cancelled task is the one end that sends nothing, because the send parks.
 
-<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`security/closed-doors`](security.md#security-closed-doors), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers). Decided in [0139](../decisions/0139.md), [0052](../decisions/0052.md).</sub>
+- **Memory:** one encoded record per request that started a session, released with the request
+  heap. Nothing accumulates per session served, so it is O(in-flight).
+
+**Declined:**
+- **A per-key write instead of a whole-record one.** It narrows the lost update to the key actually
+  contended, but one session becomes many entries, so `clear`, `regenerate` and `destroy` each become
+  a multi-key operation, and the shared tier has no multi-key atomic step
+  ([`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)).
+- **A request-long lock.** It closes the lost update exactly, but the failure it brings is a wedged
+  session, on the request path of every application whether or not it has concurrent writers.
+
+<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`security/closed-doors`](security.md#security-closed-doors), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers).</sub>
 
 <a id="http-server-session-expiry-belongs-to-the-store"></a>
 
@@ -794,7 +929,7 @@ An expired record is absent, so `load` already answers it and `start` already is
 `ttl` bounds how long an *untouched* record survives. Expiry needs no code path of its own, which
 is the point of choosing backends that expire.
 
-<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration). Decided in [0139](../decisions/0139.md).</sub>
+<sub>See also [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-local-is-refused-at-boot), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration).</sub>
 
 <a id="http-server-a-session-holds-a-secret-only-sealed"></a>
 
@@ -826,7 +961,7 @@ crosses the store as the byte carrier it already is
 ([`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations)), so no `secret` reaches the store and
 [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary) is unchanged.
 
-<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary). Decided in [0181](../decisions/0181.md).</sub>
+<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`http-server/a-session-store-answers-four-operations`](http-server.md#http-server-a-session-store-answers-four-operations), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary).</sub>
 
 <a id="http-server-an-upload-is-received-only-through-files"></a>
 
@@ -840,7 +975,27 @@ The buffered array is absent on purpose. Choosing between a buffered and a strea
 
 **Advancing past an unconsumed part drains it.** Skipping an upload the application does not recognise is simply not touching it; the drained bytes are still charged against `upload_total` ([`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps)). Peak memory for an upload of any size is therefore one chunk per in-flight request, plus whatever a call site explicitly asked to hold through [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways).
 
-<sub>See also [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0105](../decisions/0105.md), [0097](../decisions/0097.md), [0053](../decisions/0053.md).</sub>
+The runtime owns the multipart parser for the same reason. A large browser upload is always
+multipart, so a raw `bodyStream()` alone would leave an application two choices: buffer it, or write
+the multipart framing itself, with boundary detection across chunk edges and per-part headers. A
+parser differential is a security property, so that framing is not an application's business.
+
+**Memory:** one wire chunk per in-flight request while a part is read, whatever the size of the
+upload. A buffered part costs more than its size: a `bytes` value has its payload inline and cannot
+point into another buffer, so a part copied out of an accumulated body holds the body and the copy at
+once, and a permitted 2G upload would be a 4G peak.
+
+The cost is usability. Every program that accepts a file writes a loop, which is three lines in the
+common case, and one of them is `saveTo`. A slow client still holds a connection for as long as
+`body_idle_timeout` allows, and it no longer holds the body.
+
+**Declined:**
+- **A buffered `files()` beside the stream.** The choice between the two cannot be made from
+  anything the application can observe, as the paragraph above says.
+- **Refusing to advance until the application skips a part explicitly.** It turns the ordinary
+  "ignore what I do not know" loop into ceremony and prevents no mistake anyone makes.
+
+<sub>See also [`http-server/a-part-is-a-file-iff-it-carries-a-filename`](http-server.md#http-server-a-part-is-a-file-iff-it-carries-a-filename), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`http-server/there-is-no-temp-file`](http-server.md#http-server-there-is-no-temp-file), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`iteration/two-interfaces`](iteration.md#iteration-two-interfaces), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps).</sub>
 
 <a id="http-server-a-part-is-a-file-iff-it-carries-a-filename"></a>
 
@@ -854,7 +1009,10 @@ A `Part` answers `name()` (the form's field name), `filename()` (the client's cl
 
 A part carries **no `size`**. There is no honest value to put there before the part has been consumed, and inventing one from `Content-Length` is the repair [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) forbids. The part-count cap of [`errors/multipart-part-count`](errors.md#errors-multipart-part-count) applies unchanged; it bounds bookkeeping, which no byte cap reaches.
 
-<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`security/tainted-sources`](security.md#security-tainted-sources), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count). Decided in [0105](../decisions/0105.md), [0095](../decisions/0095.md), [0024](../decisions/0024.md), [0156](../decisions/0156.md).</sub>
+**Declined:**
+- **A third directive for the buffered form fields.** Its right value is one nobody knows, and it would overlap `request_body` almost entirely.
+
+<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`security/tainted-sources`](security.md#security-tainted-sources), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count).</sub>
 
 <a id="http-server-a-part-is-consumed-in-one-of-three-ways"></a>
 
@@ -875,9 +1033,13 @@ foreach (Core\Request::files() as $part) {
 - **`content(): Iterable<bytes>`** — the part's chunks, each `tainted`, valid only while this part is the iterator's current one. A part the walk has moved past refuses rather than reading the current one.
 - **`saveTo(string $path, {max?, overwrite?})`** — the shorthand for [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), to which it delegates under the same bag, and the path nearly every upload takes. Its path is a sink: a `tainted` `filename()` reaching it is a compile error, and `Core\IO::within` is the launderer.
 
-A part's bytes are readable exactly once, in order, whichever of the three consumed them. The buffering-and-streaming split of [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is about the request body and does not repeat itself here: a part is never held, so `readAll` buffering into the application's own variable leaves nothing behind on the request for a second reader to find. An application that needs two passes buffers with `readAll` or writes the part down first, and now says which. Streaming-only was rejected because a small avatar to hash or a CSV about to be parsed wants bytes, and forcing a loop on them buys no safety once the bound moved to the call site.
+A part's bytes are readable exactly once, in order, whichever of the three consumed them. The buffering-and-streaming split of [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it) is about the request body and does not repeat itself here: a part is never held, so `readAll` buffering into the application's own variable leaves nothing behind on the request for a second reader to find. An application that needs two passes buffers with `readAll` or writes the part down first, and now says which.
 
-<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named). Decided in [0105](../decisions/0105.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md), [0156](../decisions/0156.md).</sub>
+**Declined:**
+- **Streaming only, with no way to read a part into memory.** A small avatar to hash, a CSV about to be parsed or a value for a database column wants bytes, and forcing a loop on them buys no safety once the bound sits at the call site.
+- **A `max` required at every `readAll`.** The bare call is already bounded by `request_body`, the cap on every other byte parsed into memory, so the argument would buy visibility and no safety, at one argument per call site.
+
+<sub>See also [`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named).</sub>
 
 <a id="http-server-request-body-and-upload-total-are-two-caps"></a>
 
@@ -894,7 +1056,7 @@ Both are rows in the `[limits]`/`[limits.hard]` pair that [`config/three-changea
 
 The split follows from what the two measure. Content parsed into memory deserves the tighter number, because it is resident and O(in-flight); content streamed to disk deserves a ceiling shaped like what uploads are, because a phone photo is 5–12M and an 8M refusal is advice rather than protection. One number governing both would have to be the larger, and would then license a quarter-gigabyte JSON body parsed wholly into memory on the strength of an argument made about files. [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire) is where the second cap bites.
 
-<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0105](../decisions/0105.md), [0005](../decisions/0005.md), [0064](../decisions/0064.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps).</sub>
 
 <a id="http-server-upload-total-is-enforced-on-the-wire"></a>
 
@@ -906,7 +1068,7 @@ The split follows from what the two measure. Content parsed into memory deserves
 
 Enforcing in the server rather than at every `readAll` and `content()` is what keeps the streaming path bounded now that it is the only path ([`http-server/an-upload-is-received-only-through-files`](http-server.md#http-server-an-upload-is-received-only-through-files)): the parts an application drains without reading are still the server's to count, and a bound placed in the parser would miss exactly the bytes it never sees. The number is load-bearing twice, because [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number) multiplies it by the in-flight ceiling to get what the machine must hold.
 
-<sub>See also [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0105](../decisions/0105.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class).</sub>
 
 <a id="http-server-there-is-no-temp-file"></a>
 
@@ -920,7 +1082,7 @@ Runtime-managed temp files with a hidden path — the obvious middle road — re
 
 What this trades is stated rather than implied: **the resource this design can exhaust is disk, and the application owns bounding it.** `writeStream`'s `max` is the per-call bound, `upload_total` ([`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps)) is the per-request one, and neither is a quota over a directory — an operator accepting uploads watches the volume they land on. That is a cost bought with the memory cost it replaces: a permitted 2G upload is no longer a 4G peak per in-flight request.
 
-<sub>See also [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps). Decided in [0105](../decisions/0105.md), [0097](../decisions/0097.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`http-server/request-body-and-upload-total-are-two-caps`](http-server.md#http-server-request-body-and-upload-total-are-two-caps), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps).</sub>
 
 <a id="http-server-no-spelling-for-an-unbounded-wait"></a>
 
@@ -937,16 +1099,24 @@ something a program can express, the same way a shell string is not something `C
 express ([`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only)): the guarantee comes from the absence of a
 spelling, not from a check.
 
+A finite default times out a call somebody expected to take five minutes. A long poll or a large
+upload names its own `deadline`, which is one field, and having to name it is the point: the
+number that bounds a slow dependency is written down where an operator can change it.
+
 The bag is a closed set of keys, and the three retry keys — `retryAttempts`, `retryBackoff`,
-`retryIdempotencyKey` — are flat rather than a nested `retry` shape, because a bag flattens to one
-ABI argument per option and a bag nested inside one has nothing to flatten into
-([`core-api/shape-rules`](core-api.md#core-api-shape-rules) R2). The prefix keeps the grouping legible at a call site.
+`retryIdempotencyKey` — are flat. The prefix keeps the grouping legible at a call site
+(`{retryAttempts: 3, retryIdempotencyKey: $key}`).
 
 Expiry throws `TimeoutError`, never a falsy return ([`core-api/failure-throws`](core-api.md#core-api-failure-throws)), and the
 deadline it reports is the one that covers the whole call
 ([`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call)).
 
-<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`types/duration`](types.md#types-duration), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0074](../decisions/0074.md).</sub>
+**Declined:**
+- **A nested `retry` shape.** A bag flattens to one ABI argument per option, and a bag nested
+  inside one has nothing to flatten into; it would need a runtime shape value on the common path,
+  which [`core-api/shape-rules`](core-api.md#core-api-shape-rules) R2 exists to avoid.
+
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`types/duration`](types.md#types-duration), [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only).</sub>
 
 <a id="http-server-an-outbound-request-carries-one-body"></a>
 
@@ -975,9 +1145,23 @@ that exemption applied rather than handed to `Core\Json::encode`. `Core\Http\Par
 without being held: `Part::file` streams from disk under `fs.read` with `Content-Length` from the file's
 size. `Content-Length` is always written — every body's size is known before the first byte — so there is
 no chunked request body. The body is built once per call and resent unchanged on every attempt, and a
-file part is re-read per attempt.
+file part is re-read per attempt: encoding once keeps a retry from paying for the encode again, and
+re-reading keeps a retry from holding the file.
 
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse). Decided in [0180](../decisions/0180.md).</sub>
+A verb chosen at run time goes through `Client::request(Core\Http\Method $method, $url, {…})`, which
+takes the same bag as `get`, `post`, `put`, `patch`, `delete` and `head`. The verb is the one thing those
+members cannot express, so widening one member to take it is the whole of what is needed.
+
+- **Memory:** a body is built once per call, charged to the request and held until its last attempt is
+  done. A `Part::file`, whether it is the whole `body` or one multipart field, holds a descriptor and one
+  chunk rather than the file.
+
+**Declined:**
+- **A `Core\Http\Request` class sent with `send(Request)`.** It is a second place a call is described,
+  with its own construction, its own mutability and its own way for a body to disagree with the bag.
+  `request(Method, …)` is one member.
+
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse).</sub>
 
 <a id="http-server-one-deadline-covers-the-whole-call"></a>
 
@@ -986,8 +1170,7 @@ file part is re-read per attempt.
 `rule:http-server/one-deadline-covers-the-whole-call`
 
 `deadline` covers the **whole call**: the connection, every redirect hop, every retry attempt and
-every backoff between them. A single stated number is what a caller can reason about; the
-per-attempt timeout most clients offer is the one that turns "5 seconds" into fifteen.
+every backoff between them. A single stated number is what a caller can reason about.
 
 Two consequences are rules of their own. The deadline is never extended: when it would expire
 during a backoff, the call throws immediately rather than sleeping and then failing, and a
@@ -999,7 +1182,11 @@ The redirect chain and every retry attempt share this one bound with the pinning
 under: a hop is re-checked and re-pinned, a retry reuses the pinned address, and neither buys
 itself more time ([`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned)).
 
-<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0074](../decisions/0074.md), [0058](../decisions/0058.md).</sub>
+**Declined:**
+- **A per-attempt timeout.** It is what most HTTP clients offer, and three attempts at a "5-second
+  timeout" is a fifteen-second call made by a caller who reasoned about five.
+
+<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned).</sub>
 
 <a id="http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime"></a>
 
@@ -1030,7 +1217,20 @@ length-capped as a constant rather than a directive, and **a stream is retried o
 after the first byte of body a failure ends the stream, because the caller has already seen a prefix of
 one answer and re-requesting would hand it the prefix of another.
 
-<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0180](../decisions/0180.md).</sub>
+`idle` ships at `30s`, longer than any server-sent-events heartbeat in common use and short enough that a
+dead server is noticed inside one request's patience. `max_duration` ships at `5m` to bound a stream the
+program did not bound itself; a long-lived consumer names its own `maxDuration`. Both are `Runtime` class
+for `deadline`'s reason: each bounds one call, and a change made by a request ends with it.
+
+- **Memory:** a streamed reply holds one chunk, plus at most one line or one event's `data` under its
+  cap, and for a compressed reply its decoder's window. All of it is charged to the request and freed
+  with the stream.
+
+**Declined:**
+- **A `Response` whose `text()` throws until the body is read some other way.** A class whose members
+  throw depending on how it was obtained is the worse surface, so a streamed reply is a class of its own.
+
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
 
 <a id="http-server-retry-is-opt-in-jittered-and-closed"></a>
 
@@ -1041,13 +1241,13 @@ one answer and re-requesting would hand it the prefix of another.
 `retryAttempts` absent means one attempt. Present, it is the **total** number of attempts
 including the first, and must be at least 1. `retryBackoff` is the base delay, shipped `100ms`,
 growing exponentially per attempt with **full jitter** — the actual wait is uniformly random in
-`[0, base × 2^n]`. Jitter is not optional and not configurable: unjittered retries from many
-hosts synchronise into a burst against a service that is already failing, which is the failure
-mode retry is supposed to relieve.
+`[0, base × 2^n]`. Jitter is not optional and not configurable.
 
 What is retried is a closed set: a connection failure, a timeout, and status `429`, `502`, `503`
-and `504`. Nothing else — a `400` or a `403` is an answer, and retrying it is a load generator; a
-`500` is usually a real application error and is deliberately not on the list. A `Retry-After`
+and `504`. Nothing else — a `400` or a `403` is an answer, and retrying it is a load generator. The
+set is a judgement baked into `Core`: a service that signals overload with a `500` is not retried,
+and widening the set for a real service that signals overload outside it is a one-line change with
+a stated reason. A `Retry-After`
 header on a `429` or `503` replaces the computed backoff in either of its forms, delay-seconds or
 an HTTP-date, clamped to the remaining deadline — and a date already past keeps the jittered
 backoff rather than becoming a zero wait, so the clients one date was handed to do not retry in
@@ -1058,7 +1258,19 @@ and reuses the `Core\Http\Target` the launderer pinned, so a retry performs no s
 ([`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned)). A `POST` or `PATCH` is not
 retried at all without a key ([`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key)).
 
-<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait). Decided in [0074](../decisions/0074.md), [0058](../decisions/0058.md), [0180](../decisions/0180.md).</sub>
+**Declined:**
+- **Configurable jitter, including off.** Unjittered retries from many hosts synchronise into a
+  burst against a service that is already failing, which is the failure retry is meant to relieve.
+  It is the one setting whose wrong value harms somebody else, and nobody has a reason to turn it
+  off.
+- **Retrying every `5xx`.** A `500` is usually a real application error, and retrying it multiplies
+  load on a service that is already broken.
+- **Circuit breaking**, refusing calls to an endpoint that has been failing. It needs per-endpoint
+  state shared across a core, which is [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit)'s
+  territory, and its interaction with [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members)'s approximate
+  member is argued once for both.
+
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/a-non-idempotent-retry-needs-an-idempotency-key`](http-server.md#http-server-a-non-idempotent-retry-needs-an-idempotency-key), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait).</sub>
 
 <a id="http-server-a-non-idempotent-retry-needs-an-idempotency-key"></a>
 
@@ -1080,10 +1292,15 @@ Where the verb is genuinely dynamic — `Client::request($method, $url)` — the
 moves to the call and **throws before the first attempt** rather than before the second, so a test
 run finds it rather than production finding it on the one retry that matters. A key supplied for
 a verb that does not need one is accepted and sent; some servers want it regardless, and refusing
-it would buy nothing. A key is never generated automatically: one minted per call is a different
-key on the next request, which makes the header present and useless.
+it would buy nothing.
 
-<sub>See also [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag). Decided in [0074](../decisions/0074.md), [0180](../decisions/0180.md).</sub>
+**Declined:**
+- **A runtime warning for the missing key.** The failure it prevents is a double charge, and the
+  constant options bag already makes the compile-time check free at an ordinary call site.
+- **A key generated automatically when none is given.** One minted per call is a different key on
+  the next request, which makes the header present and useless, and that is worse than absent.
+
+<sub>See also [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`core-api/options-bag`](core-api.md#core-api-options-bag).</sub>
 
 <a id="http-server-allow-url-pins-the-address"></a>
 
@@ -1121,7 +1338,7 @@ questions at the member that connects, so there is one implementation of the pol
 and it lives in the capability rather than the client
 ([`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability)).
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0058](../decisions/0058.md), [0074](../decisions/0074.md), [0180](../decisions/0180.md), [0183](../decisions/0183.md).</sub>
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned).</sub>
 
 <a id="http-server-an-outbound-call-tries-every-approved-address"></a>
 
@@ -1151,7 +1368,21 @@ sends the reader to the wrong host. The lookup itself runs on the blocking pool 
 [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), with the grant asked on the core before it and
 the address check back on the core after it.
 
-<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned). Decided in [0180](../decisions/0180.md).</sub>
+The attempt delay is `250ms`, RFC 8305's own recommendation, and a constant rather than a directive
+because it trades against nothing an operator can see. Shorter spends a second socket on a set whose
+first address was about to answer; longer leaves a call waiting on an unreachable address for most of
+its budget.
+
+- **Memory:** a `Target` holds at most eight addresses, charged to the request that laundered it. A call
+  falling back holds at most one socket per address until one connects, and a lookup holds one job on
+  the blocking pool under that pool's own bound.
+
+**Declined:**
+- **Keeping one pinned address and letting the connect fail.** One address is a single point of failure
+  for a name that answers several, and it gains no security: the security is in checking every address,
+  not in discarding all but one.
+
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned).</sub>
 
 <a id="http-server-an-outbound-call-names-its-address-only-under-a-grant"></a>
 
@@ -1174,7 +1405,7 @@ A `Core\Http\Target` already carries the addresses its laundering approved
 `LogicError` rather than a silent override of the pin: the two are answers to the same question, and a
 call that supplies both has not decided which one it meant.
 
-<sub>See also [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address).</sub>
 
 <a id="http-server-redirects-are-off-and-every-hop-is-re-pinned"></a>
 
@@ -1198,7 +1429,7 @@ re-checks; a retry attempt does neither.
 Both the redirect chain and every retry attempt are covered by one `deadline`
 ([`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call)).
 
-<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/net-address-policy`](security.md#security-net-address-policy). Decided in [0058](../decisions/0058.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/net-address-policy`](security.md#security-net-address-policy).</sub>
 
 <a id="http-server-an-https-redirect-never-becomes-plaintext"></a>
 
@@ -1222,7 +1453,7 @@ is not being attacked by the code that asked for it — and because the address 
 same way either scheme is. Two conditions rather than one for [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope)'s
 reason: the deployment says where a downgrade may happen, and the call says it expects one here.
 
-<sub>See also [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/a-cross-origin-redirect-drops-credentials`](http-server.md#http-server-a-cross-origin-redirect-drops-credentials). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/a-cross-origin-redirect-drops-credentials`](http-server.md#http-server-a-cross-origin-redirect-drops-credentials).</sub>
 
 <a id="http-server-a-cross-origin-redirect-drops-credentials"></a>
 
@@ -1256,7 +1487,7 @@ No header value is written into a trace span, an access log record or an error m
 header guard that names the header and never the value is already how the transport reports a refusal,
 and this is what makes that a tested property rather than a habit.
 
-<sub>See also [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`http-server/an-https-redirect-never-becomes-plaintext`](http-server.md#http-server-an-https-redirect-never-becomes-plaintext). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`http-server/an-https-redirect-never-becomes-plaintext`](http-server.md#http-server-an-https-redirect-never-becomes-plaintext).</sub>
 
 <a id="http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned"></a>
 
@@ -1293,7 +1524,15 @@ are `[http.client] pool_idle`, the idle connections one core may hold, and `pool
 one may sit idle before it is closed — both `System` class, because they bound a core's memory rather
 than a request's ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)).
 
-<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0180](../decisions/0180.md).</sub>
+`pool_idle` ships at `16`, enough for a handful of upstream APIs per core without a footprint worth
+stating, and `0` keeps none. `pool_idle_timeout` ships at `30s`, under the idle timeout of every common
+proxy and load balancer, so this client is normally the side that closes an idle connection, which is
+the side that cannot lose a request to the race.
+
+- **Memory:** per core, at most `pool_idle` idle connections, each a socket and a TLS session, held
+  between requests and charged to the core: O(cores × `pool_idle`), never O(requests served).
+
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
 
 <a id="http-server-an-outbound-proxy-is-operator-configured"></a>
 
@@ -1348,7 +1587,33 @@ authentication and any other refusal of `CONNECT` is an `IOError`; neither is re
 ([`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed)), which retries an answer from the destination,
 and a proxy that refused the tunnel is not one.
 
-<sub>See also [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value). Decided in [0182](../decisions/0182.md).</sub>
+**The pool key carries the proxy.** A tunnelled connection and a direct one are never confused, a
+bypassed host's connections are their own, and a reload that changes the block leaves the old value's
+connections unmatchable, so they age out rather than serve a call the operator has redirected
+([`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned)).
+
+- **Memory:** a new tunnelled connection pays one `CONNECT` round trip and a few hundred octets of
+  request line and response head, released with the handshake. A request pays nothing more, because a
+  tunnelled connection is pooled like any other and the pool's existing cap bounds it. The process holds
+  the parsed block and, with `password_file`, the credential read once at boot.
+
+**Declined:**
+- **No proxy support.** A deployment whose only egress is a forward proxy would run no Novis at all
+  rather than run it with a narrower policy.
+- **Reading `HTTP_PROXY`, `HTTPS_PROXY` or `NO_PROXY`.** Familiarity does not buy back ambient,
+  process-wide control over where every outbound byte goes, and a request header landing in the same
+  namespace is a known hazard.
+- **An absolute-form request line for `http` destinations.** It is a second code path on which the proxy
+  reads and may rewrite the whole request, to save one round trip on the scheme this client uses least.
+- **Proxying `Core\Net`.** A datagram has no `CONNECT`, and a raw socket a program opened by address is not
+  what a forward proxy for HTTP is for.
+- **A capability for "may be proxied".** The proxy is where the deployment's packets go, not a right a
+  program holds; a grant would imply a program could ask not to be proxied.
+- **TLS to the proxy, and a proxy per destination.** The first is a second trust decision about whose roots
+  verify the proxy; the second is a routing table rather than a block. Neither has a deployment asking
+  for it.
+
+<sub>See also [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value).</sub>
 
 <a id="http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"></a>
 
@@ -1389,7 +1654,17 @@ A program cannot tell which word is written. There is no member, option or const
 same reason there is no per-call spelling: whether this deployment's egress is proxied is not a thing
 program code decides or branches on.
 
-<sub>See also [`http-server/an-outbound-proxy-is-operator-configured`](http-server.md#http-server-an-outbound-proxy-is-operator-configured), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline). Decided in [0182](../decisions/0182.md).</sub>
+**Declined:**
+- **A proxy that always resolves**, `CONNECT` with the host name every time. It gives up the pin in every
+  deployment, including the many whose proxy can dial an address.
+- **A proxy that never resolves**, `CONNECT` with the approved address every time. It cannot run in a
+  network where Novis has no DNS route outward.
+- **A default for `resolve`, with an override.** Whichever default is picked is wrong somewhere, and
+  `proxy` as the default is wrong silently.
+- **Warning once per process, at the first proxied call.** A long-lived server writes that before anyone
+  is watching and never again; the boot log is where a deployment's posture is read.
+
+<sub>See also [`http-server/an-outbound-proxy-is-operator-configured`](http-server.md#http-server-an-outbound-proxy-is-operator-configured), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/an-outbound-call-tries-every-approved-address`](http-server.md#http-server-an-outbound-call-tries-every-approved-address), [`security/net-address-policy`](security.md#security-net-address-policy), [`config/scope-has-no-default`](config.md#config-scope-has-no-default), [`config/check-and-dump-audit-the-tree-offline`](config.md#config-check-and-dump-audit-the-tree-offline).</sub>
 
 <a id="http-server-the-client-trust-roots-are-the-operators"></a>
 
@@ -1418,7 +1693,11 @@ configuration mistake a warning improves — the process must not start with it.
 own* call's verification only through [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), and
 never through any of these three keys.
 
-<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0180](../decisions/0180.md).</sub>
+- **Memory:** per process, the `roots` files, parsed once beside or in place of the bundled set. A call
+  naming any per-call TLS option builds its own client configuration and frees it with the call, so that
+  cost is O(in-flight).
+
+<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect).</sub>
 
 <a id="http-server-a-reply-reports-its-tls-session"></a>
 
@@ -1439,11 +1718,15 @@ session the test described with `Core\Test::tlsSession`.
 production telemetry, that every *other* call still verified — and without a reply-side answer the grant
 is unobservable from inside the language.
 
+The leaf's subject, issuer and expiry are answered as values because when a certificate expires is the
+check an operator most wants a program to make, and the chain as PEM alone would leave a program to parse
+ASN.1 itself to learn it.
+
 The chain is `tainted` and the timings are not here: where a call's time went is the `http` trace event's
 ([`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind)), and a second surface for one measurement is the copy
 that disagrees.
 
-<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object). Decided in [0180](../decisions/0180.md), [0217](../decisions/0217.md).</sub>
+<sub>See also [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object).</sub>
 
 <a id="http-server-an-outbound-socket-is-opened-like-an-outbound-call"></a>
 
@@ -1465,6 +1748,12 @@ among them — and the operator's proxy tunnel
 A door of its own would be a second implementation of the same policy, and the second copy is the one that
 comes to be missing a check.
 
+**The row is named `openSocket`** because [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon) narrows it to one name. `connect`
+is unavailable: every other row on the class is named for an HTTP method, `CONNECT` is one, and
+`connectTimeout` and `connectTo` already spend the word on reaching a host. Bare `open` is this
+language's verb for a resource a program then holds and closes, but alone on this class it does not say
+what is opened, and this is the only row whose result outlives the call.
+
 `ws` and `wss` join the scheme roster for this row alone
 ([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)): the request rows refuse them, and `openSocket` refuses
 `http` and `https`, so what a URL is *for* is written in the row that takes it. `ws` is admitted as plain
@@ -1475,7 +1764,7 @@ What the row answers is `Core\Http\Socket`, and what that answers is `Core\Socke
 server-side connection already answers in ([`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate)), because one
 RFC 6455 frame gets one shape in this language. `protocols` offers subprotocols as
 `Sec-WebSocket-Protocol`, a `101` choosing one that was not offered is refused, and the socket reports the
-one chosen. The bag carries the connection keys and not the exchange keys: there is no `body`, no
+one chosen; any other answer than a `101` is a `RuntimeError` naming the status. The bag carries the connection keys and not the exchange keys: there is no `body`, no
 `followRedirects` and no retry trio, because a bag is a closed set and a key that could never do anything
 is one a program would write and then wait for.
 
@@ -1483,7 +1772,25 @@ is one a program would write and then wait for.
 [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned)'s pool, because a connection
 that has been upgraded can no longer carry a request.
 
-<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned). Decided in [0183](../decisions/0183.md).</sub>
+**The conversation is `receive`, `send`, `sendBytes`, `close` and `protocol`.** `send(string)` and
+`sendBytes(bytes)` are two classified parameters, as on `Core\Socket`, because a `string|bytes` union
+carries no classification, so it would refuse a `tainted` argument and make `send` a sink by accident.
+`receive` answers `?Core\Socket\Message` with `text` or `bytes` filled and `tainted`, and `null` once the
+peer has closed. A sent frame is not a sink ([`security/sink-predicate`](security.md#security-sink-predicate)): it is no instruction on
+this side of the wire, so a program may forward what it received without laundering it. RFC 6455's
+masking, fragmentation, UTF-8 validation and close handshake are `tungstenite`'s client half, run over
+the stream the transport already holds.
+
+**Declined:**
+- **A door of its own, `Core\Socket::connect`.** It groups the socket surface in one namespace, and asks
+  every question the pin, the grant, the TLS options and the proxy answer a second time.
+- **A second message class for the outbound direction.** It would differ from `Core\Socket\Message` only
+  in where the bytes came from, and the two would disagree the first time either was touched.
+- **WebSocket over HTTP/2 (RFC 8441).** The outbound client speaks HTTP/1.1, and this changes with it.
+- **STOMP, Socket.IO and GraphQL over WebSocket in the runtime.** Each is frames with a convention on
+  top, which is what a package is for ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)).
+
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned).</sub>
 
 <a id="http-server-an-outbound-socket-belongs-to-the-task-that-opened-it"></a>
 
@@ -1510,7 +1817,20 @@ opens it in something that outlives a request: a command, a queue job, a spawned
 waiting at once on one socket is a `LogicError`, because one message has one recipient and the alternative
 is a fan-out policy invented for what is a program bug.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`classes/graph-copy`](classes.md#classes-graph-copy), [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call). Decided in [0183](../decisions/0183.md).</sub>
+**`close` sends its frame and waits for the peer's under the send wait.** A peer that never answers
+is closed anyway, and that is not an error: the connection is gone either way, and a throw would put a
+`catch` around every normal ending. This end does not reconnect on its own either
+([`http-server/an-outbound-socket-has-no-compression-and-no-reconnect`](http-server.md#http-server-an-outbound-socket-has-no-compression-and-no-reconnect)).
+
+- **Memory:** an open socket holds one connection, a TLS session for `wss`, `tungstenite`'s read and
+  write buffers, and at most `maxMessage` for a message being reassembled, all charged to the task that
+  opened it and released when it closes. Nothing is held per core or per process.
+
+**Declined:**
+- **A socket handed to another isolate.** Who closes it and whose budget holds it would become runtime
+  questions, for a pattern a program writes by opening the socket where it reads it.
+
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`classes/graph-copy`](classes.md#classes-graph-copy), [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call).</sub>
 
 <a id="http-server-an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap"></a>
 
@@ -1530,7 +1850,8 @@ Four bounds cover an outbound socket, and none of them has a spelling for "forev
 `idle` and `maxDuration` are the two bounds and the two directives a streamed reply already reads
 ([`http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`](http-server.md#http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime)), for the same reason one level
 down: an idle check alone never ends a peer that dribbles, and a lifetime alone lets a dead connection sit
-until it expires. A message past `maxMessage` closes the socket with `1009`. `ping` is the one knob with an
+until it expires. A message past `maxMessage` closes the socket with `1009`, and the pending `receive`
+throws naming the cap. `ping` is the one knob with an
 off position and it is off by default, because a ping is traffic the peer did not ask for; a program that
 sets it is choosing to have `idle` end a *dead* peer rather than a quiet one. A peer's ping is always
 answered regardless — that is the protocol, not a policy.
@@ -1544,13 +1865,38 @@ comes from the absence of a spelling, exactly as it does for a call
 
 `[http.client.socket]` carries `max_message` and `send_timeout`, both `Runtime`
 ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)), as `[http.client] deadline` is and for its reason: each
-bounds one call, and neither is a shared resource one request could spend on another's behalf. Shipped:
+bounds one call, and neither is a shared resource one request could spend on another's behalf. They sit in
+a block of their own because they mean nothing to a row that is not `openSocket`. A zero or a `false` in
+either is refused while the file is read, because neither is a bound. Shipped:
 `max_message` is four mebibytes and `send_timeout` is thirty seconds — the numbers this process already
 applies to the other half of RFC 6455, because one process holding two opinions about the size of one
 message is how a program comes to work in one direction and not the other. Neither ships unbounded, which
 [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect) requires of exactly this kind of wait.
 
-<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`](http-server.md#http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`config/three-changeability-classes`](config.md#config-three-changeability-classes). Decided in [0183](../decisions/0183.md).</sub>
+<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`](http-server.md#http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
+
+<a id="http-server-an-outbound-socket-has-no-compression-and-no-reconnect"></a>
+
+## An outbound socket negotiates no `permessage-deflate` and never reconnects on its own
+
+`rule:http-server/an-outbound-socket-has-no-compression-and-no-reconnect`
+
+An outbound socket offers no `permessage-deflate` in its handshake, and a socket that ends stays ended:
+it reports why, and what to do next is the program's.
+
+**There is no compression extension** for two reasons that are not about effort. Context takeover holds
+a compression window per socket for the socket's whole life, which is memory held per peer rather than
+per message. And inflating a peer's frames is a decompression bomb with no length known in advance,
+which is a security question of its own. It can be added later as an option, and nothing in the socket's
+surface rules it out.
+
+**There is no reconnect.** A reconnect policy is backoff, jitter, resumption tokens and a replay
+question, all of them the application's, and no two APIs answer them the same way.
+
+Compression is reconsidered when measurement on a real gateway shows a chatty peer's bytes dominating
+a program's cost.
+
+<sub>See also [`http-server/an-outbound-socket-is-opened-like-an-outbound-call`](http-server.md#http-server-an-outbound-socket-is-opened-like-an-outbound-call), [`http-server/an-outbound-socket-belongs-to-the-task-that-opened-it`](http-server.md#http-server-an-outbound-socket-belongs-to-the-task-that-opened-it), [`http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`](http-server.md#http-server-an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap).</sub>
 
 <a id="http-server-a-requests-blast-radius-is-bounded-at-four-tiers"></a>
 
@@ -1569,7 +1915,7 @@ A request's blast radius is bounded by construction at four named tiers, and the
 
 [`errors/propagation`](errors.md#errors-propagation) contains a panic to one request at the ABI, [`errors/escalation-ladder`](errors.md#errors-escalation-ladder) gives every `FATAL` a path that ends in a log line, and [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused) refuses text whose spelling and meaning come apart. What goes *around* all of them falls into three shapes, and only three: a process `abort()`, a signal, and a core that is alive and never comes back. Each tier names which of those it closes, so the guarantee is falsifiable — a corpus of hostile requests either terminates a worker or does not. Tier D is written down because a residue that is named can be measured and revisited; the one that is not named is the one an operator discovers.
 
-<sub>See also [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`packaging/the-artifact-cache-is-read-not-mapped`](packaging.md#packaging-the-artifact-cache-is-read-not-mapped), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv). Decided in [0106](../decisions/0106.md), [0002](../decisions/0002.md), [0020](../decisions/0020.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`errors/propagation`](errors.md#errors-propagation), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`packaging/the-artifact-cache-is-read-not-mapped`](packaging.md#packaging-the-artifact-cache-is-read-not-mapped), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv).</sub>
 
 <a id="http-server-containment-does-not-end-at-the-helper"></a>
 
@@ -1586,7 +1932,12 @@ Two outcomes, split on whether a request owns the fault:
 
 This costs nothing on the path that does not panic, and is one wrap per *task* rather than per call.
 
-<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`errors/propagation`](errors.md#errors-propagation), [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0106](../decisions/0106.md), [0002](../decisions/0002.md), [0020](../decisions/0020.md).</sub>
+**Declined:**
+- **`panic = "abort"` plus a supervisor.** Simpler than the outer wrap and the teardown rules combined, but
+  it turns every containable runtime bug into a process kill, which is the guarantee this rule exists to
+  strengthen ([`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort)).
+
+<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`errors/propagation`](errors.md#errors-propagation), [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root).</sub>
 
 <a id="http-server-engine-depth-is-bounded-per-decoder"></a>
 
@@ -1600,7 +1951,7 @@ This costs nothing on the path that does not panic, and is one wrap per *task* r
 
 The default for `Core\Json` is **512**, the depth JSON decoders commonly default to, chosen as a convention rather than for any property of the number: a document a real program sends is far shallower. A document deeper than that is refused with the catchable failure above, at the level that crosses the limit.
 
-<sub>See also [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0106](../decisions/0106.md), [0020](../decisions/0020.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`http-server/no-path-reaches-abort`](http-server.md#http-server-no-path-reaches-abort), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/on-limit`](errors.md#errors-on-limit).</sub>
 
 <a id="http-server-time-is-bounded-inside-a-helper"></a>
 
@@ -1617,7 +1968,7 @@ Two constraints on where a poll may go, both about correctness:
 - **The poll is supplied by a bounded-loop combinator, not remembered per helper.** A helper adopts the shape and the shape carries the obligation.
 - **A poll site must be a point at which abandoning leaves the value consistent.** A sort cannot be abandoned mid-permutation and its array handed back. Where no such point exists, the bound belongs on the *input* instead — which is what [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers) already did for patterns, and the precedent generalises rather than being re-argued.
 
-<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code). Decided in [0106](../decisions/0106.md), [0020](../decisions/0020.md), [0056](../decisions/0056.md), [0002](../decisions/0002.md).</sub>
+<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers), [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code).</sub>
 
 <a id="http-server-no-path-reaches-abort"></a>
 
@@ -1631,7 +1982,10 @@ Two constraints on where a poll may go, both about correctness:
 - **Teardown is iterative, never recursive.** A value graph is released by draining one explicit worklist, not by `Drop` calling `Drop`. This removes the panic-during-unwind surface along the only path that handles unbounded user-shaped data, and independently removes the stack overflow a deeply nested graph would cause at request end — the one depth no request-level limit can refuse, because it is reached after the request has finished. Its cost is one worklist allocation per teardown.
 - **An allocation sized by request data is fallible.** Every engine-side buffer that grows with input uses `try_reserve` and fails the request rather than the process. The bound on this rule is honest: it covers allocations that scale with input, where an attacker has leverage, and does not make the whole standard library fallible.
 
-<sub>See also [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0106](../decisions/0106.md), [0002](../decisions/0002.md).</sub>
+**Memory:** iterative teardown costs one worklist allocation per teardown, held only while the graph is
+released. That is a fraction of a percent of any request that allocated enough to need one.
+
+<sub>See also [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/engine-depth-is-bounded-per-decoder`](http-server.md#http-server-engine-depth-is-bounded-per-decoder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="http-server-a-core-is-never-blocked-on-a-syscall"></a>
 
@@ -1645,7 +1999,12 @@ The runtime is one single-threaded scheduler pinned per core, and a request neve
 
 The bound is stated because the default it replaces is not: an unbounded pool of threads that each reserve a stack is a footprint that grows with a workload's blocking fan-out rather than with its concurrency. What the pool spends, per [`programs/memory-priority`](programs.md#programs-memory-priority): at most that many OS thread stacks per worker, resident only in what a job touches, plus one boxed Rust `FnOnce` per job in flight.
 
-<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0106](../decisions/0106.md), [0072](../decisions/0072.md), [0004](../decisions/0004.md), [0115](../decisions/0115.md).</sub>
+**Declined:**
+- **`io_uring` for the blocking paths.** It is faster and would remove the handoff rather than bound it,
+  but it is a second I/O model on one platform only, in a workspace that keeps its runtime dependency
+  surface narrow. Simplicity outweighs it until a measurement says otherwise.
+
+<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="http-server-a-wedged-core-is-detected-by-its-deadline"></a>
 
@@ -1659,7 +2018,7 @@ Every other bound answers a fault. None answers a worker that faults in no way a
 
 There is one such thread for the process, not one per core, started when the first core registers; it holds one entry per registered core, O(cores), and wakes once per interval to read one atomic per entry. A stall is reported once per deadline rather than once per sweep, because a wedged core republishes nothing and its earliest deadline is a stable identity for the episode. The report goes to [`errors/engine-floor`](errors.md#errors-engine-floor)'s floor, and what happens next is [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed).
 
-<sub>See also [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0106](../decisions/0106.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`errors/engine-floor`](errors.md#errors-engine-floor).</sub>
 
 <a id="http-server-a-wedged-core-is-shed-never-killed"></a>
 
@@ -1667,7 +2026,7 @@ There is one such thread for the process, not one per core, started when the fir
 
 `rule:http-server/a-wedged-core-is-shed-never-killed`
 
-What a watchdog report does is **report and shed, never kill**: the affected core stops accepting new work, and `max_in_flight` accounts for its share as unavailable so the remaining cores are not asked to carry a ceiling that assumes it ([`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)).
+What a watchdog report does is **report and shed, never kill**: the affected core stops accepting new work, and `max_in_flight` accounts for its share as unavailable so the remaining cores are not asked to carry a ceiling that assumes it ([`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number)). The watchdog reads the in-flight deadline each worker already keeps, so a worker pays nothing for being watched.
 
 Killing is not available and the rule does not pretend otherwise. A thread cannot be safely killed in-process, and the process boundary that would make it possible is the one [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class) declines. The one process-level end this leaves is the service manager's own, and it is not this rule's kill: a
 unit with `WatchdogSec=` set stops a process that has stopped pinging, and
@@ -1675,7 +2034,7 @@ unit with `WatchdogSec=` set stops a process that has stopped pinging, and
 where **no** core is turning, which is a process with nothing left to shed onto and nothing still
 serving to be ended. Detection without a kill is still worth its cost: a wedged core that is reported degrades a service measurably, while a wedged core that is silent looks like a capacity problem for as long as anyone is willing to add capacity.
 
-<sub>See also [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class). Decided in [0106](../decisions/0106.md), [0097](../decisions/0097.md).</sub>
+<sub>See also [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class).</sub>
 
 <a id="http-server-a-request-outlives-a-client-that-goes-away"></a>
 
@@ -1695,7 +2054,7 @@ The case it answers: a request hangs on something slow and the user closes the t
 
 After the response is on the wire, the connection's end means nothing to the request — the tree outlives it for exactly the work [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) admits, which a detached request reaches as an attached one does.
 
-<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0106](../decisions/0106.md), [0072](../decisions/0072.md), [0115](../decisions/0115.md), [0265](../decisions/0265.md).</sub>
+<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`http-server/a-core-is-never-blocked-on-a-syscall`](http-server.md#http-server-a-core-is-never-blocked-on-a-syscall), [`http-server/admission-is-arithmetic-not-a-number`](http-server.md#http-server-admission-is-arithmetic-not-a-number), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect). Decided in [0265](../decisions/0265.md).</sub>
 
 <a id="http-server-every-deadline-is-monotonic"></a>
 
@@ -1707,7 +2066,7 @@ Every timeout, deadline and backoff in the engine is computed on a monotonic clo
 
 This is a substitution rather than an addition, and it is stated only because the failure it prevents is silent: a deadline on the wrong clock does not fire late, it does not fire at all. The watchdog of [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline) reads the same monotonic instants, so a stepped clock cannot make a healthy core look wedged or a wedged one look healthy.
 
-<sub>See also [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`concurrency/limit-and-deadline-are-the-only-bounds`](concurrency.md#concurrency-limit-and-deadline-are-the-only-bounds). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/time-is-bounded-inside-a-helper`](http-server.md#http-server-time-is-bounded-inside-a-helper), [`concurrency/limit-and-deadline-are-the-only-bounds`](concurrency.md#concurrency-limit-and-deadline-are-the-only-bounds).</sub>
 
 <a id="http-server-the-floor-cannot-fill-the-disk"></a>
 
@@ -1722,7 +2081,7 @@ This is a substitution rather than an addition, and it is stated only because th
 
 A full disk also stops compilation, which would convert a log problem into a total outage. **A write failure in the on-disk artifact cache falls back to compiling in memory** and reports once; the cache is an optimisation and is treated as one.
 
-<sub>See also [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0106](../decisions/0106.md), [0020](../decisions/0020.md), [0092](../decisions/0092.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file).</sub>
 
 <a id="http-server-a-jit-page-is-never-writable-and-executable-at-once"></a>
 
@@ -1734,7 +2093,7 @@ Pages holding generated code are mapped writable while being written and executa
 
 This is a security property before it is a stability one — a page that is both writable and executable is a write primitive for any bug that reaches it — and it sits with the server rules because the JIT is this runtime's distinguishing component and nothing else owns the question.
 
-<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`programs/compile-target`](programs.md#programs-compile-target). Decided in [0106](../decisions/0106.md).</sub>
+<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/the-residue-is-one-named-fault-class`](http-server.md#http-server-the-residue-is-one-named-fault-class), [`programs/compile-target`](programs.md#programs-compile-target).</sub>
 
 <a id="http-server-the-residue-is-one-named-fault-class"></a>
 
@@ -1748,4 +2107,13 @@ For these, tier D applies: the process dies, the supervisor restarts it, the req
 
 The engineering response to this class is **not** a boundary; it is to reduce the rate at which the class occurs — the conformance cases run against generated code at every optimisation level, fuzzing the code generator the way the lexer and parser are fuzzed, and running the reference-counting paths under `tools/leak-check.sh`. A fault class that cannot be contained is one whose frequency is the only variable left.
 
-<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0106](../decisions/0106.md), [0093](../decisions/0093.md), [0002](../decisions/0002.md).</sub>
+Before any worker count above one is recommended, two numbers have to be measured: the per-unit size of
+compiled code, which sets the duplicated cache's footprint, and the per-unit compilation time, which
+sets the warm-up cost. A cold start bounds them jointly and separates neither.
+
+**Declined:**
+- **Process-per-request.** It is the only arrangement that contains a disclosure fault, and it discards
+  the thread-per-core runtime the whole performance design rests on. It is the endpoint of the
+  worker-process argument above, not a close call.
+
+<sub>See also [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers), [`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper), [`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed), [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>

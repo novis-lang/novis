@@ -1,11 +1,7 @@
 {
   "title": "A match carries a name and typed parameters and nothing invocable, and typed `callable` would not change that",
   "status": "shipped",
-  "because": [
-    "0102",
-    "0077",
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "routing/the-servers-match-dispatches-nothing",
     "types/grammar",

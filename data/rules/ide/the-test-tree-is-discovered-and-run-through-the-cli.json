@@ -1,9 +1,7 @@
 {
   "title": "The Test Explorer is `nvs test --list` and `nvs test --format=json` projected: the client matches records to items and derives nothing",
   "status": "designed",
-  "because": [
-    "0172"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/report-formats",
     "ide/the-extension-builds-no-ui-the-editor-already-has",

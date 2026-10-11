@@ -25,15 +25,15 @@ class Address {
 class User {
     public string $name;
     public int $age;
-    // § 3: `name` renames one field's key; there is no whole-class policy.
+    // `rule:core-classes/derive-field-list`: `name` renames one field's key; there is no whole-class policy.
     #[Field(name: "is_admin")]
     public bool $isAdmin;
-    // § 3: `skip` removes the field entirely, and exempts it from § 2's
+    // `rule:core-classes/derive-field-list`: `skip` removes the field entirely, and exempts it from `rule:core-classes/derive-field-list`'s
     // constructor-parameter requirement.
     #[Field(skip: true)]
     public int $cachedHash;
-    // § 2: another class with a codec is a codec-reachable field type, and a
-    // `?T` one always emits, `null` included (§ 4's "no omit-when-null").
+    // `rule:core-classes/derive-field-list`: another class with a codec is a codec-reachable field type, and a
+    // `?T` one always emits, `null` included (`rule:core-api/required-optional-and-nullable`'s "no omit-when-null").
     public Address $address;
     public ?int $score;
 
@@ -48,7 +48,7 @@ class User {
 }
 
 // Declaration order is the encode order, which is what makes the document
-// byte-deterministic across runs and machines (§ 2).
+// byte-deterministic across runs and machines (`rule:core-classes/derive-field-list`).
 echo Json::encode(new User("ada", 36, true, new Address("london"), null)), "\n";
 echo Json::encode(new User("bob", 7, false, new Address("rome"), 12)), "\n";
 
@@ -57,10 +57,10 @@ echo Json::encode(new User("bob", 7, false, new Address("rome"), 12)), "\n";
 var $grace = new User("grace", 45, false, new Address("nyc"), 1);
 echo Json::encode($grace) == Json::encode($grace) ? "stable" : "varies", "\n";
 
-// § 2: the field list is visibility-blind — a `protected` or `private` property
+// `rule:core-classes/derive-field-list`: the field list is visibility-blind — a `protected` or `private` property
 // is a field like any other. Visibility is an access-control decision, and a
 // codec that dropped a field the day it gained a `private` would be exactly the
-// silent break § 1's written opt-in is paying to remove. Decode is blind to it
+// silent break `rule:core-classes/derive-attribute`'s written opt-in is paying to remove. Decode is blind to it
 // for the same reason and by the same route: it is an ordinary `new`, so the
 // constructor assigns a private property as it assigns any other.
 #[Core\Json\Derive]
@@ -78,7 +78,7 @@ class Ledger {
 echo Json::encode(new Ledger(7, "ada", 42)), "\n";
 echo Json::encode(Json::decodeAs<Ledger>('{"id":8,"owner":"bob","balance":3}')), "\n";
 
-// § 1: a userland `type Derive = {};` is not the compiler's attribute, no
+// `rule:core-classes/derive-attribute`: a userland `type Derive = {};` is not the compiler's attribute, no
 // matter how it is spelled — so this class gets nothing and stays unencodable.
 type Derive = {};
 

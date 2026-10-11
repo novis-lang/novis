@@ -32,7 +32,7 @@ echo $cores > 0 ? 'cpuCount is at least one core' : 'cpuCount answered nothing',
 
 // The *process's* resident set, and never the request's held bytes — those are
 // `Core\Budget::memoryHeld`, measured against a ceiling this figure has nothing
-// to do with ([ADR 0148](/docs/decisions/0148.md) § 12). It is a high-water
+// to do with. It is a high-water
 // mark, so it only ever grows; two reads with work between them can differ,
 // and the second is never the smaller.
 uint $before = Core\Os::residentBytes();

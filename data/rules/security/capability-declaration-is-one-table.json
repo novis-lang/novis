@@ -1,11 +1,7 @@
 {
   "title": "What each `Core` member needs is declared once in one table, and nothing at run time reads it",
   "status": "shipped",
-  "because": [
-    "0118",
-    "0117",
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "security/capability-check-at-the-door",
     "testing/capability-completeness-test",

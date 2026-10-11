@@ -321,8 +321,9 @@ pub fn pool_size() -> (usize, usize) {
 /// while it runs.
 ///
 /// This is the *only* way a call with no readiness to wait on reaches a thread
-/// in this crate — see this module's docs for the handoff end to end, and ADR
-/// 0106 § 6 for why there is no third option beside this and parking on
+/// in this crate — see this module's docs for the handoff end to end, and
+/// `rule:http-server/a-core-is-never-blocked-on-a-syscall` for why there is no third
+/// option beside this and parking on
 /// readiness.
 ///
 /// Off a core the function is simply called on this thread: there is no core to

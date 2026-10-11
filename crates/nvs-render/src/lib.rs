@@ -11,7 +11,7 @@
 //!
 //! # What is here
 //!
-//! The model, § 5's four transformations, and all three of
+//! The model, `rule:errors/record-transformations`' four transformations, and all three of
 //! `rule:errors/renderings`' renderings: the plaintext one ([`plain`]) a
 //! terminal sink selects, the JSON one ([`json`]) a log target emits, and the
 //! HTML one ([`html::render`]) an HTML response body carries. Beside them, the
@@ -31,14 +31,15 @@
 //! floor write one shape through one implementation, and `rule:errors/diagnostic-record` has
 //! already put every rendering in this crate; a JSON writer in `nvs-runtime`
 //! for the floor plus this one for everything else would be two writers that
-//! agree today. The price is the dependency edge below, which § 1 sanctions and
+//! agree today. The price is the dependency edge below, which
+//! `rule:errors/diagnostic-record` sanctions and
 //! this section prices.
 //!
 //! # Known gaps
 //!
 //! Each gap is a record, and `bun nv gaps --module crates/nvs-render/src/lib.rs` lists them.
 //!
-//! # § 5's four transformations, and why they are the model's
+//! # The four transformations, and why they are the model's
 //!
 //! Redaction, control-byte substitution, the bidi rule and elision are
 //! properties of the **record**, applied when it is built and before any
@@ -197,7 +198,8 @@ impl Level {
     /// The level `written` names, or `None` for a word `rule:errors/log-level`'s roster
     /// does not carry.
     ///
-    /// **Two spellings, and both of them the documentation's own.** § 2 writes
+    /// **Two spellings, and both of them the documentation's own.**
+    /// `rule:errors/log-level` writes
     /// the roster as `Log\Level::Debug`, and so does
     /// `rule:config/a-mode-is-five-defaults`
     /// 's per-mode default column for `[log] level`; a record renders the
@@ -223,7 +225,8 @@ impl Level {
 /// transformations already applied.
 ///
 /// The only way to build one is [`Rendered::new`], and it is the only text
-/// shape a [`Node`] holds — which is what makes § 5's *"decided once, in the
+/// shape a [`Node`] holds — which is what makes
+/// `rule:errors/record-transformations`' *"decided once, in the
 /// model"* a property of the type rather than a rule each producer is asked to
 /// remember. A producer that wants the original bytes back does not get them:
 /// the substitution is deliberately one-way, because the record exists to be
@@ -271,7 +274,8 @@ pub enum Scalar {
     /// which is the whole reason that type exists.
     Decimal(String),
     /// `string`, with its length in **bytes** — the length is carried rather
-    /// than taken from the text because § 5's substitution changes it and the
+    /// than taken from the text because the substitution
+    /// `rule:errors/record-transformations` makes changes it and the
     /// reader wants the value's own.
     Str {
         /// The substituted text.
@@ -281,8 +285,8 @@ pub enum Scalar {
     },
     /// `bytes` — `rule:types/bytes`'s
     /// binary scalar, held raw. A rendering decides how to show them; the
-    /// model does not, because they are not text and § 5's substitution is
-    /// about text.
+    /// model does not, because they are not text and the substitution
+    /// `rule:errors/record-transformations` makes is about text.
     Bytes(Vec<u8>),
 }
 
@@ -323,8 +327,8 @@ pub enum Node {
     /// An `array` read by key — the map shape.
     Map(Vec<(Rendered, Node)>),
     /// A class instance: the class name and its **declared** properties, per
-    /// `rule:classes/no-debug-hook`. Never a `toString` result, and never a customization hook — ADR
-    /// 0092 § 7.
+    /// `rule:classes/no-debug-hook`. Never a `toString` result, and never a
+    /// customization hook — `rule:errors/no-render-hook`.
     Object {
         /// The class's rendered name.
         class: String,
@@ -422,7 +426,8 @@ pub enum Node {
 ///   whole output.
 ///
 /// **They bound the record, not the rendering.** A cut is decided once and
-/// every rendering shows the same cut, which is the property § 5 exists for.
+/// every rendering shows the same cut, which is the property
+/// `rule:errors/record-transformations` exists for.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Caps {
     /// How many levels of container the record carries before the rest
@@ -467,7 +472,7 @@ pub struct Source {
 pub struct Envelope {
     /// RFC 3339, as `rule:errors/log-write` already fixes.
     pub ts: Option<String>,
-    /// § 2's level.
+    /// `rule:errors/log-level`'s level.
     pub level: Level,
     /// A plain `string`, never a qualified one — `rule:security/secret-sinks-refuse`
     /// 's `Throwable`-message rule, on the same argument.
@@ -560,7 +565,8 @@ mod tests {
     }
 
     /// The one constructor substitutes, so there is no spelling that puts an
-    /// un-substituted byte into the model — § 5 as a property of the type.
+    /// un-substituted byte into the model — `rule:errors/record-transformations`
+    /// as a property of the type.
     #[test]
     fn text_in_the_model_is_already_substituted() {
         assert_eq!(Rendered::new("a\u{1B}b").as_str(), "a\u{241B}b");

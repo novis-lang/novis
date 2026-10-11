@@ -1,13 +1,13 @@
 {
   "title": "`Core\\Router` signs a route name and its parameters, so a signature survives a remount",
-  "status": "designed",
-  "because": [
-    "0146",
-    "0097",
-    "0102"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "core-classes/signature"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/core/router-url-signed-signs-the-route-identity-and-not-the-path-it-renders-to.nvst",
+    "tests/conformance/core/router-url-signed-is-url-with-the-reserved-parameter-on-the-end.nvst",
+    "tests/conformance/core/router-signed-route-answers-the-match-the-door-already-took.nvst"
+  ]
 }

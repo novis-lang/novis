@@ -1,14 +1,7 @@
 {
   "title": "`[limits] request_body` bounds bytes parsed into memory and `upload_total` bounds a streamed multipart body, each with a hard ceiling, and a route that never reads a body allocates nothing",
   "status": "shipped",
-  "because": [
-    "0097",
-    "0105",
-    "0005",
-    "0053",
-    "0095",
-    "0156"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/four-idle-waits-all-finite",
     "core-classes/io-write-stream",

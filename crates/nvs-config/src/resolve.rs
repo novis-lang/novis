@@ -1,17 +1,21 @@
 //! The configuration tree, resolved: which file is the root, which files it pulls in, and the one
 //! ordered stream they flatten to.
 //!
-//! `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` is the whole of this module's specification. § 1 picks the root, § 2 expands
-//! `[[include]]`, § 3 flattens the tree to one sequence where a later assignment wins, § 4 splits
-//! replacing from appending, and § 5 resolves every relative path against the file it is written in.
-//! § 6's ownership check is not here either: it is a property of the bytes' provenance rather than
+//! Five rules are this module's specification:
+//! `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` picks the root,
+//! `rule:config/include-takes-a-path-or-a-dir` expands `[[include]]`,
+//! `rule:config/later-wins-and-every-override-is-recorded` flattens the tree to one sequence where a
+//! later assignment wins, `rule:config/a-value-array-replaces-and-a-table-appends` splits replacing
+//! from appending, and `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`
+//! resolves every relative path against the file it is written in.
+//! `rule:config/ownership-is-the-trust-boundary`'s ownership check is not here: it is a property of the bytes' provenance rather than
 //! of the tree's shape, so it belongs to the reader as [`Files::trust`] and [`mod@crate::trust`]
 //! holds what it means on each platform. What this module owes it is the *order* — nothing is
 //! compared, read or resolved against until it has passed — and the two places the tree's shape
 //! decides where the check falls: the directory a `dir` include lists, and the directory an absent
 //! `optional` include would have appeared in.
 //!
-//! **Later wins is only acceptable because every override is recorded.** § 3 states that as an
+//! **Later wins is only acceptable because every override is recorded.** `rule:config/later-wins-and-every-override-is-recorded` states that as an
 //! obligation and not a permission: without the record it is the silent-shadowing failure
 //! `rule:config/the-file-is-nvs-toml-and-it-is-toml` refused INI for, in a file that grants capabilities. So the merge does not just
 //! overwrite — it carries an [`Origin`] for every value it holds and emits an [`Override`] naming
@@ -24,7 +28,7 @@
 //! override rather than a duplicate. That is why a file is deserialized twice — once to refuse it,
 //! once to merge it — and the second pass is free next to the read.
 //!
-//! **§ 7's secret files are read last, over the flattened tree.** Which `password_file` is in force
+//! **`rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secret files are read last, over the flattened tree.** Which `password_file` is in force
 //! is a question only the merge has answered, so [`mod@crate::secret`] runs once at the end rather
 //! than per file — reading one a later file replaced would be a secret the configuration does not
 //! use, examined for nothing.
@@ -53,9 +57,9 @@ pub const MAX_INCLUDE_DEPTH: usize = 8;
 /// Where a configuration file's bytes come from.
 ///
 /// A trait rather than direct `std::fs` calls for two reasons, and neither is testing for its own
-/// sake. § 6's ownership check belongs on the *reader*, so a caller that has one and a caller that
+/// sake. `rule:config/ownership-is-the-trust-boundary`'s ownership check belongs on the *reader*, so a caller that has one and a caller that
 /// does not are two implementations of one interface rather than a flag threaded through the
-/// resolver. And § 2's directory order is **mandated** — ascending by filename, because § 3 makes
+/// resolver. And `rule:config/include-takes-a-path-or-a-dir`'s directory order is **mandated** — ascending by filename, because `rule:config/later-wins-and-every-override-is-recorded` makes
 /// order decide the answer and a capability grant settled by `readdir` order is not a design — so
 /// [`list`](Files::list) is allowed to return entries in any order and the sort is this module's.
 pub trait Files {
@@ -77,7 +81,7 @@ pub trait Files {
     /// `[[app]]` comparison.
     ///
     /// Separate from [`trust`](Files::trust) because an application's root is not a file the
-    /// configuration reads: it is a web root owned by whoever deploys to it, and demanding § 6's
+    /// configuration reads: it is a web root owned by whoever deploys to it, and demanding `rule:config/ownership-is-the-trust-boundary`'s
     /// ownership of it would refuse the ordinary deployment while buying nothing — nothing here
     /// reads a byte of it. What is shared is the canonicalization itself ([`trust::canonical`]),
     /// which is the half a second implementation would get wrong.
@@ -127,7 +131,7 @@ pub trait Files {
 
     /// The file's bytes, unvalidated — what `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secret file is read through.
     ///
-    /// Separate from [`read`](Files::read) because § 7 makes "not valid UTF-8" a refusal about the
+    /// Separate from [`read`](Files::read) because `rule:config/a-secret-is-a-file-whose-content-is-the-value` makes "not valid UTF-8" a refusal about the
     /// *content* (`E0608`), and a reader that decoded first could only report it as a failure to
     /// read at all. A configuration file still goes through `read`: it is TOML, so it has no
     /// meaning as bytes.
@@ -152,7 +156,7 @@ pub trait Files {
     fn list(&self, dir: &Path) -> Result<Vec<PathBuf>, String>;
 
     /// Whether the path is there at all. Only [`Include::optional`](crate::tree::Include::optional)
-    /// and § 1's steps 2 and 3 ask, and all of them treat absence as an answer rather than a
+    /// and `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s steps 2 and 3 ask, and all of them treat absence as an answer rather than a
     /// failure.
     fn exists(&self, path: &Path) -> bool;
 
@@ -317,17 +321,17 @@ pub struct Override {
 pub struct Resolved {
     /// The flattened configuration.
     pub config: Config,
-    /// Every file the tree reached, in the order § 3 read them. This is what the boot log prints.
+    /// Every file the tree reached, in the order `rule:config/later-wins-and-every-override-is-recorded` read them. This is what the boot log prints.
     pub files: Vec<PathBuf>,
     /// Every path the tree looked at without reading it as a file: each `[[include]] dir` it
     /// listed, and each `optional` include that was absent. A running server checks these beside
     /// [`files`](Resolved::files), so a file added to an included directory, or an optional include
     /// that appears, is noticed like an edit.
     pub probed: Vec<PathBuf>,
-    /// Every override, in the order they happened. § 9's `nvs config dump --origin` prints these in
+    /// Every override, in the order they happened. `rule:config/check-and-dump-audit-the-tree-offline`'s `nvs config dump --origin` prints these in
     /// full and the boot log summarizes them; dropping them is not an option (see the module doc).
     pub overrides: Vec<Override>,
-    /// What the tree is only *advised* about — § 7's readable secret file (`W1005`), its
+    /// What the tree is only *advised* about — `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s readable secret file (`W1005`), its
     /// credential with an edge space (`W1007`), a configured store no capability may reach
     /// (`W1008`, [`crate::store::advise`]), a TLS key log a development host left on and a proxy
     /// that resolves this deployment's destinations (`W1009` and `W1010`, both
@@ -338,7 +342,7 @@ pub struct Resolved {
     /// The merged table [`config`](Resolved::config) was deserialized from, kept rather than
     /// dropped because two things still need it. `rule:config/every-matching-app-block-applies-least-specific-first` layers `[[app]]` blocks by
     /// **the same** later-wins merge this one used, reporting overrides the same way, and it
-    /// cannot run at resolve time because it needs an entry file. § 9's `nvs config dump --origin`
+    /// cannot run at resolve time because it needs an entry file. `rule:config/check-and-dump-audit-the-tree-offline`'s `nvs config dump --origin`
     /// renders keys the typed tree has no field for. Cost: one table for the length of a boot or
     /// reload, dropped with the rest of this struct.
     ///
@@ -346,7 +350,7 @@ pub struct Resolved {
     /// Where every leaf in that table was written, by dotted key — `db.main.password_file`, and
     /// `app.1.root` for the second `[[app]]` block, whichever file appended it.
     pub origins: BTreeMap<String, Origin>,
-    /// § 7's secrets, by the key each is the value of — `db.main.password`. Beside the table rather
+    /// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secrets, by the key each is the value of — `db.main.password`. Beside the table rather
     /// than in it, for the reason [`mod@crate::secret`]'s module doc gives: the table is what
     /// `dump --toml` serializes whole, and a content in it would have to be redacted again by every
     /// reader that walks it.
@@ -373,7 +377,7 @@ pub const LOCAL_FILE: &str = "nvs.toml";
 /// the order given, else `./nvs.toml`, else the data folder's `nvs.toml`, else the shipped defaults.
 ///
 /// `flags` are resolved against `cwd` because a path given on the command line means what a shell
-/// argument means (§ 5). **Any explicit `--config` disables steps 2 and 3 entirely**, so an
+/// argument means (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`). **Any explicit `--config` disables steps 2 and 3 entirely**, so an
 /// operator naming files never gets a surprise merge with whatever is in the working directory or
 /// the data folder — which is why this probes neither when `flags` is non-empty, even if every one
 /// of them turns out to be missing. A `--config` naming a file that does not exist is a hard
@@ -410,8 +414,8 @@ pub fn roots(flags: &[PathBuf], cwd: &Path, data: Option<&Path>, files: &dyn Fil
 /// # Errors
 ///
 /// One [`Diagnostic`]: a file that cannot be read (`E0605`), an include cycle or a nesting deeper
-/// than [`MAX_INCLUDE_DEPTH`] (`E0606`), a file outside § 6's trust boundary (`E0607`), a secret
-/// file § 7 will not take a value from (`E0608`), an `[[app]]` block `rule:config/an-application-is-its-entry-file-path` cannot key
+/// than [`MAX_INCLUDE_DEPTH`] (`E0606`), a file outside `rule:config/ownership-is-the-trust-boundary`'s trust boundary (`E0607`), a secret
+/// file `rule:config/a-secret-is-a-file-whose-content-is-the-value` will not take a value from (`E0608`), an `[[app]]` block `rule:config/an-application-is-its-entry-file-path` cannot key
 /// (`E0609`), a `[[schedule]]` entry `rule:config/scheduled-work-is-a-config-block` cannot arm (`E0611`), an `[http]` pair `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
 /// refuses (`E0612`), a `[log] target` `rule:errors/engine-floor` does not spell (`E0613`), an
 /// `[[extension]]` entry with no `path` or no well-formed `sha256` (`E0651`), or anything either
@@ -429,7 +433,7 @@ pub fn resolve(
     for path in paths {
         read_into(&mut merge, path, sources, files, &mut Vec::new(), 0)?;
     }
-    // § 7 runs over the flattened tree and not over each file, because which `password_file` is in
+    // `rule:config/a-secret-is-a-file-whose-content-is-the-value` runs over the flattened tree and not over each file, because which `password_file` is in
     // force is a question only the merge has answered — a later file may have replaced it, and
     // reading the loser would be a secret file the configuration does not use.
     let mut resolved = merge.finish()?;
@@ -439,7 +443,7 @@ pub fn resolve(
     let materialized = crate::secret::materialize(&mut resolved.config, &origins, files)?;
     resolved.warnings = materialized.warnings;
     resolved.secrets = materialized.secrets;
-    // `rule:core-classes/db-capabilities`'s trust anchors, beside § 7's secrets and for the same reason: a `_file` on a
+    // `rule:core-classes/db-capabilities`'s trust anchors, beside `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secrets and for the same reason: a `_file` on a
     // `[db]` block is resolved against the file that wrote it, and only the merge knows which of
     // them won.
     crate::db::canonicalize(&mut resolved.config, &mut resolved.table, &origins, files)?;
@@ -466,7 +470,7 @@ pub fn resolve(
     // `rule:security/db-pool-reset-is-a-boundary`'s pool bounds, in the same pass's second half: a `lifetime` that spells nothing
     // is a boot refusal naming its file, rather than the first acquire of the first request.
     crate::db::validate(&resolved.config, &origins)?;
-    // ADR 0278 § 2's `[ldap]` blocks, after § 7 has put each `password_file`'s value in place, so an
+    // ADR 0278 § 2's `[ldap]` blocks, after `rule:config/a-secret-is-a-file-whose-content-is-the-value` has put each `password_file`'s value in place, so an
     // empty password is refused here whichever spelling wrote it
     // (`rule:security/ldap-empty-password-is-refused`).
     crate::ldap::validate(&resolved.config, &origins)?;
@@ -476,7 +480,7 @@ pub fn resolve(
     // `rule:packaging/extension-loading-is-root-controlled`'s pin, over the merged array for the
     // same reason: an include appends entries, and only the merge knows which file wrote each one.
     crate::extension::validate(&resolved.config, &origins, sources)?;
-    // `rule:config/an-application-is-its-entry-file-path`'s keys, for the same reason: `[[app]]` blocks accumulate across the tree (§ 4),
+    // `rule:config/an-application-is-its-entry-file-path`'s keys, for the same reason: `[[app]]` blocks accumulate across the tree (`rule:config/a-value-array-replaces-and-a-table-appends`),
     // so the roster only exists once the merge is done. Alone among the passes above it
     // rewrites `config` and never the table, which reaches a driver only because the roster is read
     // off `resolved.config` and then dropped — `Snapshot::retype`'s doc § *The seam every
@@ -560,7 +564,7 @@ fn read_into(
     chain: &mut Vec<PathBuf>,
     depth: usize,
 ) -> Result<(), Diagnostic> {
-    // § 6 first, because everything after this line is a statement about a file this process has
+    // `rule:config/ownership-is-the-trust-boundary` first, because everything after this line is a statement about a file this process has
     // decided to trust — and because the canonical path it hands back is what makes the cycle test
     // below see one file through two spellings of it rather than compare the spellings.
     let trusted = files
@@ -600,7 +604,7 @@ fn read_into(
     merge.absorb(&table, &origin);
     merge.files.push(path.to_path_buf());
 
-    // § 5: a relative path resolves against the directory of the file it is written in.
+    // `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`: a relative path resolves against the directory of the file it is written in.
     let base = path.parent().unwrap_or(Path::new(".")).to_path_buf();
     chain.push(path.to_path_buf());
     for include in &file.include {
@@ -612,10 +616,10 @@ fn read_into(
     Ok(())
 }
 
-/// The files one `[[include]]` entry names, in the order § 2 mandates.
+/// The files one `[[include]]` entry names, in the order `rule:config/include-takes-a-path-or-a-dir` mandates.
 ///
 /// `path` is one file; `dir` is every `*.toml` **directly** inside, ascending by byte order of
-/// filename and not recursing — the sort is here rather than left to the reader because § 3 makes
+/// filename and not recursing — the sort is here rather than left to the reader because `rule:config/later-wins-and-every-override-is-recorded` makes
 /// order decide the answer, and a capability grant settled by directory-entry order is not a design.
 ///
 /// A directory it lists and an optional file it finds absent are pushed onto `probed`.
@@ -632,7 +636,7 @@ fn include_targets(
             let target = absolute(base, Path::new(one));
             if !files.exists(&target) {
                 if optional {
-                    // § 6: absence is the whole of what `optional` covers, and an absent file
+                    // `rule:config/optional-covers-absence-and-moves-the-check-to-the-directory`: absence is the whole of what `optional` covers, and an absent file
                     // offers nothing to check — so the check falls on the directory it would
                     // appear in, which is the only place a promise about a file that does not
                     // exist yet can be kept.
@@ -661,7 +665,7 @@ fn include_targets(
                         .with_note(format!("included from `{}`", written_in.display())),
                 );
             }
-            // § 6 on the directory itself. Every file below it is checked as it is read, but an
+            // `rule:config/ownership-is-the-trust-boundary` on the directory itself. Every file below it is checked as it is read, but an
             // empty one is checked by nothing at all — and a directory anyone can write is a slot
             // in exactly the sense that section means, whether or not it holds a file yet.
             files.trust(&target).map_err(|why| {
@@ -686,7 +690,7 @@ fn include_targets(
     }
 }
 
-/// § 6's check on the directory an absent `optional` include would have appeared in — the nearest
+/// `rule:config/optional-covers-absence-and-moves-the-check-to-the-directory`'s check on the directory an absent `optional` include would have appeared in — the nearest
 /// one that exists, because the promise is only as strong as the shallowest directory an attacker
 /// would have to write to keep it, and a directory nobody has created is not a slot yet.
 fn trust_slot(target: &Path, files: &dyn Files) -> Result<(), Diagnostic> {
@@ -708,7 +712,7 @@ fn trust_slot(target: &Path, files: &dyn Files) -> Result<(), Diagnostic> {
     Ok(())
 }
 
-/// What a failed § 6 check reports: `E0605` when the path could not be examined at all, which is
+/// What a failed `rule:config/ownership-is-the-trust-boundary` check reports: `E0605` when the path could not be examined at all, which is
 /// the same "cannot read" every other reader failure gets, and `E0607` when it was examined and the
 /// boundary does not hold. Keeping those apart is the whole point of the split — an operator told
 /// "cannot read" goes looking for a typo, and the answer is a mode.
@@ -837,8 +841,8 @@ fn drop_empty_tables(table: &mut toml::Table) {
 /// anything else and say so.
 ///
 /// The replace/append split is decided **structurally** — an array whose entries are all tables is
-/// an array of tables — rather than from a list of the `[[block]]` spellings § 4 names. That is
-/// the same distinction TOML itself draws, which is § 4's own argument for the split: appending is
+/// an array of tables — rather than from a list of the `[[block]]` spellings `rule:config/a-value-array-replaces-and-a-table-appends` names. That is
+/// the same distinction TOML itself draws, which is `rule:config/a-value-array-replaces-and-a-table-appends`'s own argument for the split: appending is
 /// what two `[[schedule]]` blocks already mean inside one file, so a further such block added by a
 /// later ADR gets the right behaviour with nothing here to update. An empty array is ambiguous
 /// under that rule and does not need to be: appending nothing and replacing with nothing agree.
@@ -864,7 +868,7 @@ pub(crate) fn merge_table(
                 if is_array_of_tables(into) && is_array_of_tables(from) =>
             {
                 // By index, and the index is the one in the *destination*: an appended block's
-                // relative path resolves against the file that wrote that block (§ 5), which the
+                // relative path resolves against the file that wrote that block (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`), which the
                 // array-level origin cannot say once two files have each contributed one.
                 let base = into.len();
                 for (offset, entry) in from.iter().enumerate() {

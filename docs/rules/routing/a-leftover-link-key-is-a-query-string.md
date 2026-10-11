@@ -11,3 +11,7 @@ declared `#[Query]` parameters (`rule:routing/a-query-parameter-is-declared-like
 silently ship as a query parameter. The declared type says what a query *value* arrives at; it does not
 constrain what a link may be handed, except that a literal outside a closed set is refused
 (`rule:routing/a-capture-narrows-to-a-closed-set`).
+
+**Declined:**
+- **Refusing every key that is not a capture.** A link with a query string would have no laundered
+  spelling, and every paginated link would fall back to concatenation.

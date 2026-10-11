@@ -32,3 +32,8 @@ knows; and there is no ambient state for a member to read (`rule:core-api/no-amb
 
 What this costs is familiarity. A developer who knows `sort($a)`, `strtotime` and `ob_start` finds none of
 them under that name, and ports each call by finding the `Core` member that does the job.
+
+**Declined:**
+- **Mirroring PHP's built-ins one for one and relying on a converter.** It imports both kinds of
+  duplication whole, a function family and a subsystem shipped twice, and makes a surface of about 1,900
+  names permanent, which is the expensive cost `rule:core-api/tier-placement` ranks first.

@@ -1,11 +1,7 @@
 {
   "title": "Two members are not a second spelling when each takes a different thing and answers a different thing",
   "status": "shipped",
-  "because": [
-    "0146",
-    "0063",
-    "0060"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/one-paradigm-per-operation",
     "core-api/one-name-one-signature",
@@ -13,6 +9,7 @@
   ],
   "guardedBy": [
     "crates/nvs-stdlib/src/signed_cookie.rs",
-    "crates/nvs-stdlib/src/registry.rs"
+    "crates/nvs-stdlib/src/registry.rs",
+    "tests/conformance/core/signature-verify-does-not-launder-where-signed-cookie-open-does.nvst"
   ]
 }

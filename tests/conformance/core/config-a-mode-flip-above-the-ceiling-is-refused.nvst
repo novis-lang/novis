@@ -2,13 +2,13 @@
 A host that configured nothing is production with a production ceiling, so no code path reaches development mode — `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`
 --FILE--
 <?nvs
-// § 5's first row: nothing is written anywhere, so the host started in
+// The ceiling's first row: nothing is written anywhere, so the host started in
 // `production` and the unset ceiling equals it. This is the case the default
 // exists for — a production deployment refuses the flip without its operator
 // having had to know the feature exists.
 echo "flip=", Core\Config::set("mode.default", "development") ? "true" : "false", "\n";
 
-// A refusal moves nothing: § 3's rows are still unset, so a reader that treats
+// A refusal moves nothing: the mode table's rows are still unset, so a reader that treats
 // an unset directive as its production default reads the mode the host started
 // in and not a half-applied one.
 echo "mode=", Core\Config::get("mode.default") ?? "unset", "\n";

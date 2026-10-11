@@ -10,9 +10,7 @@ they are separate questions, and both already have a spelling.
 
 Nullability is a property of the **type** and optionality is a property of the constructor parameter's
 **default**; neither borrows the other's meaning. Encoding is the plain inverse: every field is always
-emitted, including a `null` one. There is no omit-when-null option, because an asymmetric encoder is a
-round-trip bug that only shows up in the value that happens to be absent — and adding one later, conditioned
-on the field having a default, is purely additive.
+emitted, including a `null` one.
 
 **One row is designed, not shipped.** `?T $x = null` needs a written `= null` parameter default, which
 the checker still refuses — `crates/nvs-types/src/defaults.rs`'s own gap, not this table's. The other
@@ -24,3 +22,8 @@ site that would otherwise emit one. A constructor position **no field names** �
 field to carry a constant and is filled by nothing, so the call that asks for an instance out of a
 document is refused while compiling rather than answered with a guess: `E0820` at a document door and
 `E0806` at a row's.
+
+**Declined:**
+- **An omit-when-null option.** An asymmetric encoder is a round-trip bug that shows only in the
+  value that happens to be absent. One conditioned on the field having a default can be added later
+  without changing anything here, once a real interoperability case needs it.

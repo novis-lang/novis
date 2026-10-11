@@ -1,7 +1,8 @@
 //! Harness for the extension-sandbox probes.
 //!
 //! Guards the cost and containment claims in
-//! `docs/decisions/0003.md`. Only compiled with the `wasm-probe`
+//! `rule:packaging/the-boundary-is-the-cost` and
+//! `rule:packaging/an-extension-is-a-sandboxed-wasm-component`. Only compiled with the `wasm-probe`
 //! feature, so day-to-day builds do not pay for Wasmtime.
 //!
 //! The module under test is deliberately minimal WAT rather than a real

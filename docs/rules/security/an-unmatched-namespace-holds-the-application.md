@@ -12,4 +12,12 @@ namespace whose autoload root lies under a directory the grant table never menti
 correct strength, because the same shape describes a legitimate second source tree of the
 application's own.
 
+A discovery glob happens to skip a directory such as `vendor/` because its name is not legal
+`PascalCase`. That casing convention exists for another reason, and nothing here relies on it.
+
+**Declined:**
+- **Deny by default for an unmatched namespace.** It is safe and refuses to compile every program
+  that exists. A grant line written for every fetched package, empty ones included, gives the same
+  protection where it matters without charging the common case.
+
 **Not on disk.** There is no fetch step and no audit that writes or checks these lines.

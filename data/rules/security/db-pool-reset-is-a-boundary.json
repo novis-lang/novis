@@ -1,11 +1,7 @@
 {
   "title": "A pooled database connection is proven clean before it is reused, and a failed reset destroys it",
   "status": "shipped",
-  "because": [
-    "0067",
-    "0078",
-    "0074"
-  ],
+  "because": [],
   "seeAlso": [
     "security/no-cross-request-state",
     "security/one-tls-client",

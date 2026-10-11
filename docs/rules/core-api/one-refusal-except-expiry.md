@@ -11,4 +11,7 @@ without a disclosure, which is why the ordering is a rule rather than an impleme
 Verification answers nothing and throws, because there are no claims to return and a `bool` is a value a
 caller can drop on the floor (`rule:core-api/failure-throws`).
 
-**Designed, not shipped.**
+**Declined:**
+- **A verification that answers a `bool`.** It is what an application wanting its own error page
+  reaches for, and it is unnecessary: both errors are catchable, and the distinction an application
+  needs is exactly the one they draw.

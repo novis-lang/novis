@@ -72,10 +72,11 @@
 //! deleted: each of them means "not this process's file" rather than "broken", and deleting on them
 //! would let one build of the compiler evict another's entries out of a shared cache directory.
 //!
-//! Cost of a hit: one `open`, one `mmap`, one BLAKE3 pass over the payload. The ADR's
-//! *Investigation* weighs that against reading into a heap buffer and takes the mapping — the page
-//! cache does the I/O once and the hash runs over it with no copy. The loader below adds one more
-//! pass, and § 3 is where that trade is argued.
+//! Cost of a hit: one `open`, one `mmap`, one BLAKE3 pass over the payload. A mapping rather than
+//! a read into a heap buffer lets the page cache do the I/O once and the hash run over it with no
+//! copy. The loader below adds one more pass, and
+//! `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` is where that trade
+//! is argued.
 //!
 //! # § 3's loader
 //!
@@ -1239,8 +1240,9 @@ fn existing_root(dir: &Path) -> &Path {
 
 impl Cache {
     /// The cache rooted at `dir` — `opcache.file_cache_dir`, which [`nvs_config::tree::Opcache`]
-    /// holds and `docs/decisions/0175.md` makes the only spelling of — for artifacts compiled
-    /// against `env`, once § 5's ownership check has passed on that directory.
+    /// holds and `rule:config/opcache-file-cache-directives-are-system` makes the only spelling
+    /// of — for artifacts compiled against `env`, once § 5's ownership check has passed on that
+    /// directory.
     ///
     /// It neither creates nor canonicalizes it: the first [`store`](Self::store) creates it, and
     /// the module doc says why the configured spelling is the one kept.
@@ -1381,8 +1383,8 @@ impl Cache {
         }
 
         // § 4's check, immediately before the rename rather than at entry: a race that both writers
-        // pass replaces one identical file with another, which is why the ADR can call this
-        // resolved rather than coordinated.
+        // pass replaces one identical file with another, which is why this race is resolved
+        // rather than coordinated.
         if published.exists() {
             drop(fs::remove_file(&temp));
             return Ok(Stored::AlreadyPresent);
@@ -2026,7 +2028,7 @@ mod tests {
         drop(fs::remove_dir_all(&root));
     }
 
-    /// `docs/decisions/0175.md` § 2: `opcache.file_cache_dir` is where the artifact cache lives and
+    /// `rule:config/opcache-file-cache-directives-are-system`: `opcache.file_cache_dir` is where the artifact cache lives and
     /// [`from_config`] reads that key alone. The path arrives through the parser rather than a
     /// struct literal so the case covers the whole chain — the text an operator writes, the field
     /// the tree documents, and the root [`Cache::dir`] hands back.
@@ -2050,10 +2052,10 @@ mod tests {
         drop(fs::remove_dir_all(&root));
     }
 
-    /// `docs/decisions/0175.md` § 4: the retired `[cache] dir` is not a field of the typed tree, so
-    /// a file still carrying it is refused as a directive that does not exist rather than parsed
-    /// and ignored. Silence is the defect the record is about — an operator who moved the cache and
-    /// restarted was served by a process still writing where it always had.
+    /// `rule:config/opcache-file-cache-directives-are-system`: `[cache] dir` is not a field of the
+    /// typed tree, so a file carrying it is refused as a directive that does not exist rather than
+    /// parsed and ignored. Ignoring it would leave an operator who wrote it believing the cache had
+    /// moved while the process kept writing where it always had.
     // covers: tools:cli/the-compile-cache
     #[test]
     fn a_cache_directory_written_in_the_retired_spelling_is_reported_not_ignored() {
@@ -2216,7 +2218,7 @@ mod tests {
     /// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`: an artifact is checked over its whole length before [`Cache::load`] will hand
     /// back the handle a mapper would take, and the check is the byte-exact one.
     ///
-    /// What is assertable today is the ordering and the coverage, which is what the ADR's claim
+    /// What is assertable today is the ordering and the coverage, which is what the rule's claim
     /// reduces to: a [`Verified`] exists on exactly one path, so any input that fails any check
     /// produces no handle at all, and *every* byte position of the payload is covered — a flip in
     /// the first byte, the last byte or the middle is caught alike, which is what distinguishes a

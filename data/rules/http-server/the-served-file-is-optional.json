@@ -2,7 +2,6 @@
   "title": "`nvs serve` needs no file over a written mount table, serves that table whole with each entry under its own `[[app]]` blocks, and refuses a start that names nothing",
   "status": "shipped",
   "because": [
-    "0200",
     "0271"
   ],
   "seeAlso": [

@@ -1,11 +1,7 @@
 {
   "title": "`fn` is the only way to write an anonymous function, with an expression body or a block body",
   "status": "shipped",
-  "because": [
-    "0031",
-    "0027",
-    "0015"
-  ],
+  "because": [],
   "seeAlso": [
     "types/implicit-capture",
     "types/anonymous-function-self-name",

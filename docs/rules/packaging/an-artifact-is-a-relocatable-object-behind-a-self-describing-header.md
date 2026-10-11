@@ -23,3 +23,13 @@ by construction a run whose IR is identical to the one the payload came from, so
 process allocates are the ones the payload's undefined names refer to. A change to which symbols a
 payload leaves undefined, or to what a reader must do with them, is a `format_version` bump: an older
 file becomes a plain miss rather than one relocated under yesterday's rules.
+
+**Declined:**
+- **Class descriptors carried in the payload, so a warm hit skips the front end too.** It serialises a
+  runtime type: a `nvs_runtime::ClassDesc` holds strings, codec field lists and pointers to other
+  descriptors, so every future field of it becomes a `format_version` bump and a second, write-only
+  spelling of a structure the compiler already builds from the IR. What it buys is only the front end,
+  which a miss pays anyway (`rule:packaging/a-warm-hit-skips-codegen-not-the-front-end`).
+- **A compressed payload.** Decompressing into a fresh buffer would come before every check and every
+  placement, spending CPU on each hit to save disk on a payload that is already small, and losing the
+  single pass the read path is built around.

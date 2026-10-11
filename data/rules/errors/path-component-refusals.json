@@ -1,9 +1,7 @@
 {
   "title": "A path component that does not spell what it resolves to is refused, on every platform",
   "status": "shipped",
-  "because": [
-    "0095"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/ambiguous-input-refused"
   ],

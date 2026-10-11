@@ -30,3 +30,7 @@ direct invocation, which is what they existed to route around:
 $result = $fn($arg);       // replaces call_user_func($fn, $arg)
 $result = $fn(...$args);   // replaces call_user_func_array($fn, $args)
 ```
+
+**Declined:**
+- **Keeping `Closure` beside `callable`, reserved for a typed signature.** A signature is written on
+  the one name, `callable(int): string` (`rule:types/callable-signature`).

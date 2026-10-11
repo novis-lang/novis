@@ -60,9 +60,9 @@
 //!
 //! `%10s` pads to ten of [`crate::granularity::DEFAULT`]'s units and `%.2s`
 //! truncates to two of them, so `format` measures a `string` the way
-//! `length`, `at` and `padStart` do rather than the way C counts bytes. ADR
-//! 0009 § 2 owns that unit; restating it per member is what would let two
-//! members drift apart.
+//! `length`, `at` and `padStart` do rather than the way C counts bytes.
+//! `rule:types/string-is-utf8` owns that unit; restating it per member is what
+//! would let two members drift apart.
 
 use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
 

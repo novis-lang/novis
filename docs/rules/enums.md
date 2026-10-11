@@ -81,7 +81,7 @@ about.
 - **A conversion into an enum that always succeeds.** Turning any integer into an enum value, even one
   no case names, is the silent coercion `as` never performs; a value no case names throws.
 
-<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation). Decided in [0007](../decisions/0007.md), [0008](../decisions/0008.md).</sub>
+<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/representation`](enums.md#enums-representation).</sub>
 
 <a id="enums-one-backing-type"></a>
 
@@ -102,7 +102,7 @@ value's existing payload for nothing ([`enums/representation`](enums.md#enums-re
 The two backings are told apart everywhere the type is. A `uint`-backed case converts with `as uint`
 only, an `int`-backed one with `as int` only, and each refuses the other.
 
-<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`enums/declaration`](enums.md#enums-declaration), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation).</sub>
 
 <a id="enums-representation"></a>
 
@@ -128,7 +128,7 @@ Crossing an isolate boundary copies a plain scalar, with no object identity to p
 - **Memory:** an enum value costs exactly what its `int` or `uint` costs, in the same payload. Nothing
   is held per enum, per request or per isolate: no case table, no singleton and no type descriptor.
 
-<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0007](../decisions/0007.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md), [0261](../decisions/0261.md).</sub>
+<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/one-backing-type`](enums.md#enums-one-backing-type), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0261](../decisions/0261.md).</sub>
 
 <a id="enums-truthiness"></a>
 
@@ -193,7 +193,7 @@ optimiser has proved it immutable.
 - **Static methods on a class that the checker treats as belonging to the enum.** It is dedicated
   syntax for what a `static` method taking the enum already does.
 
-<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection). Decided in [0008](../decisions/0008.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`enums/representation`](enums.md#enums-representation), [`enums/no-case-keyword`](enums.md#enums-no-case-keyword), [`enums/reflection`](enums.md#enums-reflection).</sub>
 
 <a id="enums-reflection"></a>
 
@@ -209,4 +209,4 @@ identity, and nothing that acts on a value. It is a second description of the sa
 type ([`enums/closed-integer-type`](enums.md#enums-closed-integer-type)), not a reopening of [`enums/no-class-machinery`](enums.md#enums-no-class-machinery) — a
 description of a case list is not a `::cases()` the language does not have.
 
-<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0019](../decisions/0019.md).</sub>
+<sub>See also [`enums/no-class-machinery`](enums.md#enums-no-class-machinery), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>

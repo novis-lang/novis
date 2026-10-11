@@ -1,8 +1,8 @@
 <?nvs
-// ADR 0079 § 16, from the language surface: the runner owns the test's task
+// `rule:testing/task-tree-and-virtual-clock`, from the language surface: the runner owns the test's task
 // tree. The first test asks whether there is a calling task at all — a
 // `Core\Task::all` with no task beneath it has nowhere to put its children —
-// and the second leaves one running on purpose, which § 16 fails and names.
+// and the second leaves one running on purpose, which `rule:testing/task-tree-and-virtual-clock` fails and names.
 //
 // The child path is a literal, so it names the file beside this one
 // (`rule:programs/relative-paths-resolve-from-their-file`).

@@ -1,13 +1,12 @@
 {
   "title": "A constructor's `return` carries no value; a bare `return;` may still leave early",
   "status": "designed",
-  "because": [
-    "0124",
-    "0022"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/constructor-is-a-method-named-constructor",
     "classes/definite-property-initialization"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "tests/conformance/reject/php86/a-constructor-return-carries-no-value.nvst"
+  ]
 }

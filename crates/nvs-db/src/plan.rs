@@ -3,11 +3,11 @@
 //!
 //! This module is the plan's *vocabulary* and holds no SQL. What a change is
 //! spelled as, and what it is graded, are one dialect's questions and both are
-//! [`crate::ddl::step`]'s — § 6 puts the grade in the emitter because the same
+//! [`crate::ddl::step`]'s — `rule:core-classes/schema-plan` puts the grade in the emitter because the same
 //! change is not the same risk on two backends, and a grade computed anywhere
 //! else would have to be corrected there anyway.
 //!
-//! It is also where [`diff`] lives, and by the same division: § 5's comparison
+//! It is also where [`diff`] lives, and by the same division: `rule:core-classes/schema-is-a-value`'s comparison
 //! reads two [`crate::schema::Schema`] values and reaches no server, so
 //! *finding* a difference is a question about values where spelling and grading
 //! it are questions about a server. The diff answers the first and hands each
@@ -15,13 +15,13 @@
 //!
 //! The one thing it asks a dialect is what that dialect can *hold*, because a
 //! type the server cannot tell from another is not a difference: [`stored_as`]
-//! is § 5's normalisation, the single function every lossy case lives in, and
+//! is `rule:core-classes/schema-is-a-value`'s normalisation, the single function every lossy case lives in, and
 //! the comparison either side of it stays a plain equality.
 //!
 //! # A step is never elided
 //!
 //! Every [`Step`] carries complete, terminated SQL, **including the ones the
-//! applier refuses to run**. § 8's argument for that is the deployment where
+//! applier refuses to run**. `rule:core-classes/schema-plan`'s argument for that is the deployment where
 //! the application's own credentials cannot issue DDL at all: the change is
 //! made by a DBA, in a window, from a ticket, and a plan that summarised its
 //! risky half as "3 unsafe changes" would be useless to that person. A step
@@ -29,7 +29,7 @@
 //!
 //! # Two kinds of step, and only one of them is ever run
 //!
-//! § 7's rule — absence never destroys — makes every drop a **report**: a
+//! `rule:core-classes/schema-absence-never-destroys`'s rule — absence never destroys — makes every drop a **report**: a
 //! table, column, constraint or index that the database has and the schema
 //! value does not is *shown*, with the SQL that would remove it, and is never
 //! removed. [`Change::is_report`] is that classification, and it is total on
@@ -39,7 +39,7 @@
 //! would **run**. Every plan against a shared database holds reports, they are
 //! [`Grade::Destructive`] by the paragraph above, and a rule that read every
 //! step's grade would therefore refuse every plan ever computed against a real
-//! server — which is § 9's `applySafe` never working once.
+//! server — which is `rule:core-classes/schema-apply-capability`'s `applySafe` never working once.
 
 use std::fmt;
 
@@ -48,9 +48,9 @@ use crate::ddl;
 use crate::schema::{Column, Ident, Key, ScalarType, Schema, Table};
 use crate::sql::Dialect;
 
-/// § 6's grades: what a step can cost, at worst.
+/// `rule:core-classes/schema-plan`'s grades: what a step can cost, at worst.
 ///
-/// Ordered, and the order is the point: [`Grade::up_to`] is § 6's "an unknown
+/// Ordered, and the order is the point: [`Grade::up_to`] is `rule:core-classes/schema-plan`'s "an unknown
 /// grade grades up" as an operation, and an emitter with no rule for a case
 /// takes the higher of the two rather than guessing. An out-of-date grader
 /// over-reports risk, which costs an operator a confirmation; an out-of-date
@@ -63,12 +63,12 @@ pub enum Grade {
     /// long time — a unique key over data that already collides, `NOT NULL` on
     /// a populated column, a type change that rewrites the table.
     Locking,
-    /// Can lose data. Every drop is here, by § 7, and so is SQLite's rebuild.
+    /// Can lose data. Every drop is here, by `rule:core-classes/schema-absence-never-destroys`, and so is SQLite's rebuild.
     Destructive,
 }
 
 impl Grade {
-    /// The higher of two grades — § 6's grade-up rule, as a function.
+    /// The higher of two grades — `rule:core-classes/schema-plan`'s grade-up rule, as a function.
     #[must_use]
     pub fn up_to(self, other: Grade) -> Grade {
         if other > self { other } else { self }
@@ -117,7 +117,7 @@ impl KeyKind {
 }
 
 /// One difference between a schema value and a database, in the closed set the
-/// vocabulary of § 2 can express.
+/// vocabulary of `rule:core-classes/schema-vocabulary-is-closed` can express.
 ///
 /// **Every `table` field is the table as it should be *after* the change**,
 /// which is the one convention that makes SQLite's rebuild expressible: that
@@ -128,8 +128,8 @@ impl KeyKind {
 /// type change is a question about both ends of it and nothing else here is.
 ///
 /// There is no rename. A column is identified by its name in the canonical
-/// form of § 1, so a rename is a drop and an add to any diff that compares
-/// values — and by § 7 the drop half of that is reported rather than applied.
+/// form of `rule:core-classes/schema-is-a-value`, so a rename is a drop and an add to any diff that compares
+/// values — and by `rule:core-classes/schema-absence-never-destroys` the drop half of that is reported rather than applied.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Change {
     /// A table the schema names and the database does not have.
@@ -195,7 +195,7 @@ impl Change {
         }
     }
 
-    /// Whether this is § 7's *report*: a step the plan carries, prints in
+    /// Whether this is `rule:core-classes/schema-absence-never-destroys`'s *report*: a step the plan carries, prints in
     /// full, and never applies.
     ///
     /// Total on the vocabulary and not a flag: a change is a report exactly
@@ -287,14 +287,14 @@ impl Step {
 
     /// The complete, terminated, dialect-correct statements that make it.
     ///
-    /// Never empty, and never elided — § 8's rule holds for a refused step
+    /// Never empty, and never elided — `rule:core-classes/schema-plan`'s rule holds for a refused step
     /// exactly as it does for one the applier will run.
     #[must_use]
     pub fn sql(&self) -> &[String] {
         &self.sql
     }
 
-    /// Whether this step is § 7's report, carried and never applied.
+    /// Whether this step is `rule:core-classes/schema-absence-never-destroys`'s report, carried and never applied.
     #[must_use]
     pub fn is_report(&self) -> bool {
         self.change.is_report()
@@ -328,7 +328,7 @@ impl Plan {
 
     /// Whether the database already matches the schema value.
     ///
-    /// This is § 5's acceptance criterion in one call: apply a schema to a
+    /// This is `rule:core-classes/schema-is-a-value`'s acceptance criterion in one call: apply a schema to a
     /// server, introspect it back, and the plan against it is empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -348,7 +348,7 @@ impl Plan {
 
     /// The first step `applySafe` would refuse, or `None` if it would run.
     ///
-    /// Reads the grades of the steps it would **run**, per § 7: a plan against
+    /// Reads the grades of the steps it would **run**, per `rule:core-classes/schema-absence-never-destroys`: a plan against
     /// any shared database holds `Destructive` reports it was never going to
     /// touch, and reading those too would refuse every real plan.
     #[must_use]
@@ -358,7 +358,7 @@ impl Plan {
 }
 
 impl fmt::Display for Plan {
-    /// The plan as § 8's document: every step's grade and reason as a comment,
+    /// The plan as `rule:core-classes/schema-plan`'s document: every step's grade and reason as a comment,
     /// then its SQL, in the one comment syntax every dialect reads.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (index, step) in self.steps.iter().enumerate() {
@@ -383,7 +383,7 @@ impl fmt::Display for Plan {
 /// Every difference between the schema a program declares and the schema a
 /// database was introspected into, as the plan that closes it in `dialect`.
 ///
-/// This is § 5's comparison and the whole of it: `want` and `have` are two
+/// This is `rule:core-classes/schema-is-a-value`'s comparison and the whole of it: `want` and `have` are two
 /// values of one vocabulary, and the diff reads their fields. No statement is
 /// retrieved or parsed here and no server is reached — the SQL a step carries
 /// is [`crate::ddl::step`]'s answer *after* the difference has already been
@@ -394,21 +394,21 @@ impl fmt::Display for Plan {
 ///
 /// The order is the order the steps must run in: `want`'s tables in
 /// declaration order, and within a table its columns in declaration order —
-/// each added or altered — then its new keys, then § 7's reports for what only
+/// each added or altered — then its new keys, then `rule:core-classes/schema-absence-never-destroys`'s reports for what only
 /// the database has. Every `DROP TABLE` report comes last. A report never
 /// runs, so its position is a question about the document rather than about
 /// correctness; [`Plan::runnable`] is what the applier reads.
 ///
-/// **A difference the vocabulary cannot name produces no step.** § 2's set is
+/// **A difference the vocabulary cannot name produces no step.** `rule:core-classes/schema-vocabulary-is-closed`'s set is
 /// closed and [`Change`]'s is closed with it, so a primary key that differs
 /// between two tables *both* sides already have is not reported: no change
-/// expresses one, and § 6 grades nothing that does not exist. The case that
+/// expresses one, and `rule:core-classes/schema-plan` grades nothing that does not exist. The case that
 /// occurs is a table only one side has, which carries its key in its
 /// `CREATE TABLE`. For the same reason a key whose columns or kind changed is
 /// a drop and an add under one name, exactly as [`Change`]'s own doc says a
-/// rename is — and by § 7 the drop half of that is reported rather than run.
+/// rename is — and by `rule:core-classes/schema-absence-never-destroys` the drop half of that is reported rather than run.
 ///
-/// § 5's normalisation is `dialect`'s other job. The ways a value a builder
+/// `rule:core-classes/schema-is-a-value`'s normalisation is `dialect`'s other job. The ways a value a builder
 /// wrote and the same value read back off the server it was applied to differ
 /// without being different schemas, each normalised out of the comparison and
 /// none of them out of the [`Change`] — what a step emits is always `want`'s
@@ -418,7 +418,7 @@ impl fmt::Display for Plan {
 /// 1. **Table order.** A read is ordered by whatever the catalog answers and a
 ///    built schema by declaration, so the diff matches tables by name and
 ///    never by position. The same holds of a table's columns.
-/// 2. **A unique constraint's name** — [`same_key`], which is also § 5's
+/// 2. **A unique constraint's name** — [`same_key`], which is also `rule:core-classes/schema-is-a-value`'s
 ///    "implicitly created index".
 /// 3. **Every type the dialect spells the same way as another** — [`stored_as`],
 ///    which folds both sides through the emitter's map and the catalog's
@@ -514,7 +514,7 @@ fn diff_table(want: &Table, have: &Table, dialect: Dialect, out: &mut Vec<Change
     }
 }
 
-/// `ty` as `dialect` holds it — § 5's normalisation, and the one function
+/// `ty` as `dialect` holds it — `rule:core-classes/schema-is-a-value`'s normalisation, and the one function
 /// every lossy case lives in.
 ///
 /// The map is not written out here, and deliberately: what the server is asked
@@ -545,7 +545,7 @@ fn stored_as(ty: &ScalarType, dialect: Dialect) -> ScalarType {
 }
 
 /// Whether the column the database has is the column the schema declares,
-/// after § 5's normalisation.
+/// after `rule:core-classes/schema-is-a-value`'s normalisation.
 ///
 /// Equality of the values first: a [`Column`] is its type, its nullability, its
 /// identity and its default, and its name is equal already or this pair would
@@ -587,9 +587,9 @@ fn same_column(table: &Table, have: &Column, want: &Column, dialect: Dialect) ->
         && matches!(want.ty(), ScalarType::Int(_))
 }
 
-/// Whether two keys of one kind are the same key, after § 5's normalisation.
+/// Whether two keys of one kind are the same key, after `rule:core-classes/schema-is-a-value`'s normalisation.
 ///
-/// **A unique constraint is its columns.** § 5 names "a unique constraint's
+/// **A unique constraint is its columns.** `rule:core-classes/schema-is-a-value` names "a unique constraint's
 /// implicitly created index" as a normalisation this system lives or dies on,
 /// and the name is where it bites: the constraint is *implemented* as an index
 /// on every backend, and what that index is called is the server's answer
@@ -597,7 +597,7 @@ fn same_column(table: &Table, have: &Column, want: &Column, dialect: Dialect) ->
 /// constraint [`crate::ddl`] spelled `CONSTRAINT wide_label UNIQUE (label)`,
 /// and it takes no name for an inline one at all. Two unique constraints over
 /// the same columns in the same order are one constraint whatever either end
-/// calls it — and § 2's vocabulary cannot rename one anyway, so treating the
+/// calls it — and `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary cannot rename one anyway, so treating the
 /// name as data would only ever produce a drop and an add that never converge.
 ///
 /// **An index is its name and its columns.** Every backend takes the name an
@@ -693,7 +693,7 @@ mod tests {
         .unwrap()
     }
 
-    /// § 5, as the property that the *differences* are dialect-free.
+    /// `rule:core-classes/schema-is-a-value`, as the property that the *differences* are dialect-free.
     ///
     /// Agreement rather than a reading of one dialect's answer: each spells
     /// this plan its own way, and a diff that had reached for any of that
@@ -769,7 +769,7 @@ mod tests {
         .unwrap()
     }
 
-    /// § 5's normalisation, at the type: a column the server cannot tell from
+    /// `rule:core-classes/schema-is-a-value`'s normalisation, at the type: a column the server cannot tell from
     /// another is not a difference, and one it can still is.
     ///
     /// Both bounds, because [`stored_as`] folds *both* sides and a fold that
@@ -858,7 +858,7 @@ mod tests {
         }
     }
 
-    /// § 5's normalisation, at the name a unique constraint's index is given.
+    /// `rule:core-classes/schema-is-a-value`'s normalisation, at the name a unique constraint's index is given.
     ///
     /// Both bounds, because the rule is narrow and a blanket "names do not
     /// count" would pass the first assert alone: a unique constraint over
@@ -917,7 +917,7 @@ mod tests {
         }
     }
 
-    /// § 7, for a whole table: the operator's own table is shown with the SQL
+    /// `rule:core-classes/schema-absence-never-destroys`, for a whole table: the operator's own table is shown with the SQL
     /// that would remove it, and the plan that holds it still runs clean.
     #[test]
     fn a_table_the_schema_does_not_declare_is_reported_and_never_dropped() {
@@ -952,7 +952,7 @@ mod tests {
         }
     }
 
-    /// § 7 again, one column down — and the case SQLite answers with a whole
+    /// `rule:core-classes/schema-absence-never-destroys` again, one column down — and the case SQLite answers with a whole
     /// rebuild, which is still a report and still never applied.
     #[test]
     fn a_column_the_schema_does_not_declare_is_reported_and_never_dropped() {
@@ -1038,7 +1038,7 @@ mod tests {
         }
     }
 
-    /// § 6's `Safe` at the case the queue's `tag` is declared for: `nvs queue migrate` runs the
+    /// `rule:core-classes/schema-plan`'s `Safe` at the case the queue's `tag` is declared for: `nvs queue migrate` runs the
     /// column without being asked twice, on all four.
     ///
     /// The column alone is the plan under test, because [`Plan::first_refused`] answers about the

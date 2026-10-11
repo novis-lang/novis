@@ -1,11 +1,7 @@
 {
   "title": "`nvs meta --json <entry>` emits that program's own declarations beside the `Core` registry, in the registry's own shape",
   "status": "shipped",
-  "because": [
-    "0137",
-    "0117",
-    "0233"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/meta-json",
     "tooling/one-json-several-renderers",

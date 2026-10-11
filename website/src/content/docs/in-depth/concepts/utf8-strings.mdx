@@ -4,7 +4,7 @@ covers: []
 description: A string is always valid UTF-8 text, and its length counts the characters a person sees.
 ---
 
-import { decisionRecord } from '@config/site.mjs'
+import { githubFile } from '@config/site.mjs'
 
 UTF-8 is the way almost every web page and file stores text today. In Novis, a `string` is always
 valid UTF-8. A string with invalid bytes is not possible, so your code never has to check for one.
@@ -34,4 +34,4 @@ bytes, which is fast. For other text, it reads the whole string.
 - [Syntax: strings](/syntax/values/strings/) shows how to write and join strings.
 - [Unicode strings](/guides/why-novis/unicode-strings/) shows the length of strings with emoji and accents.
 
-<a href={decisionRecord('0009')}>Read the full reasoning.</a>
+<a href={githubFile('docs/rules/types/string-is-utf8.md')}>Read the full reasoning.</a>

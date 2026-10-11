@@ -19,7 +19,7 @@
 //! block folded over the global tree afterwards. The two produce the same values, and this one also
 //! produces the right *origins*: a key that a block overrode has to name the file that block was
 //! written in, and an effective block folded from three files has one origin for all of its keys.
-//! So [`app::layer`] answers "what is the effective `[[app]]` block", which is § 9's per-app
+//! So [`app::layer`] answers "what is the effective `[[app]]` block", which is `rule:config/check-and-dump-audit-the-tree-offline`'s per-app
 //! `nvs config dump`, and this module does not go through it.
 //!
 //! **A changed `Boot` directive does not take effect** (`rule:config/reloadability-is-its-own-field`). [`Current::publish`] is
@@ -72,7 +72,7 @@ pub struct Snapshot {
     /// of applications this one request has rather than as the host's whole set.
     pub config: Config,
     /// The table [`config`](Snapshot::config) was deserialized from, kept for the reason
-    /// [`Resolved::table`](crate::resolve::Resolved::table) is: § 9's `nvs config dump --origin`
+    /// [`Resolved::table`](crate::resolve::Resolved::table) is: `rule:config/check-and-dump-audit-the-tree-offline`'s `nvs config dump --origin`
     /// renders keys the typed tree has no field for, and [`Current::publish`] compares two trees
     /// key by key, which the typed tree cannot be turned back into.
     ///
@@ -110,7 +110,7 @@ pub struct Snapshot {
     /// [`config`](Snapshot::config)'s reason. [`reload::reload`](crate::reload::reload) compares
     /// it as the one `app` leaf, so a reload that moves any block's key names `app` as applied.
     pub roster: Option<toml::Value>,
-    /// Every file the tree was read from, in the order § 3 read them.
+    /// Every file the tree was read from, in the order `rule:config/later-wins-and-every-override-is-recorded` read them.
     pub files: Vec<PathBuf>,
     /// Every path the tree looked at without reading it as a file —
     /// [`Resolved::probed`](crate::resolve::Resolved::probed).
@@ -262,8 +262,6 @@ impl Snapshot {
         // `rule:security/path-scope-canonicalise-then-prefix`'s grant side, canonicalized once and here rather than per check, for the
         // reason an `[[app]]` key is canonicalized at this same point: a root still spelled the way
         // the operator typed it is a comparison against the wrong thing.
-        //
-        // [ADR 0118]: ../../../docs/decisions/0118.md
         if let Some(capabilities) = self.config.capabilities.as_mut() {
             capabilities.canonicalize(files);
         }

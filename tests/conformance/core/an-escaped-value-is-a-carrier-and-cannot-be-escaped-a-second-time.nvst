@@ -1,5 +1,5 @@
 --TEST--
-`Core\Html::escape` answers a carrier, so the eager-escape habit needs `toSource` written at the site and produces the same document either way — ADR 0133 §§ 1, 2
+`Core\Html::escape` answers a carrier, so the eager-escape habit needs `toSource` written at the site and produces the same document either way — `rule:security/launderer-answers-a-carrier`, `rule:core-classes/html-escape-answers-markup`
 --FILE--
 <?nvs
 // `rule:security/launderer-answers-a-carrier`'s predicate, seen from the program rather than from the
@@ -11,7 +11,7 @@ tainted string $name = "Tom & Jerry";
 Core\Html\Markup $safe = Core\Html::escape($name);
 echo $safe, "\n";
 
-// § 2's *Context* program, said explicitly: a lifted literal composes with an
+// The greeting, said explicitly: a lifted literal composes with an
 // escaped value, and the composition is the carrier again. Neither half is
 // escaped by the `+`, because both already passed whichever rule made them
 // `Markup`.

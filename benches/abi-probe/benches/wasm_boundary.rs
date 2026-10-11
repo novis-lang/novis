@@ -8,7 +8,7 @@
 //! what decides whether a fresh instance per request is affordable.
 //!
 //! Baselined on x86_64-pc-windows-msvc; the figures are in
-//! `docs/decisions/0003.md`.
+//! `rule:packaging/the-boundary-is-the-cost`.
 
 // `criterion_group!` expands to an undocumented public function.
 #![allow(missing_docs)]

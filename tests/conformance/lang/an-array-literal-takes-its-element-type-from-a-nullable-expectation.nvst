@@ -2,7 +2,7 @@
 An array literal placed against a `?array<T>` expectation is an `array<T>` — in a binding, a `return` and an argument (`rule:types/conversion` and `rule:types/arrays`; `rule:expressions/nullable-conversion`)
 --FILE--
 <?nvs
-// ADR 0066: `?T` is `null|T`, and the `null` arm is the *other* thing the
+// `?T` is `null|T`, and the `null` arm is the *other* thing the
 // binding may hold — never something the value being placed has to satisfy.
 ?array<string> $m = ["k" => "v"];
 if ($m != null) {

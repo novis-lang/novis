@@ -4,7 +4,7 @@
 //!
 //! The types here are what a parse produces; [`mod@super::stream`] is what does
 //! the parsing. Keeping the two apart is what lets [`kind_of`]'s table — the
-//! numbers [ADR 0067 § 10](/docs/decisions/0067.md) maps to
+//! numbers `rule:core-classes/db-compile-time-query-checking` maps to
 //! throwable classes — be read without the parser around it.
 
 use super::*;
@@ -220,7 +220,7 @@ impl LoginAck {
     /// The version `Core\Db\Connection::serverVersion` answers on this driver:
     /// `major.minor.build`, decimal and unpadded — `16.0.4035`.
     ///
-    /// [ADR 0187 § 2](/docs/decisions/0187.md) fixes that spelling here because
+    /// `rule:core-classes/server-version-is-what-the-server-said` fixes that spelling here because
     /// SQL Server is the one backend sending numbers where the others send a
     /// string, and a driver inventing a rendering of its own would leave a
     /// program comparing versions across drivers comparing two shapes.

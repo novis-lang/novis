@@ -1,9 +1,7 @@
 {
   "title": "A buffering body reader keeps what it read so another may follow it, and a streaming one consumes the body and is the only reader of it",
   "status": "shipped",
-  "because": [
-    "0156"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/the-body-is-read-on-demand-under-two-caps",
     "http-server/a-part-is-a-file-iff-it-carries-a-filename",
@@ -14,6 +12,7 @@
   "guardedBy": [
     "tests/conformance/core/a-body-read-twice-answers-the-same-octets.nvst",
     "tests/conformance/core/a-body-stream-refuses-every-later-reader.nvst",
-    "tests/conformance/core/a-request-json-answers-the-same-document-twice.nvst"
+    "tests/conformance/core/a-request-json-answers-the-same-document-twice.nvst",
+    "crates/nvs-stdlib/src/request.rs"
   ]
 }

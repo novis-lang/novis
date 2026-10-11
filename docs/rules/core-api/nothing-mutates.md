@@ -10,3 +10,8 @@ The cost is real and is paid at every mutation site: `$a = Arr::sort($a);` is th
 `sort($a);` and reads as a copy even though it is not one. A program that genuinely wants by-reference
 argument passing has `inout` (`rule:statements/inout-is-the-by-reference-spelling`), which no `Core` member
 uses.
+
+**Declined:**
+- **A by-reference mutator for the hot paths, such as `Arr::sortInPlace`.** Copy-on-write already mutates
+  in place when the refcount is 1, so the second spelling buys only aliasing rules and breaks
+  `rule:core-api/one-name-one-signature` for no measurable gain.

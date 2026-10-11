@@ -13,3 +13,8 @@ instead of by a value.
 
 What a caller sees is that a key belonging to the arm the other values did not select is refused where it
 is written, naming the arm's own key set rather than the merged one.
+
+**Declined:**
+- **A declared discriminant field on the shape type.** It reads well, but it adds nothing the arm check
+  does not already do, and it cannot describe a union separated by a required key. It would be a second
+  rule to keep in agreement with the first.

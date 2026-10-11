@@ -22,8 +22,11 @@ sends is work in progress with nothing to finish, so the period is its bound: fr
 connection first saw the drain plus the connection block's period, its next `send` closes the
 connection with `going away` and throws, and a `Core\Time::sleep` on the connection ends at that
 instant at the latest and is woken when the drain begins, so a long sleep does not hide a short
-period. So a stop is bounded by the work in flight and never by the connections that happen to be
-open.
+period. A `send` begun before that instant is never cut, however late in the period it finishes:
+the period is for the frame a program received just before the drain and the answer it is about to
+send. A program parked on neither the socket nor a sleep, such as a topic subscription or a database
+wait, runs to that wait's own bound. So a stop is bounded by the work in flight and never by the
+connections that happen to be open.
 
 A connection is made to see it: **beginning the drain wakes every parked wait**, rather than leaving
 a connection to notice at its own idle timer — which would compose the drain period with
@@ -35,3 +38,48 @@ The close is the connection's *own*, taken at its next wait rather than reached 
 loop. The socket belongs to the isolate, so closing it from outside would be writing to a descriptor
 another task is parked on — and a dropped descriptor gives the peer a reset, which is exactly what a
 client cannot tell apart from a network failure.
+
+So a stop is bounded by `drain_timeout` plus the write of whatever response was in flight, which
+`write_idle_timeout` already bounds. With nothing configured that is a minute, inside systemd's own
+default stop timeout of 90 seconds — the generated unit sets no `TimeoutStopSec` — with room for a
+distribution that lowered it. An operator whose requests legitimately run longer raises the directive
+rather than discovering a `SIGKILL`. A deployment killed inside the bound means the wake is not
+reaching some parked wait, which is a defect and not a tuning question.
+
+- **Memory:** an HTTP connection holds one `bool` for the close it has asked for, and each poll of
+  it reads the drain bit once, which the idle poll already paid. A WebSocket connection holds one
+  shared flag and one drain registration, so a `receive` already parked is cut by the drain, and each
+  readable wait on it swaps that flag once. A stream that registered no cut pays nothing. The
+  WebSocket's drain deadline is one instant per connection and one atomic load per `send`, and a
+  sleep on a connection holds one drain registration, released when the sleep ends.
+
+**Declined:**
+- **A fixed drain constant in the server.** Bounded, but an operator could not raise it for a
+  deployment whose requests are legitimately long, and the answer to that is a directive.
+- **`keepalive_timeout` as the drain period.** It bounds a connection doing nothing, and the drain
+  bounds connections doing something (`rule:http-server/the-server-block-is-boot-class`).
+- **A shorter default drain period, so an idle connection costs less.** The period bounds a request
+  that is working, and a shorter one cuts a slow response short on every restart.
+- **Closing an idle connection, or cancelling its isolate, from the accept loop.** The socket
+  belongs to the connection's own task, and a close reached in from outside is the reset this rule
+  prevents.
+- **A wake alone, with `receive` reading the drain bit again on each retry.** The retry loop runs
+  inside the host's `read`, under the WebSocket codec, and neither can be told to look at a bit. A
+  wake is only a hint (`rule:concurrency/the-parking-contract`), and treating it as more would break
+  every other wait.
+- **Polling the drain on a short deadline.** Every WebSocket the process holds would be woken every
+  few hundred milliseconds for a question that is almost never yes.
+- **A hard cap that cancels a connection's isolate once the period has passed.** It would bound a
+  program parked on a subscription or a database wait, but it hands the peer the reset this rule
+  prevents.
+- **`send` throwing the moment the drain begins.** A program that received a frame just before the
+  drain would lose its answer, and the period is for exactly that frame.
+- **A sleep under a begun drain returning at once.** A loop of `send` and sleep would then send as
+  fast as the peer reads for the whole period. Ending the sleep at the deadline sends nothing more
+  from a program that was asleep.
+- **Cutting the sleep in the host's timer against the process drain.** The host does not know the
+  connection's deadline and a detached test drain never reaches it, so the runtime asks the socket,
+  which knows both.
+- **`Connection: close` on the last response.** It covers only a response written after the drain
+  began, so a connection that had already answered, and one a browser opened and never used, would
+  still wait.

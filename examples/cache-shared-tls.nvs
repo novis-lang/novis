@@ -4,7 +4,7 @@
 // `examples/cache-shared-tls.toml` reaches encrypted and switches before the
 // first command.
 //
-// [ADR 0142](/docs/decisions/0142.md) is why neither
+// `rule:config/cache-shared-is-the-grant-over-the-configured-store` is why neither
 // shows up here: the grant is `cache.shared`, which names the *store* and asks
 // no address, so a store reached over TLS at index seven is not a special case
 // of it. Nothing below mentions the transport or the index, and that is the

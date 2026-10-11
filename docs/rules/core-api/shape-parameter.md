@@ -14,3 +14,14 @@ In every other respect a shape parameter is ordinary: it sits at its own positio
 carries a default entry only if it is itself optional. The options bag (`rule:core-api/options-bag`) keeps
 its own spelling rather than being folded into this one, because the two differ in call-site rules — last,
 unnamed, omittable in full — which are worth enforcing by a type rather than restating in a test.
+
+**Declined:**
+- **A union of two shapes, built from the union type that already exists.** The interner sorts a union's
+  members, and a shape's field order is its ABI. Preserving order for unions whose members happen all to
+  be shapes is a special case in the one place canonicalization has to be unconditional.
+- **One field struct shared by bag options and shape fields, with an optional default.** A bag is
+  optional because every option has a default, and the required-argument count depends on that. Sharing
+  the struct turns that type-enforced property into a checked one, which is the wrong direction.
+- **Folding the options bag into the shape parameter.** The bag's trailing position, namelessness and
+  omittability would become flags on a general type, checked by tests instead of held by the enum. The
+  two are one checked type (`rule:core-api/one-checked-shape-type`) and two call-site rules.

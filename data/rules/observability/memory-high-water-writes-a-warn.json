@@ -1,9 +1,7 @@
 {
   "title": "A `[limits] memory_high_water` fraction writes one `Warn` when a request's memory peak crosses that share of its ceiling, and is off until a block writes one",
   "status": "shipped",
-  "because": [
-    "0148"
-  ],
+  "because": [],
   "seeAlso": [
     "observability/a-memory-peak-is-recorded-not-asked-for",
     "observability/a-slow-query-is-logged-past-a-threshold",

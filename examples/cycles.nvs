@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0116 § 2's teardown sweep, end to end: a program that builds object
+// The teardown sweep, end to end: a program that builds object
 // cycles in a loop and exits clean.
 //
 // Every pair below is unreachable the moment the loop goes round — nothing

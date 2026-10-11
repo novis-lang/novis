@@ -1,12 +1,11 @@
-//! The probe [ADR 0026](/docs/decisions/0026.md)
-//! validates callgrind against: confirms `valgrind --tool=callgrind` produces
-//! a bit-for-bit stable instruction count for code Cranelift JIT-compiled at
-//! runtime, which is the premise the ADR's historical-dashboard leg rests on.
+//! The probe callgrind is validated against: confirms `valgrind --tool=callgrind`
+//! produces a bit-for-bit stable instruction count for code Cranelift
+//! JIT-compiled at runtime, which is the premise the historical dashboard of
+//! `rule:testing/perf-two-mechanisms` rests on.
 //!
 //! Kept as the minimal reusable harness for that leg, not yet the leg itself
-//! — there is no ndjson writer or dedicated-runner wiring here. Growing this
-//! into the real per-commit workload roster is deferred per the ADR's
-//! *Revisiting* section.
+//! — there is no ndjson writer or dedicated-runner wiring here, and which
+//! workloads populate the history is still open.
 //!
 //! ```text
 //! cargo build --release -p nvs-abi-probe --example callgrind_spike

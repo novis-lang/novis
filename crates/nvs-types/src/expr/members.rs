@@ -719,14 +719,14 @@ fn collect_public_properties(
 /// ([`super::calls::check_member_name`]), and an `unset` is refused below for
 /// the reason every declared property already refuses one.
 ///
-/// The read answers § 5's **union of the set**: the key names one of `T`'s
+/// The read answers `rule:types/property-key-access`'s **union of the set**: the key names one of `T`'s
 /// public properties and nothing else, so what comes back is one of their
 /// declared types and nothing else. The union is taken over `T`'s own roster
 /// rather than the receiver's, because `T` is what the key was checked against
 /// — a receiver that adds public properties of its own adds no name the key
 /// can hold.
 ///
-/// § 5's other refusal — `E0782` where the set holds a `readonly` property —
+/// That rule's other refusal — `E0782` where the set holds a `readonly` property —
 /// is **not** here, because it applies to a write only and inference sees the
 /// same access either way. It is asked off the entry this records, at the
 /// place that already knows a target is being written:
@@ -782,7 +782,7 @@ fn check_keyed_property(
         .collect();
     // A class with no public property at all, which `rule:types/property-key` refuses at the
     // written `property<T>` itself — an empty union is not a type this interner
-    // has, and § 2's every conversion into such a key throws, so no value of it
+    // has, and every conversion into such a key throws (`rule:types/property-key`), so no value of it
     // can reach an access. The entry is recorded all the same: `nvs-ir` has no
     // fallback for a `PropertyAccess` span with no entry, and "unreachable at
     // run time" is not "never lowered".
@@ -1106,8 +1106,8 @@ fn check_dynamic_class_name_const(
 /// Shared body for a property access, whether it appears as an ordinary
 /// expression (`$obj->prop`, `is_unset` false) or as `unset()`'s operand
 /// (`is_unset` true) — the receiver/member resolution is identical either
-/// way; only what happens once a *declared* property is found differs (ADR
-/// 0028 § 3: `unset()` on one is refused outright, per `rule:classes/definite-property-initialization`'s guarantee
+/// way; only what happens once a *declared* property is found differs
+/// (`rule:classes/unset-is-refused-on-a-property`: `unset()` on one is refused outright, per `rule:classes/definite-property-initialization`'s guarantee
 /// that a declared property can never become uninitialized again).
 #[expect(
     clippy::too_many_arguments,

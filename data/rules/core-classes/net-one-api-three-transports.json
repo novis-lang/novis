@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Net` is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor",
   "status": "shipped",
-  "because": [
-    "0162"
-  ],
+  "because": [],
   "seeAlso": [
     "security/net-listen-is-a-separate-grant-from-net-connect",
     "security/a-path-is-not-a-url",

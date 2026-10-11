@@ -13,3 +13,5 @@ entirely**, so `myprog | grep` and a CI log are plain — while the control-byte
 presentation one. Resolving once is what makes two reads of the width in one run the same number by
 construction, so a program that measures at the top and draws at the bottom cannot tear a frame; the
 cost is that a resize is not noticed until the process restarts.
+
+**Memory:** one profile of scalar fields for the life of the process, charged to no request.

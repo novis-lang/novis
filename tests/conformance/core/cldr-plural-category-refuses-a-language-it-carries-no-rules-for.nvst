@@ -2,7 +2,7 @@
 `Core\Cldr::pluralCategory` refuses a language whose rules it does not carry, rather than answering another language's — `rule:programs/framework-core-half`, `rule:errors/ambiguous-input-refused`
 --FILE--
 <?nvs
-// ADR 0095: ambiguous input is refused, never repaired. The cheaper design
+// Ambiguous input is refused, never repaired. The cheaper design
 // here answers English's `one`/`other` for anything it does not recognize,
 // and it is wrong in the direction that hides: a Russian catalog written
 // against those two forms reads correctly for 1 and wrongly for 2, 5 and 11

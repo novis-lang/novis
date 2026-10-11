@@ -6,7 +6,7 @@
 //! constraints and indexes; a [`Column`] is a name, a [`ScalarType`], whether it
 //! is nullable, whether it is the table's identity, and a [`ColumnDefault`].
 //! That is the whole vocabulary and there is deliberately no way to put a
-//! fragment of SQL inside one — § 2's rule, and the reason the diff over these
+//! fragment of SQL inside one — `rule:core-classes/schema-vocabulary-is-closed`'s rule, and the reason the diff over these
 //! types can be **total**: nothing here is a string the difference engine cannot
 //! reason about.
 //!
@@ -33,7 +33,7 @@
 //!
 //! # The canonical form
 //!
-//! § 1 makes the array form canonical — two schemas are the same schema exactly
+//! `rule:core-classes/schema-is-a-value` makes the array form canonical — two schemas are the same schema exactly
 //! when their array forms agree — and [`Schema::to_array`] is where that form
 //! is defined, over [`Node`] rather than over a Novis value, because this crate
 //! is sans-io. It is **ordered**: declaration order for columns, name order for
@@ -41,7 +41,7 @@
 //! the same builders a program calls, so a file cannot say anything a program
 //! could not have built.
 //!
-//! # § 11's exclusions are not represented, and are not added casually
+//! # `rule:core-classes/schema-vocabulary-is-closed`'s exclusions are not represented, and are not added casually
 //!
 //! Foreign keys, partial and expression indexes, index types, collations,
 //! check constraints and the rest are out of v1 because they have no portable
@@ -197,10 +197,10 @@ impl FloatWidth {
     }
 }
 
-/// A column's type: [ADR 0067 § 9](/docs/decisions/0067.md)'s map in the
+/// A column's type: `rule:core-classes/db-column-types`'s map in the
 /// write direction, with the parameters a `CREATE TABLE` must carry.
 ///
-/// Where § 9's read direction is many-to-one — `SMALLINT`, `INTEGER` and
+/// Where `rule:core-classes/db-column-types`'s read direction is many-to-one — `SMALLINT`, `INTEGER` and
 /// `BIGINT` all read as `int` — this keeps the distinction, because the writer
 /// chose it and the introspector can recover it. [`ScalarType::describes`] is
 /// the arrow back onto the read direction's own enum, and the two cannot drift
@@ -236,7 +236,7 @@ pub enum ScalarType {
         /// The declared length in bytes, or `None` for unbounded.
         max: Option<u32>,
     },
-    /// A boolean, spelled `BIT` on SQL Server and `TINYINT(1)` nowhere — § 9
+    /// A boolean, spelled `BIT` on SQL Server and `TINYINT(1)` nowhere — `rule:core-classes/db-column-types`
     /// reads `TINYINT(1)` as an `int`, so writing one would not round-trip.
     Bool,
     /// A calendar date.
@@ -251,7 +251,7 @@ pub enum ScalarType {
     /// A UUID, where the backend has a type for one.
     Uuid,
     /// A JSON document, where the backend has a type for one. The value still
-    /// reads as a `tainted string`: § 9's rule that JSON is never auto-decoded
+    /// reads as a `tainted string`: `rule:core-classes/db-column-types`'s rule that JSON is never auto-decoded
     /// is untouched.
     Json,
 }
@@ -319,14 +319,14 @@ impl ScalarType {
     }
 }
 
-/// § 2's closed set of defaults: a literal of a vocabulary scalar type, the
+/// `rule:core-classes/schema-vocabulary-is-closed`'s closed set of defaults: a literal of a vocabulary scalar type, the
 /// current timestamp, or — read off a server and never written — the words of
 /// a default this set cannot say.
 ///
 /// A program writes no expression defaults, and that one rule closes two holes
 /// at once. An expression is an unbindable string reaching a DDL sink, and it is
 /// also the value a server is most likely to spell back differently — which is
-/// the normalization difficulty § 5 exists to survive. [`ColumnDefault::Opaque`]
+/// the normalization difficulty `rule:core-classes/schema-is-a-value` exists to survive. [`ColumnDefault::Opaque`]
 /// is the reading half of that rule and not an exception to it: it carries such
 /// a string out of a server and into a comparison, and there is no path from it
 /// back into statement text.
@@ -359,7 +359,7 @@ pub enum ColumnDefault {
     ///
     /// It exists so that a column whose default this vocabulary cannot say
     /// still compares equal to itself across two reads. Reading such a default
-    /// as nothing at all is the alternative, and it makes § 5's plan propose
+    /// as nothing at all is the alternative, and it makes `rule:core-classes/schema-is-a-value`'s plan propose
     /// the same step on every run, which no number of applies converges.
     Opaque(String),
 }
@@ -514,7 +514,7 @@ impl Column {
 /// One type for both, because they differ in what a dialect emits and in
 /// nothing a schema value has to say. **An index is never unique** — a unique
 /// key is the canonical spelling, and admitting both would make one schema
-/// expressible two ways, which is precisely the phantom difference § 5 spends
+/// expressible two ways, which is precisely the phantom difference `rule:core-classes/schema-is-a-value` spends
 /// its normalization budget removing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Key {
@@ -710,7 +710,7 @@ impl Table {
 
 /// A whole schema: the tables a program says should exist.
 ///
-/// § 7's rule is what makes this a *should* and not a *must*: a table the
+/// `rule:core-classes/schema-absence-never-destroys`'s rule is what makes this a *should* and not a *must*: a table the
 /// server has and this value has not is reported and never dropped, because an
 /// application shares its database with the queue, with a reporting view and
 /// with whatever an operator put there.
@@ -766,7 +766,7 @@ impl Schema {
     }
 }
 
-/// One node of [ADR 0145 § 1](/docs/decisions/0145.md)'s
+/// One node of `rule:core-classes/schema-is-a-value`'s
 /// canonical array form.
 ///
 /// The array form is what makes a built schema, a saved file and an
@@ -1007,7 +1007,7 @@ impl ColumnDefault {
             // `opaque` is deliberately absent from the keys above, and from the
             // wanted list the refusal names. It is what a server said, never
             // what a program may ask for, and a default a program could ask for
-            // in a server's own words is the expression hole § 2 closes.
+            // in a server's own words is the expression hole `rule:core-classes/schema-vocabulary-is-closed` closes.
             _ => return Err(bad),
         })
     }
@@ -1294,7 +1294,7 @@ mod tests {
     /// All three properties at once, because they are one claim — total,
     /// injective, and `Other`-free. A fourteenth write case sharing a read case
     /// with another would be a column the introspector could not tell apart
-    /// from the type it was written as, which is § 5's empty-plan property
+    /// from the type it was written as, which is `rule:core-classes/schema-is-a-value`'s empty-plan property
     /// failing at the first `dump`.
     #[test]
     fn the_column_type_vocabulary_is_adr_0067_section_9s_map_in_the_write_direction() {
@@ -1471,12 +1471,12 @@ mod tests {
         assert!(matches!(twice, Err(SchemaError::Duplicate { .. })));
     }
 
-    /// § 2's closed default set, and the refusals that are portability rather
+    /// `rule:core-classes/schema-vocabulary-is-closed`'s closed default set, and the refusals that are portability rather
     /// than typing.
     ///
     /// The last assertion is the "and nothing else": an expression default is
     /// not a thing the canonical form can *say*, so the DDL-injection hole and
-    /// the normalization hole § 5 spends its budget on are both closed by the
+    /// the normalization hole `rule:core-classes/schema-is-a-value` spends its budget on are both closed by the
     /// vocabulary rather than by a check someone has to remember to run.
     #[test]
     fn a_default_is_a_vocabulary_scalar_or_now_and_nothing_else() {
@@ -1620,7 +1620,7 @@ mod tests {
     /// hand-written DDL lists.
     ///
     /// The one construct it needs and this vocabulary has not got is
-    /// PostgreSQL's partial unique index on `dedupe_key` — § 11 keeps partial
+    /// PostgreSQL's partial unique index on `dedupe_key` — `rule:core-classes/schema-vocabulary-is-closed` keeps partial
     /// indexes out of v1 for want of a portable spelling, and the retirement
     /// owes that index an answer the vocabulary can hold.
     #[test]
@@ -1680,7 +1680,7 @@ mod tests {
     ///
     /// Asserted with the *order* rule and not only the structure, because the
     /// form is canonical and an introspector answering a server's own catalog
-    /// order would otherwise round-trip into a different value and make § 5's
+    /// order would otherwise round-trip into a different value and make `rule:core-classes/schema-is-a-value`'s
     /// plan report a change against a database that is not wrong in any way.
     /// So everything below is declared in the order the canonical form does not
     /// use: the tables backwards by name, the keys backwards by name, and the
@@ -1784,7 +1784,7 @@ mod tests {
         );
 
         // The property itself. Read back through the builders, and written out
-        // again to the byte-identical form -- which is the comparison § 5's
+        // again to the byte-identical form -- which is the comparison `rule:core-classes/schema-is-a-value`'s
         // diff normalizes into.
         let read = Schema::from_array(&array).unwrap();
         assert_eq!(read.to_array(), array);

@@ -1,13 +1,11 @@
 {
   "title": "A multipart body is capped by part count, not only by size",
   "status": "shipped",
-  "because": [
-    "0095",
-    "0064",
-    "0004"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/ambiguous-input-refused"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-stdlib/src/multipart.rs"
+  ]
 }

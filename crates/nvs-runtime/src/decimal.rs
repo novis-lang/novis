@@ -27,7 +27,7 @@
 //! *same bits*: `nvs_ir::InstKind::Tag` and `Untag` are the identity on one.
 //!
 //! **What it spends:** sixteen bytes per value against eight for a `float`,
-//! which is ADR 0054 § *Consequences*' own figure — one extra machine register
+//! which is `rule:types/decimal`'s own figure — one extra machine register
 //! or eight extra stack bytes per live `decimal`. Nothing is allocated and
 //! nothing is refcounted, so there is no per-value heap cost at all.
 //!
@@ -672,8 +672,8 @@ impl Decimal {
     }
 
     /// [`Self::long_divide`] over again at 192 bits, entered only where the
-    /// 128-bit scale fold overflowed — the wider intermediate ADR 0054
-    /// § *Consequences* predicts, and the reason a quotient that fits 96 bits
+    /// 128-bit scale fold overflowed — the wider intermediate `*` and `/`
+    /// need, and the reason a quotient that fits 96 bits
     /// is never refused for want of room to reach it.
     ///
     /// Every quantity here is bounded by that fold, `(2^96 - 1) × 10^28`,
@@ -900,8 +900,8 @@ fn fit(negative: bool, mantissa: u128, scale: i32) -> Option<Decimal> {
 
 /// Splits an exact decimal literal — sign, digits, optional fraction,
 /// optional exponent — into `(negative, mantissa, scale)`, with the exponent
-/// folded into the scale. `None` for anything that is not one *in full*: ADR
-/// 0054 § 4 gives `string → decimal` no leading-garbage rule, exactly as
+/// folded into the scale. `None` for anything that is not one *in full*:
+/// `rule:types/conversion` gives `string → decimal` no leading-garbage rule, exactly as
 /// `string → int` has none.
 ///
 /// The scale is an `i32` and may be **negative**, which is a value whose point

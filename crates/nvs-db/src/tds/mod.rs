@@ -2,7 +2,7 @@
 //! of every message, the split a message longer than the negotiated packet size
 //! takes on the way out, and the reassembly it takes on the way back.
 //!
-//! [ADR 0132 § 5](/docs/decisions/0132.md)
+//! `rule:core-classes/db-drivers-are-an-enum`
 //! gives each driver its own state machine, its own error table and its own
 //! codec, and here the codec is *ours*: the borrowed half every other driver in
 //! this crate has does not exist for TDS. The only implementation in Rust is
@@ -72,7 +72,7 @@
 //! the packet boundary — the reader the first section says [`Tokens`] cannot be.
 //!
 //! **A statement goes out**: [`sp_prepexec_request`] builds the RPC, ADR
-//! 0067 § 1's cache holds the handle the `RETURNVALUE` came back with,
+//! `rule:core-classes/db-one-api`'s cache holds the handle the `RETURNVALUE` came back with,
 //! [`start_statement`] is the sequencing both `query` and `execute` are,
 //! [`execute_many`] is § 4's batch over that same sequencing once per parameter
 //! set, and [`reset_session`] is § 13's `sp_reset_connection`. **§ 7's commands
@@ -81,8 +81,7 @@
 //! RPC, and [`begin`]'s own doc owns the rules that are this dialect's alone —
 //! a session-scoped isolation level this driver has to put back, and no
 //! read-only transaction to offer at all. Every member `rule:core-classes/db-one-api` declares is
-//! therefore reachable on this backend, and [ADR 0067 §
-//! 9](/docs/decisions/0067.md)'s table is whole in both directions: a `bytes`
+//! therefore reachable on this backend, and `rule:core-classes/db-column-types`'s table is whole in both directions: a `bytes`
 //! is read by [`decode_column`] from `varbinary`, `binary` and `image`, and
 //! bound as a `varbinary` parameter of its own — [`encode`] decides the form
 //! and [`binary_param`] writes it, so the declaration varies with the values a
@@ -189,7 +188,7 @@ pub const DEFAULT_PORT: u16 = 1433;
 /// One `[db.<name>]` block, read as the facts a LOGIN7 message carries.
 ///
 /// [`crate::MySqlTarget`]'s and [`crate::PgTarget`]'s twin, and the twinning is
-/// the point: [ADR 0067 § 2](/docs/decisions/0067.md) makes a block a
+/// the point: `rule:core-classes/db-connection-is-named` makes a block a
 /// discriminated union on `driver`, so a server block holds the same fields
 /// whichever driver reads it and the refusals are one vocabulary —
 /// [`BlockError`], in [`mod@crate::conn`] for that reason.
@@ -231,7 +230,7 @@ pub struct TdsTarget<'a> {
     /// The zone a `datetime2` or `datetime` off this connection is read in, as
     /// a whole number of seconds east of UTC.
     ///
-    /// [ADR 0067 § 9](/docs/decisions/0067.md)'s declared zone, read
+    /// `rule:core-classes/db-column-types`'s declared zone, read
     /// by the same `time_zone_for` the other drivers go through — **and this is
     /// the one driver that cannot send it**. SQL Server has no session time
     /// zone: `AT TIME ZONE` is an expression, and `SET` has no such setting, so
@@ -241,7 +240,7 @@ pub struct TdsTarget<'a> {
     /// and PostgreSQL fact, not a property of the field.
     pub time_zone: i32,
     /// How many prepared statements this connection may keep alive on the
-    /// server, [ADR 0067 § 1](/docs/decisions/0067.md)'s
+    /// server, `rule:core-classes/db-one-api`'s
     /// `statement_cache`, through the reader every other driver's block goes
     /// through.
     pub statement_cache: usize,
@@ -349,7 +348,7 @@ impl std::fmt::Debug for TdsTarget<'_> {
 }
 
 impl TdsConn {
-    /// [ADR 0067 § 3](/docs/decisions/0067.md)'s handshake end to
+    /// `rule:core-classes/db-safe-connection-defaults`'s handshake end to
     /// end: a socket, PRELOGIN, the TLS session tunnelled inside it, LOGIN7 and
     /// the tokens that answer it.
     ///
@@ -424,7 +423,7 @@ impl TdsConn {
         self.wire.set_deadline(at);
     }
 
-    /// [ADR 0067 § 13](/docs/decisions/0067.md)'s reset, before this
+    /// `rule:security/db-pool-reset-is-a-boundary`'s reset, before this
     /// connection may be handed to another request.
     ///
     /// Takes `self` by value for [`crate::MySqlConn::reset`]'s reason: a reset
@@ -464,7 +463,7 @@ impl TdsConn {
         Ok(self)
     }
 
-    /// [ADR 0067 § 1](/docs/decisions/0067.md)'s round trips for one
+    /// `rule:core-classes/db-one-api`'s round trips for one
     /// statement — one either way on this protocol — and the columns its result
     /// set turned out to have.
     ///
@@ -545,7 +544,7 @@ impl TdsConn {
         next_row_of(&mut self.wire, &self.state, Some(&mut self.cache), reading)
     }
 
-    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for the
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for the
     /// parked walk, or `None` where there is none.
     #[must_use]
     pub fn stream_span(&self) -> Option<&QuerySpan> {
@@ -574,7 +573,7 @@ impl TdsConn {
         );
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `executeMany`: one
+    /// `rule:core-classes/db-statement-members`'s `executeMany`: one
     /// prepare, N executions, and the affected counts summed.
     ///
     /// The two-line delegation [`TdsConn::query`] gives its reason for.
@@ -586,7 +585,7 @@ impl TdsConn {
         execute_many(&mut self.wire, &self.state, &mut self.cache, sql, sets)
     }
 
-    /// [ADR 0067 § 7](/docs/decisions/0067.md)'s `BEGIN TRANSACTION`,
+    /// `rule:core-classes/db-transactions`'s `BEGIN TRANSACTION`,
     /// or the `SAVE TRANSACTION` a nested `transaction()` is.
     ///
     /// The driver half of § 7 and nothing more — the callable, the rollback-only

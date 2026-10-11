@@ -23,7 +23,13 @@ that it was *honoured*.** An application that hand-rolls dispatch and never read
 no enforcement from anyone. Closing that would require recognising a dispatch site, which is an
 opinion the route table refuses to hold.
 
+Object-level authorisation is outside it too. Most privilege escalation is a request for a row that
+belongs to another user, and no language-level mechanism answers that, because the check needs the
+row. The handler that loads the row makes that check.
+
 **Declined:**
 - **The decision readable only through `Core\Attributes::get` on the handler.** That call names the
   method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
   and nothing reports the omission.
+- **A compile error where an access decision is never read.** The compiler would have to recognise a
+  dispatch site, and it cannot follow a dispatch table a program builds from data.

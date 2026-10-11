@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*11 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*7 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -27,7 +27,16 @@ The guarantee the whole roster is built on is [`concurrency/nothing-is-still-run
 and it is a property of the call rather than of a scope object: there is no nursery, no task group
 and no handle to leak, so a task tree is bounded by the same accounting a request already has.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`core-api/tier-roster`](core-api.md#core-api-tier-roster). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
+**Declined:**
+- **An open-ended scope object** — a block that children are added to, the shape of a nursery or a
+  task group. It is the general form of a need no program has shown yet, and more to learn than two
+  calls. Adding one later changes nothing above, so it waits for code that `all` and `map` cannot
+  express.
+- **Growing the roster on request.** `race`, `first`, `any` and `settled` are each one more member,
+  and each is argued against a real use before it lands rather than added because it is familiar
+  ([`concurrency/limit-and-deadline-are-the-only-bounds`](concurrency.md#concurrency-limit-and-deadline-are-the-only-bounds)).
+
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`core-api/tier-roster`](core-api.md#core-api-tier-roster).</sub>
 
 <a id="concurrency-a-child-belongs-to-the-calling-task"></a>
 
@@ -48,7 +57,7 @@ that ends cancels what it left running, so the tree cannot outlive it and there 
 A host with no calling task therefore has no place to put children, which is why every entry point
 that runs a program makes a task first even where one buys nothing else.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="concurrency-on-worker-runs-the-child-on-another-core"></a>
 
@@ -98,8 +107,9 @@ Which core it is, is decided by the set that offers one, and **worker cores are 
 bounded at the core count**: a core's scheduler thread starts the first time a program places a child on
 one, so a program that places none has no thread, exactly as a worker with no blocking work has no pool
 threads. **Under `nvs serve` the set is the serving cores themselves**: each one registers its own inbox
-and drains it from a receptionist beside its accept loops, so a placement reaches the sibling serving core
-ADR 0184 § 5 argues for and no thread is started beside threads that are already pinned. A core that
+and drains it from a receptionist beside its accept loops, so a placement reaches a sibling serving core
+and no thread is started beside threads that are already pinned: a second thread per core for placement
+work would oversubscribe exactly the cores a served request's latency depends on. A core that
 offered itself that way stops receiving when the process begins draining and goes once the placements it
 is holding have answered, because those belong to the requests the drain is there to finish. Either way
 the cost is one
@@ -107,7 +117,33 @@ scheduler thread per core at most: O(cores), never O(requests served), and which
 readable from the child, so the destination set is the only thing that changes when a serving core
 registers one.
 
-<sub>See also [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns). Decided in [0184](../decisions/0184.md).</sub>
+A worker placement's latency floor is two copies and two cross-thread wakes, which is why the same-core
+placement is the default and `on: "worker"` is for a child that is CPU-bound and whose values are small.
+The inbox adds no lock to the request path: it has one consumer, the core that owns it, and the core being
+asked is already asleep in a poll that the poke ends, so a start costs the same wake a blocking-pool
+answer costs.
+
+- **Memory:** per worker-placed child in flight, charged to its tree: one task context and one pooled
+  stack on the destination core, plus the argument and the answer each copied at every node, twice what
+  a same-core child pays. Per process: at most one scheduler thread per core, only for cores a child was
+  placed on, and none under `nvs serve`. That is O(cores) and O(in-flight), and nothing grows with
+  requests served.
+
+**Declined:**
+- **Migrating the child to an idle core.** Refcounts are non-atomic and an arena belongs to one core, so
+  this is unsound rather than expensive ([`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task)).
+- **A shared global run queue every core steals from.** It is one piece of contended state on the request
+  path, and it makes which core runs a child unpredictable, which makes the budget, the grants and the
+  cancellation path harder to reason about for no gain. The same objection keeps the blocking pool per
+  worker.
+- **Work stealing between serving cores.** It makes placement implicit, and an implicit placement cannot be
+  reasoned about from the spawn site, which is where a program states what it wants.
+- **A thread per worker-placed child.** It is O(in-flight children) in threads rather than O(cores), and
+  it defeats the pinning the thread-per-core design rests on.
+- **A subprocess for a worker placement.** An OS process costs orders of magnitude more than a task
+  ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
+
+<sub>See also [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns).</sub>
 
 <a id="concurrency-all-answers-a-typed-shape"></a>
 
@@ -139,7 +175,11 @@ carries for this one purpose, and what each field is worth is read off
 shape and never an array; that is the line between it and [`concurrency/map-preserves-keys-and-order`](concurrency.md#concurrency-map-preserves-keys-and-order),
 and each member refuses the other's subject.
 
-<sub>See also [`types/object-top`](types.md#types-object-top), [`core-api/shape-rules`](core-api.md#core-api-shape-rules). Decided in [0072](../decisions/0072.md), [0136](../decisions/0136.md).</sub>
+**Declined:**
+- **One untyped signature answering `array<mixed>`.** It is simpler to declare and puts a cast at every
+  call site, which costs more than the type the registry carries for this one parameter.
+
+<sub>See also [`types/object-top`](types.md#types-object-top), [`core-api/shape-rules`](core-api.md#core-api-shape-rules).</sub>
 
 <a id="concurrency-an-all-field-answers-what-its-callable-declares"></a>
 
@@ -163,7 +203,7 @@ naming: until a `callable` carried a signature, the type existed only at the wri
 framework storing callables in a variable could not use `all` at all. It can now, and it pays only
 for the signatures it declines to write.
 
-<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type). Decided in [0072](../decisions/0072.md), [0114](../decisions/0114.md), [0136](../decisions/0136.md).</sub>
+<sub>See also [`types/callable-signature`](types.md#types-callable-signature), [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-is-the-only-function-type`](types.md#types-callable-is-the-only-function-type).</sub>
 
 <a id="concurrency-map-preserves-keys-and-order"></a>
 
@@ -184,7 +224,11 @@ fixed set of differently-typed things, and one operation over many same-typed th
 spellings of one. An anonymous object cannot express "one per element of a runtime array", and an array
 cannot carry a per-element type. Each refuses the other's subject rather than coercing it.
 
-<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/callback-receives-value-and-key`](core-api.md#core-api-callback-receives-value-and-key). Decided in [0072](../decisions/0072.md).</sub>
+**Declined:**
+- **`parallel_map`.** It takes its subject last and abbreviates its name, so it breaks
+  [`core-api/subject-first`](core-api.md#core-api-subject-first) and the library's naming; `map` on `Core\Task` is the same job.
+
+<sub>See also [`core-api/subject-first`](core-api.md#core-api-subject-first), [`core-api/callback-receives-value-and-key`](core-api.md#core-api-callback-receives-value-and-key).</sub>
 
 <a id="concurrency-limit-and-deadline-are-the-only-bounds"></a>
 
@@ -208,13 +252,18 @@ and cost every group a word the watchdog has to find. There is no default deadli
 none is bounded by its request's `wall_time` and `cpu_time`, and both are uncapped unless the
 deployment writes them.
 
-These two are the whole vocabulary. There is no `timeout` member — a timeout over a group is this
-option, and a timeout on one I/O call is that call's own option — and there is no `race`: over a
-heterogeneous shape its answer would be a union the caller must discriminate, which is `mixed` and a
-cast in practice. The homogeneous case that is actually wanted, hedging one request across two
-replicas, has a name reserved for it so it cannot arrive twice.
+These two are the whole vocabulary, and an optional argument is an options field, never a wrapper
+function ([`core-api/options-bag`](core-api.md#core-api-options-bag)).
 
-<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/duration`](types.md#types-duration), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api). Decided in [0072](../decisions/0072.md).</sub>
+**Declined:**
+- **A `timeout` member.** A timeout over a group is `deadline`, and a timeout on one I/O call is
+  that call's own `timeout` option ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)).
+- **`race`.** Over a heterogeneous shape its answer is a union the caller must discriminate, which
+  is `mixed` and a cast in practice. The case actually wanted, hedging one request across two
+  replicas, is homogeneous: `Core\Task::first(array<T>, callable, {deadline?})` is the name kept for
+  it, so it cannot arrive as a second `race`, and it lands additively when a program needs it.
+
+<sub>See also [`core-api/options-bag`](core-api.md#core-api-options-bag), [`types/duration`](types.md#types-duration), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api).</sub>
 
 <a id="concurrency-nothing-is-still-running-when-a-call-returns"></a>
 
@@ -246,7 +295,13 @@ It is bought at a stated price — [`concurrency/a-deadline-bounds-the-cancel-no
 it is why cancellation is the runtime's own teardown rather than anything a program participates in
 ([`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code)).
 
-<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0072](../decisions/0072.md), [0266](../decisions/0266.md).</sub>
+**Declined:**
+- **Propagating the first throw without waiting for the siblings.** It returns sooner and is what a
+  naive group does, and it leaves running work that nobody holds a handle to: the orphan
+  [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)'s tree accounting exists to rule out, and a row lock still
+  held after the `catch` has run.
+
+<sub>See also [`concurrency/cancellation-runs-no-user-code`](concurrency.md#concurrency-cancellation-runs-no-user-code), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/log-write`](errors.md#errors-log-write), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0266](../decisions/0266.md).</sub>
 
 <a id="concurrency-cancellation-runs-no-user-code"></a>
 
@@ -272,7 +327,14 @@ The consequence to learn: **work that must happen does not go in a cancellable t
 goes inside the transaction that made it necessary, in
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)'s deferred work, or in a durable queue.
 
-<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`http-server/a-request-outlives-a-client-that-goes-away`](http-server.md#http-server-a-request-outlives-a-client-that-goes-away). Decided in [0072](../decisions/0072.md), [0106](../decisions/0106.md), [0265](../decisions/0265.md).</sub>
+**Declined:**
+- **Cancellation as a catchable `Throwable`.** It is familiar and lets a `finally` clean up, and it
+  runs unbudgeted code inside a failure, which [`errors/escalation-ladder`](errors.md#errors-escalation-ladder) refuses at every tier.
+- **A narrow cleanup hook that runs on cancellation.** It would need a reserved budget and a
+  zero-retry rule of its own, the way the ladder's tiers have one. That is a new mechanism with its
+  own argument to win, and it is not offered as an exception to this rule.
+
+<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`http-server/a-request-outlives-a-client-that-goes-away`](http-server.md#http-server-a-request-outlives-a-client-that-goes-away). Decided in [0265](../decisions/0265.md).</sub>
 
 <a id="concurrency-a-deadline-bounds-the-cancel-not-the-return"></a>
 
@@ -283,7 +345,8 @@ goes inside the transaction that made it necessary, in
 A `deadline` bounds when cancellation is **requested**, not when the call returns.
 
 A child blocked mid-statement cannot simply be abandoned: a database connection with an unread
-result set is unusable, so the statement is cancelled through the driver's own mechanism and the
+result set is unusable, so the statement is cancelled through the driver's own mechanism (`KILL
+QUERY`, `PQcancel`, `sqlite3_interrupt`) and the
 call waits until that connection is back in a known state. That drain is bounded in turn by the
 connection's own `timeout`, after which the connection is **closed rather than returned to the
 pool**.
@@ -293,7 +356,12 @@ Overrunning a stated deadline by a bounded amount is the correct trade against h
 connection back to a pool, where it would fail some later, unrelated request. A deadline is a bound
 on when the work stops being asked for; it is not a hard wall-clock guarantee on return.
 
-<sub>See also [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state). Decided in [0072](../decisions/0072.md).</sub>
+**Declined:**
+- **Returning at the deadline and abandoning the blocked child.** It would make the deadline exact,
+  and it breaks [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns) and puts a
+  connection with an unread result set back in the pool.
+
+<sub>See also [`concurrency/nothing-is-still-running-when-a-call-returns`](concurrency.md#concurrency-nothing-is-still-running-when-a-call-returns), [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`core-classes/db-connection-busy-state`](core-classes.md#core-classes-db-connection-busy-state).</sub>
 
 <a id="concurrency-after-response-outlives-the-connection"></a>
 
@@ -325,9 +393,18 @@ peer going away cancels nothing.
 **It is not a queue.** Nothing is durable, nothing retries, and a process that dies loses the work
 with no record. Receipts, webhooks, cache warming and audit shipping are what it is for; anything
 that *must* happen belongs in the transaction that made it necessary or in a store the application
-owns.
+owns. The word "task" suggests a job queue to anyone who has used one, so the documentation of this
+member says it is not one in its first paragraph.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0072](../decisions/0072.md), [0006](../decisions/0006.md), [0266](../decisions/0266.md).</sub>
+**Declined:**
+- **Flushing the response and running on to the end of the script.** That shape is invisible to
+  every limit and every account, has no deadline, no cap and no cancellation, and cannot be told
+  apart from a slow request in any metric.
+- **Making this member durable.** Durability needs a store, a schema, retries, a dead-letter table
+  and an operator command, which is a subsystem and not one member; it is the job queue's
+  ([`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table)).
+
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`core-classes/temporary-dir-sweep`](core-classes.md#core-classes-temporary-dir-sweep), [`core-classes/html-later`](core-classes.md#core-classes-html-later). Decided in [0266](../decisions/0266.md).</sub>
 
 <a id="concurrency-only-the-request-registers-deferred-work"></a>
 
@@ -350,7 +427,7 @@ extend itself is a tree that never leaves flight, and the whole argument for
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) is that the tree outlives the connection
 only a little.
 
-<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/a-child-belongs-to-the-calling-task`](concurrency.md#concurrency-a-child-belongs-to-the-calling-task). Decided in [0072](../decisions/0072.md).</sub>
+<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`concurrency/a-child-belongs-to-the-calling-task`](concurrency.md#concurrency-a-child-belongs-to-the-calling-task).</sub>
 
 <a id="concurrency-deferred-work-cannot-write-the-response"></a>
 
@@ -371,7 +448,7 @@ affect, so the log is the whole of what it can reach.
 `all` and `map` compose inside deferred work with no special case, because a deferred callable runs as an
 ordinary task.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0072](../decisions/0072.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member).</sub>
 
 <a id="concurrency-deferred-is-bounded-by-two-directives"></a>
 
@@ -392,12 +469,12 @@ it counts **trees**, not registrations: one request with ten deferred callables 
 **`deadline` is `Runtime`** — an ordinary per-request default a call may name its own value for,
 bounded like every other limit by the tree's remaining budget.
 
-What it spends, stated so an operator sizes it rather than discovers it: a deferred tree holds its
-arena at its peak for the length of its deferred work, so the worst case per core is `max_concurrent
-× [limits.hard] memory` **on top of** in-flight requests. That is bounded, and it is O(in-flight
-deferred trees) rather than O(requests served).
+- **Memory:** a deferred tree holds its arena at its peak for the length of its deferred work, so
+  the worst case per core is `max_concurrent × [limits.hard] memory` **on top of** in-flight
+  requests. That is bounded, it is O(in-flight deferred trees) rather than O(requests served), and
+  it is stated so an operator sizes it rather than discovers it.
 
-<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive). Decided in [0072](../decisions/0072.md), [0005](../decisions/0005.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection), [`programs/memory-priority`](programs.md#programs-memory-priority), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive).</sub>
 
 <a id="concurrency-a-full-deferred-executor-throws"></a>
 
@@ -419,7 +496,11 @@ durability. A deployment reaching this cap has outgrown
 [`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection) and wants the durable queue it declines to
 be. Failing loudly is what makes that legible, instead of receipts quietly ceasing to be sent.
 
-<sub>See also [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0072](../decisions/0072.md).</sub>
+**Declined:**
+- **Queueing past the cap.** It is smoother under a burst, and it is the hidden overload and lost
+  work described above.
+
+<sub>See also [`concurrency/deferred-is-bounded-by-two-directives`](concurrency.md#concurrency-deferred-is-bounded-by-two-directives), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="concurrency-cross-request-state-is-explicit"></a>
 
@@ -443,7 +524,7 @@ observable only as speed, and a metrics registry holds approximate aggregates th
 read and nothing decides on. Both are charged to a core and capped, which is the same accounting
 [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core) records.
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0059](../decisions/0059.md), [0052](../decisions/0052.md), [0004](../decisions/0004.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/closed-doors`](security.md#security-closed-doors), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="concurrency-the-process-tier-is-one-store-per-process"></a>
 
@@ -466,8 +547,17 @@ by the same graph copy every tier uses ([`concurrency/a-cached-value-is-copied-a
 This is the first mutable state the cores share, so the map is sharded behind read/write locks and `get`
 takes a read lock and never a write, which is what keeps a lookup off a `&mut` on the request path. The
 shard count is a fixed constant rather than a directive or a function of `[server] workers`: the map is
-created before the workers exist under `nvs serve`, and there is one worker under `nvs run`. Eviction is by
-write age, as it is in the local tier, and a full tier forgets rather than failing a `put`.
+created before the workers exist under `nvs serve`, and there is one worker under `nvs run`. The constant
+is 64: a mask over the one hash the key already needs, so sharding costs no second hash, and 64 covers the
+core counts a serving box plausibly has. Contention here is write-side only, and sharding is invisible to
+a program, so the number can move without anything in this contract changing. Eviction is by write age, as
+it is in the local tier, and a full tier forgets the key written longest ago rather than failing a `put`.
+
+`[cache.process] max_size` ships at `32M`, the figure `[cache.local] max_size` ships. The same number
+means less memory here: this tier is held once per process where the local tier is held once per core, so a
+working set moved from `local()` to `process()` at stock configuration lowers the machine's ceiling from
+`32M` times `[server] workers` to `32M`. An expired entry is not swept by a timer: a sweep is a timer and
+a write pass over a shard, and what it would buy, memory returned slightly sooner, the cap already buys.
 
 An entry's real key carries the `[[app]]` and the configuration generation that was live when it was
 written, so two apps on one server never read each other's entries and a reload never serves an entry
@@ -477,10 +567,22 @@ No capability gates it, for the reason the local tier needs none: a capability i
 *effect*, and this tier has no door. What is bounded instead is footprint —
 `[cache.process] max_size`, `System`-class and applied on reload — and every byte of it moves the detached
 balance under a bracket the store itself holds
-([`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance)). What it spends is O(working set)
-once per process, where the local tier is O(cores × working set), and never O(requests served).
+([`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance)).
 
-<sub>See also [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent), [`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core). Decided in [0181](../decisions/0181.md).</sub>
+- **Memory:** at most `[cache.process] max_size` bytes, once per process, on the detached balance:
+  O(working set), where the local tier is O(cores × working set), and never O(requests served). On top
+  of it, 64 locks and 64 empty maps, allocated once at process start.
+
+**Declined:**
+- **A `[cache.process] shards` key, or a shard count derived from `[server] workers`.** The map exists
+  before the workers do, a derived count would size the CLI's map at one shard, and 64 empty shards are
+  below the granularity at which footprint is worth a directive.
+- **A sweeper thread for expired entries.** The cap already evicts, and a sweep is a timer and a write
+  pass over a shard for memory returned slightly sooner.
+- **A capability key for this tier.** It has no door to an effect, so there is nothing for a grant to
+  check ([`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers)).
+
+<sub>See also [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`concurrency/the-local-tier-cannot-hold-what-must-be-coherent`](concurrency.md#concurrency-the-local-tier-cannot-hold-what-must-be-coherent), [`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core).</sub>
 
 <a id="concurrency-put-and-get-are-the-whole-boundary"></a>
 
@@ -507,9 +609,11 @@ pretends otherwise.
 That is why a lock, a counter or a limiter is never built on the cache. The mechanisms that need
 those guarantees have their own homes over the shared tier, where the store's own atomicity is what
 provides them — `Core\RateLimit::consume` for a limit, a lease for scheduled work, and the database
-for anything else.
+for anything else. There is no in-process coordination primitive at all, so a program that needs one
+pays a network round trip; that floor is deliberate, because an in-process one would be the channel
+[`security/no-cross-request-state`](security.md#security-no-cross-request-state) closes.
 
-<sub>See also [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers). Decided in [0059](../decisions/0059.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`core-api/two-cache-tiers`](core-api.md#core-api-two-cache-tiers).</sub>
 
 <a id="concurrency-a-cached-value-is-copied-across-the-boundary"></a>
 
@@ -537,7 +641,12 @@ The copy is a real per-`get` cost, paid to keep the request model intact. An imp
 later share immutable scalars within a core by refcount, since a core is single-threaded — an
 optimisation, and it must not be observable.
 
-<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate). Decided in [0059](../decisions/0059.md), [0033](../decisions/0033.md), [0181](../decisions/0181.md).</sub>
+**Declined:**
+- **Reference-sharing, with the cache pinning values against the wholesale drop.** Beyond tying a
+  heap's lifetime to what a request read, it would leak a mutable value between requests unless every
+  cached value were deeply immutable, which is a second value model to maintain.
+
+<sub>See also [`classes/two-copy-depths`](classes.md#classes-two-copy-depths), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`iteration/generator-stays-in-one-isolate`](iteration.md#iteration-generator-stays-in-one-isolate).</sub>
 
 <a id="concurrency-cache-memory-is-charged-to-the-core"></a>
 
@@ -553,13 +662,17 @@ every byte belongs to a request in flight.
 forgets an older entry and succeeds; a program never sees a store fail because the tier was full,
 which is the whole point of a tier whose contract already says any entry may be absent.
 
-Stated in the form the memory rule requires: the local tier costs **O(cores × working set)** — eight
-cores hold up to eight copies of the same hot entry — bounded by the configured cap. It is
-explicitly **not** O(requests served): an entry's lifetime is governed by TTL and eviction, never by
-how much traffic has passed through. That multiplication is the price of the isolation it buys, and
-it is recorded so it is a known number rather than a surprise in production.
+- **Memory:** the local tier costs **O(cores × working set)** — eight cores hold up to eight copies of
+  the same hot entry — bounded by the configured cap per core. It is explicitly **not** O(requests
+  served): an entry's lifetime is governed by TTL and eviction, never by how much traffic has passed
+  through. That multiplication is the price of the isolation it buys, spent deliberately under
+  [`programs/memory-priority`](programs.md#programs-memory-priority).
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit). Decided in [0059](../decisions/0059.md), [0004](../decisions/0004.md), [0005](../decisions/0005.md).</sub>
+The same split costs throughput as well as footprint: on a cold cache and evenly spread traffic the
+hit rate is lower than one shared segment's by roughly the core count, paid once per core rather than
+per request, and warm caches converge.
+
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit).</sub>
 
 <a id="concurrency-a-cross-request-stores-bytes-are-its-own-balance"></a>
 
@@ -594,7 +707,10 @@ them cannot put the allocation and the release on one balance at all, and bracke
 turn a bounded credit into an unbounded one — such a store stays unbracketed and records the gap in
 its own module doc rather than taking the guard and breaking its symmetry.
 
-<sub>See also [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`](errors.md#errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0174](../decisions/0174.md).</sub>
+- **Memory:** a bracketed store holds one copy of each payload it is handed, made on its write path
+  after the value is already encoded. That copy is what the symmetry costs.
+
+<sub>See also [`concurrency/cache-memory-is-charged-to-the-core`](concurrency.md#concurrency-cache-memory-is-charged-to-the-core), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`](errors.md#errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="concurrency-the-local-tier-cannot-hold-what-must-be-coherent"></a>
 
@@ -620,7 +736,7 @@ The test is what a program relies on, not where bytes live
 not one: a per-core metrics registry outlives requests and passes, because no program can read a
 metric at all and its values are approximate aggregates merged arithmetically at scrape.
 
-<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0059](../decisions/0059.md), [0075](../decisions/0075.md), [0073](../decisions/0073.md), [0181](../decisions/0181.md).</sub>
+<sub>See also [`core-api/session-roster`](core-api.md#core-api-session-roster), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members), [`security/no-cross-request-state`](security.md#security-no-cross-request-state).</sub>
 
 <a id="concurrency-a-secret-is-cached-only-sealed"></a>
 
@@ -649,9 +765,20 @@ What sealing buys, exactly: a secret cannot be read by code that knows an entry'
 can reach the shared tier without leaving the process in the clear; and a tampered, moved or replayed entry
 is a miss. **It does not protect a secret from a compromised process** or a memory dump — the ring lives in
 the same memory as the plaintext. What it costs is one seal per `putSecret` and one open per ring key tried
-per `getSecret`, a ring ordered newest-first making the common case one open.
+per `getSecret`, a ring ordered newest-first making the common case one open. A program that puts a
+secret in a cache without a ring gets a compile error rather than a plaintext token in a network store,
+which is the whole return on making the door narrow.
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/a-secret-fill-runs-once-per-process`](concurrency.md#concurrency-a-secret-fill-runs-once-per-process), [`http-server/a-session-holds-a-secret-only-sealed`](http-server.md#http-server-a-session-holds-a-secret-only-sealed), [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload). Decided in [0181](../decisions/0181.md).</sub>
+- **Memory:** a sealed entry costs its ciphertext: the value, a nonce, a tag, an eight-octet expiry and
+  an eight-octet lifetime, held by whichever tier it was put in under that tier's cap.
+
+**Declined:**
+- **A tier that holds `secret` values in the clear**, since a process that holds the ring may as well
+  hold the plaintext. That tier would have to differ from the one an ordinary value uses, or the boundary
+  refusal would depend on which tier was asked for. Both are a second contract; the sealed door keeps one
+  boundary rule and one payload type, and the tier does not know what it holds.
+
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`concurrency/a-cached-value-is-copied-across-the-boundary`](concurrency.md#concurrency-a-cached-value-is-copied-across-the-boundary), [`concurrency/a-secret-fill-runs-once-per-process`](concurrency.md#concurrency-a-secret-fill-runs-once-per-process), [`http-server/a-session-holds-a-secret-only-sealed`](http-server.md#http-server-a-session-holds-a-secret-only-sealed), [`core-api/signing-is-over-a-payload`](core-api.md#core-api-signing-is-over-a-payload).</sub>
 
 <a id="concurrency-a-secret-fill-runs-once-per-process"></a>
 
@@ -674,17 +801,46 @@ releases it, so a cancelled fetch never wedges a key, and a `fill` that asks for
 
 **An entry inside the last fifth of its lifetime is still answered to every caller** while exactly one of
 them runs `fill` to replace it, so the expiry of a hot key costs nobody a wait. The window is a fraction
-rather than a duration because the tier does not know what a lifetime means to its caller. Refresh-ahead is
-`getSecret`-with-a-`fill` and nothing else: a plain `get` past its lifetime is simply absent.
+rather than a duration because the tier does not know what a lifetime means to its caller. A fifth leaves
+four fifths of every lifetime untouched and gives a fetch room to fail once and be retried by the next
+caller before anybody waits. Refresh-ahead is `getSecret`-with-a-`fill` and nothing else: a plain `get`
+past its lifetime is simply absent.
+
+**`[cache.process] fill_wait` ships at `5s`,** `System`-class and applied on reload. The filler may spend
+its whole `[http.client] deadline`, which ships at `30s`, but a waiter is a request held on the latency
+path, and a slow provider that held every in-flight request on the box for half a minute is the outage
+this tier exists to prevent. Five seconds is generous for a token endpoint and short enough that a caller
+gets a `TimeoutError` it can answer. So a `fill` slower than the wait succeeds for the filler while its
+waiters throw, and the callers after it find the entry; an operator whose provider is slower raises the
+key. It is `System`-class because how long one core's request may block on another's fetch is not a
+bargain one request gets to strike for everyone, and a caller who wants a different wait writes `wait` at
+the call site, where review sees it. A zero wait and `false` are refused at boot under `E0642`: zero makes
+every concurrent caller but one throw, the stampede's failure with the fetches removed, and there is no
+spelling for an unbounded wait ([`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait)).
 
 It is once per **process**, not once per fleet. On the shared tier every other process runs its own `fill`,
 and a fleet-wide single fetch is a lease over that store — an owner, a renewal and a recovery path — rather
 than anything this key spells. This is also the one step in `Core\Cache` that observes an entry and writes
 it, and it is not a coordination primitive
 ([`concurrency/put-and-get-are-the-whole-boundary`](concurrency.md#concurrency-put-and-get-are-the-whole-boundary)): a program cannot take the fill, cannot see who
-holds it, and cannot make one key's fill wait on another's.
+holds it, and cannot make one key's fill wait on another's. What it buys is that the fetches a fleet makes
+against a provider are bounded by its process count rather than its request rate.
 
-<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`concurrency/the-process-tier-is-one-store-per-process`](concurrency.md#concurrency-the-process-tier-is-one-store-per-process), [`concurrency/put-and-get-are-the-whole-boundary`](concurrency.md#concurrency-put-and-get-are-the-whole-boundary), [`security/no-cross-request-state`](security.md#security-no-cross-request-state). Decided in [0181](../decisions/0181.md).</sub>
+- **Memory:** the fill table holds one slot per key being filled at that moment: O(concurrent fills),
+  not O(keys) and not O(requests).
+
+**Declined:**
+- **Caching a `fill` failure**, so an outage is not re-attempted by every caller. It puts one request's
+  exception into another's path, and the cure for a hammered provider is the caller's own retry policy,
+  which is already jittered and bounded.
+- **A fleet-wide single fill.** It is a lease, not a cache entry: an owner, a renewal, recovery from an
+  owner that died mid-fetch, and a story for a network partition, none of which belongs behind a `fill`
+  key.
+- **A refresh-ahead window of a tenth or a half.** A tenth of a short lifetime is a window a slow fetch
+  does not fit inside, which puts callers back into the wait refresh-ahead exists to remove; a half
+  doubles the fetch rate against the provider for values that are still good.
+
+<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`concurrency/the-process-tier-is-one-store-per-process`](concurrency.md#concurrency-the-process-tier-is-one-store-per-process), [`concurrency/put-and-get-are-the-whole-boundary`](concurrency.md#concurrency-put-and-get-are-the-whole-boundary), [`security/no-cross-request-state`](security.md#security-no-cross-request-state).</sub>
 
 <a id="concurrency-a-connection-is-a-root-isolate"></a>
 
@@ -710,7 +866,20 @@ a connection is a root, sees only what its arguments copied in, and ends when th
 timeout fires or a budget is exceeded. A fatal error inside one tears down the connection and nothing
 wider ([`errors/escalation-ladder`](errors.md#errors-escalation-ladder)), and the peer is told with a defined close code.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0017](../decisions/0017.md), [0005](../decisions/0005.md), [0072](../decisions/0072.md).</sub>
+- **Memory:** each open connection holds an arena and a task stack for as long as the peer keeps it
+  open, idle or not. Memory scales with concurrent connections and not with the request rate, so a
+  connection-heavy deployment is sized for its connections, and ten thousand idle connections cost ten
+  thousand arenas.
+
+**Declined:**
+- **A connection as a suspended request.** A request's budget, teardown and observability all assume
+  it ends, and a request held open for hours would keep its session and cookies for the life of the
+  socket, which is what ending the upgrading request prevents.
+- **A dedicated connection worker pool outside the request path.** It is a second execution model,
+  with its own scheduling, isolation and security review, bought for connection counts the audience
+  does not have.
+
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite).</sub>
 
 <a id="concurrency-an-upgrade-is-spawn-shaped"></a>
 
@@ -735,7 +904,15 @@ side.
 Calling it is what performs the upgrade, and it answers `void`. Nothing in this language reads a
 handler's return value, so an upgrade handed back to the runtime would be handed to nobody.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md), [0031](../decisions/0031.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0077](../decisions/0077.md).</sub>
+**Declined:**
+- **A capturing closure as the target.** It would either capture the request's heap, or copy the
+  captures silently at the boundary, hiding the copy `args` keeps visible and turning a captured handle
+  into a run-time error instead of a compile error. A static method carries code and nothing else, and
+  its input arrives through the same `args` a file's does.
+- **Returning the upgrade to perform it.** That needs a value type a dispatcher interprets, which is a
+  second response model ([`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing)).
+
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`classes/graph-copy`](classes.md#classes-graph-copy), [`concurrency/an-upgrades-options-are-spawn-scripts`](concurrency.md#concurrency-an-upgrades-options-are-spawn-scripts), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>
 
 <a id="concurrency-an-upgrades-options-are-spawn-scripts"></a>
 
@@ -759,7 +936,7 @@ accepted and dropped. A narrowing that is silently ignored hands the connection 
 request meant to give up, and a refusal is the only spelling that lets a reader tell a narrowing that
 was applied from one that was not.
 
-<sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0083](../decisions/0083.md), [0006](../decisions/0006.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`concurrency/an-upgrade-is-spawn-shaped`](concurrency.md#concurrency-an-upgrade-is-spawn-shaped), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing).</sub>
 
 <a id="concurrency-a-connection-is-a-loop"></a>
 
@@ -784,7 +961,12 @@ recover.
 
 A `Core\Socket\Message` cannot be constructed, so the only way to hold one is to have received it.
 
-<sub>See also [`concurrency/receive-is-the-one-wait`](concurrency.md#concurrency-receive-is-the-one-wait), [`concurrency/a-peer-frame-is-tainted`](concurrency.md#concurrency-a-peer-frame-is-tainted), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md).</sub>
+**Declined:**
+- **A callback handler interface** (`onOpen`, `onMessage`, `onClose`). It is the shape a language
+  with coloured async settles on, and stackful coroutines exist so that control flow stays
+  straight-line.
+
+<sub>See also [`concurrency/receive-is-the-one-wait`](concurrency.md#concurrency-receive-is-the-one-wait), [`concurrency/a-peer-frame-is-tainted`](concurrency.md#concurrency-a-peer-frame-is-tainted), [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite).</sub>
 
 <a id="concurrency-receive-is-the-one-wait"></a>
 
@@ -806,7 +988,7 @@ There is nothing for such a second member to drain in any case: the subscriber q
 connection, and `receive()` is the only thing that empties it. A queue that overflows closes *that*
 subscriber rather than blocking the publisher, and the overflow is asked before the wait.
 
-<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../decisions/0083.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic).</sub>
 
 <a id="concurrency-a-peer-frame-is-tainted"></a>
 
@@ -826,7 +1008,7 @@ metric label does — a name derived from user input is how one tenant subscribe
 so a name is built from checked values or it does not compile — and a `secret` may never be passed
 through an upgrade's arguments or published to a topic.
 
-<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic). Decided in [0083](../decisions/0083.md), [0024](../decisions/0024.md), [0082](../decisions/0082.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-loop`](concurrency.md#concurrency-a-connection-is-a-loop), [`core-classes/topic`](core-classes.md#core-classes-topic).</sub>
 
 <a id="concurrency-a-stream-that-outlives-its-request-is-a-connection"></a>
 
@@ -847,17 +1029,67 @@ isolate a WebSocket gets — a root, its own arena, its own budget, and `send`.
 **What an event stream has no `receive` for is a peer, not a wait.** Its client cannot send on the
 stream, so there is no second source of frames; topics still arrive, and `receive()` on a
 connection-scoped event stream waits on its subscriptions alone. On the request-scoped door it throws
-instead, there being no isolate for a wait to park in.
+instead, there being no isolate for a wait to park in, and a request parked on one would never end.
+
+**Both event-stream doors return one type, `Core\Sse`.** A helper that takes a `Core\Sse` and writes
+events is written once and called from either side, the shape `Core\Socket::current` has for code
+that runs inside a connection. A member one door cannot serve throws there rather than being absent,
+and the member each door is missing is the hand-over it reports
+([`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate)).
+
+**Resumption is the client's `Last-Event-ID`, and the runtime keeps no replay buffer.** A connection
+isolate shares nothing with the request that opened it ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)), so
+the handler reads the header and passes it through `args:`; the request-scoped door reads it
+directly. Replay needs the application's own event log, and the id is the key into it.
+
+**A request-scoped event stream is reconnected by `EventSource` when the request ends.** That door is
+for `fetch`-based readers and for progress views that close themselves, and a handler that wants the
+client to stop answers a non-`200` on the next request.
+
+**Both doors open with `Cache-Control: no-cache, no-transform` and `X-Accel-Buffering: no`.** A
+production deployment is a proxied origin, and nginx buffers a proxied response by default, which
+holds every event until the stream ends. The second header is an instruction *to* a proxy, not a
+proxy behaviour this server implements, so
+[`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns) is untouched by it.
 
 Both spellings are built. `Core\Response::stream` and `Core\Sse::stream` write a body that ends with
-the response, from inside the request isolate; `Core\Sse::upgrade` opens the connection. Neither
-existed when this line was first drawn, and the line itself is what did not change when they landed.
+the response, from inside the request isolate; `Core\Sse::upgrade` opens the connection. Both write
+through one cell between the writing isolate and the connection that frames the body, so the two
+spellings are one model with two hand-overs rather than two mechanisms.
+
+**One chunk is in flight, and the writer parks until the connection has taken it.** Backpressure is
+structural: a program that writes faster than the peer reads is slowed by the peer, nothing
+accumulates in between, and there is no queue depth to choose. A writer that could park forever is
+the one failure this shape has, so the wait is bounded by the connection's send timeout
+([`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite)), and a consumer that has gone away closes its
+writer at once. A whole body keeps its exact length and its `Content-Length`; a streaming body
+reports none and is sent chunked.
 
 Choosing by protocol instead of by lifetime is the mistake the line exists to prevent. Server-sent
 events over a request that ends is a streaming response and not a connection; a WebSocket is never
 anything but a connection.
 
-<sub>See also [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md), [0176](../decisions/0176.md), [0177](../decisions/0177.md).</sub>
+- **Memory:** an open event stream holds one wake pair and one chunk in flight, plus the framing
+  buffer and subscriber queue a connection already pays for, and opening one draws once from the
+  random number generator. That is O(in-flight), never O(events sent), and a response that does not
+  stream pays nothing.
+
+**Declined:**
+- **A narrower writer type for the request-scoped door.** It would make every member available on
+  the type that declares it, and remove the reason one type exists: a helper written once and called
+  from both doors.
+- **A `send`/`sendJson` split**, on `Core\Socket::send`/`sendBytes`'s model. It doubles the surface
+  for a choice the caller never has to make: `send` writes a `string` raw and JSON-encodes anything
+  else.
+- **The connection door alone, with a writing path of its own.** The event stream's `send` would
+  reach the wire through a path the request-scoped spelling could not use, and the language would
+  carry two mechanisms for one model.
+- **A queue between the writer and the connection.** A queue needs a depth somebody chooses, and
+  what it holds grows with how far the peer falls behind; one chunk in flight holds one chunk.
+- **A replay buffer in the runtime.** A bounded buffer answers some resumptions and silently not
+  others, with the boundary decided by how fast the client reconnected.
+
+<sub>See also [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>
 
 <a id="concurrency-two-doors-one-isolate"></a>
 
@@ -884,7 +1116,11 @@ Each member names the hand-over *it* is missing, and neither report stands for t
 carrying both would be a slot the connection has to ask the *kind* of before it could use it, which
 is a tag standing in for a distinction the types already make.
 
-<sub>See also [`concurrency/a-stream-that-outlives-its-request-is-a-connection`](concurrency.md#concurrency-a-stream-that-outlives-its-request-is-a-connection), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0083](../decisions/0083.md).</sub>
+**Declined:**
+- **Event streams alone, with no WebSocket.** The isolate question has to be answered the moment any
+  stream outlives its request, and once it is answered a WebSocket costs only its framing.
+
+<sub>See also [`concurrency/a-stream-that-outlives-its-request-is-a-connection`](concurrency.md#concurrency-a-stream-that-outlives-its-request-is-a-connection), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>
 
 <a id="concurrency-connection-bounds-are-finite"></a>
 
@@ -941,7 +1177,7 @@ request.
 An application that wants a longer-lived connection sends anything at all — a ping is a frame, and
 the loop never sees one.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members). Decided in [0083](../decisions/0083.md), [0074](../decisions/0074.md), [0075](../decisions/0075.md), [0004](../decisions/0004.md), [0177](../decisions/0177.md), [0219](../decisions/0219.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly), [`concurrency/two-doors-one-isolate`](concurrency.md#concurrency-two-doors-one-isolate), [`core-classes/ratelimit-two-members`](core-classes.md#core-classes-ratelimit-two-members).</sub>
 
 <a id="concurrency-a-connection-keeps-its-compiled-unit"></a>
 
@@ -961,7 +1197,7 @@ The swap is a write to the compilation table and nothing else: a program already
 unit's pages, so the next resolve of that path hands the new unit to whoever asks next while the open
 connection never sees it.
 
-<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0083](../decisions/0083.md), [0017](../decisions/0017.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly).</sub>
 
 <a id="concurrency-a-drain-closes-a-connection-cleanly"></a>
 
@@ -993,8 +1229,11 @@ sends is work in progress with nothing to finish, so the period is its bound: fr
 connection first saw the drain plus the connection block's period, its next `send` closes the
 connection with `going away` and throws, and a `Core\Time::sleep` on the connection ends at that
 instant at the latest and is woken when the drain begins, so a long sleep does not hide a short
-period. So a stop is bounded by the work in flight and never by the connections that happen to be
-open.
+period. A `send` begun before that instant is never cut, however late in the period it finishes:
+the period is for the frame a program received just before the drain and the answer it is about to
+send. A program parked on neither the socket nor a sleep, such as a topic subscription or a database
+wait, runs to that wait's own bound. So a stop is bounded by the work in flight and never by the
+connections that happen to be open.
 
 A connection is made to see it: **beginning the drain wakes every parked wait**, rather than leaving
 a connection to notice at its own idle timer — which would compose the drain period with
@@ -1007,7 +1246,52 @@ loop. The socket belongs to the isolate, so closing it from outside would be wri
 another task is parked on — and a dropped descriptor gives the peer a reset, which is exactly what a
 client cannot tell apart from a network failure.
 
-<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit). Decided in [0083](../decisions/0083.md), [0078](../decisions/0078.md), [0186](../decisions/0186.md), [0205](../decisions/0205.md), [0206](../decisions/0206.md), [0209](../decisions/0209.md).</sub>
+So a stop is bounded by `drain_timeout` plus the write of whatever response was in flight, which
+`write_idle_timeout` already bounds. With nothing configured that is a minute, inside systemd's own
+default stop timeout of 90 seconds — the generated unit sets no `TimeoutStopSec` — with room for a
+distribution that lowered it. An operator whose requests legitimately run longer raises the directive
+rather than discovering a `SIGKILL`. A deployment killed inside the bound means the wake is not
+reaching some parked wait, which is a defect and not a tuning question.
+
+- **Memory:** an HTTP connection holds one `bool` for the close it has asked for, and each poll of
+  it reads the drain bit once, which the idle poll already paid. A WebSocket connection holds one
+  shared flag and one drain registration, so a `receive` already parked is cut by the drain, and each
+  readable wait on it swaps that flag once. A stream that registered no cut pays nothing. The
+  WebSocket's drain deadline is one instant per connection and one atomic load per `send`, and a
+  sleep on a connection holds one drain registration, released when the sleep ends.
+
+**Declined:**
+- **A fixed drain constant in the server.** Bounded, but an operator could not raise it for a
+  deployment whose requests are legitimately long, and the answer to that is a directive.
+- **`keepalive_timeout` as the drain period.** It bounds a connection doing nothing, and the drain
+  bounds connections doing something ([`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class)).
+- **A shorter default drain period, so an idle connection costs less.** The period bounds a request
+  that is working, and a shorter one cuts a slow response short on every restart.
+- **Closing an idle connection, or cancelling its isolate, from the accept loop.** The socket
+  belongs to the connection's own task, and a close reached in from outside is the reset this rule
+  prevents.
+- **A wake alone, with `receive` reading the drain bit again on each retry.** The retry loop runs
+  inside the host's `read`, under the WebSocket codec, and neither can be told to look at a bit. A
+  wake is only a hint ([`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract)), and treating it as more would break
+  every other wait.
+- **Polling the drain on a short deadline.** Every WebSocket the process holds would be woken every
+  few hundred milliseconds for a question that is almost never yes.
+- **A hard cap that cancels a connection's isolate once the period has passed.** It would bound a
+  program parked on a subscription or a database wait, but it hands the peer the reset this rule
+  prevents.
+- **`send` throwing the moment the drain begins.** A program that received a frame just before the
+  drain would lose its answer, and the period is for exactly that frame.
+- **A sleep under a begun drain returning at once.** A loop of `send` and sleep would then send as
+  fast as the peer reads for the whole period. Ending the sleep at the deadline sends nothing more
+  from a program that was asleep.
+- **Cutting the sleep in the host's timer against the process drain.** The host does not know the
+  connection's deadline and a detached test drain never reaches it, so the runtime asks the socket,
+  which knows both.
+- **`Connection: close` on the last response.** It covers only a response written after the drain
+  began, so a connection that had already answered, and one a browser opened and never used, would
+  still wait.
+
+<sub>See also [`concurrency/connection-bounds-are-finite`](concurrency.md#concurrency-connection-bounds-are-finite), [`concurrency/a-connection-keeps-its-compiled-unit`](concurrency.md#concurrency-a-connection-keeps-its-compiled-unit).</sub>
 
 <a id="concurrency-enqueue-commits-with-your-write"></a>
 
@@ -1031,7 +1315,7 @@ nothing said about it. Pointing `[queue] connection` at a separate database is p
 gives up this property; so does pushing on a different connection than the queue's
 ([`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted)).
 
-<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface). Decided in [0084](../decisions/0084.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface).</sub>
 
 <a id="concurrency-queue-four-members"></a>
 
@@ -1064,11 +1348,11 @@ capability, because they are the only ones that can destroy the record that work
 none because it names no block and so has nothing for a grant to be about, and `status`, `cancel` and
 `stats` read or release what the caller already holds a receipt for.
 
-<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`concurrency/a-job-between-attempts-is-pending`](concurrency.md#concurrency-a-job-between-attempts-is-pending), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose), [`concurrency/queue-deletion-is-explicit-and-bounded`](concurrency.md#concurrency-queue-deletion-is-explicit-and-bounded). Decided in [0084](../decisions/0084.md), [0063](../decisions/0063.md), [0153](../decisions/0153.md).</sub>
+<sub>See also [`core-api/shape-rules`](core-api.md#core-api-shape-rules), [`concurrency/a-job-between-attempts-is-pending`](concurrency.md#concurrency-a-job-between-attempts-is-pending), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose), [`concurrency/queue-deletion-is-explicit-and-bounded`](concurrency.md#concurrency-queue-deletion-is-explicit-and-bounded).</sub>
 
 <a id="concurrency-a-tag-groups-jobs-and-a-key-dedupes-them"></a>
 
-## A `tag` names a group of jobs and a `key` admits one pending job, and they are two columns because they are opposites  *(designed — not yet in the compiler)*
+## A `tag` names a group of jobs and a `key` admits one pending job, and they are two columns because they are opposites
 
 `rule:concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`
 
@@ -1086,12 +1370,18 @@ column rather than a feature: a deployment that never purges pays one nullable c
 write per enqueue for it, and nothing else.
 
 **Grouping is decided at enqueue, not at removal.** A caller that wants a batch deletable tags it when
-it creates the batch, because nothing can group rows that were never grouped. The alternative — a
-predicate over the payload — is refused: `args` is one JSON document in a text column, so selecting
-inside it is a different unindexed dialect on each of [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s backends, over
-the one table in the runtime that grows without bound.
+it creates the batch, because nothing can group rows that were never grouped. That is a real cost to
+the caller, and it puts the grouping decision in the source at the `push` that creates the group
+rather than hiding it in the sweep that removes it.
 
-<sub>See also [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members), [`concurrency/queue-deletion-is-explicit-and-bounded`](concurrency.md#concurrency-queue-deletion-is-explicit-and-bounded), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0153](../decisions/0153.md).</sub>
+**Declined:**
+- **A predicate over the payload.** `args` is one JSON document in a text column, so selecting inside
+  it is a different unindexed dialect on each of [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s backends, over the one
+  table in the runtime that grows without bound. A tag gives the same result in one indexed column on
+  every backend.
+- **`key` as the group.** It would cap every group at one pending job (above).
+
+<sub>See also [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members), [`concurrency/queue-deletion-is-explicit-and-bounded`](concurrency.md#concurrency-queue-deletion-is-explicit-and-bounded), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="concurrency-a-job-names-a-file"></a>
 
@@ -1111,7 +1401,17 @@ other file — cached, hot-reloadable, traceable and coverable with no special c
 ([`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate)) — and it is why reconstructing an object from a
 payload is a question the runtime never has to answer.
 
-<sub>See also [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`](concurrency.md#concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0023](../decisions/0023.md), [0071](../decisions/0071.md).</sub>
+`spawn script` and a connection upgrade also accept a static method, and a job does not, for the row
+reason above. Three constructs that run code sharing one shape is worth more than any one of them, so
+a fourth such construct takes the same shape or says why not.
+
+**Declined:**
+- **A job as a class implementing an interface**, discovered by enumeration. It reads better, and it is
+  what a framework layer can give on top. As the `Core` shape it would need a rule for rebuilding an
+  instance from a payload, where the derived codecs already decode plain data, and a file is what the
+  isolate machinery already takes.
+
+<sub>See also [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`](concurrency.md#concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers).</sub>
 
 <a id="concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue"></a>
 
@@ -1129,7 +1429,7 @@ The budget is what makes an overrun a bounded failure rather than a fatal
 capability door every other isolate goes through
 ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)), with the job's own path as the scope.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate). Decided in [0084](../decisions/0084.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate).</sub>
 
 <a id="concurrency-claiming-is-one-statement"></a>
 
@@ -1158,9 +1458,29 @@ A claimed job carries a **visibility timeout**: the claim is keyed on the instan
 worker that dies — or that overruns the window — matches no row when it tries to report, so the job
 becomes claimable again. That is what makes delivery at-least-once
 ([`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once)) and what makes bounded retries a rule rather than
-advice.
+advice. A worker that dies inside SQLite's immediate transaction leaves it unfinished and the row
+pending, so the same timeout makes the job claimable by the next worker.
 
-<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once). Decided in [0084](../decisions/0084.md), [0073](../decisions/0073.md), [0067](../decisions/0067.md), [0170](../decisions/0170.md).</sub>
+- **Memory:** nothing per job on the request path, and no allocation the queue was not already making.
+  The immediate transaction is the depth counter the connection already carries. On SQLite the claim
+  costs one transaction's round trips where PostgreSQL costs one statement, and those round trips are
+  function calls into a file rather than messages over a socket.
+
+**Declined:**
+- **A locking clause on SQLite for parity with the other dialects.** Parity of shape between dialect
+  arms is not a goal; parity of guarantee is, and the single writer already gives it.
+- **A deferred transaction with a retry loop around `SQLITE_BUSY`.** It keeps one `begin` and pays
+  for it with a busy-error path on every claim, which the busy timeout was meant to cover already.
+- **A single `update … where id = (select …) returning …` claim on SQLite.** The claim there is the
+  same select-then-update pair the other two-statement dialect runs, inside the immediate transaction.
+- **A build option for a wider SQLite grammar or a concurrent-write mode.** A queue statement that
+  parses only under a non-default SQLite build stops parsing the day the dependency moves. A SQLite
+  that admits two writers at once would also make the single-writer argument above false.
+- **A lease table, an advisory lock or a coordinator process**, on any backend. Contention is the
+  database's to settle, and SQLite, where the database settles it most completely, is the last place
+  for an exception.
+
+<sub>See also [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api), [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once).</sub>
 
 <a id="concurrency-a-job-between-attempts-is-pending"></a>
 
@@ -1181,7 +1501,7 @@ The state is a closed integer type ([`enums/closed-integer-type`](enums.md#enums
 it as: a program compares against a case rather than a magic number, and a `Queue\State` is not
 interchangeable with another `Core` enum that happens to share its ordinals.
 
-<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md).</sub>
+<sub>See also [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept).</sub>
 
 <a id="concurrency-delivery-is-at-least-once"></a>
 
@@ -1200,7 +1520,7 @@ time.
 Exactly-once is not on offer, from this queue or from any honest one: systems that claim it are
 describing at-least-once plus deduplication, which is what `key` and an idempotent job already are.
 
-<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md).</sub>
+<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept).</sub>
 
 <a id="concurrency-attempts-are-finite-and-a-dead-letter-is-kept"></a>
 
@@ -1216,15 +1536,29 @@ A job that exhausts its attempts **moves** to the dead-letter table, carrying it
 attempt's error and its timing. Every attempt's error is there because the jobs row accumulates it:
 an `errors` array on the job itself gains one entry — when the attempt started, the class thrown and
 its message, capped — as each attempt fails, and the move copies the array rather than writing the
-last failure alone (`docs/decisions/0187.md` § 4). Attempts are finite and an entry is capped, so the
-array is bounded by construction. The runtime never deletes it. `stats` reports the dead-letter depth
+last failure alone. Attempts are finite and an entry is capped, so the array is bounded by
+construction. The cap exists because a thrown message is arbitrary text under the program's control,
+and without it a job row would be a place to store a megabyte; it counts characters and cuts on a
+character boundary, because half a code point is not text a reader can parse. The runtime never
+deletes it. `stats` reports the dead-letter depth
 beside the pending and claimed counts, because an unwatched dead-letter table is the classic way a
 queue silently loses work and a depth nobody reads is the same as no record at all.
 
 An attempt ceiling of zero is refused at the call rather than accepted: it asks for a job dead-lettered
 by the enqueue that created it, and attempts are finite, not optional.
 
-<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md), [0074](../decisions/0074.md), [0076](../decisions/0076.md), [0187](../decisions/0187.md).</sub>
+**Memory:** a failing job's row grows by one capped entry per failed attempt, at most attempts × (the
+message cap plus the start time and the class), and the dead-letter row carries the same array. Both
+are released when the row is deleted or purged, so the cost is O(in-flight work), never O(jobs run).
+
+**Declined:**
+- **A third table of attempts.** It is a second write per failure on the table the claim already
+  contends over, a second thing `purge` has to delete, and a join to answer a question whose only
+  reader is a person looking at one dead job.
+- **Keeping only the last error.** It makes the common failure, a job that failed differently on each
+  attempt, unreadable from the row.
+
+<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/a-budget-overrun-is-a-failed-attempt`](concurrency.md#concurrency-a-budget-overrun-is-a-failed-attempt), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="concurrency-a-budget-overrun-is-a-failed-attempt"></a>
 
@@ -1243,7 +1577,7 @@ all is a failed attempt too rather than a second policy written beside the first
 throw, a refusal and a budget teardown, which is why a dead-letter row can hold any of the three
 without a second entry shape.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept).</sub>
 
 <a id="concurrency-cancel-is-a-race-it-can-lose"></a>
 
@@ -1261,11 +1595,11 @@ asks `status` is answered `Cancelled` instead of being refused. The receipt stil
 `status` can answer about, which is what keeps the two members usable in the order a program actually
 writes them ([`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members)).
 
-<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../decisions/0084.md).</sub>
+<sub>See also [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members).</sub>
 
 <a id="concurrency-queue-deletion-is-explicit-and-bounded"></a>
 
-## A queue row is removed by `delete` or `purge`, never while claimed, and never dead-lettered or pending unless the call says so  *(designed — not yet in the compiler)*
+## A queue row is removed by `delete` or `purge`, never while claimed, and never dead-lettered or pending unless the call says so
 
 `rule:concurrency/queue-deletion-is-explicit-and-bounded`
 
@@ -1274,13 +1608,16 @@ queue and a filter — and neither ever removes a claimed job, a dead-lettered o
 unless the call says so. `delete(Queue\Id): bool` is `cancel`'s twin and its `bool` means the same
 thing: this call is what removed it. `purge(string $queue, {state?, tag?, before?, limit?}): uint` is
 `stats`' twin and answers the count it removed. Neither invents a shape —
-[`core-api/shape-rules`](core-api.md#core-api-shape-rules) is satisfied by copying the two members these sit beside.
+[`core-api/shape-rules`](core-api.md#core-api-shape-rules) is satisfied by copying the two members these sit beside. They are two
+members because their subjects are a receipt and a queue name, and they are named for what they do:
+`delete` removes the thing named, `purge` removes what a filter selects.
 
 **A claimed job is not removable at all.** A worker holds a lease on that row, and there is no
 protocol for interrupting work in flight — the sentence
 [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose) already writes about `cancel`. Removing the row under
 a running worker would leave the job running to completion with nothing to report into, so `delete`
-answers `false` there and `purge` has no options that reach it.
+answers `false` there and `purge` has no options that reach it: a `purge` naming `State::Claimed`
+throws a `LogicError` at the call.
 
 **`Dead` and `Pending` are opt-in, and the default set is what has finished.** A purge naming no state
 removes succeeded and cancelled rows and nothing else. The dead-letter table is the record that work
@@ -1291,22 +1628,57 @@ discarded silently* a property of the system rather than of the runtime alone. `
 the mirror reason: a retention sweep that quietly dropped work still waiting to run is a data-loss bug
 wearing a maintenance costume.
 
+**One member reaches both tables.** A `purge` naming `State::Dead` deletes from the dead-letter table
+and every other selection from the jobs table. `delete` looks for the receipt in the jobs table and
+then in the dead-letter table, as `status` does, because a receipt names a job across the move and
+one that stopped working when the job ran out of attempts would expire without saying so.
+
 **`limit` is finite with nothing written**, per
 [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), and the count answered is what makes a
 caller's loop the shape that drains a large table. The first `purge` a deployment runs is against the
 table that has been growing since it was deployed, and an unbounded `DELETE` there holds a lock on the
-connection the application enqueues through for as long as it takes.
+connection the application enqueues through for as long as it takes. A default that ran to
+completion would make the correct call and the catastrophic one look identical in source.
 
 **Both members take the deny-by-default `queue.purge` capability, scoped on queue names**, and they
 are the only members of `Core\Queue` that take one. `push` names no block and so has nothing for a
 grant to be about ([`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members)); these name a queue the program itself
 wrote, and they destroy the record that work existed. The grant is what keeps that out of the request
 path — a web entry enqueues with no `queue` block at all, and the retention entry is the one place in
-a deployment that holds the name. Removal is DML on the queue's own connection, so it enlists in an
-open transaction exactly as `push` does and issues no DDL: `nvs queue migrate` remains the only thing
+a deployment that holds the name. `delete` takes the same grant rather than a lesser one: the grant
+answers whether this program may remove queue records, and one row at a time is the same answer at
+a different rate. A `purge` whose queue name is a string literal outside this machine's grant does not
+compile; a computed name, and every `delete`, whose queue comes out of a receipt at run time, are
+refused at the call. Removal is DML on the queue's own connection, so it enlists in an open
+transaction exactly as `push` does and issues no DDL: `nvs queue migrate` remains the only thing
 that changes the tables' shape.
 
-<sub>See also [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept), [`concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`](concurrency.md#concurrency-a-tag-groups-jobs-and-a-key-dedupes-them), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0153](../decisions/0153.md).</sub>
+**Removal is never the runtime's own act.** There is no default lifetime, no sweeper and no
+configuration key that expires anything, so a deployment that never calls `purge` keeps every row. A
+runtime that dropped completed rows on a timer would be deleting an operator's audit trail on a
+default nobody chose.
+
+**Declined:**
+- **No member, and SQL against the runtime's tables.** It makes the table and column names and the
+  state ordinals a public contract by use, and it gives removal to everything holding `db.connect`.
+- **A retention key with a sweeper in the worker.** It answers the age case and neither a cancelled
+  batch nor a deleted tenant, and it puts an unbounded delete on a timer inside the worker loop. If one
+  is ever wanted, it sits on `purge` rather than beside it.
+- **`delete` alone.** A caller with tens of thousands of receipts would write the loop the database
+  should have run.
+- **`purge` alone, with the receipt in its options.** A receipt already carries its queue, so the
+  queue name and the receipt would be two spellings of one fact that can disagree, and the subject
+  belongs in the first parameter ([`core-api/shape-rules`](core-api.md#core-api-shape-rules)).
+- **Deleting the row when a job succeeds.** It removes the growth at its source and costs `status`:
+  a receipt would answer "succeeded" and "never existed" identically, and
+  [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once) makes "did it run" a question programs ask.
+- **A separate capability for `delete`.** Two names for one question; the roster keeps two
+  capabilities apart only when they answer different questions ([`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed)).
+- **Wildcards in the grant.** A queue name is a flat string the program picks, so there are no labels
+  for a pattern to match at, and a prefix grant would cover queues nobody has named yet. A grant is
+  exact names, or `true`.
+
+<sub>See also [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members), [`concurrency/cancel-is-a-race-it-can-lose`](concurrency.md#concurrency-cancel-is-a-race-it-can-lose), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept), [`concurrency/a-tag-groups-jobs-and-a-key-dedupes-them`](concurrency.md#concurrency-a-tag-groups-jobs-and-a-key-dedupes-them), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed).</sub>
 
 <a id="concurrency-a-job-runs-as-a-root-isolate"></a>
 
@@ -1333,11 +1705,11 @@ one script compiles it once.
 Output is captured rather than written through, because a job's `echo` landing in the middle of what
 the server or the run's own script is writing is exactly the mixing capture exists to prevent.
 
-<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0084](../decisions/0084.md), [0006](../decisions/0006.md), [0017](../decisions/0017.md), [0271](../decisions/0271.md).</sub>
+<sub>See also [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file), [`concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`](concurrency.md#concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue). Decided in [0271](../decisions/0271.md).</sub>
 
 <a id="concurrency-who-runs-a-job-is-configuration"></a>
 
-## Which process runs a job is configuration, and every spelling drives the identical isolate  *(designed — not yet in the compiler)*
+## Which process runs a job is configuration, and every spelling drives the identical isolate
 
 `rule:concurrency/who-runs-a-job-is-configuration`
 
@@ -1366,11 +1738,15 @@ identical claim statement ([`concurrency/claiming-is-one-statement`](concurrency
 is an operational decision and never a behavioural one. There is nothing to install beside the runtime
 and no supervisor to keep alive.
 
-<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs). Decided in [0084](../decisions/0084.md), [0154](../decisions/0154.md).</sub>
+**Declined:**
+- **Arming the workers once per core.** It multiplies an operator's number by a count they did not
+  write.
+
+<sub>See also [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table), [`concurrency/a-job-runs-as-a-root-isolate`](concurrency.md#concurrency-a-job-runs-as-a-root-isolate), [`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs).</sub>
 
 <a id="concurrency-one-process-serves-requests-schedules-and-jobs"></a>
 
-## `nvs serve` runs the accept loop, the schedule ticker and the queue's workers in one process, and the drain stops all three  *(designed — not yet in the compiler)*
+## `nvs serve` runs the accept loop, the schedule ticker and the queue's workers in one process, and the drain stops all three
 
 `rule:concurrency/one-process-serves-requests-schedules-and-jobs`
 
@@ -1400,7 +1776,35 @@ running their own workers is the intended deployment rather than a hazard; a sch
 ask whether another host is already firing it. The queue is the subsystem that needed no coordinator,
 and one process is where that pays.
 
-<sub>See also [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/a-push-wakes-an-idle-worker`](concurrency.md#concurrency-a-push-wakes-an-idle-worker), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field). Decided in [0154](../decisions/0154.md), [0230](../decisions/0230.md).</sub>
+**A worker's task root is a worker, not the ticker's request.** A schedule fire is a child of the loop
+that serves, while there is no request beneath a worker to charge a panic to
+([`http-server/containment-does-not-end-at-the-helper`](http-server.md#http-server-containment-does-not-end-at-the-helper)). `nvs run` arms the same workers and
+stops them when the script's task exits, because a run with a worker that ignored that would never
+end. The two commands differ in that one predicate, which is what keeps moving work between them an
+operational decision ([`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration)).
+
+**The command is still `serve`, and its help names all three subsystems.** The operator's picture of
+one process is what stops them looking for a second one. `service` is the service-manager namespace
+beside it, and its argv is written into units on disk ([`packaging/a-service-is-one-stored-argv`](packaging.md#packaging-a-service-is-one-stored-argv)).
+
+- **Memory:** one database connection per worker, on the instance that arms them, held for the life
+  of the process. That is per instance and not per request, and it is what the same workers cost under
+  `nvs run`.
+- **Latency:** workers share the cores the server is already turning, so a busy server and a busy
+  queue contend. That is the trade `workers` lets an operator make. `workers = 0` and a dedicated
+  `nvs run` host is the deployment that wants them isolated. Nothing on the request path changes: a
+  waiting worker is one more parked task, and a parked task costs its stack.
+
+**Declined:**
+- **A `nvs queue work` command.** It is a third process shape with its own argv and lifecycle to
+  supervise, and it would still leave `[queue] workers` doing nothing under `nvs serve`.
+- **A stop flag of the command's own beside the drain.** Two bits would mean the same thing, and the
+  second is the one somebody forgets to set: that is the fail-open direction the accept loop already
+  refuses.
+- **Renaming the command.** A rename would collide with `service` and invalidate the argv stored in
+  deployed units. A help text that names the three subsystems buys the same accuracy.
+
+<sub>See also [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/queued-work-is-not-scheduled-work`](concurrency.md#concurrency-queued-work-is-not-scheduled-work), [`concurrency/claiming-is-one-statement`](concurrency.md#concurrency-claiming-is-one-statement), [`concurrency/a-push-wakes-an-idle-worker`](concurrency.md#concurrency-a-push-wakes-an-idle-worker), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field).</sub>
 
 <a id="concurrency-a-payload-refuses-secret-and-keeps-its-qualifiers"></a>
 
@@ -1419,7 +1823,7 @@ instead of being laundered by a database. The queue's table is trusted exactly a
 the application's database is — an attacker who can write to it has already won — which is a better
 answer than returning every field `tainted` and training every job to launder reflexively.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file). Decided in [0084](../decisions/0084.md), [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0023](../decisions/0023.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`concurrency/a-job-names-a-file`](concurrency.md#concurrency-a-job-names-a-file).</sub>
 
 <a id="concurrency-foreign-connection-enqueue-is-counted"></a>
 
@@ -1437,7 +1841,7 @@ the program never writes it, so the checker has no way to compare the two. The r
 **records** it, and `stats` reports non-transactional enqueues, so a deployment that has quietly lost
 the property can find out by reading a counter rather than by losing a job.
 
-<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members). Decided in [0084](../decisions/0084.md).</sub>
+<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/queue-four-members`](concurrency.md#concurrency-queue-four-members).</sub>
 
 <a id="concurrency-a-push-wakes-an-idle-worker"></a>
 
@@ -1477,7 +1881,33 @@ lets a worker take one per wait). It is never a message a database sends: there 
 `NOTIFY` and no other backend's notification channel, so a backend that has none behaves exactly as
 one that has, and there is one path to test ([`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface)).
 
-<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface). Decided in [0230](../decisions/0230.md).</sub>
+**A push wakes every idle worker, not one.** A transaction that pushes many jobs wakes once, at its
+commit, and every woken worker claims at once, so the batch is shared out instead of run one job after
+another while the rest wait. The cost is that one push may cost each idle worker one claim that finds
+nothing left. A wake that lands between a worker's empty claim and the start of its wait is not lost:
+the worker sees it and claims again.
+
+- **Memory:** one number per database connection a request has open, and one wake per idle worker
+  for as long as it waits. Nothing grows with requests served or jobs pushed.
+- **Latency:** a push costs one uncontended lock and one cross-thread wake per idle worker. Nothing
+  else on the request path changes.
+
+**Declined:**
+- **`LISTEN` and `NOTIFY` on PostgreSQL, and the nearest thing on each other backend.** It would cover
+  a push from another process, but it is one mechanism per driver, SQLite has none, and each is a
+  second connection state to keep correct. The one-second bound covers that case on every backend.
+- **A wait that grows while the queue stays empty.** A job's delay would then depend on how long the
+  queue had been idle, which an operator cannot read off anything.
+- **A `[queue]` key for the interval.** With the wake in place the interval only bounds work this
+  process was not told about, and a key would be one more number to choose for a case a second serves.
+- **Waking at the statement inside a transaction.** The workers would ask before the row is visible,
+  find nothing, and the job would wait out the second: the exact case the wake exists for.
+- **Waking one worker per push.** A transaction that pushes many jobs wakes once, so one woken worker
+  would run them all in turn while the rest waited out the second.
+- **A shorter wait and no wake.** Any interval short enough to feel immediate is a poll an idle server
+  pays all day.
+
+<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted), [`concurrency/one-process-serves-requests-schedules-and-jobs`](concurrency.md#concurrency-one-process-serves-requests-schedules-and-jobs), [`concurrency/who-runs-a-job-is-configuration`](concurrency.md#concurrency-who-runs-a-job-is-configuration), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing), [`concurrency/no-broker-and-no-driver-interface`](concurrency.md#concurrency-no-broker-and-no-driver-interface).</sub>
 
 <a id="concurrency-queued-work-is-not-scheduled-work"></a>
 
@@ -1496,7 +1926,12 @@ of course `push`, and that is the intended way to enqueue a nightly batch's wort
 decides when the batch is created and the queue decides how each piece of it is run, retried and
 recorded.
 
-<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept). Decided in [0084](../decisions/0084.md), [0073](../decisions/0073.md).</sub>
+Deferred work is the third thing, and it is not a job either. `Core\Task::afterResponse`
+([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)) runs after a response, inside the request
+tree, bounded and in memory: if the process dies the work is gone. An email, an export, a webhook
+delivery or a third-party sync has to survive that, so it is pushed, not deferred.
+
+<sub>See also [`concurrency/delivery-is-at-least-once`](concurrency.md#concurrency-delivery-is-at-least-once), [`concurrency/attempts-are-finite-and-a-dead-letter-is-kept`](concurrency.md#concurrency-attempts-are-finite-and-a-dead-letter-is-kept).</sub>
 
 <a id="concurrency-no-broker-and-no-driver-interface"></a>
 
@@ -1516,7 +1951,7 @@ The seam that stays open is the storage layer's internal boundary and not a publ
 genuinely bounded by database write throughput has outgrown what the queue promises, and a
 broker-backed queue would have to say plainly which guarantee it drops.
 
-<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table). Decided in [0084](../decisions/0084.md).</sub>
+<sub>See also [`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write), [`core-classes/queue-storage-is-a-table`](core-classes.md#core-classes-queue-storage-is-a-table).</sub>
 
 <a id="concurrency-one-future-per-connection"></a>
 
@@ -1539,7 +1974,30 @@ The risk this closes is not that a poll loop is hard to write. It is that a poll
 becomes an executor — a ready queue, a spawn, work stealing — and then there are two schedulers on
 one core, each with its own idea of which stack may touch an arena.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0097](../decisions/0097.md), [0106](../decisions/0106.md).</sub>
+The waker is the only thread-safe type the drive touches. A protocol that wants more
+than one future per connection does not get an executor from this loop; it reopens the choice of HTTP
+implementation instead.
+
+- **Memory:** per connection, one shared flag and wake slot, one waker, at most one outstanding wake
+  permission, and the future itself on the coroutine's own stack. That is O(in-flight), and nothing
+  is allocated per poll or per park.
+- **Latency:** a park costs what every other park in the host costs. The one charge over a
+  hand-written state machine is the poke delivered when the last permission is given up, once per
+  drive and not once per wait.
+
+**Declined:**
+- **An executor: a per-core ready queue of futures.** It is two schedulers on one core, and a
+  work-stealing question that thread-per-core exists to avoid. Concurrency inside one connection is
+  already a task from the scheduler.
+- **A socket read that suspends the coroutine instead of answering pending.** It removes the waker
+  and deadlocks: the read and write halves of one connection are one future, so a read waiting for
+  the peer holds back the response that would make the peer send more. It passes only exchanges
+  small enough to fit a socket buffer.
+- **A third-party `block_on`.** It parks the thread, which is right off a core and wrong on one
+  ([`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once)), and it would still need this runtime's
+  cross-core wake behind its waker.
+
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/the-park-route-is-chosen-once`](concurrency.md#concurrency-the-park-route-is-chosen-once), [`concurrency/a-connection-is-a-root-isolate`](concurrency.md#concurrency-a-connection-is-a-root-isolate).</sub>
 
 <a id="concurrency-a-waker-is-one-permission-to-poll"></a>
 
@@ -1562,7 +2020,7 @@ of sleeping on a wake that has already happened.
 A waker cloned and held past the call fires into an empty slot and sets a flag nobody reads. That is
 inert, and it is the same reading as a wake that raced with the task ending.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive).</sub>
 
 <a id="concurrency-one-permission-per-drive"></a>
 
@@ -1583,7 +2041,11 @@ A connection whose every wait ends in socket readiness — the ordinary one, sin
 task by id and never through a waker — therefore issues exactly one permission for the whole
 connection, and gives it back unused when the drive returns.
 
-<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0229](../decisions/0229.md).</sub>
+**Declined:**
+- **A fresh permission per park.** Each one is issued and collected once per readiness edge, which
+  is a delivered poke per wait for a wake nobody asked for.
+
+<sub>See also [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/a-handle-given-up-by-its-task-wakes-nothing`](concurrency.md#concurrency-a-handle-given-up-by-its-task-wakes-nothing).</sub>
 
 <a id="concurrency-a-wake-never-moves-a-task"></a>
 
@@ -1605,7 +2067,11 @@ It is also why a waker's payload is a shared flag and slot rather than the sched
 wake, which is deliberately not thread-safe: a waker built over that would be sound exactly until a
 clone crossed a thread, and unsound with no diagnostic afterwards.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md).</sub>
+**Declined:**
+- **Waking through the scheduler's own same-core wake.** It is the natural route on one core and
+  is not thread-safe by design, for the reason above.
+
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive).</sub>
 
 <a id="concurrency-a-handle-given-up-by-its-task-wakes-nothing"></a>
 
@@ -1627,7 +2093,28 @@ This is what lets a wait take a handle for itself and let it go when the wait en
 a drain wake held across one sleep, or the permission a drive gives back when it returns
 ([`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive)). A wake that is **asked for** is queued whoever asks.
 
-<sub>See also [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract). Decided in [0229](../decisions/0229.md).</sub>
+The drop checks both halves: the thread dropping the handle is the core that issued it, and the task
+running there is the one the handle names. A task id is issued per scheduler and names a different
+task on every core, so the task half alone is not enough. A reactor that is borrowed, gone or another
+core's fails the check, and that drop delivers the wake as before. A registration made against a
+drain that has already begun fires its wake before it returns, on the task's own stack, and a
+stream's drain cut raises its flag the same way. Both are asked for, so both still leave a wake
+queued for the task's next wait.
+
+- **Memory:** nothing. The drop gains one branch, and no allocation is added per request, per task or
+  per wait.
+
+**Declined:**
+- **Registering once, outside the loop that waits.** It fixes the one caller and leaves every later
+  caller one loop away from a core kept busy by its own wakes.
+- **A `cancel` the caller must choose to call.** Every site that gives up its own handle would have
+  to remember it, and a registration on the drain holds its handle inside a closure that only a drop
+  can reach.
+- **Collecting every wake a task delivers to itself, the asked-for one too.** It would change what a
+  registration against a drain that has already begun leaves behind, and the idle cost needs none of
+  that changed.
+
+<sub>See also [`concurrency/one-permission-per-drive`](concurrency.md#concurrency-one-permission-per-drive), [`concurrency/a-wake-never-moves-a-task`](concurrency.md#concurrency-a-wake-never-moves-a-task), [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract).</sub>
 
 <a id="concurrency-a-cancelled-drive-never-parks-again"></a>
 
@@ -1647,7 +2134,7 @@ it once, on the way back in; there the loop stops and the drive answers nothing.
 wait on a wake that is not coming, which is a wedged coroutine rather than a slow one, and going on
 would serve a request the client is no longer attached to.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly). Decided in [0138](../decisions/0138.md), [0072](../decisions/0072.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly).</sub>
 
 <a id="concurrency-the-park-route-is-chosen-once"></a>
 
@@ -1668,7 +2155,7 @@ Blocking the thread is right in that last case for the reason every off-core wai
 there is no coroutine to suspend and no neighbour to starve, so blocking starves nobody. On a core it
 would be precisely wrong.
 
-<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll). Decided in [0138](../decisions/0138.md), [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`concurrency/one-future-per-connection`](concurrency.md#concurrency-one-future-per-connection), [`concurrency/a-waker-is-one-permission-to-poll`](concurrency.md#concurrency-a-waker-is-one-permission-to-poll).</sub>
 
 <a id="concurrency-the-parking-contract"></a>
 
@@ -1695,7 +2182,7 @@ otherwise get backwards.
 5. **One reactor per worker**, not shared. A descriptor a request owns is registered with, and woken
    by, that request's own core — which is what keeps refcounts non-atomic.
 
-<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`concurrency/the-reactor-reports-readiness`](concurrency.md#concurrency-the-reactor-reports-readiness), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="concurrency-try-the-syscall-then-park"></a>
 
@@ -1717,7 +2204,7 @@ always finds the request bytes already buffered: they arrived with the connectio
 A registration is kept while the task holds the stream rather than torn down per park, so a stream
 that parks repeatedly pays a modification and not a creation.
 
-<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../decisions/0115.md).</sub>
+<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream).</sub>
 
 <a id="concurrency-the-reactor-reports-readiness"></a>
 
@@ -1729,17 +2216,25 @@ The reactor reports **readiness**, never completion, on every platform: epoll on
 BSDs and macOS, and on Windows a poll of `\Device\Afd` through the completion port, which turns it
 into a readiness source. One contract, three back ends, and the stream code above it is written once.
 
-That choice is the reason there is one stream implementation rather than two. Completion semantics are
-a *different* contract — a completion-based read owns its buffer across a suspension and a
-readiness-based one does not — so adopting the native Windows shape would duplicate every stream and
-every helper that reads one, on the platform that gets the least traffic.
+That choice is the reason there is one stream implementation rather than two.
 
 The readiness layer is a poller and not an async runtime: no executor, no task type, no futures. The
 runtime brings its own scheduler ([`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract)), and nothing
 attacker-controlled reaches a registration, which carries a descriptor and an interest set and no
 parsed input at all.
 
-<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md).</sub>
+**Declined:**
+- **Completion semantics on Windows.** It is the native contract there and faster at very high
+  connection counts, but a completion-based read owns its buffer across a suspension and a
+  readiness-based one does not. Every stream and every helper that reads one would exist twice, and
+  the copy that gets less traffic would be on a first-class platform.
+- **Hand-written epoll, kqueue and AFD back ends.** Three `unsafe` FFI layers with nothing specific to
+  this runtime in any of them, against a pure-Rust poller whose whole surface is exactly this. What is
+  specific is the parking contract above it.
+- **An async runtime such as `tokio`.** Its value is an executor and a task model, and the runtime has
+  its own, in which a stackful coroutine suspends from *inside a helper*, which a future cannot.
+
+<sub>See also [`concurrency/the-parking-contract`](concurrency.md#concurrency-the-parking-contract), [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park).</sub>
 
 <a id="concurrency-a-stream-is-an-ordinary-io-stream"></a>
 
@@ -1761,7 +2256,13 @@ What it costs is that a stack is the unit of concurrency
 space rather than the hundred bytes a stackless future would be. Simplicity of the language surface
 outranks footprint, and that trade is taken knowingly.
 
-<sub>See also [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled). Decided in [0115](../decisions/0115.md), [0132](../decisions/0132.md).</sub>
+**Declined:**
+- **A stackless transform of Novis functions.** It would shrink a task to a few hundred bytes, which
+  is how async languages reach their concurrency counts, but it colours every function that can
+  suspend, and the colour reaches the language surface: a `Core` member that reads a socket would
+  need a form ordinary code cannot call.
+
+<sub>See also [`concurrency/try-the-syscall-then-park`](concurrency.md#concurrency-try-the-syscall-then-park), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled).</sub>
 
 <a id="concurrency-a-task-stack-is-reserved-wide-and-pooled"></a>
 
@@ -1777,12 +2278,15 @@ handlers touched.
 
 The reservation is charged to the request that owns the task, and it is the *reservation* that enters
 a worker's admission arithmetic, because address space is the resource an admission decision can count
-ahead of time.
+ahead of time. Resident growth is bounded by the recursion limit that already bounds how deep a task
+may go ([`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack)).
 
-Stacks are pooled per worker and bounded by that worker's in-flight cap. A stack is an `mmap` or
-`VirtualAlloc` pair, which is the wrong thing to do per request on a hot path, so a freed stack goes
-back to the pool and is handed to the next task. The pool can never hold more stacks than the worker
-has admitted tasks, which is the O(in-flight) shape [`programs/memory-priority`](programs.md#programs-memory-priority) asks for.
+Stacks are pooled per worker. A stack is an `mmap` or `VirtualAlloc` pair, which is the wrong thing
+to do per request on a hot path, so a freed stack goes back to the pool and is handed to the next
+task. The pool never holds more stacks than the worker has had tasks in flight at once, and it keeps
+at most 1024 idle; a stack freed past that is handed back to the operating system, so one burst does
+not leave its stacks resident for the life of the worker. That is the O(in-flight) shape
+[`programs/memory-priority`](programs.md#programs-memory-priority) asks for.
 
 A parse whose native recursion depth is set by its input, such as `Core\Json::decode` at its 1024-level
 ceiling, runs on the worker thread's one **spare stack**, 8 MiB reserved, and never on the task's
@@ -1791,7 +2295,11 @@ sizes, so the task's stack cannot promise room for such a parse. The spare stack
 worker thread, O(workers), and the pages the deepest parse touched stay resident for the life of the
 thread. Code on it never calls compiled Novis code, whose recursion limit is armed for the task's stack.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream). Decided in [0115](../decisions/0115.md), [0106](../decisions/0106.md), [0116](../decisions/0116.md).</sub>
+- **Memory:** each task in flight reserves 1 MiB of address space, charged to its request, and keeps
+  resident only the pages its frames touched. Each worker also holds up to 1024 idle reservations
+  between tasks, and each worker thread one 8 MiB spare stack.
+
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`](concurrency.md#concurrency-a-tasks-recursion-limit-comes-from-its-own-stack), [`concurrency/a-stream-is-an-ordinary-io-stream`](concurrency.md#concurrency-a-stream-is-an-ordinary-io-stream).</sub>
 
 <a id="concurrency-a-tasks-recursion-limit-comes-from-its-own-stack"></a>
 
@@ -1809,4 +2317,4 @@ between the soft recursion limit and the hard floor ([`errors/on-limit`](errors.
 several times that reserve before the two numbers are coherent — which is why a 64 KiB stack is
 rejected on arithmetic rather than on taste.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled). Decided in [0115](../decisions/0115.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled).</sub>

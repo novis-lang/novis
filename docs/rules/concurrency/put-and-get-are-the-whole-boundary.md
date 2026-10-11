@@ -17,4 +17,6 @@ pretends otherwise.
 That is why a lock, a counter or a limiter is never built on the cache. The mechanisms that need
 those guarantees have their own homes over the shared tier, where the store's own atomicity is what
 provides them — `Core\RateLimit::consume` for a limit, a lease for scheduled work, and the database
-for anything else.
+for anything else. There is no in-process coordination primitive at all, so a program that needs one
+pays a network round trip; that floor is deliberate, because an in-process one would be the channel
+`rule:security/no-cross-request-state` closes.

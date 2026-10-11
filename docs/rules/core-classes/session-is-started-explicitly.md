@@ -11,3 +11,7 @@ own rather than a sweeper's.
 
 What this costs is one line per request that uses sessions. What it buys is that a request that does
 not use them pays nothing, which the ambient version could never promise.
+
+**Declined:**
+- **A session that starts on the first `Core\Session` access.** A read that starts a session is a side
+  effect at a distance, the kind of hidden step the explicit `start` exists to remove.

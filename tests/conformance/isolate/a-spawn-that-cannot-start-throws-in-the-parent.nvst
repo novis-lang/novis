@@ -1,5 +1,5 @@
 --TEST--
-`spawn script` reports the parent's own mistakes as throws rather than as a `ScriptResult` — ADR 0006 § *Decision*, § *Failure is a value, not an exception*
+`spawn script` reports the parent's own mistakes as throws rather than as a `ScriptResult` — `rule:security/isolate-shares-nothing`, `rule:security/isolate-failure-is-a-value`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no

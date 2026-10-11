@@ -13,3 +13,16 @@ changes and fleet locking stay a blocked gap in the first-party framework
 (`rule:programs/no-migration-runner`), and this is the layer such a runner would one day sit on. It
 stops there deliberately: every one of those open questions is a question convergence does not have
 to answer.
+
+Planning is not on the request path in any expected deployment: it is an operator's act, issuing a
+handful of catalog queries rather than one per table.
+
+**Memory:** introspection holds the catalog rows of the tables under comparison, which is O(schema) and
+never O(data), and a plan holds each step's SQL as text. Both are bounded by the schema's size and freed
+with the request. Nothing is cached across requests, because a plan computed from a stale catalog is the
+failure convergence exists to remove.
+
+**Declined:**
+- **Versioned migrations with a history table.** They need ordering, locking, a runner, reversibility and
+  a source of truth inside the target database, and they are wrong after any change the history table did
+  not record. Convergence needs none of it and is correct against a database it has never seen.

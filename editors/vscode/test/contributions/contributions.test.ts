@@ -196,8 +196,8 @@ describe("the extension's identity", () => {
   });
 
   it("takes its title from the README's H1", () => {
-    // `docs/decisions/0151.md` § 3 gave the project's title one home and had `nvs --help` read
-    // from it; the editor's title for the extension is the same fact reaching a third surface,
+    // `rule:packaging/the-banner-states-the-build` gives the project's title one home and has
+    // `nvs --help` read from it; the editor's title for the extension is the same fact reaching a third surface,
     // so it is asserted against that home rather than agreed with it by hand.
     const readme = readFileSync(join(ROOT, "..", "..", "README.md"), "utf8");
     assert.equal(manifest.displayName, /^# (.+)$/m.exec(readme)?.[1]);

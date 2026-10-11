@@ -184,8 +184,8 @@
 //!   argued.
 //!
 //! **The request arena is refused rather than absent, and a helper suspends
-//! through `Ctx::yielder`/`Ctx::set_yielder`** — the shape ADR 0002
-//! § *Consequences* commits to. `rule:security/arena-is-an-ownership-root`
+//! through `Ctx::yielder`/`Ctx::set_yielder`** — the shape checked returns
+//! compose with, since nothing unwinds across a stack switch (`rule:errors/propagation`). `rule:security/arena-is-an-ownership-root`
 //! rejects a region per isolate, so [`object`]'s per-context live list plus its
 //! walk are the ownership root instead — run at teardown by [`object::sweep`],
 //! and while the request is still going by the collection a crossing of

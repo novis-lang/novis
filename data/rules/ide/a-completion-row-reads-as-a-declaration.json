@@ -1,9 +1,7 @@
 {
   "title": "A completion row shows a member's signature after its name and its type at the right, a type its namespace, and the card is read on resolve for one item",
   "status": "shipped",
-  "because": [
-    "0203"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/the-rendering-has-one-home",
     "core-api/reference-card"

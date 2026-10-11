@@ -14,3 +14,9 @@ A new sink therefore needs no decision record of its own — it needs the predic
 grammars the library parses are all instructions by it
 (`rule:security/every-grammar-is-a-sink`), and a member nobody classified fails closed
 (`rule:security/unclassified-parameter-refuses-tainted`).
+
+**Declined:**
+- **Denying `tainted` at the process boundary, so it may leave only through a typed carrier.** Strictly
+  stronger and wrong: it refuses a file's contents, an outbound request body, a bound database parameter
+  and a log field, each of which is safe and common. The predicate is what separates them, so a boundary
+  rule would be this rule with its useful half deleted.

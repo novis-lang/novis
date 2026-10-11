@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0079 § 14, as the runner sees it: a `Core\Test::assertMatchesInline`
+// `rule:testing/inline-snapshots`, as the runner sees it: a `Core\Test::assertMatchesInline`
 // holds its expectation in the source, and `nvs test --update` splices the
 // produced rendering into that literal and into nothing else.
 //

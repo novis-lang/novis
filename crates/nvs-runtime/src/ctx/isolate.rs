@@ -363,8 +363,8 @@ impl Ctx {
     /// A context for an **isolate** — the other half of the pair
     /// [`Ctx::child`] opens, and the one place the two part.
     ///
-    /// [ADR 0116](/docs/decisions/0116.md)
-    /// § 4: an isolate's arena is an ownership root of its own, so its
+    /// `rule:statements/an-isolate-has-its-own-statics`:
+    /// an isolate's arena is an ownership root of its own, so its
     /// static-property base is **its own** rather than an alias of this
     /// request's. That single difference is the whole of `rule:security/isolate-shares-nothing`'s "globals,
     /// class statics and runtime-defined constants are fresh", and it is why
@@ -513,11 +513,11 @@ impl Ctx {
     /// `[log] handler_reserve_memory` states none.
     ///
     /// 16 MiB, and a flat number rather than [`Self::reserve_within`]'s
-    /// proportion, because there is no ceiling to take a proportion *of*: ADR
-    /// 0020 § 1's slice is carved out of the request's own `[limits] memory`,
-    /// while § 3's is the engine's and is the same whatever the request was
+    /// proportion, because there is no ceiling to take a proportion *of*:
+    /// `rule:errors/on-limit`'s slice is carved out of the request's own `[limits] memory`,
+    /// while `rule:errors/handler-script`'s is the engine's and is the same whatever the request was
     /// allowed. The size is what a whole `.nvs` costs rather than what a
-    /// message costs — this reserve compiles and runs a program, where § 1's
+    /// message costs — this reserve compiles and runs a program, where the tier-1 reserve
     /// runs a callable the request already loaded — and 16 MiB is spent here
     /// under `rule:programs/memory-priority`'s
     /// ordering: a handler that cannot report is a failure nobody hears about.
@@ -528,15 +528,15 @@ impl Ctx {
     ///
     /// Five seconds, on [`Self::reserve_time_within`]'s reasoning and not its
     /// number: a handler's time is bounded by what writing its report blocks
-    /// on, which is a log target or a socket. The number is larger than § 1's
-    /// 50 ms for the reason the memory half is larger — this one compiles a
+    /// on, which is a log target or a socket. The number is larger than the tier-1
+    /// reserve's 50 ms for the reason the memory half is larger — this one compiles a
     /// script first — and it is a ceiling on a report, not a budget for work.
     pub const DEFAULT_HANDLER_RESERVE_TIME: u64 = 5_000_000_000;
 
     /// A context for `rule:errors/handler-script`'s **tier-3 handler** — [`Self::isolate`] with the failing request's
     /// budget left behind.
     ///
-    /// § 3's one deliberate exception to `rule:security/isolate-shares-nothing`:
+    /// The tier's one deliberate exception to `rule:security/isolate-shares-nothing`:
     /// an ordinary isolate spends the tree's budget, which is exactly wrong for
     /// the one isolate whose job is to report that the tree ran out of it.
     /// Everything `rule:security/isolate-shares-nothing` calls request-wide still crosses — the sibling above
@@ -549,8 +549,8 @@ impl Ctx {
     /// - **Its own ceilings** — [`Self::DEFAULT_HANDLER_RESERVE_MEMORY`] and
     ///   [`Self::DEFAULT_HANDLER_RESERVE_TIME`], or what the two directives
     ///   state — where an ordinary isolate carries none and is bounded by the
-    ///   root's reading once control returns there. Exceeding one is § 3's
-    ///   "zero retries" and nothing else: the handler fails, `nvs-host`'s
+    ///   root's reading once control returns there. Exceeding one is
+    ///   `rule:errors/escalation-ladder`'s "no retry" and nothing else: the handler fails, `nvs-host`'s
     ///   `ladder::escalate` answers `false`, and tier 4 writes the record.
     /// - **A fresh script depth**, because a chain that reached
     ///   `[limits] max_script_depth` is itself one of the failures this handler
@@ -561,7 +561,7 @@ impl Ctx {
     ///
     /// **What it spends:** nothing between failures. The reserve is a ceiling,
     /// not an allocation, exactly as `[limits] fatal_reserve_memory` is —
-    /// § 3's "sized once per worker/core" is the value's *shape*, a number that
+    /// the rule's "sized once per worker" is the value's *shape*, a number that
     /// does not vary with the request, and not a pre-allocation. In flight it
     /// is one more `Ctx`, which is [`Self::isolate`]'s accounting.
     #[must_use]

@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0085 § 1's response body row: the `200` response's schema is the
+// The generated document's response body row: the `200` response's schema is the
 // handler's *declared* return type, so this fixture declares the three answers
 // the emitter has to tell apart -- a type it maps, a type it does not, and no
 // body at all.
@@ -18,7 +18,7 @@ class Notes
         return 3;
     }
 
-    // A class has fields, and which of them reach the wire is ADR 0071's codec
+    // A class has fields, and which of them reach the wire is the derived codec's
     // rather than the class's property list, so the schema is the empty one --
     // *any* -- until the row carries that roster.
     #[Core\Route(path: "/notes/first", method: Core\Http\Method::Get, name: "Notes::first")]

@@ -1,10 +1,7 @@
 {
   "title": "A class is reachable under its declared name and nowhere else",
   "status": "shipped",
-  "because": [
-    "0015",
-    "0011"
-  ],
+  "because": [],
   "seeAlso": [
     "statements/nothing-gets-a-second-name",
     "types/type-alias",

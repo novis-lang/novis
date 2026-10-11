@@ -6,4 +6,14 @@
 
 **A listener the server cannot bind is refused once, before any core starts.** The classification of a `listen` entry belongs to the configuration and not to a core (`rule:http-server/a-unix-socket-listener`), so one deployment mistake is one refusal — a fan-out that bound as it started would report the same wrong entry once per core and would leave a process half-listening while it did.
 
-What it costs, per `rule:programs/memory-priority`: one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). It holds strictly less than a per-core compiled-unit cache would, which is the shape this one replaces.
+**Each core accepts on its own handle, so no connection passes through a thread every other connection also passes through.** The kernel picks which blocked acceptor a connection wakes: there is no handoff, no shared queue and no accepting core to become the bottleneck the fan-out exists to remove. A request stays on the core that accepted it.
+
+- **Memory:** one scheduler, one accept loop and one listener handle per listener per core, all paid at process start and O(cores) rather than O(requests served). The shared compiled unit holds strictly less than per-core caches would, so the fleet's compiled-code footprint does not grow with the core count.
+
+**Declined:**
+- **One acceptor handing connections to N request workers.** The acceptor is one thread paying a syscall and a handoff per connection, which moves the bottleneck rather than removing it.
+- **One process per core, as php-fpm runs.** N processes compile every source N times, hold N caches and split one memory budget N ways; the built-in server is one process with one budget and one compiled unit.
+- **A compiled-unit cache per core.** It costs N compiles of the same file, and "compile exactly once" would mean something different at four cores than at one.
+- **Clamping `workers` to the machine's parallelism.** The count is already bounded by the file, a container's CPU quota is in general invisible from inside the process, and a directive silently overridden is a value the file cannot state.
+- **An `auto` value for `workers`.** A second way to write the default is a second thing to explain; leaving the key out already asks the machine.
+- **Reading the core count from the environment.** The configuration is the one place a deployment is stated, and a second input for one number would be the first exception.

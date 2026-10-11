@@ -1,9 +1,7 @@
 {
   "title": "A unit is a type: a duration is a `Duration` and a size is `uint` bytes",
   "status": "shipped",
-  "because": [
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/no-mode-strings",
     "types/duration"

@@ -4,7 +4,7 @@
 //! `Core\Os` is the surface these answer — `crates/nvs-stdlib/src/os.rs` — and
 //! this is the half of it that has to say `libc` or `windows-sys`. The split is
 //! `rule:security/capability-check-at-the-door`'s
-//! shape and not an arrangement of convenience: ADR 0118 § 2 forbids
+//! shape and not an arrangement of convenience: that rule forbids
 //! `nvs-stdlib` from reaching the operating system itself, `src/terminal.rs`
 //! made the same move for the terminal profile, and
 //! `nvs_stdlib_reaches_the_os_only_through_the_gate` is what holds it shut.
@@ -109,7 +109,7 @@ pub fn hostname() -> Option<String> {
 
 /// The bytes of this **process's** resident set, at its high-water mark.
 ///
-/// [ADR 0148](/docs/decisions/0148.md) § 12 names the reading: `getrusage`'s
+/// `rule:observability/memory-is-three-numbers-on-core-budget` names the reading: `getrusage`'s
 /// `ru_maxrss`, and the peak working set on Windows, which is the same
 /// quantity. It is the process's and never a request's — a request's held
 /// bytes are `Core\Budget`'s, off the counter `crate::budget` keeps — and it is

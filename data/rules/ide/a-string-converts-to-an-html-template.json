@@ -1,9 +1,7 @@
 {
   "title": "A string or a `.` chain of strings and values converts to the html template that prints the same text, as a code action the server computes and an editor only applies",
   "status": "shipped",
-  "because": [
-    "0259"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/html-template",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",

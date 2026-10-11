@@ -1112,7 +1112,8 @@ fn purge(
     apply(conn, sql, &sent)
 }
 
-/// ADR 0153 § 6's other table: [`purge`] with `state: Dead`, which is a
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s other table:
+/// [`purge`] with `state: Dead`, which is a
 /// different statement because it is a different table.
 ///
 /// It takes no state at all, and [`queue::PURGE_DEAD_POSTGRES`]'s doc says why:
@@ -2136,7 +2137,9 @@ fn delete_answers_false_for_a_claimed_job_and_true_for_a_pending_one() {
 /// **`Claimed` is asked of the statement and not only of the member.** The
 /// member refuses `State::Claimed` at the call, which is where a caller finds
 /// out; this asserts that a call that got past it anyway would still remove
-/// nothing, which is the arm ADR 0153 § 2 says is not a policy choice.
+/// nothing, which is the arm
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded` says is not a
+/// policy choice.
 #[test]
 fn purge_removes_what_has_finished_within_its_filters_and_stops_at_its_limit() {
     const QUEUE: &str = "nvs-stdlib-tests-purge";
@@ -3317,7 +3320,7 @@ fn a_framed_cancel_is_decided_by_the_statement_and_read_off_the_affected_count()
     );
 }
 
-/// ADR 0153 § 6 on the framed dialect: a receipt names a job across the move, so
+/// Both tables on the framed dialect: a receipt names a job across the move, so
 /// `delete` finds it in the dead-letter table exactly as [`status`] already
 /// does — `rule:concurrency/queue-deletion-is-explicit-and-bounded`.
 ///

@@ -1,12 +1,7 @@
 {
   "title": "A program holds state in five declared places, and the list is closed",
   "status": "shipped",
-  "because": [
-    "0008",
-    "0011",
-    "0012",
-    "0006"
-  ],
+  "because": [],
   "seeAlso": [
     "statements/no-function-static-and-no-global",
     "statements/no-host-populated-variables",

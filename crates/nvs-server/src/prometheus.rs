@@ -5,8 +5,7 @@
 //! # Why the format is written here
 //!
 //! That rule's predicate turned on the two candidate crates and found neither
-//! takeable, so the wire format is ours against its specification
-//! (`docs/decisions/0186.md` § *Investigation* is the reading). What is left
+//! takeable, so the wire format is ours against its specification. What is left
 //! over once a transport and a registry are refused is an encoder of a few
 //! hundred bytes per series, which is this module: it reads
 //! [`crate::metrics::Registry::series`] in order and formats it, exactly as

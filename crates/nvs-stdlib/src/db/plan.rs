@@ -18,7 +18,7 @@
 //!
 //! The one field that is flattened is the SQL. [`nvs_db::Step::sql`] is a
 //! *list* of statements, because SQLite's rebuild is four of them; `sql()`
-//! answers them joined by a newline, which is § 8's pasteable document and the
+//! answers them joined by a newline, which is `rule:core-classes/schema-plan`'s pasteable document and the
 //! only spelling `Core\Db::execute` — one statement per call, `rule:core-classes/db-statement-members` —
 //! can be handed for the steps that are one statement long. A rebuild's four
 //! are for an operator, and the member's reference card says so.
@@ -72,7 +72,7 @@ pub(super) fn grade_case(grade: nvs_db::Grade) -> i64 {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$plan->steps(): array<Db\Plan\Step>` — every step, § 7's reports
+    /// `$plan->steps(): array<Db\Plan\Step>` — every step, `rule:core-classes/schema-absence-never-destroys`'s reports
     /// included.
     ///
     /// The slot already holds them, built when the plan was computed, so this
@@ -95,7 +95,7 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `$step->reason(): string` — why it is graded that way, in the one
-    /// sentence § 6 asks an emitter for.
+    /// sentence `rule:core-classes/schema-plan` asks an emitter for.
     fn nvs_core_db_plan_step_reason(_ctx, args: [1]) {
         let receiver = crate::instance::receiver(args[0], &STEP, "reason")?;
         Ok(owned(crate::instance::slot(receiver, STEP_REASON_AT)))
@@ -106,7 +106,7 @@ nvs_runtime::nvs_helper! {
     /// `$step->sql(): string` — the complete, terminated statements this step
     /// is, newline-joined.
     ///
-    /// Never empty and never elided, § 8's rule holding for a refused step
+    /// Never empty and never elided, `rule:core-classes/schema-plan`'s rule holding for a refused step
     /// exactly as it does for one the applier runs: a deployment whose
     /// application credentials cannot issue DDL reads the plan and hands it to
     /// a DBA, and a step summarised rather than spelled would be useless there.
@@ -117,7 +117,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$step->isRefused(): bool` — whether this is § 7's report, carried and
+    /// `$step->isRefused(): bool` — whether this is `rule:core-classes/schema-absence-never-destroys`'s report, carried and
     /// never applied.
     ///
     /// Named for what a caller does about it rather than for what it is: a
@@ -255,7 +255,7 @@ mod tests {
             );
         }
 
-        // § 6's other half: a database that already matches the schema plans
+        // `rule:core-classes/schema-plan`'s other half: a database that already matches the schema plans
         // nothing, and a program reads that as an empty array rather than as an
         // absence it has to test for.
         let converged = plan_value(&nvs_db::diff(&want, &want, Dialect::Sqlite));

@@ -1,9 +1,7 @@
 {
   "title": "`idle`, `maxDuration`, `maxMessage` and `sendTimeout` bound every outbound socket, each inherits a finite default, and none has an unbounded spelling",
   "status": "shipped",
-  "because": [
-    "0183"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/no-spelling-for-an-unbounded-wait",
     "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime",
@@ -12,6 +10,7 @@
   ],
   "guardedBy": [
     "crates/nvs-stdlib/src/http/socket.rs",
-    "crates/nvs-config/tests/directives.rs"
+    "crates/nvs-config/tests/directives.rs",
+    "tests/hostile/config/http-client-socket/01-removing-the-one-bound-a-request-is-allowed-to-set.nvs"
   ]
 }

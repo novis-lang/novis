@@ -1,9 +1,7 @@
 {
   "title": "An enum's name is an ordinary type, usable at every binding site a class name is",
   "status": "shipped",
-  "because": [
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "statements/storage-that-outlives-a-call"
   ],

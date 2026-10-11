@@ -7,10 +7,10 @@
 # own supply-chain problem. This closes that: Dependabot opens a PR that rewrites the SHA and the
 # trailing `# vX` comment together, and CI reviews it like any other change.
 #
-# Cargo is **not** here on purpose. ADR 0068 § 9 makes a dependency bump a pass a human fires, by
-# hand, with docs/agent/dependency-update.md as the procedure -- "bumping a dependency is the one
-# class of change whose entire value is that a person weighed it". A bot opening those PRs would
-# be exactly the automation that ADR refuses.
+# Cargo is **not** here on purpose. `rule:packaging/the-sweep-is-fired-by-a-human` makes a
+# dependency bump a pass a human fires, by hand, with docs/agent/dependency-update.md as the
+# procedure: a bump is the one class of change whose whole point is that a person weighed it. A bot
+# opening those PRs would be exactly the automation that rule refuses.
 #
 # GitHub reads this file only from the default branch, `landing`, so this copy is not the one that
 # runs. `landing`'s `.github/dependabot.yml` has the same entries, each with `target-branch: main`,

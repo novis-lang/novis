@@ -8,3 +8,4 @@ work.
 Because the clock is under the test's control, a `Duration` sleep inside a task elapses instantly.
 That makes retry, backoff and timeout logic — some of the most error-prone code anyone writes, and
 the least tested — testable in microseconds rather than in the seconds it describes.
+`Core\Test::assertCompletes(fn, {within: Duration})` states a budget against that same clock.

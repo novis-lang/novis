@@ -12,6 +12,13 @@ since such a directive *is* a value read out of the snapshot. A registry that de
 from the other would re-create the conflation this field exists to end, so the census test fails if it
 ever does.
 
+**A key needs a restart only where applying it without one is not possible.** Every row of the
+registry names exactly one proof of what applying a change to it does: a `Reload` row names a case
+in which a running server takes the change and a real request sees it, and a `Boot` row names the
+test in which the reload keeps the running value and reports the key. A directive added with
+neither fails the census, which is what stops a subsystem from taking a value once at boot while
+the reload report lists it as applied.
+
 **`Boot` is four keys: `[server] listen`, `[server] socket_mode`, `[server] workers` and
 `[server] watchdog_margin`.** A port below 1024 needs a privilege the process dropped after it bound,
 so `listen` cannot move in general. `socket_mode` is applied when a Unix listener is bound, so it
@@ -36,3 +43,20 @@ does not build keeps the running client and is named the same way. A request dia
 when that block moves, so the next `fleet` fire takes its key in the new store. A changed `Boot` key
 **does not take effect**: the published snapshot carries the running value forward, and the reload
 names the key (`rule:config/a-reload-names-what-it-could-not-apply`).
+
+State a subsystem derives from the configuration is derived again from each published snapshot,
+once per publish and never per request: the security headers and CORS policy, the admission
+ceiling, the unit cache's `[opcache]`, the schedule roster, each queue job's configuration, the
+metrics and trace exporters, and the mount rows' origins. A rebuilt scrape socket is bound before the
+old one closes, and an exporter change that cannot be followed is logged while the running exporter
+keeps serving. A resource that cannot be built is logged by name with the reason, its key keeps its
+running value and is reported as not applied, and the rest of the snapshot is published, so one
+unreachable store does not hold back an unrelated change that may be a security fix.
+
+- **Memory:** each replaced resource, such as a store, a connection pool or an exporter, lives until
+  the last request or job using it ends. Bounded by what is in flight, never by the number of
+  reloads.
+
+**Declined:**
+- **Refusing the whole reload when one resource cannot be built.** An unreachable session database
+  would then hold back a tightened header policy written in the same save.

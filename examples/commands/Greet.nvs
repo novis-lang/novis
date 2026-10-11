@@ -3,7 +3,7 @@ namespace App;
 
 class Greet implements Command
 {
-    // ADR 0086 § 6: a parameter is a positional argument unless it carries
+    // `rule:tooling/a-parameter-is-an-argument-unless-it-is-an-option`: a parameter is a positional argument unless it carries
     // `#[Option]` — one sentence, with no inference from defaults or types —
     // so `$name` is positional and arrives `tainted string`, nothing about a
     // raw argument having been checked. A `bool` `#[Option]` is a flag.
@@ -13,11 +13,11 @@ class Greet implements Command
         #[Core\Option(short: "l", about: "Shout it")] bool $loud,
     ): void
     {
-        // ADR 0088 § 2: `Core\Str::upper`'s parameter carries no
-        // classification, so it *refuses* a tainted argument — the default is
-        // refusal and contagion is something an author writes. `echo` binds to
-        // the terminal sink, which takes one and substitutes visibly (§ 1), so
-        // the raw argument reaches output and reaches nothing else.
+        // `Core\Str::upper` does not accept a tainted argument, because its
+        // parameter does not say it accepts one. `echo` writes to the terminal.
+        // The terminal accepts a tainted value and shows each control byte as
+        // a visible symbol, so the argument reaches the output and nothing
+        // else.
         echo $name, $loud ? '!' : '', "\n";
     }
 

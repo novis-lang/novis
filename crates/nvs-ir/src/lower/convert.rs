@@ -979,7 +979,7 @@ impl<'a> Lowering<'a> {
     /// source, this function is the only place a [`Ty::ClassDesc`] a program
     /// can name comes from.
     ///
-    /// **A written-out `Foo::class` never reaches the run time.** § 2 decides
+    /// **A written-out `Foo::class` never reaches the run time.** `rule:types/class-reference` decides
     /// `Dog::class as class<Animal>` where it stands — the checker having
     /// already refused the pair that is not a widening — so it folds to the one
     /// [`InstKind::ClassDescConst`] `Foo::bar()` already bakes, and the factory
@@ -1012,7 +1012,7 @@ impl<'a> Lowering<'a> {
     /// [`Ty::ClassDesc`] rather than to [`Ty::Tagged`] for exactly that
     /// reason; that variant's own doc comment owns the decision and names every
     /// site it obliges. The compile-time fold above is taken under `?`
-    /// as well, and safely: § 2's written-out `::class` operand is decided by
+    /// as well, and safely: `rule:types/class-reference`'s written-out `::class` operand is decided by
     /// `nvs_types` under **both** spellings — a name outside the hierarchy is
     /// refused either way, by that crate's own
     /// `reject_impossible_class_reference_conversion` — so what folds here is
@@ -1553,7 +1553,7 @@ impl<'a> Lowering<'a> {
     /// what lets this take a `Type` and nothing else.
     ///
     /// `None` for every other annotation, **and for a written-out operand**:
-    /// § 2 decides `"email" as property<User>` where it is written, so the
+    /// `rule:types/property-key` decides `"email" as property<User>` where it is written, so the
     /// checker records no entry for one and the conversion is the free
     /// `Ty::Str` → `Ty::Str` row [`Self::convert`] already answers.
     ///

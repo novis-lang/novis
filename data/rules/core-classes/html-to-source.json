@@ -1,11 +1,7 @@
 {
   "title": "`Core\\Html::toSource` is the one way out of a `Markup`, and it takes a written reason",
   "status": "shipped",
-  "because": [
-    "0133",
-    "0024",
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/html-escape-answers-markup",
     "core-classes/html-auto-escape",

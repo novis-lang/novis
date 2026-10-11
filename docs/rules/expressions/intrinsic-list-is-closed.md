@@ -9,3 +9,13 @@ that runs over it stay one artefact rather than two lists to keep in step.
 
 A closed set is what makes `rule:expressions/preparation-preserves-behaviour` enforceable: every row
 can be tested against its runtime twin, because the rows are enumerable.
+
+The roster is a permanent coupling between the compiler and the library: the compiler knows a
+handful of `Core` method names. The closed set bounds that coupling, since it grows only when a row is
+added deliberately. What it costs is that a package or an extension cannot have its own
+pattern-shaped argument checked early.
+
+**Declined:**
+- **An open intrinsic mechanism**, an attribute or manifest field by which any library declares a
+  method foldable. It turns "the compiler knows a few names" into "the compiler runs code a library
+  chose while compiling", which is a larger attack surface and much harder to reason about.

@@ -1,9 +1,7 @@
 {
   "title": "A `string` member never takes an encoding argument",
   "status": "shipped",
-  "because": [
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "types/string-is-utf8",
     "types/bytes"

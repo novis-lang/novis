@@ -19,4 +19,15 @@ What sealing buys, exactly: a secret cannot be read by code that knows an entry'
 can reach the shared tier without leaving the process in the clear; and a tampered, moved or replayed entry
 is a miss. **It does not protect a secret from a compromised process** or a memory dump — the ring lives in
 the same memory as the plaintext. What it costs is one seal per `putSecret` and one open per ring key tried
-per `getSecret`, a ring ordered newest-first making the common case one open.
+per `getSecret`, a ring ordered newest-first making the common case one open. A program that puts a
+secret in a cache without a ring gets a compile error rather than a plaintext token in a network store,
+which is the whole return on making the door narrow.
+
+- **Memory:** a sealed entry costs its ciphertext: the value, a nonce, a tag, an eight-octet expiry and
+  an eight-octet lifetime, held by whichever tier it was put in under that tier's cap.
+
+**Declined:**
+- **A tier that holds `secret` values in the clear**, since a process that holds the ring may as well
+  hold the plaintext. That tier would have to differ from the one an ordinary value uses, or the boundary
+  refusal would depend on which tier was asked for. Both are a second contract; the sealed door keeps one
+  boundary rule and one payload type, and the tier does not know what it holds.

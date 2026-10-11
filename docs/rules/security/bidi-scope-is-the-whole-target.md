@@ -1,7 +1,8 @@
 Three neighbouring hazards are deliberately outside the check, and saying so is what stops a future
 session from adding a fourth mechanism.
 
-**Zero-width and invisible characters** are not targeted: the false-positive cost is real — one is
+**Zero-width and invisible characters** (U+200B `ZWSP`, U+200C `ZWNJ`, U+200D `ZWJ`, U+2060 `WJ`,
+U+FEFF) are not targeted: the false-positive cost is real — one is
 *required* in Persian, another in Indic scripts and in every multi-codepoint emoji sequence — and with
 identifiers ASCII-only they can no longer make two names look alike. They can pad a string, which is a
 deception with no mechanism behind it. **Homoglyphs** are closed structurally by the ASCII identifier

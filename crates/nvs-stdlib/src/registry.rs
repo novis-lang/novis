@@ -296,7 +296,7 @@ pub enum CoreTy {
     /// runtime does; it is there so an editor can offer class names at it.
     ClassName(Qual),
     /// An **isolate entry** —
-    /// [ADR 0006](/docs/decisions/0006.md) § *Decision*'s
+    /// `rule:security/isolate-shares-nothing`'s
     /// operand, written as a parameter.
     ///
     /// The spec's column is `string` and a path is what the member reads. What
@@ -709,8 +709,8 @@ pub enum CoreTy {
     /// `Hash::hmac($m, $k, Digest::Md5)` is a compile error naming the reason.
     /// A *second enum* would not say that: `Core\StrongDigest::Sha256` would
     /// be a different type from `Core\Digest::Sha256`, and no value could be
-    /// passed to both `of` and `hmac`. A union of case types is the shape ADR
-    /// 0047 already gives that idea, and the checker already places an
+    /// passed to both `of` and `hmac`. A union of case types is the shape
+    /// `rule:types/enum-case-type` already gives that idea, and the checker already places an
     /// enum-case expression against it — `nvs_types::expr::literals`'
     /// `placed_literal` looks inside a union, so `Digest::Sha256` narrows to
     /// its case type and `Digest::Md5` stays the whole enum and fails to
@@ -1074,15 +1074,15 @@ pub enum Const {
 /// `rule:core-api/reference-card`'s five fields, as plain static data next to the row they describe,
 /// so the one artifact that provably matches the shipped behaviour is also
 /// the one that documents it. Every field is inline markdown, one or two
-/// sentences; long-form prose stays in the website's pages by the same
-/// ADR's *Alternatives rejected*. **An empty string or an empty slice means
+/// sentences; long-form prose stays in the website's pages, and that rule's
+/// *Declined* list says why. **An empty string or an empty slice means
 /// "not written yet"**, never "there is nothing to say": `nvs meta --json`
 /// omits such a field, and a consumer falls back to the spec for it
-/// (§ 3's field-wise precedence).
+/// (`rule:core-api/field-wise-precedence`).
 ///
 /// Spends memory per process, never per request — static strings in
-/// `.rodata`, a few hundred bytes per documented member, which the ADR's
-/// *Consequences* prices for the whole registry.
+/// `.rodata`, a few hundred bytes per documented member, as that rule's
+/// *Memory* line prices it.
 #[derive(Clone, Copy, Debug)]
 pub struct MethodDoc {
     /// What the member does, in one or two sentences.
@@ -1699,7 +1699,10 @@ impl CoreClass {
     /// Shown under the card's `short` by a class hover and at the head of the
     /// class's stub. It is prose in the repository's own voice, rendered as it
     /// is written: the page is the website's, and rewriting one is the page's
-    /// business rather than a renderer's.
+    /// business rather than a renderer's. It is a lookup in the table
+    /// `build.rs` generates rather than a field on every class literal, so no
+    /// class carries a hand-typed path to its own page, and a page is compiled
+    /// in the build after it is written.
     #[must_use]
     pub fn intro(&self) -> Option<&'static str> {
         intros::INTROS
@@ -1758,7 +1761,7 @@ pub const CLASSES: &[CoreClass] = &[
     // own roster table points at that ADR for the non-operator members of the
     // `decimal` scalar.
     crate::decimal::CLASS,
-    // And the other half of ADR 0054: the exact scalar above is the
+    // And the other half of `rule:types/decimal`: the exact scalar above is the
     // human-magnitude answer, and this is the arbitrary one. Spec § 13's row
     // names the pair together, and `crate::bigint`'s module doc owns why
     // neither subsumes the other.
@@ -1791,8 +1794,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::io::FILE,
     // What `Core\IO::stat` answers with — § 14's whole metadata bullet as one
     // value, so a program asking more than one question about a path pays for
-    // one syscall. Its own docs argue why it is an instance rather than an ADR
-    // 0036 shape, and why the questions it answers are also members of
+    // one syscall. Its own docs argue why it is an instance rather than a
+    // shape (`rule:types/shape-type`), and why the questions it answers are also members of
     // `Core\IO` without that being `rule:core-api/shape-rules` R17's two spellings.
     crate::io::METADATA,
     // `rule:core-classes/process-is-argv-only`'s one way to run another program, and the result it answers
@@ -1977,8 +1980,8 @@ pub const CLASSES: &[CoreClass] = &[
     // `PART_CONTENT` docs own why a walk over a *part* needs one where a walk
     // over a body does not.
     crate::request::PART_CONTENT,
-    // § 15's fourth request-facing class, and the first one that *writes*: ADR
-    // 0088 § 4's five body members, of which `text` is registered. Beside
+    // § 15's fourth request-facing class, and the first one that *writes*: the
+    // typed body members of `rule:security/response-body-is-one-typed-member`. Beside
     // `Core\Server` because the two are the same request's two halves, and
     // [`crate::response`]'s module doc owns what a written body is — the bytes
     // are `echo`'s output and the member adds the `Content-Type`.
@@ -2349,7 +2352,7 @@ pub const CLASSES: &[CoreClass] = &[
     crate::reflect::CLASS_INFO,
     // One row of that description's method roster. A class of its own rather
     // than a `{name, public}` shape, because a shape has no member to hang the
-    // next question off and the roster ADR 0019 § 1 names is a family of
+    // next question off and `rule:core-classes/reflect`'s roster is a family of
     // descriptions, not of records.
     crate::reflect::METHOD_INFO,
     // The same row one member over, for the description's other roster. Its
@@ -2628,9 +2631,10 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // declaration, and `rule:security/capability-check-at-the-door` is why the two are separate.
     (crate::io::NAME, "open", Some(nvs_config::Cap::FsWrite)),
     // The one member of this class that opens nothing and resolves no name:
-    // standard input is a descriptor the process was started holding, so ADR
-    // 0118 § 1 has no door to put a check at — the same reading as the handle
-    // members below, one step earlier, since here there was never even a path.
+    // standard input is a descriptor the process was started holding, so
+    // `rule:security/capability-check-at-the-door` has no door to put a check
+    // at — the same reading as the handle members below, one step earlier,
+    // since here there was never even a path.
     // A grant would be a boolean over an authority the invoker already
     // exercised by running the program with its input attached.
     (crate::io::NAME, "stdin", None),
@@ -6325,8 +6329,9 @@ mod tests {
     /// compared, the comparison is the exposed operation.
     ///
     /// This is what stands in for a test of constant-time behaviour, which is
-    /// not reliably measurable in CI — `docs/decisions/0060.md` § *Verification*
-    /// asks for exactly this in its place.
+    /// not reliably measurable in CI, so this test holds
+    /// `rule:security/verification-throws-and-compares-in-constant-time` in its
+    /// place.
     #[test]
     fn no_protocol_class_exposes_a_raw_value_accessor() {
         /// The classes a key reaches a member *inside*, since not every key is
@@ -6478,8 +6483,10 @@ mod tests {
     ///
     /// The other exception is the mirror image: a class with members and **no
     /// slots**, because its receiver's whole state is the *context*'s rather
-    /// than the object's. `Core\Socket` is the first — ADR 0083 § 1 gives a
-    /// connection isolate one peer and § 3 makes `current()` a handle onto it,
+    /// than the object's. `Core\Socket` is the first —
+    /// `rule:concurrency/a-connection-is-a-root-isolate` gives a connection
+    /// isolate one peer and `rule:concurrency/a-connection-is-a-loop` makes
+    /// `current()` a handle onto it,
     /// so the socket and the topic queue are `nvs_runtime::Ctx` fields that
     /// outlive every value a program makes from them. `Core\Response\Stream` is
     /// the second, over the same crate's writing half of a streaming response

@@ -158,23 +158,23 @@ impl Request {
         true
     }
 
-    /// `rule:config/a-program-may-read-and-flip-its-mode`'s mode flip: the mode this request runs in, and § 3's five defaults with it.
+    /// `rule:config/a-program-may-read-and-flip-its-mode`'s mode flip: the mode this request runs in, and `rule:config/a-mode-is-five-defaults`'s five defaults with it.
     ///
-    /// Two things make this more than an overlay insert, and both are in that ADR rather than in a
+    /// Two things make this more than an overlay insert, and both are in those rules rather than in a
     /// choice made here:
     ///
-    /// - **§ 5's ceiling bounds it.** A flip is allowed exactly where the mode asked for is no more
+    /// - **`rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode` bounds it.** A flip is allowed exactly where the mode asked for is no more
     ///   permissive than `[mode] ceiling`, which when unset is the mode the host started in — so a
     ///   production host that wrote no configuration refuses every flip, and the refusal is the
     ///   ordinary `false` [`set`](Self::set) answers with rather than a new failure shape.
-    /// - **§ 4's last bullet re-derives § 3's rows into the overlay**, because a mode *is* those
+    /// - **The flip re-derives the mode table's rows into the overlay**, because a mode *is* those
     ///   five defaults and a flip that moved only its own key would change nothing observable. A row
     ///   already set explicitly is left alone, and "explicitly" covers the file as well as this
-    ///   request: § 3's first property makes `mode = "development"` beside `[log] format = "json"`
+    ///   request: every row being settable on its own makes `mode = "development"` beside `[log] format = "json"`
     ///   legal and reads it as the operator overriding the default, which a re-derivation that
     ///   stomped the written line would silently undo.
     ///
-    /// The flip is request-local like every other `set`, which is § 4's own answer for why allowing
+    /// The flip is request-local like every other `set`, which is the rule's own answer for why allowing
     /// it is safe at all: nothing here is visible to another request or outlives this one.
     fn flip_mode(&mut self, asked: &str) -> bool {
         if !mode::within(asked, &self.started_ceiling()) {
@@ -201,7 +201,7 @@ impl Request {
     /// Deliberately **not** `get(mode::KEY)`. That reader answers the overlay and then the global
     /// key and knows nothing about the `[[app]]` block, so a request inside an application that
     /// selected its own mode (`rule:config/a-mount-routes-and-an-app-block-sets-policy`) would be told the host's instead of its own. The order
-    /// is the flip this request made (§ 4), then [`started`](Self::started).
+    /// is the flip this request made, then [`started`](Self::started).
     ///
     /// Borrowed wherever the answer is already text in the snapshot or the overlay, so asking
     /// allocates nothing: `Core\Env::mode` returns an enum, and a program asks it per request.
@@ -216,8 +216,8 @@ impl Request {
     /// The mode the host started this request in — [`mode`](Self::mode) with the flip taken off.
     ///
     /// The `[[app]]` block's where one matched, since an application's mode is its own (`rule:config/a-mount-routes-and-an-app-block-sets-policy`
-    /// ), then the global `mode.default`, then `production`, which is § 5's row for a host that
-    /// wrote nothing at all.
+    /// ), then the global `mode.default`, then `production`, which is the mode a host that wrote
+    /// nothing at all starts in (`rule:config/two-modes-and-the-default-is-production`).
     fn started(&self) -> Cow<'_, str> {
         if let Some(app) = &self.base.mode {
             return Cow::Borrowed(app);

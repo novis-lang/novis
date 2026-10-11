@@ -19,18 +19,19 @@
 //! nothing, and a class becomes a door in that table's reading the moment any
 //! row names it, so five `None` rows here would make this class look like one.
 //!
-//! The syscalls themselves are [`nvs_runtime::os`]'s, because ADR 0118 § 2
-//! forbids this crate from reaching the operating system itself and
+//! The syscalls themselves are [`nvs_runtime::os`]'s, because
+//! `rule:security/capability-check-at-the-door` forbids this crate from
+//! reaching the operating system itself and
 //! `nvs_stdlib_reaches_the_os_only_through_the_gate` holds it to that.
 //!
 //! # Why `memoryUsage` is not here
 //!
-//! [0148](/docs/decisions/0148.md) §§ 11-12 split PHP's one ambiguous question
+//! `rule:observability/memory-is-three-numbers-on-core-budget` splits PHP's one ambiguous question
 //! in two. A **request's** held bytes are `Core\Budget::memoryHeld`, measured
 //! against `memoryLimit` and remembered as `memoryPeak`; the **process's**
 //! resident set is [`residentBytes`](nvs_runtime::os::resident_bytes) and stays
 //! here, where a host fact belongs. A member among these called `memoryUsage`
-//! would be read as the process's by everyone who had not read that record.
+//! would be read as the process's by everyone who had not read that rule.
 //!
 //! # Why `loadAverage` throws rather than answering zero
 //!
@@ -242,7 +243,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Os::residentBytes(): uint` — the process's resident set, and
     /// deliberately not the request's held bytes, which are `Core\Budget`'s
-    /// ([0148](/docs/decisions/0148.md) § 12).
+    /// (`rule:observability/memory-is-three-numbers-on-core-budget`).
     fn nvs_core_os_resident_bytes(_ctx, _args: [0]) {
         let Some(bytes) = nvs_runtime::os::resident_bytes() else {
             // no case can reach this: a process can always be asked about its

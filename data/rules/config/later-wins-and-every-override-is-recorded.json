@@ -1,10 +1,7 @@
 {
   "title": "The tree is one ordered stream, a later assignment wins, and every override is recorded with both origins",
   "status": "shipped",
-  "because": [
-    "0103",
-    "0064"
-  ],
+  "because": [],
   "seeAlso": [
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
     "config/a-value-array-replaces-and-a-table-appends",

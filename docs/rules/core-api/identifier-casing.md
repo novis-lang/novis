@@ -22,4 +22,15 @@ anything is resolved and its diagnostic carries a mechanically derived rename. I
 standard library is unwritten because renaming a member later is a breaking change with no deprecation path
 (`rule:statements/nothing-gets-a-second-name`). The cost is that `snake_case` source does not compile, so a
 ported program renames every such identifier, and two names that collide after renaming are the author's
-to separate.
+to separate. What it buys is that no codebase can drift into two competing house styles, and that a
+reader or an editor knows a name's category from its spelling before anything resolves it.
+
+**Declined:**
+- **Acronyms written as one word** (`HttpClient` required). Deciding what is an acronym needs a
+  dictionary (`rule:core-api/casing-checks-the-leading-character`).
+- **A warning instead of an error, or an attribute to suppress one**
+  (`rule:core-api/casing-has-no-suppression`).
+- **An `I` prefix for interfaces** (`IComparable`). It is a role marker no other kind of name carries,
+  and every interface already written would be renamed.
+- **Lower-case namespace segments** (`core\str`). Every `Core\...` reference already written would be
+  renamed.

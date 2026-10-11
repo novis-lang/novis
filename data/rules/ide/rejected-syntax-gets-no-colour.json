@@ -1,9 +1,7 @@
 {
   "title": "Nothing Novis rejects is coloured as though it were valid",
   "status": "designed",
-  "because": [
-    "0099"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/highlighting-is-two-layers",
     "expressions/one-equality-operator",

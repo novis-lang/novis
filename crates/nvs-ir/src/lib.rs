@@ -126,8 +126,8 @@
 //!   plus one key per level and descends with [`ir::Helper::ArrayRowForWrite`]
 //!   — a row that arrives owning a reference of its own, because the
 //!   [`ir::InstKind::ArraySet`] climbing back out consumes one. So every level
-//!   below the root reaches its write at a refcount of at least two and ADR
-//!   0007 § 5's copy-on-write separates it, even when nothing else was ever
+//!   below the root reaches its write at a refcount of at least two and
+//!   `rule:types/arrays`' copy-on-write separates it, even when nothing else was ever
 //!   going to observe the old row. **The cost is O(inner) per write**, paid
 //!   once per level, and it is correct rather than merely acceptable: a copy
 //!   is what the value semantics promise, and only an optimizer can tell that

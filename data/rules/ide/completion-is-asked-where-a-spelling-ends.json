@@ -1,12 +1,7 @@
 {
   "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, or opened or extended a `require` or `autoload` path string, the string of `as class<T>`, a string argument at a path or class-name parameter or one at a parameter a completion file names, and `$`, a lone `:` and `<?` each narrow what is offered",
   "status": "shipped",
-  "because": [
-    "0193",
-    "0240",
-    "0242",
-    "0243"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/a-template-region-gets-the-editors-services-and-formatter",
     "statements/nvs-is-the-only-open-tag"

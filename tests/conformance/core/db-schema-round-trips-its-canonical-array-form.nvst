@@ -2,7 +2,7 @@
 Core\Db\Schema's array form is canonical: what fromArray reads, toArray answers back, key for key and in order — `rule:core-classes/schema-is-a-value`
 --FILE--
 <?nvs
-// § 1 gives a schema three interchangeable spellings — built, serialized,
+// `rule:core-classes/schema-is-a-value` gives a schema three interchangeable spellings — built, serialized,
 // introspected — and no privileged one, and the property that holds them
 // together is this: `toArray(fromArray(a)) == a` over every construct in the
 // vocabulary. It is stated over the *array* rather than over the objects

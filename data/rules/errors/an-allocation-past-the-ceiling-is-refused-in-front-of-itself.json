@@ -1,9 +1,7 @@
 {
   "title": "An allocation past the memory ceiling is refused before it is made, and the refusal is a complete no-op",
   "status": "shipped",
-  "because": [
-    "0174"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/on-limit",
     "errors/escalation-ladder",

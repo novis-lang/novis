@@ -45,7 +45,7 @@ later decision. If a fragment and a record disagree, the fragment is the rule an
 ## The priority ordering
 
 Highest first. A lower item is spent to buy a higher one, never the reverse. Reasoning and bounds:
-[ADR 0004](docs/decisions/0004.md).
+[`rule:programs/memory-priority`](docs/rules/programs.md#programs-memory-priority).
 
 1. **Security and request isolation** — not traded for anything.
 2. **Latency and throughput on the request path.**

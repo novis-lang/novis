@@ -14,3 +14,12 @@ The override record is per key. Two files setting different keys of one block bo
 partly written block keeps every unwritten key's default independently.
 `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one` keeps its scope: the same key twice
 in *one* file is still refused.
+
+- **Memory:** a live snapshot keeps one origin, a file and a line, for each directive set, plus the
+  list of overrides. It is bounded by the number of directives, never by traffic, and the tree is
+  parsed at boot and on each reload, never on the request path.
+
+**Declined:**
+- **Refusing every cross-file duplicate, so that an include may only add keys no other file set.** A
+  host-local file could then never override a base default, only fill a gap the base left open, and
+  that removes the reason to split files at all. Recording the override is what makes it safe instead.

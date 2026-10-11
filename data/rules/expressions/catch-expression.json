@@ -1,11 +1,7 @@
 {
   "title": "An expression-level `catch` is a chain of typed arms guarding one expression",
   "status": "shipped",
-  "because": [
-    "0119",
-    "0002",
-    "0020"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/catch-arm-is-an-expression",
     "expressions/catch-result-type",

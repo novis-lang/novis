@@ -2,7 +2,7 @@
 `Core\Test::assertCalled` reads the record a double kept, by the method's name alone, by an exact count and by the arguments one call was made with — `rule:testing/interaction-after-the-fact`
 --FILE--
 <?nvs
-// ADR 0079 § 11: the calls are asserted *after* the exercise, against the
+// `rule:testing/interaction-after-the-fact`: the calls are asserted *after* the exercise, against the
 // record the double kept, in the order the test reads. Nothing is declared in
 // advance, so every line below is about a call that has already happened.
 interface Mailer {

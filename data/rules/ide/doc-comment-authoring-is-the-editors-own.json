@@ -1,9 +1,7 @@
 {
   "title": "Writing a `///` run is the editor's job: `onEnterRules` continues one, a paste provider prefixes one, and neither contributes a name",
   "status": "designed",
-  "because": [
-    "0149"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/language-configuration-is-content",
     "tooling/doc-comment-is-three-slashes",
@@ -12,5 +10,7 @@
     "ide/dependencies-are-allowlisted",
     "ide/one-server-two-thin-clients"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "editors/vscode/test/contributions/contributions.test.ts"
+  ]
 }

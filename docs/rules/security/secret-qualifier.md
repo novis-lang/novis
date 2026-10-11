@@ -17,5 +17,17 @@ a credential legitimately (`rule:security/secret-sinks-refuse`), and what an arg
 rule.
 
 Two orthogonal questions — trust and confidentiality — get their own checked axis instead of being
-conflated into one. They compose for the case that matters most in practice, a submitted password,
-without needing a third combined concept.
+conflated into one. `tainted` asks whether a value's shape is safe for a sink; `secret` asks where the
+value may go at all. A well-shaped API key is still catastrophic to leak, and a username safe to
+display is still attacker-controlled. They compose for the case that matters most in practice, a
+submitted password, without needing a third combined concept.
+
+- **Memory:** none. The qualifier is erased before codegen, so a `secret` value is the same bytes as
+  the plain one.
+
+**Declined:**
+- **An opaque `Core\Secret` wrapper type instead of a qualifier.** It would be a second mechanism
+  beside `tainted`'s, with a wrapper's usual friction: no interpolation, and an explicit unwrap at
+  every use.
+- **Zeroing a `secret` value's memory when it goes out of scope.** That needs a destructor-shaped hook,
+  and there are none (`rule:classes/no-destructors`); the qualifier stays compile-time only.

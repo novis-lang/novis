@@ -28,7 +28,9 @@ tools that touch production credentials, customer data or a shell gets the same 
 program with no HTTP request in it — argv-only process spawning, a `secret` that cannot reach a log,
 an interpolated query that does not compile, and a finished tool that is one file with no interpreter
 to install. It justifies no new milestone and no reordering; where a slice would serve it at the cost
-of a web application's, it loses.
+of a web application's, it loses. The greenfield web application is what makes a language with no
+ecosystem viable at all, and the second audience lacks that property: a team with Python tooling
+already has working tools.
 
 **The safety properties are how Novis is built, not who it is built for.** They are also why this does
 not end where a typed, incompatible dialect of an existing language ended before: that one's value depended on a package
@@ -36,7 +38,26 @@ compatibility it could not hold, and Novis depends on that compatibility at no p
 framework rather than waiting for an ecosystem to appear, and differentiates on properties an
 incumbent cannot acquire in a minor release.
 
-<sub>See also [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/slice-ranking`](programs.md#programs-slice-ranking), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0080](../decisions/0080.md), [0100](../decisions/0100.md).</sub>
+**No audience is deliberately second among web teams.** A PHP team modernising and a greenfield
+backend choosing between Go and Node are served by the same language and the same three claims. What
+the first is refused is a compatibility promise ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)), and what
+the second is refused is a speed-only argument ([`programs/three-claims`](programs.md#programs-three-claims)). A language with no
+ecosystem is chosen for a service being built rather than one already running: that bounds *when* a
+team can pick Novis, not *which* teams it is for.
+
+**Declined:**
+- **PHP teams modernising as the audience.** The value on offer would depend on a migration Novis
+  cannot perform, since such a team cannot bring its framework, its packages or most of its code. That
+  is the position the incompatible typed dialect held, and lost.
+- **A narrow first segment, such as multi-tenant and regulated platforms, ranking every slice.** It
+  describes the qualifiers and the isolation as one vertical's requirement when they are the
+  language's ordinary behaviour, and tells every other team the language is not for them. That
+  segment is where the properties pay most, and it stays named as that.
+- **No named audience at all.** It ranks slices silently by what is interesting rather than by what
+  is blocking, and produces a language with no dependency story and no framework, the two things
+  every user meets first ([`programs/slice-ranking`](programs.md#programs-slice-ranking)).
+
+<sub>See also [`programs/three-claims`](programs.md#programs-three-claims), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/slice-ranking`](programs.md#programs-slice-ranking), [`programs/first-party-framework`](programs.md#programs-first-party-framework).</sub>
 
 <a id="programs-three-claims"></a>
 
@@ -52,6 +73,11 @@ Novis claims exactly three things about itself, and each is a property no incumb
 3. **Suspension has no colour** — any function may yield, so there is no `async` split through the
    library.
 
+The first claim is the strongest. In every incumbent language taint checking is an external scanner
+sold as its own product, because a type qualifier cannot be added to that language without breaking
+the programs it already runs; `secret` has the same shape. A competitor closes a gap in a type system
+with a minor release, and it cannot close this one.
+
 **"Faster than PHP" is retired as a headline claim.** It remains true, it remains measured, and it is
 the right thing to put in a benchmark table; as a *reason to adopt* it compares against a deployment
 nobody defends, and the margin over a modern one does not pay for a rewrite. Latency and throughput
@@ -60,7 +86,7 @@ project says about itself first. The landing page, the tutorial and the first ex
 isolate and a qualifier, never with a benchmark and never with a PHP comparison. A PHP comparison page
 may exist; it is not the front door.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0080](../decisions/0080.md), [0026](../decisions/0026.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="programs-no-compatibility-promise"></a>
 
@@ -87,7 +113,10 @@ one surface every user meets first.
 There is no mechanical migration from PHP, shipped or planned, and no table that maps a PHP function
 or construct to a Novis one. A program is ported by rethinking it — by hand, or with an AI agent and
 `nvs agent` — because a facade, a trait or an active-record model has no Novis form a rewriter could
-pick for its author.
+pick for its author. A rewriter's failure is also silent: it emits code that looks converted, runs,
+and differs somewhere nobody looked. For a platform that hosts many tenants or answers to a
+regulator, a behaviour change made while porting is the worst outcome, because it arrives looking
+like success.
 
 **Where PHP is named at all is bounded too: origins stay honest, not prominent.** One line on the home
 page and one in `README.md` say Novis grew out of PHP's ideas. Elsewhere PHP is named only on the one
@@ -98,7 +127,17 @@ reference cards — because each of those is help for one error a person meets, 
 translate from. The `php-differences` id and paths, the `E_PHP_*` constants and a conformance case
 whose file name mentions PHP keep their names.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0080](../decisions/0080.md), [0089](../decisions/0089.md), [0152](../decisions/0152.md), [0274](../decisions/0274.md).</sub>
+**Declined:**
+- **A converter that rewrites PHP into Novis.** It carries the PHP shape over and misses what Novis
+  does that PHP cannot ([`programs/three-claims`](programs.md#programs-three-claims)), and its mistakes are silent ones.
+- **A compatibility package that carries PHP's semantics** — an integer-keyed array class, a loose
+  comparison helper, byte-counting string functions. Each one is a difference in a result, not a
+  missing destination, and a package for it lets a ported program stay on PHP's semantics forever.
+- **A clean-sheet syntax with no PHP shape.** It would remove the association and the temptation to
+  promise compatibility, and it would throw away a syntax that is good, implemented and familiar.
+  The harm is the promise, and this rule removes the promise while keeping the syntax.
+
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/three-claims`](programs.md#programs-three-claims), [`packaging/help-text-speaks-to-its-reader`](packaging.md#packaging-help-text-speaks-to-its-reader). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="programs-slice-ranking"></a>
 
@@ -125,7 +164,7 @@ binds the plan, in this order:
   than an optimisation. The single-application case loses nothing by it, which is what makes this a
   tie-break rather than a priority.
 
-<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0080](../decisions/0080.md).</sub>
+<sub>See also [`programs/audience`](programs.md#programs-audience), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="programs-memory-priority"></a>
 
@@ -145,6 +184,15 @@ The ordering, highest first; a lower item is spent to buy a higher one, never th
 list. What a program observably does is not in the ordering: the rules state it and the conformance
 cases pin it.
 
+The ordering follows what is scarce. Novis runs on server- and developer-class machines, where RAM
+is cheap and sized in advance. One process serves every request, so a sandbox escape or a
+cross-request leak is a bug in all of them; a request's budget is milliseconds, and every allocation
+is spent out of it; and every invariant held by discipline rather than by construction is something
+each later contributor must remember. RAM can be bought and a remembered invariant cannot, and the
+places most likely to be wrong — the unsafe modules, codegen call sites, the sandbox boundary — are
+where a memory-saving trick would have to live. One ordering stated once also puts the burden of
+proof on the smaller option, whose cost is otherwise diffuse and lands in a different file.
+
 **Novis is not a low-footprint runtime.** It does not target `no_std`, microcontrollers or minimum-RSS
 deployments, and there is no cut-down build trading behaviour for size. "Uses less memory" is not on
 its own an argument for a change; "uses less memory and is no more complicated" is simply a better
@@ -156,13 +204,42 @@ request and capped is not a trade-off but a hole in isolation. **O(in-flight), n
 is proportional to concurrent work and released wholesale when that work ends; growth proportional to
 requests served is a leak, and no ordering makes a leak acceptable. **Footprint, not traffic** — bytes
 held are cheap and bytes moved are not, so an extra allocation or cache miss on a hot path is a
-latency question, however much it looks like a memory one.
+latency question, however much it looks like a memory one. The pending error's message is a
+`Cow<'static, str>` rather than a `String` for that reason: one allocation per throw cost more than
+the propagation path it was measured against ([`errors/propagation`](errors.md#errors-propagation)), which reads as frugality
+and is latency winning over footprint.
 
 **Say what you spend.** A decision that takes memory states the amount, per request or per task, in
 the doc comment or record that carries it. The ordering is only usable by a later reader if the costs
-are written down as they are incurred.
+are written down as they are incurred; otherwise "a bit more memory" six times becomes a number
+nobody chose. Nor is the ordering an excuse: "memory is cheap" never argues for an unbounded cache, a
+leak or an uncapped buffer, and a review asks for the number.
 
-<sub>See also [`programs/program-id`](programs.md#programs-program-id), [`programs/three-claims`](programs.md#programs-three-claims), [`errors/propagation`](errors.md#errors-propagation). Decided in [0004](../decisions/0004.md), [0274](../decisions/0274.md).</sub>
+Resident memory per process is therefore higher than a footprint-tuned runtime's, and it scales with
+in-flight concurrency rather than request rate. An operator sizes for tasks times their stack plus
+concurrent requests times their cap, not for one typical RSS, and the comparison Novis stands behind
+is throughput and latency per core at a given concurrency with isolation intact. A deployment target
+where memory is the billed or hard-limited unit — small per-tenant containers, fixed small serverless
+budgets, embedded use — would move footprint up the ordering, and that is a change of direction, not
+tuning.
+
+**Memory:** what the language already spends under this ordering.
+- **A stack reservation per in-flight task**, committed lazily, which is what keeps I/O free of
+  `async` colouring ([`concurrency/a-task-stack-is-reserved-wide-and-pooled`](concurrency.md#concurrency-a-task-stack-is-reserved-wide-and-pooled)).
+- **Sixteen bytes per value**, eight more than a NaN-boxed word, which is what keeps the full `int`
+  range.
+- **A refcount per array and string, and a full copy on the first write to a shared one**, which is
+  value semantics with no aliasing rules to learn.
+- **A copy of every value crossing an isolate boundary**, moved instead when its refcount is 1, which
+  keeps refcounts non-atomic and data races impossible ([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)).
+- **Peak rather than average retention inside a request**, because the request heap is dropped whole;
+  cycles cannot accumulate and no collector runs on the request path
+  ([`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root)).
+- **A fresh instance per extension a request calls**, in a store charged to that request, so extension
+  state cannot leak between requests
+  ([`packaging/an-extension-is-a-sandboxed-wasm-component`](packaging.md#packaging-an-extension-is-a-sandboxed-wasm-component)).
+
+<sub>See also [`programs/program-id`](programs.md#programs-program-id), [`programs/three-claims`](programs.md#programs-three-claims), [`errors/propagation`](errors.md#errors-propagation). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="programs-implementing"></a>
 
@@ -195,7 +272,10 @@ scan at all**, and a program calling any of them pays the directory-listing depe
 many it calls. Type checking and lowering stay lazy regardless — a discovered class nobody calls is
 never checked past its declaration and never reaches codegen.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/constructors`](programs.md#programs-constructors). Decided in [0061](../decisions/0061.md), [0253](../decisions/0253.md).</sub>
+- **Memory:** the scan's symbol entries are O(declarations under the autoload roots), held per host and
+  only by a program that runs a scan.
+
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/autoload`](programs.md#programs-autoload), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/constructors`](programs.md#programs-constructors). Decided in [0253](../decisions/0253.md).</sub>
 
 <a id="programs-implementing-with"></a>
 
@@ -227,7 +307,25 @@ is not a shape is `E0729`. A `$member` that is not a string literal names no ros
 `attribute` is `null`, as the retrieval's computed member folds. The enumeration's own two refusals
 hold unchanged.
 
-<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking). Decided in [0212](../decisions/0212.md), [0253](../decisions/0253.md).</sub>
+A row is a shape rather than two parallel arrays because the loop body reads one class's two facts
+together. The join is not specific to routes: it serves every attribute a framework reads off the
+classes it discovered.
+
+**Memory:** each evaluation makes the allocations `implementing` makes, plus one row object per class
+and one payload object per matched attribute, where the call stands. The join itself is paid while
+checking, and nothing runs that did not run before.
+
+**Declined:**
+- **A retrieval that takes an instance**, `Core\Attributes::get<T>($view, 'render')`, accepted when the
+  receiver's static type is one of the enumerated classes. Inside the loop the variable is typed as the
+  interface, so no call site of that shape could ever be accepted.
+- **A route listing**, `Core\Router::routes()` answering the compiled rows. It removes the duplicated
+  path for routes alone, with a new class and several members, and leaves every other attribute where it
+  was. Listing a program's routes outside a request is a separate routing question.
+- **An interface that requires an attribute**, the compiler checking that every implementor's method
+  carries it. That checks the duplication rather than removing it: the path is still written twice.
+
+<sub>See also [`programs/implementing`](programs.md#programs-implementing), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking). Decided in [0253](../decisions/0253.md).</sub>
 
 <a id="programs-constructors"></a>
 
@@ -325,7 +423,7 @@ time, and a name held in a string can never pull in a new file — `Core\Reflect
 reaches only the compiled program. A string *literal* under `as class<T>` is a name written in the
 source, not one held at run time, and is loaded while compiling ([`types/class-reference`](types.md#types-class-reference)).
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file). Decided in [0061](../decisions/0061.md), [0028](../decisions/0028.md), [0052](../decisions/0052.md), [0250](../decisions/0250.md).</sub>
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file).</sub>
 
 <a id="programs-autoload"></a>
 
@@ -344,7 +442,13 @@ autoload discover '../../*/src';                       // each directory names i
 
 Paths resolve **relative to the file that declares them**, never to the entry point, which is what lets
 one framework directory serve many unrelated project trees. A concatenated or interpolated path is
-`E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY`. A prefix carries no trailing separator; matching appends one.
+`E_AUTOLOAD_PATH_NOT_WRITTEN_DIRECTLY`, reported by the parser, the only place the difference is still
+visible. A prefix carries no trailing separator; matching appends one. A single-quoted `'Acme\Legacy\'`
+could not be written anyway: its `\'` escapes the quote and swallows the rest of the line.
+
+Because the map is source, it travels with the code: it resolves identically under `nvs run`,
+`nvs serve`, `nvs build --compile`, the wasm target and an editor's `nvs check`, none of which share a
+deployment configuration, and there is no configuration file under a document root to reach.
 
 Every prefix segment is a `PascalCase` namespace segment, or the declaration is
 `E_AUTOLOAD_PREFIX_SHAPE`: a prefix that no name can match, such as the PSR-4 `'App\*'`, is reported
@@ -355,8 +459,16 @@ the disk spells it — `autoload 'App\{..}' from '../src';` in `Blog/public/inde
 segment at most. This is how many modules share one entry file byte for byte while each maps only its
 own root.
 
+The braced segment is resolved while the map is built, so the map, `implementing<T>()` and
+`--autoload-map` see only the result. It produces a namespace segment held to the same test as any
+other, never a path, so it opens no traversal. Where a program writes it, the program's meaning
+depends on a directory's name: renaming the directory renames the namespace, and every class under it
+then fails `E_AUTOLOAD_FILE_SHAPE` ([`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file)). The compile
+cache keys a unit on its entry's path, so identical entry files in two directories never share a unit.
+
 A root that does not exist is allowed, because a deployment leaves a module out by not shipping its
-directory, and `nvs check --autoload-map` lists it under `missing`.
+directory, and `nvs check --autoload-map` lists it under a counted `missing` section, canonical as far
+as the disk allows so it prints beside the others.
 
 `discover` takes a glob containing exactly one `*` occupying a whole path segment. Every directory it
 matches becomes a root and the matched segment becomes that root's prefix. A matched directory whose
@@ -381,7 +493,37 @@ Path traversal is structurally impossible, with no sanitizer: a resolved suffix 
 namespace segments, which are `PascalCase` identifiers that may not begin with `_`, so `.`, `..` and a
 path separator cannot occur in one.
 
-<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case). Decided in [0061](../decisions/0061.md), [0029](../decisions/0029.md), [0215](../decisions/0215.md).</sub>
+A hard cross-module reference requires that module while compiling: `Blog\Thing extends Shop\Base` does
+not build if `Shop` is not deployed, where PHP fails only if the line is reached. Modules that depend on
+interfaces the framework owns, rather than on each other's concrete classes, are unaffected.
+
+- **Memory:** the effective map is O(prefixes) per host, a few hundred bytes, and nothing of it is held
+  per request. A braced segment costs one canonicalization while compiling and nothing at run time.
+
+**Declined:**
+- **A manifest file found by walking up from the entry file.** It lands inside or beside a document
+  root, and a walk-up finds the wrong root when many project trees share one framework directory. It
+  would also need a format, a discovery rule, an `extends` key and path anchors that a declaration in
+  the framework's own bootstrap file gets for free ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)).
+- **An `[autoload]` table in `nvs.toml`.** The map is a property of the source tree, not of the
+  deployment ([`config/nvs-toml-is-not-a-project-manifest`](config.md#config-nvs-toml-is-not-a-project-manifest)).
+- **A `declare()`-style pragma.** Novis has no `declare()` grammar to extend, and a top-level statement
+  shaped like `require` already fits.
+- **Convention only, the entry file's directory as the global namespace root.** It cannot express
+  `src/` beside `tests/` beside `vendor/`, several roots for one prefix, or a framework outside the
+  project tree.
+- **A generated classmap.** A build step producing a file that goes stale is strictly worse than
+  resolving from the source the compiler already reads.
+- **A PSR-4 wildcard, `'App\*' from '../../*/src'`, to share one entry file.** It maps every module
+  into every program, so each module's `#[Route]` table and `implementing<T>()` hold every other
+  module's classes, and two modules that both declare `/` collide. It would also need roots that
+  resolve by name without being enumerated, and still a way to name the current module.
+- **`discover` taking a prefix.** It maps every directory the glob matches, which is the same problem.
+- **`*` instead of `{..}` inside a prefix.** A reader coming from PSR-4 reads `*` as a wildcard, and
+  that is the meaning the braced segment does not have.
+- **A missing root as an error.** A deployment leaves a module out by leaving its directory out.
+
+<sub>See also [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload), [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`programs/path-case`](programs.md#programs-path-case).</sub>
 
 <a id="programs-one-declaration-per-autoloaded-file"></a>
 
@@ -400,10 +542,18 @@ program's contents depend on resolution order: a non-reproducible build and an u
 declaring a namespace other than its map path does the same thing another way: its name would exist
 only when something probed or `implementing` scanned that path.
 
-Files reached by `require` are unaffected and may declare anything. The cost is that a helper enum or
-`type` alias used by one class needs its own file.
+The name compared is the full one the probe or the scan derived, against the declaration's name under
+the namespace in force where it stands. A short-name difference names the file; a namespace
+difference names what the file declares and the name the map finds it as.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0061](../decisions/0061.md), [0215](../decisions/0215.md).</sub>
+Files reached by `require` are unaffected and may declare anything. The cost is that a helper enum or
+`type` alias used by one class needs its own file, which PSR-4 already imposes as a convention and
+Novis makes a diagnostic.
+
+**Declined:**
+- **The scan skipping a file whose namespace is wrong.** The mistake would stay invisible.
+
+<sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).</sub>
 
 <a id="programs-path-case"></a>
 
@@ -418,6 +568,11 @@ error on Windows and macOS, where it would otherwise have compiled, and it was a
 `E_REQUIRE_TARGET_NOT_FOUND` on Linux. The invariant is what matters: **a mis-cased path never compiles
 clean on any OS.** Autoload roots are held to the same comparison.
 
+This is where a filesystem's case would otherwise leak into a program's meaning. A project written on
+Windows or macOS collects a `require` that differs in case from its file, and nothing reports it until
+the first deployment to Linux. The check moves that failure to the developer's own machine, at compile
+time, and it has no runtime cost.
+
 Three properties keep the check honest:
 
 - **It costs no syscalls.** `canonicalize` on Windows and macOS already returns the entry's true
@@ -431,7 +586,19 @@ Three properties keep the check honest:
   wrote are compared; how the entry file was named on the command line is not this diagnostic's
   business.
 
-<sub>See also [`programs/autoload`](programs.md#programs-autoload). Decided in [0062](../decisions/0062.md).</sub>
+**Declined:**
+- **Lower-casing both paths before comparing.** That makes the compiler agree with the least strict
+  filesystem, which is the failure the check closes.
+- **A warning instead of an error.** It would fire only on the machines where the code happens to
+  work, so it would be ignored there, and the error would still arrive on Linux
+  ([`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct)).
+- **Checking the entry file's own path and every directory above it.** That path comes from the
+  command line or the web server, not from source, so a diagnostic about it has no line to point at
+  and no edit to suggest.
+- **Probing each component with a directory read** so a crossed symlink is checked too. It costs
+  syscalls on every `require` that the string compare avoids.
+
+<sub>See also [`programs/autoload`](programs.md#programs-autoload).</sub>
 
 <a id="programs-relative-paths-resolve-from-their-file"></a>
 
@@ -478,7 +645,14 @@ The compiler replaces each call with the absolute path of the file that contains
 folder, from the same folder a string literal is joined to, and the program runs a string constant.
 `thisDir($join)` adds a relative string literal to the folder, lexically; any other `$join` does not
 compile (`E0837`), and `Core\Path::join(Core\Path::thisDir(), $part)` joins a path the program
-builds. There are no magic constants: `__FILE__` and `__DIR__` stay `E0319`.
+builds. There are no magic constants: `__FILE__` and `__DIR__` stay `E0319`, and that diagnostic's
+help names the two members. A program wants its folder as a value where no path parameter is: to
+build a path from parts it computes, to hand a folder to a library, to print where it runs from.
+Both members read the folder a string literal is joined to, so the two never disagree, and a file
+reached through `require` names itself and not the entry file. A literal `null` for `$join` is the
+same as no argument; an empty string and an absolute path are `E0837`, so the fold never falls back
+to a call at run time. A source handed to the compiler as text has no file, and there either member
+throws a `RuntimeError` that says so.
 
 **A relative path that reaches a `Core` door at run time throws** a `RuntimeError` naming the member
 and the path, before any grant is asked. `Core\Path::join` builds an absolute path from a folder the
@@ -489,7 +663,17 @@ a path door through it ([`security/launderers-are-sink-named`](security.md#secur
 spawn, a queued job, a scheduled entry and a log handler alike. With every path absolute at the check, a relative grant in `nvs.toml`, which resolves against
 that file's folder, names the same files as a string literal in a program beside it.
 
-<sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0241](../decisions/0241.md), [0245](../decisions/0245.md), [0248](../decisions/0248.md), [0249](../decisions/0249.md).</sub>
+**Declined:**
+
+- **A `__DIR__` constant.** Every call site would have to write the join, and a forgotten one would
+  still resolve against the working directory. A magic constant is also syntax that a `Core` member
+  makes unnecessary.
+- **`thisDir` accepting any string and joining at run time.** It would be `Core\Path::join` under a
+  second name, and the call could not be folded.
+- **`thisFile` and `thisDir` answering the entry file.** A library could not name a file beside its
+  own code.
+
+<sub>See also [`programs/path-case`](programs.md#programs-path-case), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`config/a-relative-path-resolves-against-the-file-it-is-written-in`](config.md#config-a-relative-path-resolves-against-the-file-it-is-written-in). Decided in [0241](../decisions/0241.md), [0245](../decisions/0245.md).</sub>
 
 <a id="programs-program-id"></a>
 
@@ -505,7 +689,10 @@ function Core\Program::id(): string;
 64 characters, never truncated by the runtime, because a caller that wants eight of them can take eight
 and one that wants all 32 cannot get them back. Program order rather than sorted order: a graph whose
 units resolve in a different order is a different program, and an identity that cannot see that is not
-one.
+one. Both inputs are the two halves of the artifact cache's address
+([`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file)), so a program's identity is one
+combine over digests the caches already hold, and `nvs_config::cache::program_id` owns the combine
+because it owns both inputs.
 
 It is the one member of its class with a body, and that is circularity rather than preference. Folding
 it into a constant would write the id into a unit as a literal, which changes that unit's bytes, hence
@@ -515,16 +702,20 @@ member reads that string back.
 
 **Computed at program resolution and at the hot-reload pointer swap, never per call and never lazily.**
 Those are the only two moments a running host's set of units changes; a lazy first-call compute would
-put a hash of every unit digest on one unlucky request's path. It holds 32 bytes per program and one
-BLAKE3 combine per resolution ([`programs/memory-priority`](programs.md#programs-memory-priority)).
+put a hash of every unit digest on one unlucky request's path, and a per-call compute on every request.
 
 Plain `string`, never `secret`: every use of the id is an echo — a cache-busting URL segment, a
 response header, the field that tells one deployment's log lines from another's — and `secret` refuses
-an echo by design. A context nobody wrote an id onto makes the member **throw**, rather than answer an
+an echo by design. The id does tell a reader that a deployment's code changed, and when; that is a
+fingerprinting caveat rather than a disclosure, since a digest reveals no source and says nothing about
+what changed, and nothing enforces it. A context nobody wrote an id onto makes the member **throw**, rather than answer an
 empty string or invent one, because callers key caches and invalidate CDNs on this value and a wrong
 identity is worse than no answer.
 
-<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md).</sub>
+- **Memory:** 32 bytes per program and one BLAKE3 combine per resolution, nothing per request
+  ([`programs/memory-priority`](programs.md#programs-memory-priority)).
+
+<sub>See also [`programs/memory-priority`](programs.md#programs-memory-priority), [`programs/no-runtime-autoload`](programs.md#programs-no-runtime-autoload).</sub>
 
 <a id="programs-bundle-trust-domain"></a>
 
@@ -548,7 +739,12 @@ service.** A privileged account executing that payload at every boot is exactly 
 the single-trust-domain argument depends on there not being, so the installer refuses a host that is
 itself a bundle.
 
-<sub>See also [`programs/compile-target`](programs.md#programs-compile-target), [`programs/audience`](programs.md#programs-audience). Decided in [0048](../decisions/0048.md), [0093](../decisions/0093.md).</sub>
+**Declined:**
+- **Extending the bundle to `nvs serve`.** It would have to decide who counts as the configuration's
+  owner when the configuration ships inside an app-built artifact, which engages the root and app
+  capability separation directly rather than sitting beside it.
+
+<sub>See also [`programs/compile-target`](programs.md#programs-compile-target), [`programs/audience`](programs.md#programs-audience).</sub>
 
 <a id="programs-first-party-framework"></a>
 
@@ -572,7 +768,37 @@ be stable for years; a framework's opinions need to move. Putting the whole fram
 would lock its cadence to the runtime's, and putting all of it in a package would push privileged
 operations across a boundary they cannot cross.
 
-<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new). Decided in [0082](../decisions/0082.md).</sub>
+The project owns that framework permanently: its own compatibility surface, its own security reports
+and its own release cadence. That is the largest ongoing cost the project carries, and it is carried
+because the alternative is the failure mode above. The `Core` half grows the API surface, which is
+the expensive resource the tier tests guard, so each entry there is justified by the test that placed
+it and none by convenience. The framework is also the registry's heaviest user, so every rough edge
+in the package system is felt first-party, first.
+
+A team arriving from an active-record framework will look for the ORM and the container
+([`programs/framework-refusals`](programs.md#programs-framework-refusals)). Those frameworks provide them through reflection and run-time
+magic; Novis provides the same things while compiling, and cannot provide them any other way without
+giving up the guarantees it exists for. That answer belongs on the documentation's first screen.
+
+If the boundary between the halves is crossed repeatedly, by a package member that keeps needing a
+privileged escape hatch, the tier tests are applied to that member again; no escape hatch is added.
+
+**Declined:**
+- **Primitives only: router, session and validation in `Core`, the rest left to the ecosystem.** It
+  keeps the API surface minimal, and it is precisely the position that leaves a good language beside an
+  empty registry. The ecosystem that would fill it does not exist and has no reason to appear first.
+- **The entire framework in the binary.** One download and the best first run, but a framework's
+  opinions must move faster than a language's surface, and every framework fix would become a runtime
+  release.
+- **The entire framework as a package, privileged parts included.** Sessions, validation, queues and
+  persistent connections fail the privilege, sink and waiting tests: a package cannot launder a
+  qualifier or hold state across requests, so the privileged pieces would end in `Core` anyway, behind
+  a worse boundary.
+- **A placement rule specific to framework components.** It would be a second authority over the same
+  question, and the tier tests answered every case without amendment
+  ([`core-api/tier-placement`](core-api.md#core-api-tier-placement)).
+
+<sub>See also [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/framework-refusals`](programs.md#programs-framework-refusals), [`programs/nvs-new`](programs.md#programs-nvs-new).</sub>
 
 <a id="programs-framework-core-half"></a>
 
@@ -603,7 +829,7 @@ third-party framework can be written over this public surface, but it can comput
 and never declare it safe. A member added to this half later carries the test that placed it; one
 arriving with no test is a bug in the roster.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0082](../decisions/0082.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="programs-framework-web-package"></a>
 
@@ -630,7 +856,7 @@ and form binding over `Core\Validate` — the ergonomics, never the laundering; 
 the template engine and the HTML sink already auto-escapes by default, so a second templating language
 would be a second spelling of one job. `Web\Response::view` renders a `.nvs` file and nothing more.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner). Decided in [0082](../decisions/0082.md), [0081](../decisions/0081.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-core-half`](programs.md#programs-framework-core-half), [`programs/no-migration-runner`](programs.md#programs-no-migration-runner).</sub>
 
 <a id="programs-framework-refusals"></a>
 
@@ -655,7 +881,7 @@ would be a second spelling of one job. `Web\Response::view` renders a `.nvs` fil
 - **No second way to do anything the language does.** The framework ships no collections of its own, no
   date type, no string helpers and no error hierarchy.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing). Decided in [0082](../decisions/0082.md), [0253](../decisions/0253.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/implementing`](programs.md#programs-implementing). Decided in [0253](../decisions/0253.md).</sub>
 
 <a id="programs-no-migration-runner"></a>
 
@@ -676,7 +902,7 @@ root-owned configuration, and none of them is obvious.
 `nvs/web` may ship a migration runner, and one appearing in the package without that decision is a
 review failure.
 
-<sub>See also [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0082](../decisions/0082.md).</sub>
+<sub>See also [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/first-party-framework`](programs.md#programs-first-party-framework).</sub>
 
 <a id="programs-nvs-new"></a>
 
@@ -704,4 +930,4 @@ The scaffold is a load-bearing artifact. It is the first experience, so it is he
 own standard: tested on Windows, Linux and macOS as a first-class CI job, and a change that breaks it
 is a regression.
 
-<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience). Decided in [0082](../decisions/0082.md), [0080](../decisions/0080.md).</sub>
+<sub>See also [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`programs/framework-web-package`](programs.md#programs-framework-web-package), [`programs/audience`](programs.md#programs-audience).</sub>

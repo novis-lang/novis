@@ -1,15 +1,7 @@
 {
   "title": "Only `listen`, `socket_mode` and `workers` in `[server]` need a restart, `listen` is one flat array defaulting to `127.0.0.1:8000` in both modes, and the flag is the last word",
   "status": "shipped",
-  "because": [
-    "0097",
-    "0091",
-    "0005",
-    "0106",
-    "0161",
-    "0186",
-    "0219"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/four-idle-waits-all-finite",
     "http-server/max-in-flight-refuses-before-allocating",
@@ -23,6 +15,7 @@
   ],
   "guardedBy": [
     "crates/nvs-config/src/server.rs",
-    "crates/nvs-cli/src/serve.rs"
+    "crates/nvs-cli/src/serve.rs",
+    "crates/nvs-config/tests/snapshot.rs"
   ]
 }

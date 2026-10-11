@@ -10,6 +10,9 @@ nobody wrote.
 
 Its legitimate callers are the ones that need the bytes and not the guarantee — caching a rendered
 fragment, storing one in a column, writing one to a file, handing one to a sink that is not this one.
+Storing or logging escaped HTML as text therefore costs a call and a written reason at each site. That
+is a real restriction, and the case it slows down is usually the bug: escaped markup kept in a
+database is a classic one.
 
 The name is deliberate. `to…` is the conversion verb, `source` is spelled out, and it is neither
 `raw` — which in every template language means the opposite direction — nor `unescape`, which is

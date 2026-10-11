@@ -4,8 +4,8 @@
 <?nvs
 // The one `Core\Db\Schema` case in this tree that reaches a *running*
 // database, for the reason the sibling `db-a-sqlite-block-…` case gives:
-// SQLite needs no server, so `:memory:` makes § 4's introspection, § 6's
-// grades and § 9's apply really happen rather than being asserted off a value.
+// SQLite needs no server, so `:memory:` makes `rule:core-classes/schema-introspection`'s introspection, `rule:core-classes/schema-plan`'s
+// grades and `rule:core-classes/schema-apply-capability`'s apply really happen rather than being asserted off a value.
 // covers: Core\Db\Schema::planAgainst
 use Core\Db;
 use Core\Db\Schema;
@@ -27,7 +27,7 @@ var $schema = Schema::fromArray([
     ],
 ]);
 
-// § 6: a plan is a document, and computing one changes nothing.
+// `rule:core-classes/schema-plan`: a plan is a document, and computing one changes nothing.
 var $plan = $schema->planAgainst($db);
 echo "steps ", Core\Arr::count($plan->steps()), "\n";
 
@@ -39,7 +39,7 @@ foreach ($plan->steps() as Step $step) {
     } else {
         echo "grade not safe\n";
     }
-    // § 8: never elided. The step carries the whole statement.
+    // `rule:core-classes/schema-plan`: never elided. The step carries the whole statement.
     if (Core\Str::contains(Core\Str::lower($step->sql()), "create table")) {
         echo "sql creates the table\n";
     } else {
@@ -57,10 +57,10 @@ foreach ($plan->steps() as Step $step) {
     }
 }
 
-// § 9: applying takes `db.schema`, which this program's block grants.
+// `rule:core-classes/schema-apply-capability`: applying takes `db.schema`, which this program's block grants.
 $schema->applySafe($db);
 
-// § 5's acceptance criterion, and the whole feasibility question the design
+// `rule:core-classes/schema-is-a-value`'s acceptance criterion, and the whole feasibility question the design
 // rests on: apply, read the server back, and the plan is empty.
 echo "after apply ", Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
 
@@ -69,7 +69,7 @@ echo "after apply ", Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
 $schema->applyIncludingRisky($db);
 echo "after risky ", Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
 --FILE nvs.toml--
-# § 9's split, as an operator writes it: `db.connect` is what planning needs,
+# `rule:core-classes/schema-apply-capability`'s split, as an operator writes it: `db.connect` is what planning needs,
 # and `db.schema` is the separate grant that lets this program issue DDL to
 # the same block.
 [capabilities.db]

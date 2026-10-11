@@ -18,3 +18,7 @@ currently is.
 configuration mistake a warning improves — the process must not start with it. A program relaxes *its
 own* call's verification only through `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`, and
 never through any of these three keys.
+
+- **Memory:** per process, the `roots` files, parsed once beside or in place of the bundled set. A call
+  naming any per-call TLS option builds its own client configuration and frees it with the call, so that
+  cost is O(in-flight).

@@ -3,11 +3,11 @@
 
 # The editor
 
-*58 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
+*48 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
-## The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree  *(designed — not yet in the compiler)*
+## The resilient parse is the one grammar's AST plus a trivia layer and an offset index, never a second tree
 
 `rule:ide/one-grammar-one-tree`
 
@@ -31,11 +31,25 @@ The trade is named: without `rowan`'s red/green design there is no free incremen
 analysis reparses the document, and [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound) is what keeps that a
 measured claim. If it fails, the first move is item-level caching over the index, not a second tree.
 
-<sub>See also [`ide/tokens-plus-trivia-reproduce-the-file`](ide.md#ide-tokens-plus-trivia-reproduce-the-file), [`ide/recovery-is-explicit`](ide.md#ide-recovery-is-explicit), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md).</sub>
+What it spends is simplicity, and little: one lexer flag, two node kinds and an index. None of it is
+linked into what `nvs run` compiles, so it costs nothing on security or on the request path.
+
+**Declined:**
+- **A `rowan`-shaped red/green CST beside the AST.** `rowan` exists because a typed AST is lossy by
+  construction; this one is not once trivia is kept beside it, and a second tree is a second shape every
+  grammar change has to keep in step.
+- **A second, error-recovering parse entry point beside the strict one.** The strict parser is already
+  infallible, so a second entry point would add a thing to keep in step and recover nothing the first
+  does not.
+- **A `rowan` tree for the productions the server needs most, and the AST for the rest.** Two half-grammars
+  drift apart the way a second implementation does, and the server would read a different shape
+  depending on where the cursor is.
+
+<sub>See also [`ide/tokens-plus-trivia-reproduce-the-file`](ide.md#ide-tokens-plus-trivia-reproduce-the-file), [`ide/recovery-is-explicit`](ide.md#ide-recovery-is-explicit), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error).</sub>
 
 <a id="ide-tokens-plus-trivia-reproduce-the-file"></a>
 
-## Every token and every trivium, concatenated in offset order, reproduce the file byte for byte  *(designed — not yet in the compiler)*
+## Every token and every trivium, concatenated in offset order, reproduce the file byte for byte
 
 `rule:ide/tokens-plus-trivia-reproduce-the-file`
 
@@ -52,7 +66,7 @@ formatter reads. Nothing else in the lexer changes, because nothing else discard
 This is the prerequisite `nvs fmt` rests on: a formatter that promises comments survive it cannot keep
 that promise over a stream that drops them.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes). Decided in [0099](../decisions/0099.md), [0137](../decisions/0137.md).</sub>
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes).</sub>
 
 <a id="ide-recovery-is-explicit"></a>
 
@@ -69,7 +83,7 @@ invented. Completion's whole behaviour hangs on that distinction — `$u->` with
 a property access whose name is missing, and that missing name is precisely the node member completion
 needs — and an empty span is a coincidence, not a contract.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error).</sub>
 
 <a id="ide-the-tree-survives-a-syntax-error"></a>
 
@@ -94,7 +108,13 @@ position-mapping mechanism. The test is direct: an unclosed brace or a trailing 
 completion on the well-formed code around it. What this gives up is incremental reparse — every analysis
 reparses the document — and a latency bound keeps that a measured trade.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+**Declined:**
+- **Completion stops at a syntax error until it is fixed.** A document is invalid for most of the time
+  somebody is typing in it, so completion would rarely work when it is wanted.
+- **Recovery layered over an all-or-nothing parser afterwards.** A parser that gives up produces no tree
+  for anything downstream of the error to be layered on; the tree has to come from the parser itself.
+
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-positions-have-one-home"></a>
 
@@ -114,7 +134,7 @@ and counted, so every offset after it still lands. CRLF is preserved exactly as 
 spans are byte offsets, so normalising line endings server-side would shift every column in the file, and
 the document store is the one place that could happen.
 
-<sub>See also [`types/bytes`](types.md#types-bytes), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`types/bytes`](types.md#types-bytes), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous).</sub>
 
 <a id="ide-the-index-answers-the-cursor"></a>
 
@@ -131,7 +151,7 @@ The index is rebuilt per analysis. Making it incremental belongs with the rest o
 ancestor paths are what would make item-level caching expressible if [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound)
 ever fails.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed).</sub>
 
 <a id="ide-a-full-reanalysis-stays-under-a-bound"></a>
 
@@ -148,7 +168,7 @@ work — item-level caching over the `SyntaxIndex`, then a decision to revisit w
 never a smaller number in the test. Architecture assumptions are tested, not remembered, and this is the
 one thing M4B built nothing to protect.
 
-<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms).</sub>
 
 <a id="ide-ast-json-schema-is-frozen"></a>
 
@@ -169,7 +189,7 @@ parse: a literal node whose static type carries `secret` emits the fixed placeho
 ([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)). Putting that in the JSON rather than in the
 panel is what stops `--json` and the webview from disagreeing about it.
 
-<sub>See also [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-one-crate-and-one-extension-grow-in-place"></a>
 
@@ -188,7 +208,12 @@ packages themselves. The cost is the ordinary one of any early-shipped surface: 
 extension have to be kept building and passing through the milestones between, even while nothing in
 those milestones depends on them.
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors). Decided in [0040](../decisions/0040.md).</sub>
+**Declined:**
+- **A throwaway first server and extension, discarded when the deep half lands.** It is two
+  implementations of one client-server pair for a stretch, and they drift
+  ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
+
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors).</sub>
 
 <a id="ide-the-server-is-synchronous"></a>
 
@@ -207,7 +232,18 @@ document store. A request that arrives while an older analysis is in flight canc
 is about a document version nobody is looking at any more; `$/cancelRequest` cancels an in-flight request
 the same way.
 
-<sub>See also [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`ide/stdout-belongs-to-the-protocol`](ide.md#ide-stdout-belongs-to-the-protocol), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+The server holds one document store on one thread, so an async runtime would schedule nothing. Taking one
+would put tokio, tower and `async-trait` into every later dependency review and every build, for a process
+that never has two analyses running at once.
+
+**Declined:**
+- **`tower-lsp`.** It brings tokio into a workspace that has no async runtime, for a server whose state
+  is one store on one thread.
+- **JSON-RPC written by hand over `serde_json`.** The framing is only a `Content-Length` header, but the
+  message structs `lsp-types` carries are the real content of the dependency, and writing them again is a
+  maintenance surface with nothing gained.
+
+<sub>See also [`concurrency/one-scheduler`](concurrency.md#concurrency-one-scheduler), [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`ide/stdout-belongs-to-the-protocol`](ide.md#ide-stdout-belongs-to-the-protocol), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="ide-an-open-document-is-its-own-entry-point"></a>
 
@@ -216,7 +252,8 @@ the same way.
 `rule:ide/an-open-document-is-its-own-entry-point`
 
 Document sync is `Full` at M4B: a whole-document push per keystroke over a pipe is not the cost that
-matters when the analysis behind it is a full reparse anyway. Analysis is debounced (150 ms,
+matters when the analysis behind it is a full reparse anyway. Incremental sync arrives with
+incremental analysis or not at all. Analysis is debounced (150 ms,
 `nvs.lsp.debounce`) and cancelled by the next keystroke.
 
 The unit of analysis is one open document as its own entry point. Its `require`/`autoload` graph is
@@ -232,7 +269,7 @@ that requires an edited `B.nvs` is stale until touched, which reads as the serve
 graph is already in hand from the analysis that produced `A`'s diagnostics, so this is a reverse index
 rather than new work.
 
-<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`programs/autoload`](programs.md#programs-autoload), [`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0198](../decisions/0198.md), [0207](../decisions/0207.md).</sub>
+<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`programs/autoload`](programs.md#programs-autoload), [`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
 
 <a id="ide-an-autoloaded-file-borrows-its-programs-map"></a>
 
@@ -259,7 +296,8 @@ lands it on.
 
 - **The file's own declarations win.** A prefix both declare is the file's.
 - **A lender never borrows.** A file that declares `autoload` has a map of its own, and the server
-  analyses it through exactly that one, as `nvs check` does.
+  analyses it through exactly that one, as `nvs check` does. A bootstrap file is read by the walk of
+  every test program that requires it, and without this it would borrow copies of its own declarations.
 - **A borrowed declaration reports nothing**, a duplicate and a malformed glob included. Its position is
   in a file this walk never read, and the lender's own analysis is where it is reported.
 - **One lender lends, never a union.** Two programs over one source tree may give one prefix different
@@ -272,7 +310,9 @@ lands it on.
 - **The lender's declaring files are dependencies of the borrowing analysis**, so an edit to one
   re-analyses and republishes every open document that borrowed from it. An edit to a file the lender
   read repeats its walk only when the edited text holds `require`, since only a `require` can change what
-  the walk reads; an edit to any other file costs one search of its text for the two keywords.
+  the walk reads; an edit to any other file costs one search of its text for the two keywords. A file
+  that stops holding `require` leaves the set of files the walk read stale until the lender's next
+  walk, and the stale set lends a map only to a file no longer required.
 
 Under `nvs.check.scope = open` only the open documents are surveyed, so a map is lent once the file that
 declares it, or the entry that requires it, is open too.
@@ -284,10 +324,57 @@ directory, skipping what the server skips — in path order, stops at the first 
 file, else takes the first that holds it, and checks the file again with that lender's declarations
 behind its own. A file that declares a
 map, or names nothing undeclared, is checked once and searches nothing; a file no lender reaches keeps
-the first walk's diagnostics. `nvs_hir::lenders` is the one implementation of what a lender is and whom it
-lends to, for the server and the command both.
+the first walk's diagnostics, and so does a file checked from a directory outside its project. `E0303`
+and `E0306` are the two diagnostics a borrowed map can change, so no other finding starts a search.
+The second walk starts from a fresh source map, and its diagnostics are the ones reported, in the same
+text and `--json` formats; since a borrowed declaration reports nothing, every diagnostic is about a
+file the check read for the checked file. `nvs_hir::lenders` is the one implementation of what a lender
+is and whom it lends to, for the server and the command both, so the two cannot disagree.
 
-<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace). Decided in [0198](../decisions/0198.md), [0207](../decisions/0207.md), [0208](../decisions/0208.md), [0257](../decisions/0257.md).</sub>
+The command borrows because of how it is used. A coding agent is told to run `nvs check` on the file it
+just edited, and that file is most often a class file under an `autoload` root; without a lent map the
+command it was told to trust reports `E0303` and `E0306` on a program that builds clean, and the false
+error sends the agent to fix code that is correct. For such a file the command costs one read of each
+`.nvs` file under the root, one name-resolution walk per file holding `autoload` or `require` up to the
+lender, and a second walk of the checked file; a program's entry point pays nothing new.
+
+Nothing is configured for this. Where two lenders reach one file the same way, the first in entry-path
+order lends, and nothing says which. The survey costs one read of each file under the root at startup,
+which the index makes anyway, and one name-resolution walk for each file that holds a keyword. Each
+analysis then costs one `canonicalize` and a prefix test per lender. Nothing is on a request path of the
+runtime.
+
+**Memory:** one resolved map and a few short path lists per lender, held for the session. It grows with
+the number of programs in the workspace, not with edits. `nvs check` holds the first lender's resolved
+map for the length of one command.
+
+**Declined:**
+- **A setting naming the entry point.** It is exact, but a false error is the default until somebody
+  finds the setting, and a workspace holding several applications needs a list of them.
+- **Analysing the program's entry point and publishing for the open file out of that walk.** The cursor
+  tables, the trivia and the syntax index would be the entry document's, and a class the entry point never
+  names would not be reached at all.
+- **Holding `E0306` back for a file with no map.** Hover, completion and go-to-definition would still lack
+  the type, and a real misspelt import would be hidden with it.
+- **Reporting the file's own `autoload` as an error when it borrows**, as the build does for an
+  autoloaded file. A bootstrap file reached by `require` may sit under a root too, and the build gives it
+  no error.
+- **Repeating a lender's walk on every edit to a file it read.** That set is the whole application, so
+  every keystroke anywhere would repeat the walk.
+- **The required file's own `require` as the link.** A test file requires nothing. The entry requires
+  it, so the edge points away from the open document a walk starts at.
+- **A test layout the editor already handles, recommended in place of the usual one.** An entry that
+  requires each test file and then the bootstrap is the layout the testing reference describes, and a
+  test file that uses a class is the ordinary case.
+- **Surveying by parsing every file.** The keyword search excludes almost every file for the cost of a
+  read the index makes anyway.
+- **`nvs check` surveying before its first walk.** It costs a tree read on every check of every file,
+  the programs that need nothing included.
+- **`nvs check` searching upwards from the checked file for a lender.** A shared framework tree is
+  reached by a program outside its own directories, and the server, which surveys the workspace, would
+  then disagree with the command.
+
+<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace).</sub>
 
 <a id="ide-the-stub-tree-is-where-core-is-declared"></a>
 
@@ -319,7 +406,39 @@ way a `--FILE lib/user.nvs--` section's is. Real files rather than virtual docum
 location works unchanged in every client and a cursor inside a stub keeps every answer
 ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0214](../decisions/0214.md), [0281](../decisions/0281.md).</sub>
+A hover on a `Core` name shows the card the stub carries, through the one renderer a completion row
+uses too: a class, an enum, a case, a constant and a compiler attribute each show their own. A cursor
+on the class half of a member access shows the class, not the member. A cursor on a namespace segment
+in front of the type, `Core\Http` in `Core\Http\Method::Get`, shows what that namespace contains: the
+classes, enums, interfaces and attributes directly under it, and the namespaces below it. A namespace
+has no file to open, so a jump from a segment opens the type at the end of the path. Inside an
+attribute's payload a name resolves as it does in a body, so a case written there hovers and jumps the
+same way.
+
+Nothing here is on a request path. A hover is a registry lookup. The first jump of a process renders
+the whole tree and writes it at most once per version; every later jump is a map lookup and one
+stamp read. A stub is rendered from the registry's own prose, so a card that reads badly reads badly
+in its stub too, and is fixed in the card. Read-only holds on disk only: an editor may still let the
+reader type into a stub, a save then fails with the editor's own message, and the file is written over
+at the next stamp change either way.
+
+**Memory:** the rendered tree and its line table, a few hundred kilobytes of text, held for the
+server process's life after its first `Core` jump, and one copy on disk per server version.
+
+**Declined:**
+- **Virtual documents under a URI scheme of the server's.** Every client would have to learn the
+  scheme and register a content provider for it, and every request would need extra code for a cursor
+  inside such a document. Real files cost one directory.
+- **Parsing a stub to find a member's line.** It is a second reading of text the generator wrote a
+  moment before, and one parse per jump. The generator knows every line as it writes it.
+- **A `.lspt` stub location written as an absolute path.** An absolute path in a frozen expectation
+  is a path no other checkout has. Under the case's own directory it is written like every other
+  location in another file.
+- **Attribute payload values as nodes of the syntax walk.** The formatter and `Core\Ast` read that
+  walk, and a payload node under a method changes what both print. The server walks a payload itself
+  instead.
+
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`core-api/reference-card`](core-api.md#core-api-reference-card), [`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace). Decided in [0281](../decisions/0281.md).</sub>
 
 <a id="ide-the-request-set-is-closed"></a>
 
@@ -351,6 +470,27 @@ literal at a parameter the registry marks `CoreTy::Path`, at one a program marks
 `Core` shape field with the same mark ([`programs/relative-paths-resolve-from-their-file`](programs.md#programs-relative-paths-resolve-from-their-file)); a
 class-name argument is one at a parameter marked `CoreTy::ClassName`. The mark is read off the call the
 checker resolved, so a literal at any other parameter is ordinary text.
+
+Each of those answers reads what the compiler already resolved, never a second copy of its rule. An
+`autoload` literal's link comes from `nvs_hir::autoload::Site::directories`, which pairs each literal's
+span with the directory `AutoloadMap::build`'s own functions resolve it to and keeps only one that
+exists; a missing root and a malformed glob get no link. A path argument's link reads the checker's own
+join (`ExprTypeTable::path_literal`) for a relative literal and the text itself for an absolute one, so
+a relative literal the checker left alone, its first segment holding a `:`, has none; a path that names
+nothing on disk has none either, since the program may be about to create it. A directory link is a
+`file:` URI ending in `/`, which is what a URI already means by a directory, so the server stays on the
+standard protocol; the VS Code client rewrites such a target into its `revealInExplorer` command, and
+another client opens it however it opens a directory. An `autoload` prefix hovers as the namespace it
+maps, a `{..}` segment shown as the directory name the map uses, and its roots in probe order with a
+missing one marked; it has no `definition`, because a namespace has no declaration. The string of `as
+class<T>` and a class-name argument hover and jump as the class whose whole name the text is, exactly
+as written, because the run-time lookup resolves no `use` line, so `'\App\User'` and a short name
+answer nothing.
+
+- **Memory:** one span per `autoload` literal and per prefix, and one `Vec` of parameter marks per
+  resolved call, per compile, the `Vec` not allocated for a method that marks nothing. In the server,
+  one existence test per literal, root or path argument per link or hover request. Nothing at run time.
+
 M4B's non-standard request is `nvs/redactions`
 ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)), non-standard because LSP has no shape for "do not
 show this to the room".
@@ -358,7 +498,8 @@ show this to the room".
 The last three standard ones are admitted on that test rather than on being useful, and the test is what
 keeps the list from growing: a candidate either reads a structure the milestone already built or waits for
 the milestone that builds it. `codeDescription` is not set: it takes a URL per code and there is no site to
-point one at.
+point one at, and a link into the repository would point at a Rust constant, which is worse than none.
+When there is a site, it is the one field that changes.
 
 M10's eight are admitted the same way, and the structure each one reads is named for the same reason the
 nine are. `references` and `documentHighlight` are the workspace symbol index's read side, whole-workspace
@@ -367,9 +508,12 @@ and narrowed to the open file; `codeLens` counts that index's uses and walks its
 edge both ways. Those four, with unused-member dimming, are
 [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)'s five readers of the one index. `signatureHelp`,
 `typeDefinition` and `implementation` read what `hover` and `definition` already resolve. `inlayHint` is the
-eighth, and it is where ADR 0099 § 3's deferral is reversed — for the two idioms
-that stopped moving and no others, a `var` declaration's inferred type and a bare literal argument's
-parameter name, both read out of the type phase's own tables and never re-derived.
+eighth. It was kept out of M4B because it wanted a settings story and the idioms it would show were still
+moving, and it is admitted for the two idioms that stopped moving and no others: a `var` declaration's
+inferred type and a bare literal argument's parameter name, both read out of the type phase's own tables
+and never re-derived. A site those tables hold nothing for gets no hint: an editor draws a hint as if the
+source said it, so a re-derived one is a confident lie. `documentHighlight` waited for the index for a reason of its own: it applies
+resolution to every occurrence of a name, which is a different walk from resolving the one under a cursor.
 
 M10's own second non-standard request is `nvs/regions`
 ([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)), and it passes the same test the
@@ -413,11 +557,26 @@ own scan, recorded once per file as the index reads it. It is non-standard becau
 "what this file is", and a decoration on a file the editor has not opened is not a document request. It
 has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 
-`textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
-definition, so it would answer identically to `textDocument/definition`, and the crate names neither
-spelling of it.
+**Declined:**
+- **`textDocument/declaration`.** It is refused rather than deferred: Novis has no declaration that is
+  not the definition, so it would answer identically to `textDocument/definition`. That is two
+  capabilities and two menu entries for one answer, and the crate names neither spelling of it.
+- **Inlay hints for everything an editor could annotate.** The reason they waited was idioms still
+  moving, and that reason still covers every shape but the two. A third shape — a `foreach` variable, a
+  chained call's intermediate type, a closure's return — is a decision on the same test a new request
+  is.
+- **Call hierarchy.** It needs a second index of call-site edges that nothing else reads
+  ([`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)).
+- **Resolving an `autoload` root, or joining a path argument's text, in `crates/nvs-lsp`.** Each is a
+  second copy of the compiler's resolution rule, and could disagree with the path the program opens.
+- **Marking a directory link in `data` or `tooltip`.** Both are free-form fields a client has to know
+  about.
+- **`definition` on an `autoload` prefix, to its first root.** A `Location` names a file and a range, and
+  a directory is neither; the link already gives the same ctrl-click.
+- **Resolving the string of `as class<T>` through the file's `use` lines.** The conversion does not, so
+  the editor would jump to a class the program then fails to find.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0137](../decisions/0137.md), [0171](../decisions/0171.md), [0201](../decisions/0201.md), [0240](../decisions/0240.md), [0268](../decisions/0268.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`tooling/doc-comment-tags-are-see-and-example`](tooling.md#tooling-doc-comment-tags-are-see-and-example), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
 
 <a id="ide-the-first-server-answers-a-closed-list"></a>
 
@@ -443,7 +602,16 @@ Not in the first server: format-on-save, because `nvs fmt` does not exist yet; r
 action beyond the two. Everything else waits for its dependency
 ([`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency)).
 
-<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+The first server and extension land as soon as a non-trivial CLI program runs correctly, not after the
+concurrency, configuration, HTTP and extension work. An editor exercising the language early surfaces
+rough edges in the type system, the stdlib's shape and the diagnostics' wording while they are still
+cheap to change.
+
+**Declined:**
+- **The editor client lands only with the full tooling milestone.** Real use in an editor would start
+  after the server, the stdlib and the extension system, when what it finds is expensive to change.
+
+<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
 
 <a id="ide-every-feature-is-staged-behind-its-dependency"></a>
 
@@ -473,7 +641,11 @@ offered only where the compiler already derives the value for another reason, ne
 scan or an annotation dialect. That closed rule is the whole answer to "framework support", and why no
 per-framework module enters `nvs-lsp`.
 
-<sub>See also [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md), [0108](../decisions/0108.md).</sub>
+**Declined:**
+- **Diagnostic severity configurable per file**, through `.editorconfig`, settings globs or tags in the
+  source. It is the door [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression) keeps closed.
+
+<sub>See also [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/no-refactoring-introduces-an-alias`](ide.md#ide-no-refactoring-introduces-an-alias), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen).</sub>
 
 <a id="ide-diagnostics-are-phase-gated"></a>
 
@@ -498,7 +670,7 @@ is lost anywhere one was reaching a human before. The suppression is one-directi
 never suppresses a type error, because those two do not cascade the way a parse failure into everything
 below it does. A `.lspt` case pins it in both directions, with `phase=all` defeating the gate.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-request-line-is-closed`](ide.md#ide-a-request-line-is-closed). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-request-line-is-closed`](ide.md#ide-a-request-line-is-closed).</sub>
 
 <a id="ide-check-json-is-the-diagnostic-record-as-a-document"></a>
 
@@ -521,7 +693,7 @@ diagnostic the text renderer prints, with the same codes and spans.
 `nvs check` on the command line analyses what it is given, as it always has — the scope setting of
 [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace) is the editor's, not the CLI's.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0108](../decisions/0108.md), [0172](../decisions/0172.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen).</sub>
 
 <a id="ide-check-scope-defaults-to-the-workspace"></a>
 
@@ -552,7 +724,7 @@ than wrong.
 Both identifiers, with `nvs.codeLens.enable`, `nvs.template.services` and the `nvs/regions` request, are
 added to the extension's frozen roster under that roster's own rule: a name is added and never renamed.
 
-<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md), [0193](../decisions/0193.md).</sub>
+<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows"></a>
 
@@ -590,7 +762,7 @@ them, and the server computes each from the expression under the cursor alone, w
 question. Neither is ever under `source.fixAll.nvs` or `quickfix`. Any further action the server
 computes for itself is still M10's.
 
-<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md), [0201](../decisions/0201.md), [0259](../decisions/0259.md), [0267](../decisions/0267.md), [0275](../decisions/0275.md).</sub>
+<sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template), [`ide/a-list-splits-onto-lines-and-joins-onto-one`](ide.md#ide-a-list-splits-onto-lines-and-joins-onto-one). Decided in [0267](../decisions/0267.md), [0275](../decisions/0275.md).</sub>
 
 <a id="ide-a-quick-fix-is-a-diagnostics-own-suggestion"></a>
 
@@ -628,7 +800,7 @@ an html template ([`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-str
 under its own `refactor.rewrite.htmlTemplate` kind and never under `source.fixAll.nvs`, since it
 changes what the line prints.
 
-<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md), [0258](../decisions/0258.md), [0259](../decisions/0259.md).</sub>
+<sub>See also [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`classes/definite-property-initialization`](classes.md#classes-definite-property-initialization), [`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`expressions/misread-grouping-warns`](expressions.md#expressions-misread-grouping-warns), [`ide/a-string-converts-to-an-html-template`](ide.md#ide-a-string-converts-to-an-html-template). Decided in [0258](../decisions/0258.md).</sub>
 
 <a id="ide-a-string-converts-to-an-html-template"></a>
 
@@ -651,6 +823,7 @@ echo html`<b>{$name}</b> is <?= Core\Str::upper("here") ?>!`;
 | a double-quoted string | its text and its `$name` and `{$…}` holes as written, `\"` as `"`, every escape both grammars share kept |
 | a single-quoted string | its text, with each `$` that would open a hole written `\$` |
 | a backtick, a `{` that would open a hole or draw `W1012`, a `<` that would open `<?=`, `<?nvs` or `<?php` | `` \` ``, `\{`, `\x3C` |
+| a bare `$name` or `$name->prop` hole that ends its string, with another operand after it | a `{$…}` hole, so it does not run on into that operand's text |
 | a variable, or a property or offset read on one, as a chain operand | a `{$…}` hole |
 | any other chain operand | a `<?= … ?>` hole |
 
@@ -662,14 +835,35 @@ not asked: the preview is the review.
 
 Before it is offered, the template written is parsed back, and its segments must cook to the original
 text and its holes must be the original expressions, in order — so a string the conversion cannot
-write exactly is offered nothing rather than something else. The server computes it from the
+write exactly is offered nothing rather than something else. The comparison uses the lexer's and the
+cooker's own code, so a later change to either grammar is checked here without the conversion learning
+it. The server computes it from the
 expression alone, so every client gets the same edit, and the VS Code command
 `nvs.convertToHtmlTemplate` only asks the editor to apply the action by its kind. It is never under
 `source.fixAll.nvs`: a plain string echoed is escaped as text and a template's segments are markup, so
 applying it changes what the line prints, which is why it is a refactor and not a fix
-([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)).
+([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)). The kind is a sub-kind narrow
+enough that a client asking for it gets this action alone, and the server advertises it in
+`codeActionKinds`.
 
-<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor). Decided in [0259](../decisions/0259.md).</sub>
+- **Memory:** nothing at run time, since the action edits source and writes nothing new to the
+  compiler. Per code-action request on a string: one parse of the expression under the cursor for each
+  `.` above it, one of the template written, and one per enclosing array or `match` checked for a key
+  position, each the size of that expression and dropped with the answer.
+
+**Declined:**
+
+- **A command in the VS Code extension that rewrites the text itself.** It would need its own copy of
+  the lexer's escape and hole rules, and PhpStorm would need a third.
+- **Converting only the string under the cursor inside a chain.** The result is a `Core\Html\Markup`
+  concatenated with a string, which is not what anybody converting a chain wants.
+- **Re-encoding each string from its cooked value.** It is simpler, and it turns every `\n` into a
+  real line break and every `\x41` into its character, so the source changes more than the conversion
+  needs.
+- **Converting a heredoc by re-indenting its body.** The dedent and the escapes interact, and the case
+  is rare next to strings and chains; it can be added under this rule if it is wanted.
+
+<sub>See also [`core-classes/html-template`](core-classes.md#core-classes-html-template), [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-quick-fix-is-a-diagnostics-own-suggestion`](ide.md#ide-a-quick-fix-is-a-diagnostics-own-suggestion), [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor).</sub>
 
 <a id="ide-a-list-splits-onto-lines-and-joins-onto-one"></a>
 
@@ -727,7 +921,14 @@ one.
 What it spends is a walk over the symbol table and the registry on the checker's error path, and
 nothing on a program that compiles.
 
-<sub>See also [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/a-pasted-type-carries-its-use-line`](ide.md#ide-a-pasted-type-carries-its-use-line), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0201](../decisions/0201.md).</sub>
+**Declined:**
+- **A fix the server computes from the diagnostic's span.** It is a fix no diagnostic carries
+  ([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)), and it would be a second
+  implementation of the name resolution `definition` already applies.
+- **Replacing the written name with its qualified spelling.** It is determined and cheap, but a developer
+  who wrote a short name wanted a `use` line, not a file full of qualified names.
+
+<sub>See also [`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/a-pasted-type-carries-its-use-line`](ide.md#ide-a-pasted-type-carries-its-use-line), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
 
 <a id="ide-a-pasted-type-carries-its-use-line"></a>
 
@@ -772,7 +973,11 @@ of documents the server already holds, and nothing between the two. The two answ
 spelling — a list of name pairs and a text edit — and are held by a Rust test on the wire shapes instead
 ([`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case)).
 
-<sub>See also [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/an-undeclared-name-offers-its-import`](ide.md#ide-an-undeclared-name-offers-its-import), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0201](../decisions/0201.md).</sub>
+**Declined:**
+- **One request at paste time that re-reads the source.** By then the source may be closed, edited or
+  in another window. The clipboard is the only place the copy-time fact survives.
+
+<sub>See also [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/an-undeclared-name-offers-its-import`](ide.md#ide-an-undeclared-name-offers-its-import), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="ide-a-code-action-writes-only-what-is-already-determined"></a>
 
@@ -796,14 +1001,17 @@ and **narrow an `array<mixed>` to its literal's type**
 ([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal)), which writes an annotation rather than a declaration
 under the same bound.
 
-Applying a generator produces text that compiles, and applying it twice is a no-op.
+Applying a generator produces text that compiles, and applying it twice is a no-op. Implementing
+missing members is the most-used action of its kind in PHP editors, and Novis's explicit types make
+it mechanical where PHP's make it a guess. A class with it applied passes `nvs check` with only the
+inserted `throw`s reachable.
 
 **Getter/setter generation is refused** under this bound and under [`classes/property-observer`](classes.md#classes-property-observer):
 property hooks mean the pair of methods that action exists to save typing has no reason to be written.
 Code snippets are refused for a neighbouring reason — a snippet body is a second copy of a syntactic shape
 the grammar already owns, silently stale after a grammar change.
 
-<sub>See also [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`classes/property-observer`](classes.md#classes-property-observer), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md), [0114](../decisions/0114.md).</sub>
+<sub>See also [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`classes/property-observer`](classes.md#classes-property-observer), [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling), [`routing/a-quick-fix-writes-a-derived-path`](routing.md#routing-a-quick-fix-writes-a-derived-path), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-no-refactoring-introduces-an-alias"></a>
 
@@ -821,7 +1029,7 @@ resolved a clash with `use Foo as Bar` would be inventing a spelling the languag
 ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)), and a second name introduced by tooling is exactly as
 much a second name as one typed by hand.
 
-<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/var-inference`](types.md#types-var-inference), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name), [`types/var-inference`](types.md#types-var-inference), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index).</sub>
 
 <a id="ide-narrow-an-annotation-to-its-literal"></a>
 
@@ -852,7 +1060,12 @@ the far side of the boundary the first editor slice draws.
 A round trip asserts it: offered on a literal-initialized annotation, absent on a `Core\Json::decode`
 initializer, and the file it produces still checks clean.
 
-<sub>See also [`ide/narrowest-means-narrowest-base-type`](ide.md#ide-narrowest-means-narrowest-base-type), [`ide/the-action-answers-from-the-literal-or-not-at-all`](ide.md#ide-the-action-answers-from-the-literal-or-not-at-all), [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/var-inference`](types.md#types-var-inference), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md).</sub>
+**Declined:**
+- **A hint-severity diagnostic saying an annotation could be narrower.** It makes the checker say
+  something new, and every deliberate `array<mixed>` would then need suppressing. That is every one
+  that holds input.
+
+<sub>See also [`ide/narrowest-means-narrowest-base-type`](ide.md#ide-narrowest-means-narrowest-base-type), [`ide/the-action-answers-from-the-literal-or-not-at-all`](ide.md#ide-the-action-answers-from-the-literal-or-not-at-all), [`ide/narrowing-is-a-diff-never-a-save-time-fix`](ide.md#ide-narrowing-is-a-diff-never-a-save-time-fix), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/var-inference`](types.md#types-var-inference), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree).</sub>
 
 <a id="ide-narrowest-means-narrowest-base-type"></a>
 
@@ -877,9 +1090,14 @@ widens to its enum by the same call.
 
 The unit tests are the list: a homogeneous nest at three levels, a heterogeneous literal producing a
 canonical union, an integer literal widening to `int`, an enum case widening to its enum, `[]` yielding no
-offer, and a literal past depth 32 yielding no offer.
+offer, a `mixed` element yielding no offer, and a literal past depth 32 yielding no offer.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/arrays`](types.md#types-arrays). Decided in [0114](../decisions/0114.md), [0047](../decisions/0047.md), [0007](../decisions/0007.md).</sub>
+**Declined:**
+- **The true narrowest type, literals included.** `array<1|3>` is narrower and correct, and it refuses
+  the next write the developer makes. An action whose type its user must widen at once is worse than no
+  action.
+
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/single-value-types`](types.md#types-single-value-types), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/arrays`](types.md#types-arrays).</sub>
 
 <a id="ide-the-action-answers-from-the-literal-or-not-at-all"></a>
 
@@ -907,9 +1125,11 @@ type the checker already holds. Nothing in this action is guessed.
 
 Narrowing from writes made *after* the declaration is not offered: it needs the join over every write
 reaching the declaration and a generator that picks between answers, which
-[`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined) refuses.
+[`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined) refuses. The cost half of that
+objection goes away if the reference index of [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index) comes
+to answer every write reaching a declaration; the choice half remains.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="ide-no-compile-path-calls-the-synthesis"></a>
 
@@ -939,7 +1159,13 @@ approved by a person ([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-nar
 visible nowhere, which is how a program acquires a type nobody chose. A literal of one type has no such
 choice in it: the type is the one its elements state, so `var` takes it.
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/arrays`](types.md#types-arrays), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md), [0252](../decisions/0252.md).</sub>
+**Declined:**
+- **`check_array_literal` returning the synthesized type wherever it has no expectation.** It is one
+  line, and it is a language change: `echo` arguments and bare expression statements would retype, a
+  heterogeneous literal under `var` would take a union nobody wrote, and [`types/arrays`](types.md#types-arrays)' checked
+  literal would stop being checked.
+
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/arrays`](types.md#types-arrays), [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal).</sub>
 
 <a id="ide-narrowing-is-a-diff-never-a-save-time-fix"></a>
 
@@ -968,7 +1194,7 @@ generic helper path for the typed one, and its element writes become compile err
 throws. Nothing is spent per request, and no memory beyond one more interned descriptor where the program
 did not already have that type.
 
-<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/conversion`](types.md#types-conversion), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0114](../decisions/0114.md), [0007](../decisions/0007.md), [0188](../decisions/0188.md).</sub>
+<sub>See also [`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal), [`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined), [`types/arrays`](types.md#types-arrays), [`types/conversion`](types.md#types-conversion), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-highlighting-is-two-layers"></a>
 
@@ -994,7 +1220,7 @@ rejects ([`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-
 ([`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers)). Its test is a `.lspt` case per token type, plus the
 extension-host run confirming the client's legend matches the server's.
 
-<sub>See also [`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar), [`types/object-top`](types.md#types-object-top), [`types/duration`](types.md#types-duration), [`types/decimal`](types.md#types-decimal), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/rejected-syntax-gets-no-colour`](ide.md#ide-rejected-syntax-gets-no-colour), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar), [`types/object-top`](types.md#types-object-top), [`types/duration`](types.md#types-duration), [`types/decimal`](types.md#types-decimal), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-first-server-answers-a-closed-list`](ide.md#ide-the-first-server-answers-a-closed-list).</sub>
 
 <a id="ide-rejected-syntax-gets-no-colour"></a>
 
@@ -1012,11 +1238,11 @@ worse than no colour. The grammar snapshot test asserts `===` receives no operat
 positive cases — a `#[Route]` attribute that is not a comment, a nowdoc that does not interpolate, inline
 HTML outside `<?nvs`.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution).</sub>
 
 <a id="ide-semantic-tokens-carry-the-qualifiers"></a>
 
-## Semantic tokens use LSP's standard types plus two modifiers of Novis's own, `tainted` and `secret`, and the client's legend must equal the server's  *(designed — not yet in the compiler)*
+## Semantic tokens use LSP's standard types plus two modifiers of Novis's own, `tainted` and `secret`, and the client's legend must equal the server's
 
 `rule:ide/semantic-tokens-carry-the-qualifiers`
 
@@ -1041,7 +1267,11 @@ The legend the client registers must equal the legend the server declares. A mis
 everything one token type off, which no unit test on either side alone can see, so the extension-host run
 proves it.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0214](../decisions/0214.md).</sub>
+**Declined:**
+- **The TextMate grammar alone, with semantic tokens left for later.** A regex grammar cannot produce the
+  qualifier modifiers at any price, and they are the reason this layer exists.
+
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-qualifier`](security.md#security-secret-qualifier), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration).</sub>
 
 <a id="ide-novis-ships-names-not-colours"></a>
 
@@ -1067,7 +1297,7 @@ call to make in someone else's editor, which is also what
 [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration) applies. A bundled theme is a legitimate future option a
 user may select; it is not a default.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration).</sub>
 
 <a id="ide-five-features-are-one-reference-index"></a>
 
@@ -1101,9 +1331,19 @@ recorded as it read each file. It asks what a file declares rather than where a 
 builds no walk of its own either.
 
 The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all six
-readers read it.
+readers read it. Five features that would each walk the workspace cost one walk between them, and the
+warm index is what keeps references and highlight inside [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound).
 
-<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md), [0268](../decisions/0268.md).</sub>
+- **Memory:** the index holds one entry per file the workspace's analyses reached, for the life of the
+  server process. It is bounded by the tree `nvs.check.scope` selects and released by the invalidation a
+  keystroke triggers. It is spent in the editor process and never on the request path.
+
+**Declined:**
+- **An index scoped to one `require` graph.** Four readers would work, but unused-member dimming is only
+  correct at workspace scope. It would also make the scope a property of the index rather than of the
+  query, so the fifth reader would need a second construction site.
+
+<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-completion-offers-only-what-the-compiler-derived"></a>
 
@@ -1139,6 +1379,27 @@ those values, read off the parameter types the checker records on the call it re
 every attribute's anonymous object, whose shape is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
+A path list is one directory: the text between the opening quote and the cursor is split at its last
+separator, the part before it is joined to the declaring file's directory (the base `require` and
+`autoload` resolve against) or replaces it when absolute, and that directory is listed through
+`nvs_hir::autoload::entries_of`, so a name offered is one resolution would find. Names are offered as the
+disk spells them ([`programs/path-case`](programs.md#programs-path-case)), a name starting with `.` is hidden, and an item replaces
+only the segment after the last separator. A directory item writes a `/` and opens the list again. A
+`require` offers directories and `.nvs` files, an `autoload` literal directories only, and a path
+argument every file, since a path parameter takes a file of any kind. Nothing is offered once the
+directory part holds a `*`. An `autoload` prefix offers namespaces from the workspace index as well as
+the analysis, `Core` excluded, because a prefix usually maps code nothing loads yet. The string of `as
+class<T>` offers each class and interface in the analysis that `nvs_hir::hierarchy::implements_interface`
+says is a `T`, `T` included, and not a class only an autoload root could load, because the run-time
+conversion compares whole names among the classes the program declares and cannot find that one either.
+A name literal's item is a whole name replacing all the text after the opening quote: a `\` typed just
+before the closing quote escapes it, so no list can be answered at that keystroke, and a whole name
+never needs it. `Core\Test::assertThrows` is the one member whose class-name parameter expects an
+error, named in a one-row table in `crate::arguments`, since the mark says only that the text is a class
+name. A parameter whose type is a set of allowed string values completes them as items of kind
+`value`, its `null` aside, and is offered a completion file's list beside them, merged by value; it gets
+no warning for a literal outside the set, because the checker already rejects one.
+
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
 properties, already reached as members), service-container and facade resolution (constructor injection
 is resolved while compiling, so go-to-definition already goes there), and view-name completion
@@ -1154,7 +1415,48 @@ A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated
 table the compiler builds for another reason or the table the completion files were loaded into. No
 completion source reads a directory or a file itself.
 
-<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework). Decided in [0108](../decisions/0108.md), [0111](../decisions/0111.md), [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
+The text an item inserts comes from the same place: a `Core` member is inserted from the registry the
+checker seeds its signatures from, so a suggestion never writes a call that then fails to resolve. An
+editor that writes such a call is worse than one that offers nothing, because the developer cannot tell
+the suggestion's mistake from their own.
+
+The rule buys a stronger guarantee than framework-aware completion elsewhere gives. A route name
+completed from the compile-time route table is correct, where one recovered by scanning a conventions
+directory is a good guess. Columns recovered from migrations, facades followed through a runtime
+container and components found by directory convention are each a heuristic replacing a fact the
+language does not make available; Novis makes those facts available, so the heuristic has nothing to
+replace. Stating the rule as a property of where a value comes from keeps `nvs-lsp` free of
+per-framework modules, which would otherwise arrive one framework at a time and never leave.
+
+What it costs: a package whose route-like table is built while the program runs gets no completion for
+it, and the answer is to make that table compile-time. An editor that talks to a third party while a
+developer types is the same class of surprise [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address) refuses for
+a running program, which is why no completion source fetches anything.
+
+**Declined:**
+- **Framework support built from convention scans, an annotation dialect and a patch file** for what
+  neither reaches. Each is a second description of a program's shape that nothing checks against the
+  first.
+- **A module for the first-party web framework inside `nvs-lsp`.** It would be the server's first
+  special case, and a third-party package would then ask for the same treatment with no principle left
+  to refuse it.
+- **Package-name and version completion in the manifest, from a registry.** It needs a network request
+  while the user types. A lockfile's resolved versions are on disk and may be shown.
+- **PHP built-in names as candidates, each answered with its Novis destination.** The answer needs a
+  table from PHP names to Novis ones, and there is none ([`programs/no-compatibility-promise`](programs.md#programs-no-compatibility-promise)).
+- **A PHP name that resolves while the program runs, as an alias of a `Core` member.** It is a second
+  name for one member ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)), and it keeps PHP names in
+  committed source for good.
+- **A `std::fs` listing in `completion.rs`.** It would bypass the test that keeps every completion
+  source on a table the compiler builds, and could disagree with what resolution finds.
+- **A completion file that overrides a method's return type.** The editor's types would then disagree
+  with the compiler's, which is the second description of the program's shape this rule refuses.
+- **Offering every workspace class for the string of `as class<T>`.** A class the program never loads
+  is one the conversion throws for.
+- **A bound in the class-name mark, so `assertThrows` would carry `Throwable` in the registry.** One
+  member needs it, and a new mark field would be read by nothing but the editor.
+
+<sub>See also [`ide/completion-files-offer-values-at-named-parameters`](ide.md#ide-completion-files-offer-values-at-named-parameters), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework).</sub>
 
 <a id="ide-completion-files-offer-values-at-named-parameters"></a>
 
@@ -1166,6 +1468,18 @@ A `.json` file under a folder named `.novis/completion/`, anywhere in the worksp
 included, is a completion file: data that names method parameters and the values the editor offers in a
 string argument at them. Nothing in it is run, by the language server or by any later reader of
 `.novis`, and the server makes no network request for it.
+
+The values such a file lists are ones the program cannot see while it compiles: the modules a
+deployment has, the names in an icon set, the keys of a dataset kept outside the repository. There is
+no first description of them for the file to be a second, unchecked copy of, so
+[`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived) admits it as its one source of values the
+compiler does not derive. Novis defines the file and nothing that writes it, so a Novis script, a
+Python script, a CI job or a person can produce one, and nothing runs inside the editor. `.novis` is a
+project's folder for data its tools read, found anywhere and as many times as a project needs, not an
+editor's; each kind of data is a subfolder with its own format, so a later kind never shares a file
+with this one, and any non-JSON file under `completion/` is ignored, so a README can sit beside the
+data. It follows the dot-folder convention of `.vscode` and `.idea`, and is `novis` rather than `nvs`
+because `.nvs` is the source file extension.
 
 **What a file says.** The top-level fields are `$schema`, `sets` and `parameters`, and the field set is
 closed at every level. A set is a name, shared across every completion file in the workspace, and a list
@@ -1179,44 +1493,96 @@ completion item, and two more: `location`, a `file` relative to the completion f
 named without its `$`, a `set`, a list in `values` or both, and two optional fields: `when`, a
 `parameter` of the same method and the string or strings its argument must `equals`, and `strict`.
 
+Each optional field answers something a plain list cannot say. A translation key is defined in a file
+of its own, and a developer reading it wants its text and the line that defines it: `location`. One
+method's keys can depend on another argument, and a list merging every domain's keys offers mostly
+wrong ones: `when`. Keys written as paths, with many entries under a few prefixes, are easier to choose
+one segment at a time: a separator. A renamed value should say what replaced it: `replacement`.
+
 **Where it reaches.** An attachment is keyed by the declaration the checker resolved the call to, so an
 inherited method is reached through the class that declares it, and an override needs an attachment of
 its own. An attachment with `when` applies at a call only when that call's argument for the named
-parameter is a string literal equal to one of its strings; when that argument is not a literal or is
+parameter is a string literal equal to one of its strings, that argument found the way the completed
+one is, so a named and a positional argument read alike; when that argument is not a literal or is
 left out, only the attachments without `when` apply. Every applying attachment for one parameter
 contributes, files in path order and entries in written order, and a repeated `value` keeps the first
-one read. Inside a string argument at such a parameter, `'` and `"` open the list, as they do at a path
-or class-name parameter.
+one read. A set or a merge is never a conflict, so nothing about one is reported. Inside a string
+argument at such a parameter, `'` and `"` open the list, as they do at a path or class-name parameter,
+and a parameter a path or class-name mark already completes is offered both lists.
 
 **What an item may do.** Its one edit replaces the text of the string literal with `value`, escaped for
 the literal's quote style. In a list with a separator, completion offers the distinct segments that
-follow the text already typed, and an item's edit replaces only the segment being typed; the
+follow the text already typed, and an item's edit replaces only the segment being typed. A segment
+that ends a value carries that value's fields, and one that only leads to longer values carries its
+text alone; the strict check and hover still compare whole values. The
 separator, `.` included, opens the next segment's list inside such a string. No item carries a command,
-an edit outside the string or a snippet. `documentation` is untrusted Markdown, and a relative link or
-image in it resolves against the completion file's folder.
+which would let a cloned repository run an editor command when an item is accepted, an edit outside
+the string, or a snippet, which means nothing inside a string; each is an unknown field. `documentation`
+is untrusted Markdown, so a `command:` link in it is not followed, and a relative link or image in it
+resolves against the completion file's folder and is sent as a `file:` URI, so an icon set can show
+its icon. A URL in it is fetched, if at all, by the client that renders it.
 
 **What else reads it.** Hover on a string literal at an attached parameter whose text equals a value
 shows the value's `title` and `documentation`, and go-to-definition on it answers the value's
-`location`. A literal equal to a deprecated value gets a hint with the `Deprecated` tag, and when the
+`location`, at the start of its line; a value with no `location` answers hover alone. Both read the
+loaded table and neither opens the named file. A literal equal to a deprecated value gets a hint with the `Deprecated` tag, and when the
 value names a `replacement` the hint carries it as the suggestion its quick fix applies, rewriting only
 the string. A parameter is strict when any attachment for it says `"strict": true`, and the language
 server then warns on a string literal at it, in a `.nvs` file, whose text is not one of the values of
 the attachments that apply at that call. A value built at run time is not checked, nor a literal where
 a `when` cannot be decided, and `nvs check` reads no completion file. Without `strict`, nothing checks a
 program's string literals against the values, because the data they describe can change after the
-file is written.
+file is written and a stale file would raise false warnings. That holds for a file nobody keeps
+current and not for one a build step regenerates from the data itself, and only the person who
+writes the file knows which kind it is, so the check is theirs to ask for.
 
-**How it stays current.** The server finds the files when it starts and registers a client watcher for
-`**/.novis/completion/**/*.json`. A file is read again when its modification time or size changes.
+**How it stays current.** The server walks each workspace root once when it starts. The walk enters
+`vendor/`, so a library can ship values for its own parameters, skips `target`, `node_modules` and
+every dot-folder but `.novis`, lists directories and reads no source; it is not the workspace index's
+walk, which skips `vendor/`. The server then registers a client watcher for
+`**/.novis/completion/**/*.json` where the client supports dynamic registration, and a client without it
+gets the files found at start. A file is read again only when its modification time or size changes,
+since a client reports changes that are not. The VS Code extension ships a JSON schema for the same
+glob, so a file written by hand gets the editor's own JSON completion and validation; the server's
+warnings stay the authority, because the schema cannot know which methods exist.
 
 **What is reported** on the completion file's own URI, never for a file under `vendor/`: a file
 that is not valid JSON or has an unknown or mistyped field, which then contributes nothing; an
 attachment whose method or parameter, or whose `when` parameter, the class does not have, for a class
 the workspace index declares; an attachment at a parameter that is not a string; a set no file
 defines; a `location` whose file does not exist; a `replacement` on a value that is not deprecated;
-and, as a hint only, a class the index does not declare.
+and, as a hint only, a class the index does not declare, because it may come from `vendor/`, which
+the index does not read. A file with a field it does not understand contributes nothing, so a value is
+never offered from a file that is half understood; an attachment naming a missing method or parameter
+contributes nothing on its own and the rest of the file still does, so a rename in the program does not
+silence every set in a file until it is regenerated. A file under `vendor/` is a library's to fix.
 
-<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends). Decided in [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
+- **Memory:** every value of every completion file, kept in the server for its lifetime, in proportion
+  to what the files hold. One walk of the directory tree at start, one `stat` per changed file per
+  watcher event, and one lookup in the loaded table per completion, hover, definition or code-action
+  request inside a string argument. A strict parameter costs one set lookup per string literal at it
+  each time a document is analysed. Nothing at run time, and a program compiles the same with or
+  without the files.
+
+**Declined:**
+- **A helper written in Novis, run when completion is requested.** Opening a cloned repository would
+  run whatever it does, a keystroke would wait on a compile and on the helper's own reads, and one
+  position could answer differently from one keystroke to the next.
+- **A `nvs` command that runs such a helper and keeps its result in a file.** A file any program can
+  write already does this, and a command would fix one way of writing it.
+- **A list of completion files in `nvs.toml`.** `nvs.toml` configures a program that runs, and these
+  files serve the editor; a folder found by name needs no configuration to add a file.
+- **One file per project.** Several generated sources would have to be merged into it by hand.
+- **A fixed file name such as `novis-ide-meta.json` found anywhere.** A subfolder per kind leaves
+  `.novis` open to later kinds, and a file name would claim the whole folder for completion.
+- **An attribute in the source naming a set, `#[Completion('icons')]`.** It needs a change to the code,
+  and a project could not give values to a library's parameters.
+- **Values attached to a method's return value or to a property.** A return or property type that is a
+  set of allowed string values already says this in the program, and the checker holds it.
+- **The `strict` check on by default.** A file nobody regenerates would turn into false warnings; the
+  person who writes the file says when it is current.
+
+<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends).</sub>
 
 <a id="ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted"></a>
 
@@ -1248,10 +1614,25 @@ file, the rest of `Core`, the rest of the workspace, and the reserved words last
 is read off a table an arm already reads — the body's scope, the file's imports, the index's occurrences.
 A member list after `->` or `::` has no tiers.
 
-What it spends is one item per type on every bare-position request, a few hundred for the registry alone,
-built and dropped with the answer.
+**Two cursors inside an access are bare positions.** A cursor touching the end of an access's receiver
+is writing the receiver, so `Request|` is offered the type list with its `use` line rather than the
+members of a class that does not resolve. A cursor past the member name with a `(` between the receiver
+and itself is in the arguments or past the call, so `Core\Debug::dump(|)` is offered what `f(|)` is,
+although the access node spans its own arguments.
 
-<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0193](../decisions/0193.md).</sub>
+- **Memory:** one item per type on every bare-position request, a few hundred for the registry alone, and
+  one more lexing of the document. Both are built and dropped with the answer.
+
+**Declined:**
+- **Accepting a type writes its qualified name.** It edits nothing else, but it is not what the developer
+  would have written by hand, which is the short name and a `use` line.
+- **A `CompletionList` marked `isIncomplete`, so the server matches fuzzily itself.** The client would
+  ask again on every keystroke. The editor already matches across a separator, and a round trip per
+  character is latency spent to do the same match twice.
+- **Namespaces offered as items.** Typing `Core` already lists every `Core` type, and the separator's
+  list takes over at the `\`.
+
+<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute).</sub>
 
 <a id="ide-completion-is-asked-where-a-spelling-ends"></a>
 
@@ -1291,7 +1672,16 @@ HTML service does not answer beside the two tags. The extra character is what ke
 the hole out of the region that follows, since a client reads a region as half-open. `<?xml` and every
 other processing instruction stay markup's own.
 
-<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0193](../decisions/0193.md), [0240](../decisions/0240.md), [0242](../decisions/0242.md), [0243](../decisions/0243.md).</sub>
+**Declined:**
+- **Gating a request on the client's `triggerCharacter`.** The text before the cursor is what says whether
+  a `:` finished `::`, and it reads the same for every client.
+- **Turning on `editor.quickSuggestions` for strings in the extension**, so a path list opens without a
+  trigger. It opens the editor's word list inside every string in the file, not only in path literals.
+- **Deciding `<?` in the client**, as a test on the text before the cursor. It would be a second reading of
+  the lexer's open tags in a package that holds no language logic
+  ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)).
+
+<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
 
 <a id="ide-an-accepted-type-writes-what-follows-it"></a>
 
@@ -1327,10 +1717,31 @@ written twice** — no `::` in front of one, no `()` in front of a `(`.
 The two commands, `editor.action.triggerSuggest` and `editor.action.triggerParameterHints`, are an
 editor's and not this server's. A client lists the ones it runs in `capabilities.experimental.commands`
 and is sent no other, because a client answers an id it does not know with an error on every accepted
-item. A client without snippet support gets `Name()` as plain text. There is no setting that turns any of
-this off.
+item. A client without snippet support gets `Name()` as plain text. A client that lists no command gets
+`Name::` and `Name()` as text and no list, and opens it by typing the member's first letter. There is no
+setting that turns any of this off. What it costs is a developer who accepts a class and types `::` from
+habit, who writes `Name::::`: no editor types over inserted text. A setting is the answer if that proves
+to be a real cost, rather than fewer positions that write `::`.
 
-<sub>See also [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends), [`ide/keywords-are-offered-where-the-compiler-accepts-them`](ide.md#ide-keywords-are-offered-where-the-compiler-accepts-them). Decided in [0194](../decisions/0194.md).</sub>
+**Memory:** the workspace index keeps two words on each class declaration, whether it is `abstract` and
+how many parameters its own `constructor` declares, for as long as the session runs. The `new` list is
+filtered and shaped by them.
+
+**Declined:**
+- **`::` everywhere but after `new`.** It is wrong in every written type and at every typed local, such as
+  `function f(Foo:: $x)`.
+- **Two items per class at the start of a statement**, `User` and `User::`. It doubles the type rows of the
+  longest list the server sends.
+- **`new Name();` with the semicolon.** It is right only where `new` starts a statement, and the tokens
+  cannot tell that from `$x = new Name()` once the `=` is behind the cursor. `new` is usually inside a
+  larger expression.
+- **A guess from the rest of the line** to decide the semicolon. It is wrong while the first argument of an
+  unfinished call is being typed.
+- **Sending the command to every client, or adding it in the extension's middleware.** The first sends an
+  unknown command id to clients that answer it with an error; the second puts the behaviour where no Rust
+  test holds it.
+
+<sub>See also [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends), [`ide/keywords-are-offered-where-the-compiler-accepts-them`](ide.md#ide-keywords-are-offered-where-the-compiler-accepts-them).</sub>
 
 <a id="ide-an-accepted-member-writes-its-call"></a>
 
@@ -1346,7 +1757,7 @@ the cursor is not written twice, a client without snippet support gets `name()` 
 command runs only on a client that lists it. A property, a constant, an enum case and a type alias write
 the name alone — none of them is a call.
 
-<sub>See also [`ide/an-accepted-type-writes-what-follows-it`](ide.md#ide-an-accepted-type-writes-what-follows-it), [`ide/a-completion-row-reads-as-a-declaration`](ide.md#ide-a-completion-row-reads-as-a-declaration). Decided in [0203](../decisions/0203.md).</sub>
+<sub>See also [`ide/an-accepted-type-writes-what-follows-it`](ide.md#ide-an-accepted-type-writes-what-follows-it), [`ide/a-completion-row-reads-as-a-declaration`](ide.md#ide-a-completion-row-reads-as-a-declaration).</sub>
 
 <a id="ide-a-completion-row-reads-as-a-declaration"></a>
 
@@ -1371,9 +1782,20 @@ member's name, and the document's URI stamped on by the server — and `completi
 card for the one item the editor shows: a `Core` member's reference card from its registry row, a `Core`
 class's, enum's, constant's or case's own line from the same registry, a user declaration's `///` run.
 It is the text hovering the declaration shows, rendered once, so a list and a hover never disagree about
-a name. An item nobody documented resolves to itself.
+a name. An item nobody documented resolves to itself. A `.lspt` case freezes the row and never the
+card, because `nvs_lsp::render` draws no documentation, so the card is held by a Rust test.
 
-<sub>See also [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`core-api/reference-card`](core-api.md#core-api-reference-card). Decided in [0203](../decisions/0203.md).</sub>
+- **Memory:** a list carries a few bytes of key per row instead of a card per row. The round trip a
+  resolve costs is paid once per highlighted item, never per keystroke.
+
+**Declined:**
+- **Cards on the list.** It is simpler on the wire, but the bare-name list names every type in reach, so
+  every keystroke would carry every card.
+- **The namespace at the right of a type's row.** The name sits at one end of the row and what it is at
+  the other, with the width of the list between them. The namespace in brackets after the name reads in
+  one run.
+
+<sub>See also [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`core-api/reference-card`](core-api.md#core-api-reference-card).</sub>
 
 <a id="ide-keywords-are-offered-where-the-compiler-accepts-them"></a>
 
@@ -1403,7 +1825,7 @@ reserved words by a test. What this adds is when each is offered. It errs toward
 ternary's last operand and a `case` arm's first statement are one position, and both lists are offered
 there.
 
-<sub>See also [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0193](../decisions/0193.md), [0194](../decisions/0194.md).</sub>
+<sub>See also [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed).</sub>
 
 <a id="ide-a-template-region-gets-the-editors-services-and-formatter"></a>
 
@@ -1432,7 +1854,9 @@ terms — the holes are Novis and the segments are HTML, which is the boundary t
 grammar, for the reason [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server) gives for redaction
 ranges — a client that guesses is a second implementation of the lexer. Forwarding a request to a service
 the extension did not write is not language logic in the client. The request carries an optional `text`,
-and then answers for that text rather than the open buffer.
+and then answers for that text rather than the open buffer, because a format pass needs the regions of
+`nvs fmt`'s output, which no buffer holds yet. The answer's shape stays a range and a language. Its cost is protocol surface: it is a second
+request of Novis's own, and one more a client other than VS Code implements to reach the same depth.
 
 **Formatting is `nvs fmt` first, then the editor's own HTML formatter over the markup, starting where the
 Novis code is.** A format request runs `nvs fmt` over the whole file, asks `nvs/regions` for the regions
@@ -1442,9 +1866,12 @@ indentation of its `?>` line, which [`tooling/fmt-novis-constructs`](tooling.md#
 so markup nests from the Novis code around it and the file does not jump between the two; the line
 holding the closing `<?nvs` starts there too. Nesting inside a chunk is the HTML formatter's, in
 `nvs fmt`'s four-space unit whatever the editor's own `tabSize` is, because a chunk and the code around
-it have to agree on what one level is. A hole's bytes are Novis's and are never edited: a chunk whose
-formatting would change one is left as written, and a regions request nothing answers leaves every chunk
-as `nvs fmt` wrote it.
+it have to agree on what one level is. The markup before a file's first open tag is a chunk based at
+column zero. A hole's bytes are Novis's and are never edited: the formatter is shown a stand-in run of the
+same length, and a chunk whose formatting would change a hole is left as written, the safe direction
+because an unformatted chunk is a layout complaint and an edited hole is a changed program. A file
+`nvs fmt` refuses is left as written and nothing after it runs, and a regions request nothing answers
+leaves every chunk as `nvs fmt` wrote it.
 
 **`nvs fmt` stays the only formatter of Novis and never touches markup**, so `nvs fmt --check` passes over
 a file this pass formatted. What is given up is a canonical layout for markup: it reads the user's
@@ -1454,9 +1881,27 @@ program printing text through inline HTML does not.
 Each half is turned off by a setting of its own, both of them `true` by default: `nvs.template.services`
 off stops the forwarding, `nvs.template.format` off stops the markup pass. A user with their own HTML
 tooling, or with markup whose whitespace is output, has to be able to get out of the way of ours. With
-the second off, format-on-save is `nvs fmt` and nothing else.
+the second off, format-on-save is `nvs fmt` and nothing else. The markup pass is on by default because
+markup is where a web application is written, and a formatter that skips it is one developers replace
+with nothing.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md), [0169](../decisions/0169.md), [0173](../decisions/0173.md).</sub>
+- **Memory:** nothing on the request path and nothing held by the server. Each format request costs one
+  `nvs fmt` process, one regions round trip and one HTML format per chunk, all in the editor's process.
+
+**Declined:**
+- **The markup pass off by default.** It keeps every file's bytes canonical, and costs the layout of the
+  half of a template a web application is mostly written in; the setting keeps that answer one click away.
+- **Markup formatting inside `nvs fmt`.** It would be canonical, checkable in CI and identical in every
+  editor, but it is an HTML formatter to build and own, every change to it is a diff across every
+  template, and a Novis formatter that re-indents markup changes what a program prints.
+- **One HTML format over the whole joined document**, the virtual document the services are shown. It
+  nests markup by HTML depth alone, so a chunk inside a `foreach` sits at its siblings' column, which is
+  the jump between the two halves the chunked pass removes.
+- **The client lexing `nvs fmt`'s output, or `nvs fmt` printing the regions.** The first is the second
+  lexer the server's region list prevents; the second is a flag that is not an I/O mode
+  ([`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style)).
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`tooling/fmt-is-never-a-diagnostic`](tooling.md#tooling-fmt-is-never-a-diagnostic), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-case-files-have-their-own-grammar"></a>
 
@@ -1475,7 +1920,7 @@ written is the one for the format the project authors most — the only grammar 
 people working on Novis rather than the people using it. A `.nvst` case opens with its sections coloured
 and Novis highlighted inside `--FILE--`.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="ide-an-lsp-answer-is-frozen-as-an-lspt-case"></a>
 
@@ -1513,7 +1958,10 @@ The runner is `nvs lsp-test <paths>`, walking directories for `*.lspt` and print
 — the line the loop's `nvs-suite` check kind already parses, so editor behaviour is gated with no change
 to the driver at all.
 
-<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/a-request-line-is-closed`](ide.md#ide-a-request-line-is-closed), [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`ide/lspt-coverage-is-inferred`](ide.md#ide-lspt-coverage-is-inferred), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar). Decided in [0099](../decisions/0099.md), [0040](../decisions/0040.md).</sub>
+The cost is two case formats: they share a section lexer but are two suites and two runners, and a
+contributor has to know the shape of both.
+
+<sub>See also [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate), [`ide/a-request-line-is-closed`](ide.md#ide-a-request-line-is-closed), [`ide/the-rendering-has-one-home`](ide.md#ide-the-rendering-has-one-home), [`ide/lspt-coverage-is-inferred`](ide.md#ide-lspt-coverage-is-inferred), [`ide/case-files-have-their-own-grammar`](ide.md#ide-case-files-have-their-own-grammar).</sub>
 
 <a id="ide-a-request-line-is-closed"></a>
 
@@ -1531,7 +1979,7 @@ the token types under test; the rest take none.
 An unknown request or argument fails the case loudly rather than being ignored. A silently-dropped argument
 is a case that passes while testing something else.
 
-<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`ide/diagnostics-are-phase-gated`](ide.md#ide-diagnostics-are-phase-gated).</sub>
 
 <a id="ide-the-rendering-has-one-home"></a>
 
@@ -1549,7 +1997,7 @@ directly after it, the kind, the text at the right ([`ide/a-completion-row-reads
 sorted by label; semantic tokens as
 `L:C+len type modifiers`; symbols as an indented outline.
 
-<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate). Decided in [0099](../decisions/0099.md), [0203](../decisions/0203.md).</sub>
+<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case), [`testing/nvst-is-separate`](testing.md#testing-nvst-is-separate).</sub>
 
 <a id="ide-lspt-coverage-is-inferred"></a>
 
@@ -1566,7 +2014,7 @@ The guard test `every_request_answers_every_construct` reads that matrix and fai
 `.lspt` for what they are genuinely better at, the resilient parser's own invariants over a corpus, and
 never as the only mechanism, because that would make coverage invisible to the gate the loop stops on.
 
-<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/an-lsp-answer-is-frozen-as-an-lspt-case`](ide.md#ide-an-lsp-answer-is-frozen-as-an-lspt-case).</sub>
 
 <a id="ide-headless-gates-the-loop-the-host-run-gates-the-milestone"></a>
 
@@ -1605,7 +2053,29 @@ build and an installed package tree that no footprint records, since only `nvs`,
 `bun nv` log what they read (`tools/nv/select/keys.ts`), so a remembered green here would report an
 editor run on a machine where no editor started.
 
-<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/ci-lanes`](testing.md#testing-ci-lanes). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0185](../decisions/0185.md), [0226](../decisions/0226.md).</sub>
+The cost is a second test toolchain beside Cargo: npm, TypeScript and a Mocha suite, a CI job for each
+tier, and a setup step on a fresh machine that the Rust half does not need. On every acceptance sweep it
+also spends one editor launch that a remembered verdict could have skipped, and the pinned build and
+throwaway profile under `editors/vscode/.vscode-test/`, once per machine. That minute buys a verdict that
+is true; a stale green is worse than the window, because it reports the editor surfaces proved by a suite
+that did not run. Nothing changes at run time: no byte of the binary, the server or a request.
+
+**Declined:**
+- **The host tier in CI alone.** It proves nothing while CI is not running, and the editor surfaces would
+  be reported done on a suite nothing executed.
+- **Hashing `.vscode-test/` and `node_modules/` so the host verdict can be remembered.** It widens what
+  every check's selection sees, so every check would re-run on every machine to fix one. A check that
+  reads something outside the tree opts out with `memoize = false` instead.
+- **A pixel tier.** Colour is asserted through the editor's own commands — `_workbench.captureSyntaxTokens`
+  for the TextMate layer, `vscode.provideDocumentSemanticTokens` and its legend for the semantic one. A
+  screenshot comparison fails on a font, a theme or a scaling factor with no scope wrong.
+- **A test surface with a setter on it.** What `activate` returns stays read-only and exposes nothing
+  another extension cannot already read. A function on it that changed state would let any installed
+  extension unconceal a secret ([`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server)).
+- **Skipping the local run when a display is busy.** A tier that runs only when convenient has a green
+  that means nothing, and the condition would not show in the sweep's output.
+
+<sub>See also [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/semantic-tokens-carry-the-qualifiers`](ide.md#ide-semantic-tokens-carry-the-qualifiers), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`testing/ci-lanes`](testing.md#testing-ci-lanes).</sub>
 
 <a id="ide-one-server-two-thin-clients"></a>
 
@@ -1628,13 +2098,15 @@ formatted output for one file only holds while there is one implementation to ag
 inline-HTML region the services and the formatter are the editor's own HTML ones
 ([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)): the client forwards to them on
 boundaries the server reports and implements neither. So byte-identical formatted output across the two
-editors holds for the Novis bytes of a file; its markup bytes are each editor's HTML formatter's.
+editors holds for the Novis bytes of a file; its markup bytes are each editor's HTML formatter's. The
+client's format pass is its most intricate code, chunks, stand-ins, the base column and refusing an edit
+that reaches a hole, and all of it is over text the server delimited and none of it is language logic.
 
 The VS Code extension ([`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client)) and the PhpStorm plugin
 ([`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server)) are the two clients, and a dependency-allowlist test on
 the extension is what enforces "holds no language logic" rather than review.
 
-<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0040](../decisions/0040.md), [0173](../decisions/0173.md).</sub>
+<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-editor-clients-live-under-editors"></a>
 
@@ -1660,7 +2132,7 @@ A directory is created when its milestone starts, never scaffolded empty ahead o
 crate already follows. The VS Code package and the server crate that back it are then the only ones
 there will be ([`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place)).
 
-<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-crate-and-one-extension-grow-in-place`](ide.md#ide-one-crate-and-one-extension-grow-in-place), [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server).</sub>
 
 <a id="ide-vscode-is-the-reference-client"></a>
 
@@ -1685,7 +2157,7 @@ command. A `secret` value's bytes are concealed by default on ranges the server 
 Nothing in that list is language logic ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)). The concrete
 contribution roster — setting and command identifiers — is frozen elsewhere; this is the shape.
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-nvs-is-its-own-file-type"></a>
 
@@ -1708,7 +2180,7 @@ A Novis file is not a PHP file to the editor for the same reason it is not one t
 different enough that a PHP tool over the file would colour valid Novis as an error and valid PHP that
 Novis rejects as fine.
 
-<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/vscode-is-the-reference-client`](ide.md#ide-vscode-is-the-reference-client), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag).</sub>
 
 <a id="ide-the-extension-claims-nvs-only"></a>
 
@@ -1718,7 +2190,7 @@ Novis rejects as fine.
 
 The extension registers `.nvs` and does not claim `.php`, even though `nvs-syntax` parses it. Claiming it
 would fight every PHP extension a user already has, and losing that fight silently looks like Novis being
-broken.
+broken. A setting that opts `.php` in waits until somebody converting a codebase asks for one.
 
 A file named `nvs.toml` gets one completion provider and nothing else: no language id, file extension or
 grammar for TOML. The provider's selector is the file name, so a TOML extension keeps the file and the
@@ -1731,15 +2203,15 @@ claim.
 The extension-host run proves activation on `.nvs`, its absence on `.php`, and completion in an `nvs.toml`
 whose language stays the editor's own. The manifest test proves no TOML file type is claimed.
 
-<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is).</sub>
 
 <a id="ide-language-configuration-is-content"></a>
 
-## `language-configuration.json` carries comments, pairs, indentation, folding and a `wordPattern` that includes `$`  *(designed — not yet in the compiler)*
+## `language-configuration.json` carries comments, pairs, indentation, folding and a `wordPattern` that includes `$`
 
 `rule:ide/language-configuration-is-content`
 
-`language-configuration.json` is content, not a checkbox: comments (`//`, `#`, `/* */`), brackets,
+`language-configuration.json` is content, not a checkbox: comments (`//` for the line toggle, `/* */` for the block), brackets,
 auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `///` run
 ([`ide/doc-comment-authoring-is-the-editors-own`](ide.md#ide-doc-comment-authoring-is-the-editors-own)), and folding markers.
 
@@ -1752,7 +2224,7 @@ The second is that **`wordPattern` must include `$`**. Without it, double-clicki
 `total`, every rename-adjacent interaction is off by one character, and word-based completion suggests
 the wrong token.
 
-<sub>See also [`ide/doc-comment-authoring-is-the-editors-own`](ide.md#ide-doc-comment-authoring-is-the-editors-own), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers). Decided in [0099](../decisions/0099.md), [0149](../decisions/0149.md).</sub>
+<sub>See also [`ide/doc-comment-authoring-is-the-editors-own`](ide.md#ide-doc-comment-authoring-is-the-editors-own), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/highlighting-is-two-layers`](ide.md#ide-highlighting-is-two-layers).</sub>
 
 <a id="ide-doc-comment-authoring-is-the-editors-own"></a>
 
@@ -1781,7 +2253,29 @@ inside a doc comment is the first thing here that would have to answer it.
 Each client owns its own copy ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)): these are editing affordances,
 not server answers, so the PhpStorm plugin writes both again or goes without.
 
-<sub>See also [`ide/language-configuration-is-content`](ide.md#ide-language-configuration-is-content), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0149](../decisions/0149.md).</sub>
+No rule guesses where a doc comment ends. The continuation over-runs by one line until the author deletes
+it, the familiar nuisance of every `///` language, and a heuristic would guess wrong in the other
+direction. Nothing checks what the paste provider writes, but prefixing lines with a marker cannot
+produce anything that is not a comment, so the worst case is a badly worded one.
+
+- **Memory:** none. Both affordances run in the editor and touch no compile and no request.
+
+**Declined:**
+- **A `///`-delimited block** — `///` alone opening, an un-prefixed body, `///` alone closing. Its
+  terminator is a bare `///` line, which is what a code sample of a documented member contains, so ending
+  it safely needs a lexer that tracks Markdown fences. It makes the body's indentation content (four
+  spaces is a CommonMark code block) while [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes) forbids re-aligning a comment, and
+  an unterminated one turns the rest of the file into prose.
+- **`/** */`, the PHPDoc shape.** [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes) declines it, and a block
+  comment ends at the first `*/`, so a glob or a regex in the Markdown body would end the comment.
+- **A command and a keybinding** for the paste. They add a frozen id and a key to learn for what the
+  paste widget already offers.
+- **A snippet that expands to a doc comment.** A snippet body is a second copy of a syntactic shape
+  ([`ide/a-code-action-writes-only-what-is-already-determined`](ide.md#ide-a-code-action-writes-only-what-is-already-determined)).
+- **`nvs fmt` inserting the prefix.** [`tooling/fmt-quotes`](tooling.md#tooling-fmt-quotes) leaves every comment byte-for-byte
+  untouched, and a formatter cannot know which un-prefixed lines were meant as documentation.
+
+<sub>See also [`ide/language-configuration-is-content`](ide.md#ide-language-configuration-is-content), [`tooling/doc-comment-is-three-slashes`](tooling.md#tooling-doc-comment-is-three-slashes), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="ide-contributions-are-frozen-and-only-ever-added"></a>
 
@@ -1806,7 +2300,7 @@ M10 adds, under the same rule and not as an exception to it: the settings `nvs.c
 request of Novis's own, `nvs/regions`. A contributions test asserts `package.json` declares exactly
 what the roster names.
 
-<sub>See also [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0108](../decisions/0108.md), [0111](../decisions/0111.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/tainted-has-no-default-decoration`](ide.md#ide-tainted-has-no-default-decoration), [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="ide-tasks-carry-a-problem-matcher"></a>
 
@@ -1822,7 +2316,7 @@ It is a two-line regex over the renderer's existing format — `error[E0301]: me
 useful and being decorative. A failing `nvs test` populating the Problems panel through the matcher is
 part of the extension-host run.
 
-<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-the-extension-is-a-workspace-extension"></a>
 
@@ -1838,7 +2332,7 @@ That one line is the difference between working in every remote configuration an
 them with a message about `nvs` not being on `PATH`. The same contributions test that checks the frozen
 identifiers asserts it.
 
-<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-the-extension-runs-where-the-binary-is"></a>
 
@@ -1867,7 +2361,7 @@ The `.vsix` carries no binary either, on any platform:
 [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one) is how a machine without `nvs` gets one,
 and why a copy the extension installed is tried after the user's own toolchain rather than before it.
 
-<sub>See also [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one). Decided in [0099](../decisions/0099.md), [0155](../decisions/0155.md).</sub>
+<sub>See also [`ide/the-extension-claims-nvs-only`](ide.md#ide-the-extension-claims-nvs-only), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-lockfile-is-committed-and-build-output-is-not`](ide.md#ide-the-lockfile-is-committed-and-build-output-is-not), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one).</sub>
 
 <a id="ide-the-extension-guides-an-install-and-never-bundles-one"></a>
 
@@ -1900,7 +2394,26 @@ settings would defeat it later by other means: the day that user installs `nvs` 
 absolute path silently keeps winning, so the copy is remembered in the extension's own storage and
 the status item names whichever candidate answered.
 
-<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0155](../decisions/0155.md).</sub>
+The extension's archive table names the targets `.github/workflows/release.yml` builds, with an
+x86_64 musl machine on the musl archive, and the two lists must agree: a target on one side only is a download that
+fails with a 404.
+
+- **Memory:** one unpacked archive under the extension's own storage, once per machine. Nothing on
+  the request path.
+
+**Declined:**
+- **A binary bundled in per-platform `.vsix` packages.** A bundled copy either outranks the user's own
+  toolchain, which breaks the invariant above, or it does not, and then it is a managed install paid
+  for with seven publish legs, macOS codesigning and an executable bit carried through a zip.
+- **A download on activation.** It is the same bytes as the command with the person taken out of the
+  decision, and it makes the extension fetch and run code on activation.
+- **`PATH` only.** A user who installs the extension before the compiler gets a spawn failure and a
+  message about the problem, with no way out of it.
+- **Verifying the Sigstore attestation in the extension.** It needs `gh` and a Sigstore client, a
+  dependency and a second trust store inside an editor process. The release page is where that check
+  belongs.
+
+<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added).</sub>
 
 <a id="ide-the-extension-builds-no-ui-the-editor-already-has"></a>
 
@@ -1923,7 +2436,14 @@ That is four pieces of UI infrastructure Novis neither builds nor maintains, whi
 priority applied directly. The extension's own code is the descriptor factory, the schema contribution,
 the test provider and the command that hands a file to a viewer.
 
-<sub>See also [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter). Decided in [0040](../decisions/0040.md).</sub>
+**Declined:**
+- **A Novis coverage gutter and a Novis flamegraph renderer.** VS Code's Test Coverage API and the
+  speedscope format already exist and are maintained elsewhere; building equivalents is scope the
+  simplicity priority does not pay for.
+- **A hand-rolled status-bar item for server health.** `LanguageStatusItem` is the API VS Code provides
+  for exactly that.
+
+<sub>See also [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/report-formats`](testing.md#testing-report-formats), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter).</sub>
 
 <a id="ide-a-file-shows-what-it-declares"></a>
 
@@ -1935,22 +2455,50 @@ A file whose only declaration is one class, interface, enum or `type` alias, bes
 `namespace` and `use`, shows that kind in the editor's file list as a letter beside its name: `C`, `I`,
 `E` or `T`. That is the shape every autoloaded file
 has ([`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file)), and `nvs_hir::autoload::sole_declaration` is
-the one scan both the shape check and this list read. A file reached by `require` with the same shape is
-listed as well.
+the one scan both the shape check and this list read, so the shape the editor shows and the shape the
+compiler accepts cannot disagree. A file reached by `require` with the same shape is listed as well: it
+declares one thing just as plainly, and asking how a file was reached would need an edge the loaded
+file does not keep.
 
-The server answers `nvs/fileKinds` with every such file its index holds and the kind of each, and the
+The server answers `nvs/fileKinds` with every such file its index holds and the kind of each. The
+request takes no parameters and answers `[{uri, kind}]`, `kind` being `class`, `interface`, `enum` or
+`type`. The index records the kind as it reads the file, so an answer is one pass over its file map and
+no analysis. The client never finds the kind itself by matching `class` or `enum` in the text, because
+every judgement about the language stays in the server ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)). The
 VS Code client draws the answer as a file decoration, the editor's own surface for a badge on a file
 ([`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has)). The icon is unchanged: an editor picks
 a file's icon from its name and language, never from its content. The decoration carries no colour,
 because a decoration's colour is drawn on the file's name too, and a list of recoloured names is
 harder to read than the names alone. With no colour the editor draws the letter in the name's own
-colour, dimmed.
+colour, dimmed, the way a source-control letter looks on a file with no change colour. The letter and
+the tooltip are the whole signal: a theme or a user cannot tell the kinds apart by colour. The stable
+API takes a badge of one or two characters and draws no shape around it, and no API changes how the
+Explorer shows a file's name.
 
 The list is what the index holds. The client asks when a server starts answering, after
-`nvs.checkWorkspace`, and when a Novis document is opened or saved; a file changed outside the editor
-shows its old kind until one of those happens.
+`nvs.checkWorkspace`, and when a Novis document is opened or saved, and several asks close together are
+one, since the server does not watch `.nvs` files on disk. A file changed outside the editor shows its
+old kind until one of those happens, the same staleness every reader of the index has. The badge shares
+the decoration slot with source control, so a modified file may show the source-control badge in place
+of its kind. No setting is added.
 
-<sub>See also [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0268](../decisions/0268.md), [0269](../decisions/0269.md).</sub>
+- **Memory:** one more field per indexed file in the server, for the life of the server process.
+  Nothing at run time.
+
+**Declined:**
+
+- **The theme's symbol colour for each kind** (`symbolIcon.classForeground` and its siblings). The
+  editor draws it on the name as well as the badge, so in a directory of autoloaded files nearly every
+  name turned one of three colours, and the colours no longer marked anything out.
+- **A circled or filled letter** (`Ⓒ`, `Ⓘ`, `Ⓔ`, `Ⓣ` and the negative circled letters). The circled
+  ones looked worse than a plain letter, and the filled ones were too small to tell apart.
+- **A badge drawn as an icon.** It is the proposed `codiconDecoration` API, which an extension published
+  to the marketplace cannot use.
+- **The kind in the file's name**, such as `Status.enum.nvs`. It would let an icon theme give each kind
+  its own icon, but it changes how autoload finds a file, which every program's layout depends on, so it
+  is a language decision and not an editor one.
+
+<sub>See also [`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="ide-the-test-tree-is-discovered-and-run-through-the-cli"></a>
 
@@ -1981,7 +2529,12 @@ tables: the binary answers, and the client renders. A client that scanned the wo
 classes itself would be a second implementation of the `#[Test]` table, free to disagree with the one
 that runs.
 
-<sub>See also [`testing/report-formats`](testing.md#testing-report-formats), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0172](../decisions/0172.md).</sub>
+**Declined:**
+- **Asking the language server where a test is declared.** It is the client reconstructing what the
+  CLI's document should carry, and a client feature whose CLI surface is missing is the CLI's to fix
+  ([`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency)).
+
+<sub>See also [`testing/report-formats`](testing.md#testing-report-formats), [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/the-ast-panel-shells-out-to-the-cli`](ide.md#ide-the-ast-panel-shells-out-to-the-cli), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-the-ast-panel-shells-out-to-the-cli"></a>
 
@@ -1999,7 +2552,7 @@ parse a running Novis program calls; the editor panel is simpler and shells out 
 `nvs check` backs diagnostics. Both read the one tree there is ([`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree)), so the
 panel and the compiler cannot disagree about a file's shape.
 
-<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0040](../decisions/0040.md), [0099](../decisions/0099.md).</sub>
+<sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/the-tree-survives-a-syntax-error`](ide.md#ide-the-tree-survives-a-syntax-error), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen).</sub>
 
 <a id="ide-the-lockfile-is-committed-and-build-output-is-not"></a>
 
@@ -2017,7 +2570,7 @@ and because an unpinned dependency tree makes the grammar snapshots reproducible
 two jobs for the package beside the ones already there — `extension`, the headless suites on all three
 platforms, and `extension-host` on Linux — and `ci.yml` is the count of those.
 
-<sub>See also [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is).</sub>
 
 <a id="ide-phpstorm-bridges-to-the-same-server"></a>
 
@@ -2053,7 +2606,7 @@ explicit decision if usage justifies it — kept open, not silently skipped, and
 - **VS Code only, with PhpStorm out of scope.** PhpStorm is the editor many PHP developers already work
   in, and leaving it out gives them no Novis support at all.
 
-<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients), [`ide/nvs-is-its-own-file-type`](ide.md#ide-nvs-is-its-own-file-type), [`ide/the-debug-adapter-does-not-wait-for-an-editor`](ide.md#ide-the-debug-adapter-does-not-wait-for-an-editor), [`ide/editor-clients-live-under-editors`](ide.md#ide-editor-clients-live-under-editors).</sub>
 
 <a id="ide-the-debug-adapter-does-not-wait-for-an-editor"></a>
 
@@ -2083,7 +2636,7 @@ explicitly accept that.
 - **The adapter ships together with both editors' debugger UI.** PhpStorm's `XDebugger` wiring is the
   larger job, and it would hold back an adapter that VS Code and a CLI-driven client can already use.
 
-<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`testing/debug-probes`](testing.md#testing-debug-probes), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter). Decided in [0040](../decisions/0040.md).</sub>
+<sub>See also [`ide/the-extension-builds-no-ui-the-editor-already-has`](ide.md#ide-the-extension-builds-no-ui-the-editor-already-has), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server), [`testing/debug-probes`](testing.md#testing-debug-probes), [`ide/the-debugger-ui-is-as-deep-as-the-adapter`](ide.md#ide-the-debugger-ui-is-as-deep-as-the-adapter).</sub>
 
 <a id="ide-the-debugger-ui-is-as-deep-as-the-adapter"></a>
 
@@ -2105,17 +2658,18 @@ adapter's capability list is therefore the debugger's scope, and it is this:
   a handled throw inside it does not stop the session.
 - **Path mappings**, because the container case is the normal case: the file the adapter reports and the
   file in the editor differ whenever the program runs anywhere but the workspace root.
-- **The value a function just returned**, in the variables pane after stepping out.
+- **The value a function just returned**, in the variables pane after stepping out. It is one frame's
+  worth of state the adapter already has, and the UI renders it with no work of its own.
 - **A `spawn`ed isolate is a DAP thread** — the standard presentation, needing no protocol extension. The
   *tree* of isolates would need one and is not built.
 
 A fixture session exercises each of these, and `nvs dap` reports each capability at `initialize`.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency).</sub>
 
 <a id="ide-stdout-belongs-to-the-protocol"></a>
 
-## Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`  *(designed — not yet in the compiler)*
+## Nothing but the protocol writes to the server's stdout; logging goes to stderr and `window/logMessage`
 
 `rule:ide/stdout-belongs-to-the-protocol`
 
@@ -2132,11 +2686,11 @@ program's `echo` goes under `nvs run`. That is not an exception, because it is a
 into a `Ctx` and the server builds no `Ctx` at all — so the test exempts the sink's own
 implementation and separately checks that nothing under the server wires one.
 
-<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous).</sub>
 
 <a id="ide-the-extension-refuses-a-binary-it-does-not-understand"></a>
 
-## On a version mismatch at `initialize` the client says so in the status item and does not start  *(designed — not yet in the compiler)*
+## On a version mismatch at `initialize` the client says so in the status item and does not start
 
 `rule:ide/the-extension-refuses-a-binary-it-does-not-understand`
 
@@ -2148,7 +2702,7 @@ An old `nvs` earlier on `PATH` than the intended one is the single most likely s
 extension will ever get, and it costs one comparison to answer it out loud. A client reporting a mismatched
 version gets a refusal and a status item, not a session.
 
-<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous). Decided in [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/the-extension-runs-where-the-binary-is`](ide.md#ide-the-extension-runs-where-the-binary-is), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous).</sub>
 
 <a id="ide-the-extension-runs-a-copy-of-the-binary"></a>
 
@@ -2196,14 +2750,42 @@ run and the status item says that file is being held, and why. There is no setti
 Copies live under `server/` in the extension's global storage, which is on the machine the code is on
 ([`ide/the-extension-is-a-workspace-extension`](ide.md#ide-the-extension-is-a-workspace-extension)); a copy of an earlier build of the same binary is
 deleted when a new one is made, a copy of some other binary once it is a week old, and a file another
-window is running is left for the next sweep. It spends disk and no memory: one file the size of `nvs`
-for each binary in use.
+window is running is left for the next sweep, and so is any file this module did not write.
 
-<sub>See also [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one), [`ide/the-extension-is-a-workspace-extension`](ide.md#ide-the-extension-is-a-workspace-extension). Decided in [0195](../decisions/0195.md).</sub>
+A copy is the same program in the two places `nvs` reads its own file. A bundle's payload is read from
+the end of the running executable, which a byte copy keeps. The compile cache's build stamp hashes the
+executable's path, length and modification time, so a copy keys apart from its binary: one cold compile
+for each new build, and the same key on every later run of that copy. A new build costs one copy and two
+hashes of `nvs`, once per window; every other spawn costs two `stat`s, and nothing is on a request path.
+For the moment two servers answer, a request may be answered by both.
+
+**Memory:** nothing beyond a second server process for the moment of a switch. It spends disk instead:
+one file the size of `nvs` for each binary in use, under the extension's storage.
+
+**Declined:**
+- **Copying on Windows only.** The lock is not only Windows', the stale server is every platform's, and
+  a branch taken on one platform is one the other platforms' test runs never execute.
+- **Copying only for the server.** A program in an `nvs run` Task runs as long as the server does, and
+  "the editor never holds the binary" is a rule a user can rely on where "only sometimes" is not.
+- **Renaming the old binary aside when updating.** Windows allows renaming a running executable, but it
+  does nothing for a `nvs.path` pointed into `target/`, where the linker writes the file.
+- **`nvs lsp` copying and re-executing itself.** The editor tracks the process it spawned, so the parent
+  stays alive, and the parent is the file that is held.
+- **A command that stops the server.** It needs the user to remember the cause, which is what keeps not
+  happening.
+- **Stopping the old server before starting the new one.** It costs a gap in diagnostics and completion
+  on every rebuild.
+- **Keeping the old server when the new build fails.** Its answers would come from a program that is no
+  longer on disk.
+- **Naming the copy for a hash of its content.** That needs the binary hashed before there is a name to
+  look for; the stamp gives the name for one `stat`, and the hash still decides whether the file is used.
+- **A setting to turn it off.** The fallback is automatic, and a setting is kept forever.
+
+<sub>See also [`ide/the-extension-refuses-a-binary-it-does-not-understand`](ide.md#ide-the-extension-refuses-a-binary-it-does-not-understand), [`ide/the-extension-guides-an-install-and-never-bundles-one`](ide.md#ide-the-extension-guides-an-install-and-never-bundles-one), [`ide/the-extension-is-a-workspace-extension`](ide.md#ide-the-extension-is-a-workspace-extension).</sub>
 
 <a id="ide-dependencies-are-allowlisted"></a>
 
-## The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests  *(designed — not yet in the compiler)*
+## The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests
 
 `rule:ide/dependencies-are-allowlisted`
 
@@ -2216,11 +2798,11 @@ The same allowlist is what keeps the client free of language logic when a featur
 of [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server) is a range list from the server and a decoration;
 there is nothing in it a parser would help with, and the test is unchanged by it.
 
-<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients). Decided in [0099](../decisions/0099.md), [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/headless-gates-the-loop-the-host-run-gates-the-milestone`](ide.md#ide-headless-gates-the-loop-the-host-run-gates-the-milestone), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients).</sub>
 
 <a id="ide-redaction-ranges-come-from-the-server"></a>
 
-## The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess  *(designed — not yet in the compiler)*
+## The editor conceals a `secret` value by default, and the ranges come from the language server rather than a client guess
 
 `rule:ide/redaction-ranges-come-from-the-server`
 
@@ -2228,12 +2810,29 @@ A `secret` value is concealed in the editor by default. The language server answ
 and their kinds; the client draws them and knows nothing about what a secret is, because the
 alternative is the client guessing.
 
+**The server can be exact where a client cannot.** A tool that hides secrets in an editor otherwise
+guesses, by filename, by pattern or by entropy. `secret` is a type-checker fact, and it propagates
+through concatenation and interpolation ([`security/secret-propagation`](security.md#security-secret-propagation)), so a value derived from a
+credential is concealed for the same reason the credential is, with no heuristic involved. A guess would
+miss every value that became `secret` by propagation, which is most of them.
+
+The threat this closes is an **incidental viewer**: a stream, a screen share, a screenshot, somebody
+looking over a shoulder. It is not a defence against the machine's own user and it is not secret
+management.
+
 **This is a rendering, and it is not what makes a `secret` safe.** The language's guarantee is that
 every sink refuses one ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), checked by the compiler, with no editor
 involved and nothing an editor could weaken. Concealment covers the one exposure a compiler cannot
 reach — a value legible on a screen somebody else is looking at — and it covers nothing else. An
 editor drawing no decoration at all is not running a less safe language; it is only less discreet,
 which is why every rule in this section is the editor's and none of them is the language's.
+
+The test that puts a rule here rather than under `security/` is whether it still holds with no editor
+running. Every sink refusing a `secret` does, and so do the AST dump's placeholder
+([`security/redaction-reaches-the-tools-own-renderings`](security.md#security-redaction-reaches-the-tools-own-renderings)) and the test runner's redacted diff
+([`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report)). A blur over a string literal does not. The security chapter
+is read as what the language will not let a program get wrong, and a rendering filed there would invite
+a reader to count it as part of that guarantee.
 
 It does **not** ride the semantic-token channel, even though the qualifier already travels there. That
 channel's contract is *names a theme styles*, and its correct degradation is to fall back to the
@@ -2245,13 +2844,38 @@ expression cannot be typed, but whose **binding's declared type carries `secret`
 anyway; the client **holds its last answer** and never clears decorations on an error, a cancellation
 or a restart. An empty answer means nothing to redact; a *missing* answer means nothing at all.
 
-**Not on disk.** There is no language server in the tree.
+Redacting on the declared type when the expression's own type is unknown is an over-approximation, and
+it is kept because the other failure, the value flashing visible on every keystroke inside a string being
+typed, is the one that loses the credential. Where the server cannot attribute a range at all, it answers
+nothing for it and the value is visible. That gap is the honest one: over-redacting a document that does
+not parse would conceal arbitrary spans of a file somebody is trying to fix.
 
-<sub>See also [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0101](../decisions/0101.md), [0033](../decisions/0033.md), [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+The cost is a second decoration mechanism beside the semantic-token one, with two contracts to keep
+apart and two ways for one token to be described.
+
+- **Memory:** none on the request path. The server answers a range list per open document, and the
+  client keeps the last answer for each.
+
+**Declined:**
+
+- **Detecting the range in the client** with a pattern or a filename rule. It puts language logic in a
+  client ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)), and it misses every value that is `secret` by
+  propagation.
+- **A third semantic-token modifier.** That channel degrades to the underlying token type when a theme
+  has no opinion, and a security default may not have un-redacting as its degradation.
+- **Serving a redacted document** through a content provider or a custom editor. The file stops being an
+  editable text document, with no language-server edits, no diff, no version-control integration and no
+  format-on-save, which is a far larger loss than the exposure it closes; and it substitutes the buffer,
+  which [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only) rules out.
+- **A chapter of its own for security in the editor.** It splits the editor across two homes, and every
+  rule in each would need a pointer to the other. The editor's chapter is the one home for the editor,
+  and its security rules sit together at its end.
+
+<sub>See also [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach).</sub>
 
 <a id="ide-redaction-covers-bytes-only"></a>
 
-## Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation  *(designed — not yet in the compiler)*
+## Only the bytes are concealed — a literal token or an interpolation slot, never an identifier or an annotation
 
 `rule:ide/redaction-covers-bytes-only`
 
@@ -2268,9 +2892,20 @@ The concealment is a decoration over the range with the character cells kept, so
 selection and every edit still address the real text. It is a rendering, not an edit: the buffer is
 the file on disk, byte for byte.
 
-**Not on disk.** There is no language server in the tree.
+The range is this narrow because the qualifiers propagate: in a request handler nearly every string
+expression carries one, so concealing or marking every qualified expression would bury the file and be
+turned off, taking the redaction with it.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier). Decided in [0101](../decisions/0101.md), [0040](../decisions/0040.md), [0158](../decisions/0158.md).</sub>
+**Declined:**
+
+- **Folding the value away.** Folding is line-granular, so it cannot express a literal inside a one-line
+  declaration such as `secret string $k = "…";`, which is the shape this exists for; and it would hide
+  the declaration itself, which stays legible.
+- **Removing the span from layout** (`display: none`) instead of blurring it. Removing the box breaks
+  cursor and selection arithmetic across the range, and the editor has to keep behaving like a text
+  editor.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/secret-qualifier`](security.md#security-secret-qualifier).</sub>
 
 <a id="ide-reveal-is-explicit-and-window-local"></a>
 
@@ -2299,12 +2934,19 @@ right now expires on the next arrow key, so the worst it can do is show the valu
 already looking at. That is a smaller surface than the two held reveals it sits beside, not a larger
 one — the reason to write it down is that it *reads* like the opposite.
 
-There is still **no automatic re-conceal on a signal**, because there is no signal: nothing reports
-that a window is being shared, recorded or projected. Anything that looked like one would be a guess
-with a security failure attached, so redaction is unconditional by default and the user is the only
-thing that turns it off.
+There is still **no automatic reveal and no automatic re-conceal on a signal**, because there is no
+signal: nothing reports that a window is being shared, recorded or projected. Anything that looked like
+one would be a guess with a security failure attached, so redaction is unconditional by default and the
+user is the only thing that turns it off, with `nvs.secrets.redact` (default `true`).
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach). Decided in [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
+**Declined:**
+
+- **Redacting only while the screen is shared.** No editor API reports it, so this would be a guess
+  whose failure is a leaked credential.
+- **A reveal that persists** in workspace state or across a reload. It outlives the moment it was
+  needed, which is the exposure this rule exists to close.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-does-not-reach`](ide.md#ide-redaction-does-not-reach).</sub>
 
 <a id="ide-redaction-does-not-reach"></a>
 
@@ -2323,11 +2965,23 @@ directly. A copy of a concealed range copies the plaintext, and nothing may inte
 And the file itself is on disk, in the working tree, and in the history the moment it is committed —
 concealing a hardcoded credential does not make it less hardcoded.
 
-This list is part of the decision, not commentary on it.
+This list is part of the decision, not commentary on it, and it is the real cost of the feature: a user
+who believes the editor protects them everywhere is worse off than one who knows it does not.
 
-**Not on disk.** There is no language server in the tree.
+**Declined:**
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local). Decided in [0101](../decisions/0101.md), [0158](../decisions/0158.md).</sub>
+- **Intercepting copy** by rebinding the editor's copy action. It overrides a global keybinding for the
+  whole editor to protect a value that is on disk anyway, and a redaction that fights the user's own
+  clipboard is past the threat of an incidental viewer.
+- **Refusing or warning on a `secret`-typed source literal in `nvs check`**, the cause the concealment
+  only treats. Does not exist: the checker holds both facts it would need, but a test fixture, an example
+  and a conformance case all legitimately write one.
+- **Redacting the "before" side of a diff.** Does not exist: it needs a type answer for a revision of the
+  document the server never analysed.
+
+**Not on disk.** The extension's own documentation does not carry this list.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/reveal-is-explicit-and-window-local`](ide.md#ide-reveal-is-explicit-and-window-local).</sub>
 
 <a id="ide-phpstorm-draws-no-redaction-at-m4b"></a>
 
@@ -2344,19 +2998,33 @@ The plugin is not built at M4B, so PhpStorm conceals nothing at this milestone. 
 than something discovered when someone opens a `.nvs` file in PhpStorm on a call, and the PhpStorm side is
 due when its plugin is.
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`ide/redaction-covers-bytes-only`](ide.md#ide-redaction-covers-bytes-only), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed), [`ide/phpstorm-bridges-to-the-same-server`](ide.md#ide-phpstorm-bridges-to-the-same-server).</sub>
 
 <a id="ide-tainted-has-no-default-decoration"></a>
 
-## `tainted` ships no default editor decoration, and the marker is opt-in  *(designed — not yet in the compiler)*
+## `tainted` ships no default editor decoration, and the marker is opt-in
 
 `rule:ide/tainted-has-no-default-decoration`
 
 `tainted` gets a semantic-token modifier and **no default decoration**. A marker glyph is added
 content rather than a colour, and shipping one on by default writes into someone else's editor exactly
-what the token-modifier rule refuses. The marker is a setting with three values and `off` is the
-default; where it is on, the glyph is a themed icon rather than an emoji, and its colour is a theme
-reference rather than a literal.
+what the token-modifier rule refuses. The marker is `nvs.taint.mark`, and `off` is the default:
+
+| Value | What is marked |
+|---|---|
+| `off` | nothing; the token modifier alone, styled by the theme |
+| `declaration` | a glyph after each declaration whose type carries `tainted` |
+| `sink` | `declaration`, plus each argument position where a `tainted` value reaches a sink under [`security/sink-predicate`](security.md#security-sink-predicate) |
+
+Only a declaration is marked, never a use: a `tainted` value is tainted at every use, so a glyph per
+use would mark most of a request handler and teach nothing. Where the marker is on, the glyph is one
+plain text character in the editor's own font rather than an emoji, which renders at the mercy of the
+installed fonts and can show as a replacement box; its colour is a theme reference rather than a
+literal. It is not an icon image, because an inline image takes no theme colour and would ship a colour
+of Novis's own ([`ide/novis-ships-names-not-colours`](ide.md#ide-novis-ships-names-not-colours)). Until the sink classification exists on the
+`Core` member rows, `sink` marks what `declaration` does.
+
+The cost is a setting that ships inert by default, and that still costs documentation and a test.
 
 **The asymmetry with `secret` is the whole content of this rule.** A credential on a shared screen is
 a security incident, which is what buys `secret` its default
@@ -2365,6 +3033,11 @@ at all: `tainted` is a compile-time guarantee already enforced by refusing the s
 ([`security/sink-predicate`](security.md#security-sink-predicate)), so marking it is teaching, and teaching does not get to override the
 user's theme.
 
-**Not on disk.** There is no language server in the tree.
+**Declined:**
 
-<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier). Decided in [0101](../decisions/0101.md), [0099](../decisions/0099.md), [0088](../decisions/0088.md), [0158](../decisions/0158.md).</sub>
+- **The marker on by default.** It overrides the user's theme for something that is not a security
+  event, and since every `Core\Request` accessor returns `tainted`, most string expressions in a request
+  handler would carry it. The default would bury the file, and the setting that turns it off would take
+  the `secret` redaction with it in the user's mind.
+
+<sub>See also [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier).</sub>

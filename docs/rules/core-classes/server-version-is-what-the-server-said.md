@@ -20,3 +20,10 @@ A `SELECT version()` is refused: it spends a round trip on the request path to l
 connection was already told. `rule:core-classes/schema-plan`'s grader is keyed on the server version
 and reads it off the connection it already holds, so the same refusal keeps a grade from costing a
 statement of its own.
+
+**Declined:**
+- **A `SELECT version()` on first use.** The reason is above; on SQLite it would also answer the same
+  string a library call gives for nothing.
+- **Normalising every driver's version to a `(major, minor, patch)` triple.** It throws away what a
+  server chose to say about itself — the build, the vendor suffix, the distribution's patch marker —
+  which is most of why anyone reads the member.

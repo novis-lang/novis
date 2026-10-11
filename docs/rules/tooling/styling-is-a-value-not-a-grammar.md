@@ -15,3 +15,11 @@ trailing shape. **`Cli\Color` is a value type, not an enum**: a closed named int
 colours are class constants — `Color::RED` *is* `Color::index(1)`, written shorter, inlined at every
 use site as any scalar constant is — and `Color::rgb(uint, uint, uint)` and `Color::index(uint)`
 construct the rest.
+
+**Memory:** each use of a named colour is one allocation in the request where it appears. Nothing
+is stored for it, and nothing is shared between isolates.
+
+**Declined:**
+- **Raw `"\e[31m"` escapes, or a `"<red>…</red>"` markup string.** Each is a fifth grammar, as above.
+  Typed values cost more keystrokes at the call site, and they are what lets a `Cli\Text` guarantee
+  that it carries no injected sequence (`rule:tooling/text-is-the-one-raw-path`).

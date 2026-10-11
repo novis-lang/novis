@@ -12,5 +12,8 @@ isolated any request's execution of that code is (`rule:security/isolate-shares-
 connection isolate is the long-lived case of the same rule
 (`rule:concurrency/a-connection-keeps-its-compiled-unit`).
 
-Old generations are retained only while some in-flight request still holds one, bounded by that
-request's own wall-clock and CPU limits — O(in-flight), never O(edits ever made).
+- **Memory:** an old generation is retained only while some in-flight request still holds it,
+  bounded by that request's own wall-clock and CPU limits — O(in-flight), never O(edits ever made).
+  A file edited continuously while one slow request holds an old generation keeps that generation
+  until the request ends or reaches its limit. That limit already exists, and a second bound on the
+  same thing would be a second copy of one rule.

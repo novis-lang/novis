@@ -6,6 +6,7 @@ an anonymous object synthesizes (`rule:types/anonymous-object`). `object <: mixe
 is to the whole type system, one level narrower: membership in it is structural by construction, but
 only because it promises nothing about shape at all, so there is nothing to check. Every shape type is
 a subtype of plain `object` (`rule:types/shape-type`), and no class declares anything to satisfy it.
+It is what lets an object cross a function boundary with no shape declared on either side.
 
 Because `object` names no class, it is not a conversion target — `as object` where a specific class is
 meant is refused, and a member reached through an `object`-typed receiver is answered at run time

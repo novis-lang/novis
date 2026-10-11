@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0085 § 2's third contradiction: an `example` that the codec the return
+// The third `#[Api]` contradiction: an `example` that the codec the return
 // type generates would reject, and the first thing that decode asks is whether
 // the key names a property at all.
 

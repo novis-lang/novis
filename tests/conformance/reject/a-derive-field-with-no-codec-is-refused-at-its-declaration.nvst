@@ -2,16 +2,16 @@
 `#[Json\Derive]` refuses a field whose declared type has no wire form at the property that declared it, not at the `decodeAs<T>` that would later fail — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-generates-what-is-missing`
 --FILE--
 <?nvs
-// § 2 names the reachable set: "a scalar, an enum, an inline shape, an
+// `rule:core-classes/derive-field-list` names the reachable set: "a scalar, an enum, an inline shape, an
 // `array<T>` or `?T` of one of those, or another class that itself carries a
 // codec". `Handle` is none of those, so the contract `Row` would generate has a
-// field nothing can encode — and § 7's rule is that this is said where the
+// field nothing can encode — and `rule:core-classes/derive-generates-what-is-missing`'s rule is that this is said where the
 // property is written, because a class is declared once and decoded from many
 // call sites.
 //
 // Both sides of the bound are the same type in the same class, which is what
 // makes this more than a restatement of the message. `$cache` is also a
-// `Handle`; § 2's own escape hatch takes it off the contract, so it is examined
+// `Handle`; `rule:core-classes/derive-field-list`'s own escape hatch takes it off the contract, so it is examined
 // and accepted before `$h` is reached. A rule refusing the *type's appearance*
 // rather than its presence in the contract would name both properties and still
 // look right on the second half alone.

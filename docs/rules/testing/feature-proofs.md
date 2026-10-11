@@ -17,7 +17,10 @@ the name its user types, and `nvs agent show` prints what it does, how it is wri
 throws or reports: a `Core` member's card, a language feature's reference section, a command's or a
 configuration key's own entry. It is written with the feature and changed with it, in the voice of
 AGENTS.md § *Text an end user reads*, because a user and their coding agent look there before
-anywhere else, and a feature the binary cannot show them reads as one that does not exist.
+anywhere else, and a feature the binary cannot show them reads as one that does not exist. The
+features that landed before Help was a proof are listed in `data/proofs/help-backlog.json` and read as
+skips with one shared reason, so a finished goal's floor does not fail over a proof that was not owed
+when it finished; a feature leaves the list when it gains its help.
 
 Each tree's own README owns what a file in it *is*, and this rule restates none of them.
 
@@ -27,3 +30,16 @@ What each kind owes is **data**, overridable per feature, because a policy state
 policy nothing can check. A single feature excused from a single proof is a skip entry carrying
 **the reason as its value**, so "this cannot be measured" and "nobody wrote one" never look the same
 in the audit.
+
+The proofs are a cost spent up front, per feature, and spent on security and correctness: an attack
+per feature is a security question asked before a user asks it. What keeps the audit affordable to
+re-run is that its gate runs no program. It checks what exists on disk, so a sweep over a finished
+tree is a walk of the directories. An audit that reads mostly red is the honest number, never a
+reason to loosen what a kind owes; turning one proof off for the whole roster changes what is owed
+and says so in the audit.
+
+**Declined:**
+- **Line coverage instead of a test from Rust.** A coverage run says which lines ran, not which
+  feature is proven, and a coverage percentage is a threshold rather than a finished feature.
+- **A hand-kept checklist of finished features.** It rots within a day of an unattended run
+  (`rule:testing/roster-is-derived`).

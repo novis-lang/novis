@@ -1,7 +1,8 @@
 //! Containment guarantees of the extension sandbox.
 //!
-//! ADR 0003 claims an extension cannot forge a host pointer, cannot outlive its
-//! CPU budget, and cannot carry state from one request to the next. Those are the
+//! An extension cannot forge a host pointer, cannot outlive its CPU budget, and
+//! cannot carry state from one request to the next
+//! (`rule:packaging/an-extension-is-a-sandboxed-wasm-component`). Those are the
 //! reasons wasm was chosen over `dlopen`, so they are worth checking rather than
 //! assuming.
 

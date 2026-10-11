@@ -24,3 +24,8 @@ line a person greps. Novis's frames carry a label and nothing else — `rule:err
 builds the trace as the throw unwinds — so those three parts are the whole of one, and the only
 object a record of a throw carries is the throw itself, whose declared properties are walked like
 any other value and redact like any other value.
+
+**Declined:**
+- **Logs and dumps only, with throws, test results and diagnostics outside.** It is the smallest
+  scope, and it would duplicate redaction and substitution in each producer left out rather than
+  remove the duplication.

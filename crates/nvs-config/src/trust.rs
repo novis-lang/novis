@@ -2,7 +2,7 @@
 //! configuration reads.
 //!
 //! The configuration grants capabilities, so whoever can write **any** file in the tree can grant
-//! themselves every one of them. § 6 answers that with one rule and no exceptions: every file must
+//! themselves every one of them. `rule:config/ownership-is-the-trust-boundary` answers that with one rule and no exceptions: every file must
 //! be owned by the account the runtime runs as or by root, and writable by nobody else — and so
 //! must the directory that contains it, because a directory its owner can write is a standing slot
 //! that owner may fill later. That is why the containing directory is checked for its **owner** as
@@ -10,7 +10,7 @@
 //! [`resolve`](crate::resolve)'s `include_targets` puts the check on the directory the file would
 //! appear in, which is the only place a promise about a file that does not exist yet can be kept.
 //!
-//! **Unix is the mode bits. Windows is the DACL**, and § 6's answer for which ACEs it accepts is
+//! **Unix is the mode bits. Windows is the DACL**, and `rule:config/ownership-is-the-trust-boundary`'s answer for which ACEs it accepts is
 //! implemented here: the owner must be this account,
 //! `BUILTIN\Administrators` or `NT AUTHORITY\SYSTEM`, and no *effective* write right may reach
 //! `Everyone`, `NT AUTHORITY\Authenticated Users`, `BUILTIN\Users`, `BUILTIN\Guests` or
@@ -29,7 +29,7 @@
 //! the one path comparison `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` matching is built on, so it is written once
 //! here rather than at each site that needs it.
 //!
-//! **[`exposure`] is the same question asked about reading, and it only ever advises.** § 7 refuses
+//! **[`exposure`] is the same question asked about reading, and it only ever advises.** `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure` refuses
 //! a secret file another account can write and warns about one another account can read, because a
 //! Compose secret is mounted `0444` and a Kubernetes secret volume defaults to `0644`: the mode
 //! that is a mistake on a shared host is the norm inside a container, and nothing readable from
@@ -51,7 +51,7 @@ pub enum Untrusted {
     /// The resolver reports this as `E0605`, exactly as it reports any other file it cannot read,
     /// and the message is the underlying reader's own.
     Unreadable(String),
-    /// It was examined and it fails § 6. The message names the path and says how, in the
+    /// It was examined and it fails `rule:config/ownership-is-the-trust-boundary`. The message names the path and says how, in the
     /// platform's own terms — a mode and a gid on Unix, a principal and a right mask on Windows.
     Breach(String),
 }
@@ -87,7 +87,7 @@ pub const REMEDY: &str = platform::REMEDY;
 ///
 /// **This is the only canonicalization in the configuration**, and that is a rule rather than a
 /// convenience. Two separate questions rest on it — whether a file the tree reads is the one the
-/// boundary was checked against (§ 6, [`check`] below) and whether an entry file is inside an
+/// boundary was checked against (`rule:config/ownership-is-the-trust-boundary`, [`check`] below) and whether an entry file is inside an
 /// `[[app]]` root (`rule:config/an-application-is-its-entry-file-path`, [`mod@crate::app`]) — and both are decided by comparing paths
 /// afterwards. A second implementation is how one of them ends up accepting a `..` or a symlink
 /// that the other refuses, so the comparison's first half is written once and shared.
@@ -101,7 +101,7 @@ pub fn canonical(path: &Path) -> std::io::Result<PathBuf> {
     Ok(platform::simplified(std::fs::canonicalize(path)?))
 }
 
-/// § 6's check on `path` and on the directory that contains it, and the canonical path it names.
+/// `rule:config/ownership-is-the-trust-boundary`'s check on `path` and on the directory that contains it, and the canonical path it names.
 ///
 /// The directory gets the same check as the file rather than only the mode half of it: an entry can
 /// be replaced by anyone who can write the directory, whatever the file's own bits say.
@@ -136,7 +136,7 @@ pub fn check_alone(path: &Path) -> Result<PathBuf, Untrusted> {
     Ok(canonical)
 }
 
-/// § 7's advisory half: how an account other than this one may **read** `path`, or `None`.
+/// `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s advisory half: how an account other than this one may **read** `path`, or `None`.
 ///
 /// Integrity is enforced and confidentiality is only advised, and the reason is that the two
 /// questions have different answers in a container: Compose mounts a secret `0444` and a Kubernetes
@@ -154,7 +154,7 @@ pub fn exposure(path: &Path) -> Option<String> {
 /// [`mod@crate::data`] needs it to *build* a security descriptor for the data folder, which is the
 /// one thing this module does not otherwise do; the SID lives here because the call that reads it
 /// is already here, under the same `#[expect]` and for the same reason. It is the SID and never the
-/// display name for § 6's reason: a name is localized and a rename does not move it.
+/// display name for `rule:config/ownership-is-the-trust-boundary`'s reason: a name is localized and a rename does not move it.
 #[cfg(windows)]
 #[must_use]
 pub(crate) fn owner_sid() -> Option<String> {
@@ -278,7 +278,7 @@ mod platform {
         | WRITE_DAC
         | WRITE_OWNER;
 
-    /// The Windows spelling of "the group and the world" — the principals § 6 refuses write to,
+    /// The Windows spelling of "the group and the world" — the principals `rule:config/ownership-is-the-trust-boundary` refuses write to,
     /// with the name a refusal prints and the SID it prints beside it. The name is the English one
     /// on every host, so it identifies the group to a reader; the SID is what [`REMEDY`]'s
     /// `icacls` takes, because that command resolves a name in the installed language.
@@ -349,7 +349,7 @@ mod platform {
             .collect()
     }
 
-    /// § 7's advisory: the first untrusted principal with an effective *read* right, if any.
+    /// `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s advisory: the first untrusted principal with an effective *read* right, if any.
     ///
     /// The DACL alone, since the owner is not the question here — an owner outside the boundary has
     /// already failed [`check`], and nothing is advised about a path this cannot examine.
@@ -382,7 +382,7 @@ mod platform {
         found
     }
 
-    /// Each of § 6's untrusted principals against `FILE_READ_DATA`, which is the one right that
+    /// Each of `rule:config/ownership-is-the-trust-boundary`'s untrusted principals against `FILE_READ_DATA`, which is the one right that
     /// hands over the credential itself.
     fn readable_by_others(dacl: *const ACL) -> Option<String> {
         if dacl.is_null() {
@@ -399,7 +399,7 @@ mod platform {
         None
     }
 
-    /// § 6 against one descriptor: the owner first, then each untrusted principal's rights.
+    /// `rule:config/ownership-is-the-trust-boundary` against one descriptor: the owner first, then each untrusted principal's rights.
     fn examine(owner: PSID, dacl: *const ACL) -> Result<(), Untrusted> {
         if owner.is_null() {
             return Err(Untrusted::Breach(
@@ -439,7 +439,7 @@ mod platform {
     /// hands over already carries them materialized.
     ///
     /// **This is the answer `GetEffectiveRightsFromAclW` gives, computed here instead, and the
-    /// reason is the clock.** That call costs on the order of a millisecond per principal — § 6
+    /// reason is the clock.** That call costs on the order of a millisecond per principal — `rule:config/ownership-is-the-trust-boundary`
     /// asks about each untrusted one, on the path and on its parent, so a [`check`](super::check)
     /// built on it is milliseconds of pure overhead, and `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache pays it on every `nvs run` before it may look
     /// at a single artifact. The walk is orders of magnitude cheaper and answers the same question,
@@ -448,7 +448,7 @@ mod platform {
     /// `ALLOW` grants, and an inherited entry is an ordinary entry in this ACL by the time anyone
     /// reads it. An `INHERIT_ONLY` entry is skipped — it describes what children get and not this
     /// object — and a generic bit is mapped to the file rights it stands for. Group membership is
-    /// considered by neither: the trustee is always one of § 6's own well-known SIDs, and it is
+    /// considered by neither: the trustee is always one of `rule:config/ownership-is-the-trust-boundary`'s own well-known SIDs, and it is
     /// that SID's own entries that are being asked about.
     ///
     #[expect(

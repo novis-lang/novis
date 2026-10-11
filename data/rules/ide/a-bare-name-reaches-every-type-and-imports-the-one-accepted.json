@@ -1,9 +1,7 @@
 {
   "title": "A bare name is offered every type the registry and the workspace index hold, by short name, and accepting one that needs an import writes its `use` line",
   "status": "shipped",
-  "because": [
-    "0193"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/completion-offers-only-what-the-compiler-derived",
     "ide/check-scope-defaults-to-the-workspace",
@@ -11,6 +9,8 @@
   ],
   "guardedBy": [
     "crates/nvs-lsp/tests/completion_edits.rs",
-    "tests/lsp/completion/a-bare-name-reaches-a-core-class-by-its-last-segment.lspt"
+    "tests/lsp/completion/a-bare-name-reaches-a-core-class-by-its-last-segment.lspt",
+    "tests/lsp/completion/the-end-of-an-unresolved-receiver-offers-the-types.lspt",
+    "tests/lsp/completion/an-argument-position-in-a-static-call-offers-the-position-list.lspt"
   ]
 }

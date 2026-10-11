@@ -1,20 +1,20 @@
 //! `nvs config` — `rule:config/check-and-dump-audit-the-tree-offline`'s offline audit of the configuration tree, and
 //! the reader every caller in this binary resolves that tree through.
 //!
-//! § 9 puts `check` beside `dump` for one stated reason: § 3's
+//! `rule:config/check-and-dump-audit-the-tree-offline` puts `check` beside `dump` for one stated reason: `rule:config/later-wins-and-every-override-is-recorded`'s
 //! later-wins precedence "is only safe while it is auditable", so the reporting
 //! is part of that decision rather than tooling around it. [`check`] answers
 //! whether a tree resolves at all and what it holds in summary; [`dump`] answers
 //! what every key resolved to and where it was written, which is the obligation
-//! § 3 attaches to letting an include override the file that pulled it in. Both
+//! `rule:config/later-wins-and-every-override-is-recorded` attaches to letting an include override the file that pulled it in. Both
 //! are offline and need no server, which is what lets a tree be validated in CI
 //! before it is deployed.
 //!
-//! ## Why the audit does not apply § 6's ownership check
+//! ## Why the audit does not apply `rule:config/the-ownership-check-runs-where-it-can-be-answered`'s ownership check
 //!
 //! [`LocalFiles`] reads without that check, and `nvs config check` is a second
 //! caller that wants it that way — for a reason of its own rather than by
-//! inheriting `nvs run`'s. § 6 asks whether a file is owned by **the account the
+//! inheriting `nvs run`'s. `rule:config/the-ownership-check-runs-where-it-can-be-answered` asks whether a file is owned by **the account the
 //! runtime runs as** and unwritable by anyone else. A machine auditing a tree
 //! before deployment is not that account and usually not that host, so the check
 //! run there answers a different question than the one it exists for: it refuses
@@ -43,19 +43,19 @@ use crate::render_diagnostics;
 /// filesystem, with `rule:config/ownership-is-the-trust-boundary`'s **ownership check not applied**.
 ///
 /// `nvs_config::resolve::Files` exists for exactly this split — its own doc
-/// says § 6's check belongs on the reader so that "a caller that has one and a
+/// says `rule:config/the-ownership-check-runs-where-it-can-be-answered`'s check belongs on the reader so that "a caller that has one and a
 /// caller that does not are two implementations of one interface rather than a
 /// flag threaded through the resolver". This is the caller that does not, and
 /// that is the split itself rather than a weakening of the boundary:
 ///
-/// - § 6 defends a runtime that grants **configured capabilities to requests
+/// - `rule:config/the-ownership-check-runs-where-it-can-be-answered` defends a runtime that grants **configured capabilities to requests
 ///   nobody at the keyboard wrote**. `nvs serve` and its reloads are that
 ///   runtime and they use `Disk`, which checks.
 /// - A `nvs run` has no such boundary to defend. The program is named on argv
 ///   and executed as the invoking account, and the configuration is `./nvs.toml`
 ///   in a working directory that same person chose. Whoever can write that file
 ///   is in a position to be writing the program too.
-/// - And the check would refuse nearly every Windows checkout. § 6 names the
+/// - And the check would refuse nearly every Windows checkout. `rule:config/the-ownership-check-runs-where-it-can-be-answered` names the
 ///   reason itself: Windows grants `Authenticated Users` modify rights by
 ///   default on a non-system drive's root and on everything inheriting from it,
 ///   so a repository on `D:` fails the check until an operator breaks that
@@ -80,7 +80,7 @@ pub(crate) use nvs_config::resolve::Unowned as LocalFiles;
 /// read.
 ///
 /// Both entry points below need it — `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` resolves a `--config` against
-/// it and § 1 step 2 looks for `./nvs.toml` in it — and neither can proceed
+/// it and `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2 looks for `./nvs.toml` in it — and neither can proceed
 /// without it, so the failure is one shape rather than two.
 pub(crate) fn working_directory() -> Result<PathBuf, Diagnostic> {
     std::env::current_dir().map_err(|err| {
@@ -308,7 +308,7 @@ pub(crate) fn init(config: &[PathBuf]) -> ExitCode {
     }
 }
 
-/// The snapshot this run's request reads — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s roots, § 3's ordered
+/// The snapshot this run's request reads — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s roots, `rule:config/later-wins-and-every-override-is-recorded`'s ordered
 /// stream, `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` fold for `entry`, and `rule:config/the-config-is-an-immutable-snapshot`'s
 /// immutable result.
 ///
@@ -451,7 +451,7 @@ pub(crate) fn policy_of(snapshot: &nvs_config::Snapshot) -> nvs_host::tls::Clien
 
 /// [`boot_origins`] against a stated directory and data file rather than this process's own.
 ///
-/// Both are parameters because § 1 reads them — step 2 looks for `cwd`'s `nvs.toml`, step 3 for
+/// Both are parameters because `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` reads them — step 2 looks for `cwd`'s `nvs.toml`, step 3 for
 /// `data`, and step 4's write creates `data` — and a process has exactly one of each, which is a
 /// fact about the process and not about the tree being resolved. `data` is the data folder's
 /// `nvs.toml`, and `None` when there is no usable data folder.
@@ -553,8 +553,8 @@ fn resolved_in(
 /// matching no `db.open` grant a check-time diagnostic rather than only a
 /// refusal at the door.
 ///
-/// The tree is resolved exactly as [`boot_snapshot`] resolves it for a run: § 1's
-/// roots in the same order, § 3's later-wins, and `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` blocks
+/// The tree is resolved exactly as [`boot_snapshot`] resolves it for a run: `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s
+/// roots in the same order, `rule:config/later-wins-and-every-override-is-recorded`'s later-wins, and `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` blocks
 /// folded for this entry file — so the answer `nvs check` gives is the one this
 /// deployment would give the same program. A tree that does not resolve is
 /// reported here and stops the check, because a capability question answered
@@ -574,7 +574,7 @@ fn resolved_in(
 /// operator wrote a configuration and it says no — so it answers
 /// `Some(Capabilities::default())`.
 ///
-/// § 7's advisories are deliberately not printed here. They are an audit of the
+/// `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s advisories are deliberately not printed here. They are an audit of the
 /// tree, which is `nvs check`'s subject; this call's subject is the
 /// program, and the tree is only being asked what it grants and loads.
 ///
@@ -789,7 +789,7 @@ fn rendered(diagnostic: Diagnostic, sources: &SourceMap) -> ExitCode {
 /// The paths are `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 1's root list given positionally: naming one
 /// disables step 2 exactly as `--config` does, so an audit of `/etc/nvs` on a
 /// developer's machine never quietly merges the `./nvs.toml` beside the
-/// checkout. With none named, § 1's own search runs — step 2's `./nvs.toml`,
+/// checkout. With none named, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s own search runs — step 2's `./nvs.toml`,
 /// else step 3's data-folder `nvs.toml`, else step 4's shipped defaults, which
 /// resolve and are reported as a tree of no files rather than as a failure to
 /// find one. Like every read-only command, it never creates the data folder.
@@ -799,10 +799,10 @@ fn rendered(diagnostic: Diagnostic, sources: &SourceMap) -> ExitCode {
 /// carry into the rest of it, so a second refusal found after the first would
 /// be a guess about a tree that was never built.
 ///
-/// The summary line is § 9's, and its counts are the ones that make § 3's
+/// The summary line is `rule:config/check-and-dump-audit-the-tree-offline`'s, and its counts are the ones that make `rule:config/later-wins-and-every-override-is-recorded`'s
 /// precedence auditable: how many files the tree reached, how many keys are in
 /// force, how many of those overrode an earlier assignment, and how many
-/// advisories (§ 7's readable secret file today) were raised. `dump --origin`
+/// advisories (`rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s readable secret file today) were raised. `dump --origin`
 /// is where each override is named; this line is what CI reads.
 pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
     let files = LocalFiles;
@@ -856,8 +856,8 @@ pub(crate) fn check(config: &[PathBuf], paths: &[PathBuf]) -> ExitCode {
 /// `nvs config dump [--origin] [--toml] [<file>...]` — every key in force, one
 /// per line, in dotted-key order.
 ///
-/// The roots are read exactly as [`check`] reads them. This is § 9's other
-/// offline half and § 3's own condition: later-wins is acceptable *because*
+/// The roots are read exactly as [`check`] reads them. This is `rule:config/check-and-dump-audit-the-tree-offline`'s other
+/// offline half and `rule:config/later-wins-and-every-override-is-recorded`'s own condition: later-wins is acceptable *because*
 /// every override is recoverable, and `--origin` is where it is recovered in
 /// full rather than summarized.
 ///
@@ -916,7 +916,7 @@ pub(crate) fn dump(config: &[PathBuf], paths: &[PathBuf], origin: bool, as_toml:
 /// Two spellings for one of `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`'s steps, because the audit and the
 /// runtime are asking about the same files from different directions. `--config`
 /// is the runtime's, so `nvs config check --config /etc/nvs/nvs.toml` audits
-/// exactly the argv the server will be given — § 9's own example is that
+/// exactly the argv the server will be given — `rule:config/check-and-dump-audit-the-tree-offline`'s own example is that
 /// spelling. The positional list is the shorthand a person types at a prompt.
 /// Naming both reads both, flag first, because that is the order a copied
 /// server argv wants to keep.

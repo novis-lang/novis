@@ -1,11 +1,7 @@
 {
   "title": "A prompt never blocks: no terminal or no answer in five minutes takes the `default` or throws `Cli\\NotInteractive`",
   "status": "shipped",
-  "because": [
-    "0086",
-    "0074",
-    "0079"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/a-prompt-is-a-core-member",
     "programs/memory-priority",

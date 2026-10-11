@@ -1,9 +1,7 @@
 {
   "title": "`lateinit` is admitted only on a non-nullable class- or interface-typed property that is neither promoted nor `readonly`",
   "status": "shipped",
-  "because": [
-    "0022"
-  ],
+  "because": [],
   "seeAlso": [
     "classes/lateinit",
     "classes/no-undefined-value",

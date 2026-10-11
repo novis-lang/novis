@@ -1,9 +1,7 @@
 {
   "title": "`and`, `or` and `xor` do not parse, and `&&`/`||` are the whole set",
   "status": "shipped",
-  "because": [
-    "0045"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/truthy-positions",
     "expressions/one-equality-operator"

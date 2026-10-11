@@ -1,11 +1,13 @@
 {
   "title": "The orphan sweep is keyed on the owner being alive, never on age, and runs in exactly two places",
   "status": "shipped",
-  "because": [
-    "0131"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/temporary-dir-sweep"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-runtime/src/sweep.rs",
+    "crates/nvs-cli/src/tmp.rs",
+    "crates/nvs-cli/src/serve.rs"
+  ]
 }

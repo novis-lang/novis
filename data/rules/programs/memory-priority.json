@@ -2,7 +2,6 @@
   "title": "Memory buys security, latency and simplicity — bounded, attributable and stated",
   "status": "shipped",
   "because": [
-    "0004",
     "0274"
   ],
   "seeAlso": [
@@ -10,5 +9,8 @@
     "programs/three-claims",
     "errors/propagation"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-host/src/isolate.rs",
+    "crates/nvs-runtime/src/value.rs"
+  ]
 }

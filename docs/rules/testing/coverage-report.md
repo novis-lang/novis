@@ -21,3 +21,25 @@ on and gives the suite's context one `StmtHits` table with a counter per stateme
 context the run makes from it — each test's isolate, a fixture, an in-process request, a request a
 `server: true` test sends — counts into that one table. Novis code cannot read it. A run that does not
 ask makes no table.
+
+The IR keeps its ids per function, so an edit in one function does not renumber every other one, and
+only codegen and the report need a program-wide number. A unit loaded from the compile cache was
+compiled by the same walk, so the runner computes the tables from the lowered program without the
+compile. One table handed down with the flag word reaches every context the same way the flag does,
+including a request a `server: true` test sends, which runs in a context no test owns, and a placed
+isolate, which ends on another core. A connection the server accepts starts from a fresh context, so
+the runner's request program installs the table and the flag on it itself. A context with the flag and
+no table counts nothing. A line takes the largest count of its statements, not their sum, so a `while`
+and the block it opens are not counted twice. A file's own top-level statements do not run under
+`nvs test`, so they read `0`.
+
+**Memory:** per run that asks, one `u64` per statement and per edge in the program, and one file and
+line pair per statement for the report. A run that does not ask spends nothing. With coverage on, each
+statement executed costs one relaxed atomic add beside the call the probe already made.
+
+**Declined:**
+- **Program-wide statement numbers in the IR.** An edit in one function would renumber every other
+  one, and nothing outside a coverage run needs a program-wide number.
+- **Copying each isolate's counts back to its parent when it ends.** A request a `server: true` test
+  sends runs in a context no test owns, and a placed isolate ends on another core, so each path would
+  need its own copy step.

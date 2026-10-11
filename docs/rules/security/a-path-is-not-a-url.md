@@ -12,3 +12,8 @@ available without any of the above, as an ordinary interface implemented by ordi
 resolved statically. What is refused is specifically **dispatch on the textual content of a path**,
 which is also what makes `rule:security/path-scope-canonicalise-then-prefix` a total rule rather than
 one with a scheme-shaped hole in it.
+
+**Declined:**
+- **A built-in allow-list of schemes, `file://` alone, with no registration.** Close to harmless and
+  easier to migrate to, but it keeps a scheme-parsing step in every path-handling member forever to
+  support one scheme that is also the default: surface with no capability behind it.

@@ -183,7 +183,7 @@ pub enum Cap {
     /// `mail.send` — which `[mail.<name>]` blocks a program may send through (`rule:programs/framework-core-half`).
     ///
     /// Named by block and never by host, which is [`DbConnect`](Self::DbConnect)'s shape and ADR
-    /// 0067 § 3's reasoning: the endpoint an operator wrote into root-owned configuration carries
+    /// `rule:core-classes/db-capabilities`'s reasoning: the endpoint an operator wrote into root-owned configuration carries
     /// the authority that granted this capability, so it is pre-approved and is not additionally
     /// asked about `rule:security/net-address-policy`'s denied ranges — where every ordinary relay lives.
     MailSend,
@@ -814,13 +814,14 @@ impl Capabilities {
     /// **resolved address** rather than of a name: which denied range this address is in, or `None`
     /// when nothing refuses it.
     ///
-    /// This is [`denied_by_default`] plus the operator's half of § 3 — `net.internal`, the addresses
-    /// a deployment says it reaches anyway. Its shape, each part of it a refusal to widen further
-    /// than the ADR does:
+    /// This is [`denied_by_default`] plus the operator's half of the policy — `net.internal`, the
+    /// addresses a deployment says it reaches anyway. Its shape, each part of it a refusal to widen
+    /// further than the rule does:
     ///
     /// - **An entry is an IP address**, and one that does not parse as an address matches
     ///   nothing. A hostname there would be read before resolution and so would exempt whatever the
-    ///   name resolved to *afterwards*, which is the rebinding gap § 2's pinning closes.
+    ///   name resolved to *afterwards*, which is the rebinding gap
+    ///   `rule:http-server/allow-url-pins-the-address`'s pinning closes.
     /// - **No ranges.** An operator writing `10.0.0.0/8` would hand back most of the table without
     ///   naming a single host it meant, and prefix matching here would be a second address-matching
     ///   implementation beside the table it is meant to except from.

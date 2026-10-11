@@ -1,12 +1,7 @@
 {
   "title": "A job names a script file, and its payload crosses as a copied value",
   "status": "shipped",
-  "because": [
-    "0084",
-    "0006",
-    "0023",
-    "0071"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/a-job-runs-as-a-root-isolate",
     "concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers"

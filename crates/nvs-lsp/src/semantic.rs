@@ -1,7 +1,8 @@
 //! What every name in a document is, for the colour a regex cannot choose.
 //!
 //! `textDocument/semanticTokens/full` is the second of the two highlighting
-//! layers ADR 0099 § 4 splits colour into, and the division of labour is what
+//! layers `rule:ide/highlighting-is-two-layers` splits colour into, and the
+//! division of labour is what
 //! decides everything in this file: the TextMate grammar colours what a regex
 //! can see — a keyword, a string, a type *position* — and this layer colours
 //! what only a parse can answer. So the walk emits a token exactly where **the
@@ -36,7 +37,8 @@
 //! - **A type annotation gets no token.** `User` in `function f(User $u)` is a
 //!   name whose kind needs `nvs_hir::hierarchy::resolve_ref` and the site's
 //!   namespace and imports. A type *position* is exactly what a regex can see,
-//!   so ADR 0099 § 4 already gives it to the TextMate grammar, and the layer
+//!   so `rule:ide/highlighting-is-two-layers` already gives it to the TextMate
+//!   grammar, and the layer
 //!   that would have to resolve it is the one that does not have to.
 //! - **A class constant gets none.** `Config::MAX` and `Status::Draft` are one
 //!   production, and LSP's legend has `enumMember` and no name at all for a

@@ -4,7 +4,8 @@
 //! line that is exactly `--NAME--` or `--NAME argument--`, and a section's body
 //! is every line after it up to the next header or the end of the file. This
 //! module is the one parser for that shape, so `.nvst` and `.lspt` cannot drift
-//! into two spellings of one format (`docs/decisions/0099.md` § 5).
+//! into two spellings of one format
+//! (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`).
 //!
 //! It knows no section *names*. Which names a format accepts, which of them
 //! takes an argument and what that argument means are the format's own

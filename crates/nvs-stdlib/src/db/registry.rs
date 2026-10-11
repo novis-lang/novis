@@ -17,8 +17,8 @@ use super::*;
 /// order, per `rule:core-api/shape-parameter`.
 ///
 /// **The arms are separated by their `driver` and by nothing else that is
-/// declared.** § 2's arm selection is "exactly one arm accepts it", and ADR
-/// 0047's enum-case types are what make these two disjoint: a settings object naming
+/// declared.** § 2's arm selection is "exactly one arm accepts it", and enum-case
+/// types (`rule:types/enum-case-type`) are what make these two disjoint: a settings object naming
 /// `Driver::Sqlite` cannot satisfy the server arm's required `driver`, and one
 /// naming any other case cannot satisfy the SQLite arm's. Nothing here says
 /// `driver` *is* a discriminant, because saying so would be a second, weaker
@@ -1038,7 +1038,7 @@ pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\ErrorKind";
 ///
 /// **A class per condition was rejected** — § 8's own *Alternatives*: ten more
 /// types in the deliberately small closed exception set
-/// [0063 § 4](/docs/decisions/0063.md) fixes, for
+/// `rule:errors/throwable-hierarchy` fixes, for
 /// boundaries that are driver-dependent anyway. What normalising does not
 /// reach stays readable as the raw `sqlState`, `constraint` and `driverCode`
 /// beside it.
@@ -1682,11 +1682,11 @@ pub(crate) const IN_LIST: CoreClass = CoreClass {
 /// `rule:core-classes/schema-is-a-value`'s `Core\Db\Schema` — a database schema as a value, in the array form
 /// that is its canonical spelling.
 ///
-/// **Two members here and no builders.** § 1 gives a schema three
+/// **Two members here and no builders.** `rule:core-classes/schema-is-a-value` gives a schema three
 /// interchangeable spellings and no privileged one, and the array form is the
 /// one the other two are defined against — so `fromArray` is the door and
 /// `toArray` is the window, and a typed builder surface would be a second way
-/// to say what this one already says. § 9's `planAgainst`, `applySafe` and
+/// to say what this one already says. `rule:core-classes/schema-apply-capability`'s `planAgainst`, `applySafe` and
 /// `applyIncludingRisky` are the members that do something with the value; they
 /// need a connection and this class needs none.
 pub(crate) const SCHEMA: CoreClass = CoreClass {
@@ -1892,7 +1892,7 @@ const PLAN_STEPS_DOC: MethodDoc = MethodDoc {
 /// `rule:core-classes/schema-plan`'s step — one difference, its grade, the sentence explaining the
 /// grade, and the SQL that makes it.
 ///
-/// **Four readers over four slots and no `change()`.** § 2's vocabulary is
+/// **Four readers over four slots and no `change()`.** `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary is
 /// closed and a [`nvs_db::Change`] is closed with it, so exposing the change
 /// itself would mean a Novis class per variant — a surface that grows with the
 /// vocabulary and that no caller of this member needs, since what a program

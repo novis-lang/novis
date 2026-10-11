@@ -1,9 +1,7 @@
 {
   "title": "One slice writes all of a feature's proofs together",
   "status": "shipped",
-  "because": [
-    "0134"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/feature-proofs",
     "testing/a-failing-proof-is-fixed-or-recorded",

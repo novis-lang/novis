@@ -1,13 +1,11 @@
 <?nvs
 // The end of a script, observed from inside it.
 //
-// [ADR 0127](/docs/decisions/0127.md) is the
-// design. `Core\Script::onExit` registers a hook that runs as the **last user
-// code of the script**, at every non-fatal ending: the last statement, an
-// `exit`, or a throw that reached the root. The hook is handed a readonly
-// report saying which of those it was and what status the process will carry,
-// and it cannot change either — a hook observes an ending rather than steering
-// one.
+// `Core\Script::onExit` registers a hook that runs as the **last user code of
+// the script**, at every non-fatal ending: the last statement, an `exit`, or a
+// throw that reached the root. The hook gets a readonly report. The report says
+// which ending it was and the status the process exits with. The hook cannot
+// change either value.
 //
 // This program takes the first of the three. Both hooks are registered before
 // any work happens, and neither runs until the last line below has already

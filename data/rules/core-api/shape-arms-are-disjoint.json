@@ -1,11 +1,7 @@
 {
   "title": "A shape's arms are pairwise disjoint, so exactly one accepts a written anonymous object and no field is declared a discriminant",
   "status": "shipped",
-  "because": [
-    "0135",
-    "0047",
-    "0067"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/shape-parameter",
     "core-api/shape-reuses-the-option-diagnostics",
@@ -16,6 +12,8 @@
     "tests/conformance/core/db-settings-are-checked-against-the-one-arm-they-select.nvst",
     "tests/conformance/core/db-settings-require-the-keys-of-the-arm-they-select.nvst",
     "tests/conformance/core/db-open-refuses-a-settings-object-that-names-no-driver.nvst",
-    "crates/nvs-types/src/expr/args.rs"
+    "crates/nvs-types/src/expr/args.rs",
+    "crates/nvs-types/tests/core_members.rs",
+    "crates/nvs-stdlib/src/registry.rs"
   ]
 }

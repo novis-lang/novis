@@ -1,12 +1,7 @@
 {
   "title": "Three sites accept a `class<T>`, and every other operand is still refused there",
   "status": "shipped",
-  "because": [
-    "0125",
-    "0007",
-    "0126",
-    "0192"
-  ],
+  "because": [],
   "seeAlso": [
     "types/class-reference",
     "types/property-key-access",

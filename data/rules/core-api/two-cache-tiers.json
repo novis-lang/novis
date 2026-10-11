@@ -1,13 +1,7 @@
 {
   "title": "Cross-request state is reached through a member per tier, each with its own contract, never one API with a flag",
   "status": "shipped",
-  "because": [
-    "0059",
-    "0024",
-    "0142",
-    "0118",
-    "0181"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/one-name-one-signature",
     "core-api/each-door-takes-a-different-thing",

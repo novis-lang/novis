@@ -2,10 +2,7 @@
   "title": "An inspection is a code action backed by a diagnostic the checker emits, runs on the resilient tree, and is off by default under `source.fixAll.nvs` so it composes with format-on-save while `nvs fmt` stays layout-only",
   "status": "designed",
   "because": [
-    "0040",
-    "0099",
-    "0258",
-    "0259"
+    "0258"
   ],
   "seeAlso": [
     "ide/the-tree-survives-a-syntax-error",

@@ -1,9 +1,7 @@
 {
   "title": "`deadline` ends at the head of a streamed reply, its body runs under `idle` and `maxDuration`, and the body is read one way, once",
   "status": "shipped",
-  "because": [
-    "0180"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/one-deadline-covers-the-whole-call",
     "http-server/no-spelling-for-an-unbounded-wait",

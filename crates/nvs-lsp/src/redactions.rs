@@ -5,7 +5,7 @@
 //! alternative is the client deciding what a secret is
 //! (`rule:ide/redaction-ranges-come-from-the-server`). A
 //! `TextDocumentIdentifier` goes in and a list of `{range, kind}` comes back,
-//! `kind` being the open string ADR 0101 § 1 left open.
+//! `kind` being an open string, so a later qualifier adds a spelling.
 //!
 //! # Decision: two kinds on one list, not a list per kind
 //!
@@ -14,7 +14,7 @@
 //! because a credential on a shared screen is an incident, and the other only
 //! where `nvs.taint.mark` asks for it
 //! (`rule:ide/tainted-has-no-default-decoration`). They travel on one
-//! request because the set is closed and `kind` is the room ADR 0101 § 1 left,
+//! request because the set is closed and an open `kind` is the room it leaves,
 //! and on one *list* because a client that reads a field per kind must be
 //! taught a new field for every later qualifier, while a client reading kinds
 //! already carries them.
@@ -52,7 +52,8 @@
 //! token's static type carries `secret`. A literal's own type never does — the
 //! qualifier reaches it from the binding it flows into — and mid-edit there is
 //! often no type at all, which is exactly when a value must not flash on
-//! screen. So the question asked here is ADR 0101 § 1's fail direction, asked
+//! screen. So the question asked here is the fail direction
+//! `rule:ide/redaction-ranges-come-from-the-server` names, asked
 //! everywhere rather than only on failure: **does the binding this value is
 //! written into carry `secret`?**
 //!
@@ -73,7 +74,7 @@
 //! anywhere else under a `secret` declaration — an argument to the call that
 //! produced the value, a key in an array being indexed — is a byte of the
 //! program rather than a byte of the secret, and concealing it would be the
-//! over-redaction ADR 0101 § 1 refuses.
+//! over-redaction `rule:ide/redaction-covers-bytes-only` refuses.
 //!
 //! An interpolation slot is the other half, and it is answered wherever it is
 //! written: `"prefix $key suffix"` conceals `$key` even in a statement that
@@ -90,10 +91,11 @@
 //! `qualifiers_recorded`, and closing it here means answering those two
 //! questions at a *declaration* rather than at a use.
 //!
-//! **A sink's argument position.** ADR 0101 § 4's third setting value needs
+//! **A sink's argument position.** The third value of `nvs.taint.mark`
+//! (`rule:ide/tainted-has-no-default-decoration`) needs
 //! `rule:security/sink-predicate`'s classification on the member rows before
-//! there is anything to answer, and the record leaves whether it is built at
-//! all open. Until then `nvs.taint.mark = sink` marks what `declaration` does.
+//! there is anything to answer, and whether it is built at all is open. Until
+//! then `nvs.taint.mark = sink` marks what `declaration` does.
 //!
 //! **A parameter's default.** A parameter declaration is not a binding the
 //! checker records a span for, and [`nvs_syntax::walk`] gives a function's
@@ -138,13 +140,13 @@ pub const METHOD: &str = "nvs/redactions";
 
 /// The one kind answered today.
 ///
-/// An open string on the wire (ADR 0101 § 1), so a later qualifier adds a
+/// An open string on the wire, so a later qualifier adds a
 /// spelling here without either end changing shape.
 pub const SECRET_LITERAL: &str = "secretLiteral";
 
 /// A declaration whose binding carries `tainted`, marked and never concealed.
 ///
-/// ADR 0101 § 4's `declaration` setting, answered: the range is the name the
+/// The `declaration` value of `nvs.taint.mark`, answered: the range is the name the
 /// binding was declared under, and the client draws a glyph after it where
 /// `nvs.taint.mark` asks and nothing at all where it does not
 /// (`rule:ide/tainted-has-no-default-decoration`). It is answered whatever
@@ -215,7 +217,8 @@ pub fn for_document(analysed: &Analysed, encoding: PositionEncoding) -> Vec<Reda
 /// rather than asked a containment question, and a range in a file the client
 /// did not ask about names bytes its document does not have.
 ///
-/// A binding and not a use, which is the whole of what ADR 0101 § 4 asks for: a
+/// A binding and not a use, which is the whole of what
+/// `rule:ide/tainted-has-no-default-decoration` asks for: a
 /// `tainted` value is tainted at every use ([`crate::semantic`] already carries
 /// the modifier there), so a glyph per use would mark most of a request handler
 /// and teach nothing. The declaration is the one place the qualifier was
@@ -323,7 +326,7 @@ impl Concealing<'_> {
     /// was never recorded, so it answers `None` and carries nothing. A hook is
     /// a body rather than a value written into the property, so a literal
     /// inside one is a byte of the program — concealing it would be the
-    /// over-redaction ADR 0101 § 1 refuses.
+    /// over-redaction `rule:ide/redaction-covers-bytes-only` refuses.
     fn property(&mut self, node: &Node) {
         let mut children = node.children.iter();
         if let Some(first) = children.next() {

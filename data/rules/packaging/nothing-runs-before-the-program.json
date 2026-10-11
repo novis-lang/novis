@@ -1,12 +1,7 @@
 {
   "title": "Nothing in a package runs before your program does",
   "status": "designed",
-  "because": [
-    "0081",
-    "0052",
-    "0046",
-    "0071"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "security/no-eval",

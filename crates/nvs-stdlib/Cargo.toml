@@ -25,40 +25,42 @@ nvs-footprint.workspace = true
 # the tree builder through a `TreeSink` of its own into `crate::xml`'s `Parsed`
 # nodes rather than through the sample DOM `markup5ever_rcdom` carries.
 html5ever.workspace = true
-# ADR 0118 § 3: `Cap` is the one place a capability's `nvs.toml` name maps to the
-# field that grants it, so the registry's capability table names that enum rather
-# than a string this crate would have to compare against the configuration's own.
+# `rule:security/capability-declaration-is-one-table`: `Cap` is the one place a
+# capability's `nvs.toml` name maps to the field that grants it, so the registry's
+# capability table names that enum rather than a string this crate would have to
+# compare against the configuration's own.
 nvs-config.workspace = true
-# ADR 0092 § 1: the record model and its renderings live in one crate that both
+# `rule:errors/diagnostic-record`: the record model and its renderings live in one crate that both
 # the runtime and the front end can depend on. `Core\Debug::dump` is its first
 # producer -- `crate::debug` builds a record and hands it to the plaintext
 # rendering, rather than formatting a value here.
 nvs-render.workspace = true
-# ADR 0070 § 5: the duration grammar has exactly one implementation, and it is
+# `rule:types/duration`: the duration grammar has exactly one implementation, and it is
 # `nvs_syntax::duration` -- the lexer reads a duration written in the source with it, this
 # crate reads a run-time string with it, and `nvs.toml` will read a directive
 # with it. That module's own docs own why the shared code sits in the syntax
-# crate; ADR 0019's `Core\Ast` owes this same edge regardless.
+# crate; `Core\Ast`, which runs the compiler's own parser, owes this same edge regardless.
 nvs-syntax.workspace = true
 # `rule:core-api/tier-roster` puts `Core\Http\Client` over "the runtime's own reactor rather
 # than a second event loop", and the parking stream that reaches it is
-# `nvs_host::net`. This edge is that sentence and ADR 0044 § 5's second half:
+# `nvs_host::net`. This edge is that sentence and the wait in `rule:core-classes/process-run`:
 # a `Core` member either parks on readiness (`nvs_host::net`, an outbound
 # socket) or hands the core to the blocking pool (`nvs_host::blocking::run`,
 # waiting for a child), and a copy of either here would be a second
-# implementation of ADR 0115 § 3's park-and-resume. ADR 0106 § 6 says there is
+# implementation of `rule:concurrency/try-the-syscall-then-park`.
+# `rule:http-server/a-core-is-never-blocked-on-a-syscall` says there is
 # no third option, so this stays a two-entry list. `nvs-host` depends on
 # `nvs-runtime` and on nothing this crate exports, so the graph stays a tree.
 nvs-host.workspace = true
-# ADR 0183 § 4: the opening handshake of `Core\Http\Client::openSocket` is an
-# outbound call, and what runs over the connection it leaves behind is
+# `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`: the
+# opening handshake of `Core\Http\Client::openSocket` is an outbound call, and what runs over the connection it leaves behind is
 # `tungstenite`'s client half — the same crate the server's half already speaks,
 # over the same parking stream and with no adapter. Masking, fragmentation,
 # UTF-8 validation and the close handshake are that crate's; a second
 # implementation of any of them here would be a second thing to get wrong, which
 # is the workspace row's own argument read in the other direction.
 tungstenite.workspace = true
-# ADR 0132 § 1: `Core\Db`'s registry rows, reference cards and helper bodies
+# `rule:core-classes/db-crate-boundary`: `Core\Db`'s registry rows, reference cards and helper bodies
 # belong here with every other class's, and the five drivers' wire code belongs
 # in one crate an audit can open on its own. So the edge runs this way and only
 # this way -- `nvs-db` naming `nvs-stdlib` would close a cycle, and its own
@@ -70,7 +72,7 @@ nvs-db.workspace = true
 # bodies are here, and the LDAP wire is `nvs-ldap`'s, which names no crate of
 # this one's.
 nvs-ldap.workspace = true
-# ADR 0054 § 5's own naming: `Core\BigInt` is `num-bigint`, and `num-integer`
+# `rule:types/decimal`'s naming: `Core\BigInt` is `num-bigint`, and `num-integer`
 # is the trait its `gcd` and `lcm` are members of. The root manifest's row is
 # where the dependency is argued; what belongs here is that `crate::bigint` is
 # its only caller, and that the class stores a sign and magnitude bytes rather
@@ -107,7 +109,7 @@ x25519-dalek.workspace = true
 hkdf.workspace = true
 pbkdf2.workspace = true
 sha2-v11.workspace = true
-# ADR 0179 § 8: `Core\Jwt` and `Core\Crypto`'s signature pair reach BoringSSL
+# `Core\Jwt` and `Core\Crypto`'s signature pair reach BoringSSL
 # through `ring` for RSASSA-PKCS1-v1_5, RSASSA-PSS, ECDSA over P-256 and
 # Ed25519. The root manifest's row is where the audit under
 # `rule:packaging/a-c-dependency-answers-two-questions` is written; what belongs
@@ -173,8 +175,8 @@ nvs-ext.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy, for exactly
-# nvs-runtime's reason and no wider one: every `Core` member is an ADR 0002
-# helper entry point, so it is an `extern "C"` function decoding raw pointers,
+# nvs-runtime's reason and no wider one: every `Core` member is a
+# `rule:errors/helper-abi` helper entry point, so it is an `extern "C"` function decoding raw pointers,
 # which the workspace's `forbid` would make unwritable. `deny` instead, so each
 # genuinely necessary block is allowed individually with a stated reason — the
 # policy in docs/implementation-plan.md's "Unsafe policy" section, which names

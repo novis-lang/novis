@@ -32,7 +32,7 @@
 //! no mount is refused, and so is a table of nothing — a `scan` that matched no
 //! file: `expand`'s implicit mount is never reached from here, so nothing runs
 //! that neither the command line nor the configuration named
-//! (`rule:http-server/the-served-file-is-optional`, [ADR 0200]).
+//! (`rule:http-server/the-served-file-is-optional`).
 //!
 //! **The argument does not override the table; it has to be in it.** A `<file>`
 //! that is not one of the mounted entries is refused before the socket exists,
@@ -41,8 +41,6 @@
 //! decides is *which* configuration this is: `rule:config/every-matching-app-block-applies-least-specific-first` layers the
 //! `[[app]]` blocks that match it, and with no argument no block is layered —
 //! the process reads [`nvs_config::Snapshot::host`], the global tree alone.
-//!
-//! [ADR 0200]: ../../../docs/decisions/0200.md
 //!
 //! **Every mounted entry is compiled before the socket is bound**, which is what
 //! § 2 buys — a program that does not compile is a start that fails rather than
@@ -1119,8 +1117,9 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     // The loop runs *as a task*, which is not a formality: every connection it
     // accepts is a child of it (`rule:concurrency/a-child-belongs-to-the-calling-task`), and `serve_on_this_core` refuses
     // to run anywhere else. Its own context writes nothing — a connection's
-    // bytes are its request's isolate's, captured and handed back as data (ADR
-    // 0088 § 3) — so `OutputSink::Sink` is what it holds rather than stdout.
+    // bytes are its request's isolate's, captured and handed back as data
+    // (`rule:tooling/echo-always-has-a-sink`) — so `OutputSink::Sink` is what it
+    // holds rather than stdout.
     // `rule:config/a-scheduled-run-is-a-root-isolate`'s roster, armed on the one
     // worker that ticks it and armed here rather than at the boot, because an
     // `Armed` holds an `Rc` and cannot cross onto this thread. `nvs_server::arm`
@@ -1362,8 +1361,8 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
 /// This core, offered to the process as a placement destination for as long as
 /// the answer is held.
 ///
-/// ADR 0184 § 5's answer to *which core* a child spawned `on: "worker"` is
-/// started on (`rule:concurrency/on-worker-runs-the-child-on-another-core`):
+/// The answer to *which core* a child spawned `on: "worker"` is started on
+/// under `nvs serve` (`rule:concurrency/on-worker-runs-the-child-on-another-core`):
 /// the threads a served deployment is already turning are pinned, and a second
 /// thread per core for placement work would oversubscribe exactly the cores a
 /// served request's latency depends on. So every serving core registers one
@@ -3319,9 +3318,10 @@ mod tests {
     /// scheduler this command already turns — and the process's destination set
     /// is what it is observable through with no socket bound: a placement
     /// written on another core runs on the registered one, and
-    /// [`nvs_host::worker::cores_started`] is unmoved by it. Both halves are ADR
-    /// 0184 § 5, whose destination under `nvs serve` is a sibling serving core
-    /// and whose threads are the ones already serving.
+    /// [`nvs_host::worker::cores_started`] is unmoved by it. Both halves are
+    /// `rule:concurrency/on-worker-runs-the-child-on-another-core`, whose
+    /// destination under `nvs serve` is a sibling serving core and whose threads
+    /// are the ones already serving.
     ///
     /// A detached drain rather than the process's bit, because what ends the
     /// receptionist here is the offer being withdrawn: the process's bit is one

@@ -17,7 +17,8 @@ lands it on.
 
 - **The file's own declarations win.** A prefix both declare is the file's.
 - **A lender never borrows.** A file that declares `autoload` has a map of its own, and the server
-  analyses it through exactly that one, as `nvs check` does.
+  analyses it through exactly that one, as `nvs check` does. A bootstrap file is read by the walk of
+  every test program that requires it, and without this it would borrow copies of its own declarations.
 - **A borrowed declaration reports nothing**, a duplicate and a malformed glob included. Its position is
   in a file this walk never read, and the lender's own analysis is where it is reported.
 - **One lender lends, never a union.** Two programs over one source tree may give one prefix different
@@ -30,7 +31,9 @@ lands it on.
 - **The lender's declaring files are dependencies of the borrowing analysis**, so an edit to one
   re-analyses and republishes every open document that borrowed from it. An edit to a file the lender
   read repeats its walk only when the edited text holds `require`, since only a `require` can change what
-  the walk reads; an edit to any other file costs one search of its text for the two keywords.
+  the walk reads; an edit to any other file costs one search of its text for the two keywords. A file
+  that stops holding `require` leaves the set of files the walk read stale until the lender's next
+  walk, and the stale set lends a map only to a file no longer required.
 
 Under `nvs.check.scope = open` only the open documents are surveyed, so a map is lent once the file that
 declares it, or the entry that requires it, is open too.
@@ -42,5 +45,52 @@ directory, skipping what the server skips — in path order, stops at the first 
 file, else takes the first that holds it, and checks the file again with that lender's declarations
 behind its own. A file that declares a
 map, or names nothing undeclared, is checked once and searches nothing; a file no lender reaches keeps
-the first walk's diagnostics. `nvs_hir::lenders` is the one implementation of what a lender is and whom it
-lends to, for the server and the command both.
+the first walk's diagnostics, and so does a file checked from a directory outside its project. `E0303`
+and `E0306` are the two diagnostics a borrowed map can change, so no other finding starts a search.
+The second walk starts from a fresh source map, and its diagnostics are the ones reported, in the same
+text and `--json` formats; since a borrowed declaration reports nothing, every diagnostic is about a
+file the check read for the checked file. `nvs_hir::lenders` is the one implementation of what a lender
+is and whom it lends to, for the server and the command both, so the two cannot disagree.
+
+The command borrows because of how it is used. A coding agent is told to run `nvs check` on the file it
+just edited, and that file is most often a class file under an `autoload` root; without a lent map the
+command it was told to trust reports `E0303` and `E0306` on a program that builds clean, and the false
+error sends the agent to fix code that is correct. For such a file the command costs one read of each
+`.nvs` file under the root, one name-resolution walk per file holding `autoload` or `require` up to the
+lender, and a second walk of the checked file; a program's entry point pays nothing new.
+
+Nothing is configured for this. Where two lenders reach one file the same way, the first in entry-path
+order lends, and nothing says which. The survey costs one read of each file under the root at startup,
+which the index makes anyway, and one name-resolution walk for each file that holds a keyword. Each
+analysis then costs one `canonicalize` and a prefix test per lender. Nothing is on a request path of the
+runtime.
+
+**Memory:** one resolved map and a few short path lists per lender, held for the session. It grows with
+the number of programs in the workspace, not with edits. `nvs check` holds the first lender's resolved
+map for the length of one command.
+
+**Declined:**
+- **A setting naming the entry point.** It is exact, but a false error is the default until somebody
+  finds the setting, and a workspace holding several applications needs a list of them.
+- **Analysing the program's entry point and publishing for the open file out of that walk.** The cursor
+  tables, the trivia and the syntax index would be the entry document's, and a class the entry point never
+  names would not be reached at all.
+- **Holding `E0306` back for a file with no map.** Hover, completion and go-to-definition would still lack
+  the type, and a real misspelt import would be hidden with it.
+- **Reporting the file's own `autoload` as an error when it borrows**, as the build does for an
+  autoloaded file. A bootstrap file reached by `require` may sit under a root too, and the build gives it
+  no error.
+- **Repeating a lender's walk on every edit to a file it read.** That set is the whole application, so
+  every keystroke anywhere would repeat the walk.
+- **The required file's own `require` as the link.** A test file requires nothing. The entry requires
+  it, so the edge points away from the open document a walk starts at.
+- **A test layout the editor already handles, recommended in place of the usual one.** An entry that
+  requires each test file and then the bootstrap is the layout the testing reference describes, and a
+  test file that uses a class is the ordinary case.
+- **Surveying by parsing every file.** The keyword search excludes almost every file for the cost of a
+  read the index makes anyway.
+- **`nvs check` surveying before its first walk.** It costs a tree read on every check of every file,
+  the programs that need nothing included.
+- **`nvs check` searching upwards from the checked file for a lender.** A shared framework tree is
+  reached by a program outside its own directories, and the server, which surveys the workspace, would
+  then disagree with the command.

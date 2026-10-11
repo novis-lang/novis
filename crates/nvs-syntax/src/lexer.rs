@@ -2439,9 +2439,10 @@ mod tests {
     #[test]
     fn a_brace_before_a_non_dollar_stays_a_segment_byte() {
         // A `<style>` block needs no escape and `{Money::format(…)}` is text,
-        // because only `{$` opens a hole (ADR 0169 § 3). The `$c` inside that
-        // text still interpolates in the simple syntax, which is the same
-        // answer a double-quoted string gives.
+        // because only `{$` opens a brace hole
+        // (`rule:core-classes/html-template`). The `$c` inside that text still
+        // interpolates in the simple syntax, which is the same answer a
+        // double-quoted string gives.
         assert_eq!(
             kinds_ok("<?nvs html`<style>.a{color:red}</style>{Money::format($c)}`;"),
             vec![

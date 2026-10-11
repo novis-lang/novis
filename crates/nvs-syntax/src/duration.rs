@@ -278,7 +278,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_grammar_accepts_what_adr_0070_writes() {
+    fn the_grammar_accepts_what_the_rule_writes() {
         assert_eq!(parse("30s"), Ok(30_000_000_000));
         assert_eq!(parse("1h30m"), Ok(5_400_000_000_000));
         assert_eq!(parse("500ms"), Ok(500_000_000));
@@ -292,7 +292,7 @@ mod tests {
 
     /// Each of `rule:types/duration`'s refusals, by the rule it names.
     #[test]
-    fn the_grammar_refuses_what_adr_0070_refuses() {
+    fn the_grammar_refuses_what_the_rule_refuses() {
         assert_eq!(parse("30m1h"), Err(DurationError::OutOfOrder("m", "h")));
         assert_eq!(parse("1h1h"), Err(DurationError::OutOfOrder("h", "h")));
         assert_eq!(parse("30S"), Err(DurationError::MisCasedUnit("S".into())));

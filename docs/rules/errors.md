@@ -23,7 +23,7 @@ This is what makes "a fatal is not catchable" hold at the ABI level without ever
 cooperating, and it is why no catch-loop can be written for a resource limit at all — not merely
 why one is unlikely.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/compile-failure`](errors.md#errors-compile-failure). Decided in [0020](../decisions/0020.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/on-limit`](errors.md#errors-on-limit), [`errors/compile-failure`](errors.md#errors-compile-failure).</sub>
 
 <a id="errors-propagation"></a>
 
@@ -50,13 +50,27 @@ platform, so an unwinder would walk off a coroutine stack into unrelated memory.
 therefore ordinary IR the optimiser can see through, and a throw across a coroutine boundary is
 not a special case.
 
+A missing status check would swallow an exception without a trace, which is a worse failure than a
+crash. So every call site `nvs-codegen` emits goes through one path, `emit_invoke_at`: a direct and
+an indirect call differ only in where the callee comes from, and the argument slots, the status
+check and the landing block are the same code for both.
+
 Checked returns stay even if `cranelift-jit` learns to unwind through JIT frames, because coroutine
 stack switches and error-path refcount drops the optimiser can see still favour them. The canary
-`benches/abi-probe/tests/unwind_unavailable.rs` fails when that happens. The answer is then one
-decision record that rewrites the sentence about unwind tables above and turns the canary around, so
-it records that unwinding works and fails if that changes back.
+`benches/abi-probe/tests/unwind_unavailable.rs` fails when that happens. The sentence about unwind
+tables above is then rewritten and the canary turned around, so it records that unwinding works and
+fails if that changes back.
 
-<sub>See also [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0002](../decisions/0002.md).</sub>
+**Declined:**
+- **Native unwinding through JIT frames.** It needs unwind tables, frame descriptions and
+  personality routines maintained for every platform, and an unwinder crossing a coroutine stack
+  switch can walk into unrelated memory. The refcount drops on a throw path would also sit in
+  landing pads the optimiser treats as opaque.
+- **Calling foreign code that unwinds directly.** Nothing may unwind through a JIT frame, so a
+  library that raises its own exceptions is reached only through a Rust wrapper that stops them
+  ([`errors/helper-abi`](errors.md#errors-helper-abi)).
+
+<sub>See also [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder).</sub>
 
 <a id="errors-throw-is-not-slower"></a>
 
@@ -94,7 +108,7 @@ so an exception arriving from a callee passes through untouched. The bound: a fa
 and names no `location`, a pushed label being a rendering rather than the datum a `location` is read
 back from.
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation). Decided in [0002](../decisions/0002.md).</sub>
+<sub>See also [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="errors-helper-abi"></a>
 
@@ -117,7 +131,12 @@ root carries a `catch_unwind` as well. And a panic raised while a panic is unwin
 process whatever the profile says, so nothing on a teardown path may panic and teardown does not
 recurse.
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0002](../decisions/0002.md), [0106](../decisions/0106.md).</sub>
+A contained panic's message goes to the request log with its request id, not to the process's
+stderr. `nvs_runtime::floor::install_panic_hook`, which `nvs` installs at startup, writes a panic
+raised under a served request as a critical record and hands any other panic to the hook before it,
+so a CLI script still prints its panic to stderr.
+
+<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code).</sub>
 
 <a id="errors-stack-depth"></a>
 
@@ -147,7 +166,7 @@ those. Request data also recurses through engine frames — a nested document in
 value graph in teardown — which are bounded separately by an explicit depth counter and an
 iterative teardown.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/propagation`](errors.md#errors-propagation). Decided in [0020](../decisions/0020.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/propagation`](errors.md#errors-propagation).</sub>
 
 <a id="errors-on-limit"></a>
 
@@ -173,7 +192,30 @@ safety net is exactly the case where the choice should belong to someone else.
 `nvs-runtime`, which holds no `Core` class descriptor to instantiate one from — and a keyed array
 takes a later field without changing the signature of a handler already written.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code). Decided in [0020](../decisions/0020.md).</sub>
+**Memory:** the memory reserve is a ceiling, not an allocation. Ordinary execution runs under
+`[limits] memory` less the reserve, which is 1 MiB by default and never more than a quarter of the
+ceiling. A request with no memory ceiling reserves nothing.
+
+A ceiling is enforced where the resource is spent, not where a program happens to look, so a loop
+that allocates nothing and calls nothing is still stopped. The watchdog thread, which already wakes on
+an interval and holds an entry per core, reads each core's own CPU clock and raises the CPU bit in the
+word compiled code polls at every back edge; the allocator raises the memory bit in the same word
+([`errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself`](errors.md#errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself)). That word is reached by
+address rather than living inside `Ctx`, because neither writer holds a context and a write through one
+would alias the `&mut Ctx` a helper body holds. A request tree shares one word, as it shares one budget
+([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)), so a child made after a flag was raised is not born
+clean. A runaway request therefore stops itself at its next poll, and the core it ran on is never
+wedged.
+
+**Declined:**
+- **A wall clock in place of CPU time.** A wall clock cannot tell a runaway loop from a request waiting
+  on a slow database, and `[limits] cpu_time` exists to stop the first and leave the second alone. A
+  platform with no per-thread clock another thread may read enforces no CPU ceiling and says so at
+  boot.
+- **Killing the core a runaway request is wedging.** No point exists at which another thread may
+  unwind a core running compiled code ([`http-server/a-wedged-core-is-shed-never-killed`](http-server.md#http-server-a-wedged-core-is-shed-never-killed)).
+
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/stack-depth`](errors.md#errors-stack-depth), [`errors/panics-bypass-user-code`](errors.md#errors-panics-bypass-user-code).</sub>
 
 <a id="errors-an-allocation-past-the-ceiling-is-refused-in-front-of-itself"></a>
 
@@ -214,7 +256,16 @@ does afterwards brings it back under a ceiling it never held the bytes against. 
 the pre-check by design — an object's allocation is sized by its class, so no program drives one
 unbounded — and they stay bounded by the published flag.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance). Decided in [0174](../decisions/0174.md).</sub>
+The check is one thread-local load and one compare per growing allocation, in front of a heap round
+trip that costs far more; a request with no memory ceiling arms zero and stops at the first compare.
+
+**Declined:**
+- **A status return on the primitives that carry no `ctx`.** It would put a new argument and a new
+  return on the hottest primitives in the language and change every call site the compiler emits, for
+  a signal nothing can act on: the request is already over, and the degenerate value has the same
+  observable outcome.
+
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`concurrency/a-cross-request-stores-bytes-are-its-own-balance`](concurrency.md#concurrency-a-cross-request-stores-bytes-are-its-own-balance).</sub>
 
 <a id="errors-escalation-ladder"></a>
 
@@ -241,7 +292,14 @@ Every tier that writes a log line writes the same record through the same native
 ([`errors/log-write`](errors.md#errors-log-write)), so a dashboard never reconciles two shapes depending on which tier
 produced a line.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/engine-floor`](errors.md#errors-engine-floor). Decided in [0020](../decisions/0020.md).</sub>
+**Declined:**
+- **A `catch (Throwable)` that intercepts a `FATAL` anywhere in the stack.** It would reopen the
+  status model of [`errors/propagation`](errors.md#errors-propagation) and spread the catch-loop risk to every stack depth
+  instead of containing it at one boundary ([`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy)).
+- **An engine-only logger with no script tier.** Routing and formatting errors would move to a
+  second, host-side configuration surface instead of the language the application is written in.
+
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/engine-floor`](errors.md#errors-engine-floor).</sub>
 
 <a id="errors-on-uncaught-throw"></a>
 
@@ -264,7 +322,7 @@ the ladder — it runs at every non-fatal ending including successful ones, need
 observes the ending rather than reporting a failure. A handler faulting here changes nothing about
 it.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script). Decided in [0020](../decisions/0020.md), [0127](../decisions/0127.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script).</sub>
 
 <a id="errors-handler-script"></a>
 
@@ -291,7 +349,11 @@ The tier is the shared catch-all: it fires for any tier-1 or tier-2 failure, for
 never registered at all, for an internal panic unconditionally, and for an entry-script compile
 failure where no frame ever existed to register anything from.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/log-write`](errors.md#errors-log-write). Decided in [0020](../decisions/0020.md).</sub>
+**Memory:** the allotment is a ceiling, 16 MiB by default, and the same whatever the failing
+request was allowed. Nothing is held between failures; in flight the handler costs one more isolate
+context, so it does not grow with the number of requests served.
+
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="errors-engine-floor"></a>
 
@@ -322,7 +384,7 @@ ladder can leave; a `finally` is not enough, because an internal panic bypasses 
 design. A ladder that protects the process and leaves the shell unusable has failed at what it is
 for.
 
-<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/log-write`](errors.md#errors-log-write). Decided in [0020](../decisions/0020.md), [0086](../decisions/0086.md), [0106](../decisions/0106.md).</sub>
+<sub>See also [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/handler-script`](errors.md#errors-handler-script), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="errors-panics-bypass-user-code"></a>
 
@@ -342,7 +404,7 @@ So **only a resource-limit `FATAL` reaches [`errors/on-limit`](errors.md#errors-
 to [`errors/handler-script`](errors.md#errors-handler-script) — still user-formattable, still routed wherever the operator sends
 diagnostics — without ever calling back into the failing request's own code.
 
-<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/handler-script`](errors.md#errors-handler-script). Decided in [0020](../decisions/0020.md).</sub>
+<sub>See also [`errors/on-limit`](errors.md#errors-on-limit), [`errors/helper-abi`](errors.md#errors-helper-abi), [`errors/handler-script`](errors.md#errors-handler-script).</sub>
 
 <a id="errors-compile-failure"></a>
 
@@ -362,7 +424,12 @@ running: an ordinary `ParseError`, catchable at the call site like any `Throwabl
 lets a framework fail a bad template or plugin gracefully instead of the whole request. Uncaught, it
 rides the normal [`errors/on-uncaught-throw`](errors.md#errors-on-uncaught-throw) path — by then a frame did exist.
 
-<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0020](../decisions/0020.md), [0091](../decisions/0091.md).</sub>
+**Declined:**
+- **Every compile failure handled only at the boundary.** A `require` that fails while the request
+  runs would end the whole request, where a catchable `ParseError` lets the caller recover, as PHP's
+  does.
+
+<sub>See also [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder).</sub>
 
 <a id="errors-diagnostic-record"></a>
 
@@ -388,7 +455,17 @@ implementation rather than five.
 One crate — `nvs-render` — owns the model and every rendering of it, and both the runtime and the
 compiler front end depend on it.
 
-<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/log-fields`](errors.md#errors-log-fields). Decided in [0092](../decisions/0092.md), [0106](../decisions/0106.md).</sub>
+Closing the model is what keeps the renderings from drifting apart. The obligation on them is a table
+of every node kind against every rendering, and that table is finite only because no producer can add
+a kind.
+
+- **Memory:** a record is built before it is rendered, so each log write or dump holds one tree of
+  nodes rather than formatting straight to bytes: one extra allocation and one extra walk per record,
+  bounded by the elision caps ([`errors/record-transformations`](errors.md#errors-record-transformations)) and charged to the request. It
+  buys a dump that cannot reach a production response and a plaintext log target that cannot be
+  forged.
+
+<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/log-fields`](errors.md#errors-log-fields).</sub>
 
 <a id="errors-record-producers"></a>
 
@@ -423,7 +500,12 @@ builds the trace as the throw unwinds — so those three parts are the whole of 
 object a record of a throw carries is the throw itself, whose declared properties are walked like
 any other value and redact like any other value.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0079](../decisions/0079.md).</sub>
+**Declined:**
+- **Logs and dumps only, with throws, test results and diagnostics outside.** It is the smallest
+  scope, and it would duplicate redaction and substitution in each producer left out rather than
+  remove the duplication.
+
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/log-write`](errors.md#errors-log-write), [`errors/debug-dump`](errors.md#errors-debug-dump).</sub>
 
 <a id="errors-a-record-names-where-it-was-produced"></a>
 
@@ -450,7 +532,12 @@ every record would need a walk of Novis's own frame chain and is not bought here
 The cost stays where [`errors/propagation`](errors.md#errors-propagation) put it. A `source` is read at the call that produces a
 record, never maintained as running state, so no path that produces no record pays anything for it.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/propagation`](errors.md#errors-propagation), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active). Decided in [0165](../decisions/0165.md).</sub>
+**Declined:**
+- **A current-location word maintained in the context.** It is a store on every statement to serve
+  the rare statement that produces a record, where a constant read at that call costs nothing
+  elsewhere.
+
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/record-producers`](errors.md#errors-record-producers), [`errors/propagation`](errors.md#errors-propagation), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active).</sub>
 
 <a id="errors-record-transformations"></a>
 
@@ -477,14 +564,16 @@ someone is looking at, or the renderings stop being views of one record.
 newline inside a tainted value cannot forge an entry. That property is the condition on a
 human-readable target existing at all.
 
-Elision belongs to the model precisely so the renderings agree on what was cut, and a cycle is an
+Elision belongs to the model precisely so the renderings agree on what was cut. A cut made per
+formatter, as PHP and Python make it, leaves one value complete in one output and cut in another,
+and no reader can tell which. A cycle is an
 identity rather than a `*RECURSION*` marker, so the HTML rendering can link the repeat and the JSON
 rendering can emit a reference.
 
 Tainted data flows into a record freely, because the record frames it and **the rendering is what
 makes it safe**. There is no raw escape hatch, and no rendering may be selected by an argument.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write). Decided in [0092](../decisions/0092.md), [0033](../decisions/0033.md), [0086](../decisions/0086.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="errors-renderings"></a>
 
@@ -507,12 +596,31 @@ renderings from becoming fifteen.
 **Zero new carrier types.** Every one already existed, which is what lets a capture around a dump
 return something that re-emits correctly instead of being escaped twice.
 
-Colour is the only thing that varies with a tty; structure, substitution and redaction never do.
-`[log] format` has two values rather than three because HTML is not a log *target* rendering — a
-web-facing log viewer is an HTTP response, and reaches the HTML rendering through the response sink
-like everything else.
+Colour is the only thing that varies with a tty, and the plaintext rendering reads it from the one
+resolved terminal profile ([`tooling/the-terminal-profile-resolves-once`](tooling.md#tooling-the-terminal-profile-resolves-once)); structure,
+substitution and redaction never vary. `[log] format` has two values rather than three because HTML
+is not a log *target* rendering — a web-facing log viewer is an HTTP response, and reaches the HTML
+rendering through the response sink like everything else, so a framework's log viewer gets it with no
+second implementation.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md), [0088](../decisions/0088.md).</sub>
+The HTML block carries its own style, inline and once per response, under the response's CSP nonce:
+the default headers block a linked asset, and a debug block the project's own security defaults stop
+from rendering would be no use.
+
+A rendering is not a grammar. A grammar is a string the program writes that something parses
+([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)); a rendering is output the runtime produces, so the count
+of four is unchanged.
+
+**Declined:**
+- **A format argument on each producer**, such as `dump($x, "html")`. The call site is the one place
+  that does not know where the output goes: the same handler runs under `nvs serve`, under a test and
+  inside a spawned isolate, and the sink table ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)) already answers
+  it in all three.
+- **Choosing the rendering from the `Content-Type` header at dump time.** The body is typed
+  ([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)), so the rendering is a compile-time fact, and
+  reading a header would put a run-time decision in its place.
+
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump), [`errors/no-render-hook`](errors.md#errors-no-render-hook).</sub>
 
 <a id="errors-no-render-hook"></a>
 
@@ -531,7 +639,7 @@ lying view of the state a dump exists to show.
 Adding a fourth rendering later is a change to one crate, not to any call site — which is the
 property that makes refusing one now cheap to revisit.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump). Decided in [0092](../decisions/0092.md), [0028](../decisions/0028.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/debug-dump`](errors.md#errors-debug-dump).</sub>
 
 <a id="errors-debug-dump"></a>
 
@@ -569,14 +677,23 @@ direction for a bug to point. So a development-mode API response is byte-identic
 production counterpart.
 
 `[debug] inline` can only be tightened at run time: a request may turn its own inline output off and
-can never turn it on, so the run mode's default is the only thing that can enable it.
+can never turn it on, so the run mode's default is the only thing that can enable it, and
+[`http-server/the-mode-ceiling-defaults-to-the-startup-mode`](http-server.md#http-server-the-mode-ceiling-defaults-to-the-startup-mode) bounds reaching that mode at all.
 
 **This is the security half of the rule.** The most-exploited information disclosure from a debug
 dump is not a bug in the dump; it is that the dump writes to output, so a forgotten call and a
 production deployment are enough. Here the forgotten call writes a log line, and the spelling that would put it
 in a response does not exist outside a mode whose ceiling is closed by default.
 
-<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/no-render-hook`](errors.md#errors-no-render-hook). Decided in [0092](../decisions/0092.md), [0091](../decisions/0091.md), [0085](../decisions/0085.md).</sub>
+**Declined:**
+- **A `debug` key injected into a JSON body in development.** The served shape would contradict the
+  published API document ([`routing/api-document-is-a-deterministic-build-artifact`](routing.md#routing-api-document-is-a-deterministic-build-artifact)), for the
+  reason above.
+- **A response header carrying a dump id**, the shape some PHP frameworks use for a debug token. It
+  keeps the body intact and the dump discoverable, but it is a second mechanism: an id, a lookup, and a
+  viewer to look it up in, and no such viewer exists.
+
+<sub>See also [`errors/renderings`](errors.md#errors-renderings), [`errors/record-transformations`](errors.md#errors-record-transformations), [`errors/no-render-hook`](errors.md#errors-no-render-hook).</sub>
 
 <a id="errors-log-write"></a>
 
@@ -602,7 +719,7 @@ JSON was chosen over `logfmt` because an arbitrary error message or a multi-line
 escaping that is correct on the first and only attempt at the floor, and JSON's escaping is a
 solved, mechanical problem where `logfmt`'s quoting of embedded quotes, newlines and spaces is not.
 
-<sub>See also [`errors/log-level`](errors.md#errors-log-level), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0020](../decisions/0020.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`errors/log-level`](errors.md#errors-log-level), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/engine-floor`](errors.md#errors-engine-floor), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record).</sub>
 
 <a id="errors-log-level"></a>
 
@@ -624,7 +741,15 @@ spans and sampling belong to tracing and a trace *level* would be a second home 
 
 `[log] level` sets the minimum level written.
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md).</sub>
+`Core\Log::write` takes the enum rather than a `string` level, because a closed set of values is an
+enum in every other position in the language.
+
+**Declined:**
+- **PSR-3's eight levels.** They are what PHP standardised on, but nobody has a rule for choosing
+  `notice` over `info`, or `alert` over `emergency` over `critical`: they are three ways to say one
+  thing.
+
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record).</sub>
 
 <a id="errors-log-fields"></a>
 
@@ -647,7 +772,7 @@ without changing it.
 A record is charged to the request's budget, and a record shed under burst pressure **increments a
 counter that is exported**, because a silently dropped log line is worse than a counted one.
 
-<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record). Decided in [0092](../decisions/0092.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`errors/log-write`](errors.md#errors-log-write), [`errors/diagnostic-record`](errors.md#errors-diagnostic-record).</sub>
 
 <a id="errors-a-repeat-is-bounded-at-the-sink-that-suffers"></a>
 
@@ -669,7 +794,7 @@ collapses a run into one row saying how many it stands for, which expands.
 
 **The log target's window is a small fixed table, not the floor's single slot.** The floor keeps one
 because a fault loop repeats one record; application code interleaves, and a single slot coalesces
-none of that. Memory stays a constant, just a larger one.
+none of that.
 
 The identity is the floor's: `ts`, `request_id`, `trace_id`, `span_id` and any existing `count` are
 cleared before hashing, because those are what distinguish two occurrences of one thing. Everything
@@ -680,7 +805,20 @@ window closes carries how many it stands for.
 Coalescing bounds what is *stored*, not what is *spent*: a duplicate is only known to be one after
 its record has been built and rendered, so a loop still pays for every record it makes.
 
-<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking). Decided in [0165](../decisions/0165.md).</sub>
+- **Memory:** each worker thread holds one fixed table of `LOG_WINDOW_SLOTS` windows
+  (`crates/nvs-runtime/src/floor.rs`), whatever the program writes. A record below `[log] level`
+  takes no slot.
+
+**Declined:**
+- **One coalescing policy for every sink.** The floor, a disk-bounded log and an index protect
+  different things, and one policy would either fill a disk or discard what a developer went looking
+  for.
+- **A per-call-site rate limit.** It is the only option that makes a hot loop cheap rather than
+  merely quiet, but it drops records that differ, which is a change of meaning rather than an
+  optimisation. Nothing measured asks for it. Taking it would need a shed record to increment an
+  exported counter, as [`errors/log-fields`](errors.md#errors-log-fields) already requires.
+
+<sub>See also [`http-server/the-floor-cannot-fill-the-disk`](http-server.md#http-server-the-floor-cannot-fill-the-disk), [`errors/log-write`](errors.md#errors-log-write), [`errors/log-fields`](errors.md#errors-log-fields), [`testing/the-ingester-runs-whether-or-not-anyone-is-looking`](testing.md#testing-the-ingester-runs-whether-or-not-anyone-is-looking).</sub>
 
 <a id="errors-a-use-of-deprecated-code-may-log-or-throw"></a>
 
@@ -743,7 +881,21 @@ origin parser is dangerous in.
 Strict parsing is not slower. Validation folds into the pass that already touches every byte to find
 delimiters; it is *lenient* parsing that needs extra work to unfold, re-scan and normalise.
 
-<sub>See also [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0095](../decisions/0095.md), [0097](../decisions/0097.md).</sub>
+The unusual half is as much of the rule as the refusals: a header name with an underscore, or an
+unknown but well-formed one, is accepted verbatim.
+
+**Declined:**
+
+- **Normalise and continue.** It gives the most interoperability, and it is the posture behind a run of
+  parser vulnerabilities in other runtimes: a folded header line unfolded and parsed, a header line with
+  no colon treated as a header, a long redirect target truncated and followed, a hostname with NUL
+  accepted. It also guarantees that Novis and a proxy in front of it can disagree about what a request
+  says.
+- **Total strictness**, refusing anything that does not match the HTTP grammar exactly. It is simpler to
+  state, and it refuses requests every other origin accepts (underscores in header names are common). It
+  also makes the list open-ended, which the closed list exists to prevent.
+
+<sub>See also [`errors/http-message-defects`](errors.md#errors-http-message-defects), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals).</sub>
 
 <a id="errors-http-message-defects"></a>
 
@@ -767,12 +919,26 @@ Refused on a request Novis receives **and on a response Novis's outbound client 
 
 A token that *withholds* an address — `unknown` — has said something definite and is not refused.
 
+A folded header line is refused rather than replaced, the stricter of the two answers the HTTP
+specification allows a server, so a client that still sends one cannot talk to Novis.
+
+`Content-Length` with `Transfer-Encoding` on an inbound request is the one row the server answers
+differently: it follows the HTTP/1.1 specification, the chunked encoding wins and the length is
+ignored. The connection is closed after that message, so bytes a proxy read as a second request are
+never read as one here.
+
 **There is no opt-out on the outbound half.** A remote server is an attacker too, and a response's
 body flows straight into program logic. An upstream emitting genuinely ambiguous headers is one
-whose answers cannot be reasoned about, so a throw at the call site is the honest outcome — and an
-opt-out would be copy-pasted into the calls that did not need it.
+whose answers cannot be reasoned about, so a throw at the call site is the honest outcome. The cost is
+that an upstream with a sloppy header emitter breaks an outbound call, visibly, at the call site.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes). Decided in [0095](../decisions/0095.md), [0097](../decisions/0097.md), [0074](../decisions/0074.md).</sub>
+**Declined:**
+
+- **A per-call opt-out on the outbound half.** It would buy integration with sloppy third-party
+  services, which is a real problem. The second code path would have to stay exactly as safe as the
+  first, and an option like that is copy-pasted into the calls that did not need it.
+
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/cookie-name-bytes`](errors.md#errors-cookie-name-bytes).</sub>
 
 <a id="errors-cookie-name-bytes"></a>
 
@@ -796,7 +962,17 @@ consecutive CVEs — the second being the incomplete fix for the first, where co
 mangling let a plain cookie be read as a `__Host-` one. Enforcing it once, in the one place that
 parses the header, is the whole fix.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/http-message-defects`](errors.md#errors-http-message-defects). Decided in [0095](../decisions/0095.md), [0012](../decisions/0012.md).</sub>
+PHP's dot-and-space mangling of cookie names served variable names built from request input, and Novis
+has no superglobals for it to serve.
+
+**Declined:**
+
+- **Leaving prefix enforcement to the program**, with a cookie helper. The prefix then means nothing
+  unless every read site checks it, which is the arrangement that produced the bypass above.
+- **A compatibility mode that reproduces cookie-name mangling.** The mangling is the bypass, and PHP
+  syntax is an on-ramp rather than a compatibility promise.
+
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused), [`errors/http-message-defects`](errors.md#errors-http-message-defects).</sub>
 
 <a id="errors-multipart-part-count"></a>
 
@@ -814,7 +990,10 @@ multipart parsers, and 1000 is the number that shape's best-known fix chose.
 This also widens the attribution rule in the only direction it was missing: **temp files, file
 descriptors and disk bytes are charged to a request the same way memory is.**
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md), [0064](../decisions/0064.md), [0004](../decisions/0004.md).</sub>
+The cost is that a form with more than 1000 parts needs one configuration line. A ported PHP
+application meets the limit exactly where it already met one, because PHP uses the same default.
+
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="errors-path-component-refusals"></a>
 
@@ -846,4 +1025,13 @@ laundered and never was.
 and goes on accepting both separators on every platform. `Path::normalize` is **not** a launderer,
 because the base is not part of its input.
 
-<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0095](../decisions/0095.md).</sub>
+**Declined:**
+
+- **Enforcing these refusals only on Windows.** A platform-conditional security rule is tested on the
+  platform where it does nothing, and conformance runs on a native Windows leg and a WSL leg, so one
+  member would need two expectations.
+- **Putting them in `Core\Path::normalize`.** No `Path` member carries policy, and putting policy there
+  invites the belief that normalising is safe. Containment needs the base, and only `Core\IO::within`
+  has it.
+
+<sub>See also [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>

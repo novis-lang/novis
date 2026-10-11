@@ -1,11 +1,7 @@
 {
   "title": "`Core\\Queue`'s four request-path members are each asked about a job or about a queue, never about a row number",
   "status": "shipped",
-  "because": [
-    "0084",
-    "0063",
-    "0153"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/shape-rules",
     "concurrency/a-job-between-attempts-is-pending",

@@ -22,3 +22,22 @@ properties are load-bearing:
 Dev-dependencies are excluded — they are linked into nothing a user receives. The file is committed and
 CI diffs it (`rule:testing/attribution-is-diffed-in-ci`), and the binary carries it
 (`rule:packaging/the-notice-is-embedded-in-the-binary`).
+
+A hand-maintained notice is a second copy of a fact that goes stale without telling anyone, and the
+lockfile already holds the authoritative graph, so the notice is derived from it. A license outside
+`PREFERENCE` stopping the run is meant to be annoying: it is the moment that decision should be made.
+Over-including means a reader may find a component their own build does not contain, and the file
+says so.
+
+**Declined:**
+- **`cargo-about`.** It deduplicates by license identifier rather than by text, which loses each
+  component's own copyright line, the part MIT asks for. It would also add an installed tool and a
+  template file to CI.
+- **A Rust `xtask` crate.** Reading `cargo metadata` needs a JSON parser crate, which adds a dependency
+  to the one tool whose job is keeping the dependency set honest.
+- **SPDX identifiers only, with a pointer to a website.** MIT, BSD and Apache-2.0 each condition
+  redistribution on reproducing text, and a URL is not a reproduction: it is a promise to keep a
+  server running.
+- **Markdown for the notice.** A `.md` file either fences the license texts, putting stray fence lines
+  in the binary's output, or lets a renderer reflow them. Plain text is shown verbatim by GitHub and
+  printed verbatim by the binary, from one file.

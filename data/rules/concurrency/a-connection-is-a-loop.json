@@ -1,10 +1,7 @@
 {
   "title": "Inside a connection, code is an ordinary loop, and `receive()` answering `null` is what ends it",
   "status": "shipped",
-  "because": [
-    "0083",
-    "0074"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/receive-is-the-one-wait",
     "concurrency/a-peer-frame-is-tainted",

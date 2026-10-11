@@ -25,8 +25,27 @@ nothing about it is copied into Rust by hand.
 written to `AGENTS.md` § *Text an end user reads*. A card added or changed is written that way. An older
 card in another voice is rewritten when its class is next touched, and no session sweeps every card.
 
-Extended prose is deliberately excluded. Long-form text inside Rust string literals is the worst reading
-surface available, so anything beyond the reference card stays in the website's pages. The cost is static
-strings in the binary — per process, not per request, on the order of a few hundred bytes per documented
-member — which is the cheap side of the trade and strippable behind a build feature if a deployment ever
-cares.
+Extended prose — long descriptions, examples, tips — stays in the website's pages, and only the card
+moves into Rust.
+
+- **Memory:** per process, never per request: static strings in read-only data, on the order of a few
+  hundred bytes per documented member and a few tens per enum case or constant, plus each compiler
+  attribute's card and each compiled-in intro page. That is the cheap side
+  of the trade, and a build feature can strip it if a deployment ever cares.
+
+**Declined:**
+- **The spec as the documentation's only home.** It keeps the documentation far from the code it
+  describes, and the registry has to carry every parameter's name anyway
+  (`rule:core-api/parameters-are-callable-by-name`), so the names would live in two places.
+- **Extended prose in Rust too.** Long markdown inside string literals, with its escaping and review
+  noise, is worse to edit than a markdown page. The card is the part worth keeping beside the code.
+- **Doc comments extracted through rustdoc's JSON output.** That format is unstable outside nightly, and
+  a registry row is a struct literal rather than an item, so a doc comment does not attach to it.
+- **A sidecar documentation file in the crate.** It is a second home beside the declaration, the same
+  problem at a shorter distance.
+- **An `intro` field on every class literal.** Each literal would carry `None` or a hand-typed path
+  to its own page, a copy kept by hand. A lookup in a table the build generates from the pages
+  keeps the literals and the pages as they are.
+- **A class's card taken from its page under `docs/reference/core/`.** Not every class has a page, and a
+  page is not data the runtime dispatches on. The card goes where the members' cards already are, and
+  the page is shown beneath it.

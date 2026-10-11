@@ -4,7 +4,6 @@
 // than in a buffer the parent reads back.
 echo 'child said hello', "\n";
 
-// ADR 0006 § *Failure is a value, not an exception*: a child answers with a
-// top-level `return`, which is what `require` already means in PHP. The
-// parent sees it as the value half of a `ScriptResult` whose `ok` is true.
+// A child gives a value back with a top-level `return`.
+// The parent reads it as `value` on the result, and `ok` is `true`.
 return ['greeted' => true];

@@ -1,10 +1,7 @@
 {
   "title": "`Response::tls()` reports the session a reply arrived over — version, cipher, whether the peer was verified, and its chain — and is `null` when there was none",
   "status": "shipped",
-  "because": [
-    "0180",
-    "0217"
-  ],
+  "because": [],
   "seeAlso": [
     "security/tls-trust-is-relaxed-only-under-a-host-grant",
     "http-server/the-client-trust-roots-are-the-operators",

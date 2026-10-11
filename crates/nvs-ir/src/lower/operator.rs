@@ -893,8 +893,8 @@ impl<'a> Lowering<'a> {
         // integer `/`'s union with.
         //
         // The operands are staged and released exactly as the ordering arm
-        // stages its own, and for the same reason: these helpers carry ADR
-        // 0002's error edge — a closed table, an overflow and the `int ⊕ uint`
+        // stages its own, and for the same reason: these helpers carry
+        // `rule:errors/propagation`'s error edge — a closed table, an overflow and the `int ⊕ uint`
         // pair are each a way one throws — so an operand released inline would
         // be abandoned on the edge a throw leaves by.
         if matches!(

@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Http\\Client` has no spelling for \"wait forever\": every bound is a `Duration`, an omitted one inherits `[http.client]`, and expiry throws `TimeoutError`",
   "status": "shipped",
-  "because": [
-    "0074"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/one-deadline-covers-the-whole-call",
     "http-server/retry-is-opt-in-jittered-and-closed",

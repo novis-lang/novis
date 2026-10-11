@@ -1,9 +1,9 @@
-//! `rule:testing/test-attribute`'s `#[Test]` attribute and § 8's `#[Fixture]`: the payload
+//! `rule:testing/test-attribute`'s `#[Test]` attribute and `rule:testing/fixtures`'s `#[Fixture]`: the payload
 //! check, and the two tables the compiler builds from them.
 //!
 //! Neither table has a `.nvst` case for its *rows*: the `#[Test]` one is
-//! reported by the runner, but a `#[Fixture]` row is observable only once §
-//! 8's injection runs, so nothing a program can print says which type a
+//! reported by the runner, but a `#[Fixture]` row is observable only once
+//! `rule:testing/fixtures`'s injection runs, so nothing a program can print says which type a
 //! fixture supplies. They are asserted here instead, where the tables
 //! themselves are in hand — both rosters' *refusals* are pinned by a `.nvst`
 //! alongside, since those a program does observe.
@@ -60,7 +60,7 @@ fn a_class_with_no_test_method_has_no_row_at_all() {
 #[test]
 fn each_option_is_folded_to_the_constant_a_parameter_default_folds_to() {
     let (_, options) = tests_of(
-        // § 20's `because:` rides along because a `retries:` without one is
+        // `rule:testing/runner-is-strict`'s `because:` rides along because a `retries:` without one is
         // refused, which is `check_retries_state_a_reason`'s own rule and is
         // pinned by the `.nvst` alongside.
         "  #[Test(skip: \"blocked on Core\\\\Db, M8\", seed: 7, server: true, retries: 2, \
@@ -109,7 +109,7 @@ fn a_fixture_attribute_builds_a_roster_keyed_by_what_it_returns() {
     assert!(!diags.has_errors(), "fixture was refused: {diags:?}");
     let fixtures = declared.exprs().fixtures("RepoTest").unwrap();
     // Declaration order, and only the marked members — the roster is what
-    // § 8 injects from, not every static method that returns something.
+    // `rule:testing/fixtures` injects from, not every static method that returns something.
     let rows: Vec<(&str, String)> = fixtures
         .iter()
         .map(|f| (f.method.as_str(), declared.interner.describe(f.ty)))
@@ -150,9 +150,9 @@ fn a_parameter_is_resolved_to_the_fixture_supplying_its_type_in_parameter_order(
             Injection::Fixture("schema".to_owned())
         ]
     );
-    // No `#[TestWith]` anywhere, so the case is the one call § 1 describes.
+    // No `#[TestWith]` anywhere, so the case is the one call `rule:testing/test-attribute` describes.
     assert!(cases[0].rows.is_empty());
-    // § 8's last sentence: a fixture's own parameters resolve the same way,
+    // `rule:testing/fixtures`'s last sentence: a fixture's own parameters resolve the same way,
     // which is what gives the runner a build order.
     let fixtures = declared.exprs().fixtures("RepoTest").unwrap();
     assert!(fixtures[0].fixtures.is_empty());
@@ -193,7 +193,7 @@ fn each_test_with_is_a_row_folded_in_parameter_order() {
 
 #[test]
 fn a_row_and_a_fixture_fill_one_parameter_list_between_them() {
-    // § 9's "a mix of the two in one method is allowed, and each parameter's
+    // `rule:testing/data-rows`'s "a mix of the two in one method is allowed, and each parameter's
     // source is unambiguous because fixtures resolve by type and rows by
     // name". The row's own position holds its value and the fixture's holds
     // `None`, so the runner walks one list rather than joining two.
@@ -222,7 +222,7 @@ fn a_row_wins_a_parameter_a_fixture_would_also_have_answered() {
     // The two rosters overlap here on purpose: `$n` is an `int`, which the
     // fixture supplies, *and* is named by the row. A name is the more specific
     // of the two — the row was written against this method, while the fixture
-    // answers every method of the class — so the row wins, which is § 9's
+    // answers every method of the class — so the row wins, which is `rule:testing/data-rows`'s
     // "each parameter's source is unambiguous".
     let (diags, declared) = check_src_declared(&fixture_src(
         "  #[Test]\n  #[TestWith(n: 1)]\n\
@@ -287,7 +287,7 @@ fn the_match_is_nominal_so_the_name_has_to_resolve_to_core_test() {
 // callables and the interface the call site wrote.
 // ------------------------------------------------------------------
 
-/// ADR 0079 § 10's worked example, at the checker: the shape answers every
+/// `rule:testing/doubles`'s worked example, at the checker: the shape answers every
 /// method `Clock` declares, so the call is accepted and its `T` is the
 /// interface — which is what lets the double be passed where one is taken.
 #[test]
@@ -301,7 +301,7 @@ fn a_double_is_the_interface_it_names() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// The first of § 10's two refusals. `zone` is declared and unanswered, and
+/// The first of `rule:testing/doubles`'s two refusals. `zone` is declared and unanswered, and
 /// there is nothing the double could return for it — `rule:testing/doubles` is
 /// strict for that reason rather than by preference.
 #[test]

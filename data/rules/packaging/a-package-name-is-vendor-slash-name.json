@@ -1,10 +1,7 @@
 {
   "title": "A package name is `vendor/name`, lowercase ASCII compared exactly, and `nvs` is reserved for first-party packages",
   "status": "designed",
-  "because": [
-    "0081",
-    "0062"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/a-package-is-its-digest",
     "core-api/reserved-namespace",

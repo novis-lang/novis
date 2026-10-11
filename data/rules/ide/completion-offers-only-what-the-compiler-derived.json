@@ -1,13 +1,7 @@
 {
   "title": "The editor completes a value only where the compiler already derives it for another reason or a completion file lists it, never from a framework's conventions, an annotation dialect or the network",
   "status": "designed",
-  "because": [
-    "0108",
-    "0111",
-    "0240",
-    "0242",
-    "0243"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/completion-files-offer-values-at-named-parameters",
     "routing/routes-are-compiled-not-registered",
@@ -16,5 +10,14 @@
     "routing/api-document-is-generated-from-the-route-table",
     "programs/first-party-framework"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-lsp/tests/completion.rs",
+    "crates/nvs-lsp/tests/directives.rs",
+    "tests/lsp/completion/a-require-path-offers-the-directories-and-nvs-files-its-text-reaches.lspt",
+    "tests/lsp/completion/an-autoload-prefix-offers-the-namespaces-the-workspace-declares.lspt",
+    "tests/lsp/completion/a-written-class-name-offers-the-classes-that-are-its-type.lspt",
+    "tests/lsp/completion/a-path-argument-offers-the-files-and-directories-its-text-reaches.lspt",
+    "tests/lsp/completion/an-expected-error-argument-offers-only-error-classes.lspt",
+    "crates/nvs-lsp/tests/completion_edits.rs"
+  ]
 }

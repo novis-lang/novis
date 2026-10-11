@@ -13,3 +13,12 @@ no `net`, no `time`, no executor — which makes it a channel library and not a 
 The guarantee the whole roster is built on is `rule:concurrency/nothing-is-still-running-when-a-call-returns`,
 and it is a property of the call rather than of a scope object: there is no nursery, no task group
 and no handle to leak, so a task tree is bounded by the same accounting a request already has.
+
+**Declined:**
+- **An open-ended scope object** — a block that children are added to, the shape of a nursery or a
+  task group. It is the general form of a need no program has shown yet, and more to learn than two
+  calls. Adding one later changes nothing above, so it waits for code that `all` and `map` cannot
+  express.
+- **Growing the roster on request.** `race`, `first`, `any` and `settled` are each one more member,
+  and each is argued against a real use before it lands rather than added because it is familiar
+  (`rule:concurrency/limit-and-deadline-are-the-only-bounds`).

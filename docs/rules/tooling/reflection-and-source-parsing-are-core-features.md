@@ -15,3 +15,10 @@ observer ordinary code at that site would face, and there is no `setAccessible(t
 (`rule:security/reflection-enforces-visibility`). A parsed tree is inert typed data with no path back
 into execution, because `eval` does not exist. Neither touches the filesystem, the network or another
 process, so neither needs a capability grant (`rule:security/reflection-needs-no-capability`).
+
+**Declined:**
+- **Ship reflection and leave source parsing to a library.** That is the split that lets a
+  third-party grammar drift from the engine's, and avoiding it costs nothing because the compiler's
+  parser already exists.
+- **`setAccessible(true)` or any equivalent.** It would make every access modifier advisory and skip
+  a declared property observer without a trace (`rule:security/reflection-enforces-visibility`).

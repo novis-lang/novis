@@ -1,11 +1,7 @@
 {
   "title": "Each probe starts and stops mid-request, and exports what existing tooling already reads",
   "status": "designed",
-  "because": [
-    "0018",
-    "0006",
-    "0011"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/debug-probes",
     "testing/debug-mode-directive",

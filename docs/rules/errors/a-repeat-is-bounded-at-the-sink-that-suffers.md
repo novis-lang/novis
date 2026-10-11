@@ -12,7 +12,7 @@ collapses a run into one row saying how many it stands for, which expands.
 
 **The log target's window is a small fixed table, not the floor's single slot.** The floor keeps one
 because a fault loop repeats one record; application code interleaves, and a single slot coalesces
-none of that. Memory stays a constant, just a larger one.
+none of that.
 
 The identity is the floor's: `ts`, `request_id`, `trace_id`, `span_id` and any existing `count` are
 cleared before hashing, because those are what distinguish two occurrences of one thing. Everything
@@ -22,3 +22,16 @@ window closes carries how many it stands for.
 
 Coalescing bounds what is *stored*, not what is *spent*: a duplicate is only known to be one after
 its record has been built and rendered, so a loop still pays for every record it makes.
+
+- **Memory:** each worker thread holds one fixed table of `LOG_WINDOW_SLOTS` windows
+  (`crates/nvs-runtime/src/floor.rs`), whatever the program writes. A record below `[log] level`
+  takes no slot.
+
+**Declined:**
+- **One coalescing policy for every sink.** The floor, a disk-bounded log and an index protect
+  different things, and one policy would either fill a disk or discard what a developer went looking
+  for.
+- **A per-call-site rate limit.** It is the only option that makes a hot loop cheap rather than
+  merely quiet, but it drops records that differ, which is a change of meaning rather than an
+  optimisation. Nothing measured asks for it. Taking it would need a shed record to increment an
+  exported counter, as `rule:errors/log-fields` already requires.

@@ -15,4 +15,14 @@ This removes a second spelling rather than adding a capability: a method referen
 expression-bodied anonymous function already produce exactly the value a block-bodied anonymous function does
 (`rule:types/callable-values`). Capture is never written (`rule:types/implicit-capture`), and an
 anonymous function that needs to call itself carries a self-name instead
-(`rule:types/anonymous-function-self-name`).
+(`rule:types/anonymous-function-self-name`). The block body is not a new form: PHP's arrow function
+never grew one only because it was added after the `function` literal, and nothing requires `fn` to
+keep that restriction.
+
+**Declined:**
+- **Keeping both `function (...) {...}` and `fn`.** Two spellings of one value
+  (`rule:statements/nothing-gets-a-second-name`).
+- **A bare `($x) => ...` without `fn`.** A parenthesised list before `=>` cannot be told apart from a
+  parenthesised expression without a cover grammar; `fn` decides it from one token.
+- **Blocks that are expressions, returning their last value.** That decides statements against
+  expressions for the whole language to save one `return`.

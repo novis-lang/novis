@@ -26,6 +26,27 @@ those values, read off the parameter types the checker records on the call it re
 every attribute's anonymous object, whose shape is a declared type; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 
+A path list is one directory: the text between the opening quote and the cursor is split at its last
+separator, the part before it is joined to the declaring file's directory (the base `require` and
+`autoload` resolve against) or replaces it when absolute, and that directory is listed through
+`nvs_hir::autoload::entries_of`, so a name offered is one resolution would find. Names are offered as the
+disk spells them (`rule:programs/path-case`), a name starting with `.` is hidden, and an item replaces
+only the segment after the last separator. A directory item writes a `/` and opens the list again. A
+`require` offers directories and `.nvs` files, an `autoload` literal directories only, and a path
+argument every file, since a path parameter takes a file of any kind. Nothing is offered once the
+directory part holds a `*`. An `autoload` prefix offers namespaces from the workspace index as well as
+the analysis, `Core` excluded, because a prefix usually maps code nothing loads yet. The string of `as
+class<T>` offers each class and interface in the analysis that `nvs_hir::hierarchy::implements_interface`
+says is a `T`, `T` included, and not a class only an autoload root could load, because the run-time
+conversion compares whole names among the classes the program declares and cannot find that one either.
+A name literal's item is a whole name replacing all the text after the opening quote: a `\` typed just
+before the closing quote escapes it, so no list can be answered at that keystroke, and a whole name
+never needs it. `Core\Test::assertThrows` is the one member whose class-name parameter expects an
+error, named in a one-row table in `crate::arguments`, since the mark says only that the text is a class
+name. A parameter whose type is a set of allowed string values completes them as items of kind
+`value`, its `null` aside, and is offered a completion file's list beside them, merged by value; it gets
+no warning for a literal outside the set, because the checker already rejects one.
+
 What it refuses has no subject rather than being declined: ORM columns (a codec's fields are declared
 properties, already reached as members), service-container and facade resolution (constructor injection
 is resolved while compiling, so go-to-definition already goes there), and view-name completion
@@ -40,3 +61,44 @@ consulted.
 A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated, and each must name a
 table the compiler builds for another reason or the table the completion files were loaded into. No
 completion source reads a directory or a file itself.
+
+The text an item inserts comes from the same place: a `Core` member is inserted from the registry the
+checker seeds its signatures from, so a suggestion never writes a call that then fails to resolve. An
+editor that writes such a call is worse than one that offers nothing, because the developer cannot tell
+the suggestion's mistake from their own.
+
+The rule buys a stronger guarantee than framework-aware completion elsewhere gives. A route name
+completed from the compile-time route table is correct, where one recovered by scanning a conventions
+directory is a good guess. Columns recovered from migrations, facades followed through a runtime
+container and components found by directory convention are each a heuristic replacing a fact the
+language does not make available; Novis makes those facts available, so the heuristic has nothing to
+replace. Stating the rule as a property of where a value comes from keeps `nvs-lsp` free of
+per-framework modules, which would otherwise arrive one framework at a time and never leave.
+
+What it costs: a package whose route-like table is built while the program runs gets no completion for
+it, and the answer is to make that table compile-time. An editor that talks to a third party while a
+developer types is the same class of surprise `rule:http-server/allow-url-pins-the-address` refuses for
+a running program, which is why no completion source fetches anything.
+
+**Declined:**
+- **Framework support built from convention scans, an annotation dialect and a patch file** for what
+  neither reaches. Each is a second description of a program's shape that nothing checks against the
+  first.
+- **A module for the first-party web framework inside `nvs-lsp`.** It would be the server's first
+  special case, and a third-party package would then ask for the same treatment with no principle left
+  to refuse it.
+- **Package-name and version completion in the manifest, from a registry.** It needs a network request
+  while the user types. A lockfile's resolved versions are on disk and may be shown.
+- **PHP built-in names as candidates, each answered with its Novis destination.** The answer needs a
+  table from PHP names to Novis ones, and there is none (`rule:programs/no-compatibility-promise`).
+- **A PHP name that resolves while the program runs, as an alias of a `Core` member.** It is a second
+  name for one member (`rule:statements/nothing-gets-a-second-name`), and it keeps PHP names in
+  committed source for good.
+- **A `std::fs` listing in `completion.rs`.** It would bypass the test that keeps every completion
+  source on a table the compiler builds, and could disagree with what resolution finds.
+- **A completion file that overrides a method's return type.** The editor's types would then disagree
+  with the compiler's, which is the second description of the program's shape this rule refuses.
+- **Offering every workspace class for the string of `as class<T>`.** A class the program never loads
+  is one the conversion throws for.
+- **A bound in the class-name mark, so `assertThrows` would carry `Throwable` in the registry.** One
+  member needs it, and a new mark field would be read by nothing but the editor.

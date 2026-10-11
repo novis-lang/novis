@@ -1,4 +1,4 @@
-//! [ADR 0067 § 7](/docs/decisions/0067.md): a transaction runs a
+//! `rule:core-classes/db-transactions`: a transaction runs a
 //! callable, and what happens when it conflicts.
 //!
 //! The callable being the whole interface is what makes commit and rollback this

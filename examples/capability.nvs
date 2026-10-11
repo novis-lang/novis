@@ -1,27 +1,8 @@
 <?nvs
-// Capabilities, as a program: three things a script can try to do, one of
-// which the operator granted and two of which they did not.
-//
-// The grant comes from this entry file's own block in `nvs.toml` — ADR
-// 0104 makes an application an entry-file path, so `[[app]] entry =
-// "examples/capability.nvs"` is where `fs.read` gets a root, where
-// `fs.write` is conspicuously absent, and where `script.spawn` is switched
-// back off after the repository-wide block granted it. That block's own
-// comments own why it is written as a narrowing rather than a grant.
-//
-// **A capability denial is catchable and a limit breach is not**, which is
-// the pairing this fixture and `examples/limits.nvs` exist to hold apart.
-// An operator saying "no" is the world refusing a call, so it arrives the
-// way every other refusal does and the script may carry on — the two lines
-// after the first denial are the proof it did. ADR 0020's `FATAL` is for
-// the case where carrying on is what has to stop. The clauses catch
-// `RuntimeError` and not `Throwable`, which is ADR 0118 § 5's answer to
-// what a denial *is*: the world said no. A narrow clause is what makes the
-// three lines below evidence — a `Throwable` would have caught a compile
-// mistake or a missing file just as quietly.
-//
-// The three lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`; the source is not.
+// This program tries three things. Its `[[app]]` block in `nvs.toml` allows `fs.read` and not `fs.write` or `script.spawn`.
+// A missing capability throws a `RuntimeError`. The program can catch it and continue.
+// A memory or time limit is different: `catch` cannot stop it, and the program ends.
+// Each `catch` below names `RuntimeError` and not `Throwable`, so any other error still stops the program.
 
 // Granted: a read under the root the operator named.
 try {

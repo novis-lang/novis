@@ -1015,8 +1015,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     })
 }
 
-/// Whether `media_type` is something a `Content-Type` header can carry — ADR
-/// 0088 § 1's sink, checked at the member rather than only at the connection.
+/// Whether `media_type` is something a `Content-Type` header can carry — the
+/// sink `rule:security/sink-predicate` makes of a header value, checked at the
+/// member rather than only at the connection.
 ///
 /// RFC 9110's field-value rule, narrowed: a media type is `token/token` with
 /// optional parameters, all of it printable ASCII, so a byte outside
@@ -1736,9 +1737,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::bytes(bytes $body, string $contentType): void` — ADR
-    /// 0088 § 4's fourth row, and the only body member that is *told* its
-    /// media type.
+    /// `Core\Response::bytes(bytes $body, string $contentType): void` — the
+    /// bytes member of `rule:security/response-body-is-one-typed-member`, and
+    /// the only body member that is *told* its media type.
     ///
     /// The type is checked before anything is written, which is the opposite
     /// order from `text`'s and for the same reason `json`'s is: a refusal that
@@ -1797,7 +1798,7 @@ nvs_runtime::nvs_helper! {
     /// finish path lifts it onto a `Completion`, and the server opens the file
     /// and streams it under the static-file policy — which is where the media
     /// type, the range and the conditional already live
-    /// ([0186](/docs/decisions/0186.md) § 4). So a response of any size costs a
+    /// (`rule:security/response-body-is-one-typed-member`). So a response of any size costs a
     /// request one path and one open handle at the connection, never a copy of
     /// the file, and nothing here declares a content type: this member cannot
     /// know what the bytes are called and the policy's table can.

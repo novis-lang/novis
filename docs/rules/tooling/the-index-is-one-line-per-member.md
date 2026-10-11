@@ -15,7 +15,8 @@ on, written after it in brackets: `Core\IO::read(string $path): string  [fs.read
 joined from `rule:security/capability-declaration-is-one-table`'s one table at render time, never
 copied onto a member row — that table's own rule refuses a per-member field, and this reads it rather
 than reshaping it. So an agent learns the gate from the name of the thing it is about to call, which is
-where every arm of `0167`'s investigation was stopped.
+where an agent nobody told about capabilities is stopped: a correct program that reads a file does not
+run until `nvs.toml` grants the read.
 
 A chapter's line is `<id>  chapter: <title>` and a heading's is `<id>#<slug>  section: <heading>`, the
 slug being the heading in lowercase with every run of anything but a letter or a digit written as one

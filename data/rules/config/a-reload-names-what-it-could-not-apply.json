@@ -1,10 +1,7 @@
 {
   "title": "A reload reports what it applied, names every changed `Boot` key it could not apply, and counts the units it invalidated",
   "status": "shipped",
-  "because": [
-    "0078",
-    "0219"
-  ],
+  "because": [],
   "seeAlso": [
     "config/reloadability-is-its-own-field",
     "config/the-config-is-an-immutable-snapshot",

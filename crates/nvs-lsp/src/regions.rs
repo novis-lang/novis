@@ -38,8 +38,9 @@
 //! [`Params`] carries an optional `text`, and given one the answer is that
 //! text's regions rather than the open buffer's; without one it is the
 //! buffer's. Format-on-save asks where the markup is in the output of
-//! `nvs fmt`, which is a text no buffer holds yet, and ADR 0173 § 4 refuses
-//! both ways of answering it elsewhere: a client lexing that text is the second
+//! `nvs fmt`, which is a text no buffer holds yet, and
+//! `rule:ide/a-template-region-gets-the-editors-services-and-formatter`
+//! declines both ways of answering it elsewhere: a client lexing that text is the second
 //! lexer this request exists to prevent, and `nvs fmt` printing regions is a
 //! flag that is not an I/O mode (`rule:tooling/fmt-is-one-canonical-style`).
 //! The answer's shape is the same either way, and its ranges are positions in
@@ -76,7 +77,8 @@
 //! # Formatting does not cross this wire
 //!
 //! A client's format pass reads these
-//! regions to find the markup it hands its own HTML formatter (ADR 0173 § 1),
+//! regions to find the markup it hands its own HTML formatter
+//! (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`),
 //! but nothing about a layout crosses this wire: `nvs fmt` is the only
 //! formatter of Novis there is, and no answer here can say otherwise — a
 //! [`Region`] is a range and a language, which `tests/regions.rs` holds it to,

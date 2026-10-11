@@ -12,4 +12,10 @@ enforceable, and `crates/nvs-diagnostics/src/lib.rs` is the registry that alloca
 | `E0131` | `$_` appears anywhere outside the right side of a `\|>` | says the hole has no meaning there |
 
 Exactly one hole is what makes substitution total: no temporary, no double evaluation, and an emitted
-tree identical to the nested spelling's.
+tree identical to the nested spelling's. `E0129`'s note on a callable is what makes sharing the token
+with PHP affordable: the habit of piping into a callable stops at compile time, at the character where
+it goes wrong, and is named.
+
+**Declined:**
+- **`$$` as the hole.** `$$name` is the variable-variable syntax, which `E0202` refuses by name, and
+  reusing the token for something unrelated is a collision.

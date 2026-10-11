@@ -2,7 +2,6 @@
   "title": "A guest has no ambient authority: WASI is not granted by default, and every host function it receives is capability-checked",
   "status": "designed",
   "because": [
-    "0003",
     "0246"
   ],
   "seeAlso": [

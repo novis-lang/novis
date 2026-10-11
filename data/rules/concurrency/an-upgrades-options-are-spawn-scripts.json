@@ -1,11 +1,7 @@
 {
   "title": "An upgrade's `args`, `limits`, `grants` and `on` are a spawned script's options as ordinary named arguments",
   "status": "designed",
-  "because": [
-    "0083",
-    "0006",
-    "0005"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/an-upgrade-is-spawn-shaped",
     "concurrency/a-connection-is-a-root-isolate",

@@ -41,7 +41,7 @@
 //! * `nvs config check` (M6) — resolve the configuration tree and report what
 //!   it holds, exiting non-zero on any refusal.
 //!   `rule:config/check-and-dump-audit-the-tree-offline`
-//!   's offline audit, which exists because § 3's later-wins precedence is
+//!   's offline audit, which exists because `rule:config/later-wins-and-every-override-is-recorded`'s later-wins precedence is
 //!   only safe while it is auditable. It compiles nothing and needs no server;
 //!   see [`config`], which also holds the reader `run` resolves that tree
 //!   through.
@@ -236,7 +236,7 @@ struct Cli {
     // reads, and `config check`/`config dump` audit the same files without
     // running anything.
     // `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`
-    // step 1, and § 5 is the resolution against the working directory.
+    // step 1, and `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` is the resolution against the working directory.
     #[arg(long, value_name = "PATH", global = true)]
     config: Vec<PathBuf>,
 
@@ -868,7 +868,7 @@ enum Command {
     /// One call answers what this binary is and what is compiled into it,
     /// including the complete third-party attribution Novis's MIT license and
     /// its dependencies' licenses both require to be distributed with it.
-    // `docs/decisions/0065.md` is why this is one call rather than several.
+    // `rule:packaging/nvs-info-is-the-one-call` is why this is one call rather than several.
     Info {
         /// Also print every third-party license text in full.
         #[arg(long)]
@@ -1365,7 +1365,7 @@ enum ServiceCommand {
         /// The account that the service runs as. The default is the local
         /// system account, `LocalSystem`. `SYSTEM` is another name for the
         /// same account.
-        // `docs/decisions/0093.md` § 4.
+        // `rule:packaging/a-service-runs-as-a-virtual-account`.
         #[arg(long, value_name = "ACCOUNT")]
         account: Option<String>,
         /// Not allowed. It gives error `E0633`. Other users on the computer
@@ -1379,7 +1379,7 @@ enum ServiceCommand {
         /// installer. Everything after it is stored exactly as you wrote it.
         /// So the service command can use an option that the installer also
         /// has, for example `--start`.
-        // `docs/decisions/0093.md` § 1.
+        // `rule:packaging/a-service-is-one-stored-argv`.
         #[arg(
             last = true,
             required = true,
@@ -1455,7 +1455,7 @@ struct ServiceInstall {
     name: String,
     /// The account that the service runs as. The default is the local system
     /// account, `LocalSystem`. `SYSTEM` is another name for the same account.
-    // `docs/decisions/0093.md` § 4.
+    // `rule:packaging/a-service-runs-as-a-virtual-account`.
     #[arg(long, value_name = "ACCOUNT")]
     account: Option<String>,
     /// Not allowed. It gives error `E0633`. Other users on the computer can
@@ -1465,7 +1465,7 @@ struct ServiceInstall {
     password: Option<String>,
     /// When the service starts after the computer starts. The default is
     /// together with the other automatic services.
-    // `docs/decisions/0093.md` § 4.
+    // `rule:packaging/a-service-answers-its-manager`.
     #[arg(long, value_enum, value_name = "MODE")]
     start: Option<service::registration::StartMode>,
     /// What the service manager does when the service fails. The default
@@ -1489,7 +1489,7 @@ struct ServiceInstall {
     /// installer. Everything after it is stored exactly as you wrote it. So
     /// the service command can use an option that the installer also has, for
     /// example `--start`.
-    // `docs/decisions/0093.md` § 1.
+    // `rule:packaging/a-service-is-one-stored-argv`.
     #[arg(
         last = true,
         required = true,
@@ -3043,7 +3043,7 @@ fn run_run(
     }
     // `rule:config/the-config-is-an-immutable-snapshot`: the tree is resolved and folded into one snapshot **before**
     // the request exists, and the request then clones it once. A refusal here is
-    // a refusal to start — `rule:config/later-wins-and-every-override-is-recorded`'s later-wins and § 6's boundary are only
+    // a refusal to start — `rule:config/later-wins-and-every-override-is-recorded`'s later-wins and `rule:config/ownership-is-the-trust-boundary`'s boundary are only
     // worth anything if a tree that does not resolve stops the run.
     let mut config_sources = SourceMap::new();
     let snapshot = match config::boot_snapshot(config, &config_entry, &mut config_sources, init) {
@@ -4544,8 +4544,8 @@ mod tests {
     /// The command is spelled `serve`, and `service` is the platform's
     /// service-manager namespace beside it rather than a second name for it.
     ///
-    /// `docs/decisions/0154.md` § 6 settles the question the sentence above
-    /// raises: naming three subsystems is what a rename would have been asked to
+    /// `rule:concurrency/one-process-serves-requests-schedules-and-jobs`
+    /// settles the question the sentence above raises: naming three subsystems is what a rename would have been asked to
     /// buy, and it buys it for free. `service` is already taken by
     /// `rule:packaging/a-service-is-one-stored-argv`, whose argv is written into
     /// units on disk, so a rename into it would invalidate deployments as well

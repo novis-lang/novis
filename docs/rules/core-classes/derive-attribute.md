@@ -22,4 +22,19 @@ never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` names
 This is a carve-out of exactly one sentence, and it is the only one: attribute *retrieval* stays
 structural, unchanged (`rule:attributes/structural-retrieval`). Every future compiler-recognized
 attribute joins the closed list; nothing else is ever matched by name. The list itself is a single
-table in the compiler, which is what stops a per-record running total from going stale.
+table in the compiler (`nvs_types::derive::ATTRIBUTES`), and a rule adding an entry says its attribute
+joins the list and states no running total, because a count restated beside each entry goes stale.
+
+The nominal match is what lets the compiler generate code from an attribute at all: it acts on
+**this** attribute, and never on a framework's own literal that happens to have the same shape. The
+list is also the control on the attribute surface. Each entry is cheap to add, and a set of
+attributes added because they were cheap is a second, undocumented language, so each entry is
+argued on its own.
+
+**Declined:**
+- **Matching a compiler-recognized attribute structurally**, the way retrieval matches. The
+  derive's payload is an empty shape, which structurally matches every attribute in a program, and
+  even a non-empty one would generate code from a third-party literal that happens to fit.
+- **One shared `#[Derive]` and `#[Field]` for both formats.** It forces a JSON key and a column
+  name to be the same string, which is wrong often enough that two attributes would be needed at
+  once. A class using both formats with the same rename writes it twice, and that is visible.

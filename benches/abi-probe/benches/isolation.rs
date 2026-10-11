@@ -1,6 +1,6 @@
 //! The price of an isolation boundary: a child process versus a task.
 //!
-//! [ADR 0006](/docs/decisions/0006.md) gives Novis a
+//! `rule:security/isolate-shares-nothing` gives Novis a
 //! language construct for running another `.nvs` file with its own heap, globals
 //! and limits inside the same process. PHP can only express that by spawning
 //! another interpreter, so the decision rests on the gap between the numbers
@@ -29,7 +29,7 @@
 //!
 //! The child here is a Rust closure rather than a compiled unit, deliberately: a
 //! compiled one would measure `nvs-cli`'s unit cache instead, and the cache is
-//! warm by construction in the shape ADR 0006 sells — one path spawned many
+//! warm by construction in the shape an isolate is for — one path spawned many
 //! times. What is left is the boundary, plus the one `Box` a resolver allocates
 //! per spawn, which a real `spawn script` pays too.
 

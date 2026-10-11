@@ -942,7 +942,8 @@ fn uses_of(
 /// **[`references`]' query, filtered to the open file**, and that is the whole
 /// of why this waited for the index rather than shipping with the rest of the
 /// cursor answers: it needs resolution applied to *every* occurrence rather
-/// than to the one under the cursor (ADR 0099 § 3). A walk of its own here is
+/// than to the one under the cursor (`rule:ide/the-request-set-is-closed`). A
+/// walk of its own here is
 /// what `rule:ide/five-features-are-one-reference-index` refuses.
 ///
 /// Every hit is `Text`, never `Read` or `Write`. Which of those an access is is
@@ -1721,8 +1722,9 @@ fn code_actions(
 /// `nvs/redactions` — which bytes of one open document the client conceals.
 ///
 /// The one request of Novis's own, so nothing in `lsp_types` spells its params
-/// or its answer: a [`TextDocumentIdentifier`] goes in, exactly as ADR 0101 § 1
-/// names it, and a JSON array of `{range, kind}` comes back.
+/// or its answer: a [`TextDocumentIdentifier`] goes in, exactly as
+/// `rule:ide/redaction-ranges-come-from-the-server` names it, and a JSON array
+/// of `{range, kind}` comes back.
 ///
 /// An empty array rather than `null` for a document this server has nothing
 /// open for, and the distinction carries more here than anywhere else on

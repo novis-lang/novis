@@ -1,12 +1,7 @@
 {
   "title": "A class cannot make `$obj[$k]` or a count into a method call",
   "status": "shipped",
-  "because": [
-    "0053",
-    "0028",
-    "0014",
-    "0011"
-  ],
+  "because": [],
   "seeAlso": [
     "iteration/foreach-subjects",
     "iteration/two-interfaces"

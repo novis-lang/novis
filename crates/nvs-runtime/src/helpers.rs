@@ -245,8 +245,8 @@ crate::nvs_helper! {
     /// Two cases, one ownership answer. A row that is there comes back
     /// retained, so the [`crate::array::nvs_array_set`] the lowering emits on
     /// the way back up has a reference to consume — and so the row's count is
-    /// at least two, which is exactly what makes that write separate it (ADR
-    /// 0007 § 5). A key that is *absent* comes back as the thread's empty
+    /// at least two, which is exactly what makes that write separate it
+    /// (`rule:types/arrays`). A key that is *absent* comes back as the thread's empty
     /// array, which is PHP's auto-vivification: `$g[9][0] = 1` over an empty
     /// `$g` builds the missing row rather than faulting. That row separates on
     /// the write for the same reason the present one does — the singleton's
@@ -856,8 +856,8 @@ fn value_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> 
 /// tabulates no row for, naming the spelling that says what was meant wherever
 /// there is one — the same shape [`no_ordering`] takes for its own table.
 fn no_arithmetic(op: ArithRow, left: Value, right: Value) -> Fault {
-    // One hint, for the one operand PHP would have converted silently: ADR
-    // 0007 § 2 has no implicit conversion, so a numeric-looking `string` is
+    // One hint, for the one operand PHP would have converted silently:
+    // `rule:types/implicit-widening` allows no other implicit conversion, so a numeric-looking `string` is
     // where an author is told to say `as int` out loud. Every other operand —
     // an `array<T>`, an object, `null` — has no arithmetic to name at all.
     let hint = if matches!(left.tag(), Some(Tag::Str)) || matches!(right.tag(), Some(Tag::Str)) {
@@ -1092,8 +1092,8 @@ fn unsigned_pow(base: u64, exponent: u64) -> Result<u64, Fault> {
 /// same row. A silent `as f64` here would answer a pair one representation
 /// down from the one the compiler would have.
 ///
-/// Division by zero **is** a throw on this row, and for that same reason: ADR
-/// 0007 § 4 refuses the zero divisor before the operand types are consulted, so
+/// Division by zero **is** a throw on this row, and for that same reason:
+/// `rule:types/arithmetic` refuses the zero divisor before the operand types are consulted, so
 /// `nvs-codegen`'s statically typed `float /` guards it too and the two ends of
 /// the row cannot answer differently. `Core\Math::fdiv` is the member that says
 /// IEEE's infinity out loud.
@@ -2680,7 +2680,7 @@ crate::nvs_helper! {
     /// affordable: the bytes replaced here are commands the terminal consumes
     /// and shows to nobody, so substituting them makes `echo` show *more* of
     /// what arrived rather than less. That asymmetry with
-    /// `rule:core-classes/html-auto-escape`'s HTML `&`→`&amp;` is stated in 0086's *Context*.
+    /// `rule:core-classes/html-auto-escape`'s HTML `&`→`&amp;` is stated in `rule:tooling/terminal-output-is-a-sink`.
     ///
     /// The table is idempotent — a Control Picture is not a control byte — so
     /// output that has already passed a sink, `Core\Out::capture`'s buffer most
@@ -2793,9 +2793,9 @@ fn writes_raw(ctx: &crate::Ctx, value: Value) -> bool {
 /// whether it was handed one needs.
 ///
 /// `rule:tooling/terminal-output-is-a-sink` puts
-/// exactly one raw path in the language and § 2 makes it a *type*,
+/// exactly one raw path in the language and `rule:tooling/text-is-the-one-raw-path` makes it a *type*,
 /// `Core\Cli\Text`, rather than a member or a bit riding on a string. Both of
-/// that type's constructors apply § 1's substitution to their own input, so the
+/// that type's constructors apply the sink's substitution to their own input, so the
 /// only control bytes a carrier can hold are the ones `Cli\Style` put there,
 /// and a program cannot be talked into building one that carries an injected
 /// sequence. Keying the raw path on the class is what makes that structural: a

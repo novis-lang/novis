@@ -1,10 +1,7 @@
 {
   "title": "Styling is a value type — `Cli\\Style` and `Cli\\Color` — and never a fifth grammar",
   "status": "shipped",
-  "because": [
-    "0086",
-    "0063"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/text-is-the-one-raw-path",
     "tooling/the-terminal-profile-resolves-once",

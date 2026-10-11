@@ -14,3 +14,11 @@ side.
 
 Calling it is what performs the upgrade, and it answers `void`. Nothing in this language reads a
 handler's return value, so an upgrade handed back to the runtime would be handed to nobody.
+
+**Declined:**
+- **A capturing closure as the target.** It would either capture the request's heap, or copy the
+  captures silently at the boundary, hiding the copy `args` keeps visible and turning a captured handle
+  into a run-time error instead of a compile error. A static method carries code and nothing else, and
+  its input arrives through the same `args` a file's does.
+- **Returning the upgrade to perform it.** That needs a value type a dispatcher interprets, which is a
+  second response model (`rule:routing/the-servers-match-dispatches-nothing`).

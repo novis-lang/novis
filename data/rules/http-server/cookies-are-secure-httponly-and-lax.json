@@ -1,9 +1,7 @@
 {
   "title": "Every cookie `Core\\Response::addCookie` writes is `Secure; HttpOnly; SameSite=Lax; Path=/` unless the call site says otherwise",
   "status": "shipped",
-  "because": [
-    "0074"
-  ],
+  "because": [],
   "seeAlso": [
     "http-server/a-wildcard-origin-with-credentials-is-refused",
     "errors/cookie-name-bytes",

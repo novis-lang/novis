@@ -1,10 +1,7 @@
 {
   "title": "A duplicate key is an error, and so is an unknown one — per file",
   "status": "shipped",
-  "because": [
-    "0064",
-    "0103"
-  ],
+  "because": [],
   "seeAlso": [
     "config/later-wins-and-every-override-is-recorded",
     "config/the-file-is-nvs-toml-and-it-is-toml",

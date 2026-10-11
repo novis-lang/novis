@@ -11,8 +11,8 @@
 //!
 //! **Every pair is a row of [`SECRETS`]** and [`materialize`] is a sweep over that table, so a
 //! credential is covered by adding one row and not by editing a walk — the database password
-//! ([ADR 0067] § 3a) and every credential written beside it since, in a block an operator names
-//! and in a block they do not. § 7 speaks of a directive "the registry marks secret", and this
+//! (`rule:core-classes/db-capabilities`) and every credential written beside it since, in a block an operator names
+//! and in a block they do not. `rule:config/a-secret-is-a-file-whose-content-is-the-value` speaks of a directive "the registry marks secret", and this
 //! table is that marking.
 //!
 //! It is **not** another field on [`mod@crate::directive`]'s rows, for two reasons that both make
@@ -28,12 +28,12 @@
 //!
 //! **The secret file is a configuration input like any other**, so it goes through
 //! [`Files::trust`] before it is read: an account that can rewrite it
-//! chooses the credential the server connects with, which is exactly what § 6 refuses about the
-//! files naming it. What § 7 does *not* inherit is confidentiality — a readable secret file is
+//! chooses the credential the server connects with, which is exactly what `rule:config/ownership-is-the-trust-boundary` refuses about the
+//! files naming it. What `rule:config/a-secret-is-a-file-whose-content-is-the-value` does *not* inherit is confidentiality — a readable secret file is
 //! `W1005` and not a refusal, because a Compose secret is mounted `0444`. [`mod@crate::trust`]'s
 //! module doc owns that split.
 //!
-//! **A credential is never repaired, and an edge space is said out loud instead.** § 7 keeps the
+//! **A credential is never repaired, and an edge space is said out loud instead.** `rule:config/a-secret-is-a-file-whose-content-is-the-value` keeps the
 //! value exactly as it arrived, so the one thing left to do about a password that begins or ends
 //! with whitespace is to name it: [`padding`] finds it and `W1007` reports it, for the inline half
 //! as well as the file half, and the boot goes on with the value. Refusing it instead would wall
@@ -45,12 +45,12 @@
 //! **The value stays out of every message this module writes.** A refusal names the file, the key
 //! and the shape of the problem — empty, whitespace-only, oversized, not UTF-8 — and never a byte
 //! of the content, which is `rule:security/secret-qualifier`'s type-level meaning applied one layer below the language.
-//! `password_file` is left set after the value is materialized for the same reason: § 9's dump
+//! `password_file` is left set after the value is materialized for the same reason: `rule:config/check-and-dump-audit-the-tree-offline`'s dump
 //! renders the value `<secret>` and names the file it came from, and it can only do that if the
 //! file is still recorded.
 //!
 //! **The value never enters the merged table**, and that is what [`Secret`] exists for. The table is
-//! the stream § 9 serializes whole for `nvs config dump --toml` and the one
+//! the stream `rule:config/check-and-dump-audit-the-tree-offline` serializes whole for `nvs config dump --toml` and the one
 //! [`Snapshot::retype`](crate::Snapshot) rebuilds the typed tree out of, so a content put into it
 //! would have to be redacted again by every reader that walks it — and the one that forgets writes a
 //! credential into a file an operator diffs. Carried beside it instead, a secret reaches exactly the
@@ -63,8 +63,6 @@
 //! Cost: one trust check, one advisory and one whole-file read per secret file, plus a walk of
 //! [`SECRETS`] against the named blocks the tree has — at boot and again at each reload.
 //! Nothing here runs per request.
-//!
-//! [ADR 0067]: ../../../docs/decisions/0067.md
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -74,14 +72,14 @@ use nvs_diagnostics::{Diagnostic, code};
 use crate::resolve::{Files, Origin, origin_note};
 use crate::tree::Config;
 
-/// One secret, materialized: the value § 7 read, and the file it came from.
+/// One secret, materialized: the value `rule:config/a-secret-is-a-file-whose-content-is-the-value` read, and the file it came from.
 ///
-/// The file is kept because it is half of what § 9's dump prints — `<secret>` says a value is in
+/// The file is kept because it is half of what `rule:config/check-and-dump-audit-the-tree-offline`'s dump prints — `<secret>` says a value is in
 /// force and the path says which file decides it, and an audit that cannot name the file cannot act
 /// on it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Secret {
-    /// The file's whole content, cut to § 7's value.
+    /// The file's whole content, cut to `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s value.
     pub value: String,
     /// The trusted, absolute path it was read from.
     pub file: PathBuf,
@@ -93,13 +91,13 @@ pub struct Materialized {
     /// Each secret under the key it answers — `db.main.password`, never the `_file` sibling that
     /// named it, which is still in the table under its own key.
     pub secrets: BTreeMap<String, Secret>,
-    /// § 7's advisories: `W1005` for a secret file another account can read, `W1007` for a
+    /// `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s advisories: `W1005` for a secret file another account can read, `W1007` for a
     /// credential whose value begins or ends with whitespace. Never a refusal: that arrives as the
     /// `Err` instead.
     pub warnings: Vec<Diagnostic>,
 }
 
-/// One secret directive: the `value`/`value_file` pair § 7 gives a key that holds a credential, as
+/// One secret directive: the `value`/`value_file` pair `rule:config/a-secret-is-a-file-whose-content-is-the-value` gives a key that holds a credential, as
 /// the things a sweep needs to know about it and nothing else.
 ///
 /// The two accessors are function pointers rather than a block name some `match` turns back into a
@@ -116,7 +114,7 @@ pub struct SecretPair {
     /// named with the empty string: there is no segment for a name to go in, so every key this row
     /// builds is the block's own.
     pub block: &'static str,
-    /// The value's own segment. Its `_file` sibling is this plus `_file`, and § 7 gives no way to
+    /// The value's own segment. Its `_file` sibling is this plus `_file`, and `rule:config/a-secret-is-a-file-whose-content-is-the-value` gives no way to
     /// spell either half differently.
     pub value: &'static str,
     /// Every block of this pair's map the tree has, named or not, secret or not.
@@ -125,14 +123,14 @@ pub struct SecretPair {
     set: fn(&mut Config, &str, &str),
 }
 
-/// One block a pair could be written in, as the facts § 7 asks of it.
+/// One block a pair could be written in, as the facts `rule:config/a-secret-is-a-file-whose-content-is-the-value` asks of it.
 #[derive(Clone, Copy, Debug)]
 struct Site<'a> {
     /// The operator's name for the block — `main`, in `[db.main]`.
     name: &'a str,
     /// The `_file` half, where this block names one.
     file: Option<&'a str>,
-    /// The inline half, where this block sets one. Both halves at once is § 7's `E0608`, and the
+    /// The inline half, where this block sets one. Both halves at once is `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s `E0608`, and the
     /// value itself is here rather than a `bool` because the advisory below asks about the value
     /// whichever of the two spellings put it in force.
     inline: Option<&'a str>,
@@ -158,7 +156,7 @@ impl SecretPair {
     }
 }
 
-/// Every secret directive § 7 marks, one row each.
+/// Every secret directive `rule:config/a-secret-is-a-file-whose-content-is-the-value` marks, one row each.
 pub const SECRETS: &[SecretPair] = &[
     // `rule:core-classes/db-capabilities`: the database password, the pair this whole mechanism is
     // written for.
@@ -316,7 +314,7 @@ pub const SECRETS: &[SecretPair] = &[
     },
 ];
 
-/// § 7's cap on a secret file, in bytes.
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s cap on a secret file, in bytes.
 ///
 /// Not a resource bound — a credential is never this large, so the cap is what catches a
 /// `password_file` pointed at a log, a database or a device before its content becomes a password.
@@ -325,7 +323,7 @@ pub const MAX_SECRET_BYTES: usize = 64 * 1024;
 /// Reads every secret file the flattened tree names, filling each `_file` sibling's value.
 ///
 /// `origins` is the merge's key-to-file record: it says which file each `password_file` was written
-/// in, which is both the directory § 5 resolves a relative path against and the file a refusal has
+/// in, which is both the directory `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` resolves a relative path against and the file a refusal has
 /// to name. A key with no origin is one no file set, so it is not read.
 ///
 /// `config` comes back with every value filled — [`apply`] does that half, and is called again by
@@ -333,10 +331,10 @@ pub const MAX_SECRET_BYTES: usize = 64 * 1024;
 ///
 /// # Errors
 ///
-/// One [`Diagnostic`]: `E0608` for a pair set twice or a file § 7 will not take a value from,
+/// One [`Diagnostic`]: `E0608` for a pair set twice or a file `rule:config/a-secret-is-a-file-whose-content-is-the-value` will not take a value from,
 /// `E0607` for a secret file outside the trust boundary, `E0605` for one that cannot be read.
 ///
-/// Returns § 7's advisory warnings with the values — `W1005` for a secret file another account can
+/// Returns `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s advisory warnings with the values — `W1005` for a secret file another account can
 /// read — which are never a reason to stop.
 pub fn materialize(
     config: &mut Config,
@@ -368,7 +366,7 @@ pub fn materialize(
                     }
                     out.secrets.insert(key, secret);
                 }
-                // The inline half is in force and there is nothing for § 7 to read — the value is
+                // The inline half is in force and there is nothing for `rule:config/a-secret-is-a-file-whose-content-is-the-value` to read — the value is
                 // already the table's. It gets the advisory all the same, because the rule an
                 // operator has to hold is then one sentence with no exception in it, and a space
                 // before a closing quote is missed about as easily as one inside a file.
@@ -419,7 +417,7 @@ fn read(
     files: &dyn Files,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Secret, Diagnostic> {
-    // § 5: relative to the file it was written in, which is the same rule an `[[include]]` path
+    // `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`: relative to the file it was written in, which is the same rule an `[[include]]` path
     // follows. A key with no origin cannot have been written anywhere, so there is nothing but the
     // path itself to resolve against.
     let base = written_in
@@ -477,9 +475,9 @@ fn read(
 
 /// How a value is padded, as the phrase a message says it with, and `None` when it is not.
 ///
-/// Asked of the value § 7 arrived at, so the newline that rule already removed is not padding: a
+/// Asked of the value `rule:config/a-secret-is-a-file-whose-content-is-the-value` arrived at, so the newline that rule already removed is not padding: a
 /// file holding `hunter2\n` is the ordinary case and says nothing. A file holding `hunter2\n\n` is
-/// § 7's spelling of a credential that genuinely ends in a newline, and that one does warn — it is
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s spelling of a credential that genuinely ends in a newline, and that one does warn — it is
 /// exactly the value someone will later wonder about.
 fn padding(value: &str) -> Option<&'static str> {
     match (
@@ -493,17 +491,17 @@ fn padding(value: &str) -> Option<&'static str> {
     }
 }
 
-/// One trailing `\n`, and the `\r` before it, and nothing else — § 7's whole trimming rule.
+/// One trailing `\n`, and the `\r` before it, and nothing else — `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s whole trimming rule.
 ///
 /// Only the last newline: a file ending in two of them yields a value ending in one, which is how
-/// § 7 spells a credential that genuinely ends in a newline. Leading and interior bytes are never
+/// `rule:config/a-secret-is-a-file-whose-content-is-the-value` spells a credential that genuinely ends in a newline. Leading and interior bytes are never
 /// touched, spaces included.
 fn strip_one_newline(text: &str) -> &str {
     let cut = text.strip_suffix('\n').unwrap_or(text);
     cut.strip_suffix('\r').unwrap_or(cut)
 }
 
-/// `E0608` when both halves of a pair are set: two sources for one value, and § 7 allows one.
+/// `E0608` when both halves of a pair are set: two sources for one value, and `rule:config/a-secret-is-a-file-whose-content-is-the-value` allows one.
 fn both_set(block: &str, value: &str, written_in: Option<&Origin>) -> Diagnostic {
     Diagnostic::error(
         code::E_BAD_SECRET_FILE,
@@ -535,7 +533,7 @@ fn refusal(path: &Path, key: &str, problem: &str, written_in: Option<&Origin>) -
     ))
 }
 
-/// `W1007`: the credential in force has an edge space, which § 7 keeps and this names.
+/// `W1007`: the credential in force has an edge space, which `rule:config/a-secret-is-a-file-whose-content-is-the-value` keeps and this names.
 ///
 /// `from` is the secret file when the file half is in force, because in that spelling there is
 /// nothing an operator could have looked at; the inline spelling names only the key, which is
@@ -556,7 +554,7 @@ fn padded(key: &str, edge: &str, from: Option<&Path>, written_in: Option<&Origin
     ))
     .with_help(
         "if it was not meant, rewrite the value without it; a secret file is written with \
-         `printf %s` rather than `echo`, whose one trailing newline § 7 already removes"
+         `printf %s` rather than `echo`, whose one trailing newline `rule:config/a-secret-is-a-file-whose-content-is-the-value` already removes"
             .to_string(),
     )
 }
@@ -579,7 +577,7 @@ fn exposed(path: &Path, key: &str, how: &str) -> Diagnostic {
 mod tests {
     use super::strip_one_newline;
 
-    /// § 7's trimming, on both sides of the one rule it has: one newline goes, a second stays, and
+    /// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s trimming, on both sides of the one rule it has: one newline goes, a second stays, and
     /// nothing else is touched — the space a password may legitimately end with least of all.
     #[test]
     fn one_trailing_newline_is_stripped_and_nothing_else_is() {

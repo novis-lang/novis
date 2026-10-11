@@ -91,8 +91,8 @@
 //!
 //! None is behind a flag or a build configuration: `rule:testing/debug-probes`'s whole
 //! argument is that a request already running must be able to have coverage
-//! turned on, which a compiled-in-advance instrumented tier cannot do, and ADR
-//! 0020's is that a stack limit no build enables is a limit that is there when
+//! turned on, which a compiled-in-advance instrumented tier cannot do, and
+//! `rule:errors/stack-depth`'s is that a stack limit no build enables is a limit that is there when
 //! the runaway arrives. Their nothing-set cost is guarded in
 //! `benches/abi-probe` (`tests/perf_guards.rs`), not asserted here — the
 //! call-stack compare is the one that shows, as a one-time step in

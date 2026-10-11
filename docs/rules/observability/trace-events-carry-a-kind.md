@@ -19,4 +19,14 @@ and nothing at all when the flag is off.
 
 The tag is what lets one stream serve every consumer: the timeline export, the profiler's
 attribution, and production telemetry all read these kinds and add no instrumentation of their
-own.
+own. The price is that every exporter handles every kind, so each new kind is surface in all of them
+at once, and a kind is added only for a routine whose cost the existing ones cannot show.
+
+**Declined:**
+- **A kind for a coroutine's suspend and resume.** It would sit in the same cheap, already-slow place
+  as `gc` and `spawn`, but no debugging need for the scheduling gap between the two has been named.
+- **Starting or stopping tracing from outside a running process.** A channel that reaches into a live
+  process and reads call arguments and timing is a new trust boundary, not an export format, and it
+  would need a threat model of its own before it could exist.
+- **An allocation or heap-snapshot timeline.** No probe records an allocation, and adding one is a
+  larger design than a further kind on this stream.

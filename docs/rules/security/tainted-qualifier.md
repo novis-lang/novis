@@ -24,3 +24,20 @@ every request-handling function would have to launder on its first line.
 
 `tainted` is written after `secret` when both appear, and `tainted secret string` is a diagnostic
 naming the required order rather than a second spelling (`rule:security/secret-qualifier`).
+
+**False positives are the accepted failure direction.** A value the program wrote itself can read back
+`tainted` once it round-trips through a store, and `rule:security/assert-trusted` exists for that case
+at the cost of one written reason per call site.
+
+**Declined:**
+- **Run-time taint tracking**, a tag carried on each value. It pays a representation and a per-operation
+  cost on the request path for a guarantee the checker gives for nothing, and it finds a leak only when
+  a test happens to drive the value into the sink.
+- **A separate analysis pass beside the checker.** An optional pass can be skipped or silenced, and that
+  is not the guarantee of a checker that refuses to compile the program.
+- **Tainting a shape hydrated from a request on its own**, without `tainted {…}` written. The
+  declaration would then understate the value, and a type that is not what it says is worse than a
+  long one.
+- **Writing `tainted` on each field of a request shape by hand, as the only form.** It is correct but
+  long enough that programs stop writing it, and `rule:security/tainted-sources` is only worth as much
+  as the declarations that carry it forward.

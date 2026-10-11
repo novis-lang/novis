@@ -1604,7 +1604,7 @@ impl ClassDesc {
     /// it by that field's own invariant.
     ///
     /// Its caller is [`crate::Ctx::pending_conforms_to`], and through it ADR
-    /// 0079 § 4's `Core\Test::assertThrows`, whose expectation arrives as
+    /// `rule:testing/assertions-are-typed`'s `Core\Test::assertThrows`, whose expectation arrives as
     /// `ParseError::class`'s folded `string` constant — the same spelling this
     /// table names a class with.
     #[must_use]
@@ -4713,7 +4713,7 @@ pub unsafe extern "C" fn nvs_object_slot_set(
 /// `rule:types/property-key-access`'s keyed read, which is [`nvs_object_slot_get`] with the field name
 /// arriving as a **value** rather than as a static byte range.
 ///
-/// § 5 decided that these are one lookup and not two: a key *is* a name, so
+/// `rule:types/property-key-access` makes these one lookup and not two: a key *is* a name, so
 /// what the access needs is exactly the by-name search on the receiver's own
 /// descriptor that `rule:types/erased-member-access` already performs, and every rule that read
 /// states holds here unchanged — the same catchable throw for a name the
@@ -4727,7 +4727,7 @@ pub unsafe extern "C" fn nvs_object_slot_set(
 /// ([`ClassDesc::hook_row`]) and run with the `Ctx` this helper is already
 /// handed. It is owned by [`read_erased_property_hinted`] rather than here, so
 /// every spelling of an erased read answers the hook at once — this, the
-/// statically named one, and the optional form — which is the reason § 5 routes
+/// statically named one, and the optional form — which is the reason `rule:types/property-key-access` routes
 /// a key through that path rather than answering it in a way of its own.
 ///
 /// # Errors

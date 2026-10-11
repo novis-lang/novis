@@ -17,3 +17,24 @@ contradict.
 **A program with no `#[Route]` generates nothing and runs no pass**, and a program the front end
 refuses emits no document at all rather than a partial one. A handler returning `mixed` produces a
 useless schema, visibly, which is the correct incentive.
+
+The document is only as precise as the handlers' types, and the type system is what makes it precise:
+every variable has a declared type, a property is definitely initialized, `?T` is the only
+nullability, and an enum is closed, so each maps onto JSON Schema without guessing. A doc comment is
+already parsed for tooling, so reading it adds no machinery, but it makes the comment part of a
+published artifact.
+
+**Declined:**
+- **Reflecting over the route table at run time**, the way annotation-scanning frameworks build their
+  document. It is compile-time work done at run time, it needs a cache that goes stale, and it cannot
+  make a contradiction a compile error, which is the whole value
+  (`rule:attributes/api-adds-and-cannot-contradict`).
+- **A hand-written specification the compiler checks the code against.** It makes the document a
+  second source of truth kept in sync in the other direction, and a check strong enough to be worth it
+  is a much larger feature. Nothing stops a team from diffing a generated document against a
+  hand-written one with `rule:routing/api-diff-fails-a-breaking-change`.
+- **Generating clients.** The OpenAPI generator ecosystem exists and is specialised per target
+  language, so Novis emits the input it reads rather than reimplementing it.
+- **GraphQL and gRPC descriptions.** The document is OpenAPI alone; a handler that does not answer JSON
+  is an operation with an opaque response
+  (`rule:routing/api-document-is-a-deterministic-build-artifact`).

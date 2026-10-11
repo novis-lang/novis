@@ -1,12 +1,7 @@
 {
   "title": "Anything a program relies on the value of goes to the shared tier, and a weaker tier is not offered for it",
   "status": "shipped",
-  "because": [
-    "0059",
-    "0075",
-    "0073",
-    "0181"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/session-roster",
     "statements/no-host-populated-variables",

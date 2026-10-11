@@ -12,3 +12,13 @@ own. The plaintext phase of a connection is only ever the upgrade request itself
 
 What does not generalise is what belongs to the socket rather than to the session — the deadline and
 the peer address — so there is still one clock, on the thing that waits.
+
+The client's transport defaults to the plain TCP stream, so the bare type name the HTTP and mail
+clients use keeps its meaning with no second name to keep in step. Two shapes reach it: an in-band
+upgrade over the same socket (PostgreSQL's `SSLRequest`, MySQL and MariaDB's `CLIENT_SSL` flag), and
+SQL Server's handshake tunnelled inside TDS `PRELOGIN` packets, where the bytes the session produces
+are not the bytes on the socket.
+
+**Declined:**
+- **A second `rustls` session inside the database crate for TDS.** Two answers to the trust-anchor
+  question, one of which nobody would remember to update.

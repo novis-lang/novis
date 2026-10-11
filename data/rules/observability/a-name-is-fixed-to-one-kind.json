@@ -1,14 +1,13 @@
 {
   "title": "A metric name is fixed to one kind and one label set on first use, and a second kind throws naming both sites",
-  "status": "designed",
-  "because": [
-    "0076"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "observability/metrics-three-members",
     "observability/past-max-series-a-new-series-is-refused"
   ],
   "guardedBy": [
-    "crates/nvs-server/src/metrics.rs"
+    "crates/nvs-server/src/metrics.rs",
+    "crates/nvs-stdlib/src/metrics.rs"
   ]
 }

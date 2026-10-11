@@ -2,11 +2,6 @@
   "title": "A capture narrows to a closed set with a set of allowed values or an enum-subset type, never with a regex",
   "status": "shipped",
   "because": [
-    "0102",
-    "0077",
-    "0047",
-    "0075",
-    "0186",
     "0274"
   ],
   "seeAlso": [

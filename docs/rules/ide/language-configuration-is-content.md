@@ -1,4 +1,4 @@
-`language-configuration.json` is content, not a checkbox: comments (`//`, `#`, `/* */`), brackets,
+`language-configuration.json` is content, not a checkbox: comments (`//` for the line toggle, `/* */` for the block), brackets,
 auto-closing and surrounding pairs, `indentationRules`, `onEnterRules` continuing a `///` run
 (`rule:ide/doc-comment-authoring-is-the-editors-own`), and folding markers.
 

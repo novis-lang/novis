@@ -20,3 +20,13 @@ an error however they are grouped, so nothing enters through the door a shared n
 is written on each line rather than inherited from the first: the attributes are independent
 payload objects, and an inheritance rule would make their order matter, which the route table's precedence
 rules exist to avoid.
+
+The exception costs its complexity at the diagnostic and not at the matcher: `E0749` has to say which
+condition failed and name two sites in each case.
+
+**Declined:**
+- **Inheriting the `name` from the first of the repeated attributes.** It saves characters and makes the
+  attributes' order significant, which the route table is built to avoid.
+- **A shared `name` across different paths, with `url()` taking a verb to choose between them.** Callers
+  would pass an argument for one route's shape and not another's, and `url()` would need a rule to choose
+  between two declarations, which the one-path condition exists to avoid.

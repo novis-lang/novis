@@ -911,7 +911,8 @@ impl<'src, 'd> Parser<'src, 'd> {
         })
     }
 
-    /// ADR 0012: no variable is ever populated by the host. Reports and keeps
+    /// No variable is ever populated by the host
+    /// (`rule:statements/no-host-populated-variables`). Reports and keeps
     /// going — the caller still builds the ordinary `Variable` node.
     fn check_superglobal(&mut self, span: Span) {
         let name = self.file.span_text(span).unwrap_or_default();

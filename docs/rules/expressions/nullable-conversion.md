@@ -17,3 +17,23 @@ the throwing form — a value that gates access is converted with plain `as T`.
 
 There is one definition and no family that escapes it: every `as ?T` is the `as T` of the conversion
 table, with `null` where it throws (`rule:expressions/nullable-conversion-availability`).
+
+The form exists because an absent page number or an unfilled filter is an ordinary outcome, not an
+error, and the only other way to reach it is to check and then convert. That parses the same bytes
+twice on the request path and needs two definitions of success to agree forever; one operator over
+one table is one parse and one definition. `?T` is already the one way to write a value that may be
+absent (`rule:classes/no-undefined-value`), so the operator produces an existing type and adds no
+syntax: `as` already takes a type, and `?int` is one.
+
+**Declined:**
+- **Refusing a nullable operand.** It keeps "missing" and "invalid" apart in the syntax, but it does
+  not prevent the conflation: `($raw ?? '') as ?uint ?? 1` collapses the same two states. It would
+  only charge a line on the most common shape in the language.
+- **A `Core` member per scalar target, such as `Str::toIntOrNull` or `Int::tryParse`.** The name
+  shapes are banned (`rule:core-api/verb-lexicon`), and it needs one member per target type forever,
+  where an operator covers every type, including ones added later.
+- **A `Result` or `Either` return that says why a conversion failed.** There is no sum type, and
+  adding one to avoid a `null` test is a decision about the whole language.
+- **Rewriting PHP's `(int)$x` to `$x as ?int ?? 0`.** It would restore the silent zero that
+  `rule:types/no-legacy-cast` removes, and it is not even faithful: `(int)"12abc"` is `12` in PHP and
+  `null` here. A converter names both forms and lets the author choose.

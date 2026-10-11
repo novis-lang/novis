@@ -3,10 +3,10 @@
 //! declares its own, no member reaches the operating system except through the door, and no member
 //! reads a URI scheme off a path.
 //!
-//! The middle two are § 7's completeness claim and § 2's, and neither subsumes the other: the first
-//! catches a member that goes through a door without being declared as doing so, the second a
-//! member that reaches the operating system with no door at all. The last is
-//! `rule:security/a-path-is-not-a-url`'s rather than 0118's, and sits here
+//! The middle two are `rule:testing/capability-completeness-test`'s two halves, and neither
+//! subsumes the other: the first catches a member that goes through a door without being declared
+//! as doing so, the second a member that reaches the operating system with no door at all. The
+//! last is `rule:security/a-path-is-not-a-url`'s rather than a capability rule's, and sits here
 //! because it is the same question one layer up: a door that asks about the path it was handed is
 //! no protection if the path the caller wrote names somewhere else entirely.
 //!
@@ -319,9 +319,9 @@ fn every_capability_bearing_member_declares_its_capability() {
                 rows, 1,
                 "`{}::{}` is a member of a capability-bearing class, so it owes exactly one row in \
                  `registry::CAPABILITIES` — the capability it needs, or `None` beside the comment \
-                 saying what it reaches instead. There is no allowlist to add it to, which is ADR \
-                 0118 § 7's point: a member that is hard to classify is a member whose capability \
-                 has not been thought about",
+                 saying what it reaches instead. There is no allowlist to add it to \
+                 (rule:testing/capability-completeness-test): a member that is hard to classify \
+                 is a member whose capability has not been thought about",
                 class.name, member.name,
             );
         }

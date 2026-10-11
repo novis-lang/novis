@@ -22,3 +22,6 @@ no `Core\Program` enumeration member — this one, `implementingWith` or `constr
 scan at all**, and a program calling any of them pays the directory-listing dependency once, however
 many it calls. Type checking and lowering stay lazy regardless — a discovered class nobody calls is
 never checked past its declaration and never reaches codegen.
+
+- **Memory:** the scan's symbol entries are O(declarations under the autoload roots), held per host and
+  only by a program that runs a scan.

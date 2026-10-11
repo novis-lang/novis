@@ -237,8 +237,9 @@
 //! the key is read and never revisited.
 //!
 //! These four reach BoringSSL through `ring`, while every cipher, derivation and
-//! agreement above them stays RustCrypto; [ADR 0179](/docs/decisions/0179.md)
-//! § 8 is where that single exception is argued. An ECDSA signature here is the
+//! agreement above them stays RustCrypto. The root `Cargo.toml`'s rows for
+//! `ring` and for `p256` are where that single exception, and the unaudited
+//! curve accepted beside it, are argued. An ECDSA signature here is the
 //! 64-octet `r ‖ s` that JWS and WebCrypto both write, so the DER form most
 //! other tooling prints is refused rather than re-encoded — one encoding on the
 //! wire is one fewer place for two implementations to disagree.

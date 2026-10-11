@@ -2,8 +2,7 @@
 // Running another program, as a program: an argv, a result, and the target
 // this language will not run at all.
 //
-// [ADR 0044](/docs/decisions/0044.md) is the
-// whole of it. `Core\Process::run` takes a path and an `array<string>`, and
+// `Core\Process::run` takes a path and an `array<string>`, and
 // there is no shell-string form *anywhere* in the surface — nothing to
 // escape, because there is nothing to escape into. A tainted `$path` or
 // `$argv` element is a compile-time diagnostic, which is why this fixture
@@ -32,7 +31,7 @@ string $nvs = Core\Taint::assertTrusted($named ?? 'NVS_BIN is not set', 'the pip
 
 // argv only: the subcommand and the script are elements, never a line.
 //
-// The captured streams are `bytes` and not `string` (ADR 0044 § 1): a child
+// The captured streams are `bytes` and not `string`: a child
 // process makes no UTF-8 promise, so `as string` is the checked conversion
 // that throws rather than a silent mangling.
 var $result = Core\Process::run($nvs, ['run', 'examples/process/hello.nvs']);

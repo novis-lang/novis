@@ -1,10 +1,7 @@
 {
   "title": "The reactor reports readiness on every platform, Windows included, so a stream is written once",
   "status": "shipped",
-  "because": [
-    "0115",
-    "0106"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/the-parking-contract",
     "concurrency/try-the-syscall-then-park"

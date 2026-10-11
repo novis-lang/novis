@@ -1,10 +1,7 @@
 {
   "title": "A statement is a `query` trace event that carries its duration, driver, connection, truncated SQL and row counts, and never a bound parameter",
   "status": "shipped",
-  "because": [
-    "0067",
-    "0041"
-  ],
+  "because": [],
   "seeAlso": [
     "observability/a-slow-query-is-logged-past-a-threshold",
     "observability/four-kinds-become-a-span",

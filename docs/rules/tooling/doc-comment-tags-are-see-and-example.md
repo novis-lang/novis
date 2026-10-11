@@ -33,3 +33,9 @@ type is in the signature*, and likewise for `@throws` and `@returns`.
 
 The two tags survive because each buys a *check* — a cross-reference that must resolve, an example that
 must still compile — and a third has to meet the same standard, never merely improve a rendering.
+
+**Declined:**
+- **Prose only, with no tags.** A Markdown link and a fenced block buy neither check.
+- **Per-parameter documentation as a tag.** If a published package needs it the way a `Core` member
+  has it, it is a registry-shaped field in the JSON `rule:tooling/meta-json-takes-a-program` emits,
+  never an `@param` line.

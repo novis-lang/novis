@@ -27,3 +27,11 @@ tainted string $q = $doc['q'] as string;
 
 `mixed` never absorbs implicitly in the other direction: `int $n = $m;` where `$m` is `mixed` is a
 diagnostic, not a runtime check.
+
+`mixed` is a hole by design, and a program written entirely in it runs at dynamic typing's speed with
+dynamic typing's failure modes. The compiler does not keep `mixed` at the boundaries; review does, and
+every step out of it is an `as` a reviewer can see.
+
+**Declined:**
+- **`mixed` checked at its boundaries.** It would leave no way to say "this is untyped input"
+  honestly, which is the one thing `mixed` is for.

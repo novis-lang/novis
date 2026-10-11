@@ -104,7 +104,7 @@ describe("nv audit python", () => {
       "data/goals/parses.handoff.json",
       "docs/agent/goals/side/restart-free.handoff.md is not written",
       "the playbook bullet a-loop-goal-toml-check-naming-a-test",
-      "docs/decisions/0221.md",
+      "docs/decisions/README.md",
       "npm run sync:render",
       "`.loop/accept-green.json` remembers",
       "tools/nv/cmd/rules.ts:_index.json",
@@ -161,7 +161,7 @@ describe("nv audit python", () => {
     const paths = [
       "AGENTS.md",
       "CHANGELOG.md",
-      "docs/decisions/0179.md",
+      "docs/decisions/README.md",
       "docs/goals/webcrypto.md",
       "docs/goals/tooling-overhaul.md",
       "docs/goals/restart-free.md",

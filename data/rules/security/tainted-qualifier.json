@@ -2,11 +2,6 @@
   "title": "`tainted` is a compile-time qualifier on `string`, `bytes` and a shape of them, spellable in any declaration and erased before codegen",
   "status": "shipped",
   "because": [
-    "0024",
-    "0007",
-    "0009",
-    "0033",
-    "0157",
     "0279"
   ],
   "seeAlso": [

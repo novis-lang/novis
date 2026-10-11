@@ -47,8 +47,8 @@ candidates that read as obviously mergeable — 0029+0030, and the four rejected
 and nothing has been since. A record's body is rationale as of its date and is not edited to say
 something new — what is currently true is the rule's fragment under `docs/rules/`.
 
-**2. A section number is a public identifier too — never renumber one.** `0007 § 3`, `0066 § 3a` and
-`0009 § 1` are cited from doc comments in `crates/`, from `docs/spec/01-core-library.md` — which is
+**2. A section number is a public identifier too — never renumber one.** `NNNN § 3a` and its kind
+are cited from doc comments in `crates/`, from `docs/spec/01-core-library.md` — which is
 live, read at test time by `crates/nvs-stdlib/tests/spec_registry_coverage.rs` — and from the `context` manifest in the live goal's record that the running loop
 reads. Deleting `### 3.` and promoting `### 4.` silently repoints every one of them.
 Insert as `§ 3a`; delete a section's *content* and keep its number. `bun nv records`' **section refs** check
@@ -75,7 +75,7 @@ A frozen record is exempt: its body was true on its date, and a pass leaves it a
 
 **2. A count kept in more than one file.** Always wrong somewhere. An earlier pass found two: the
 PHP-divergence count, which stopped at "the twelfth" while sixteen more records added rows, and the
-compiler-recognized-attribute count, which 0102 § 9 had already found wrong in seven places. The fix
+compiler-recognized-attribute count, which had already been found wrong in seven places. The fix
 is prose that says "joins the closed list" without a number, and where a count is really needed, a
 register generated from the files that hold the items. `--only "stale counters"` looks for the
 spellings; a new kind of count needs a new pattern in

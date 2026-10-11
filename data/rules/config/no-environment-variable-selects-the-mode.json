@@ -1,10 +1,7 @@
 {
   "title": "No environment variable selects the run mode — not `NVS_MODE`, not `APP_ENV`, not `NODE_ENV`",
   "status": "shipped",
-  "because": [
-    "0091",
-    "0012"
-  ],
+  "because": [],
   "seeAlso": [
     "config/two-modes-and-the-default-is-production",
     "config/the-mode-flag-wins-over-the-file",

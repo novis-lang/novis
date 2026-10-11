@@ -14,5 +14,9 @@ to constrain — and it passes that rule's own test rather than being an excepti
   `rule:observability/past-max-series-a-new-series-is-refused`, never O(requests served) — the same
   accounting `rule:concurrency/cache-memory-is-charged-to-the-core` records.
 
-A shared, coherent store would be the cross-request coordination that rule closes, bought for a
-number that is approximate by definition.
+**Declined:**
+- **A shared, coherent metrics store.** It is the cross-request coordination
+  `rule:concurrency/cross-request-state-is-explicit` closes, bought for a number that is approximate
+  by definition and merged at scrape anyway.
+- **A read path on `Core\Metrics`.** A program that reads a metric to decide something is using the
+  wrong tier, and the first bullet above would stop being true.

@@ -7,3 +7,5 @@ assignment would make a property spell what `const` spells — two names for one
 `rule:statements/nothing-gets-a-second-name` refuses.
 
 The fix is to move the default into the constructor, or make it a `const`.
+
+**Memory:** none. The check runs in the front end and adds no run-time state.

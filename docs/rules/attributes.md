@@ -24,7 +24,21 @@ object or per instance.
 Retrieval is `Core\Attributes` and nothing else ([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)). There is no
 attribute table in the compiled unit for `Core\Reflect` or anything else to walk.
 
-<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md).</sub>
+An attribute is a bag of data, and the language already has a structurally checked bag of data: the
+anonymous object and its shape type. Attaching that to a declaration needs no fourth mechanism. A
+quick, one-off tag costs one `#[{...}]` and no declaration at all; a validated, reusable one costs one
+`type` alias line.
+
+**Declined:**
+- **An attribute class per kind, constructed when read**, as PHP, Java and C# do. It is class overhead
+  for what is a bag of data, and a `type` alias gives the same structural check with nothing ever
+  instantiated.
+- **Doc comments parsed by convention.** The compiler has no part in them: no structural check and no
+  first-class retrieval, so every framework parses its own text.
+- **A free-form string payload**, the way a Go struct tag is written. It loses the structural check
+  entirely and leaves every validation to framework code at run time.
+
+<sub>See also [`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>
 
 <a id="attributes-attach-sites-and-forms"></a>
 
@@ -57,7 +71,15 @@ The name may be written `Owner::Name`, an alias declared as a member of an inter
 body ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)), and it is then resolved exactly as the type `Owner::Name` is,
 the owner's file being autoloaded like any other name the attribute writes. A name is therefore
 written the same way in an attribute and in a type, and an alias that belongs to an interface needs
-no second, file-scope declaration to be usable as an attribute.
+no second, file-scope declaration to be usable as an attribute
+([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)). The checker builds the type atom and lowers it, so an
+alias standing left of `::`, the owner's namespace and imports, and every diagnostic for a name that
+resolves to nothing are the type position's own. Retrieval is structural and never reads the name
+([`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval)), so `Page::Meta` and the shape it names find the same
+payloads.
+
+- **Memory:** nothing per request. The member form costs one type lowering per attribute while
+  compiling, which the plain form already pays through the alias table.
 
 Three answers, deliberately three. A name nothing declares is the ordinary undefined-name `E0303` —
 an attribute name is not a second namespace, so it gets no refusal of its own; for `Owner::Name` it is
@@ -67,6 +89,11 @@ mismatch `E0401`.
 
 A malformed attribute is one error. The parser skips the rest of its `#[...]` group up to the
 group's own `]`, so the declaration after it still parses and nothing else is reported for it.
+"expected `]`" is reported only if nothing inside the group was reported yet, and the skip counts
+brackets, parentheses and braces. Outside every bracket, a `;`, an unmatched closing bracket or a
+keyword that begins a declaration also ends the skip without being consumed, so a group missing its
+`]` loses only its own tokens. A `::` with no name after it is one error, and that attribute is kept
+as the bare form, so the checker says nothing more about it.
 
 The one exemption is the closed, `Core`-owned roster of compiler-recognized attributes, matched by name
 and naming no shape at all. Each is a plain name, so `Owner::Name` never matches one. Every userland
@@ -76,7 +103,14 @@ and the rule that owns it names them: `#[Core\Path]` is written before a `string
 sites but a property hook and that hook's parameter
 ([`attributes/a-deprecation-names-its-replacement-as-code`](attributes.md#attributes-a-deprecation-names-its-replacement-as-code)).
 
-<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0015](../decisions/0015.md), [0071](../decisions/0071.md), [0232](../decisions/0232.md), [0275](../decisions/0275.md).</sub>
+**Declined:**
+- **A lookup of its own in the attribute checker** for `Owner::Name`, reading the member alias table
+  directly. It would be a second resolver for one syntax, and the type position's handling of an alias
+  left of `::` and its diagnostics would have to be copied into it.
+- **Matching `Owner::Name` against the recognized roster.** No recognized attribute is a member of
+  anything, so the only effect would be a second way to write a name the compiler acts on.
+
+<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0275](../decisions/0275.md).</sub>
 
 <a id="attributes-payload-is-a-compile-time-constant"></a>
 
@@ -96,9 +130,15 @@ row added to the pass that folds an enum case's value ([`enums/closed-integer-ty
 Two things follow with no rule of their own. The payload resolves once, at compile time, so there is no
 "evaluate this attribute's arguments" step at declaration time. And no `tainted` value can reach a
 payload, because a tainted value has no compile-time-constant source at all; a `secret` class constant
-can, and is refused there as a sink (`E0727`).
+can, and is refused there as a sink (`E0727`). A value held in a constant pool for the life of the
+process is the durable exposure the `secret` sinks exist to close.
 
-<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type). Decided in [0046](../decisions/0046.md), [0033](../decisions/0033.md), [0012](../decisions/0012.md).</sub>
+**Declined:**
+- **Any expression as a payload value, `new` included**, as PHP admits. Declaring a class would become
+  an operation with an execution order and side effects, and a `tainted` or `secret` value could flow
+  into data retained for the life of the process.
+
+<sub>See also [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>
 
 <a id="attributes-repeatable"></a>
 
@@ -123,7 +163,7 @@ Ambiguity is entirely retrieval's problem ([`attributes/retrieval-folds-while-ch
 that needs exactly one attachment says so itself and refuses the second where it is written, the way
 `#[Access]` does ([`attributes/access-payload`](attributes.md#attributes-access-payload)).
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0046](../decisions/0046.md).</sub>
+<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/access-payload`](attributes.md#attributes-access-payload).</sub>
 
 <a id="attributes-call-site-type-argument"></a>
 
@@ -144,7 +184,7 @@ everything up to a matching `>` parses as a type list with no diagnostic **and**
 against a class-shaped name and immediately followed by a parenthesized operand — parentheses say the
 other thing.
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`programs/implementing`](programs.md#programs-implementing). Decided in [0046](../decisions/0046.md), [0071](../decisions/0071.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`programs/implementing`](programs.md#programs-implementing).</sub>
 
 <a id="attributes-structural-retrieval"></a>
 
@@ -175,7 +215,15 @@ A written `$member` is checked against the target's real declarations and one na
 absent attribute gives, and nothing downstream could tell them apart. A `$member` that is not a string
 literal has no name to check and folds to an empty result.
 
-<sub>See also [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md), [0027](../decisions/0027.md), [0022](../decisions/0022.md), [0033](../decisions/0033.md).</sub>
+**Declined:**
+- **Retrieval through `Core\Reflect`'s general walk.** Every attribute list is known while compiling,
+  so a walk by name at run time throws that knowledge away and opens a second, broader introspection
+  surface for a question the compiler answers narrowly.
+- **A reference token for a property or a parameter, and `Foo::class` as the class target.** Every
+  class already has a nameable `constructor` reference, so every target is one callable reference, and
+  a member name string is what PHP's own reflection accepts for members that are not callable.
+
+<sub>See also [`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking), [`attributes/call-site-type-argument`](attributes.md#attributes-call-site-type-argument), [`attributes/repeatable`](attributes.md#attributes-repeatable).</sub>
 
 <a id="attributes-retrieval-folds-while-checking"></a>
 
@@ -190,6 +238,9 @@ A declaration's attached-attribute list is fixed by its source, so `Core\Attribu
 - exactly one does — that payload itself, as a constant, with no lookup at run time;
 - more than one does under `get<T>` — `E0728`, naming `::all<T>` as the fix.
 
+So an ambiguous retrieval of a repeated attribute fails at the call site that would be wrong, while
+compiling, and never on the first request that reaches a site with two matches.
+
 There is no runtime lookup and no reflection table in the compiled unit. The two registered
 `Core\Attributes` members name a body that aborts, so a program that ran at all never called either.
 
@@ -197,7 +248,7 @@ Because the call becomes the payload, every value in a *matched* payload needs a
 through the scope the payload was written in — a class constant whose own declaration folds to no value
 is `E0731`. A `T` that is not a shape is `E0729`, and a `$target` that names no declaration is `E0730`.
 
-<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0046](../decisions/0046.md), [0036](../decisions/0036.md).</sub>
+<sub>See also [`attributes/structural-retrieval`](attributes.md#attributes-structural-retrieval), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable).</sub>
 
 <a id="attributes-api-adds-and-cannot-contradict"></a>
 
@@ -221,6 +272,12 @@ does not declare, a `tags` or `security` entry that is not a string, and an `#[A
 carrying no `#[Route]`. One `#[Api]` describes the operation however many `#[Route]` attributes the
 method carries.
 
+That list is why the attribute exists. The compiler holds both the annotation and the code it
+describes, so the annotation cannot claim a shape the handler no longer returns, which is the normal
+state of an unchecked API annotation in a mature codebase. It is also what earns `#[Api]` a place on
+the closed list of compiler-recognized attributes: an attribute the compiler could not verify would
+not get one.
+
 It is compiler-recognized, matched by name rather than structurally, so a userland anonymous object that
 happens to look like one is not one ([`attributes/attach-sites-and-forms`](attributes.md#attributes-attach-sites-and-forms)).
 
@@ -228,7 +285,7 @@ A `security` name is carried uninterpreted rather than compared: nothing in the 
 `nvs.toml` declares a scheme, so there is no roster to check against and the emitted document names
 schemes it does not define. The comparison lands here on the day a scheme has a home.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata). Decided in [0085](../decisions/0085.md), [0071](../decisions/0071.md), [0077](../decisions/0077.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/inert-metadata`](attributes.md#attributes-inert-metadata).</sub>
 
 <a id="attributes-access-is-a-required-sibling"></a>
 
@@ -253,14 +310,32 @@ public function home(): Response { … }
 
 There is no implicit `Public` and no configuration that supplies one. A route that is public because
 its author decided so and one that is public because its author forgot are otherwise indistinguishable
-at every later reading.
+at every later reading, and a forgotten permission check is the most exploited class of web
+vulnerability. The qualifiers and the sinks delete injection; without this rule, nothing would catch
+a handler that forgets its check, which compiles, serves and produces no diagnostic.
+
+The cost is one line on every route, public ones included, so the reader of a route never has to ask
+whether an absence meant anything. Nothing here runs: the check is compile-time, and the check a
+handler performs at run time is one it would have performed anyway.
 
 `#[Route]` gains no field. Two attributes rather than one is what keeps the route table free of
 attached behaviour: this attaches a *declaration* to the method, not a filter, a group or a dispatch
 opinion. The guarantee is that the decision was **written**, not that it was **honoured** — the
 compiler never asks what the name means.
 
-<sub>See also [`attributes/access-payload`](attributes.md#attributes-access-payload), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict). Decided in [0096](../decisions/0096.md), [0094](../decisions/0094.md), [0077](../decisions/0077.md).</sub>
+**Declined:**
+- **An `access:` field on `#[Route]`.** One attribute reads better and cannot be half-applied, but it
+  puts behaviour on the attribute that carries none, and the line between metadata the table carries
+  and a dispatch opinion gets harder to hold for whatever asks next.
+- **A completeness check against an access map the framework declares.** The map is a second place to
+  keep in sync with the routes, and the diagnostic points at the map rather than at the route that is
+  missing.
+- **Leaving the decision entirely to a framework layer.** That is the arrangement every framework
+  already has, and the most exploited class of vulnerability lives underneath it.
+- **`#[Access(allow: Audience::Public)]` when the attribute is omitted.** It is the implicit default
+  this rule exists to make visible.
+
+<sub>See also [`attributes/access-payload`](attributes.md#attributes-access-payload), [`attributes/api-adds-and-cannot-contradict`](attributes.md#attributes-api-adds-and-cannot-contradict).</sub>
 
 <a id="attributes-access-payload"></a>
 
@@ -292,7 +367,7 @@ readings — conjunction or disjunction — and choosing between them silently i
 prevents. A method carrying several `#[Route]` attributes still carries one `#[Access]`, covering all
 of them.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable). Decided in [0096](../decisions/0096.md), [0046](../decisions/0046.md), [0007](../decisions/0007.md), [0110](../decisions/0110.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/payload-is-a-compile-time-constant`](attributes.md#attributes-payload-is-a-compile-time-constant), [`attributes/repeatable`](attributes.md#attributes-repeatable).</sub>
 
 <a id="attributes-a-deprecation-names-its-replacement-as-code"></a>
 

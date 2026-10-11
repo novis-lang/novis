@@ -17,8 +17,10 @@ sequence for a spool record, the file identity and byte offset for a tailed one.
 
 The order is read, insert, commit, **then** delete. A crash in that window re-ingests, which the
 dedupe key makes a no-op. The index holds nothing that cannot be rebuilt from the files, which is
-what licenses running it in its fastest mode and makes a corrupt index a cache miss to discard rather
-than a failure to resolve.
+what licenses running it in its fastest mode — write-ahead logging, so the one writer and the readers
+do not block each other, and synchronous writes off — and makes a corrupt index a cache miss to
+discard rather than a failure to resolve. The documented risk of that mode is corruption rather than
+lost transactions, so the viewer offers discarding and re-ingesting the index as an action.
 
 **The viewer is pushed a watermark, not records** — a monotonic sequence published after each
 committed batch, with the browser fetching the delta through the same query path it uses for

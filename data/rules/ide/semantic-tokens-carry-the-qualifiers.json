@@ -1,11 +1,7 @@
 {
   "title": "Semantic tokens use LSP's standard types plus two modifiers of Novis's own, `tainted` and `secret`, and the client's legend must equal the server's",
-  "status": "designed",
-  "because": [
-    "0099",
-    "0101",
-    "0214"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "ide/highlighting-is-two-layers",
     "ide/novis-ships-names-not-colours",
@@ -13,5 +9,11 @@
     "security/secret-qualifier",
     "ide/tainted-has-no-default-decoration"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-lsp/src/semantic.rs",
+    "tests/lsp/semantic/a-tainted-and-a-secret-binding-carry-their-qualifier-at-every-use.lspt",
+    "tests/lsp/semantic/a-core-enum-carries-the-default-library-modifier.lspt",
+    "tests/lsp/semantic/an-attribute-name-is-a-type-token.lspt",
+    "editors/vscode/test/host/colour.test.ts"
+  ]
 }

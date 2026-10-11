@@ -2292,8 +2292,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\Arr::count(array<T> $a): uint` — how many entries the array
     /// holds, replacing PHP's `count`/`sizeof`.
     ///
-    /// `uint` rather than `int` because a count cannot be negative and ADR
-    /// 0007 § 4 gives Novis a type that says so; the conversion below cannot
+    /// `uint` rather than `int` because a count cannot be negative and
+    /// `rule:types/uint` gives Novis a type that says so; the conversion below cannot
     /// fail, since `nvs_array_count` counts live entries of an allocation
     /// that fits in memory.
     fn nvs_core_arr_count(_ctx, args: [1]) {
@@ -2324,8 +2324,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\Arr::isEmpty(array<T> $a): bool` — whether the array holds no
     /// entries, replacing PHP's `empty($a)` and the `count($a) === 0` idiom.
     ///
-    /// A member of its own rather than left to `count(…) === 0` because ADR
-    /// 0063 R20's "no operation reachable two ways" is about *spellings the
+    /// A member of its own rather than left to `count(…) === 0` because
+    /// `rule:core-api/one-paradigm-per-operation` is about *spellings the
     /// library offers*, and the spec's § 2 table lists this one: the question
     /// "is it empty" is answered without the caller having to know that a
     /// count is `uint` and therefore needs `0` written as one.
@@ -5869,8 +5869,8 @@ nvs_runtime::nvs_helper! {
     /// the spec's replacement for `array_sum($a)/count($a)`, "with the empty
     /// case answered".
     ///
-    /// **`null` over an empty array**, on [`nvs_core_arr_min`]'s terms: ADR
-    /// 0063 R5 makes `?T` the absence spelling, and the average of nothing is
+    /// **`null` over an empty array**, on [`nvs_core_arr_min`]'s terms:
+    /// `rule:core-api/failure-throws` makes `?T` the absence spelling, and the average of nothing is
     /// a question with an answer rather than a division by zero.
     ///
     /// An exact subject stays exact: a `decimal` total is divided by the count

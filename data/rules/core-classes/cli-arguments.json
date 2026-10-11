@@ -1,11 +1,7 @@
 {
   "title": "`Core\\Cli::arguments` is how a program reads the words it was started with, at every depth",
   "status": "shipped",
-  "because": [
-    "0012",
-    "0086",
-    "0118"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/script-args",
     "core-classes/session-is-started-explicitly",

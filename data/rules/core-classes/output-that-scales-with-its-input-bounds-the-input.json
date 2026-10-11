@@ -1,9 +1,7 @@
 {
   "title": "A member whose output scales with its input either allocates through the guarded value allocator or bounds the input",
   "status": "shipped",
-  "because": [
-    "0174"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/decompression-bound",
     "core-classes/regex-two-tiers",

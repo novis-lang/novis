@@ -202,8 +202,9 @@ pub(crate) struct Compiled {
     id: Arc<str>,
 }
 
-/// What one written path resolved to last, and when that was checked — [ADR
-/// 0017]'s `PathEntry`, the pointer an edit swaps.
+/// What one written path resolved to last, and when that was checked: the
+/// pointer an edit swaps in
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart`.
 ///
 /// Copied out of the map rather than read under a guard held across the `stat`
 /// and the compile below it, which is why every field is [`Copy`]: a guard
@@ -1817,8 +1818,8 @@ fn program_over(compiled: Arc<Compiled>) -> Program {
 
 /// A context granting `script.spawn` for everything, and nothing else.
 ///
-/// Every test in this binary that runs a fixture which spawns needs one: ADR
-/// 0118 § 1 denies by default, so a bare `Ctx` refuses at
+/// Every test in this binary that runs a fixture which spawns needs one:
+/// `rule:security/script-spawn-capability` denies by default, so a bare `Ctx` refuses at
 /// [`nvs_runtime::script::resolve`]'s door and the test then asserts the denial
 /// instead of whatever it was about. It lives here, beside the resolver, so
 /// that the grant has one spelling in this crate rather than one per test
@@ -3334,7 +3335,7 @@ mod tests {
     /// — a member ignoring `[io] temp_root` leaves a root that was empty all
     /// along. The file written inside it is what makes the removal recursive
     /// rather than an `rmdir` that happened to succeed on an empty directory.
-    /// And the root *surviving* is § 2's: the sweep takes what § 1 handed out,
+    /// And the root *surviving* is `rule:core-classes/temporary-dir-sweep`'s: the sweep takes what `rule:core-api/one-temporary-directory-member` handed out,
     /// never the root it created under, which is the one directory the next
     /// script on this host still needs.
     #[test]

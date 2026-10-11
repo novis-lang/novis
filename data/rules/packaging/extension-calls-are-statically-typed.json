@@ -2,9 +2,6 @@
   "title": "An extension's classes are registered from its manifest at load, and a call into one is type-checked at compile time and emitted as a direct call",
   "status": "designed",
   "because": [
-    "0003",
-    "0011",
-    "0078",
     "0246"
   ],
   "seeAlso": [

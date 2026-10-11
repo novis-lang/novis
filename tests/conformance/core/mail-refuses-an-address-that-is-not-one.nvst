@@ -2,7 +2,7 @@
 Core\Mail::send refuses an address that is not one rather than repairing it — `rule:errors/ambiguous-input-refused`, `rule:programs/framework-core-half`
 --FILE--
 <?nvs
-// ADR 0095: ambiguous input is refused, never repaired. A CRLF inside an
+// Ambiguous input is refused, never repaired. A CRLF inside an
 // address is the mail-header injection `mail()` shipped for twenty years, and
 // refusing it — rather than stripping it — is what closes it. The refusal
 // happens before any socket is opened, so this case needs no endpoint.

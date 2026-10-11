@@ -12,3 +12,7 @@ in exchange for reintroducing the dynamic escape the language closed elsewhere â
 
 Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
 further one opened, and every claim above it would have to be qualified.
+
+**Declined:**
+- **A runtime grant, symmetrical with the runtime narrow.** It would cost the compile-time property
+  outright. The guarantee that nothing widens is what lets the static check be trusted as total.

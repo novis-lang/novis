@@ -1,10 +1,7 @@
 {
   "title": "Nothing requires a doc comment by default; `nvs check --strict-docs` reports a public member without one, and no autofix can satisfy it",
-  "status": "designed",
-  "because": [
-    "0137",
-    "0234"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "tooling/doc-comment-tags-are-see-and-example",
     "tooling/doc-comment-attaches-to-the-next-declaration",

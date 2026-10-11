@@ -1,14 +1,13 @@
 {
   "title": "`language-configuration.json` carries comments, pairs, indentation, folding and a `wordPattern` that includes `$`",
-  "status": "designed",
-  "because": [
-    "0099",
-    "0149"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "ide/doc-comment-authoring-is-the-editors-own",
     "ide/contributions-are-frozen-and-only-ever-added",
     "ide/highlighting-is-two-layers"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "editors/vscode/test/contributions/contributions.test.ts"
+  ]
 }

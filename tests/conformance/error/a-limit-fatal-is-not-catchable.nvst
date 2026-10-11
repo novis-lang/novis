@@ -42,8 +42,8 @@ try {
 // than in place of it.
 echo "after\n";
 --FILE nvs.toml--
-# The ceiling the ballast above is written to exceed, and nothing else: ADR
-# 0064 § 5 is the unit, and `fatal_reserve_memory` keeps its default so that
+# The ceiling the ballast above is written to exceed, and nothing else:
+# `rule:config/a-size-or-duration-is-a-quoted-string-with-its-suffix` is the unit, and `fatal_reserve_memory` keeps its default so that
 # the slice the handler runs inside is the one the message names.
 [limits]
 memory = "16M"

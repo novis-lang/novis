@@ -17,3 +17,26 @@ has a door: nothing leaves the process, no name is resolved and no file is opene
 footprint, and a configured size cap is the instrument for that — `[cache.local] max_size` per core and
 `[cache.process] max_size` per process; a boolean grant is not one, and adding it would price a tier as an
 authority question every deployment then has to answer.
+
+The local tier is fast because it is local: no wire format, no socket and no syscall, only a graph copy
+inside one core's heap. That is what the parsed-configuration and compiled-template cases, most of what a
+cache is used for, need, and none of them needs coherence.
+
+**Declined:**
+- **One member with a `coherent: true` flag, or a `store(tier: Cache\Tier)` argument.** The default would
+  be chosen once and copied from then on, and choosing wrong fails silently; once a variable can carry the
+  tier, the choice stops being visible in review. A name per tier costs a few characters and makes the
+  guarantee visible.
+- **A secrets-only store such as `Core\Secrets`.** A machine-wide cache is wanted for ordinary values
+  too, so a secrets-only store would leave that unanswered or bring it later as a fourth thing: two
+  shapes for one mechanism. A secret reaches every tier through a sealed pair on the store class instead
+  (`rule:concurrency/a-secret-is-cached-only-sealed`).
+- **No new tier, with a token kept in a process-wide static of the caller's own.** It is the ambient
+  cross-request state `rule:security/no-cross-request-state` closes, which is why `Core\Cache` exists.
+- **Renaming this rule's id to match the tier count.** The id is a path every citation carries; the title
+  states the rule and is what every rendered list prints.
+- **A shared segment across cores, with locking.** It is the cross-request channel shared-nothing removes,
+  and the lock lets one request's failure stall or corrupt another's view
+  (`rule:security/no-cross-request-state`).
+- **No local tier, with everything in the shared store.** It puts a network round trip in front of the
+  cases that need no coherence at all.

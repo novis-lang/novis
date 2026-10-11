@@ -23,7 +23,23 @@ set is a codegen input like any other.
 Both digests are cryptographic on purpose. One `nvs serve` shares one `env_hash` across every tenant's
 source, so a key a tenant could collide on purpose would hand their artifact to another tenant's
 request, and `rule:packaging/a-writer-publishes-by-one-atomic-rename-and-never-a-lock` is true only of a
-collision-resistant key. No shared index, no lock file and no manifest exist anywhere: every entry is
+collision-resistant key. What a non-cryptographic hash would save is small, and it is spent off the
+request path. No shared index, no lock file and no manifest exist anywhere: every entry is
 independently creatable, verifiable and discardable, so a bug or an attack against one entry has a
-blast radius of exactly one entry. The `[opcache]` directives that govern the store are
+blast radius of exactly one entry. The store is read and written by independent processes that share
+no memory and no lock and may never overlap in time, so a design that needs a live coordinator does
+not fit it. The `[opcache]` directives that govern the store are
 `rule:config/opcache-file-cache-directives-are-system`'s.
+
+The cost of an environment in the address is disk: a cache directory shared across a mixed fleet
+(several CPU generations, a compiler upgrade half rolled out) holds one copy of a unit per environment
+rather than one in total. Checking the environment after opening the file would change only when that
+storage is paid, not whether.
+
+**Declined:**
+- **One packed store — sqlite, or a hand-rolled B-tree — instead of a file per entry.** sqlite is the
+  kind of C dependency the pure-Rust policy keeps out, and a shared mutable index needs write
+  coordination across processes that never talk; a corrupt index takes out every entry at once.
+- **A shared manifest or LRU index beside per-entry files.** It is a second shared-mutable structure
+  every reader trusts and every writer keeps consistent, the shape the in-memory cache already rejects
+  for a per-path pointer (`rule:config/an-edit-reaches-the-next-request-without-a-restart`).

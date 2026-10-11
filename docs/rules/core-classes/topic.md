@@ -20,6 +20,14 @@ most 256 bytes; past either, the member throws a `LogicError` and the table is u
 subscribers have all ended is swept by a later insert even when nobody names it again, so the table
 is O(live connections) and never O(connections served).
 
-It is **not** built on the shared cache, which is deliberately lossy — right for a cache and wrong
-for a message a subscriber is waiting on. Cross-machine fan-out is not the runtime's: a fleet bridges
-topics to a broker in application code.
+There is no way to broadcast without it and no way for one connection to reach another directly,
+which is what keeps a connection an isolate rather than a thread with a socket. Cross-machine fan-out
+is not the runtime's: a fleet bridges topics to a broker in application code.
+
+**Declined:**
+- **Building it on the shared cache.** The cache is deliberately lossy
+  (`rule:concurrency/cross-request-state-is-explicit`), which is right for a cache and wrong for a
+  message a subscriber is waiting on, and one mechanism with two contracts would make both harder to
+  reason about.
+- **A bus between machines.** It would mean owning a distributed system's failure modes, which the
+  placement tests leave to a dependency (`rule:core-api/tier-placement`).

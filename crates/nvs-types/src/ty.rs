@@ -340,8 +340,9 @@ pub enum Ty {
     TypeVar(String),
 }
 
-/// `rule:core-api/shape-parameter`'s fixed-key shape parameter, both ways round: § 3's merged field
-/// list, which is the ABI, and § 2's arms, which are what a written literal is
+/// `rule:core-api/shape-parameter`'s fixed-key shape parameter, both ways round: the merged field
+/// list of `rule:core-api/shape-flattens-at-the-abi`, which is the ABI, and the arms of
+/// `rule:core-api/shape-arms-are-disjoint`, which are what a written literal is
 /// actually checked against.
 ///
 /// **Both, because neither states the other.** The merged list cannot state
@@ -357,17 +358,17 @@ pub enum Ty {
 /// the union of the arms' declarations for it, and once per declaring arm in
 /// [`Self::arms`], typed as that arm declares it. `Db\Settings`'s `driver` is
 /// the worked case: one ABI slot typed `Driver`, and per arm the four cases
-/// that take a host or the one that does not, which is the whole of what ADR
-/// 0135 § 2 means by *discriminated*.
+/// that take a host or the one that does not, which is the whole of what
+/// `rule:core-api/shape-arms-are-disjoint` means by *discriminated*.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct CoreShape {
-    /// § 3's merged list: the arms in declaration order, each arm's fields in
+    /// The merged list: the arms in declaration order, each arm's fields in
     /// declaration order, a name a previous arm already emitted skipped. One
     /// ABI argument per entry, in this order, and
     /// [`required`](CoreShapeField::required) here means *every* arm requires
     /// it.
     pub fields: Vec<CoreShapeField>,
-    /// § 2's arms, in declaration order, each arm's own fields in declaration
+    /// The arms, in declaration order, each arm's own fields in declaration
     /// order and typed as that arm declares them.
     ///
     /// **Never empty, and exactly one arm for a bag or a one-arm shape** —
@@ -425,8 +426,8 @@ impl ShapeField {
 /// a real reading cost.
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct CoreShapeField {
-    /// The key a call site writes on the left of the `:`, `camelCase` per ADR
-    /// 0029 — an option's own name, or a field's.
+    /// The key a call site writes on the left of the `:`, `camelCase` per
+    /// `rule:core-api/identifier-casing` — an option's own name, or a field's.
     pub name: String,
     /// Its declared type, already lowered. Never itself a [`Ty::CoreShape`],
     /// and nullable exactly where the row's default is the never-written
@@ -1000,7 +1001,7 @@ impl TypeInterner {
     }
 
     /// Interns `rule:core-api/shape-parameter`'s fixed-key shape parameter, `shape` already carrying
-    /// § 3's merged list and § 2's arms — [`crate::core_lib`] is the only
+    /// its merged list and its arms — [`crate::core_lib`] is the only
     /// caller that builds one from a registry row, and does both.
     ///
     /// Separate from [`Self::options`] only in what it is handed: a bag has no

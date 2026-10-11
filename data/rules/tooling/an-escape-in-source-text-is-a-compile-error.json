@@ -1,9 +1,7 @@
 {
   "title": "An `ESC` in a string literal in the source is a compile error that names `Core\\Cli\\Text`",
   "status": "designed",
-  "because": [
-    "0086"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/terminal-output-is-a-sink",
     "tooling/text-is-the-one-raw-path"

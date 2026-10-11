@@ -8,3 +8,10 @@ loop wholly inside the block keeps both.
 
 Whether an override was a bug (usually) or intent is the author's call, so the diagnostic names both
 rewrites and picks neither.
+
+**Memory:** none. The check runs in the front end and adds no run-time state.
+
+**Declined:**
+- **A run-time deprecation warning, with the spelling still allowed.** The line can be refused where it
+  is written, and a warning would only permit for a while code that is refused afterwards
+  (`rule:expressions/no-keyword-logical-operators`).

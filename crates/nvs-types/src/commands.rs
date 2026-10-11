@@ -3,7 +3,7 @@
 //!
 //! # Why these are recognized names rather than shape aliases
 //!
-//! § 6 builds a *table* from them while compiling — the same
+//! `rule:tooling/commands-are-compiled` builds a *table* from them while compiling — the same
 //! `rule:programs/implementing` scan `rule:routing/routes-are-compiled-not-registered`'s route table is built by — so a userland
 //! `type Command = {name: string};` must not contribute a command however it is
 //! spelled. That is exactly
@@ -29,7 +29,7 @@
 //! that carries a payload; what this module owns is the two rosters.
 //!
 //! **One method at a time**, from [`crate::check`]'s per-class walk:
-//! [`check_class_commands`] holds each `#[Command]` to those of § 6's compile
+//! [`check_class_commands`] holds each `#[Command]` to those of `rule:tooling/commands-are-compiled`'s compile
 //! errors that are decidable from one parameter list — two options
 //! sharing a spelling, and an `#[Option]` on a parameter no argument text could
 //! be converted into — and builds that method's [`Command`] rows out of the
@@ -37,7 +37,7 @@
 //! argument list a row carries.
 //!
 //! **The whole program at once**, from the end of [`crate::check::check_program`]:
-//! [`check_table`] reports § 6's duplicate command name. It is a
+//! [`check_table`] reports `rule:tooling/commands-are-compiled`'s duplicate command name. It is a
 //! question about the enumeration rather than about a declaration — `rule:programs/implementing`'s scan is what brings two files' commands into one program — so it waits
 //! for every file, exactly as [`crate::routes::check_table`] does.
 //!
@@ -45,9 +45,9 @@
 //! [`check_stray_options`], which is the one question the per-class walk cannot
 //! ask, because that walk sees only the methods a `#[Command]` selects.
 //!
-//! # What § 6 leaves open, and what is decided here
+//! # What `rule:tooling/commands-are-compiled` leaves open, and what is decided here
 //!
-//! **`name` is required.** § 6 writes every example with one and says nothing
+//! **`name` is required.** `rule:tooling/commands-are-compiled` writes every example with one and says nothing
 //! about leaving it out, and `rule:routing/route-attribute`'s "optional and never derived" is a
 //! rule about *routes*, where a name is only a reverse lookup. Here it is the
 //! word a command line selects the command *by*, so a row without one is
@@ -63,12 +63,12 @@
 //!
 //! # What crosses in a row, and what stays
 //!
-//! A row carries the *conversion* a parameter needs and not its type. § 6's
+//! A row carries the *conversion* a parameter needs and not its type. `rule:tooling/commands-are-compiled`'s
 //! matching reads the declared type, and the consumer of the table is a native
 //! member holding no signature at all — `Core\Command::run` is reached from a
 //! command line, not from a call site — so something about the type has to
 //! cross. What crosses is [`ArgConv`], the answer [`converts_from_string`]
-//! already computes for § 6's third compile error, and not the type: a closed
+//! already computes for `rule:tooling/commands-are-compiled`'s third compile error, and not the type: a closed
 //! set, decided in the same walk that builds the row, cannot disagree with the
 //! declaration the way a second copy of the type lattice could. The one other
 //! thing a matcher cannot do without crosses the same way: a parameter's
@@ -91,7 +91,7 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 pub(crate) const COMMAND_OPTIONS: &[(&str, OptionTy)] =
     &[("name", OptionTy::Str), ("about", OptionTy::Str)];
 
-/// `#[Option(short: string, long: string, about: string)]` — § 6 writes
+/// `#[Option(short: string, long: string, about: string)]` — `rule:tooling/commands-are-compiled` writes
 /// `short` and `about`; `long` is the spelling an option is matched by when the
 /// parameter's own name is not it, and it is named here for the same reason
 /// `short` is: nothing about a command line is inferred.
@@ -102,7 +102,7 @@ pub(crate) const OPTION_OPTIONS: &[(&str, OptionTy)] = &[
 ];
 
 /// One parameter of a `#[Command]` method, in the order it was declared —
-/// § 6's "a parameter is a positional argument unless it carries `#[Option]`",
+/// `rule:tooling/commands-are-compiled`'s "a parameter is a positional argument unless it carries `#[Option]`",
 /// resolved to the spellings a command line writes.
 #[derive(Clone, Debug)]
 pub struct CommandArg {
@@ -113,12 +113,12 @@ pub struct CommandArg {
     /// command line writes them with.
     ///
     /// **Empty exactly for a positional argument**, and never empty for an
-    /// option: § 6 gives an option that writes no `long:` its parameter's own
+    /// option: `rule:tooling/commands-are-compiled` gives an option that writes no `long:` its parameter's own
     /// name. Which of the two an argument is, is therefore read off this rather
     /// than carried a second time beside it — two fields that must agree are
     /// two fields that can disagree.
     pub spellings: Vec<String>,
-    /// The `#[Option]`'s `about:`, for the usage text § 6 generates. `None` on
+    /// The `#[Option]`'s `about:`, for the usage text `rule:tooling/commands-are-compiled` generates. `None` on
     /// a positional argument, which carries no attribute to write one on.
     pub about: Option<String>,
     /// What this argument's text becomes before the handler is called — see
@@ -126,7 +126,7 @@ pub struct CommandArg {
     /// for why this and not the type.
     pub conv: ArgConv,
     /// The parameter's declared default, as the **text** a command line would
-    /// have written to supply it — `Some("3")` for § 6's own
+    /// have written to supply it — `Some("3")` for `rule:tooling/commands-are-compiled`'s own
     /// `#[Option] uint $retries = 3`, and `None` for a parameter a command line
     /// must fill itself.
     ///
@@ -149,7 +149,7 @@ pub struct CommandArg {
     pub default: Option<String>,
 }
 
-/// § 6's "a matched value's text is converted during matching, and its type
+/// `rule:tooling/commands-are-compiled`'s "a matched value's text is converted during matching, and its type
 /// comes from the parameter", as the one closed set a matcher needs.
 ///
 /// Decided by [`conversion_of`] in the walk that builds the row, off the same
@@ -163,9 +163,9 @@ pub struct CommandArg {
 /// a lookup key, so there is nothing for a copy to save.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ArgConv {
-    /// `string` — the argument's own text, which arrives `tainted` (§ 6).
+    /// `string` — the argument's own text, which arrives `tainted` (`rule:tooling/commands-are-compiled`).
     Text,
-    /// `bool` — the flag § 6 gives an `#[Option]`, written rather than given.
+    /// `bool` — the flag `rule:tooling/commands-are-compiled` gives an `#[Option]`, written rather than given.
     Flag,
     /// `int`.
     Int,
@@ -173,7 +173,7 @@ pub enum ArgConv {
     Uint,
     /// `decimal` — `rule:types/decimal`'s exact number.
     Decimal,
-    /// A class implementing `Parses`, named as § 6's usage line writes it: the
+    /// A class implementing `Parses`, named as `rule:tooling/commands-are-compiled`'s usage line writes it: the
     /// text is what its `parse` reads, and `rule:expressions/try-parse` is the
     /// contract that makes the pair a conversion rather than a convention.
     ///
@@ -206,14 +206,14 @@ pub enum ArgConv {
     /// `crate::routes::enum_capture` takes the other way for a route segment:
     /// one written by a link and read by `rule:routing/a-capture-narrows-to-a-closed-set`
     /// is spelled by a written backing value where its subset has one. Here `rule:enums/no-class-machinery`'s
-    /// backing value is the alternative and it loses on § 6's own argument — the
+    /// backing value is the alternative and it loses on `rule:tooling/commands-are-compiled`'s own argument — the
     /// refusal below names every value that would have been accepted *because a
     /// command line is a person typing*, and a list of integers is not that
     /// sentence. A backing value is storage: it is chosen for a table or a wire
     /// format, an author may renumber it without touching a name, and nobody
     /// typing `--level 2` has anything to check it against.
     ///
-    /// **The class is on the row and is not decoration.** § 6's usage line and
+    /// **The class is on the row and is not decoration.** `rule:tooling/commands-are-compiled`'s usage line and
     /// this conversion's refusal both say what the words are cases *of*, which
     /// no set of bare words can answer — and it is the half [`Self::OneOf`]
     /// deliberately has not got, because a union of literals is not named.
@@ -225,7 +225,7 @@ pub enum ArgConv {
     /// enum once, exactly as [`Self::OneOf`] resolved its union once, and the
     /// answer crosses rather than a key to look it up with.
     Enum {
-        /// The enum's declared name, written as § 6's usage line writes it.
+        /// The enum's declared name, written as `rule:tooling/commands-are-compiled`'s usage line writes it.
         class: String,
         /// Every case: the word, and the value it becomes. **Ascending by
         /// value**, because [`crate::enums::EnumInfo::cases`] is a map with no
@@ -235,13 +235,13 @@ pub enum ArgConv {
         cases: Vec<(String, crate::enums::EnumValue)>,
     },
     /// A parameter whose declared type reaches no conversion at all: a type
-    /// § 6 does not admit, a union of cases of two different enums — which
+    /// `rule:tooling/commands-are-compiled` does not admit, a union of cases of two different enums — which
     /// leaves no enum for a word to be a case *of*
     /// (`crate::routes::admitted_cases`) — or an enum name the program declares
     /// nothing for.
     ///
     /// **Where the parameter carries `#[Option]` this row never reaches a
-    /// running program**: § 6's third compile error is [`check_convertible`],
+    /// running program**: `rule:tooling/commands-are-compiled`'s third compile error is [`check_convertible`],
     /// asked of the same [`converts_from_string`] that decides this arm, so the
     /// declaration is refused where it is written. A *positional* parameter is
     /// the one that crosses, because that error follows the marker rather than
@@ -272,7 +272,7 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         Ty::Decimal => ArgConv::Decimal,
         // Matched structurally, by the same predicate [`converts_from_string`]
         // admits a class with — two readings of one contract, so they cannot
-        // come to disagree about which classes § 6 means.
+        // come to disagree about which classes `rule:tooling/commands-are-compiled` means.
         Ty::Class(name, _) if reaches_parses(name, env) => ArgConv::Parses(name.to_string()),
         // § 3's two unions, told apart by what they are made of. A union of
         // single-value types is the words its members admit, by the same computation
@@ -353,14 +353,14 @@ fn subset_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
 /// copy of this crate's tables.
 #[derive(Debug)]
 pub struct Command {
-    /// § 6's `name:` — the word a command line selects this command by, and
+    /// `rule:tooling/commands-are-compiled`'s `name:` — the word a command line selects this command by, and
     /// the key [`CommandTable::named`] answers.
     pub name: String,
     /// The span that wrote [`Self::name`], because a duplicate is reported at
     /// the field rather than at the attribute — [`crate::routes::Route::name`]
     /// carries its span for the same reason.
     pub name_span: Span,
-    /// § 6's `about:`, the line `Core\Command::help` renders beside the name.
+    /// `rule:tooling/commands-are-compiled`'s `about:`, the line `Core\Command::help` renders beside the name.
     /// `None` where the author wrote none, and nothing is derived from the
     /// method's own name: a generated sentence reads exactly like a written one.
     pub about: Option<String>,
@@ -398,7 +398,7 @@ impl CommandTable {
     }
 
     /// The row a command line's first word names, or `None` where the program
-    /// declares no such command — which is the one lookup § 6's dispatch makes.
+    /// declares no such command — which is the one lookup `rule:tooling/commands-are-compiled`'s dispatch makes.
     ///
     /// The first match, which is the only one that can be reached: two rows
     /// claiming one name is [`code::E_DUPLICATE_COMMAND`], so a program in
@@ -409,11 +409,11 @@ impl CommandTable {
     }
 }
 
-/// Every `#[Command]` method `decl` declares, held to those of § 6's compile
+/// Every `#[Command]` method `decl` declares, held to those of `rule:tooling/commands-are-compiled`'s compile
 /// errors that one parameter list answers, and collected into `env`'s table.
 ///
 /// A no-op — not even a lookup — for a class carrying no `#[Command]`, which is
-/// what keeps § 6's "a program with no `#[Command]` pays nothing" true of this
+/// what keeps `rule:tooling/commands-are-compiled`'s "a program with no `#[Command]` pays nothing" true of this
 /// pass as well as of the table.
 ///
 /// Run from [`crate::check`]'s per-class walk rather than from
@@ -455,12 +455,12 @@ pub(crate) fn check_class_commands(
 /// `rule:tooling/commands-are-compiled`'s facts about the *declaration* a `#[Command]` sits on: it
 /// is `static`, and it returns `void` or `uint`.
 ///
-/// The return half is § 6 in prose — `Core\Command::run(): uint` is the entry
+/// The return half is `rule:tooling/commands-are-compiled` in prose — `Core\Command::run(): uint` is the entry
 /// point and a handler answers with the process status or with nothing, which
-/// is status 0. `static` is the half § 6's example writes and its dispatch
+/// is status 0. `static` is the half `rule:tooling/commands-are-compiled`'s example writes and its dispatch
 /// requires: this table's row carries a `Class::method` string and no
 /// constructor arguments anywhere in it, so a handler has no instance to be
-/// called on, and § 6's one deliberate divergence from `rule:routing/routes-are-compiled-not-registered` is that this
+/// called on, and `rule:tooling/commands-are-compiled`'s one deliberate divergence from `rule:routing/routes-are-compiled-not-registered` is that this
 /// table *dispatches* rather than stopping at the match.
 ///
 /// Read off the resolved signature rather than off `m`'s modifier list, and
@@ -558,7 +558,7 @@ fn collect_command(attr: &Attribute, handler: &str, args: &[CommandArg], env: &m
     });
 }
 
-/// § 6's compile error over the finished table: two commands claiming one
+/// `rule:tooling/commands-are-compiled`'s compile error over the finished table: two commands claiming one
 /// name.
 ///
 /// Run once at the end of [`crate::check::check_program`] rather than as each
@@ -660,7 +660,7 @@ fn check_options(
         // a row, and what stays*).
         let declared = sig.and_then(|sig| sig.params.get(index).copied());
         let conv = declared.map_or(ArgConv::Text, |ty| conversion_of(ty, env));
-        // Read for every parameter too, and for the same reason: § 6 infers
+        // Read for every parameter too, and for the same reason: `rule:tooling/commands-are-compiled` infers
         // nothing from a default, so a positional carries one exactly as an
         // option does. Already folded and already diagnosed by
         // `crate::defaults` — this walk reads the answer rather than the
@@ -672,7 +672,7 @@ fn check_options(
         let Some(attr) =
             crate::testing::attribute_named(&param.attributes, crate::derive::OPTION, ctx, env)
         else {
-            // § 6's positional argument: no attribute, no spelling, and its
+            // `rule:tooling/commands-are-compiled`'s positional argument: no attribute, no spelling, and its
             // place in this list is the place a command line fills it from.
             args.push(CommandArg {
                 param: name,
@@ -822,7 +822,7 @@ fn folded_option(attr: &Attribute, option: &str, env: &mut Env<'_>) -> Option<(S
     }
 }
 
-/// § 6's compile error about a parameter's type: the parameter an `#[Option]`
+/// `rule:tooling/commands-are-compiled`'s compile error about a parameter's type: the parameter an `#[Option]`
 /// is attached to must have a type an argument's text can be converted to.
 fn check_convertible(param: &Param, method: &str, ty: TypeId, env: &mut Env<'_>) {
     if converts_from_string(ty, env) {
@@ -843,8 +843,8 @@ fn check_convertible(param: &Param, method: &str, ty: TypeId, env: &mut Env<'_>)
     );
 }
 
-/// `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster, which § 6 takes unchanged, plus the one
-/// row § 6 adds: a `bool` `#[Option]` is a flag, so it is given by being
+/// `rule:security/route-capture-is-laundered-by-its-type`'s conversion roster, which `rule:tooling/commands-are-compiled` takes unchanged, plus the one
+/// row `rule:tooling/commands-are-compiled` adds: a `bool` `#[Option]` is a flag, so it is given by being
 /// written rather than by carrying text.
 ///
 /// The one home for "what an argument's text may become", so the route table's

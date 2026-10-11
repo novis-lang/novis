@@ -87,8 +87,8 @@ pub struct Link {
 /// One range the client conceals, as `nvs/redactions` answers it.
 ///
 /// The kind is an open string on the wire (`secretLiteral` today), so it is one
-/// here too — ADR 0101 § 1 owns the roster, and a rendering that closed it
-/// would have to change for a qualifier this module knows nothing about.
+/// here too — `rule:ide/redaction-ranges-come-from-the-server` owns the roster,
+/// and a rendering that closed it would have to change for a qualifier this module knows nothing about.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Redaction {
     /// The bytes concealed — a literal token or an interpolation slot, and
@@ -875,7 +875,8 @@ mod tests {
             assert_eq!(answer.render(), "none\n", "{:?}", answer.request());
         }
 
-        // The spellings themselves, one per kind, as ADR 0099 § 5 writes them.
+        // The spellings themselves, one per kind, as
+        // `rule:ide/the-rendering-has-one-home` writes them.
         assert_eq!(
             Response::Diagnostics(vec![
                 diagnostic_of(3, "E0301", "`$x` is assigned to but was never declared"),

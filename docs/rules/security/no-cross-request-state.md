@@ -13,3 +13,9 @@ This does not close operator configuration, which is governed, per-request, and 
 operator's ceiling. The rule is about **userland calls whose effect outlives or escapes the caller's
 own request**. The replacement is a per-core or real shared cache, where the sharing is explicit,
 bounded, and visible in the grants.
+
+**Declined:**
+- **A read-only shared segment for caches, with writes going through a coordinator.** Read-only is
+  not the property that matters: any shared mapping lets one request's failure leave another
+  request's view inconsistent, and the value it holds still crosses the boundary
+  `rule:classes/two-copy-depths` governs.

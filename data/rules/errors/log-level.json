@@ -1,9 +1,7 @@
 {
   "title": "Five levels, and the mapping to syslog is fixed",
   "status": "shipped",
-  "because": [
-    "0092"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/log-write",
     "errors/diagnostic-record"

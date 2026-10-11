@@ -15,7 +15,7 @@ homepage.workspace = true
 # not run rustdoc over it. A crate that gains one deletes this table.
 doctest = false
 
-# ADR 0132 § 1 fixes this crate's place in the graph, and the direction is the
+# `rule:core-classes/db-crate-boundary` fixes this crate's place in the graph, and the direction is the
 # part that matters: `nvs-stdlib` depends on this crate and never the reverse.
 # `Core\Db`'s registry rows, reference cards and helper bodies stay where every
 # other class's are; the wire lives here. A single `use nvs_stdlib::…` added to
@@ -23,25 +23,25 @@ doctest = false
 # on both manifests rather than only on the one that adds the edge.
 [dependencies]
 # Values, `Ctx` and faults. A driver answers with `nvs-runtime`'s values for ADR
-# 0067 § 9's scalar rows, and with parsed components of its own — `PgScalar` —
+# `rule:core-classes/db-column-types`'s scalar rows, and with parsed components of its own — `PgScalar` —
 # for the structured ones, since a `Core\Time` or `Core\Uuid` instance needs
 # `nvs-stdlib`'s class descriptors and that edge is the cycle above. A protocol
 # failure becomes a `Fault` there, so this crate defines no error type that has
 # to be translated at the `Core\Db` boundary.
 nvs-runtime.workspace = true
-# The parking stream, its TLS session, and the blocking pool ADR 0132 § 3 hands
+# The parking stream, its TLS session, and the blocking pool `rule:core-classes/db-crate-boundary` hands
 # SQLite to. This edge is why no driver here needs an async runtime: a socket
 # that hands the core back is a plain `Read`/`Write` to everything above it, so
 # a sans-IO codec is the only other half required.
 nvs-host.workspace = true
-# ADR 0067 § 2's `[db.*]` block, which is the only place a connection is named,
+# `rule:core-classes/db-connection-is-named`'s `[db.*]` block, which is the only place a connection is named,
 # and the capability enum that gates reaching one at all.
 nvs-config.workspace = true
 
-# The wire crates of ADR 0132 § 2 are declared in the workspace manifest and are
+# The wire crates of `rule:core-classes/db-crate-boundary` are declared in the workspace manifest and are
 # taken here one driver at a time, so the audit surface this crate exists to
 # concentrate stays a list of what is actually reachable. `rusqlite` is the one
-# that costs something to add: it is a C dependency, and ADR 0132 § 2 requires
+# that costs something to add: it is a C dependency, and `rule:core-classes/db-crate-boundary` requires
 # the slice that takes it to add its row to `tools/nv/cmd/gen-attribution.ts`'s
 # `C_DEPENDENCIES` ledger in the same commit -- that gate fails both ways, on an
 # unrecorded C crate in the graph and on a recorded one that is not in it.
@@ -60,7 +60,7 @@ postgres-protocol.workspace = true
 # graph free of C.
 mysql_common.workspace = true
 # Named only to select the backend `mysql_common` compresses with -- the
-# workspace manifest owns why, and nothing in this crate calls it. ADR 0067
+# workspace manifest owns why, and nothing in this crate calls it. `Core\Db`
 # offers no compressed connection, so the code behind this is unreachable; what
 # the entry buys is that the unreachable half is `miniz-oxide` rather than
 # `libz-sys`.
@@ -76,7 +76,7 @@ fallible-iterator.workspace = true
 # is the only backend with no wire at all -- there is no framing to borrow and
 # no handshake to write, so unlike the other four this dependency *is* the
 # protocol, and what `sqlite.rs` adds around it is the blocking-pool handoff
-# ADR 0132 § 3 requires and ADR 0067's own vocabulary on top.
+# `rule:core-classes/db-crate-boundary` requires and `Core\Db`'s own vocabulary on top.
 rusqlite.workspace = true
 
 # The SCRAM server `pg.rs`'s tests answer with. It exists because the compose

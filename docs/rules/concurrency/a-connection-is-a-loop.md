@@ -14,3 +14,8 @@ forever, because a program that could not tell a delivered frame from an abandon
 recover.
 
 A `Core\Socket\Message` cannot be constructed, so the only way to hold one is to have received it.
+
+**Declined:**
+- **A callback handler interface** (`onOpen`, `onMessage`, `onClose`). It is the shape a language
+  with coloured async settles on, and stackful coroutines exist so that control flow stays
+  straight-line.

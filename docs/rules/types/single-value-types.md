@@ -27,6 +27,26 @@ itself — the target a closed set, the operand naming one value — and otherwi
 conversion answered at run time. A `tainted` or `secret` value needs the same laundering it would need
 to leave `mixed` for any other typed binding; neither qualifier gets a rule of its own here.
 
-Two limits are deliberate: **no `float` single-value type**, because float equality is imprecise enough
-that a type allowing only `0.1` is a footgun; and **no wildcard matching** over constant or case names,
-since the whole point is that the accepted set is spelled out.
+There is **no `float` single-value type**, because float equality is imprecise enough that a type
+allowing only `0.1` is a footgun.
+
+A parameter that accepts exactly a few values is a value constraint, and untrusted input meets it
+through the same reviewable, throwing `as` every other conversion uses. Reusing the union and
+conversion machinery, the way `true|false` already sat inside it as `bool`, adds no new kind of thing
+to the language.
+
+**Declined:**
+- **Wildcard matching over constant or case names** (`Foo::TYPE_*`). The accepted set is not visible
+  at the call site without reading `Foo`, and it grows silently the day a new `TYPE_*` constant is
+  added. Naming the exact constants (`rule:types/constant-in-type-position`) reuses the group without
+  either problem.
+- **An attribute listing the expected values.** Attributes are inert metadata
+  (`rule:attributes/inert-metadata`), so enforcing one would be a second checking pass beside the
+  type checker. It would also lose what a real type has: narrowing, the checked `as`, and static
+  knowledge for code generation.
+- **A `oneof(…)` or `literal(…)` type constructor.** The union syntax and its canonicalisation
+  already exist and single-value atoms compose with them, so a keyword would be a second way to write
+  a set of allowed values (`rule:statements/nothing-gets-a-second-name`).
+- **A run-time validator call** such as `Core\Arr::contains(["a", "b", "c"], $x)` in place of a type.
+  It is not visible in the parameter's declared type, and it is a second, weaker mechanism beside the
+  type system.

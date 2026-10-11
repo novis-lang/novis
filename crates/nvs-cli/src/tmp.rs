@@ -1,9 +1,9 @@
 //! `nvs tmp clean` — `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep, as the operator's own door.
 //!
 //! The runtime deletes a temporary directory when its script ends
-//! (`nvs_runtime::sweep`, § 3) and reclaims a hard-killed script's leftovers at
-//! `nvs serve` boot (`crate::serve::sweep_orphans`, § 4). This command is the
-//! other half of § 4, and it exists because those two do not cover a machine
+//! (`nvs_runtime::sweep`, `rule:core-classes/temporary-dir-sweep`) and reclaims a hard-killed script's leftovers at
+//! `nvs serve` boot (`crate::serve::sweep_orphans`, `rule:core-classes/temporary-dir-orphan-sweep`). This command is the
+//! other half of `rule:core-classes/temporary-dir-orphan-sweep`, and it exists because those two do not cover a machine
 //! that never runs a server: on one of those, a leftover waits here or waits
 //! forever.
 //!
@@ -15,7 +15,7 @@
 //! is the operator's half of it: the configured root, one line per path, and
 //! `--dry-run`.
 //!
-//! **There is no force flag.** § 4 says so in as many words, and it is the one
+//! **There is no force flag.** `rule:core-classes/temporary-dir-orphan-sweep` says so in as many words, and it is the one
 //! flag an operator would eventually reach for: a sweep that could be told to
 //! ignore liveness is a sweep that can delete a running process's directory out
 //! from under it, which is precisely what keying on liveness rather than age
@@ -37,7 +37,7 @@
 //! which root it was being asked about. Everything after that succeeds: a root
 //! that is not there has nothing in it, and a deletion the platform refuses — on
 //! Windows, routinely a handle an indexer is holding — is a printed line and an
-//! entry that waits for the next sweep, exactly as § 4 states. An operator's
+//! entry that waits for the next sweep, exactly as `rule:core-classes/temporary-dir-orphan-sweep` states. An operator's
 //! cleanup command that exits non-zero because a scanner had a file open is a
 //! failing deployment step over nothing.
 //!
@@ -125,7 +125,7 @@ fn root(config: &[PathBuf], missing: &str) -> Result<PathBuf, ExitCode> {
 /// whole of what this command *does*, separated from where it learns the root so
 /// that a case can point it at a directory it built.
 ///
-/// **Every path is named, whichever way it went.** § 4 asks for the removals to
+/// **Every path is named, whichever way it went.** `rule:core-classes/temporary-dir-orphan-sweep` asks for the removals to
 /// be printed; a refusal is printed too, because an operator who was told
 /// nothing would read the silence as a cleared root and the entry would sit
 /// there unaccounted for. A dry run prints the same list under a different verb
@@ -196,14 +196,14 @@ mod tests {
         String::from_utf8(out).expect("this command writes paths and English")
     }
 
-    /// § 4's rule at the operator's door, asserted from both sides at once: the
+    /// `rule:core-classes/temporary-dir-orphan-sweep`'s rule at the operator's door, asserted from both sides at once: the
     /// dead owner's entry goes and everything else stays.
     ///
     /// The live owner's entry is the one that matters — it is a *deletion* if
     /// the liveness question is asked the wrong way round — and the operator's
     /// own directory matters beside it: the root is Novis's, but a name this
     /// runtime never wrote is still not this command's to remove. The printed
-    /// lines are asserted as well as the disk, because § 4 asks for the removals
+    /// lines are asserted as well as the disk, because `rule:core-classes/temporary-dir-orphan-sweep` asks for the removals
     /// to be named and a sweep that cleared the root silently would pass every
     /// assertion about the filesystem.
     #[test]
@@ -230,7 +230,7 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
-    /// § 4's `--dry-run`, asserted as *the same answer without the effect*: the
+    /// `rule:core-classes/temporary-dir-orphan-sweep`'s `--dry-run`, asserted as *the same answer without the effect*: the
     /// flag prints the entry, leaves it standing, and the run that follows
     /// removes exactly what the dry run said it would.
     ///
@@ -264,11 +264,11 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("the case removes what it made");
     }
 
-    /// § 4's "liveness, **never** age", which is the whole reason the predicate
+    /// `rule:core-classes/temporary-dir-orphan-sweep`'s "liveness, **never** age", which is the whole reason the predicate
     /// is what it is: an entry old enough that any age rule would take it, whose
     /// owner is this very process, survives.
     ///
-    /// Both § 4 doors are covered by one fixture, because both are
+    /// Both `rule:core-classes/temporary-dir-orphan-sweep` doors are covered by one fixture, because both are
     /// [`nvs_runtime::sweep::orphans`] plus what they do with the answer — the
     /// boot sweep hands it to `refusals` (`crate::serve::sweep_orphans`) and
     /// this command prints it — so an entry the walk never answers is one no
@@ -297,7 +297,7 @@ mod tests {
         assert_eq!(
             nvs_runtime::sweep::orphans(&root),
             Vec::<PathBuf>::new(),
-            "the walk both § 4 doors take answers nothing at all in {}",
+            "the walk both `rule:core-classes/temporary-dir-orphan-sweep` doors take answers nothing at all in {}",
             root.display()
         );
         assert_eq!(

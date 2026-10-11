@@ -6,8 +6,7 @@
 //! # Why the encoder is here
 //!
 //! The same reading that put the exposition format in [`crate::prometheus`]
-//! puts this one here (`docs/decisions/0186.md` § *Investigation*):
-//! `opentelemetry-otlp` fails
+//! puts this one here: `opentelemetry-otlp` fails
 //! `rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`'s
 //! predicate — it brings a runtime and a client of its own — and what is left
 //! once those are refused is a protobuf encoder of a few dozen bytes per span

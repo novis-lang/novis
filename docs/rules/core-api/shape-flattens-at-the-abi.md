@@ -16,3 +16,15 @@ for this to matter is a member that wanted an enum.
 
 A qualifier classification lands on the **field**, not the parameter
 (`rule:core-api/qualifier-behaviour-is-declared`), so a shape's fields are walked rather than exempted.
+
+Because nothing exists to pass, a shape argument is written out in the call itself, and a variable holding
+one is refused (`rule:core-api/shape-reuses-the-option-diagnostics`). A program still computes every
+field's value wherever it likes, as a settings object built per tenant does; only the braces must be
+written at the call. Lifting this means giving a shape a run-time representation, a much larger change
+taken for its own reasons if it is ever taken.
+
+**Declined:**
+- **A run-time shape value, passed as one argument.** It settles the arity question outright, and its
+  allocation is small beside opening a socket. But no run-time representation of an anonymous object
+  exists, so it trades one merged field list in the call lowering for a new value kind in the IR and the
+  runtime, to serve one member.

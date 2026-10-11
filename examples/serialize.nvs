@@ -1,12 +1,6 @@
 <?nvs
-// ADR 0023's one graph copy, reached through its externalizing carrier —
-// `Core\Serialize::encode`/`decode`, § 2's second row.
-//
-// The four lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`; the source is not. Nothing below declares a `__serialize`, a
-// `__sleep` or a `__wakeup`, and not because this fixture omits them: § 2
-// says no hook fires, so the shape that crosses is exactly the class's own
-// declared properties, every time.
+// This program turns objects into bytes with `Core\Serialize::encode` and back with `decode`.
+// A class cannot change how this works. Only its declared properties are saved.
 class Slot
 {
     public int $n = 0;
@@ -17,9 +11,7 @@ class Slot
     }
 }
 
-// § 2: a *graph*, not a tree — a cycle terminates instead of recursing
-// forever, which is the case a naive walk hangs on and the reason this class
-// is here at all.
+// A `Ring` can point at itself. The copy must stop at a loop like this.
 class Ring
 {
     public int $id = 0;
@@ -32,9 +24,8 @@ class Ring
     }
 }
 
-// § 2: the copy is built by direct assignment into the new instance's
-// storage and never runs a constructor, so a round trip is an identity on
-// the declared properties and on nothing else.
+// `decode` sets the properties directly. It does not run the constructor.
+// This prints `round-trip ok`.
 var $blob = Core\Serialize::encode(new Slot(7));
 Slot $back = Core\Serialize::decode($blob) as Slot;
 if ($back->n == 7) {
@@ -43,9 +34,8 @@ if ($back->n == 7) {
     echo 'round-trip lost the value', "\n";
 }
 
-// The cycle. `$ring->self` points at `$ring`, so a walk that does not
-// remember what it has already seen never returns; what § 2 guarantees is
-// that the copy is cyclic in the same place rather than unrolled or cut.
+// `$ring->self` points at `$ring`. The copy points at itself in the same way.
+// This prints `cycle ok`.
 var $ring = new Ring(1);
 $ring->self = $ring;
 Ring $copy = Core\Serialize::decode(Core\Serialize::encode($ring)) as Ring;
@@ -55,10 +45,8 @@ if (($copy->self?->id ?? 0) == 1) {
     echo 'cycle was not preserved', "\n";
 }
 
-// § 3 and goal item 19: the format is Novis's own, closed and versioned, and
-// bytes that are not it are refused *whole*. A partial accept is the type
-// confusion `decode` is a `tainted` sink for (01-core-library.md § 13), so
-// the refusal is the assertion — not what any field of the result holds.
+// `decode` only reads bytes that `encode` wrote. Other bytes throw a `ParseError`.
+// This prints `refused: not our format`.
 try {
     Core\Serialize::decode('not novis bytes' as bytes);
     echo 'garbage was accepted', "\n";
@@ -66,16 +54,8 @@ try {
     echo 'refused: not our format', "\n";
 }
 
-// Item 19's other half: bytes naming a class whose declared properties no
-// longer match are refused whole as well, and this is the case a
-// version-tolerant decoder gets wrong by filling the gap with a default.
-//
-// One program cannot produce these bytes — a file declares `Slot` once — so
-// the golden below is an encoding of a `Slot` made under a *different*
-// declaration of it: the same class name, with a second `int $extra` beside
-// `$n`. It is the format `crates/nvs-runtime/src/graph.rs` writes, byte for
-// byte, which is why it is written directly in the code here rather than something this program
-// could produce. A version bump there rewrites this line.
+// These bytes are an older `Slot` with a second property, `$extra`. The class
+// has changed, so `decode` throws a `ParseError`, and this prints `refused: shape changed`.
 var $stale = "NVS\x1b\x01\x09\x04Slot\x02\x01n\x05extra\x02\x07\x00\x00\x00\x00\x00\x00\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00" as bytes;
 try {
     Core\Serialize::decode($stale);
@@ -84,13 +64,7 @@ try {
     echo 'refused: shape changed', "\n";
 }
 
-// The fixture's own cleanup, and not a property of `Core\Serialize`: Novis
-// refcounts and has no cycle collector (`crates/nvs-runtime/src/object.rs`
-// § *Decision: no cycle collector*; ADR 0116's *Consequences* says the same for
-// an isolate's teardown drain). Both rings above hold their own last reference
-// through `$self`, so dropping the locals frees nothing and the process exits
-// holding 48 bytes each — which `tools/leak-check.sh` reports as two definite
-// losses, correctly. Breaking the cycle by hand is what a program with a
-// genuinely cyclic structure has to do until the collector exists.
+// Each ring still points at itself, so it is never freed.
+// Setting `self` to `null` breaks the loop, and the memory is freed.
 $ring->self = null;
 $copy->self = null;

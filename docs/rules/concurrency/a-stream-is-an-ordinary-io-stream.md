@@ -11,3 +11,9 @@ What it costs is that a stack is the unit of concurrency
 (`rule:concurrency/a-task-stack-is-reserved-wide-and-pooled`): a task is about a megabyte of address
 space rather than the hundred bytes a stackless future would be. Simplicity of the language surface
 outranks footprint, and that trade is taken knowingly.
+
+**Declined:**
+- **A stackless transform of Novis functions.** It would shrink a task to a few hundred bytes, which
+  is how async languages reach their concurrency counts, but it colours every function that can
+  suspend, and the colour reaches the language surface: a `Core` member that reads a socket would
+  need a form ordinary code cannot call.

@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Socket` and `Core\\Sse` are two hand-overs onto one isolate, and each reports the one it is missing",
   "status": "shipped",
-  "because": [
-    "0083"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/a-stream-that-outlives-its-request-is-a-connection",
     "concurrency/a-connection-is-a-root-isolate"

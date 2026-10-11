@@ -15,5 +15,10 @@ and `null` exactly when `allowed` is true — absence is `?T`, not a sentinel ze
 qualifier-neutral. The key **accepts `tainted`**, since a tenant or account id is user-derived by
 nature and the store's protocol is length-prefixed, so a key cannot reshape a command; it
 **refuses `secret`**, because using a signing key as a rate-limit key writes it into a store with a
-TTL. The in-process tier is an existing crate; the shared tier is a small script of our own, an
-algorithm over our own state.
+TTL. A program that needs to limit on a secret keys on a hash of it (`Core\Hash::of`). The
+in-process tier is an existing crate; the shared tier is a small script of our own, an algorithm
+over our own state.
+
+**Declined:**
+- **A sliding-window counter or log.** The counter cannot give an exact `retryAfter`, and the log
+  holds O(requests in window) per key in a store somebody pays for.

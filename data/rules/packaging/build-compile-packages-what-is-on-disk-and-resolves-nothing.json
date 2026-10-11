@@ -1,9 +1,7 @@
 {
   "title": "`nvs build --compile` packages what is already resolved on disk and fetches no dependency",
   "status": "shipped",
-  "because": [
-    "0048"
-  ],
+  "because": [],
   "seeAlso": [
     "packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host"
   ],

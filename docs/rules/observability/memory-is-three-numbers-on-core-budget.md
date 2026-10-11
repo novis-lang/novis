@@ -3,9 +3,9 @@ holds right now, `memoryPeak()` the high-water mark of that figure for this requ
 `memoryLimit()` the ceiling both are measured against.
 
 ```nvs
-Core\Budget::memoryHeld():  int
-Core\Budget::memoryPeak():  int
-Core\Budget::memoryLimit(): int
+Core\Budget::memoryHeld():  uint
+Core\Budget::memoryPeak():  uint
+Core\Budget::memoryLimit(): uint
 ```
 
 **`held`, not `usage`**, because the runtime already says *held*: a breach renders as *"the request
@@ -36,3 +36,13 @@ who had not been told otherwise, which is the same ambiguity relocated rather th
 There is no `$real_usage`-style boolean in any spelling. Two accountings behind one member is what
 `rule:core-api/no-mode-strings` refuses, and where two numbers are genuinely different questions they
 are two members on the two classes that own them.
+
+The three members are the whole class, and `Core\Budget` is not a home for anything else that happens
+to be a number.
+
+**Declined:**
+- **`Core\Os::memoryPeak` beside a per-request figure on `Core\Os`.** The smallest edit, and it leaves
+  per-request figures among host facts, which is the ambiguity this rule removes.
+- **Renaming the figure in place on `Core\Os`.** It fixes the vague word and not the class.
+- **A fourth `memoryHeadroom()` member.** It is `memoryLimit() - memoryHeld()` at the call site, and
+  a member per piece of arithmetic is how a three-member class becomes a nine-member one.

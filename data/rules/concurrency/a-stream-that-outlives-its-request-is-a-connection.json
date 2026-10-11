@@ -1,17 +1,16 @@
 {
   "title": "A stream that ends with its response is a streaming response; one that outlives it is a connection isolate",
   "status": "shipped",
-  "because": [
-    "0083",
-    "0176",
-    "0177"
-  ],
+  "because": [],
   "seeAlso": [
     "concurrency/two-doors-one-isolate",
     "concurrency/a-connection-is-a-root-isolate"
   ],
   "guardedBy": [
     "crates/nvs-runtime/src/stream.rs",
-    "crates/nvs-server/src/serve.rs"
+    "crates/nvs-server/src/serve.rs",
+    "tests/conformance/core/an-event-stream-that-ends-with-its-request-frames-every-event.nvst",
+    "tests/conformance/core/a-response-body-stream-is-not-an-event-stream-and-answers-no-handle.nvst",
+    "crates/nvs-runtime/src/sse.rs"
   ]
 }

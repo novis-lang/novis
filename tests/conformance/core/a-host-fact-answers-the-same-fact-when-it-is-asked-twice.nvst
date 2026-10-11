@@ -34,7 +34,7 @@ if ($firstCores == $secondCores) {
 // the member's whole reading: a resident high-water mark can only grow, so a
 // second answer below the first would mean this reports what the process holds
 // right now — which is `Core\Budget::memoryHeld`'s question and not this one
-// (ADR 0148 § 12).
+// (`rule:observability/memory-is-three-numbers-on-core-budget`).
 uint $firstResident = Core\Os::residentBytes();
 uint $secondResident = Core\Os::residentBytes();
 if ($secondResident >= $firstResident) {

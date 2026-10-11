@@ -2,7 +2,6 @@
   "title": "`Core\\Program::implementing<T>()` lists every concrete class that is a `T`, for an interface or a class, and it expands while compiling",
   "status": "shipped",
   "because": [
-    "0061",
     "0253"
   ],
   "seeAlso": [

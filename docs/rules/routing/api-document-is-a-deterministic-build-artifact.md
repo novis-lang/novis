@@ -13,3 +13,7 @@ OpenAPI 3.1 only, whose schema dialect is JSON Schema, so every declared type ma
 3.0 downgrade path and no Swagger 2: an older version would mean deciding what to drop when the
 type system says something it cannot express. A handler answering HTML or a stream appears as an
 operation with an opaque response — honest, and not very useful.
+
+**Declined:**
+- **A document the running server builds and serves as an endpoint.** It puts work on the request
+  path for a value that changes only when the code does, which is what the artifact cache is for.

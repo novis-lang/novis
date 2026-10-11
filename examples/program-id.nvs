@@ -1,12 +1,10 @@
 <?nvs
 // This program's identity, as a program.
 //
-// [ADR 0061](/docs/decisions/0061.md)
-// § 6 is the whole story. `Core\Program::id()` is `BLAKE3` over every
-// compiled unit's content hash, in program order, folded with the digest of
-// the environment they were compiled for — the two halves ADR 0042's cache
-// address is already made of, so the identity of a program costs one combine
-// over digests the caches were holding anyway.
+// `Core\Program::id()` is a `BLAKE3` hash. It combines the hash of every
+// compiled file, in program order, with the hash of the environment they were
+// compiled for. The compile cache already has both hashes, so the id costs
+// one more hash.
 //
 // The interesting thing about this fixture is what it *cannot* print: the id
 // itself. The value is a digest of this file's own bytes, so writing it into
@@ -16,9 +14,9 @@
 // change the unit it was folded into.
 //
 // So both lines below are properties, counted rather than read off: the shape
-// of the answer, and that it does not move while the program runs. § 6
-// computes it once, at program resolution, and again only at a hot-reload
-// swap; nothing here recomputes, caches or shortens anything.
+// of the answer, and that it does not move while the program runs. The id is
+// computed once when the program loads, and again only when a changed file is
+// reloaded. Nothing here recomputes, caches or shortens anything.
 //
 // The two lines this prints are frozen by an exact check in a goal record
 // under `data/goals/`; the source is not.

@@ -1,12 +1,7 @@
 {
   "title": "Executing a program is deny-by-default under its own capability, and there is no shell to interpolate into",
   "status": "shipped",
-  "because": [
-    "0044",
-    "0118",
-    "0112",
-    "0024"
-  ],
+  "because": [],
   "seeAlso": [
     "security/capability-check-at-the-door",
     "security/sink-predicate",

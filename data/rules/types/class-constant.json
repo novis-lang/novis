@@ -1,11 +1,7 @@
 {
   "title": "`::class` answers the class the value is, and folding is an optimization of that",
   "status": "shipped",
-  "because": [
-    "0144",
-    "0125",
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "types/class-reference",
     "types/conversion",
@@ -14,6 +10,7 @@
   "guardedBy": [
     "tests/conformance/lang/a-class-name-constant-is-its-own-fully-qualified-name.nvst",
     "tests/conformance/lang/a-class-name-constant-needs-a-class-the-compiler-resolves.nvst",
-    "tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst"
+    "tests/conformance/class/a-class-reference-converts-back-to-the-name-it-names.nvst",
+    "tests/conformance/class/a-class-name-constant-answers-the-class-the-call-was-made-on.nvst"
   ]
 }

@@ -18,3 +18,7 @@ error. The surface the table refers to is `rule:packaging/the-versioned-surface-
 ladder its last rows send a change down is `rule:packaging/a-dependency-break-is-absorbed-never-forwarded`.
 Nothing checks the classification; it is addressed to whoever runs the sweep, and the commit message
 is where it becomes visible (`rule:packaging/one-bump-one-commit`).
+
+**Declined:**
+- **Every observable change is a major.** Bug fixes would become unshippable, and a major would mean
+  nothing.

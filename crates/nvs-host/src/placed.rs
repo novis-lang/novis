@@ -4,7 +4,7 @@
 //! `rule:concurrency/on-worker-runs-the-child-on-another-core` is the
 //! specification and [`crate::worker`] is the transport; this module is the one
 //! thing neither of those can be, which is an isolate rebuilt from parts on a
-//! core that never held its parent. ADR 0184 §§ 2–4 is the reasoning.
+//! core that never held its parent.
 //!
 //! # What crosses, and why it is parts rather than an isolate
 //!
@@ -26,7 +26,7 @@
 //! [`Completion`] except the one that is a graph, plus that graph's bytes. The
 //! parent decodes it into its own arena at the join, against its own class
 //! table, so what a placed child answers with is a copy at every node — the cost
-//! ADR 0184 § 2 says belongs to the placement and the reason `on: "here"`
+//! the rule says belongs to the placement and the reason `on: "here"`
 //! exists.
 //!
 //! # Both entry forms cross

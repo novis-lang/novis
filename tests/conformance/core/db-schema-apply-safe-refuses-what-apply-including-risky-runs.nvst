@@ -5,7 +5,7 @@
 // covers: Core\Db\Plan\Grade
 // covers: Core\Db\Schema::applySafe
 // covers: Core\Db\Schema::applyIncludingRisky
-// § 9 names the two entry points for what they risk, at the call site, rather
+// `rule:core-classes/schema-apply-capability` names the two entry points for what they risk, at the call site, rather
 // than giving one member a `{risky: true}` option: the claim is then visible to
 // a reviewer reading the call and greppable across a repository.
 use Core\Db;
@@ -44,7 +44,7 @@ var $narrow = Schema::fromArray([
 $wide->applySafe($db);
 
 foreach ($narrow->planAgainst($db)->steps() as Step $step) {
-    // § 6: SQLite cannot express this alter, so it is a create-copy-drop-rename
+    // `rule:core-classes/schema-plan`: SQLite cannot express this alter, so it is a create-copy-drop-rename
     // rebuild — a data copy, and destructive unconditionally.
     if ($step->grade() == Grade::Safe) {
         echo "graded safe\n";
@@ -53,7 +53,7 @@ foreach ($narrow->planAgainst($db)->steps() as Step $step) {
     } else {
         echo "graded destructive\n";
     }
-    // Not one of § 7's reports: this is a step an apply would run, which is
+    // Not one of `rule:core-classes/schema-absence-never-destroys`'s reports: this is a step an apply would run, which is
     // exactly the distinction `applySafe` reads.
     if ($step->isRefused()) {
         echo "is a report\n";

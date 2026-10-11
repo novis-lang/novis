@@ -1,11 +1,7 @@
 {
   "title": "Every plan step carries a grade and its complete SQL, and an unknown grade grades up",
   "status": "shipped",
-  "because": [
-    "0145",
-    "0067",
-    "0187"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/schema-apply-capability",
     "core-classes/schema-absence-never-destroys",
@@ -14,6 +10,7 @@
   ],
   "guardedBy": [
     "tests/conformance/core/db-schema-apply-safe-refuses-what-apply-including-risky-runs.nvst",
-    "tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst"
+    "tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst",
+    "crates/nvs-db/src/ddl.rs"
   ]
 }

@@ -32,7 +32,7 @@ default = ["exporter"]
 exporter = ["nvs-server/exporter"]
 
 [dependencies]
-# ADR 0103's tree and ADR 0078 § 1's snapshot: `nvs run` is the first caller
+# `rule:config/include-takes-a-path-or-a-dir`'s tree and `rule:config/the-config-is-an-immutable-snapshot`: `nvs run` is the first caller
 # that resolves a real `nvs.toml`, and `LocalFiles` in `config.rs` owns which of
 # the two `Files` readers it is.
 nvs-config.workspace = true
@@ -54,8 +54,8 @@ nvs-runtime.workspace = true
 # never the directives behind the sink.
 nvs-render.workspace = true
 # `nvs run` executes its program inside a task rather than on the main thread's
-# stack, because ADR 0072 § 1's children are children *of the calling task* and
-# there has to be one. `main.rs`'s § *What `run` executes* owns the rest.
+# stack, because `rule:concurrency/a-child-belongs-to-the-calling-task` makes
+# every child a child *of the calling task* and there has to be one. `main.rs`'s § *What `run` executes* owns the rest.
 nvs-host.workspace = true
 # `nvs serve` is the accept loop with a socket and a handler bound to it, and
 # this binary is the only crate that can supply the second: turning a path into
@@ -68,14 +68,14 @@ nvs-server.workspace = true
 # with that loader.
 nvs-ext = { workspace = true, features = ["engine", "pack"] }
 wasmtime.workspace = true
-# The clock `nvs serve` hands ADR 0073 § 5's ticker. `nvs_server::tick_on_this_core`
+# The clock `nvs serve` hands the schedule ticker. `nvs_server::tick_on_this_core`
 # takes one rather than reading the wall clock itself, so the instant a fire is
 # judged against arrives from the caller — and here the caller is the process,
 # whose clock is the system's.
 jiff.workspace = true
 nvs-test.workspace = true
-# `nvs queue migrate` opens the `[db.<name>]` it proved and runs ADR 0084 § 2's
-# statements on it. This is the only path in this binary that talks to a server
+# `nvs queue migrate` opens the `[db.<name>]` it proved and converges
+# `rule:core-classes/queue-storage-is-a-table`'s two tables on it. This is the only path in this binary that talks to a server
 # outside a request, and `queue.rs`'s module doc owns why that needs a driver
 # here rather than a task borrowed from `run`.
 nvs-db.workspace = true
@@ -95,28 +95,29 @@ nvs-lsp.workspace = true
 # module doc owns the rest.
 nvs-fmt.workspace = true
 clap.workspace = true
-# ADR 0042 § 2's header checksum, over the payload this binary is about to
+# The artifact header's checksum, over the payload this binary is about to
 # publish. The key beside it is `nvs-config`'s, so this is the only place the
 # cache hashes anything itself.
 blake3.workspace = true
-# § 3's read path maps the artifact rather than reading it, so BLAKE3 runs over
+# The read path maps the artifact rather than reading it, so BLAKE3 runs over
 # the page cache's own copy and no page is ever executable before it has.
 memmap2.workspace = true
-# § 4's `.tmp-<random>` name. A temp file is in the shard directory a reader
+# The writer's `.tmp-<random>` name. A temp file is in the shard directory a reader
 # lists, so its name has to be unique across processes that never talk.
 rand.workspace = true
-# ADR 0085's document, built and written as JSON rather than as text — the
+# The OpenAPI document, built and written as JSON rather than as text — the
 # workspace manifest owns why this crate and not another.
 serde_json.workspace = true
 # `nvs agent init` merges its hook into an agent's settings file and keeps every
 # key in the order the file had it, which `serde_json::Map` does not: `agent.rs`'s
 # `Doc` implements the two traits by hand.
 serde.workspace = true
-# ADR 0103 § 9's `nvs config dump` walks the merged table `nvs_config::Resolved`
+# `rule:config/check-and-dump-audit-the-tree-offline`'s `nvs config dump` walks the merged table `nvs_config::Resolved`
 # hands back and serializes it, so this crate names the type it is made of. The
-# format decision itself is ADR 0064 § 1's and belongs to `nvs-config`.
+# format decision itself is `rule:config/the-file-is-nvs-toml-and-it-is-toml`'s
+# and belongs to `nvs-config`.
 toml.workspace = true
-# ADR 0042 § 3's loader reads the payload as what § 2 says it is: sections to
+# The cache's loader reads the payload as the relocatable object it is: sections to
 # place, symbols to resolve and relocations to apply. `read` only — nothing in
 # this crate writes an object, that is `nvs-codegen`'s side.
 object.workspace = true
@@ -153,8 +154,8 @@ libc.workspace = true
 [target.'cfg(windows)'.dependencies]
 windows-sys.workspace = true
 
-# `unsafe_code` is `deny` rather than the workspace's `forbid` because ADR 0042
-# § 3 both verifies an artifact where the page cache already put it and calls
+# `unsafe_code` is `deny` rather than the workspace's `forbid` because the
+# artifact cache both verifies an artifact where the page cache already put it and calls
 # what it relocated: `Mmap::map` and the entry frame's fn-pointer transmute have
 # no safe spelling. Those two live in `cache.rs`, and the platform calls the
 # dependencies above are taken for live in `stop.rs` and `service.rs`; each

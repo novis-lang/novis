@@ -9,7 +9,8 @@
 //! helper's rendering half. It sits beside [`crate::plain::render`] because
 //! `rule:errors/diagnostic-record` puts the model *and every rendering* in one crate that
 //! both the runtime and the compiler front end depend on — the floor reaching
-//! it is exactly the edge § 1 sanctions and the crate docs' § *Where this sits*
+//! it is exactly the edge `rule:errors/diagnostic-record` sanctions and the
+//! crate docs' § *Where this sits*
 //! prices. The alternative, a JSON writer in `nvs-runtime` for the floor and
 //! this one for everything else, is two writers that agree today, which is the
 //! failure `rule:errors/diagnostic-record` exists to prevent.
@@ -50,7 +51,8 @@
 //! * **`bytes` is lowercase hex**, not base64 — it costs this crate no
 //!   dependency it would not otherwise carry, and a short value stays
 //!   decodable by eye. A `bytes` field is *rendered* rather than refused,
-//!   because § 1's model carries the scalar and a floor that throws while
+//!   because `rule:errors/diagnostic-record`'s model carries the scalar and a
+//!   floor that throws while
 //!   reporting has nothing left to report with.
 //! * **`decimal` is a string**, not a bare JSON number: the exactness is the
 //!   whole reason that type exists, and a consumer parsing the number into a
@@ -180,7 +182,8 @@ impl Serialize for AsFields<'_> {
 }
 
 /// A [`Node::Map`]'s entries, whose keys are [`Rendered`] rather than plain
-/// text because a key is a value too and § 5 substitutes it like one.
+/// text because a key is a value too and `rule:errors/record-transformations`
+/// substitutes it like one.
 struct AsEntries<'a>(&'a [(Rendered, Node)]);
 
 impl Serialize for AsEntries<'_> {
@@ -411,7 +414,8 @@ mod tests {
         }
     }
 
-    /// § 5's substitution is in the model, so the rendering inherits it: a
+    /// `rule:errors/record-transformations`' substitution is in the model, so
+    /// the rendering inherits it: a
     /// message's control bytes are already Control Pictures by the time this
     /// sees them, while `LF` — which `rule:tooling/terminal-output-is-a-sink` passes through — is JSON's
     /// own escape and cannot forge a second line.

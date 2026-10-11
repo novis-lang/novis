@@ -1,13 +1,7 @@
 {
   "title": "Three deny-by-default capabilities gate naming a database, dialling one, and issuing DDL to it",
   "status": "shipped",
-  "because": [
-    "0067",
-    "0058",
-    "0024",
-    "0118",
-    "0145"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/db-connection-is-named",
     "core-classes/schema-apply-capability",

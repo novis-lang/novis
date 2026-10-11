@@ -7,3 +7,5 @@ joins its arms.
 Nothing in the runtime or in codegen changes, and the landing pad is the one already emitted
 (`rule:errors/propagation`). The cost of a guarded expression that does not throw is the block form's:
 zero on the happy path (`rule:errors/throw-is-not-slower`).
+
+- **Memory:** nothing. The temporary is the value slot the block form's assignment already needs.

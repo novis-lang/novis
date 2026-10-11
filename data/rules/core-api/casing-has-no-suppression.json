@@ -1,10 +1,7 @@
 {
   "title": "There is no suppression mechanism for a casing error, in any category",
   "status": "shipped",
-  "because": [
-    "0029",
-    "0030"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/identifier-casing",
     "core-api/written-visibility"

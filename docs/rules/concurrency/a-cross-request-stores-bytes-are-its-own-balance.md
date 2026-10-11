@@ -24,3 +24,6 @@ cross-request store brackets itself. A store whose entries are shared with the r
 them cannot put the allocation and the release on one balance at all, and bracketing it anyway would
 turn a bounded credit into an unbounded one — such a store stays unbracketed and records the gap in
 its own module doc rather than taking the guard and breaking its symmetry.
+
+- **Memory:** a bracketed store holds one copy of each payload it is handed, made on its write path
+  after the value is already encoded. That copy is what the symmetry costs.

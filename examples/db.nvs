@@ -1,37 +1,20 @@
 <?nvs
-// One connection, one prepared statement, one row — and then a typed one.
-//
-// [ADR 0067](/docs/decisions/0067.md) is the design. § 1 is why there is
-// no `prepare` step: `query`/`execute` take SQL and parameters together and
-// each connection holds an LRU cache of server-side prepared statements, so
-// the two spellings PDO has collapse into one that is always prepared.
-// Binding is the whole injection story (§ 1 again, and
-// [ADR 0024](/docs/decisions/0024.md) § 4):
-// there is no `quote`, no escaper, and the query-text parameter refuses
-// `tainted` while the bound parameters accept it freely.
-//
-// § 6 is the last three lines. A column arrives with the type § 9's map gives
-// it, text arrives `tainted`, and a class reads a row through
-// [ADR 0071](/docs/decisions/0071.md)'s `#[Core\Db\Derive]` rather
-// than through hand-written hydration — read-only by design, because writing
-// rows from objects is an ORM concern and not `Core`'s.
-//
-// The twelve lines this prints are frozen by an exact check in a goal record
-// under `data/goals/`; the source is not. The connection it opens is named in
-// root-owned config, so `nvs.toml` owes the `[db.main]` block this reads.
+// This program writes rows to a database and reads them back, first as rows and then as objects.
+// `query` and `execute` take the SQL text and its values in one call. The SQL text cannot be `tainted`.
+// The values can be `tainted`, because the database receives each one as a value and never as SQL.
+// The connection `main` is set in a `[db.main]` block in `nvs.toml`.
 
 use Core\Db;
 use Core\Db\Row;
 
-// ADR 0071 § 1: the attribute is matched nominally, and it is written out in
-// full because a `use Core\Db;` binds the *class* `Db` and never lets
-// `Db\Derive` name the attribute (ADR 0113 § 1 — a qualified name is
-// absolute).
+// `#[Core\Db\Derive]` makes the class readable from a row. It is written with
+// its full name. `use Core\Db;` imports only the class `Db`, so `Db\Derive`
+// would not name the attribute.
 #[Core\Db\Derive]
 class Person
 {
     public int $id;
-    // ADR 0067 § 6: a text column is always `tainted`, so a `T` whose
+    // A text column is always `tainted`, so a `T` whose
     // text-carrying fields are unqualified is a diagnostic at the `queryAs<T>`
     // call site naming the field. Declaring it here is the answer, not a cast
     // at the other end.
@@ -85,10 +68,9 @@ var $rows = $db->query('select id, name from people order by id', []);
 echo 'rows=', $rows->count(), "\n";
 
 foreach ($rows as Row $row) {
-    // § 6: a typed reader converts losslessly or throws, and a `null` is a
-    // NULL column rather than a failure. `name` is `not null`, so the branch
-    // below is the one that never fires — it is here because `?T` is how
-    // absence is spelled and the program has to say what it would do.
+    // `$row->string()` gives the column as a string, or `null` for a NULL column.
+    // It throws an error if the value cannot be converted without a change.
+    // `name` is `not null`, so the branch below never runs here.
     var $name = $row->string('name');
     if ($name == null) {
         echo 'null name', "\n";

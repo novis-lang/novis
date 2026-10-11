@@ -10,3 +10,8 @@ by the other road — it has a write side, and copy-on-write value semantics kee
 widened view out of the narrow one's storage (`rule:types/arrays`) — which leaves `property<T>` the
 one that widens on neither argument, because its argument bounds a receiver instead
 (`rule:types/property-key-variance`).
+
+**Declined:**
+- **`class<T>` invariant, with no widening.** It is simpler to state, and it makes passing a
+  `class<Dog>` to a `class<Animal>` parameter impossible without a redundant narrowing checked at run
+  time. Covariance is sound here and costs one rule.

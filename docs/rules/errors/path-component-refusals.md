@@ -21,3 +21,12 @@ laundered and never was.
 `Core\Path` is untouched by this. It stays pure string algebra, touches no disk, carries no policy,
 and goes on accepting both separators on every platform. `Path::normalize` is **not** a launderer,
 because the base is not part of its input.
+
+**Declined:**
+
+- **Enforcing these refusals only on Windows.** A platform-conditional security rule is tested on the
+  platform where it does nothing, and conformance runs on a native Windows leg and a WSL leg, so one
+  member would need two expectations.
+- **Putting them in `Core\Path::normalize`.** No `Path` member carries policy, and putting policy there
+  invites the belief that normalising is safe. Containment needs the base, and only `Core\IO::within`
+  has it.

@@ -29,7 +29,7 @@
 //! **HSTS is emitted on an `https` effective scheme and not otherwise**, which is [`Scheme`]:
 //! a parameter of [`Secure::fill`] rather than a fact read off the socket, because Novis never
 //! terminates TLS (`rule:http-server/two-deployments-and-nothing-a-proxy-owns`) and the only thing that can assert `https` is a *trusted*
-//! proxy's `X-Forwarded-Proto` (0097 § 6). That walk is [`crate::forwarded`] and
+//! proxy's `X-Forwarded-Proto` (`rule:http-server/x-forwarded-proto-sets-the-scheme-and-hsts-only`). That walk is [`crate::forwarded`] and
 //! [`crate::serve::serve_connection`] is the one call site that may pass [`Scheme::Https`] —
 //! it does so for a request whose peer is in `[server] trusted_proxies` and that said so.
 //! With that directive empty, which is its default, no forwarded header is read at all and

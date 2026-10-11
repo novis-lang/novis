@@ -21,3 +21,7 @@ carries for this one purpose, and what each field is worth is read off
 `all` over a one-field shape is legal and pointless, and nothing special-cases it. Its subject is a
 shape and never an array; that is the line between it and `rule:concurrency/map-preserves-keys-and-order`,
 and each member refuses the other's subject.
+
+**Declined:**
+- **One untyped signature answering `array<mixed>`.** It is simpler to declare and puts a cast at every
+  call site, which costs more than the type the registry carries for this one parameter.

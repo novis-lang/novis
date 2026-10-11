@@ -23,8 +23,7 @@ use nvs_runtime::NotDecimal;
 /// packets that no longer exist. Once that walk is unavoidable, keeping the
 /// result is free and re-walking per column is what would cost.
 ///
-/// The values are the server's bytes, undecoded: [ADR 0067
-/// § 9](/docs/decisions/0067.md)'s table is applied by `nvs-stdlib`
+/// The values are the server's bytes, undecoded: `rule:core-classes/db-column-types`'s table is applied by `nvs-stdlib`
 /// against [`TdsColumn::type_info`], which is the boundary
 /// [`crate::PgColumn::decode`] sits on for the other driver.
 pub struct TdsRow {
@@ -128,8 +127,7 @@ impl std::fmt::Debug for TdsTime {
     }
 }
 
-/// One column's value as the row of [ADR 0067
-/// § 9](/docs/decisions/0067.md)'s table it landed on, before
+/// One column's value as the row of `rule:core-classes/db-column-types`'s table it landed on, before
 /// anything a `Core` class needs is allocated.
 ///
 /// [`crate::PgScalar`]'s and [`crate::MySqlScalar`]'s opposite number, and the
@@ -301,7 +299,7 @@ pub fn decode_column(column: &TdsColumn, value: Option<&[u8]>) -> io::Result<Opt
 /// octets that are not the UCS-2 or UTF-8 the column claimed, and the two types
 /// whose octets carry their own type description — `sql_variant` and a CLR
 /// type — which have no reading at all here. The message names the column and
-/// never the value, per [ADR 0067 § 8](/docs/decisions/0067.md).
+/// never the value, per `rule:core-classes/db-error`.
 pub fn scalar<'a>(column: &TdsColumn, value: Option<&'a [u8]>) -> io::Result<TdsScalar<'a>> {
     let Some(bytes) = value else {
         return Ok(TdsScalar::Null);

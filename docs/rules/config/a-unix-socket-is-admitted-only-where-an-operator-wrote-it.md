@@ -18,3 +18,8 @@ is not the alternative: the address ranges are few, closed and named by a standa
 sockets on a host is open, distribution-specific and grows when anything is installed. A check that
 must enumerate what to refuse is wrong on the machine nobody tested. The grant a program-supplied
 path would need is `rule:config/net-local-is-named-and-not-on-the-roster`.
+
+**Declined:**
+- **A socket gated on `fs.write` over its path.** It adds no capability, but one grant would mean both
+  "may write files here" and "may talk to whatever daemon listens here": `fs.write = ["/run/"]`,
+  written to reach a store, would also permit overwriting every socket and pidfile in `/run`.

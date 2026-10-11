@@ -54,7 +54,7 @@ renders them all at build time, and a member's prose is its `about.md`.
    options, return type, PHP "Replaces" list, taint classification). The chapter's
    prose gives each class its summary, enums and constants. A row the renderer cannot
    read is a **render warning**, fixed in `config/spec-overrides.mjs`.
-2. The built `nvs` binary's registry (`nvs meta --json`, ADR 0117) says what is
+2. The built `nvs` binary's registry (`nvs meta --json`, `rule:tooling/meta-json`) says what is
    implemented, and **every registered member is published, and nothing else**: a
    member the registry does not hold gets no page, and a class with no registered member
    does not appear at all. A registered class or member the spec's tables do not name is

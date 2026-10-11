@@ -803,12 +803,12 @@ impl Ctx {
     /// Recorded **after** the directory exists, so the list is what the runtime
     /// actually created rather than what it intended to: a call the capability
     /// check refused, or one the operating system did, leaves nothing on disk
-    /// and so leaves nothing here for § 3's sweep to fail to delete.
+    /// and so leaves nothing here for `rule:core-classes/temporary-dir-sweep`'s sweep to fail to delete.
     ///
     /// No handle and no key, unlike the tables above. A directory's name
     /// is the whole of it, a program never asks this context for one back, and
     /// a program that removes its own directory has reached the goal state early
-    /// (§ 3) — so there is nothing to take out of the middle of the list and the
+    /// (`rule:core-classes/temporary-dir-sweep`) — so there is nothing to take out of the middle of the list and the
     /// entry simply stays until the sweep drains all of them.
     ///
     /// **What it spends:** one `PathBuf` per `temporaryDir` call this script
@@ -827,7 +827,7 @@ impl Ctx {
         &self.temporary_dirs
     }
 
-    /// Takes the whole list, leaving this context with none — what § 3's sweep
+    /// Takes the whole list, leaving this context with none — what `rule:core-classes/temporary-dir-sweep`'s sweep
     /// calls once, after the last user code.
     ///
     /// Draining rather than borrowing, for two reasons the sweep depends on. It

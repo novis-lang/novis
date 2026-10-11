@@ -69,17 +69,18 @@ FROM ${DISTROLESS_BASE} AS distroless
 ARG TARGETARCH
 
 COPY --chmod=0755 bin/${TARGETARCH}/nvs /usr/local/bin/nvs
-# ADR 0065 puts the licence and the third-party notices beside every distributed binary, and an
-# image is a distribution like the archives are.
+# The licence and the third-party notices go beside every distributed binary, and an image is a
+# distribution like the archives are.
 COPY bin/notices/ /usr/share/doc/novis/
 COPY --from=nvsdata --chown=nonroot:nonroot --chmod=0700 /.nvsdata /usr/local/bin/.nvsdata
 
-# Where a user mounts their application. `nvs` looks for `./nvs.toml` here (ADR 0103 § 1 step 2),
+# Where a user mounts their application. `nvs` looks for `./nvs.toml` here
+# (`rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2),
 # so a mounted tree's own configuration is found with nothing passed on the command line, and a
 # relative path in the user's command resolves against the mount.
 WORKDIR /app
 
-# Documentation, not a rule — it publishes nothing by itself. 8000 is ADR 0097 § 5's default
+# Documentation, not a rule — it publishes nothing by itself. 8000 is `rule:http-server/the-server-block-is-boot-class`'s default
 # port, kept so the container's port and the host's read the same.
 EXPOSE 8000
 
@@ -100,7 +101,7 @@ ENTRYPOINT ["nvs"]
 # The image runs nothing of its own. The user's command picks `serve` or `run` and every option,
 # and an empty `docker run` prints the help and exits 0. `--help` rather than no `CMD`, because a
 # bare `nvs` prints the same text and exits 2, which Compose and CI read as a failure. A `serve`
-# command needs `--listen 0.0.0.0:8000`: ADR 0097 § 5's default is `127.0.0.1:8000`, the
+# command needs `--listen 0.0.0.0:8000`: `rule:http-server/the-server-block-is-boot-class`'s default is `127.0.0.1:8000`, the
 # container's own loopback, which a published port never reaches. `docs/docker.md` says so in
 # every serve example.
 CMD ["--help"]

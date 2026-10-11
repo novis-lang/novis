@@ -12,5 +12,10 @@ Where the verb is genuinely dynamic — `Client::request($method, $url)` — the
 moves to the call and **throws before the first attempt** rather than before the second, so a test
 run finds it rather than production finding it on the one retry that matters. A key supplied for
 a verb that does not need one is accepted and sent; some servers want it regardless, and refusing
-it would buy nothing. A key is never generated automatically: one minted per call is a different
-key on the next request, which makes the header present and useless.
+it would buy nothing.
+
+**Declined:**
+- **A runtime warning for the missing key.** The failure it prevents is a double charge, and the
+  constant options bag already makes the compile-time check free at an ordinary call site.
+- **A key generated automatically when none is given.** One minted per call is a different key on
+  the next request, which makes the header present and useless, and that is worse than absent.

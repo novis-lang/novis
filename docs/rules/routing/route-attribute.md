@@ -11,13 +11,25 @@ no route however they are spelled.
 - **The attribute is repeatable** (`rule:attributes/repeatable`), which is how one method serves two
   verbs. There is no `methods:` list and no wildcard verb.
 - **Methods only**, `static` or instance, and the method may take parameters the path does not name
-  — a `Request`, a service — which the router ignores. There is no class-level prefix attribute: a
-  prefix interacts badly with inheritance and hides a route's real path from the line that declares
-  it.
+  — a `Request`, a service — which the router ignores.
 - **`name` is optional and never derived.** A route without one is matchable but not linkable.
-  Deriving one from the class and method would make a link break silently on a rename, which is one
-  of the three bugs `rule:routing/routes-are-compiled-not-registered` exists to catch.
 - **`slotted` is optional and `false` when absent.** It is the route half of
   `rule:core-classes/html-later`'s slotted delivery, and the route table carries it.
 
 A `#[Route]` method also carries an `#[Access]` (`rule:attributes/access-is-a-required-sibling`).
+
+The closed list only works if every entry on it is argued: a compiler-recognized attribute that is
+cheap to add is how an attribute set becomes an undocumented second language surface.
+
+**Declined:**
+- **Structural matching**, the way `rule:attributes/structural-retrieval` retrieves an attribute. A
+  framework's own `Route`-shaped literal would register routes Novis does not own
+  (`rule:core-classes/derive-attribute`).
+- **Deriving `name` from the class and method.** A link would break silently on a rename, which is
+  one of the three bugs `rule:routing/routes-are-compiled-not-registered` exists to catch.
+- **A class-level prefix attribute** (`#[Route(path: "/admin")]` on a class). It interacts badly
+  with inheritance and hides a route's real path from the line that declares it; a prefix is a
+  framework opinion.
+- **A `host` field.** A hostname in the compiled table would end the relocatability mounts buy
+  (`rule:routing/a-request-reads-its-mount`), and the duplicate-route compile error would grow a host
+  dimension.

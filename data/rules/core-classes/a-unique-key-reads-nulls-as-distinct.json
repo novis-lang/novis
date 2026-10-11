@@ -1,9 +1,7 @@
 {
   "title": "A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index",
   "status": "shipped",
-  "because": [
-    "0187"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/schema-vocabulary-is-closed",
     "core-classes/schema-plan",

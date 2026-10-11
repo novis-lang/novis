@@ -22,4 +22,13 @@ peer going away cancels nothing.
 **It is not a queue.** Nothing is durable, nothing retries, and a process that dies loses the work
 with no record. Receipts, webhooks, cache warming and audit shipping are what it is for; anything
 that *must* happen belongs in the transaction that made it necessary or in a store the application
-owns.
+owns. The word "task" suggests a job queue to anyone who has used one, so the documentation of this
+member says it is not one in its first paragraph.
+
+**Declined:**
+- **Flushing the response and running on to the end of the script.** That shape is invisible to
+  every limit and every account, has no deadline, no cap and no cancellation, and cannot be told
+  apart from a slow request in any metric.
+- **Making this member durable.** Durability needs a store, a schema, retries, a dead-letter table
+  and an operator command, which is a subsystem and not one member; it is the job queue's
+  (`rule:core-classes/queue-storage-is-a-table`).

@@ -14,4 +14,18 @@ Two named ways to ask the other question already exist:
   request path should reach for by accident.
 
 A class needing content equality in production and wanting no order writes an ordinary named method.
-That reads worse than `==` by exactly one call, and it is visible at the call site.
+That reads worse than `==` by exactly one call, and it is visible at the call site. A value class ported
+from PHP, whose `==` compared two objects by their properties, pays that call and a `Comparable`
+declaration.
+
+**Declined:**
+- **Structural equality, PHP's `==` reading.** Its cost is unbounded in the object graph's size, it is
+  ambient and undeclarable, and no class can opt out: the same refusal `rule:classes/comparable` makes
+  for ordering.
+- **An `Equatable` interface or an `__equals` hook.** `==` would mean something different per class,
+  which is the property removed from every other magic method.
+- **A separate identity operator, so `==` could be structural.** That is two equality operators again.
+  Identity is the reading a reference type wants by default, and content comparison is the one that
+  gains from being visible at the call site.
+- **A content-equality member in `Core`.** None exists. One would be a method, never an operator or an
+  interface, and the case for it is `compareTo(…) == 0` repeated in real programs.

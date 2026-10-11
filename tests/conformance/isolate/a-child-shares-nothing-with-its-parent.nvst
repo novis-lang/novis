@@ -1,5 +1,5 @@
 --TEST--
-An isolate's class statics and its output buffer are its own: the child reads a fresh store rather than what the parent wrote, and its `echo` reaches the parent only as a value the parent prints — ADR 0006 § *Decision*, `rule:statements/an-isolate-has-its-own-statics`
+An isolate's class statics and its output buffer are its own: the child reads a fresh store rather than what the parent wrote, and its `echo` reaches the parent only as a value the parent prints — `rule:security/isolate-shares-nothing`, `rule:statements/an-isolate-has-its-own-statics`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -19,9 +19,9 @@ final class Ledger {
 echo "child read ", Ledger::$entries, "\n";
 
 // And the write does not travel the other way either. Nothing about this
-// store is reachable from the parent's, which is the whole of ADR 0006 §
-// *Decision*'s "globals, class statics, constants defined at runtime: no,
-// fresh" row.
+// store is reachable from the parent's, which is the whole of
+// `rule:security/isolate-shares-nothing`'s "globals, class statics,
+// runtime-defined constants" are the child's own.
 Ledger::$entries = 99;
 echo "child wrote ", Ledger::$entries, "\n";
 
@@ -29,7 +29,7 @@ return "done";
 --FILE--
 <?nvs
 // covers: lang:concurrency/a-child-shares-nothing
-// ADR 0006 § *Decision*'s table, as a program: what a child shares with its
+// `rule:security/isolate-shares-nothing`'s table, as a program: what a child shares with its
 // parent is compiled code and the budget, and this case is two of the rows
 // that say "no" — class statics, and the output buffer.
 

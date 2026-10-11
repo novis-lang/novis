@@ -20,5 +20,14 @@ and `AdminUserController::listPending(Request $r)` offers `/admin-user/list-pend
 pluralized**: pluralization is English-only and irregular, and editing the inserted text is the
 point of inserting text rather than deriving a path.
 
-This is a fix, not a generator. A generator's output has to be *right*, and a URL is not
+This is a fix, not a generator. A generator's output has to be *right*
+(`rule:ide/a-code-action-writes-only-what-is-already-determined`), and a URL is not
 type-determined by anything; this output is a starting point, read as a diff before it is accepted.
+The fix is backed by a diagnostic the checker already emits, since `path` is a required field of
+`Core\Route` (`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`).
+
+**Declined:**
+- **Convention routing**, a `path` or `name` the compiler derives from the class and method. It makes a
+  route free to declare, and is pleasant where the URLs are nobody's API, but it welds a public interface
+  to an implementation detail. A quick fix writes the derived path once instead, and that path is real
+  text: searchable, and stable under every later rename.

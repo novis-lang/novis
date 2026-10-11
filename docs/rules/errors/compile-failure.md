@@ -9,3 +9,8 @@ mode: generic in production, full in development.
 running: an ordinary `ParseError`, catchable at the call site like any `Throwable`, which is what
 lets a framework fail a bad template or plugin gracefully instead of the whole request. Uncaught, it
 rides the normal `rule:errors/on-uncaught-throw` path — by then a frame did exist.
+
+**Declined:**
+- **Every compile failure handled only at the boundary.** A `require` that fails while the request
+  runs would end the whole request, where a catchable `ParseError` lets the caller recover, as PHP's
+  does.

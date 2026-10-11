@@ -6,7 +6,8 @@ log.
 
 The same holds for a bidirectional control, which the writer escapes by construction
 (`rule:security/bidi-boundaries`), and for a JSON decode, whose input is data the parse returns to the
-program and whose result is `tainted`.
+program and whose result is `tainted`; its risk is bounded by the decoder's nesting cap, which is on
+by default.
 
 The `secret` axis does not follow: a log field **refuses** a `secret` value, because that axis is
 about confidentiality rather than structure and a log is an output

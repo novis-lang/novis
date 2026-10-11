@@ -2,7 +2,7 @@
 //! `Core\Db::open`'s twelve settings, and the two members that need no
 //! connection at all.
 //!
-//! [ADR 0067 § 3](/docs/decisions/0067.md) splits the first two on
+//! `rule:core-classes/db-capabilities` splits the first two on
 //! who wrote the endpoint. A block is the operator's word and is taken as one;
 //! arguments are the program's, so `open` re-checks the address they resolve to
 //! against the policy in front of it. `inList` and `quoteIdentifier` are here
@@ -21,7 +21,7 @@ pub(super) const OPEN: &str = r"Core\Db::open";
 pub(super) const QUERY: &str = r"Core\Db\Connection::query";
 
 /// `Core\Db\Connection::queryAs`, as its own refusals spell it — under
-/// [``rule:classes/no-traits``](/docs/decisions/0043.md)'s
+/// `rule:classes/delegation-by-field`'s
 /// delegation, a call through a `Core\Db\Transaction` names the connection's
 /// member here exactly as [`QUERY`] does.
 pub(super) const QUERY_AS: &str = r"Core\Db\Connection::queryAs";
@@ -1249,7 +1249,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// **A field read and not a statement.** Every driver kept the version its
     /// own handshake had already delivered
-    /// ([ADR 0187 § 2](/docs/decisions/0187.md)), so this spends no round trip
+    /// (`rule:core-classes/server-version-is-what-the-server-said`), so this spends no round trip
     /// and answers between two rows of a `stream`, where the connection is held
     /// and a statement is refused. A member that looked like a field read and
     /// cost a `SELECT version()` would be a latency trap on the request path.
@@ -1722,7 +1722,7 @@ mod tests {
     }
 
     /// A block that writes no `port` reaches **its own** driver's port — ADR
-    /// 0067 § 2, where the `driver` field is what the rest of the block is read
+    /// `rule:core-classes/db-connection-is-named`, where the `driver` field is what the rest of the block is read
     /// against.
     ///
     /// The claim is the disagreement rather than either number: [`address_of`]
@@ -2033,7 +2033,7 @@ mod tests {
         );
     }
 
-    /// [ADR 0067 § 18](/docs/decisions/0067.md)'s `isOpen` is the one member a
+    /// [spec § 18](/docs/spec/01-core-library.md)'s `isOpen` is the one member a
     /// released connection still answers, asserted as the **contrast** that
     /// makes it worth declaring: the same handle, the same empty table, and two
     /// different outcomes.

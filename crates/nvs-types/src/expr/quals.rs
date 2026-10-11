@@ -596,8 +596,8 @@ pub(crate) fn admits_tainted_argument(
     }
 }
 
-/// Whether a parameter classified `qual` accepts a `secret` argument — ADR
-/// 0033 § 3, which is one mark and, in the registry that writes it, two
+/// Whether a parameter classified `qual` accepts a `secret` argument —
+/// `rule:core-classes/secret-reveal`, which is one mark and, in the registry that writes it, two
 /// classes wide: `Core\Secret`, which is the escape hatch, and `Core\Password`,
 /// whose `hash` and `verify` are the one *operation* on a password that
 /// legitimately answers something that is not one. That roster is closed and
@@ -762,8 +762,8 @@ pub(crate) fn is_throwable_shaped(qname: &QName, graph: &ClassGraph) -> bool {
 /// `rule:security/secret-sinks-refuse`: a `Throwable`-shaped class's constructor message argument
 /// (its first positional argument) refuses a `secret`-qualified value —
 /// closing the common real-world leak of a credential ending up in a stack
-/// trace or an error page, the same "sink requires the plain type" shape ADR
-/// 0024 § 4 already gives `Core\Db`'s query text. `first_arg_ty` is the
+/// trace or an error page, the same "sink requires the plain type" shape
+/// `rule:core-classes/db-one-api` already gives `Core\Db`'s query text. `first_arg_ty` is the
 /// already-checked type [`check_args_typed`] computed for that argument, so
 /// this never re-walks (and re-diagnoses) the expression itself. `Throwable`/
 /// `Exception`/`Error` have no declared stdlib member table yet, so this is

@@ -23,7 +23,7 @@ fn scratch(name: &str) -> nvs_repo::Scratch {
     nvs_repo::scratch_private(&format!("trust-{name}"))
 }
 
-/// § 6 accepts what an ordinary installation looks like — a file this account owns in a directory
+/// `rule:config/ownership-is-the-trust-boundary` accepts what an ordinary installation looks like — a file this account owns in a directory
 /// this account owns — and hands back the canonical path, which is the thing the resolver's cycle
 /// test and `rule:config/every-matching-app-block-applies-least-specific-first`'s `[[app]]` matching are both built on.
 // covers: tools:config/trust
@@ -76,7 +76,7 @@ fn a_path_that_is_not_there_is_unreadable_rather_than_a_breach() {
     );
 }
 
-/// § 6's mode half, on the file itself.
+/// `rule:config/ownership-is-the-trust-boundary`'s mode half, on the file itself.
 #[cfg(unix)]
 #[test]
 fn a_group_writable_file_is_a_breach() {
@@ -99,7 +99,7 @@ fn a_group_writable_file_is_a_breach() {
     );
 }
 
-/// § 6's mode half, on the directory — the case a check that stopped at the file would pass. A file
+/// `rule:config/ownership-is-the-trust-boundary`'s mode half, on the directory — the case a check that stopped at the file would pass. A file
 /// nobody else can write is still replaceable by anyone who can write the directory it sits in.
 #[cfg(unix)]
 #[test]
@@ -210,7 +210,7 @@ fn icacls(dir: &std::path::Path, args: &[&str]) {
 #[cfg(windows)]
 const USERS: &str = "*S-1-5-32-545";
 
-/// § 6's DACL half: an entry granting an untrusted principal a write right is a breach, and the
+/// `rule:config/ownership-is-the-trust-boundary`'s DACL half: an entry granting an untrusted principal a write right is a breach, and the
 /// refusal names the principal rather than a mode.
 #[cfg(windows)]
 #[test]
@@ -232,7 +232,7 @@ fn a_directory_a_well_known_group_may_write_is_a_breach() {
 
 /// The right asked about is the *effective* one, which is the whole reason the walk in
 /// `trust.rs` accumulates deny entries ahead of grants rather than stopping at the first grant it
-/// matches. A grant a deny cancels leaves the principal unable to write, and § 6 has nothing to
+/// matches. A grant a deny cancels leaves the principal unable to write, and `rule:config/ownership-is-the-trust-boundary` has nothing to
 /// refuse.
 #[cfg(windows)]
 #[test]
@@ -248,7 +248,7 @@ fn a_grant_a_deny_entry_cancels_is_not_a_breach() {
     icacls(&dir, &["/remove", USERS]);
 }
 
-/// § 6's owner half, and the install chapter's row for it: a path another account owns is a breach
+/// `rule:config/ownership-is-the-trust-boundary`'s owner half, and the install chapter's row for it: a path another account owns is a breach
 /// whatever its DACL grants, and the refusal names the path and the owner's SID.
 ///
 /// The system directory is the one path every Windows has whose owner is none of the three the

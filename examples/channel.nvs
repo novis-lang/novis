@@ -3,7 +3,7 @@
 //
 // The three lines this prints are frozen by an exact check in a goal record
 // under `data/goals/`; the source is not. The channel's *surface* is M5's own design
-// and no ADR pins it (ADR 0072's scope line says so), so the spellings below
+// and no rule pins it yet, so the spellings below
 // are this fixture's proposal and the session that lands the type owns the
 // final one — what it may not change is that a send into a full channel
 // suspends rather than growing the buffer.
@@ -18,9 +18,8 @@ class Meter
 // producer must be made to wait four times over.
 var $chan = new Core\Task\Channel<int>(2);
 
-// Both halves are children of this call, so ADR 0072 § 4's promise applies
-// with nothing added: `all` does not return with either still running, which
-// is what lets the counters below be read as final.
+// `Core\Task::all` does not return while either function is still running.
+// So the counters below have their final values.
 Core\Task::all({
     produce: fn(): int => {
         foreach (Core\Arr::range(1, 8) as int $i) {

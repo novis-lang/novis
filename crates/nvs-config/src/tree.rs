@@ -2,13 +2,14 @@
 //! its own fields, and an unknown key refused.
 //!
 //! This is the type [`crate::file::parse`] is generic over, and its standing where a bare
-//! `toml::Table` could is the whole of what makes [ADR 0064 § 3]'s unknown-key refusal real:
+//! `toml::Table` could is the whole of what makes
+//! `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s unknown-key refusal real:
 //! `deny_unknown_fields` sits on every struct here, so a typo'd `capabilties` fails at boot with
 //! the line under it instead of reading as "granted nothing". That refusal is `serde`'s, not ours —
 //! this module is the *roster*, and the roster is the security-relevant half.
 //!
-//! **Every field comes from the ADR that owns its block**, and [ADR 0064 § 2a] is the table saying
-//! which ADR that is. Nothing here invents a key, because a key invented in this file becomes a key
+//! **Every field comes from the rule that owns its block**, and
+//! `rule:config/every-block-is-argued-where-it-is-added` is the table saying which rule that is. Nothing here invents a key, because a key invented in this file becomes a key
 //! the operator may write and no other code reads. Where an ADR states a block but no field set,
 //! the gap is recorded in that struct's doc comment rather than filled in.
 //!
@@ -17,7 +18,7 @@
 //! `same_site = "None"` with `secure = false` is refused by the HTTP layer that reads the pair
 //! (`rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`). The split is deliberate: a value refusal wants to name the unit it
 //! expected, which `serde`'s "invalid type" cannot, and the override stream of
-//! [ADR 0103 § 3](/docs/decisions/0103.md) resolves *before*
+//! `rule:config/later-wins-and-every-override-is-recorded` resolves *before*
 //! anything is interpreted, so a value overridden by a later file must not have had to parse.
 //!
 //! Which is also why every field is an [`Option`]: unset and set-to-the-shipped-default are
@@ -26,9 +27,6 @@
 //! Cost: one owned tree per configuration file, held for the length of the boot or reload that
 //! reads it and then dropped once the snapshot is built. Nothing here runs per request, and the
 //! `Option`-per-field shape is chosen for that reason — it would be the wrong trade on a hot path.
-//!
-//! [ADR 0064 § 2a]: ../../../docs/decisions/0064.md
-//! [ADR 0064 § 3]: ../../../docs/decisions/0064.md
 
 use std::collections::BTreeMap;
 
@@ -37,7 +35,7 @@ use serde::Deserialize;
 /// One directive's value, in the shapes the ADRs actually write.
 ///
 /// Several directives are spelled two ways on purpose and the second spelling is load-bearing:
-/// `[limits.hard] memory = false` removes a ceiling (`rule:config/three-changeability-classes`, and 0064 § 1 chose TOML partly
+/// `[limits.hard] memory = false` removes a ceiling (`rule:config/three-changeability-classes`, and `rule:config/the-file-is-nvs-toml-and-it-is-toml` chose TOML partly
 /// because "off" is a boolean there), `[metrics] exporter = false` disables an export,
 /// `[http.headers] frame_ancestors` is `"none"`, `"self"` or a list of origins. A field typed
 /// `String` would refuse the operator's own documented example, so those fields are typed here.
@@ -79,9 +77,10 @@ pub struct Config {
     pub app: Vec<App>,
     /// `[limits]` and the `[limits.hard]` ceiling under it (`rule:config/three-changeability-classes`).
     pub limits: Option<Limits>,
-    /// `[mode]` — the default a request starts in and the ceiling it may select (ADRs 0005, 0091).
+    /// `[mode]` — the default a request starts in and the ceiling it may select
+    /// (`rule:config/ceilings-are-their-own-directives`, `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`).
     pub mode: Option<Mode>,
-    /// `[capabilities]` — deny-by-default grants (ADRs 0005, 0006).
+    /// `[capabilities]` — deny-by-default grants (`rule:config/three-changeability-classes`, `rule:security/script-spawn-capability`).
     pub capabilities: Option<Capabilities>,
     /// `[[extension]]` — a precompiled binary and its pin (`rule:packaging/extension-loading-is-root-controlled`).
     pub extension: Vec<Extension>,
@@ -100,7 +99,7 @@ pub struct Config {
     pub log: Option<Log>,
     /// `[errors]` — what a use of deprecated code does while it runs (`rule:errors/a-use-of-deprecated-code-may-log-or-throw`).
     pub errors: Option<Errors>,
-    /// `[http.*]` — the sub-blocks ADRs 0020 § 7 and 0074 own.
+    /// `[http.*]` — the sub-blocks `rule:errors/compile-failure` and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` own.
     pub http: Option<Http>,
     /// `[db.<name>]` — one named connection per sub-table (`rule:core-classes/db-connection-is-named`), and the `pool = false`
     /// § 13 lets an operator write beside them rather than inside one.
@@ -124,7 +123,8 @@ pub struct Config {
     pub trace: Option<Trace>,
     /// `[server]` and the `[[server.mount]]` array under it (`rule:http-server/a-request-resolves-in-five-steps` and `rule:http-server/the-server-block-is-boot-class`).
     pub server: Option<Server>,
-    /// `[cache]` — the artifact cache's directory (ADRs 0042, 0078 § 2).
+    /// `[cache]` — `Core\Cache`'s tiers. The artifact cache's directory is `[opcache]`'s
+    /// `file_cache_dir` (`rule:config/opcache-file-cache-directives-are-system`).
     pub cache: Option<Cache>,
     /// `[opcache]` — revalidation and the file cache (`rule:config/an-edit-reaches-the-next-request-without-a-restart`, `rule:config/opcache-file-cache-directives-are-system`).
     pub opcache: Option<Opcache>,
@@ -136,12 +136,12 @@ pub struct Config {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Include {
-    /// One file, relative to the directory of the file this entry is written in (§ 5).
+    /// One file, relative to the directory of the file this entry is written in (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`).
     pub path: Option<String>,
     /// Every `*.toml` directly inside, ascending by filename and not recursing. Not a glob.
     pub dir: Option<String>,
     /// Absence is fine; unreadable, unowned or unparseable is not, and the ownership check moves to
-    /// the directory that would hold the file (§ 6).
+    /// the directory that would hold the file (`rule:config/ownership-is-the-trust-boundary`).
     pub optional: Option<bool>,
 }
 
@@ -150,7 +150,7 @@ pub struct Include {
 /// `root` or `entry`, never both and never neither; `mode` and `origin` sit directly on the block
 /// while its directives live in the sub-tables below. Which of those two rules this struct can hold
 /// is the difference between a type and a check: TOML gives no way to spell "one of these two
-/// keys", so the exclusivity is the resolver's (§ 2) and only the field set is here.
+/// keys", so the exclusivity is the resolver's (`rule:config/include-takes-a-path-or-a-dir`) and only the field set is here.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct App {
@@ -919,8 +919,8 @@ pub struct MailEndpoint {
 /// [`MailEndpoint`]'s minus everything an endpoint needs and a directory does not.
 ///
 /// **One field, and there is deliberately no `capabilities.storage` beside it.** The grant over a
-/// disk is the `fs.read`/`fs.write` the operator already writes about `root`, which is what ADR
-/// 0082 § 2's "over `rule:core-api/tier-placement`'s existing `fs.*` capabilities" means and what
+/// disk is the `fs.read`/`fs.write` the operator already writes about `root`, which is what
+/// `rule:programs/framework-core-half`'s "over the existing `fs.*` capabilities" means and what
 /// `nvs_stdlib::storage`'s module doc argues at length: a second grant over one door is the shape
 /// where a deployment is tightened in one of them and stays open through the other.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
@@ -987,8 +987,9 @@ impl std::ops::DerefMut for Databases {
 /// § 3a's `password_file`, § 1's `statement_cache`, § 9's `time_zone`, § 11's `slow_query`,
 /// § 13's `pool`) plus the
 /// `driver` a discriminated union needs to be discriminated on.
-/// A field the ADR turns out to have meant and this list omits is a boot refusal naming the line,
-/// which is loud and one edit to fix; the fix is to add the field here *and* the example to 0067.
+/// A field the rules turn out to have meant and this list omits is a boot refusal naming the line,
+/// which is loud and one edit to fix; the fix is to add the field here *and* to the rule that
+/// names the block's fields.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Database {
@@ -1276,7 +1277,7 @@ pub struct Server {
     pub keepalive_timeout: Option<Setting>,
     /// How long a connection keeps being served after this server has begun
     /// draining, spelled like the waits above and bounding a stop rather than an idle socket
-    /// ([ADR 0186](/docs/decisions/0186.md) § 3).
+    /// (`rule:concurrency/a-drain-closes-a-connection-cleanly`).
     pub drain_timeout: Option<Setting>,
     /// How far past its earliest deadline a worker must be before the watchdog reports it as not
     /// turning (`rule:http-server/a-wedged-core-is-detected-by-its-deadline`), spelled like the
@@ -1347,7 +1348,7 @@ pub struct Mount {
 
 /// `[cache]` — `Core\Cache`'s two tiers, and nothing else: `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s compiled
 /// artifacts live in `[opcache]`, down to the directory they are read from, which is written
-/// `opcache.file_cache_dir` and is the only spelling of it (`docs/decisions/0175.md`).
+/// `opcache.file_cache_dir` and is the only spelling of it (`rule:config/opcache-file-cache-directives-are-system`).
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Cache {

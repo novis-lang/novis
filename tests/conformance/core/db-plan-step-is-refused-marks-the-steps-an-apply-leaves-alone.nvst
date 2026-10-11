@@ -46,7 +46,7 @@ foreach ($steps as Step $step) {
 echo "refused ", $refused, "\n";
 echo "to run ", $toRun, "\n";
 
-// § 9 grades what it *would* run, and a report is not that, so a plan holding
+// `rule:core-classes/schema-apply-capability` grades what it *would* run, and a report is not that, so a plan holding
 // one is still applied.
 $schema->applySafe($db);
 echo "applied\n";
@@ -66,7 +66,7 @@ foreach ($schema->planAgainst($db)->steps() as Step $again) {
 echo "still refused ", $left, "\n";
 echo "leftovers ", $db->query("select id from leftovers", [])->count(), "\n";
 --FILE nvs.toml--
-# The two grants § 9 splits: `db.connect` opens the block, and `db.schema` is
+# The two grants `rule:core-classes/schema-apply-capability` splits: `db.connect` opens the block, and `db.schema` is
 # what lets `applySafe` issue DDL. The program's own statements need the first.
 [capabilities.db]
 connect = ["main"]

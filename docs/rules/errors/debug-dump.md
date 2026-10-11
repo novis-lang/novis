@@ -28,9 +28,18 @@ direction for a bug to point. So a development-mode API response is byte-identic
 production counterpart.
 
 `[debug] inline` can only be tightened at run time: a request may turn its own inline output off and
-can never turn it on, so the run mode's default is the only thing that can enable it.
+can never turn it on, so the run mode's default is the only thing that can enable it, and
+`rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode` bounds reaching that mode at all.
 
 **This is the security half of the rule.** The most-exploited information disclosure from a debug
 dump is not a bug in the dump; it is that the dump writes to output, so a forgotten call and a
 production deployment are enough. Here the forgotten call writes a log line, and the spelling that would put it
 in a response does not exist outside a mode whose ceiling is closed by default.
+
+**Declined:**
+- **A `debug` key injected into a JSON body in development.** The served shape would contradict the
+  published API document (`rule:routing/api-document-is-a-deterministic-build-artifact`), for the
+  reason above.
+- **A response header carrying a dump id**, the shape some PHP frameworks use for a debug token. It
+  keeps the body intact and the dump discoverable, but it is a second mechanism: an id, a lookup, and a
+  viewer to look it up in, and no such viewer exists.

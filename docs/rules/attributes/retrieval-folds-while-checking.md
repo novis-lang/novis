@@ -5,6 +5,9 @@ A declaration's attached-attribute list is fixed by its source, so `Core\Attribu
 - exactly one does — that payload itself, as a constant, with no lookup at run time;
 - more than one does under `get<T>` — `E0728`, naming `::all<T>` as the fix.
 
+So an ambiguous retrieval of a repeated attribute fails at the call site that would be wrong, while
+compiling, and never on the first request that reaches a site with two matches.
+
 There is no runtime lookup and no reflection table in the compiled unit. The two registered
 `Core\Attributes` members name a body that aborts, so a program that ran at all never called either.
 

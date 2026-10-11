@@ -1,17 +1,10 @@
 <?nvs
-// docs/spec/01-core-library.md § 12's decoders, answering octets rather than
-// text, and ADR 0102's route capture decoded the same way.
-//
-// Percent-decoding is defined over *octets*, and a `string` is guaranteed-valid
-// UTF-8 by construction (ADR 0009 § 1). So the two facts this file shows are
-// the same fact seen twice: where the decoded octets can be anything, the
-// answer is `bytes` and a caller wanting text writes `as string`; where they
-// must be text — a capture binds to a declared `tainted string` parameter — the
-// decode refuses instead, and there is nowhere in between.
+// This program shows that percent-decoding gives `bytes` where the result may not be text.
+// A `string` is always valid UTF-8. Decoded bytes can be anything, so the decoders return `bytes`.
+// You write `as string` when you need text. A route parameter must be a `string`.
+// So a parameter that does not decode to valid UTF-8 throws an error.
 
-// A class with one route, declared here rather than in a directory of its own:
-// ADR 0077 § 5's table is built by the same scan `Core\Program::implementing<T>`
-// uses, over the unit, so a single-file program has a table like any other.
+// A class with one route. A program in one file has routes like any other program.
 class Pages
 {
     #[Core\Route(path:"/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
@@ -22,35 +15,24 @@ class Pages
     }
 }
 
-// 1. `%ff%fe%fd` is three octets and is not text: no `string` answer could have
-// carried it, which is why `decodeComponent` answers `bytes`. Sliced a byte at
-// a time so the answer is read as the buffer it is rather than rendered.
+// 1. `%ff%fe%fd` decodes to three bytes that are not valid UTF-8.
+// So `decodeComponent` returns `bytes`. This prints each byte in hex.
 bytes $octets = Core\Uri::decodeComponent('%ff%fe%fd');
 echo 'decoded octets: ',
     Core\Encoding::toHex(Core\Bytes::slice($octets, 0, 1)), ' ',
     Core\Encoding::toHex(Core\Bytes::slice($octets, 1, 1)), ' ',
     Core\Encoding::toHex(Core\Bytes::slice($octets, 2, 1)), "\n";
 
-// 2. The same decoder reached through a query string. `na%6de` is the *name*
-// `name`, decoded as text because a name is the array key the pair is filed
-// under and octets outside UTF-8 in a key would break that same ADR 0009 § 1
-// guarantee the moment a program iterated the array. The value has no such
-// constraint, so it arrives as the octets themselves — identical to the buffer
-// above, which is what the comparison asserts.
+// 2. `parseQuery` decodes a query string. `na%6de` decodes to the key `name`.
+// The value can be any bytes, so it is `bytes`. It is equal to the bytes from step 1.
 array<mixed> $query = Core\Uri::parseQuery('na%6de=%ff%fe%fd');
 tainted bytes $value = $query['name'] as bytes;
 if (Core\Bytes::compare($value, $octets) == 0) {
     echo 'query name and value decode as octets too', "\n";
 }
 
-// 3. A route capture, decoded once where it crosses into the program: the
-// handler declares `string $slug`, so `%20` is a space by the time anything
-// reads it and never a `%20` the program would have to decode a second time.
-// `Core\Router::match` asks the table the same question the door asks of an
-// arriving request — ADR 0102 § 1 — and answers the same `Core\Router\Match`,
-// which is why one decode serves both. A capture whose escapes spell octets
-// outside UTF-8 has no `tainted string` to become and throws instead; that is
-// the boundary line 1 does not have.
+// 3. `Core\Router::match` decodes a route parameter once. `%20` becomes a space.
+// The handler gets `hello world`. A parameter that is not valid UTF-8 throws an error.
 ?Core\Router\Match $matched = Core\Router::match(Core\Http\Method::Get, '/pages/hello%20world');
 if ($matched != null) {
     echo 'capture: ', $matched->param('slug') as string, "\n";

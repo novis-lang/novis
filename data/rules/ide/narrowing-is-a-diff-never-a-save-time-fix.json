@@ -1,11 +1,7 @@
 {
   "title": "The narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects, because it breaks writes it cannot see",
   "status": "designed",
-  "because": [
-    "0114",
-    "0007",
-    "0188"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/narrow-an-annotation-to-its-literal",
     "ide/a-code-action-writes-only-what-is-already-determined",

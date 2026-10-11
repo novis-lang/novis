@@ -1,11 +1,7 @@
 {
   "title": "`$GLOBALS` and `$_REQUEST` have no replacement of any kind",
   "status": "shipped",
-  "because": [
-    "0012",
-    "0008",
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "statements/no-host-populated-variables",
     "statements/storage-that-outlives-a-call"

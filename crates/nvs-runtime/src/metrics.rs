@@ -25,12 +25,12 @@
 //!
 //! A registry is mutable state outliving a request, which is the shape
 //! `rule:concurrency/cross-request-state-is-explicit` exists to
-//! constrain, and § 5 is where it passes that ADR's own test: nothing reads a
+//! constrain, and § 5 is where it passes that rule's own test: nothing reads a
 //! metric to make a decision — no Novis program can read one at all — the values
 //! are approximate aggregates whose merge across cores is arithmetic rather than
 //! coordination, § 4 forbids any request-derived value from becoming a label,
 //! and the memory is charged to the core and capped. That is the same exception
-//! 0059 § 3 already records for `Core\Cache::local`, and it is why a core's
+//! `rule:concurrency/cache-memory-is-charged-to-the-core` records for `Core\Cache::local`, and it is why a core's
 //! registry is its own rather than a store every core writes into: a counter two
 //! cores contended over would be coordination bought for a number that is
 //! defined as approximate. [`meter_this_core`] is where a core takes one,
@@ -50,7 +50,7 @@
 //! except during the moment a scrape is copying it — and no two cores ever
 //! touch the same word. The alternative considered was a message, the scraping
 //! core poking each of the others and waiting for it to publish, and
-//! `docs/decisions/0004.md`'s ordering refused it: the two cost the same per
+//! `rule:programs/memory-priority`'s ordering refused it: the two cost the same per
 //! request, nothing either of them does being measurable against the map lookup
 //! a count already makes, and the message needs a wake, a reply and a timeout
 //! for the core that is idle or is deep inside one long request, where a lock

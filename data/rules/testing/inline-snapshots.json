@@ -1,10 +1,7 @@
 {
   "title": "A snapshot is a literal in the test body, and the updater rewrites that literal and nothing else",
   "status": "shipped",
-  "because": [
-    "0079",
-    "0033"
-  ],
+  "because": [],
   "seeAlso": [
     "testing/assertions-are-typed",
     "testing/report-formats"

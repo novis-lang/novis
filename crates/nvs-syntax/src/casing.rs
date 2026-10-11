@@ -32,7 +32,8 @@
 //!
 //! `rule:core-api/written-visibility`'s visibility rule reaches the member slots of a `class`, an
 //! `interface` and an anonymous class — the three bodies [`check_members`]
-//! walks. It deliberately does not reach a parameter (§ 2: visibility is
+//! walks. It deliberately does not reach a parameter
+//! (`rule:core-api/a-parameter-is-not-a-member`: visibility is
 //! what promotes one to a property, so requiring it everywhere would delete
 //! the distinction) or an `enum` body (§ 3 of
 //! `rule:enums/closed-integer-type` already
@@ -549,7 +550,7 @@ fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnost
 
 /// `rule:core-api/written-visibility`: a member declaration carrying none of `public`/`protected`/`private`
 /// is [`code::E_MISSING_VISIBILITY`], because there is no default for it to
-/// have meant. § 3 makes PHP 8.4's bare `private(set)` the same error rather
+/// have meant. `rule:core-api/asymmetric-visibility-is-a-pair` makes PHP 8.4's bare `private(set)` the same error rather
 /// than a member whose read side is inferred, so a `(set)` modifier does not
 /// answer this question — it is why the visibility test below asks only about
 /// the three plain modifiers.

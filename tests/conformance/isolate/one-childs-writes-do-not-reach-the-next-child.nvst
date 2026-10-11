@@ -1,5 +1,5 @@
 --TEST--
-An isolate shares nothing with its *siblings* either: the same child spawned five times reads the fresh store every time, so a store is built for each child rather than reused between them — ADR 0006 § *Decision*, `rule:statements/an-isolate-has-its-own-statics`
+An isolate shares nothing with its *siblings* either: the same child spawned five times reads the fresh store every time, so a store is built for each child rather than reused between them — `rule:security/isolate-shares-nothing`, `rule:statements/an-isolate-has-its-own-statics`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first. This grants it and nothing else.

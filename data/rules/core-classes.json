@@ -95,6 +95,7 @@
     "core-classes/spreadsheet-output-is-inert",
     "core-classes/net-one-api-three-transports",
     "core-classes/net-a-socket-does-not-outlive-its-request",
-    "core-classes/net-udp-carries-no-reliability-layer"
+    "core-classes/net-udp-carries-no-reliability-layer",
+    "core-classes/net-has-no-socket-pair"
   ]
 }

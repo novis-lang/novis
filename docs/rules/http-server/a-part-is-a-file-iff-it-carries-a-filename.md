@@ -3,3 +3,6 @@ A part is a file part exactly when its `Content-Disposition` carries `filename` 
 A `Part` answers `name()` (the form's field name), `filename()` (the client's claimed name, never a path) and `contentType()`, all three **`tainted`** and all three members rather than properties. `name` is marked with the other two although the form declared it: a peer is under no obligation to send back the names the form declared, and leaving it plain would have made it the one launderer on the class. `contentType()` answers RFC 7578's default `text/plain` where the part declared none.
 
 A part carries **no `size`**. There is no honest value to put there before the part has been consumed, and inventing one from `Content-Length` is the repair `rule:errors/ambiguous-input-refused` forbids. The part-count cap of `rule:errors/multipart-part-count` applies unchanged; it bounds bookkeeping, which no byte cap reaches.
+
+**Declined:**
+- **A third directive for the buffered form fields.** Its right value is one nobody knows, and it would overlap `request_body` almost entirely.

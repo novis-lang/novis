@@ -2,8 +2,8 @@
 //! parses through.
 //!
 //! The whole of it: nested `array<T>`, DNF unions and intersections, the
-//! `?T` sugar, `tainted`/`secret` qualifiers (`rule:security/tainted-qualifier`, `rule:security/secret-qualifier`), ADR
-//! 0036 § 3's inline `{name: T}` shape, `rule:types/single-value-types`'s literal and enum-case
+//! `?T` sugar, `tainted`/`secret` qualifiers (`rule:security/tainted-qualifier`, `rule:security/secret-qualifier`), the
+//! inline `{name: T}` shape (`rule:types/shape-type`), `rule:types/single-value-types`'s literal and enum-case
 //! atoms, and `decimal` (`rule:types/decimal`). A `>>` closing two nested generics is
 //! split back into two `>` closes here rather than in the lexer — see
 //! [`Parser::expect_type_close_angle`].

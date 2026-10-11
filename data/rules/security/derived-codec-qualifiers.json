@@ -1,12 +1,7 @@
 {
   "title": "A derived codec adds no qualifier rule, and a `secret` field is refused at the declaration rather than silently omitted",
   "status": "shipped",
-  "because": [
-    "0071",
-    "0024",
-    "0033",
-    "0067"
-  ],
+  "because": [],
   "seeAlso": [
     "security/secret-sinks-refuse",
     "security/taint-propagation",

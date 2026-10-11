@@ -2,9 +2,9 @@
 `#[Db\Derive]` and `#[Db\Field]` are compiler-recognized names like their JSON twins, matched after resolution rather than declared as shapes — `rule:core-classes/derive-attribute` and `rule:core-classes/derive-field-list`
 --FILE--
 <?nvs
-// § 1: a compiler-recognized attribute is matched *nominally*, so the `use`d
+// `rule:core-classes/derive-attribute`: a compiler-recognized attribute is matched *nominally*, so the `use`d
 // short form below and the qualified spelling further down are one attribute
-// reached two ways. Neither is a declared `type` alias — that is § 1's one
+// reached two ways. Neither is a declared `type` alias — that is `rule:core-classes/derive-attribute`'s one
 // carve-out from `rule:attributes/attach-sites-and-forms`, and it is what makes this file compile at all.
 use Core\Db\Derive;
 use Core\Db\Field;
@@ -22,7 +22,7 @@ class Account {
     }
 }
 
-// § 3's own reason for two `Field` attributes rather than one shared spelling:
+// `rule:core-classes/derive-attribute`'s own reason for two `Field` attributes rather than one shared spelling:
 // a JSON key and a column name are independently chosen. The same property
 // carries both overrides here, and the two contracts do not collide — the JSON
 // one is what `encode` writes.
@@ -40,7 +40,7 @@ class Row {
 }
 
 // The attribute changes nothing about the class as a class: a decode is an
-// ordinary `new` (§ 2), so an object built by hand is the same object.
+// ordinary `new` (`rule:core-classes/derive-field-list`), so an object built by hand is the same object.
 Account $a = new Account("nobody@example.com", 7);
 echo "email ", $a->email, "\n";
 echo "id ", $a->id, "\n";

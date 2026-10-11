@@ -6,7 +6,10 @@ may not exist beside `$instant->format($fmt)`.
 
 This closes the second and less visible kind of duplication, the one a function list cannot show: a
 procedural function beside every method of a class, so that a whole API exists twice. A tree API and a streaming reader over the same data are *different jobs* rather
-than twins, and the spec says so explicitly where that could be misread.
+than twins, and the spec says so explicitly where that could be misread. So are two parsers onto one
+tree: `Core\Html::parse` and `Core\Xml::parse` take different languages under opposite failure
+contracts and produce the same node family, so each tree operation is written once and reached through
+neither door's own surface (`rule:core-classes/html-parsing`).
 
 **An operator is syntax, not a second API, and is never counted here** — `is`, `as ?T` and the
 pipeline (`rule:expressions/pipeline-substitution`) reach the same member through the same call and add

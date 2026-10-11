@@ -695,7 +695,9 @@ fn resolved_in<'a>(analysed: &'a Analysed, nodes: &[Span]) -> Option<(Target<'a>
 /// lists instead — every attach site `rule:attributes/attach-sites-and-forms`
 /// names — and descended through `nvs_syntax::visit::each_child_expr`, so the
 /// path is the one the index would answer if it held the payload, and
-/// [`resolved_in`] reads it the same way.
+/// [`resolved_in`] reads it the same way. The walk stays as it is because
+/// `nvs fmt`'s indenter and `Core\Ast` read it too, and a payload node under a
+/// method would change what both print.
 pub(crate) fn payload_path(analysed: &Analysed, offset: BytePos) -> Vec<Span> {
     let Some(entry) = analysed
         .loaded

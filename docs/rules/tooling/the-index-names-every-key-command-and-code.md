@@ -13,6 +13,16 @@ hidden commands and flags left out, and the diagnostics crate's code list, which
 the codes writes — and kept nowhere, which is `rule:testing/roster-is-derived`'s shape: a key, a flag
 or a code that lands owes its line at once, and nobody edits a list.
 
-The entries are exact names, never a search of the text under a heading. A full-text match answers
-one word with every section that mentions it, and an empty answer from it no longer means that the
-name does not exist, which is the property `rule:tooling/the-index-is-one-line-per-member` keeps.
+The entries are exact names, never a search of the text under a heading, so an empty answer still
+means that the name does not exist, which is the property `rule:tooling/the-index-is-one-line-per-member`
+keeps. Building the lines is more work per `find`, and it is a command-line lookup that no request
+path reaches.
+
+**Memory:** nothing held. The lines are derived at the call and kept nowhere.
+
+**Declined:**
+- **A full-text search over every section.** It answers one word with every section that mentions
+  it, which an agent has to read through, and an empty answer from it no longer means the name does
+  not exist.
+- **Full text beside the exact entries, exact entries first.** It has the same loose matches after
+  the exact ones, and it is more to build and to test.

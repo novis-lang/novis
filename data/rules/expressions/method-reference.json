@@ -1,13 +1,7 @@
 {
   "title": "A method reference, `Name(...)`, is the only spelling that takes a reference to a declared member",
   "status": "shipped",
-  "because": [
-    "0027",
-    "0015",
-    "0031",
-    "0136",
-    "0007"
-  ],
+  "because": [],
   "seeAlso": [
     "expressions/pipeline-substitution",
     "expressions/nullable-conversion-availability"

@@ -1,5 +1,5 @@
 //! `Core\Debug` — `rule:errors/debug-dump`'s `dump` and `render`, and the walk that turns a runtime value into
-//! § 1's record.
+//! `rule:errors/diagnostic-record`'s record.
 //!
 //! ```text
 //! Core\Debug::dump(mixed ...$values): void
@@ -7,7 +7,8 @@
 //! ```
 //!
 //! **There is no format argument on either, and there is no `dumpRaw`.** The
-//! sink in force is the only input to which rendering runs (§ 3), which is
+//! sink in force is the only input to which rendering runs
+//! (`rule:errors/renderings`), which is
 //! what keeps the five producers from each growing a `$format` parameter and
 //! the renderings from becoming twenty. [`rendered_for`] is the whole of that
 //! choice, asked of the channel the bytes leave through: a dump reaching a
@@ -17,7 +18,8 @@
 //!
 //! # Where a dump lands
 //!
-//! § 4's table, and [`nvs_core_debug_dump`] is the whole of the routing.
+//! `rule:errors/debug-dump`'s table, and [`nvs_core_debug_dump`] is the whole
+//! of the routing.
 //! Outside a request — a CLI program, a scheduled script, a job worker, a test
 //! — a dump goes to **stderr**, never stdout, so `prog | jq` and
 //! `prog > out.txt` keep working while a program is being debugged.
@@ -193,7 +195,8 @@ nvs_runtime::nvs_helper! {
     /// line: `Core\Debug::dump()` says nothing, and a blank line in a build
     /// log is worse than silence.
     ///
-    /// The two destinations below are § 4's table and the module doc is where
+    /// The two destinations below are `rule:errors/debug-dump`'s table and the
+    /// module doc is where
     /// each row's reasoning is. What decides between them is whether this
     /// context is answering a request, asked the same way
     /// `Ctx::stamp_envelope` asks it — the request and not the sink, so that a
@@ -279,7 +282,8 @@ nvs_runtime::nvs_helper! {
 ///
 /// The entry point for a producer outside this module — [`crate::log`]'s
 /// `fields` bag is walked through here — so that a value written as a log field
-/// and the same value dumped are the same node, with § 5's transformations
+/// and the same value dumped are the same node, with
+/// `rule:errors/record-transformations`' transformations
 /// applied once and in one place. Everything else about the walk, including
 /// what it cannot see, is `nvs_runtime::record`'s.
 pub(crate) fn node(value: Value) -> Node {
@@ -351,7 +355,8 @@ fn rendered_for(carrier: &str, nodes: &[Node]) -> String {
 /// `rule:testing/inline-snapshots`'s inline snapshot is *this* rendering held in a string literal in the source —
 /// `Core\Test::assertMatchesInline` calls it rather than growing one of its
 /// own, so a snapshot and a dump of the same value cannot disagree about what
-/// that value looks like, and § 5's redaction reaches a snapshot for free.
+/// that value looks like, and `rule:errors/record-transformations`' redaction
+/// reaches a snapshot for free.
 ///
 /// Without the trailing newline `dump` writes: this answers a *value*, and a
 /// caller composing one into a larger output decides where the line ends.
@@ -389,7 +394,8 @@ mod tests {
         );
     }
 
-    /// **There is no format argument on either member** — § 7. The sink in
+    /// **There is no format argument on either member** —
+    /// `rule:errors/renderings`. The sink in
     /// force is the only input to which rendering runs, which is what keeps
     /// the renderings from becoming twenty.
     // covers: Core\Debug::dump
@@ -402,7 +408,7 @@ mod tests {
                     .params
                     .iter()
                     .any(|param| matches!(param, CoreTy::Options(_))),
-                "`{}` grew an options bag, and § 7 has no room for one",
+                "`{}` grew an options bag, and `rule:errors/renderings` has no room for one",
                 method.name
             );
         }
@@ -605,7 +611,8 @@ mod tests {
     /// `rule:errors/debug-dump` sends a dump's *nodes* to the terminal and
     /// renders no envelope there. The datum is on the record for the renderings
     /// that do carry one — `nvs_render::json` writes every envelope key — and
-    /// putting it anywhere else would be the second construction § 1 refuses.
+    /// putting it anywhere else would be the second construction
+    /// `rule:errors/diagnostic-record` refuses.
     // covers: Core\Debug::dump
     #[test]
     fn a_dump_reports_the_line_it_was_written_on() {

@@ -14,7 +14,10 @@ and **narrow an `array<mixed>` to its literal's type**
 (`rule:ide/narrow-an-annotation-to-its-literal`), which writes an annotation rather than a declaration
 under the same bound.
 
-Applying a generator produces text that compiles, and applying it twice is a no-op.
+Applying a generator produces text that compiles, and applying it twice is a no-op. Implementing
+missing members is the most-used action of its kind in PHP editors, and Novis's explicit types make
+it mechanical where PHP's make it a guess. A class with it applied passes `nvs check` with only the
+inserted `throw`s reachable.
 
 **Getter/setter generation is refused** under this bound and under `rule:classes/property-observer`:
 property hooks mean the pair of methods that action exists to save typing has no reason to be written.

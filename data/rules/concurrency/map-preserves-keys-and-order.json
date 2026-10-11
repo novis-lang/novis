@@ -1,9 +1,7 @@
 {
   "title": "`Core\\Task::map` answers an array of the callback's own return type, in the input's keys and order",
   "status": "shipped",
-  "because": [
-    "0072"
-  ],
+  "because": [],
   "seeAlso": [
     "core-api/subject-first",
     "core-api/callback-receives-value-and-key"

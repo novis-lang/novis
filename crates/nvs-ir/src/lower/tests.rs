@@ -3413,7 +3413,7 @@ bool $b = 0 as bool;
 /// can throw. The error edge is what this asserts: a checked conversion
 /// that skipped it would drop the throw on the floor.
 #[test]
-fn a_checked_conversion_row_carries_adr_0002_s_error_edge() {
+fn a_checked_conversion_row_carries_the_call_error_edge() {
     let (f, map, file) = lower_script_src(
         "<?nvs
 uint $u = 1;
@@ -4228,8 +4228,8 @@ fn a_resolved_route_link_releases_its_params_array() {
 }
 
 /// A file that runs out of statements seals with `1` when a `require` site
-/// entered it and with `null` when it is the program's entry frame — ADR
-/// 0006 § *Decision*'s "deliberately not `require`'s `1`", against
+/// entered it and with `null` when it is the program's entry frame —
+/// `rule:security/isolate-failure-is-a-value`'s "not `require`'s `1`", against
 /// `rule:statements/a-require-expression-is-mixed`.
 ///
 /// Both sides in one test, over the *same* source, because they are one
@@ -4257,7 +4257,7 @@ fn a_fall_through_seals_with_one_for_a_require_and_null_for_the_entry_frame() {
 }
 
 /// `spawn script` lowers to **one fallible `CoreCall` in the frame that
-/// wrote it** — ADR 0006 § *Decision*, as `Lowering::lower_spawn_script`
+/// wrote it** — `rule:security/isolate-shares-nothing`, as `Lowering::lower_spawn_script`
 /// records it.
 ///
 /// That is what "a task on the current core" is, at this level: the child

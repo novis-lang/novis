@@ -10,4 +10,17 @@ socket, read a file, spawn a process, reach a database or spawn a script unless 
 in a grant line. The compromise of a transitive dependency degrades from *arbitrary action with the
 process's authority* to *arbitrary computation with no authority at all*.
 
+Grant lines are friction, and the friction is the point. Some users will grant everything without
+reading, the way some run containers as root; the design cannot prevent that, only make it visible and
+diffable. What it prevents is authority arriving without anybody writing anything.
+
+A package can never be the code that declares data safe. Only a `Core` member removes `tainted`
+(`rule:security/launderers-are-sink-named`), so a package can compute over a `tainted` value and return
+it still `tainted`.
+
+**Declined:**
+- **Ambient capabilities: the process is granted, and every package inherits.** That is what every
+  mainstream package system does, and it is how a compromised transitive dependency becomes a breach.
+  No incumbent can retrofit the refusal.
+
 **Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.

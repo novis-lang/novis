@@ -229,9 +229,9 @@ fn markup_is_not_stringable_and_has_no_concat_row() {
 
     // The other side of the same bound, so a rule that refused every operand
     // of `.` fails here: `+` *does* have a row for two carriers, and it
-    // produces the carrier back. That is `rule:core-classes/html-auto-escape`'s composition, and ADR
-    // 0133 § 2 leans on it — the correction it offers the reader is to write
-    // `+` where they wrote `.`, so `+` has to work.
+    // produces the carrier back. That is `rule:core-classes/html-auto-escape`'s composition, and
+    // `rule:core-classes/html-escape-answers-markup` leans on it — the correction it offers the
+    // reader is to write `+` where they wrote `.`, so `+` has to work.
     let diags = check_in_method(
         "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
          Core\\Html\\Markup $both = (\"Hello \" as Core\\Html\\Markup) + $m;\n",

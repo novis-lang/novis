@@ -135,7 +135,8 @@ fn a_novis_hole_splits_one_paragraph_into_two_regions() {
 /// A request carrying `text` is answered about that text, and the open buffer
 /// is not read.
 ///
-/// This is what the format pass asks (ADR 0173 § 4): the regions it needs are
+/// This is what the format pass asks
+/// (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`): the regions it needs are
 /// the ones in `nvs fmt`'s output, which no buffer holds — the editor has not
 /// applied the edit yet and may never, since a chunk whose formatting would
 /// reach a hole is left as written. The buffer here is Novis throughout, so an

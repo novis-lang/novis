@@ -12,3 +12,8 @@ difference is what `rule:errors/ambiguous-input-refused` refuses.
 It replaces the two-attribute spelling for one endpoint, which is legal but carries two paths — so the
 two forms could not share a name, one of them lost reverse-URL generation, and metrics saw one endpoint
 as two series. A link built with the optional capture left out of `$params` simply drops the segment.
+
+**Declined:**
+- **Two `#[Route]`s sharing one name across two paths.** It weakens the duplicate-name compile error
+  (`rule:routing/routes-are-compiled-not-registered`) and turns `url()` from a table lookup into a
+  best-fit search.

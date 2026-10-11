@@ -1,11 +1,7 @@
 {
   "title": "A `FATAL` and a cancellation run no exit hook — `Core\\Fatal::onLimit` is the one observer of a limit breach",
   "status": "shipped",
-  "because": [
-    "0127",
-    "0020",
-    "0072"
-  ],
+  "because": [],
   "seeAlso": [
     "observability/three-endings-fire-the-exit-queue",
     "errors/on-limit",

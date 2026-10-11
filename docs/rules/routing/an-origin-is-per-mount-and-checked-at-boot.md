@@ -22,3 +22,7 @@ process serving many mounts has no one origin its accept loop could hold. A relo
 and a reload that moves `[[app]] origin` folds it into the rows again. Either way the same check is
 asked of every row that changed, so a row that no longer resolves an origin is left out of the table
 and the reason is logged.
+
+**Declined:**
+- **An origin a request may set.** The `tainted` qualifier stops a header copied straight in, but not
+  a value laundered through a database round trip, and this value ends up in mail.

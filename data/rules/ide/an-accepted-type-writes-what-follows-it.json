@@ -1,9 +1,7 @@
 {
   "title": "Accepting a type writes `Name::` inside an expression and `Name()` after `new`, and the name alone wherever a type or a statement may start",
   "status": "shipped",
-  "because": [
-    "0194"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted",
     "ide/completion-is-asked-where-a-spelling-ends",

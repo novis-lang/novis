@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0079 § 2, from the language surface: a static one test writes reads its
+// `rule:testing/isolate-per-test`, from the language surface: a static one test writes reads its
 // declared initial value in the next, with no flag to change it. The two tests
 // are declared in the order they have to run in — within a class the order is
 // declaration order — so the second one is asking the question the first one

@@ -1,6 +1,6 @@
 //! The drivers as an enum, and the busy state each one carries.
 //!
-//! [ADR 0132 § 5](/docs/decisions/0132.md)
+//! `rule:core-classes/db-drivers-are-an-enum`
 //! decides that this is an `enum` and not a `Driver` trait, for three reasons
 //! in this project's priority order: the set is **closed** (`rule:core-classes/db-one-api` makes
 //! a new backend an ADR rather than a plugin, and wasm extensions cannot host
@@ -24,7 +24,7 @@
 //! driver's module beside this one ([`crate::pg`] is one), so the enum
 //! stays readable as an enum while a protocol grows to the size a protocol is.
 //!
-//! What is *not* per driver is § 4's rule about when a connection may be
+//! What is *not* per driver is `rule:core-classes/db-connection-busy-state` about when a connection may be
 //! written to and when it may be pooled: that is one rule over [`State`], and
 //! it lives on that type rather than being restated once per driver. What each
 //! driver decides for itself is which state a given wire event leaves it in —
@@ -126,9 +126,8 @@ pub fn socket_endpoint(host: &str) -> std::io::Result<Endpoint> {
 /// A refusal and never a fallback: a Unix spelling on a platform without the
 /// transport does not quietly become loopback TCP, because the two are not the
 /// same server and an operator who wrote a path did not ask for a port.
-/// [ADR 0142 § 4](/docs/decisions/0142.md) is the argument, and
-/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` the
-/// rule it left.
+/// `rule:config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot` is
+/// the rule and its argument.
 ///
 /// # Errors
 ///
@@ -144,7 +143,7 @@ pub fn socket_endpoint(host: &str) -> std::io::Result<Endpoint> {
     ))
 }
 
-/// The backends [ADR 0067 § 12](/docs/decisions/0067.md) closes
+/// The backends `rule:core-classes/db-drivers-are-an-enum` closes
 /// the set at.
 ///
 /// MariaDB is its own driver and not a MySQL flag: the two have diverged in
@@ -272,7 +271,7 @@ impl Driver {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockError<'a> {
     /// The block names no `driver` at all, so nothing decides which of ADR
-    /// 0067 § 12's backends it is.
+    /// `rule:core-classes/db-drivers-are-an-enum`'s backends it is.
     NoDriver,
     /// `driver` names a backend Novis has, and it is not the one that read it.
     OtherDriver {
@@ -429,7 +428,7 @@ pub(crate) fn written_value<'a>(
 }
 
 /// Where a connection's wire is, between commands —
-/// [ADR 0132 § 4](/docs/decisions/0132.md).
+/// `rule:core-classes/db-connection-busy-state`.
 ///
 /// This is not on the stream and cannot be: `NvsStream`'s readiness
 /// registration is one task's and is invisible above `Read`/`Write`, a
@@ -485,7 +484,7 @@ impl State {
     }
 }
 
-/// The isolation levels [ADR 0067 § 7](/docs/decisions/0067.md)'s
+/// The isolation levels `rule:core-classes/db-transactions`'s
 /// `transaction()` takes, as a caller asks for them rather than as any one
 /// server spells them.
 ///
@@ -528,8 +527,7 @@ pub enum Isolation {
 /// cases `Core\Db\Column::type` answers with.
 ///
 /// **This is not a summary of what a read of the column produces**, and the two
-/// questions are deliberately different. [ADR 0067
-/// § 9](/docs/decisions/0067.md)'s type map decodes a `JSON` column to
+/// questions are deliberately different. `rule:core-classes/db-column-types`'s type map decodes a `JSON` column to
 /// a `tainted string` exactly as it decodes a `TEXT` one — it has to, since
 /// MariaDB's `JSON` is `LONGTEXT` with a check constraint and is not detectable
 /// at all — while a *description* of the column can tell them apart wherever the
@@ -587,7 +585,7 @@ pub enum ColumnType {
     Other,
 }
 
-/// [ADR 0067 § 8](/docs/decisions/0067.md)'s normalised `ErrorKind`,
+/// `rule:core-classes/db-error`'s normalised `ErrorKind`,
 /// under a name that cannot be misread as [`std::io::ErrorKind`] in a driver
 /// that spells both in one function.
 ///
@@ -630,7 +628,7 @@ pub enum DbErrorKind {
 }
 
 impl DbErrorKind {
-    /// Whether [ADR 0067 § 7](/docs/decisions/0067.md)'s
+    /// Whether `rule:core-classes/db-transactions`'s
     /// `{retries: n}` re-runs the transaction's callable over this.
     ///
     /// **These two, and nothing else.** A retry is sound only where the server
@@ -768,7 +766,7 @@ pub struct PgConn {
     /// connection that dropped it cannot ask again.
     pub(crate) cancel: CancelKey,
     /// The `server_version` the backend reported during startup, verbatim —
-    /// [ADR 0187 § 2](/docs/decisions/0187.md)'s answer for this driver.
+    /// `rule:core-classes/server-version-is-what-the-server-said`'s answer for this driver.
     ///
     /// Kept because the parameter is delivered once and asking for it again
     /// would be a round trip behind a member that reads like a field read. A
@@ -859,7 +857,7 @@ pub struct MySqlConn {
     /// re-derived them per packet would be deciding it twice.
     pub(crate) capabilities: CapabilityFlags,
     /// The greeting's version banner, exactly as the server wrote it —
-    /// [ADR 0187 § 2](/docs/decisions/0187.md)'s answer for this driver, taken
+    /// `rule:core-classes/server-version-is-what-the-server-said`'s answer for this driver, taken
     /// off `crate::mysql`'s `Greeting`.
     ///
     /// The banner and not the `(major, minor, patch)` beside it: a
@@ -965,15 +963,15 @@ pub struct MariaConn {
 /// `futures-io` with its TLS behind `tokio-rustls`.
 ///
 /// This is the largest single piece of new wire code the database goal buys,
-/// and § 3's handshake — TLS tunnelled inside TDS packets before the connection
+/// and its handshake — TLS tunnelled inside TDS packets before the connection
 /// becomes an ordinary TLS stream — is why `NvsTls` is generic over its
-/// transport.
+/// transport (`rule:security/one-tls-client`).
 #[derive(Debug)]
 pub struct TdsConn {
     /// The stream and the bytes read off it that are not yet a whole packet,
     /// once [`crate::tds::TdsConn::connect`] has upgraded it.
     ///
-    /// Its type is the one that says what § 3 costs on this protocol: a TLS
+    /// Its type is the one that says what the tunnelled handshake costs on this protocol: a TLS
     /// session over a [`Tunnel`](crate::tds::Tunnel) over the socket, where the
     /// other drivers' is a session over the socket itself. The tunnel is dead
     /// weight after the handshake — it passes bytes through once its end is
@@ -983,7 +981,7 @@ pub struct TdsConn {
     /// `rule:core-classes/db-connection-busy-state`'s busy state; the reasoning is on [`PgConn`].
     pub(crate) state: Cell<State>,
     /// `major.minor.build` from the `LOGINACK` that accepted the login, decimal
-    /// and unpadded — [ADR 0187 § 2](/docs/decisions/0187.md) fixes that
+    /// and unpadded — `rule:core-classes/server-version-is-what-the-server-said` fixes that
     /// spelling in [`crate::tds::LoginAck::server_version`], because this is the
     /// one backend that sends numbers where the others send a string.
     ///
@@ -1093,7 +1091,7 @@ pub struct SqliteConn {
 
 /// One open connection to one database, whichever backend it is.
 ///
-/// [ADR 0132 § 5](/docs/decisions/0132.md):
+/// `rule:core-classes/db-drivers-are-an-enum`:
 /// each variant owns its own state machine, its own error-code table and its
 /// own reset, and `Core\Db`'s entry points `match` here exactly once.
 ///
@@ -1130,7 +1128,7 @@ impl Connection {
     }
 
     /// What the other end reported itself as, spelled per driver by
-    /// [ADR 0187 § 2](/docs/decisions/0187.md).
+    /// `rule:core-classes/server-version-is-what-the-server-said`.
     ///
     /// Read off the connection and never asked for: each wire driver kept what
     /// its own handshake had already delivered, so no statement goes out here.
@@ -1165,7 +1163,7 @@ impl Connection {
     ///
     /// Takes `&self` rather than `&mut self` because the state is a [`Cell`]:
     /// a driver sets it from inside a borrow of the connection it is reading
-    /// rows out of, which is the whole reason § 4 puts it in a cell.
+    /// rows out of, which is the whole reason `rule:core-classes/db-connection-busy-state` puts it in a cell.
     pub fn set_state(&self, state: State) {
         match self {
             Connection::Postgres(c) => c.state.set(state),
@@ -1187,7 +1185,7 @@ impl Connection {
     }
 
     /// Bounds this connection's next exchange by `at`, or lifts the bound —
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `{timeout?: Duration}`.
+    /// `rule:core-classes/db-statement-members`'s `{timeout?: Duration}`.
     ///
     /// **One clock per connection, on the thing that waits**, which is the same
     /// clock [`PgConn::connect`] and its siblings already file for the
@@ -1407,7 +1405,7 @@ mod tests {
         assert_eq!(Driver::from_config_name(""), None);
     }
 
-    /// § 4's rule, asserted on both sides: `Idle` is the only state that
+    /// `rule:core-classes/db-connection-busy-state`, asserted on both sides: `Idle` is the only state that
     /// accepts a statement and the only one that may be pooled. Asserting it
     /// over the whole roster rather than on one state is what catches a state
     /// added later without a decision about either question.
@@ -1434,7 +1432,7 @@ mod tests {
         assert!(!State::Poisoned.may_start_statement());
     }
 
-    /// [ADR 0067 § 8](/docs/decisions/0067.md)'s normalisation read
+    /// `rule:core-classes/db-error`'s normalisation read
     /// **across** the drivers instead of down one: one condition, spelled the
     /// way each server spells it, answering one [`DbErrorKind`] on all of them.
     ///

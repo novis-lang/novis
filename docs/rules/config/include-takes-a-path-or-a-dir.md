@@ -26,3 +26,9 @@ a configuration file in every other respect: unknown and duplicate keys are refu
 as in the root, its paths resolve against its own directory, and it must pass
 `rule:config/ownership-is-the-trust-boundary`. What `optional` does and does not cover is
 `rule:config/optional-covers-absence-and-moves-the-check-to-the-directory`.
+
+**Declined:**
+- **A `sha256` pin on an `[[include]]`**, as `[[extension]]` has. The pin exists on an extension
+  because it accepts a precompiled binary from outside the deployment. An include is a text file under
+  the same ownership check, edited by hand, and a pin on it would be stale after the next edit. An
+  include that arrives from a package is what would reopen this.

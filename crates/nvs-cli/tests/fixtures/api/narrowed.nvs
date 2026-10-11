@@ -1,7 +1,7 @@
 <?nvs
-// The two rows of ADR 0085 § 1 a *narrowed* declared type supplies: a capture
-// whose type is a closed set (ADR 0102 § 5) is the *Enumerations* row, and a
-// `Core\Uuid` capture is a string with a format.
+// The two rows of the generated document a *narrowed* declared type supplies: a capture
+// whose type is a closed set (`rule:routing/a-capture-narrows-to-a-closed-set`) is the
+// *Enumerations* row, and a `Core\Uuid` capture is a string with a format.
 //
 // The `#[Query]` parameter carries no default on purpose: a default at a
 // literal or union declared type is `E0451`, so a closed-set key is a required

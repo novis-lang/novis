@@ -1,5 +1,5 @@
 --TEST--
-A child that runs to its end without a top-level `return` hands its parent back `null`, while a `require` of that very same file is still `1` — ADR 0006 § *Decision*, against `rule:statements/a-require-expression-is-mixed`
+A child that runs to its end without a top-level `return` hands its parent back `null`, while a `require` of that very same file is still `1` — `rule:security/isolate-failure-is-a-value`, against `rule:statements/a-require-expression-is-mixed`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -14,9 +14,9 @@ spawn = true
 echo "the file ran\n";
 --FILE--
 <?nvs
-// ADR 0006 § *Decision*: "A child that runs to its end without a top-level
-// `return` hands back `null` — the value every Novis function without a
-// `return` produces. This is deliberately not `require`'s `1`."
+// `rule:security/isolate-failure-is-a-value`: a child that runs to its end
+// without a top-level `return` gives `null`, the value every Novis function
+// without a `return` produces, and not `require`'s `1`.
 var $job = spawn script "quiet.nvs" with(output: "capture");
 var $result = await $job;
 

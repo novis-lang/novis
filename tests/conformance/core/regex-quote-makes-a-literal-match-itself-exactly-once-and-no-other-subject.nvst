@@ -1,5 +1,5 @@
 --TEST--
-Core\Regex::quote makes a literal exactly one match, at offset 0, spanning its own subject and reaching no other, wherever a metacharacter sits in it — ADR 0056 §§ 4-5
+Core\Regex::quote makes a literal exactly one match, at offset 0, spanning its own subject and reaching no other, wherever a metacharacter sits in it — `rule:security/regex-pattern-is-a-sink`
 --FILE--
 <?nvs
 // Spec § 5's `quote` row, from the side its two siblings leave open.

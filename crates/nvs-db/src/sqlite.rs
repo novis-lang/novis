@@ -2,10 +2,10 @@
 //! blocking pool and the rows are in hand before the core is taken back.
 //!
 //! This is the one driver whose shape is not
-//! `rule:core-classes/db-crate-boundary`'s borrowed codec over § 3's parking stream. There is no wire: no
+//! `rule:core-classes/db-crate-boundary`'s borrowed codec over `nvs-host`'s parking stream. There is no wire: no
 //! framing to borrow, no handshake to write, no readiness a reactor could
 //! report. `rusqlite` *is* the protocol, and what this module adds around it is
-//! what every other driver gets from its own machinery — § 3's
+//! what every other driver gets from its own machinery — the blocking-pool
 //! handoff off the core, `rule:core-classes/db-statement-members`'s
 //! one-statement-at-a-time rule, § 8's normalised error kinds, and § 7's
 //! nesting with the § 13 reset that closes it.
@@ -229,7 +229,7 @@ impl<'a> SqliteTarget<'a> {
 /// The same enum binds a parameter and carries a read cell, because on this
 /// backend those genuinely are one set — SQLite stores a value as one of these
 /// five whatever the column was declared as, which is the fact
-/// [ADR 0067 § 9](/docs/decisions/0067.md) works around by keying its
+/// `rule:core-classes/db-column-types` works around by keying its
 /// map off the *declared* type. Nothing here is that map: this is the storage
 /// class, and turning `Int(20260903)` into a `Core\Time\Date` because the column
 /// says `date` happens a layer up.
@@ -428,7 +428,7 @@ pub struct SqliteColumn {
 }
 
 impl SqliteColumn {
-    /// [ADR 0067 § 9](/docs/decisions/0067.md)'s type for this
+    /// `rule:core-classes/db-column-types`'s type for this
     /// column, off the *declared* name — the one backend where that is the only
     /// thing to key on.
     ///
@@ -764,7 +764,7 @@ impl InsertedRow {
 
 /// The version of the SQLite this binary is linked against, which is what
 /// `Core\Db\Connection::serverVersion` answers on this driver —
-/// [ADR 0187 § 2](/docs/decisions/0187.md).
+/// `rule:core-classes/server-version-is-what-the-server-said`.
 ///
 /// A property of the binary and not of a connection: there is no server here
 /// and no handshake, so nothing about it is kept per open database.
@@ -773,7 +773,7 @@ pub(crate) fn library_version() -> &'static str {
 }
 
 impl SqliteConn {
-    /// [ADR 0067 § 9](/docs/decisions/0067.md)'s declared zone, in
+    /// `rule:core-classes/db-column-types`'s declared zone, in
     /// seconds east of UTC.
     ///
     /// Public where the other drivers keep theirs private, because they
@@ -786,7 +786,7 @@ impl SqliteConn {
         self.time_zone
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s statement: prepared
+    /// `rule:core-classes/db-statement-members`'s statement: prepared
     /// through § 1's cache, stepped off the core, and answered with its rows.
     ///
     /// **`execute` is this same method**, for [`crate::TdsConn::query`]'s reason:
@@ -966,7 +966,7 @@ impl SqliteConn {
         }
     }
 
-    /// [ADR 0067 § 11](/docs/decisions/0067.md)'s trace event for the
+    /// `rule:observability/a-query-is-a-trace-event`'s trace event for the
     /// parked walk, or `None` where there is none.
     #[must_use]
     pub fn stream_span(&self) -> Option<&QuerySpan> {
@@ -1003,7 +1003,7 @@ impl SqliteConn {
         }
     }
 
-    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s `executeMany`: one
+    /// `rule:core-classes/db-statement-members`'s `executeMany`: one
     /// prepare, N executions, and the affected counts summed.
     ///
     /// The whole loop is *one* handoff off the core rather than one per set.
@@ -1040,7 +1040,7 @@ impl SqliteConn {
         applied.map_err(server_error)
     }
 
-    /// [ADR 0067 § 7](/docs/decisions/0067.md)'s `BEGIN`, or the
+    /// `rule:core-classes/db-transactions`'s `BEGIN`, or the
     /// `SAVEPOINT` a nested `transaction()` is.
     ///
     /// The nesting, the names and the depth accounting are
@@ -1226,7 +1226,7 @@ impl SqliteConn {
         Ok(span)
     }
 
-    /// [ADR 0067 § 13](/docs/decisions/0067.md)'s reset, and the
+    /// `rule:security/db-pool-reset-is-a-boundary`'s reset, and the
     /// connection back only if it worked.
     ///
     /// **Rolling back an open transaction is the whole reset**, which is § 13's
@@ -1669,7 +1669,7 @@ fn server_error(error: rusqlite::Error) -> io::Error {
     })
 }
 
-/// [ADR 0067 § 8](/docs/decisions/0067.md)'s kind, from SQLite's
+/// `rule:core-classes/db-error`'s kind, from SQLite's
 /// extended result code.
 ///
 /// Keyed on the extended code because the primary one is too coarse to answer
@@ -1765,7 +1765,7 @@ mod tests {
 
     /// `serverVersion` on the one driver with no server: the version of the
     /// library this binary is linked against —
-    /// [ADR 0187 § 2](/docs/decisions/0187.md).
+    /// `rule:core-classes/server-version-is-what-the-server-said`.
     ///
     /// Asserted against what the engine itself answers rather than against a
     /// literal, so the two move together when the library does, and asserted to

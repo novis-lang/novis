@@ -3,7 +3,7 @@
 // holds it.
 //
 // `rule:concurrency/queue-deletion-is-explicit-and-bounded` is what these eight
-// lines pin and [ADR 0153](/docs/decisions/0153.md) is the design behind it:
+// lines pin, and that rule is the design behind it:
 // `delete` names one job by its receipt, `purge` names a queue and a filter,
 // and the two are the operator's half of `Core\Queue` rather than a fifth and
 // sixth member of the four a request asks.

@@ -35,7 +35,7 @@
 //! requires that — two reads of the width in one run are the same number *by
 //! construction*, so a program that measures at the top and draws at the bottom
 //! cannot tear a frame — and the trade it makes is staleness: a window the user
-//! resizes is not noticed until the process restarts. The ADR's own answer to
+//! resizes is not noticed until the process restarts. The rule's own answer to
 //! "the terminal changed" is that a program writes `Cli\Text` and the sink
 //! decides at write time, so there is nothing in the surface that freshness
 //! here could serve.
@@ -94,7 +94,7 @@
 //! # A live region ends in a `Drop`, because every other ending can be skipped
 //!
 //! `rule:tooling/in-place-output-is-a-scoped-live-region`'s in-place output is the module's third half: [`Region`] owns
-//! the cursor between the two ends of one `Core\Cli::live` call. § 8 makes
+//! the cursor between the two ends of one `Core\Cli::live` call. `rule:tooling/the-terminal-is-restored-on-every-exit-path` makes
 //! putting the terminal back an obligation on **every** exit path — a throw, a
 //! fatal, an internal panic (`rule:errors/panics-bypass-user-code`), a signal — and the only construct in Rust that runs on all of them is
 //! a destructor. So restoration is [`Region`]'s `Drop` and lives nowhere else:
@@ -500,7 +500,7 @@ pub enum Answer {
 /// `cat data.csv | myprog` can still ask. Any one of the three streams being a
 /// terminal says the process was started from one; all three redirected — a CI
 /// job, a `cron` entry, a `.nvst` case, which runs as a child with its output
-/// piped and its input closed — says it was not, and that is the state § 4
+/// piped and its input closed — says it was not, and that is the state `rule:tooling/a-prompt-never-blocks`
 /// answers with a default or with `Core\Cli\NotInteractive` rather than by
 /// blocking on input nobody can give.
 ///
@@ -778,7 +778,7 @@ fn ask(_question: &str, _echo: Echo) -> std::io::Result<Option<String>> {
 /// well under what a terminal costs to repaint.
 pub const FRAME_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
 
-/// Hide the cursor, and show it again. The pair § 8 says a region must leave
+/// Hide the cursor, and show it again. The pair `rule:tooling/the-terminal-is-restored-on-every-exit-path` says a region must leave
 /// balanced, written once so that no path can hold one without the other.
 const HIDE_CURSOR: &str = "\x1b[?25l";
 
@@ -786,7 +786,7 @@ const HIDE_CURSOR: &str = "\x1b[?25l";
 const SHOW_CURSOR: &str = "\x1b[?25h";
 
 /// The terminal rows one `Core\Cli::live` call owns — `rule:tooling/in-place-output-is-a-scoped-live-region`'s live
-/// region, and § 8's restoration obligation as a destructor.
+/// region, and `rule:tooling/the-terminal-is-restored-on-every-exit-path`'s restoration obligation as a destructor.
 ///
 /// Most of the section's properties are here: the cursor is hidden while
 /// the region is open and shown again when it closes, a frame is coalesced onto
@@ -798,7 +798,7 @@ const SHOW_CURSOR: &str = "\x1b[?25h";
 /// rather than a smear of escape sequences, and every method below is then a
 /// no-op rather than a write nobody reads.
 ///
-/// Repainting on a resize is not here yet, and the reason is § 3:
+/// Repainting on a resize is not here yet, and the reason is `rule:tooling/the-terminal-profile-resolves-once`:
 /// the profile is resolved once for the process, so the width a region clamps
 /// to is fixed for its life and a window the reader resizes is not noticed. The
 /// signal that would say so is `Core\Signal`'s, which is not built.
@@ -865,7 +865,7 @@ impl Region {
     /// Hands the region its next frame, painting it if the timer allows.
     ///
     /// Nothing is written for an inert region, and the frame is dropped rather
-    /// than held: § 5's "renders nothing at all" is a property of this method
+    /// than held: `rule:tooling/in-place-output-is-a-scoped-live-region`'s "renders nothing at all" is a property of this method
     /// and not only of what reaches the screen.
     pub fn set(&mut self, lines: Vec<String>) {
         if self.screen.is_none() {
@@ -969,7 +969,7 @@ const TAB_STOP: usize = 8;
 
 /// `text`'s width in terminal columns — `rule:tooling/the-terminal-profile-resolves-once`'s `Core\Cli::displayWidth`,
 /// whose paragraph beside that table states the rule and is its only home:
-/// UAX #11 widths, over grapheme clusters, measured on the string § 1's
+/// UAX #11 widths, over grapheme clusters, measured on the string `rule:tooling/terminal-output-is-a-sink`'s
 /// substitution will actually put on the screen, with `TAB` reaching the next
 /// [`TAB_STOP`] and `LF` ending a row rather than filling one.
 ///
@@ -1140,7 +1140,7 @@ mod tests {
 
     /// A control byte reaches the screen as a picture, so it is one column and
     /// not zero — and an SGR sequence cannot make a string measure short,
-    /// because § 1 replaces it before the count sees it.
+    /// because `rule:tooling/terminal-output-is-a-sink` replaces it before the count sees it.
     #[test]
     fn a_control_byte_costs_what_its_picture_costs() {
         assert_eq!(display_width("a\u{1b}b"), 3);
@@ -1149,7 +1149,7 @@ mod tests {
         assert_eq!(display_width("\u{1b}[31mred\u{1b}[0m"), 12);
     }
 
-    /// The rows § 1 passes through, each asserted where a fixed count for
+    /// The rows `rule:tooling/terminal-output-is-a-sink` passes through, each asserted where a fixed count for
     /// it would answer plausibly: the tab lands on the stop wherever it stands,
     /// and the newline ends a row rather than filling one.
     #[test]

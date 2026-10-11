@@ -3,7 +3,7 @@
 
 # Expressions
 
-*4 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="expressions-truthy-positions"></a>
 
@@ -41,7 +41,7 @@ position is one of the six. The list is short, fixed and syntactically obvious.
   same value would be bare in one place and refused two tokens later, and `$user && $user->active`
   is as common as a bare `if`.
 
-<sub>See also [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators), [`iteration/for-init-clause`](iteration.md#iteration-for-init-clause).</sub>
 
 <a id="expressions-truthy-table"></a>
 
@@ -78,7 +78,7 @@ and an array of falsy elements is truthy. Code review, not the compiler, catches
 meant something else. A ported program that treats `"0.0"` as falsy has a bug of its own, since
 PHP never did either.
 
-<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`enums/truthiness`](enums.md#enums-truthiness), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0009](../decisions/0009.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`enums/truthiness`](enums.md#enums-truthiness), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics).</sub>
 
 <a id="expressions-no-keyword-logical-operators"></a>
 
@@ -98,9 +98,24 @@ diagnostic for `and` and `or` names the one-token replacement.
 `bool`. That is a real, narrow capability subtraction rather than a spelling change.
 
 All three keywords stay reserved words. They are not freed for use as identifiers, which is what lets
-the diagnostic fire at all.
+the diagnostic fire at all. A chain such as `$a and $b or $c` reports once per keyword: each keyword
+consumes its own right-hand operand, so the error does not cascade into unrelated token errors.
 
-<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0045](../decisions/0045.md).</sub>
+The word forms are not synonyms for `&&` and `||`: they bind looser than `=`, so `$x = $a and $b`
+assigns `$a` and discards `$b`. That precedence gap is a trap with nothing on the other side of the
+scale, and keeping a second spelling of each connective is what [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)
+rules out everywhere else. Compatibility is with what a PHP program observably does, not with every
+way PHP lets it be written.
+
+**Declined:**
+- **The keywords with PHP's precedence.** It would take a second short-circuit lowering at a third
+  precedence tier, built and tested only to reproduce the trap above.
+- **`and` and `or` as plain aliases of `&&` and `||`, dropping only `xor`.** A second spelling buys
+  nothing once the meaning matches, the same reason [`types/no-legacy-cast`](types.md#types-no-legacy-cast) gives for `(int)$x`.
+- **A deprecation warning first, removal later.** A refused PHP spelling is a hard error with no
+  warning tier, as [`core-api/casing-has-no-suppression`](core-api.md#core-api-casing-has-no-suppression) reasons.
+
+<sub>See also [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator).</sub>
 
 <a id="expressions-nullable-condition-lint"></a>
 
@@ -120,7 +135,11 @@ than this one.
 
 No warning code is allocated yet, and `nvs check` does not emit this today.
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns). Decided in [0066](../decisions/0066.md).</sub>
+**Declined:**
+- **Refusing a `?T` condition outright.** It is the strongest guard against the trap, but it changes
+  [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions) for every nullable value rather than for conversions.
+
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/truthy-table`](expressions.md#expressions-truthy-table), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns).</sub>
 
 <a id="expressions-misread-grouping-warns"></a>
 
@@ -173,7 +192,29 @@ time ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality))
 Ordering — `<`, `<=`, `>`, `>=`, `<=>` — is a separate question with its own rule, and this operator
 says nothing about it.
 
-<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0013](../decisions/0013.md), [0029](../decisions/0029.md).</sub>
+Loose comparison is a hazard family, not a convenience: a falsy value passing a loose test is why
+verification returns claims or throws ([`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time)). Removing the
+construct closes the family, and security and request isolation are not traded for familiarity. The
+standard library already compares strictly: `Core\Arr::contains` is always strict, and the natural
+ordering throws on a pair from two different rows rather than converting one side. One operator keeps
+the library and the language on one answer. `==` is also the spelling of every language without
+juggling, so a reader arriving from anywhere but PHP already knows it.
+
+The porting cost is real and lands mostly on one row: `"1" == "01"` is true in PHP and false here, and
+nothing in the compiled program flags it. A defensive `$x == null` on a non-nullable type, copied from
+PHP, stops compiling; the check was always dead.
+
+**Declined:**
+- **Both operators, with PHP's meanings.** That brings the loose-comparison hazard family back, and with
+  this type system the two spellings would disagree only on the three rows nobody chooses the loose
+  reading for.
+- **Both operators, with `==` defined as strict.** Two spellings for one operation
+  ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)), and the worse one: a PHP reader seeing `==` assumes
+  juggling that is not there.
+- **`===` kept and `==` dropped.** `===` exists only as an escape from a loose `==`. With nothing to
+  escape, it is three characters saying what two say everywhere else.
+
+<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality).</sub>
 
 <a id="expressions-equality-semantics"></a>
 
@@ -204,7 +245,7 @@ too.
 The natural ordering used for sorting is a separate question and answers differently for `float`; the
 two are not the same table.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation). Decided in [0090](../decisions/0090.md), [0054](../decisions/0054.md), [0007](../decisions/0007.md), [0031](../decisions/0031.md), [0009](../decisions/0009.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`enums/representation`](enums.md#enums-representation).</sub>
 
 <a id="expressions-mixed-equality"></a>
 
@@ -224,9 +265,17 @@ compiler can prove the answer before the program runs, which makes it dead code 
 question ([`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused)).
 
 The asymmetry is worth stating plainly: **`mixed` is where you pay for not declaring a type.** A
-comparison against `mixed` silently answers `false` where a typed one would have refused to compile.
+comparison against `mixed` silently answers `false` where a typed one would have refused to compile,
+so widening a parameter to `mixed` makes the diagnostic go away without fixing anything.
 
-<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/truthy-table`](expressions.md#expressions-truthy-table). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md).</sub>
+Nothing here is measured separately: the typed path is one instruction, and the `mixed` path is the
+tag dispatch every operation on `mixed` already pays.
+
+**Declined:**
+- **A cross-row pair throws**, the way the natural ordering does for a sort or a minimum. Ordering has
+  no correct answer for a mismatched pair; equality has one, and it is `false`.
+
+<sub>See also [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/truthy-table`](expressions.md#expressions-truthy-table).</sub>
 
 <a id="expressions-object-identity-equality"></a>
 
@@ -250,9 +299,23 @@ Two named ways to ask the other question already exist:
   request path should reach for by accident.
 
 A class needing content equality in production and wanting no order writes an ordinary named method.
-That reads worse than `==` by exactly one call, and it is visible at the call site.
+That reads worse than `==` by exactly one call, and it is visible at the call site. A value class ported
+from PHP, whose `==` compared two objects by their properties, pays that call and a `Comparable`
+declaration.
 
-<sub>See also [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality). Decided in [0090](../decisions/0090.md), [0013](../decisions/0013.md), [0014](../decisions/0014.md), [0028](../decisions/0028.md), [0079](../decisions/0079.md).</sub>
+**Declined:**
+- **Structural equality, PHP's `==` reading.** Its cost is unbounded in the object graph's size, it is
+  ambient and undeclarable, and no class can opt out: the same refusal [`classes/comparable`](classes.md#classes-comparable) makes
+  for ordering.
+- **An `Equatable` interface or an `__equals` hook.** `==` would mean something different per class,
+  which is the property removed from every other magic method.
+- **A separate identity operator, so `==` could be structural.** That is two equality operators again.
+  Identity is the reading a reference type wants by default, and content comparison is the one that
+  gains from being visible at the call site.
+- **A content-equality member in `Core`.** None exists. One would be a method, never an operator or an
+  interface, and the case for it is `compareTo(…) == 0` repeated in real programs.
+
+<sub>See also [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality).</sub>
 
 <a id="expressions-disjoint-comparison-refused"></a>
 
@@ -281,9 +344,15 @@ Refused: a non-nullable type against `null`; `string` against `bytes`; an enum a
 integer, where `$e as int` is the written spelling; two unrelated classes; and anything else disjoint.
 
 This turns the entire class of comparisons that could only ever answer one constant into a diagnostic
-at the site that wrote it.
+at the site that wrote it. `$row['id'] == 1` against a string column and `$s == 0` against a
+non-numeric string are the common cases.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality). Decided in [0090](../decisions/0090.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0047](../decisions/0047.md), [0054](../decisions/0054.md).</sub>
+**Declined:**
+- **A statically disjoint comparison answers `false`**, the way a run-time mismatch does
+  ([`expressions/mixed-equality`](expressions.md#expressions-mixed-equality)). The compiler can prove the answer, and code whose answer is
+  known before it runs is a mistake worth naming, the same argument definite assignment makes.
+
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics), [`expressions/mixed-equality`](expressions.md#expressions-mixed-equality), [`expressions/switch-match-equality`](expressions.md#expressions-switch-match-equality).</sub>
 
 <a id="expressions-switch-match-equality"></a>
 
@@ -304,7 +373,7 @@ A label or arm whose static type is disjoint from the subject's is
 Truthiness has no part in this. A `switch` subject and a `match` subject are compared, never tested
 for truth, and [`expressions/truthy-positions`](expressions.md#expressions-truthy-positions)'s six positions do not include either.
 
-<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics). Decided in [0090](../decisions/0090.md).</sub>
+<sub>See also [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused), [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics).</sub>
 
 <a id="expressions-intrinsic-constant-arguments"></a>
 
@@ -335,7 +404,21 @@ prefer it.
 
 This adds no syntax. It is a property of a call whose arguments happen to be constants.
 
-<sub>See also [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0057](../decisions/0057.md), [0046](../decisions/0046.md), [0042](../decisions/0042.md).</sub>
+The check exists because an argument of this kind is a program, and a program parsed on first use
+fails on whichever path reaches it first — often the error path, often in production. Moving the
+failure to check time also makes a security control possible: a regex pattern's engine tier is known
+before any request runs, so a deployment can refuse a pattern that can be made to backtrack
+([`core-classes/regex-compile-time-tiering`](core-classes.md#core-classes-regex-compile-time-tiering)).
+
+**Declined:**
+- **Regex and date literal syntax, such as `/pattern/i`.** `/` is division, and the rules other
+  languages use to tell the two apart are a recurring source of parser bugs. The grammar cost is
+  permanent, and the benefit over a checked string literal is only how the call looks.
+- **Validating every such argument at run time.** It keeps errors that are decidable while compiling
+  among the ones found in production, and it leaves a backtracking pattern unrefusable until a request
+  reaches it.
+
+<sub>See also [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour).</sub>
 
 <a id="expressions-intrinsic-list-is-closed"></a>
 
@@ -355,7 +438,17 @@ that runs over it stay one artefact rather than two lists to keep in step.
 A closed set is what makes [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour) enforceable: every row
 can be tested against its runtime twin, because the rows are enumerable.
 
-<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour). Decided in [0057](../decisions/0057.md), [0063](../decisions/0063.md).</sub>
+The roster is a permanent coupling between the compiler and the library: the compiler knows a
+handful of `Core` method names. The closed set bounds that coupling, since it grows only when a row is
+added deliberately. What it costs is that a package or an extension cannot have its own
+pattern-shaped argument checked early.
+
+**Declined:**
+- **An open intrinsic mechanism**, an attribute or manifest field by which any library declares a
+  method foldable. It turns "the compiler knows a few names" into "the compiler runs code a library
+  chose while compiling", which is a larger attack surface and much harder to reason about.
+
+<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour).</sub>
 
 <a id="expressions-bracket-destructuring"></a>
 
@@ -379,7 +472,22 @@ rejected construct never reaches the tree as a live node.
 `list` stays a reserved word. Freeing it would let a class or a method be named `list`, and keeping it
 reserved is what lets the diagnostic fire.
 
-<sub>See also [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators). Decided in [0050](../decisions/0050.md), [0049](../decisions/0049.md).</sub>
+A PHP spelling is reused only when its meaning has no other home in Novis, the test
+[`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct) applies. `list(...)` fails it: `[...]`
+already spells destructuring, and both built the same node from the same element grammar, so no
+later stage ever told them apart. With one spelling, the bracket form is the grammar's only entry
+into a destructuring statement. The conversion is a bracket for a parenthesis, and every
+destructuring leaf already needs a type, so no PHP `list()` site parsed unedited in any case.
+
+**Declined:**
+- **`list(...)` kept as a second spelling.** Every argument for it ("PHP programmers know it")
+  applies as well to every other refused PHP spelling ([`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name)).
+- **`list(...)` kept only for the shape with no keys and no nesting.** A spelling that works for
+  `list($a, $b)` but not `list('id' => $id)` is a third rule to teach.
+- **Freeing `list` as an identifier at the same time.** That is a reserved-word question with its own
+  compatibility surface, unrelated to which destructuring spelling survives.
+
+<sub>See also [`expressions/no-keyword-logical-operators`](expressions.md#expressions-no-keyword-logical-operators).</sub>
 
 <a id="expressions-defaulting-assignment"></a>
 
@@ -432,7 +540,27 @@ the throwing form — a value that gates access is converted with plain `as T`.
 There is one definition and no family that escapes it: every `as ?T` is the `as T` of the conversion
 table, with `null` where it throws ([`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability)).
 
-<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/try-parse`](expressions.md#expressions-try-parse). Decided in [0066](../decisions/0066.md), [0007](../decisions/0007.md), [0047](../decisions/0047.md).</sub>
+The form exists because an absent page number or an unfilled filter is an ordinary outcome, not an
+error, and the only other way to reach it is to check and then convert. That parses the same bytes
+twice on the request path and needs two definitions of success to agree forever; one operator over
+one table is one parse and one definition. `?T` is already the one way to write a value that may be
+absent ([`classes/no-undefined-value`](classes.md#classes-no-undefined-value)), so the operator produces an existing type and adds no
+syntax: `as` already takes a type, and `?int` is one.
+
+**Declined:**
+- **Refusing a nullable operand.** It keeps "missing" and "invalid" apart in the syntax, but it does
+  not prevent the conflation: `($raw ?? '') as ?uint ?? 1` collapses the same two states. It would
+  only charge a line on the most common shape in the language.
+- **A `Core` member per scalar target, such as `Str::toIntOrNull` or `Int::tryParse`.** The name
+  shapes are banned ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)), and it needs one member per target type forever,
+  where an operator covers every type, including ones added later.
+- **A `Result` or `Either` return that says why a conversion failed.** There is no sum type, and
+  adding one to avoid a `null` test is a decision about the whole language.
+- **Rewriting PHP's `(int)$x` to `$x as ?int ?? 0`.** It would restore the silent zero that
+  [`types/no-legacy-cast`](types.md#types-no-legacy-cast) removes, and it is not even faithful: `(int)"12abc"` is `12` in PHP and
+  `null` here. A converter names both forms and lets the author choose.
+
+<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint), [`expressions/try-parse`](expressions.md#expressions-try-parse).</sub>
 
 <a id="expressions-nullable-conversion-availability"></a>
 
@@ -456,13 +584,21 @@ Keep the last three rows straight: **a conversion that exists and failed is `nul
 does not exist is a diagnostic.** From `mixed` every conversion exists, so `$mixed as ?int` is `null`
 for a value holding an array, while a statically-known `array<int>` never compiles. A `?T` that can
 never be `null` is a lie in the type and forces a pointless check downstream, which is why the
-cannot-fail row is refused rather than allowed as a harmless spelling.
+cannot-fail row is refused rather than allowed as a harmless spelling. A conversion that does not
+exist stays a diagnostic because otherwise `as ?T` would be a universal escape hatch that erases
+genuine type errors.
 
 **The class row is absolute and admits no roster of blessed names.** `as ?T` spells a downcast in
 every language a reader arrives from, and it never spells a parse: text becomes a value through that
 class's own reader ([`expressions/try-parse`](expressions.md#expressions-try-parse)).
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0066](../decisions/0066.md), [0007](../decisions/0007.md), [0047](../decisions/0047.md).</sub>
+**Declined:**
+- **A roster of class targets that parse, such as `$s as ?Core\Uri`.** It inverts what `as?` means in
+  Swift and Kotlin, for a few memorized class names while every other class stays a diagnostic. It
+  also removes no spelling: `Core\Uri::parse($s)` exists either way, so the operator only moves the
+  parse onto the harder of the two to read.
+
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/try-parse`](expressions.md#expressions-try-parse), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused).</sub>
 
 <a id="expressions-conversion-keeps-qualifiers"></a>
 
@@ -482,7 +618,7 @@ already launders, `as ?T` launders exactly as much and no more.
 does not already have, and laundering stays what it is elsewhere: the narrow, sink-named `Core`
 members that declare it.
 
-<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0066](../decisions/0066.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability).</sub>
 
 <a id="expressions-try-parse"></a>
 
@@ -511,9 +647,22 @@ right control flow, and a second launderer to audit is not worth one saved `catc
 **No separate validity predicate stands beside a parser.** `isValid` members do not exist: a
 validity question and its parse answered by two pieces of code is exactly the shape behind
 CVE-2024-5458, where one validator accepted user-info that the parser read differently. Ask the
-parsed value instead — `Core\Uri::tryParse($s)?->scheme() != null` is the absolute-URI test.
+parsed value instead — `Core\Uri::tryParse($s)?->scheme() != null` is the absolute-URI test. A
+reader on the parsed value cannot disagree with the parse the way a separate predicate can.
 
-<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion). Decided in [0066](../decisions/0066.md), [0063](../decisions/0063.md).</sub>
+The ban on `try…` names ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) admits this one shape because nothing else
+reaches it. A `Core` member either throws or returns a `?T` that means absence, and a malformed
+string is neither an absence nor something a scalar operator can convert. `tryParse` is not the
+scalar `…OrNull` family readmitted: it exists only where `as ?T` does not reach, one member per class
+with a failable single-`string` parse.
+
+**Declined:**
+- **Making `parse` itself return `?T` and deleting the throwing form.** `?T` would then mean absence
+  in one member and failure in another. And the `ParseError` a parse throws lists every offending
+  field at once, each located by a dotted path, which a bare `null` discards: that costs little for a
+  `Uri` and everything for a CSV or a decoded object ([`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field)).
+
+<sub>See also [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion).</sub>
 
 <a id="expressions-preparation-preserves-behaviour"></a>
 
@@ -542,7 +691,17 @@ a leading constant of that call, and the word rides in the unit's code — so th
 with nothing serialized beside it, and a member is handed the answer instead of deriving it again.
 The roster of members taking one is closed and lives beside the intrinsic roster, so the slot is a
 cost only the members that read it pay; a member on it whose argument was not a literal is handed the
-zero word rather than a shorter argument list.
+zero word rather than a shorter argument list. The slot is filed under the call and not the literal
+because the lowering holds the call's span, and keying on the literal would make it map the written
+arguments back to parameters, which only the checker holds the names for
+([`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name)). The slot is always written because a member's
+helper reads one fixed argument list: a constant emitted only where something was prepared would have
+it read its first argument from the caller's next slot.
+
+A word the running build does not know is read as "nothing was prepared"
+(`crates/nvs-stdlib/src/regex.rs:1288`). Refusing it would turn a compiler-version skew into a failed
+request, and the artifact's address already names the compiler build, so a cached unit cannot hand a
+process a word another compiler minted.
 
 A **live object is never what crosses**. A compiled pattern belongs to the core that built it, so what
 travels for a pattern given as a string literal is the engine tier it settled in and the runtime spends the compile. That
@@ -554,7 +713,22 @@ One observable difference is named rather than denied: a fully folded call is no
 per-call probe does not fire for it. A *prepared* call — the common case — is still a call and probes
 normally, and the enclosing statement's probe is unaffected either way.
 
-<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed). Decided in [0057](../decisions/0057.md), [0042](../decisions/0042.md), [0018](../decisions/0018.md), [0189](../decisions/0189.md).</sub>
+- **Memory:** one constant per call site on a roster member, and one machine word in the argument list
+  of the members that take it. No allocation, no data section and nothing per request; a member off the
+  roster is unchanged instruction for instruction.
+
+**Declined:**
+- **A table of prepared answers on the compiled program, interned and pointed at.** It is the shape for
+  a prepared plan, and the wrong one for a fact that fits in the slot: it buys an indirection and an
+  entry per distinct pattern to carry two bits. A fact that needs a table can add one beside this slot.
+- **Seeding the per-core pattern cache when a unit loads.** It needs no new argument, but a unit loads
+  once and cores are many, so the seeding is either cross-thread or repeated per core, and it only
+  pre-fills a cache keyed by text, which not every grammar has.
+- **Folding eagerly, evaluating whole calls wherever possible.** The calls worth touching mostly
+  depend on runtime state, so an eager rule would either be wrong or need this same carve-out, stated
+  less clearly.
+
+<sub>See also [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`expressions/intrinsic-list-is-closed`](expressions.md#expressions-intrinsic-list-is-closed).</sub>
 
 <a id="expressions-pipeline-substitution"></a>
 
@@ -581,7 +755,36 @@ Nothing about the `Core` roster, scalar methods or any security property changes
 Str::format($_, $n)` is refused for the same reason the nested call is. There is no callable allocated
 and no dynamic dispatch.
 
-<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference). Decided in [0098](../decisions/0098.md), [0011](../decisions/0011.md), [0027](../decisions/0027.md), [0063](../decisions/0063.md).</sub>
+The operator exists for reading order. A three-deep composition of `Core` calls reads inside-out when
+it is nested, and a pipeline reads in the order it runs while every step still names the class it
+calls. That class name is what a reviewer reads authority off — `Path::` cannot touch the disk, `IO::`
+can — so the composition keeps the signal a fluent method would erase. A hole depends on no
+argument-order convention: it reaches any argument slot, an instance method (`$_->group(1)`), an index
+(`$_["email"]`), a closure in a variable and `new`. Userland classes need no annotation and no
+registration, because the class is written at the call site and resolves the way it always does.
+
+The cost is one more operator on the surface, spent on simplicity of reading, and two ways to write
+one composition.
+
+**Declined:**
+- **Methods on scalars** (`$s->trim()->upper()`). They erase the class name from the call site, need
+  a scalar-to-`Core` map in the type checker instead of a parser rewrite, and collide with `->` on a
+  `mixed` receiver, where it already means instance access.
+- **A `|>` that applies a callable at run time.** Every step would need `Class::method(...)` as a
+  value, and most `Core` methods take a trailing options argument, so they are not unary: nearly every
+  step would carry a closure wrapper and read worse than the nesting it replaces. Resolving the right
+  side by name at run time is a spelling [`expressions/method-reference`](expressions.md#expressions-method-reference) already closed. The shared
+  token's habit is caught by `E0129` ([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once)).
+- **First-argument insertion with no hole.** It cannot reach a second slot
+  (`Arr::contains($haystack, $needle)`), it makes a call's arity depend on its context, and userland
+  is not bound to put the subject first, so the rule would carry an exception.
+- **A different token** — `~>`, `->>`, `==>`. `->>` is one glyph from `->`, `==>` is one from `=>`, and
+  `~>` loses the recognition `|>` has across many languages while the lexer would still have to know
+  `|>` to catch the habit.
+- **A marker attribute that opts a class into fluent calls.** It would make resolution open-world and
+  cost the compile-time determinism of name resolution.
+
+<sub>See also [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence), [`expressions/method-reference`](expressions.md#expressions-method-reference).</sub>
 
 <a id="expressions-pipeline-precedence"></a>
 
@@ -603,7 +806,7 @@ Substituting a single hole commutes with the surrounding operator, so `$a |> Str
 groups as `Str::upper($a) . "!"` and the parenthesis trap a callable-applying pipeline has cannot
 arise.
 
-<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence). Decided in [0098](../decisions/0098.md).</sub>
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence).</sub>
 
 <a id="expressions-pipeline-hole-once"></a>
 
@@ -625,9 +828,29 @@ enforceable, and `crates/nvs-diagnostics/src/lib.rs` is the registry that alloca
 | `E0131` | `$_` appears anywhere outside the right side of a `\|>` | says the hole has no meaning there |
 
 Exactly one hole is what makes substitution total: no temporary, no double evaluation, and an emitted
-tree identical to the nested spelling's.
+tree identical to the nested spelling's. `E0129`'s note on a callable is what makes sharing the token
+with PHP affordable: the habit of piping into a callable stops at compile time, at the character where
+it goes wrong, and is named.
 
-<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence). Decided in [0098](../decisions/0098.md), [0030](../decisions/0030.md).</sub>
+**Declined:**
+- **`$$` as the hole.** `$$name` is the variable-variable syntax, which `E0202` refuses by name, and
+  reusing the token for something unrelated is a collision.
+
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence).</sub>
+
+<a id="expressions-no-null-skipping-pipeline"></a>
+
+## There is no null-skipping pipeline step
+
+`rule:expressions/no-null-skipping-pipeline`
+
+There is no `?|>`. A pipeline step that returns `?T` hands its `null` to the next step like any other
+value, so a chain through a nullable result is split with an `if` where the `null` is handled.
+
+A second operator needs a second reason: evidence that a `?T` in the middle of a composition breaks
+chains often enough to cost more than the `if` does.
+
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once).</sub>
 
 <a id="expressions-catch-expression"></a>
 
@@ -660,7 +883,38 @@ first shadows the arms after it, as in the block form.
 The block form is unchanged in every particular and remains the only spelling with `finally`. Resource
 cleanup stays there; this form has no one-line twin for it.
 
-<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence), [`expressions/catch-lowers-to-block-form`](expressions.md#expressions-catch-lowers-to-block-form), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0119](../decisions/0119.md), [0002](../decisions/0002.md), [0020](../decisions/0020.md).</sub>
+**Why the form exists.** A failed conversion, an absent key, every `Core` failure, an arithmetic
+overflow and a division by zero all throw, and each costs a caller with a fallback a five-line block.
+Definite assignment makes that block dearer than it looks: a local assigned inside `try` is readable
+after it only when every `catch` assigns it too, so the declaration, the two assignments and the read
+are kept in step by hand. An expression assigns on every path it completes, so the declaration and
+the fallback are one line and the checker has nothing to track.
+
+The form sits beside the two value-shaped spellings and does not replace them: `$s as ?int ?? 1` is
+the conversion ([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)) and `$a["k"] ?? $d` the absent key. `$s as int
+catch (…) => null` is legal and pointless, and no diagnostic names it. What a program could catch or
+fail to catch does not change: the same landing pad, the same dispatch and the same re-raise run
+([`expressions/catch-lowers-to-block-form`](expressions.md#expressions-catch-lowers-to-block-form)).
+
+**Declined:**
+- **Extending `??` to swallow any throw.** It is untyped, discards the thrown object and reads as a
+  null check. Every reason a conversion throws on garbage would be one `??` away from undone.
+- **`try? expr` yielding `?T`.** It is untyped, so it catches everything, and it conflates *threw*
+  with *returned `null`*. It is redundant with `as ?T` for the case it does best, and lands every
+  result in the nullable-condition trap ([`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint)).
+- **A bare fallback with no `=>`**, as in `f() catch (IOError) 0`. The value dangles after the
+  parenthesis with nothing to say it is the result, and `match` already owns the `condition => value`
+  syntax a reader knows.
+- **A braced multi-arm form**, as in `f() catch { IOError => 0, ParseError $e => throw … }`. Chained
+  arms already give several classes, so it would be a second syntax for the same thing.
+- **A comma-ok pair** (`v, err := f()`). It needs a tuple return Novis does not have, and costs three
+  lines per call.
+- **A `Result` type with a `?` operator.** A sum type is a language-scale decision, and it is declined
+  for conversions on the same grounds.
+- **A `try` keyword opening the guard**, as in `try f() catch …`. The token carries no information:
+  the guard starts where the expression does, and an unguarded throw already propagates without one.
+
+<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`expressions/catch-expression-precedence`](expressions.md#expressions-catch-expression-precedence), [`expressions/catch-lowers-to-block-form`](expressions.md#expressions-catch-lowers-to-block-form), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
 
 <a id="expressions-catch-expression-precedence"></a>
 
@@ -687,7 +941,7 @@ Two parses this rules out by construction: `try` never appears in the expression
 guard starts at the expression rather than at a keyword; and a `catch` after an expression can only be
 this form, because a block `catch` follows a `}` the statement parser is already inside.
 
-<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence). Decided in [0119](../decisions/0119.md).</sub>
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/pipeline-precedence`](expressions.md#expressions-pipeline-precedence).</sub>
 
 <a id="expressions-catch-arm-is-an-expression"></a>
 
@@ -709,7 +963,12 @@ one, `return` is not; for an early return write the block form.*
 The refusal is deliberate and not a gap to fill later. A `return null` on an `IOError` hides a
 failure, and the block form's five lines are the right price for choosing that.
 
-<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns). Decided in [0119](../decisions/0119.md).</sub>
+**Declined:**
+- **Admitting `return` in an arm**, as in `catch return err`. The arm would then hold either a value
+  or a departure, with nothing in the syntax to say which, and a reader misreads it. The expression
+  rule keeps the one departure that is already an expression and refuses the rest by name.
+
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`expressions/bare-throwable-arm-warns`](expressions.md#expressions-bare-throwable-arm-warns).</sub>
 
 <a id="expressions-catch-result-type"></a>
 
@@ -727,7 +986,7 @@ An arm is checked from the **pre-guard** definite-assignment state, as a block c
 guarded expression assigned cannot be assumed assigned inside the arm, because the arm runs precisely
 when the guard did not complete.
 
-<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion). Decided in [0119](../decisions/0119.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion).</sub>
 
 <a id="expressions-bare-throwable-arm-warns"></a>
 
@@ -747,7 +1006,7 @@ The warning names the two honest spellings: name the class the site expects, or 
 it. It is a warning rather than an error because the hazard is a habit and not a type error, and
 `nvs check` is where habits are named.
 
-<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint). Decided in [0119](../decisions/0119.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md).</sub>
+<sub>See also [`expressions/catch-arm-is-an-expression`](expressions.md#expressions-catch-arm-is-an-expression), [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/nullable-condition-lint`](expressions.md#expressions-nullable-condition-lint).</sub>
 
 <a id="expressions-catch-lowers-to-block-form"></a>
 
@@ -765,7 +1024,9 @@ Nothing in the runtime or in codegen changes, and the landing pad is the one alr
 ([`errors/propagation`](errors.md#errors-propagation)). The cost of a guarded expression that does not throw is the block form's:
 zero on the happy path ([`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower)).
 
-<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`errors/propagation`](errors.md#errors-propagation), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower). Decided in [0119](../decisions/0119.md), [0002](../decisions/0002.md).</sub>
+- **Memory:** nothing. The temporary is the value slot the block form's assignment already needs.
+
+<sub>See also [`expressions/catch-expression`](expressions.md#expressions-catch-expression), [`expressions/catch-result-type`](expressions.md#expressions-catch-result-type), [`errors/propagation`](errors.md#errors-propagation), [`errors/throw-is-not-slower`](errors.md#errors-throw-is-not-slower).</sub>
 
 <a id="expressions-method-reference"></a>
 
@@ -778,7 +1039,7 @@ member:
 `Core\Str::length(...)`, `$user->getName(...)`, `self::helper(...)` (early-bound) and
 `static::helper(...)` (late-bound). There is no second reference-taking spelling — no `::ref` form,
 and no reuse of `::class`, which stays a class-name-to-string operator unrelated to producing a
-callable value.
+callable value, so that one token never means two unrelated things.
 
 Every spelling above resolves a member at the reference itself rather than at call time, and the
 checker records that resolved target under a variant that cannot be mistaken for an ordinary call.
@@ -791,7 +1052,7 @@ A `callable` may carry its signature. The resolvability this rule is after comes
 the value's creation site rather than from the static type, so it holds whether or not the slot being
 filled declares one.
 
-<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability). Decided in [0027](../decisions/0027.md), [0015](../decisions/0015.md), [0031](../decisions/0031.md), [0136](../decisions/0136.md), [0007](../decisions/0007.md).</sub>
+<sub>See also [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/nullable-conversion-availability`](expressions.md#expressions-nullable-conversion-availability).</sub>
 
 <a id="expressions-no-partial-application"></a>
 
@@ -809,4 +1070,4 @@ The pipeline operator is unaffected: its `$_` is a parse-time substitution, not 
 ([`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution)), and the hole diagnostic
 ([`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once)) already teaches the difference.
 
-<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once). Decided in [0124](../decisions/0124.md), [0027](../decisions/0027.md), [0031](../decisions/0031.md).</sub>
+<sub>See also [`types/anonymous-function`](types.md#types-anonymous-function), [`types/callable-values`](types.md#types-callable-values), [`expressions/method-reference`](expressions.md#expressions-method-reference), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution), [`expressions/pipeline-hole-once`](expressions.md#expressions-pipeline-hole-once).</sub>

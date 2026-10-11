@@ -161,7 +161,7 @@ const STANDINS = new RegExp(`${STANDIN}+`, "g");
  * at all where the user has turned the pass off.
  *
  * A chunk is the markup between a `?>` that ends its line and the `<?nvs` that reopens code, with
- * every `<?= … ?>` hole inside it (ADR 0173 § 2): a hole is part of its line rather than a boundary,
+ * every `<?= … ?>` hole inside it: a hole is part of its line rather than a boundary,
  * so a paragraph a `<?= $name ?>` sits in the middle of is laid out as the one paragraph it is.
  * What says where a chunk starts is the server's region list and the text's line breaks and nothing
  * else — a markup run beginning in the first column of its line is one the lexer reached by eating
@@ -171,7 +171,7 @@ const STANDINS = new RegExp(`${STANDIN}+`, "g");
  *
  * The base is the indentation of that `?>` line, which `rule:tooling/fmt-novis-constructs` has put
  * at the depth of the block it sits in, so the markup nests from the code around it and the file
- * does not jump between the two (ADR 0173 § 3). The markup before a file's first open tag has no
+ * does not jump between the two. The markup before a file's first open tag has no
  * such line and is based at column zero.
  *
  * `enabled` is `nvs.template.format`, and `false` answers no chunk at all: a format request is then
@@ -363,7 +363,7 @@ function rebuilt(text: string, chunk: Chunk, answer: string): string | undefined
  * from it is the nesting — each line's depth below the shallowest one — and the base is what that
  * nesting is added to. A line holding nothing but whitespace is emptied rather than based, since
  * trailing spaces on an empty line are not a layout. The line carrying the `<?nvs` that closes the
- * chunk is written as the base alone (ADR 0173 § 3): that tag follows the chunk's last byte, so
+ * chunk is written as the base alone: that tag follows the chunk's last byte, so
  * this is the whitespace in front of it, and it starts where the markup it closes does.
  */
 function rebased(text: string, chunk: Chunk, answer: string): string {

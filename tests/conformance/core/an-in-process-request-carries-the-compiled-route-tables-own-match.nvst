@@ -6,8 +6,8 @@
 // against is the one this file's own `#[Route]` declarations compiled to. What
 // is asserted is that the *match* crossed -- the child reads
 // `Core\Request::route()` and finds the row named below, which is the whole of
-// "dispatches through the compiled route table". Nothing here dispatches: ADR
-// 0102 § 1 leaves what a match means to the program, and the program is the
+// "dispatches through the compiled route table". Nothing here dispatches: what
+// a match means is the program's (`rule:routing/the-servers-match-dispatches-nothing`), and the program is the
 // `else` branch below.
 //
 // **The branch is the request, and the `catch` is how a case tells the two

@@ -14,7 +14,21 @@ constructor that forgot it. One analysis over two binding kinds turns that into 
 cause.
 
 Two exemptions are declared rather than implicit: a `lateinit` property (`rule:classes/lateinit`), and
-a virtual property with a `get` hook and no backing slot, which has nothing to initialize. Neither
+a property with a hook. A virtual property with a `get` hook and no backing slot has nothing to
+initialize, and the check has no model of a `set` hook's body, so it cannot tell whether the hook
+commits a value; it never refuses a hook that does. Neither
 copy depth reopens the gap — `clone` starts from a live object and cannot produce a less initialized
 one, and the graph copy either copies a live source or refuses a payload missing a declared property
 (`rule:classes/serialize-is-a-closed-format`).
+
+What it spends is strictness PHP does not have: PHP compiles a constructor that leaves a typed property
+unset on some path and fails only when that path is read, so PHP source with such a gap needs a fix,
+not just a recompile.
+
+**Declined:**
+- **A runtime-only throw with no compile-time check.** It finds the mistake at a read far from its
+  cause, and gives up the one analysis that already serves locals.
+- **A silent per-type default.** A plausible zero hides the missing assignment
+  (`rule:classes/no-undefined-value`).
+- **An `undefined` value for the unassigned state.** It widens every declared type
+  (`rule:classes/no-undefined-value`).

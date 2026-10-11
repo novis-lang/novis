@@ -2,7 +2,7 @@
 `Core\Json::decodeAs<T>` decodes an `array<T>` field, of a scalar or of another derived class, and reports a bad element at its own position — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
-// § 2 admits an `array<T>` field wherever `T` is codec-reachable. `Author`
+// `rule:core-classes/derive-field-list` admits an `array<T>` field wherever `T` is codec-reachable. `Author`
 // makes the element half a class, so one document exercises both an element
 // that is a scalar and one that runs a whole nested field list.
 #[Core\Json\Derive]
@@ -37,9 +37,9 @@ foreach ($p->authors as Author $author) {
 // makes the document that came in the document that goes back out.
 echo "round=", Core\Json::encode($p), "\n";
 
-// § 5 accumulates rather than stopping at the first failure, and a list is no
+// `rule:core-classes/derive-reports-every-field` accumulates rather than stopping at the first failure, and a list is no
 // exception: both bad elements are reported, each under the position that held
-// it. `tags.3` is § 5's own example path.
+// it. `tags.3` is `rule:core-classes/derive-reports-every-field`'s own example path.
 try {
     Core\Json::decodeAs<Post>(
         "{\"title\":\"t\",\"tags\":[\"a\",7,\"c\",false],\"sizes\":[1],\"authors\":[]}"

@@ -12,7 +12,7 @@ use Core\Db\Schema;
 
 var $db = Db::connect("main");
 
-// A table this schema does not name. § 7 reports it and never drops it.
+// A table this schema does not name. `rule:core-classes/schema-absence-never-destroys` reports it and never drops it.
 $db->execute("create table leftovers (id integer primary key)", []);
 
 var $schema = Schema::fromArray([
@@ -33,7 +33,7 @@ echo "steps ", Core\Arr::count($steps), "\n";
 
 foreach ($steps as Step $step) {
     if ($step->isRefused()) {
-        // § 8 holds for a refused step exactly as it does for one an apply
+        // `rule:core-classes/schema-plan` holds for a refused step exactly as it does for one an apply
         // runs: the report carries the whole statement it will never run.
         if (Core\Str::contains($step->sql(), 'DROP TABLE "leftovers"')) {
             echo "report carries the drop\n";

@@ -10,7 +10,7 @@
 //! That same ADR's other half is refused here too, and it is the reason
 //! [`walk_class_side`] exists: a **bare name in value position** (`PHP_EOL`)
 //! is `E0319` and a **bare name called** (`strlen($s)`) is `E0320`, since
-//! ADR 0011 §§ 1 and 3 leave no global-function and no global-constant
+//! `rule:classes/no-free-functions-or-constants` leaves no global-function and no global-constant
 //! storage row to name — and `self`/`static`/`parent` in value position is
 //! `E0321`, each naming a class where a value is expected. These are
 //! the *same* [`ExprKind`]s that mean a class on the left of a `::`, so every
@@ -753,9 +753,9 @@ fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
 }
 
 /// The directories a Novis project's test corpus walks, and so the only ones
-/// an `@example` may name a file inside. ADR 0137 § 2 names `examples/`; a
-/// project's own cases live under `tests/`, which `nvs test` walks for the
-/// same reason. The list is here rather than in configuration because the
+/// an `@example` may name a file inside
+/// (`rule:tooling/doc-comment-tags-are-see-and-example`): `examples/`, and
+/// `tests/`, where a project's own cases live and which `nvs test` walks. The list is here rather than in configuration because the
 /// guarantee the tag buys is that *something* compiles the file, and a
 /// directory a project could name in a config file it also controls buys
 /// nothing.

@@ -36,8 +36,8 @@ fn check_call(body: &str) -> Diagnostics {
 }
 
 /// [`check_call`] for the one assertion that is about what the fold *recorded*
-/// rather than about what it refused — the table is `nvs-ir`'s half of ADR
-/// 0056 § 3 and a `Diagnostics` cannot see it.
+/// rather than about what it refused — the table is `nvs-ir`'s half of
+/// `rule:core-classes/regex-compile-time-tiering` and a `Diagnostics` cannot see it.
 fn check_call_table(body: &str) -> (Diagnostics, ExprTypeTable) {
     check_src_table(&format!(
         "<?nvs\nclass Main {{\n  public static function main(): void {{\n{body}\n  }}\n}}\n"
@@ -599,8 +599,8 @@ fn pattern_calls_in_text(body: &str) -> usize {
 
 #[test]
 fn every_written_regex_pattern_in_the_suite_has_its_tier_recorded() {
-    // ADR 0056's M8 line, and `rule:core-classes/regex-compile-time-tiering`'s second
-    // paragraph is what makes it possible: a tier is settled by the pattern text
+    // `rule:core-classes/regex-compile-time-tiering`'s second paragraph is what
+    // makes this possible: a tier is settled by the pattern text
     // alone, so writing it down beside the pattern is a claim a later run either
     // reproduces or has changed the engines under. The record is committed for
     // that second case — a routing change that moves a pattern arrives as a line

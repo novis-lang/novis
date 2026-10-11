@@ -267,9 +267,9 @@ pub mod code {
          Rename it to the name the message suggests.",
     );
     /// A method literally named `__construct` —
-    /// [ADR 0030](/docs/decisions/0030.md)
-    /// §§ 2-3: Novis's constructor is spelled `constructor`, an ordinary
-    /// `camelCase` method name needing no exception of its own.
+    /// `rule:classes/constructor-is-a-method-named-constructor`: Novis's
+    /// constructor is spelled `constructor`, an ordinary `camelCase` method
+    /// name needing no exception of its own.
     pub const E_LEGACY_CONSTRUCTOR_SPELLING: Code = Code::new("E0114").card(
         "In Novis, the constructor method is named `constructor`. Rename `__construct` to \
          `constructor`.",
@@ -700,8 +700,9 @@ pub mod code {
     /// `unset(rows()["k"])`. `rule:classes/unset-is-refused-on-a-property` keeps `unset()` for exactly one job,
     /// removing an array entry: a binding is declared with a type and
     /// definitely assigned (`rule:types/declaration`), so there is no "undefined again"
-    /// state for a local to return to, and a temporary has nothing for ADR
-    /// 0007 § 5's separated array to be written back into. An operand that is
+    /// state for a local to return to, and a temporary has nothing for the
+    /// separated array to be written back into
+    /// (`rule:types/an-element-write-needs-storage-to-write-back-into`). An operand that is
     /// a *declared* property is [`E_UNSET_ON_PROPERTY`] instead, which owns
     /// that half of the same section.
     pub const E_UNSET_TARGET_NOT_AN_ELEMENT: Code = Code::new("E0234").card(
@@ -1037,10 +1038,9 @@ pub mod code {
     /// A `require` whose string-literal path resolves on disk only because the
     /// filesystem is case-insensitive — `require 'mailer.nvs';` finding
     /// `Mailer.nvs`. Reported on Windows/macOS so the same source is not a
-    /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see
-    /// [ADR 0062](/docs/decisions/0062.md)
-    /// § 3, which extends
-    /// `rule:programs/autoload`'s exact-name rule from `autoload` to `require`.
+    /// `E_REQUIRE_TARGET_NOT_FOUND` on Linux; see `rule:programs/path-case`,
+    /// which extends `rule:programs/autoload`'s exact-name rule from
+    /// `autoload` to `require`.
     pub const E_REQUIRE_PATH_CASE_MISMATCH: Code = Code::new("E0314").card(
         "The file name in `require` uses different upper and lower case letters than the file on \
          disk. This works on Windows and macOS but fails on Linux. Write the name exactly as it \
@@ -1083,9 +1083,8 @@ pub mod code {
     );
     /// A bare name used where a value is expected — `PHP_EOL`, `MY_LIMIT` —
     /// which in PHP would be a global constant fetch.
-    /// [ADR 0011](/docs/decisions/0011.md)
-    /// § 3 leaves no such storage row: a constant is always a class
-    /// constant, so there is no name for this to resolve against and nothing
+    /// `rule:classes/no-free-functions-or-constants` leaves no such storage
+    /// row: a constant is always a class constant, so there is no name for this to resolve against and nothing
     /// below the resolver to lower it to.
     pub const E_NO_GLOBAL_CONSTANT: Code = Code::new("E0319").card(
         "A bare name such as `MY_LIMIT` is not a constant, because Novis has no global constants. \
@@ -1278,8 +1277,8 @@ pub mod code {
     );
     /// `unset()` on a declared property, static or instance, regardless of
     /// nullability — refused outright because `rule:classes/definite-property-initialization` already guarantees no
-    /// declared property is ever anything but definitely initialized; see ADR
-    /// 0028 § 3. A static property is the same slot and the same guarantee, so
+    /// declared property is ever anything but definitely initialized; see
+    /// `rule:classes/unset-is-refused-on-a-property`. A static property is the same slot and the same guarantee, so
     /// it takes the same code, named for the class that *declares* it. Every
     /// other operand `unset()` cannot remove an entry from is
     /// [`E_UNSET_TARGET_NOT_AN_ELEMENT`].
@@ -1594,8 +1593,9 @@ pub mod code {
          `foreach ($inner as int $v) { yield $v; }`.",
     );
     /// A concrete class that reaches an interface method nothing gives a
-    /// body — a dispatch to nothing. ADR 0053 § 1's `Iterator<T>` is the
-    /// shape that reaches it, its members being bodiless by design.
+    /// body — a dispatch to nothing. `rule:iteration/two-interfaces`'s
+    /// `Iterator<T>` is the shape that reaches it, its members being bodiless
+    /// by design.
     pub const E_INTERFACE_METHOD_MISSING: Code = Code::new("E0449").card(
         "This class does not have a method that one of its interfaces requires. Add the method to \
          the class, or give the method a default body in the interface.",
@@ -2273,8 +2273,8 @@ pub mod code {
     /// An `[[app]]` block asking for more than the host allows: a value in
     /// `[app.limits]` above the global `[limits.hard]`, or an `[app.limits.hard]`
     /// raising its own ceiling above it. `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` lets a block widen
-    /// `[app.limits]` and lower its own ceiling, but leaves the bound where ADR
-    /// 0005 put it — `[limits.hard]` is the host's answer and an application
+    /// `[app.limits]` and lower its own ceiling, but leaves the bound where
+    /// `rule:config/ceilings-are-their-own-directives` puts it — `[limits.hard]` is the host's answer and an application
     /// cannot exceed it. The refusal is at boot and the value is never clamped,
     /// exactly as a `Core\Config::set` above the ceiling is refused rather than
     /// reduced: a clamp would leave a block reading as though it got what it
@@ -2513,7 +2513,7 @@ pub mod code {
     /// believes is in force and nothing else does. It is also what lets
     /// `nvs_config::http::Cookies` resolve the key without an
     /// "or something else" arm, and so without ever repairing one
-    /// ([0095](/docs/decisions/0095.md)).
+    /// (`rule:errors/ambiguous-input-refused`).
     ///
     /// Not `E0612`'s refusal reached from another direction: that one is a
     /// *pair* of individually meaningful values, and this is one value that
@@ -2665,8 +2665,8 @@ pub mod code {
     /// downloads and runs it is the only principal involved; installing a
     /// service creates a **second** principal — a privileged account executing
     /// that payload at every boot, with no operator having read what it
-    /// contains — which is the boundary 0048 § 1 declined to cross, arrived at
-    /// from the other side.
+    /// contains — which is the boundary `rule:programs/bundle-trust-domain`
+    /// declines to cross, arrived at from the other side.
     pub const E_SERVICE_FROM_A_BUNDLE: Code = Code::new("E0634").card(
         "A program built with `nvs build` cannot install itself as a service. Run `nvs service` \
          with the `nvs` program itself.",
@@ -3072,8 +3072,8 @@ pub mod code {
     ///
     /// The mirror of [`E_INOUT_ARG_MISSING`]: a marker that is allowed to be
     /// wrong is worth nothing to the reader, so `rule:statements/inout-is-written-at-the-call` makes the extra
-    /// one an error too. Through a `callable` it can never be right — ADR
-    /// 0031 § 4 keeps that type opaque and [`E_ANON_FN_INOUT_PARAM`] refuses
+    /// one an error too. Through a `callable` it can never be right —
+    /// `rule:types/callable-is-the-only-function-type` keeps that type opaque and [`E_ANON_FN_INOUT_PARAM`] refuses
     /// the declaration end outright — and a spread hands over a subject's
     /// entries rather than the subject, which is the same reason
     /// [`E_INOUT_ARG_NOT_A_PLACE`] wants one storage location. Through a
@@ -3275,8 +3275,8 @@ pub mod code {
     ///
     /// The same rule as [`E_ANON_FN_INOUT_PARAM`], read from the call site's
     /// end rather than the anonymous function's. It has no sibling at a *resolved*
-    /// target: every signature the checker builds names its parameters (ADR
-    /// 0063 R2), so a `name:` there is a spelling question and never an
+    /// target: every signature the checker builds names its parameters
+    /// (`rule:core-api/parameters-are-callable-by-name`), so a `name:` there is a spelling question and never an
     /// absence — [`E_UNKNOWN_ARG_NAME`] is the whole of it. A `...`
     /// argument is not refused here: how many arguments it hands over is its
     /// own run-time length, which needs no parameter list to be meaningful.
@@ -3504,8 +3504,8 @@ pub mod code {
     /// `rule:errors/record-transformations`'s redaction row states it: a `secret`-qualified value written at a
     /// `Core\Debug::dump`/`render` call site is refused where it is written.
     ///
-    /// It is a *call-site* rule rather than a parameter type, for ADR 0033
-    /// § *Context*'s reason and `Core\Log::write`'s: both members declare
+    /// It is a *call-site* rule rather than a parameter type, for
+    /// `rule:security/secret-sinks-refuse`'s reason and `Core\Log::write`'s: both members declare
     /// `mixed`, which a `secret string` satisfies, so the only place the
     /// qualifier is still visible is the argument expression itself.
     ///
@@ -4105,8 +4105,9 @@ pub mod code {
     /// An `#[Access]` gives no `allow`.
     ///
     /// `rule:attributes/access-payload` marks only `csrf` optional: the attribute exists to carry
-    /// a decision, so one carrying none is exactly the omission § 3 refuses,
-    /// written out instead of left out. Reported by the payload walk rather
+    /// a decision, so one carrying none is exactly the omission
+    /// `rule:attributes/access-is-a-required-sibling` refuses, written out
+    /// instead of left out. Reported by the payload walk rather
     /// than by the roster check, for [`E_ROUTE_INCOMPLETE`]'s reason — a
     /// roster says what a field may hold, and *required* is not a fact a
     /// roster can state.
@@ -4117,12 +4118,13 @@ pub mod code {
 
     /// An `#[Access]`'s `allow` value is not an enum case or a class constant.
     ///
-    /// `rule:attributes/access-payload`: the field's declared type is `mixed` because § 2 is a
+    /// `rule:attributes/access-payload`: the field's declared type is `mixed` because
+    /// `rule:security/access-is-checked-for-presence-not-meaning` is a
     /// promise *not* to know what the decision means, so a narrower type would
     /// be a claim the compiler does not make. What stands in place of the type
     /// is that the value **names** something — a bare literal names nothing,
     /// so `allow: "admin"` is the magic string the attribute exists to
-    /// replace, and § 2's whole guarantee is that the name resolves.
+    /// replace, and that rule's whole guarantee is that the name resolves.
     pub const E_ACCESS_ALLOW_NOT_A_NAME: Code = Code::new("E0761").card(
         "The `allow` value of `#[Access]` must be an enum case or a class constant. Write \
          `allow: Role::Admin`, not a string like `allow: \"admin\"`.",
@@ -4130,7 +4132,8 @@ pub mod code {
 
     /// A `#[Route]` method carries no `#[Access]`.
     ///
-    /// ADR 0096 §§ 1 and 3, and the whole of why that ADR exists: there is no
+    /// `rule:attributes/access-is-a-required-sibling`, and the whole of why
+    /// that rule exists: there is no
     /// implicit `Public` and no configuration that supplies one, so a route
     /// that is open because its author decided so and one that is open because
     /// its author forgot are not the same text. Reported at the `#[Route]`
@@ -4248,7 +4251,7 @@ pub mod code {
     /// *fine*: the mistake is in the pairing, which is `rule:expressions/intrinsic-list-is-closed`'s own
     /// reason for naming this member's placeholder check separately — it turns
     /// PHP's `printf` argument-mismatch bug family into a compile error. ADR
-    /// 0067 § 10's placeholder count and its positional-vs-named consistency
+    /// `rule:core-classes/db-compile-time-query-checking`'s placeholder count and its positional-vs-named consistency
     /// are the same question of a second grammar, so they are the same code:
     /// the message carries the reader's own words, per
     /// [`E_INTRINSIC_LITERAL_MALFORMED`]'s.
@@ -4292,9 +4295,8 @@ pub mod code {
     );
 
     /// A `secret`-qualified value reaches
-    /// `rule:classes/graph-copy`'s graph copy — [ADR
-    /// 0033](/docs/decisions/0033.md)
-    /// § 4's `serialize()`-and-`spawn` sink, which that bullet deliberately
+    /// `rule:classes/graph-copy`'s graph copy —
+    /// `rule:security/secret-crosses-no-boundary`'s `serialize()`-and-`spawn` sink, which that rule deliberately
     /// states once for *both* carriers rather than distinguishing "crossing to
     /// a live isolate" from "externalizing to bytes".
     ///
@@ -4703,7 +4705,7 @@ pub mod code {
     /// `callable(int $x): string` — a parameter name inside a `callable` type,
     /// `rule:types/callable-signature`.
     ///
-    /// The band's first code, claimed by ADR 0136 § *Diagnostics* before
+    /// The band's first code, claimed for `rule:types/callable-signature` before
     /// anything below it was written, which is why it sits ahead of the
     /// numbers rather than filling a hole. A name in the type would imply
     /// calling through the value by name, which nothing supports; reported
@@ -4733,8 +4735,7 @@ pub mod code {
     );
 
     /// A `spawn script` operand that is neither of
-    /// [ADR 0006](/docs/decisions/0006.md)
-    /// § *Decision*'s two entry forms — an `fn` anonymous function, or a value whose type
+    /// `rule:security/isolate-shares-nothing`'s two entry forms — an `fn` anonymous function, or a value whose type
     /// is `callable`.
     ///
     /// One code for both because it is one rule: the entry is **decided
@@ -4757,7 +4758,7 @@ pub mod code {
     );
 
     // `E0804` is retired and is never reused: it refused a method entry that
-    // declared a parameter. ADR 0006 § *Decision*'s binding lowers — the
+    // declared a parameter. `rule:security/isolate-shares-nothing`'s binding lowers — the
     // entry's parameter names ride on the spawn symbol and
     // `nvs_stdlib::script` binds `args:`'s entries to them by name — so that
     // shape is the shape that runs, and a mismatch is the ordinary
@@ -4886,7 +4887,7 @@ pub mod code {
     /// what a function returns instead of a value and `never` is what one
     /// returns by not returning, so neither names a shape a subject could be
     /// carrying. `is` is total over every type a value can inhabit
-    /// (ADR 0150 § 6), and these two are the boundary of that set rather than
+    /// (`rule:types/type-test`), and these two are the boundary of that set rather than
     /// an exception inside it.
     pub const E_TYPE_TEST_AGAINST_AN_UNINHABITED_TYPE: Code = Code::new("E0811").card(
         "No value can have the type `void` or `never`, so `$x is void` has no answer. Test \
@@ -5770,8 +5771,8 @@ mod tests {
     }
 
     /// The pipeline's three sit one past the highest code that predates them,
-    /// rather than in the holes at `E0124`–`E0126` that ADR 0098 named before
-    /// those numbers were taken. That is what an allocation owes
+    /// not in the holes at `E0124`–`E0126`, which belong to other codes. That
+    /// is what an allocation owes
     /// `conventions.md` § *A diagnostic*: the band's highest plus one, never
     /// its lowest hole. The claim is about where the three were allocated, so
     /// it holds whatever is allocated above them afterwards — which is the

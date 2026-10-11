@@ -6,3 +6,8 @@ Two outcomes, split on whether a request owns the fault:
 - **Outside any request** — there is nothing to charge it to and the state that faulted is shared, so the worker is **retired**: it stops accepting, its in-flight requests finish under the existing drain, and a replacement is started. After an internal panic the runtime's own state is what cannot be trusted, and that reading applies to shared state as it does to request state.
 
 This costs nothing on the path that does not panic, and is one wrap per *task* rather than per call.
+
+**Declined:**
+- **`panic = "abort"` plus a supervisor.** Simpler than the outer wrap and the teardown rules combined, but
+  it turns every containable runtime bug into a process kill, which is the guarantee this rule exists to
+  strengthen (`rule:http-server/no-path-reaches-abort`).

@@ -1,16 +1,7 @@
 {
   "title": "An array is PHP's ordered hash with `string` keys and a declared element type",
   "status": "shipped",
-  "because": [
-    "0007",
-    "0069",
-    "0114",
-    "0002",
-    "0159",
-    "0188",
-    "0238",
-    "0252"
-  ],
+  "because": [],
   "seeAlso": [
     "types/mixed-subscript",
     "types/array-combination",
@@ -28,6 +19,8 @@
     "tests/conformance/lang/an-array-of-string-is-passed-where-an-array-of-int-or-string-is-read.nvst",
     "crates/nvs-types/tests/arrays.rs",
     "tests/conformance/lang/an-array-literal-at-a-float-element-type-stores-floats-and-as-converts-an-int-array.nvst",
-    "tests/conformance/reject/an-existing-int-array-does-not-widen-to-a-float-array.nvst"
+    "tests/conformance/reject/an-existing-int-array-does-not-widen-to-a-float-array.nvst",
+    "tests/conformance/core/db-query-as-builds-a-class-and-not-a-scalar.nvst",
+    "crates/nvs-types/tests/objects_and_shapes.rs"
   ]
 }

@@ -1,5 +1,5 @@
 <?nvs
-// ADR 0085 § 2's fourth contradiction: an `#[Api]` on a method that declares
+// The fourth `#[Api]` contradiction: an `#[Api]` on a method that declares
 // no operation, so there is nothing for it to describe.
 
 class Items

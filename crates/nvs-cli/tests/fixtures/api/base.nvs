@@ -4,7 +4,7 @@
 //
 // The class is declared here rather than behind an `autoload` root because the
 // route table is collected over the program's declarations wherever they are
-// (ADR 0077 § 5), and one file per fixture is what keeps the three fixtures of
+// (`rule:routing/table-is-opt-in`), and one file per fixture is what keeps the three fixtures of
 // this directory readable as a diff of each other.
 
 class Items

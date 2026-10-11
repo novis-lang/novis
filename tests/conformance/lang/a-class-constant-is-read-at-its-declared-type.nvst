@@ -4,8 +4,8 @@ A user-declared class constant reads at its own declared type through `extends`,
 <?nvs
 // covers: lang:classes/constants-and-class
 // A user-declared class constant carries its own declared type, and that type
-// is what a read has — not the type its literal would have on its own. ADR
-// 0007 § 1's "nothing is untyped" is what makes the annotation load-bearing:
+// is what a read has — not the type its literal would have on its own.
+// `rule:types/declaration`'s "nothing is untyped" is what makes the annotation load-bearing:
 // `Limits::WIDTH` is a `uint` because the declaration says so, and `5` placed
 // anywhere else would have been an `int`.
 interface Bounded {

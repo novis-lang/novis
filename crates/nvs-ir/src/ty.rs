@@ -71,9 +71,8 @@ pub enum Ty {
     ///
     /// # What it spends
     ///
-    /// Sixteen bytes per value against eight for a `float` — ADR 0054
-    /// § *Consequences*' own figure, and memory footprint spent so decimal
-    /// arithmetic is exact.
+    /// Sixteen bytes per value against eight for a `float` — `rule:types/decimal`'s
+    /// own figure, and memory footprint spent so decimal arithmetic is exact.
     /// Nothing is allocated: this is **not** [`Self::is_refcounted`], so no
     /// insertion point keyed on that predicate has a `decimal` arm.
     ///
@@ -82,9 +81,9 @@ pub enum Ty {
     /// Every operator is an out-of-line [`crate::ir::Helper`] — arithmetic,
     /// comparison, truthiness, and both directions of every conversion — for
     /// the same reason [`crate::ir::Helper::TaggedToString`] is one: the
-    /// arithmetic needs a wider intermediate than the value itself, which
-    /// ADR 0054 § *Consequences* names as the real implementation cost.
-    /// Inlining the equal-scale `+`, `-` and comparison that ADR anticipates
+    /// arithmetic needs a wider intermediate than the value itself, which is
+    /// the real implementation cost of the type.
+    /// Inlining the equal-scale `+`, `-` and comparison
     /// is a backend optimization, recorded as a known gap in
     /// `nvs_runtime::decimal`, not a semantic difference.
     Decimal,
@@ -343,7 +342,7 @@ pub enum Ty {
     /// makes `class<T>` a type written wherever a type is written, so a
     /// descriptor reaches a local, a parameter, a field and a return value
     /// — which costs nothing beyond the word it already is, since a
-    /// descriptor is immortal and process-wide (§ 1's own sentence) and the
+    /// descriptor is immortal and process-wide (`rule:types/class-reference`) and the
     /// slot holding one needs no lifecycle at all. What the erasure drops is
     /// the `T`: two `class<T>`s over different bounds are one representation
     /// here, exactly as [`Self::Object`] drops which class an instance is, and

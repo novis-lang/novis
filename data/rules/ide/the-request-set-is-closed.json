@@ -1,16 +1,7 @@
 {
   "title": "M4B answers nine standard requests and exactly one of Novis's own, M10 adds eight more on the same test, and that test keeps the list from growing",
   "status": "designed",
-  "because": [
-    "0099",
-    "0101",
-    "0040",
-    "0137",
-    "0171",
-    "0201",
-    "0240",
-    "0268"
-  ],
+  "because": [],
   "seeAlso": [
     "ide/redaction-ranges-come-from-the-server",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows",
@@ -22,6 +13,12 @@
   ],
   "guardedBy": [
     "crates/nvs-lsp/tests/coverage.rs",
-    "crates/nvs-lsp/tests/navigation.rs"
+    "crates/nvs-lsp/tests/navigation.rs",
+    "crates/nvs-lsp/tests/hints.rs",
+    "tests/lsp/links/an-autoload-root-links-to-the-directory-it-names.lspt",
+    "tests/lsp/links/a-path-argument-links-to-the-file-or-directory-it-names.lspt",
+    "tests/lsp/hover/an-autoload-prefix-answers-its-namespace-and-its-roots.lspt",
+    "crates/nvs-lsp/tests/autoload.rs",
+    "editors/vscode/test/client/links.test.ts"
   ]
 }

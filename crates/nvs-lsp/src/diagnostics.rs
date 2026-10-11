@@ -449,8 +449,9 @@ pub fn to_wire(
         code: diagnostic
             .code
             .map(|code| NumberOrString::String(code.as_str().to_owned())),
-        // Left unset, and not for want of a value to put in it: ADR 0099 § 3
-        // has no documentation site for a code to point at, and a
+        // Left unset, and not for want of a value to put in it:
+        // `rule:ide/the-request-set-is-closed` has no documentation site for a
+        // code to point at, and a
         // `codeDescription` whose URL 404s is worse than the code alone,
         // which a person can at least search for.
         code_description: None,
@@ -537,8 +538,9 @@ mod tests {
     }
 
     /// The crossing to the wire, field by field: the stable code travels as a
-    /// string, `codeDescription` stays unset because ADR 0099 § 3 has nowhere
-    /// to point one, and the range comes out of
+    /// string, `codeDescription` stays unset because
+    /// `rule:ide/the-request-set-is-closed` has nowhere to point one, and the
+    /// range comes out of
     /// `rule:ide/positions-have-one-home`'s arithmetic rather than this
     /// module's — which is why the fixture's line holds a `ß`, whose UTF-16
     /// columns are not its byte offsets.

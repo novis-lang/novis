@@ -11,6 +11,11 @@ env_hash }`. It is derived from the same `content_hash` the in-memory key carrie
 are hashed once for both. It is constant for the life of a configuration and costs the request path
 nothing.
 
+A manifest lives inside its `.nvsx` as a custom section, so hashing the pins covers each extension's
+declared classes, signatures and qualifier declarations with no separate manifest hash. **A class
+name declared by two extensions is refused at load**, so the set is order-independent and the sorted
+hash is well defined. An entry with no pin contributes its path, so it still rekeys every unit.
+
 `compiler_version_hash` is **the running compiler executable, not the release version**: its path, its
 byte length and its modification time, read once per process. A version string is one string for every
 build of an unreleased tree, so keying on it alone would let a rebuilt compiler read back artifacts its
@@ -27,6 +32,16 @@ artifact compiled against one extension set — holding a direct call to a tramp
 moved — could be reused against another.
 
 Invalidation is coarse by design: changing the set rekeys every unit, not only units that call an
-extension. Finer would need per-unit dependency tracking including negative dependencies, a real
-subsystem for a modest win. The compile pool bounds how much of the resulting wave is in flight at
-once.
+extension. The first request to resolve each path afterwards pays a compile, on the compile pool and
+not on a request-serving core, and the pool bounds how much of the wave is in flight at once. That
+is still strictly cheaper than the restart it replaces, which pays the same compiles cold and drops
+every in-flight request.
+
+- **Memory:** an extension change keeps one extra generation of compiled units, each held exactly
+  as long as some in-flight request holds it. O(in-flight), never O(reloads performed).
+
+**Declined:**
+- **Invalidating only the units that call a changed extension.** It needs per-unit dependency
+  tracking including negative dependencies, since a unit that failed because a class was unknown
+  must retry when the class appears: a real subsystem for a modest win. If the wave ever measures as
+  a real cost, the answer is precompiling entry points before the swap, not that tracking.

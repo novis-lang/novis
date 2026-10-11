@@ -1,5 +1,5 @@
-//! `Core\Http\Stream` — [ADR 0180](/docs/decisions/0180.md) § 5's streamed
-//! reply: a head read through members, and a body read one way and once.
+//! `Core\Http\Stream` — `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`'s
+//! streamed reply: a head read through members, and a body read one way and once.
 //!
 //! # Decision: the head is members and the body is a reader
 //!

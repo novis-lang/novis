@@ -1,14 +1,7 @@
 {
   "title": "Two layers enforce a capability and only the static one grants; nothing anywhere widens",
   "status": "shipped",
-  "because": [
-    "0112",
-    "0005",
-    "0006",
-    "0052",
-    "0031",
-    "0019"
-  ],
+  "because": [],
   "seeAlso": [
     "security/capability-check-at-the-door",
     "security/closed-doors",

@@ -1,9 +1,7 @@
 {
   "title": "Every `[http.headers]`, `[http.cors]` and `[http.cookies]` directive is `Runtime` class, and `Core\\Response::setHeader` overrides a policy-owned header on one response without logging",
   "status": "shipped",
-  "because": [
-    "0074"
-  ],
+  "because": [],
   "seeAlso": [
     "config/three-changeability-classes",
     "config/a-runtime-set-is-request-local",

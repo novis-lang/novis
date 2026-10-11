@@ -6,10 +6,16 @@ that forgets the line is safe, and a developer who wants the other one asks for 
 
 **The set is closed, and staging is not a third value.** A staging host runs `production` mode with
 different configuration — different credentials, a different log target, wider limits — which is what
-staging has always actually been. An open set of named environments buys per-name config files at the
-cost of the compiler no longer being able to enumerate what a name does, which is the property
-`rule:config/a-mode-is-five-defaults` exists to preserve; and since an unknown *key* in `nvs.toml` is
-already an error, an unknown *value* silently meaning "some third thing" would be the odd one out.
+staging has always actually been. A `test` run selects development-mode defaults inside its own
+isolate; it is not a third value either.
 
-A `test` run selects development-mode defaults inside its own isolate; it is not a third value
-either.
+**Declined:**
+- **An open set of named environments** (`staging`, `qa-eu-west`), each with an overlay file. It buys
+  per-name config files at the cost of the compiler no longer being able to enumerate what a name
+  does: "is this name production-like?" becomes each consumer's guess, which is `NODE_ENV`'s failure,
+  and enumerability is what `rule:config/a-mode-is-five-defaults` exists to preserve. An unknown *key*
+  in `nvs.toml` is already an error, so an unknown *value* silently meaning "some third thing" would
+  be the odd one out.
+- **A `test` mode.** A `#[Test]` method already runs in its own isolate with its `echo` bound to a
+  captured sink (`rule:tooling/echo-always-has-a-sink`), so a third mode would be a second home for a
+  context the language already models.

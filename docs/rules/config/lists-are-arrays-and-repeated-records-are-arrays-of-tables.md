@@ -24,3 +24,6 @@ registry names the directive by its full dotted path either way. Neither spellin
 
 Across files the two shapes behave differently, which is
 `rule:config/a-value-array-replaces-and-a-table-appends`.
+
+Array-of-tables syntax gets noisy past two levels of nesting, and a block layout that would need a
+third is flattened rather than nested deeper.

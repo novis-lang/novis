@@ -2,7 +2,7 @@
 Core\Db\Schema::fromArray refuses a type outside the vocabulary and a value the form has no place for, rather than carrying either through — `rule:core-classes/schema-is-a-value` and `rule:core-classes/schema-vocabulary-is-closed`
 --FILE--
 <?nvs
-// § 2's vocabulary is closed and there is no raw escape hatch anywhere inside a
+// `rule:core-classes/schema-vocabulary-is-closed`'s vocabulary is closed and there is no raw escape hatch anywhere inside a
 // schema value. That is what makes the diff **total** — nothing opaque can be
 // in a value, so "this tool does not understand part of your schema" is not a
 // state that exists — and it is only true if the refusals land at the door,

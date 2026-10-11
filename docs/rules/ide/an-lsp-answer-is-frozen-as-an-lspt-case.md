@@ -27,3 +27,6 @@ an offset — exactly one per case, and none for a request that needs none.
 The runner is `nvs lsp-test <paths>`, walking directories for `*.lspt` and printing `N passed, M failed`
 — the line the loop's `nvs-suite` check kind already parses, so editor behaviour is gated with no change
 to the driver at all.
+
+The cost is two case formats: they share a section lexer but are two suites and two runners, and a
+contributor has to know the shape of both.

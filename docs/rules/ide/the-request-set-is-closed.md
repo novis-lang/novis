@@ -22,6 +22,27 @@ literal at a parameter the registry marks `CoreTy::Path`, at one a program marks
 `Core` shape field with the same mark (`rule:programs/relative-paths-resolve-from-their-file`); a
 class-name argument is one at a parameter marked `CoreTy::ClassName`. The mark is read off the call the
 checker resolved, so a literal at any other parameter is ordinary text.
+
+Each of those answers reads what the compiler already resolved, never a second copy of its rule. An
+`autoload` literal's link comes from `nvs_hir::autoload::Site::directories`, which pairs each literal's
+span with the directory `AutoloadMap::build`'s own functions resolve it to and keeps only one that
+exists; a missing root and a malformed glob get no link. A path argument's link reads the checker's own
+join (`ExprTypeTable::path_literal`) for a relative literal and the text itself for an absolute one, so
+a relative literal the checker left alone, its first segment holding a `:`, has none; a path that names
+nothing on disk has none either, since the program may be about to create it. A directory link is a
+`file:` URI ending in `/`, which is what a URI already means by a directory, so the server stays on the
+standard protocol; the VS Code client rewrites such a target into its `revealInExplorer` command, and
+another client opens it however it opens a directory. An `autoload` prefix hovers as the namespace it
+maps, a `{..}` segment shown as the directory name the map uses, and its roots in probe order with a
+missing one marked; it has no `definition`, because a namespace has no declaration. The string of `as
+class<T>` and a class-name argument hover and jump as the class whose whole name the text is, exactly
+as written, because the run-time lookup resolves no `use` line, so `'\App\User'` and a short name
+answer nothing.
+
+- **Memory:** one span per `autoload` literal and per prefix, and one `Vec` of parameter marks per
+  resolved call, per compile, the `Vec` not allocated for a method that marks nothing. In the server,
+  one existence test per literal, root or path argument per link or hover request. Nothing at run time.
+
 M4B's non-standard request is `nvs/redactions`
 (`rule:ide/redaction-ranges-come-from-the-server`), non-standard because LSP has no shape for "do not
 show this to the room".
@@ -29,7 +50,8 @@ show this to the room".
 The last three standard ones are admitted on that test rather than on being useful, and the test is what
 keeps the list from growing: a candidate either reads a structure the milestone already built or waits for
 the milestone that builds it. `codeDescription` is not set: it takes a URL per code and there is no site to
-point one at.
+point one at, and a link into the repository would point at a Rust constant, which is worse than none.
+When there is a site, it is the one field that changes.
 
 M10's eight are admitted the same way, and the structure each one reads is named for the same reason the
 nine are. `references` and `documentHighlight` are the workspace symbol index's read side, whole-workspace
@@ -38,9 +60,12 @@ and narrowed to the open file; `codeLens` counts that index's uses and walks its
 edge both ways. Those four, with unused-member dimming, are
 `rule:ide/five-features-are-one-reference-index`'s five readers of the one index. `signatureHelp`,
 `typeDefinition` and `implementation` read what `hover` and `definition` already resolve. `inlayHint` is the
-eighth, and it is where ADR 0099 § 3's deferral is reversed — for the two idioms
-that stopped moving and no others, a `var` declaration's inferred type and a bare literal argument's
-parameter name, both read out of the type phase's own tables and never re-derived.
+eighth. It was kept out of M4B because it wanted a settings story and the idioms it would show were still
+moving, and it is admitted for the two idioms that stopped moving and no others: a `var` declaration's
+inferred type and a bare literal argument's parameter name, both read out of the type phase's own tables
+and never re-derived. A site those tables hold nothing for gets no hint: an editor draws a hint as if the
+source said it, so a re-derived one is a confident lie. `documentHighlight` waited for the index for a reason of its own: it applies
+resolution to every occurrence of a name, which is a different walk from resolving the one under a cursor.
 
 M10's own second non-standard request is `nvs/regions`
 (`rule:ide/a-template-region-gets-the-editors-services-and-formatter`), and it passes the same test the
@@ -84,6 +109,21 @@ own scan, recorded once per file as the index reads it. It is non-standard becau
 "what this file is", and a decoration on a file the editor has not opened is not a document request. It
 has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
 
-`textDocument/declaration` is refused rather than deferred: Novis has no declaration that is not the
-definition, so it would answer identically to `textDocument/definition`, and the crate names neither
-spelling of it.
+**Declined:**
+- **`textDocument/declaration`.** It is refused rather than deferred: Novis has no declaration that is
+  not the definition, so it would answer identically to `textDocument/definition`. That is two
+  capabilities and two menu entries for one answer, and the crate names neither spelling of it.
+- **Inlay hints for everything an editor could annotate.** The reason they waited was idioms still
+  moving, and that reason still covers every shape but the two. A third shape — a `foreach` variable, a
+  chained call's intermediate type, a closure's return — is a decision on the same test a new request
+  is.
+- **Call hierarchy.** It needs a second index of call-site edges that nothing else reads
+  (`rule:ide/five-features-are-one-reference-index`).
+- **Resolving an `autoload` root, or joining a path argument's text, in `crates/nvs-lsp`.** Each is a
+  second copy of the compiler's resolution rule, and could disagree with the path the program opens.
+- **Marking a directory link in `data` or `tooltip`.** Both are free-form fields a client has to know
+  about.
+- **`definition` on an `autoload` prefix, to its first root.** A `Location` names a file and a range, and
+  a directory is neither; the link already gives the same ctrl-click.
+- **Resolving the string of `as class<T>` through the file's `use` lines.** The conversion does not, so
+  the editor would jump to a class the program then fails to find.

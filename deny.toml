@@ -36,7 +36,7 @@ ignore = [
 # fine (cranelift and wasmtime are Apache-2.0 WITH LLVM-exception).
 #
 # This list decides what Novis may *link*. What it must then *ship* — the
-# reproduced notice for each component — is ADR 0065 and its generator,
+# reproduced notice for each component — is decided by its generator,
 # `tools/nv/cmd/gen-attribution.ts`, whose `PREFERENCE` must name exactly the
 # identifiers below, in preference order. The generator fails if the two ever
 # drift, so edit both together.

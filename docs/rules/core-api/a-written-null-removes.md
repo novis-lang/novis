@@ -18,3 +18,22 @@ is not an absent one — so overloading it would reinstate the in-band sentinel 
 `crates/nvs-stdlib/src/uri.rs`'s `removable` helper is the first reader of the three states, and
 `Core\Uri::with` the first member to spend them: `{port: null}`, `{query: null}` and
 `{fragment: null}` each clear their component, where omitting the key carries it over.
+
+This is what lets a bag express a partial update, the shape every `with`-style member and every
+PATCH-shaped API needs. It costs one new way to be wrong, the standing trade of merge-patch semantics:
+`$u->with({fragment: $maybe})` with a `?string` computed elsewhere removes the fragment when that value
+happens to be `null`. The trade is accepted. The nullability is written in the signature, so the
+possibility is visible at the call site, and a field stays non-nullable wherever an accidental removal
+would be dangerous rather than merely surprising. A member may still make a nullable key *required*
+where a `null` has to be typed on purpose, as a signature's lifetime is
+(`rule:core-api/a-lifetime-is-written`).
+
+**Declined:**
+- **A reserved constant per class meaning remove.** It is still in-band, still a value of the field's
+  type, and one more name to learn per class. Nothing stops it being written into a field where removal
+  means nothing.
+- **A second bag key listing what to clear, such as `{clear: ["fragment"]}`.** It is stringly-typed against
+  a key set the shape already declares, so a typo becomes a run-time throw where the bag gives a compile
+  error. It also puts one component's fate in two places when a call both sets and clears.
+- **Making `with` mutate the receiver.** Nothing mutates (`rule:core-api/nothing-mutates`), and removal is
+  a syntax problem: an in-place setter taking the same bag could not express it either.

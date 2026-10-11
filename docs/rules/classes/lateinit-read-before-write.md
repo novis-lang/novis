@@ -15,7 +15,5 @@ triggers it: it is a bonus, not a safety net to rely on.
 
 **Declined:**
 - **Interprocedural or whole-program checking**, tracing which methods can write a `lateinit` property
-  before which read it. Hot reload revalidates one file's compiled unit at a time
-  (`rule:config/an-edit-reaches-the-next-request-without-a-restart`), and a whole-program analysis
-  would widen every edit's blast radius, for cases that are cross-method by nature and fall through to
-  the runtime throw anyway.
+  before which read it. The cases it would add are cross-method by nature, and the runtime throw
+  already catches every one of them, so a second analysis would buy no safety.

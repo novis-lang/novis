@@ -1,9 +1,7 @@
 {
   "title": "The runtime records a request's memory high-water mark in every build, and a nested isolate restores the enclosing mark rather than clobbering it",
   "status": "shipped",
-  "because": [
-    "0148"
-  ],
+  "because": [],
   "seeAlso": [
     "observability/memory-is-three-numbers-on-core-budget",
     "observability/memory-high-water-writes-a-warn",
@@ -13,6 +11,7 @@
   ],
   "guardedBy": [
     "crates/nvs-runtime/src/budget.rs",
-    "tests/conformance/core/budget-the-peak-outlives-a-spike-the-held-figure-gives-back.nvst"
+    "tests/conformance/core/budget-the-peak-outlives-a-spike-the-held-figure-gives-back.nvst",
+    "benches/abi-probe/tests/perf_guards.rs"
   ]
 }

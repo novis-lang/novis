@@ -1,14 +1,7 @@
 {
   "title": "The job queue is two tables in a connection the operator names, converged by an explicit command",
   "status": "shipped",
-  "because": [
-    "0084",
-    "0145",
-    "0067",
-    "0024",
-    "0153",
-    "0187"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/schema-converges",
     "core-classes/schema-apply-capability",

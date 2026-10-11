@@ -252,8 +252,8 @@ const KEY_WIDTH: u32 = 255;
 ///   array back beside the count and the dead-letter move copies what is already on the row, so a
 ///   job arrives in [`DEAD_TABLE`] carrying every attempt rather than its last. That costs a row
 ///   rewritten once per attempt on the table § 4's claim contends over, which is the rule's promise
-///   being paid for rather than a depth this schema chose; `docs/decisions/0187.md` § 4 owns it,
-///   together with the bound — attempts are finite and an entry's message is capped at
+///   being paid for rather than a depth this schema chose; that rule owns it, together with the
+///   bound — attempts are finite and an entry's message is capped at
 ///   [`MESSAGE_CAP`], so the column holds at most attempts × that cap. The dead-letter row is
 ///   otherwise the job's own columns plus `failed_at`, and has no `state`: a row is `Dead` by being
 ///   in that table, which is exactly what [`STATUS_POSTGRES`]'s second arm asserts by answering the
@@ -295,7 +295,9 @@ const KEY_WIDTH: u32 = 255;
 /// `order by id limit N` within one queue, and its state test is an `or` over a bound value that no
 /// index key can carry, so the only index that serves it is one where `id` follows `queue`
 /// directly: the batch walks the queue from its oldest row and stops at its bound. Without it each
-/// batch sorts every row of the queue, and § 4's drain loop is quadratic in the history it removes.
+/// batch sorts every row of the queue, and the drain loop
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded` describes is quadratic in the history
+/// it removes.
 /// `a_sqlite_purge_walks_one_queue_in_id_order_without_a_sort` guards the plan.
 ///
 /// **Finished jobs are kept until a program purges them, and that is the retention.**
@@ -1214,8 +1216,9 @@ pub fn dead_errors(prior: Option<&str>, at: i64, class: &str, message: &str) -> 
 /// How much of a thrown message an [`dead_errors`] entry keeps.
 ///
 /// Counted in characters and cut on a character boundary, because the column is `utf8mb4` text a
-/// reader parses and half a code point is not text. `docs/decisions/0187.md` § 4 owns why there is a
-/// cap at all; the number is the width at which a message still says what went wrong — a stack of
+/// reader parses and half a code point is not text.
+/// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` owns why there is a cap at all;
+/// the number is the width at which a message still says what went wrong — a stack of
 /// frames or a rendered document does not, and a job row is not where either belongs.
 pub const MESSAGE_CAP: usize = 1_024;
 
@@ -1530,8 +1533,9 @@ pub const DELETE_SQLSERVER: Split = Split {
 /// state set the call selected, narrowed by an optional tag and an optional age, and never more rows
 /// than the call's `limit`.
 ///
-/// **The bound is the rule and this spelling is not.** ADR 0153 § 4 is why there is a `limit` at
-/// all — the first `purge` a deployment runs is against the table that has been growing since it was
+/// **The bound is the rule and this spelling is not.**
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded` is why there is a `limit` at all —
+/// the first `purge` a deployment runs is against the table that has been growing since it was
 /// deployed, and an unbounded `delete` there holds a lock on the connection the application enqueues
 /// through for as long as it takes. PostgreSQL has no `delete … limit`, so the bound is carried by a
 /// subquery that selects the ids and the outer statement removes those; [`PURGE_MYSQL`] writes the
@@ -1636,8 +1640,8 @@ pub const PURGE_DEAD_MYSQL: &str = "delete from nvs_dead_jobs \
 /// not set. A statement that parses only under a non-default build of a dependency is a statement
 /// that stops parsing the day the dependency moves, so the bound is carried the way
 /// [`PURGE_POSTGRES`] carries it, in a subquery that selects the ids the outer statement removes.
-/// Dropping the bound is the one answer that is not available: ADR 0153 § 4 is why there is a
-/// `limit` at all.
+/// Dropping the bound is the one answer that is not available:
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded` is why there is a `limit` at all.
 ///
 /// **Eight placeholders in [`PURGE_MYSQL`]'s order**, so the value array a caller builds for that
 /// dialect is the one this text takes as well — the two null-checked options cost two slots each for
@@ -1998,7 +2002,8 @@ const PURGE_LIMIT_ARG: usize = 4;
 
 /// How many rows a `purge` that wrote no `{limit: …}` removes.
 ///
-/// ADR 0153 § 4 makes the bound finite with nothing written and names no number, so the number is
+/// `rule:concurrency/queue-deletion-is-explicit-and-bounded` makes the bound finite with nothing
+/// written and names no number, so the number is
 /// this module's: it is what one statement may hold a lock for on the connection the application
 /// enqueues through without the enqueues behind it noticing, and it is large enough that draining a
 /// table which has been growing since the deployment is a loop of calls rather than a conversation.
@@ -2199,12 +2204,12 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_queue_delete",
             doc: Some(&DELETE_DOC),
         },
-        // The other half of the operator's pair, taking the same grant for ADR 0153 § 5's
-        // reason: a capability answers *may this program remove queue records*, and one row
-        // at a time in a loop is that same answer at a different rate. Its subject is a
-        // queue's name rather than a receipt, which makes it `stats`' twin rather than
-        // `cancel`'s — the member asked about a population — and what it answers is the count
-        // § 4's drain loop reads.
+        // The other half of the operator's pair, taking the same grant for
+        // `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s reason: a capability
+        // answers *may this program remove queue records*, and one row at a time in a loop is
+        // that same answer at a different rate. Its subject is a queue's name rather than a
+        // receipt, which makes it `stats`' twin rather than `cancel`'s — the member asked about
+        // a population — and what it answers is the count that rule's drain loop reads.
         CoreMethod {
             name: "purge",
             names: &["queue"],
@@ -4771,8 +4776,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// **[`nvs_core_queue_cancel`]'s twin, down to the `bool`**, and the difference between them is
     /// the whole of what the two members are for: `cancel` changes a state and leaves a row `status`
-    /// can still answer about, and this removes the row. ADR 0153 § 2's table is the one home for
-    /// which states each of them reaches.
+    /// can still answer about, and this removes the row.
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded` is the one home for which states
+    /// each of them reaches.
     ///
     /// **The grant is asked first, before the queue's block is read and before anything is
     /// opened.** `rule:security/capability-check-at-the-door` puts the check at the door, and the
@@ -4993,7 +4999,7 @@ fn purge_texts(
 
 nvs_runtime::nvs_helper! {
     /// `Core\Queue::purge(string $queue, {state?, tag?, before?, limit?}): uint` —
-    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`, ADR 0153 § 2 and § 4.
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`.
     ///
     /// **`stats`' subject and `delete`'s grant.** It is asked about a queue rather than about a
     /// job, because what a retention sweep names is a population; and it takes the same
@@ -5123,7 +5129,7 @@ nvs_runtime::nvs_helper! {
         // context go.
         spans.file(ctx);
         // A statement that matched nothing answers zero rather than no count at all, which is what
-        // makes § 4's drain loop terminate.
+        // makes `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s drain loop terminate.
         Ok(Value::uint(counted.affected.unwrap_or(0)))
     }
 }
@@ -5447,7 +5453,7 @@ mod tests {
     ///
     /// The cap is asserted with a multi-byte character, because a byte-wise cut inside one is the
     /// failure that would produce a column no reader can parse — and that is the whole reason
-    /// `docs/decisions/0187.md` § 4 says *character boundary*.
+    /// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` says *character boundary*.
     #[test]
     fn the_errors_array_gains_an_entry_per_attempt_and_caps_each_message() {
         let first = dead_errors(None, 1, "RuntimeError", "the first");
@@ -5961,10 +5967,11 @@ mod tests {
     ///
     /// **What this asserts is where the predicate sits, which no assertion about an answer can
     /// reach.** A `delete` that read the state and then removed the row would answer `false` for a
-    /// job that was claimed at the moment it looked, and would still be the two moments ADR 0153 § 2
-    /// says are not survivable — the claim it is racing lands in the gap, and the row goes out from
-    /// under a worker that then reports into a void. The one thing a text can be held to is that the
-    /// statement carrying the refusal is the statement doing the removing.
+    /// job that was claimed at the moment it looked, and would still be the two moments
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded` says are not survivable — the
+    /// claim it is racing lands in the gap, and the row goes out from under a worker that then
+    /// reports into a void. The one thing a text can be held to is that the statement carrying
+    /// the refusal is the statement doing the removing.
     ///
     /// **The two dialects hold it in two places**, and the framed one is the one worth pinning: a
     /// trailing `where` there is read after the join and would take the dead-letter arm with it.
@@ -6116,7 +6123,8 @@ mod tests {
         );
     }
 
-    /// ADR 0153 § 2's default set, asserted where the member *reads* it rather than where the
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s default set, asserted where the
+    /// member *reads* it rather than where the
     /// statement writes it.
     ///
     /// [`queue_statements_agree_with_the_state_enum`] holds the two ordinals inside
@@ -6205,7 +6213,8 @@ mod tests {
     /// different claim: the option's default is a number, so an omitting call site materializes
     /// [`DEFAULT_PURGE_LIMIT`] rather than an absence some later reading would have to invent a
     /// bound for. The count beside it is the other half of the same sentence — a `bool` there
-    /// would leave § 4's drain loop with nothing to terminate on.
+    /// would leave `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s drain loop with
+    /// nothing to terminate on.
     #[test]
     fn purge_is_bounded_with_nothing_written_and_answers_the_count_it_removed() {
         let row = CLASS
@@ -6236,7 +6245,8 @@ mod tests {
         }
     }
 
-    /// `rule:concurrency/queue-four-members`' four and ADR 0153 § 5's two, as one roster: what the
+    /// `rule:concurrency/queue-four-members`' four and
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s two, as one roster: what the
     /// class declares, and which of its members a grant is asked about.
     ///
     /// **The six are asserted together, because the claim is about the boundary between them.** A
@@ -6302,7 +6312,8 @@ mod tests {
         );
     }
 
-    /// ADR 0153 § 2 as the reference states it, which is the one place a caller reads what a
+    /// `rule:concurrency/queue-deletion-is-explicit-and-bounded` as the reference states it, which
+    /// is the one place a caller reads what a
     /// `purge` naming nothing removes.
     ///
     /// **The default set and the two opt-ins have to be on the card and not only in the rule**,

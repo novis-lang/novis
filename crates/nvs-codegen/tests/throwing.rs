@@ -255,7 +255,7 @@ echo Ratio::of(1, 0);
 
 #[test]
 fn a_fatal_is_never_caught() {
-    // ADR 0020: a resource-limit stop is not a `Throwable`, so the `catch`
+    // `rule:errors/throwable-hierarchy`: a resource-limit stop is not a `Throwable`, so the `catch`
     // this program wraps around it does not run and the status travels on out.
     let mut ctx = Ctx::buffered();
     ctx.request_safepoint(SafepointFlags::CPU_LIMIT);

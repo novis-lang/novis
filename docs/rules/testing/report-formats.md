@@ -1,6 +1,7 @@
 Human output is the default and is written as the run goes, which is what keeps a long suite
 legible. A JUnit XML document and a versioned JSON one are each written whole at the end, because
-neither has a prefix worth streaming. All three render the same case list and a verdict is decided
+neither has a prefix worth streaming. JUnit XML rather than a Novis-native document, because it is
+what every CI system already ingests. All three render the same case list and a verdict is decided
 **once**, so the plaintext mark, the JSON string and the XML element cannot disagree about how a
 test came out.
 
@@ -27,3 +28,12 @@ document carries one `{class, method, file, line, column}` per call under `liste
 summary, since a summary of zeros is a report of a run that did not happen and a `tests` array missing
 its verdicts would make a consumer tell the two documents apart by a key's absence. `--format junit`,
 `--update` and a `.nvst` tree are each refused beside it rather than ignored.
+
+- **Memory:** the compiler holds one span per `#[Test]` row for the life of a compile, on a table that
+  exists only for a program that declares tests. A run holds one resolved path, line and column per
+  reported case.
+
+**Declined:**
+- **A second document for discovery, with its own version.** It is two schemas to freeze and two
+  consumers to write, and a location spelled twice. The version number exists so one document can
+  grow.

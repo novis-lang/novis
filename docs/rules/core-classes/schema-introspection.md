@@ -12,3 +12,7 @@ rather than a language, the `CREATE TABLE` a server prints came from that server
 anyway, and the introspector must exist for the diff regardless — so a parser would be a second,
 worse implementation of a job already done. Offline `.sql` input, if it is ever wanted, is a separate
 tool with its own decision.
+
+**Declined:**
+- **Parsing `CREATE TABLE` to read an existing database.** It means four vendors' DDL grammars, maintained
+  forever, to reproduce what the catalog already gives as rows.

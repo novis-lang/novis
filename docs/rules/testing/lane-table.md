@@ -15,3 +15,15 @@ platform legs run. This is a public repository and nothing here may assume which
 develops or pushes from, so no platform's coverage is ever traded away by a path rule — the
 contributor who never sees a Windows failure until the nightly is precisely the one who cannot
 reproduce it.
+
+**Declined:**
+- **A third-party path-filter action.** It would sit on the critical path of every run, pinned and
+  audited by whoever updates it, to compute a diff this repository's own tools already compute. The
+  supply chain is a security question.
+- **Narrowing the platform matrix by path**, so a push builds one platform unless its diff looks
+  native. It is the largest saving on offer. It rests on a claim nothing enforces, that a change
+  outside the native crates cannot change per-platform behaviour, and that claim is false as soon as
+  a front-end change alters what gets compiled or a command-line change touches a path, a line ending
+  or a file mode.
+- **A workflow-level path filter.** It breaks required status checks
+  (`rule:testing/a-deferred-job-is-skipped-never-absent`).

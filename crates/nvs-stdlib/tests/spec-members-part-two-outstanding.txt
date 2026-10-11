@@ -22,8 +22,8 @@
 
 # § 15 is registered whole -- `Core\Env`, `Core\Cap`, `Core\Cli` and
 # `Core\Server`; `Core\Request`'s request line, the fields that arrived with it,
-# all three readings of the body, the peer's three and ADR 0102 § 1's `route`;
+# all three readings of the body, the peer's three and `rule:routing/matched-once-before-the-handler`'s `route`;
 # `Core\Session`'s roster with its sealed pair; and `Core\Response`'s six body
 # members beside the four that shape a response without writing one. It keeps no
-# keys here. What is left of ADR 0139 is § 4's write-back at the end of the
-# request, which is a server question rather than a member.
+# keys here. The session's write-back at the end of the request
+# (`rule:http-server/a-session-is-loaded-once-and-written-whole`) is not a member.

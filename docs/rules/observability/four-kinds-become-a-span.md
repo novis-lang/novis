@@ -9,3 +9,10 @@ work in a request's causal graph.
 The spans are derived from the same events the timeline already files; there is no second set of
 probes for tracing, and export cost stays off the hot path the debug probes deliberately keep cheap.
 A retried outbound call is one span carrying an attempt count, not one span per attempt.
+
+**Declined:**
+- **A span per `call` event**, which would reuse the instrumentation with no filtering. The trace is
+  unstorable and unreadable, and export cost lands on the per-call path
+  (`rule:observability/a-call-never-becomes-a-span`).
+- **One span per attempt of a retried outbound call.** Each attempt's latency is not yet worth the
+  multiplication of spans; the attempt count on the one span carries the fact.

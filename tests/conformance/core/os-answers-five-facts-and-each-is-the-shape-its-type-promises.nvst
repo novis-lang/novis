@@ -28,7 +28,7 @@ if ($cores > 0) {
 }
 
 // This is the *process's* resident set and never the request's held bytes,
-// which are `Core\Budget`'s (ADR 0148 § 12). A running process holds memory,
+// which are `Core\Budget`'s. A running process holds memory,
 // so a zero here is a member reading a counter nobody writes.
 uint $resident = Core\Os::residentBytes();
 if ($resident > 0) {

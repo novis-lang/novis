@@ -16,3 +16,8 @@ every record would need a walk of Novis's own frame chain and is not bought here
 
 The cost stays where `rule:errors/propagation` put it. A `source` is read at the call that produces a
 record, never maintained as running state, so no path that produces no record pays anything for it.
+
+**Declined:**
+- **A current-location word maintained in the context.** It is a store on every statement to serve
+  the rare statement that produces a record, where a constant read at that call costs nothing
+  elsewhere.

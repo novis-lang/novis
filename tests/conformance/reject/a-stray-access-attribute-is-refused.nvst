@@ -1,11 +1,11 @@
 --TEST--
-An `#[Access]` on a method that declares no route is refused rather than ignored — ADR 0096 §§ 1-2
+An `#[Access]` on a method that declares no route is refused rather than ignored
 --FILE--
 <?nvs
-// § 1 makes `#[Access]` the required sibling of `#[Route]`, and the refusal a
+// `#[Access]` is the required sibling of `#[Route]`, and the refusal a
 // route carrying no decision gets is that sentence read in one direction. This
 // is the other one: a decision guarding no route. Nothing can come along later
-// and give it a meaning, because § 2 is a promise that the compiler never
+// and give it a meaning, because the compiler promises that it never
 // interprets what `allow` names — the route table is the only reader there is.
 class Users {
     #[Core\Access(allow: Core\Audience::Public)]

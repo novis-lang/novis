@@ -1,5 +1,5 @@
 --TEST--
-`Core\Secret::reveal` and `::revealBytes` change nothing about the value — the qualifier is a compile-time judgement with no run-time representation, at both bases and at the empty edge — ADR 0033 §§ 1, 3
+`Core\Secret::reveal` and `::revealBytes` change nothing about the value — the qualifier is a compile-time judgement with no run-time representation, at both bases and at the empty edge
 --FILE--
 <?nvs
 // `secret` lives in `nvs_types::ty::Ty` and not in `nvs_ir::ty::Ty`, so there

@@ -1,21 +1,24 @@
 <?nvs
 // A durable background job, from the enqueue to the dead letter.
 //
-// [ADR 0084](/docs/decisions/0084.md) is the design, and
-// its § 3 is the property the whole thing is built around: a job is a row in
+// `rule:concurrency/enqueue-commits-with-your-write` is the property the
+// whole thing is built around: a job is a row in
 // a `Core\Db` table, so `push` inside a transaction on the queue's own
 // connection **commits with the write that caused it**. There is no window in
 // which the order exists and the receipt job does not, and no outbox to
 // write. That is why this is a table and not a broker — a broker cannot
 // enlist in your database's transaction, whatever else it does better.
 //
-// § 4 is why a fleet needs no protocol of ours: a worker claims with one
+// `rule:concurrency/claiming-is-one-statement` is why a fleet needs no
+// protocol of ours: a worker claims with one
 // statement that atomically selects and marks the oldest due job
 // (`FOR UPDATE SKIP LOCKED`, `READPAST`, or SQLite's immediate transaction),
 // so the database provides the mutual exclusion and Novis writes no lease, no
 // heartbeat and no coordinator.
 //
-// § 6 is the last two lines: delivery is at-least-once and stated plainly,
+// `rule:concurrency/delivery-is-at-least-once` and
+// `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept` are the
+// last two lines: delivery is at-least-once and stated plainly,
 // attempts are finite with nothing configured, and an exhausted job reaches
 // the dead-letter table rather than being discarded.
 //
@@ -23,7 +26,7 @@
 // under `data/goals/`; the source is not. The jobs run in-process workers, which
 // `[queue] workers` in `nvs.toml` turns on, over the `[queue] connection`
 // that names a `[db.<name>]` block — `examples/db.nvs`'s, by design, since
-// § 3's property is only available to a queue sharing the application's own
+// the transactional enqueue is only available to a queue sharing the application's own
 // database.
 
 use Core\Queue;
@@ -69,7 +72,8 @@ class Poll
 }
 
 // Every run owns its queues, and the names are drawn rather than written.
-// `stats` counts rows, and § 2's tables are the deployment's rather than this
+// `stats` counts rows, and the queue's tables
+// (`rule:core-classes/queue-storage-is-a-table`) are the deployment's rather than this
 // program's — nothing empties them between runs, and `nvs queue migrate` is
 // explicitly idempotent — so a fixture naming a fixed queue would count its own
 // previous runs. A queue is created by a row naming it (`Core\Queue`'s own
@@ -78,18 +82,19 @@ class Poll
 var $queue = Core\Uuid::v4()->toString();
 var $flaky = Core\Uuid::v4()->toString();
 
-// § 1: subject first, one trailing options shape. `args` is copied by ADR
-// 0023's graph copy and refuses `secret` — a durable row is an output, and a
+// `rule:concurrency/queue-four-members`: subject first, one trailing options
+// shape. `args` is copied, never referenced, and refuses `secret`
+// (`rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`) — a durable row is an output, and a
 // job needing a credential reads it from configuration at run time, which is
 // where credentials live anyway.
 var $receipt = Queue::push('queue/receipt.nvs', { args: { order: 7 }, queue: $queue });
 echo 'enqueued', "\n";
 
-// § 4: the claim is the worker's, not ours, and `stats` is how a program sees
+// The claim is the worker's, not ours, and `stats` is how a program sees
 // that it happened. One job was pushed to this queue, so one is claimed.
 echo 'claimed ', Poll::counted(fn (): uint => { return Queue::stats($queue)->claimed(); }), "\n";
 
-// § 6: at-least-once, so "it ran" is a state and not a callback.
+// At-least-once, so "it ran" is a state and not a callback.
 Poll::until(fn (): bool => { return Queue::status($receipt) == State::Succeeded; });
 echo 'ran', "\n";
 
@@ -109,8 +114,8 @@ var $doomed = Queue::push('queue/flaky.nvs', {
 Poll::until(fn (): bool => { return Queue::stats($flaky)->attempts() > 1; });
 echo 'retried', "\n";
 
-// And the floor under it. The row moves to the dead-letter table with its
-// payload, what its last attempt threw and the timing of it, and stays there —
-// `stats` reports the depth, and ADR 0076 exports it as a default series.
+// When every attempt fails, the job moves to the dead-letter table.
+// The row keeps its payload, its errors and their timing, and it stays there.
+// `stats` reports how many jobs are in that table.
 Poll::until(fn (): bool => { return Queue::stats($flaky)->deadLettered() > 0; });
 echo 'dead-lettered', "\n";

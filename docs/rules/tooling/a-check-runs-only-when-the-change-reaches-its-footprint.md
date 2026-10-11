@@ -18,6 +18,14 @@ change itself reaches, and the loop judges every selected bench, owed, red and n
 whenever its floor gate is open. `tools/nv/select/` is the one engine all four ask, `select.ts` there holds the rule and
 `keys.ts` the keys, and `bun nv select --explain <atom>` says why one atom was chosen or not.
 
+The footprint is observed rather than predicted because a prediction at crate granularity cannot tell
+a function body a program runs from one it does not: an edit to one body re-ran thousands of cases,
+and every narrowing of it was a claim someone had to prove and remember. An atom's footprint is the
+union of its runs since its definition last changed, pruned of items that no longer exist, so a path
+a run takes only sometimes is kept once it has been seen. Footprints are kept per platform, because
+what an atom does differs between Windows and a Linux leg, and `bun nv select --seed` records every
+atom from nothing for a new platform or a lost store.
+
 What coverage cannot see is closed over the reference graph `tools/nv-scan --items` reads: a const, a
 static, a type or a table moves every item whose name Rust can resolve to it, which in another package
 takes an import or a qualified path and in shipped code no dev-dependency, a `macro_rules!` every item
@@ -49,8 +57,14 @@ read records `*`, which every change reaches until a twin is read again. A check
 is never answered from the store, and
 `bun nv loop --goal-only --full` runs every atom of every check.
 
-**Every third goal end runs every heavy check and both legs**, whatever changed. That is the safety net
-for the twins' keys. The goal-end sweeps between those run what their goal reached.
+A heavy check keyed on every file of every crate it builds would be reached by almost any Rust change,
+so the goal-end sweep would pay for all of them at nearly every goal end; the twin is what keeps a
+change that reaches none of its code from running it. A twin is paid only when its heavy check runs.
+
+**Every third goal end runs every heavy check and both legs**, whatever changed, and so does a store
+with no count yet. That is the safety net for the twins' keys, and it is what holds the code no twin
+observes: a path only a release build takes, and server-only dialect code outside `nvs-db` that the
+SQLite leg never calls. The goal-end sweeps between those run what their goal reached.
 
 **The full run is the safety net.** `bun nv select --full` runs and records every atom that is not
 heavy, whatever changed, and the loop runs it when the floor gate opens by its count. An atom red there
@@ -59,3 +73,29 @@ store until a full run finds the atom green again, and fails the run. `bun nv se
 nothing: it applies one batch of breaking edits at a time, runs every atom that is not heavy against a
 copy of the store named by `NV_SELECT_STORE`, requires every red atom to have been selected, and
 reverts the edits.
+
+- **Memory:** nothing at run time; this is the development machine's disk, never a request's. The
+  store and the coverage-map cache under `.cache/select/covmap/` are per machine and git-ignored, and
+  grow with the number of atoms and builds, never with the number of runs. Each run's raw profile is
+  deleted as it is read. The `covws` build takes the place of the pipeline's `target/debug`, at about
+  the same size, and a selected proof program runs twice.
+
+**Declined:**
+- **Refining the static keys with finer tiers, more partitions and more exception lists.** Each
+  refinement moved the over-selection somewhere else rather than removing it.
+- **A static call graph read with `syn`.** Dynamic dispatch, the registry's lookup by name, JIT code
+  calling Rust helpers through `no_mangle` symbols and closures passed across crates all hide the
+  edges that matter, so the graph is unsound exactly where the runtime is interesting.
+- **Judging proof programs on an instrumented optimized build.** Instrumentation slows an attack
+  severalfold and some far more, which changes what an attack's time limit means. Recording on a
+  second debug run costs no build and leaves the verdict on the uninstrumented one. A perf guard's
+  margins would change meaning the same way, so no release test is recorded on an instrumented build.
+- **Keying a Linux leg on a copy of its fixtures' footprints.** The copy goes stale between leg runs
+  when a fixture's own footprint grows. Selecting the leg through the fixtures' own atoms reads the
+  live footprints.
+- **Running a Linux leg over only the fixtures the change reached.** A fixture reached while the floor
+  gate is shut would need a Linux owed state of its own. The leg's cost is fixed, so what is cut is how
+  often it runs.
+- **Running every heavy check at every goal end, or at a much longer interval.** Every goal end is the
+  cost the twins remove. A long interval lets a missed heavy regression wait too long, and one in three
+  is about as often as the floor gate's full run.

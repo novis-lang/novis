@@ -4,7 +4,7 @@ covers: []
 description: Four ideas that are in every part of Novis.
 ---
 
-import { decisionRecord } from '@config/site.mjs'
+import { decisionRecord, githubFile } from '@config/site.mjs'
 
 Most of the language follows four ideas. When a part of Novis works in a way you did not expect,
 one of these is usually the reason.
@@ -33,7 +33,7 @@ It does not return `12`. When a failed conversion is normal, write `as ?int`. Th
 `null`, and your code checks for it.
 
 Read more in [Syntax: `as`](/syntax/values/as/).
-<a href={decisionRecord('0066')}>Read the full reasoning.</a>
+<a href={githubFile('docs/rules/expressions/nullable-conversion.md')}>Read the full reasoning.</a>
 
 ## Errors you can read
 

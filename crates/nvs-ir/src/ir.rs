@@ -599,7 +599,7 @@ pub enum InstKind {
     /// loop's back edge, the sites the project-start "safepoints emitted
     /// from the first backend commit" decision names
     /// ([`docs/adr/README.md`](/docs/adr/README.md)'s "Decisions
-    /// taken at project start" section) and that ADR 0018 § *Negative*
+    /// taken at project start" section) and that `rule:testing/debug-probes`
     /// contrasts its own, denser probe grid against. `nvs-codegen` lowers it
     /// to one load of the context's safepoint word and a predicted-not-taken
     /// branch, and the **function-entry** one — the first in the entry
@@ -1212,11 +1212,11 @@ pub enum InstKind {
     /// `rule:types/property-key-access`'s keyed read, and [`InstKind::SlotGet`] with the name arriving as a
     /// **value** instead of as a `String` this instruction carries.
     ///
-    /// That is the whole difference, and it is § 5's recorded choice: a key is
+    /// That is the whole difference, and it is `rule:types/property-key-access`'s choice: a key is
     /// a name, so what the access needs is exactly the by-name lookup on the
     /// receiver's concrete descriptor that `rule:types/erased-member-access`'s erased read already
     /// performs — one call, no allocation, and the same catchable throw for a
-    /// name the concrete class does not carry. The alternative § 5 weighed was
+    /// name the concrete class does not carry. The alternative weighed was
     /// a closed-set chain over the key's roster, one `BinOp::Eq` per name and
     /// an ordinary [`InstKind::FieldGet`] per arm joined by a
     /// [`InstKind::Phi`]; it needs no new instruction, and it spends a
@@ -1226,7 +1226,7 @@ pub enum InstKind {
     /// static-read advantage it looks like it buys is not there.
     ///
     /// **Per-property hooks and a declared `PropertyObserver` therefore behave
-    /// exactly as they do on `rule:types/erased-member-access`'s erased path**, which is what § 5
+    /// exactly as they do on `rule:types/erased-member-access`'s erased path**, which is what `rule:types/property-key-access`
     /// says and not a second answer: the erased access's own known gap — it
     /// reaches storage past a per-property `get`/`set` hook — is recorded on
     /// `nvs_runtime::nvs_object_key_get` and closes for every caller at once.
@@ -1754,8 +1754,8 @@ pub enum InstKind {
         absent: AbsentKey,
     },
     /// Writes `value` at `key` into `array` — `$arr[$i] = expr;`, inserting a
-    /// fresh entry when `key` isn't already present and overwriting (per ADR
-    /// 0007 § 5's copy-on-write value semantics, releasing whatever it
+    /// fresh entry when `key` isn't already present and overwriting (per
+    /// `rule:types/arrays`' copy-on-write value semantics, releasing whatever it
     /// already held) otherwise. Unlike [`InstKind::FieldSet`], which reads
     /// the field's *previous* value back with a [`InstKind::FieldGet`] before
     /// releasing it — safe there because a declared field always exists on a
@@ -1865,8 +1865,9 @@ pub enum InstKind {
         /// The array whose entries are copied out, already lowered.
         subject: ValueId,
     },
-    /// Removes `key` from `array` if it is present — `unset($a[$k]);`, ADR
-    /// 0028 § 3's one surviving `unset` target (the declared-*property* form
+    /// Removes `key` from `array` if it is present — `unset($a[$k]);`, the one
+    /// surviving `unset` target of `rule:classes/unset-is-refused-on-a-property`
+    /// (the declared-*property* form
     /// is a diagnostic `nvs_types::expr::check_unset_target` already reports,
     /// so it never reaches lowering).
     ///

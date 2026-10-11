@@ -3,7 +3,7 @@
 
 # Security and isolation
 
-*18 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
+*16 of 94 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="security-isolate-shares-nothing"></a>
 
@@ -21,14 +21,68 @@ config overlay. Open resources are not shared and cannot be passed.
 The operand is decided syntactically at the spawn site — a `string` expression, or a
 `Class::method(...)` reference written there — and nothing else. A `callable` variable is refused,
 because whether *it* captures is not known statically; an anonymous function is refused with a diagnostic
-naming the method form.
+naming the method form. A method entry is called with `args:`'s entries as **named arguments**, after
+the copy, so `spawn script Reports::monthly(...) with(args: ["month" => $m])` runs
+`Reports::monthly(month: $m)` in the fresh isolate: the entry is an ordinary function with an ordinary
+signature, typed at the boundary and callable and testable directly. A name `args:` holds that the
+entry does not declare, or a required parameter it omits, is the ordinary named-argument error. A file
+has no parameter list, which is why the path form reads `Core\Script::args()`
+([`core-classes/script-args`](core-classes.md#core-classes-script-args)) instead. What crosses in either form is compiled code, so the budget,
+grant and copy rules do not tell the two apart.
 
 The isolate joins `spawn` and `spawn worker` rather than introducing a second concurrency vocabulary:
 it is awaited like them, and it dies with its parent like them. It is as strong as Novis's request
 boundary and no stronger — running code that must be assumed adversarial at the memory-safety level is
 what the wasm component tier is for.
 
-<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0023](../decisions/0023.md), [0052](../decisions/0052.md).</sub>
+It exists because a script often has to run another one without being affected by it — a queue worker
+running a job, a plugin, a CLI tool running user code — and an OS process is the wrong tool for that. It
+costs orders of magnitude more than a task before the child has parsed a line, it inherits ambient
+authority (environment, working directory, handles, the OS user's rights), the parent can only kill it
+rather than account or cancel it, and its arguments cross serialised onto a command line. The isolate
+reuses the machinery a request already has: the capped arena, the fresh request state, the config
+overlay, the task tree and the shared compiled-unit cache, so a second isolate of the same script pays no
+compilation at all.
+
+- **Memory:** per in-flight isolate, one context, one pooled task stack and the values the child
+  allocates, held until it ends and charged to the root's budget. Concurrent isolates each hold their
+  own arena, so a tree's peak is the sum over its live isolates, under the root's cap. A finished
+  isolate's arena is released wholesale, so nothing grows with the number of isolates ever spawned.
+  A crossing holds one hash-map entry per distinct object in the graph being copied, for the length
+  of that one copy. Compiled code costs nothing per isolate: ten thousand isolates of one file
+  compile it once.
+
+**Declined:**
+- **Running another `nvs` process.** It pays the process cost and the ambient authority above. A program
+  that truly wants a separate OS process has `Core\Process` behind its own grant
+  ([`security/process-exec-capability`](security.md#security-process-exec-capability)).
+- **Evaluating a source string.** A file has a stable identity — a cache key, a source map, something
+  `nvs check` can read and an auditable granted path — and a string has none of them
+  ([`security/no-eval`](security.md#security-no-eval)).
+- **`require` with a fresh symbol table.** That isolates scope only: the heap is still shared, and with it
+  refcounts, statics, output, resources and a fatal error.
+- **A thread over a shared heap.** It breaks the non-atomic refcounts the thread-per-core model rests
+  on, to save one copy at a boundary.
+- **Running the child in the wasm sandbox.** It compiles code a second time that is already compiled
+  natively, loses the shared unit cache, and buys a memory-safety guarantee Novis code has by
+  construction.
+- **An HTTP request to the server's own listener.** It needs a listener, an authentication story and a
+  serialisation format to do what an arena boundary does in microseconds.
+- **A method entry that ignores its parameter list and reads `Core\Script::args()`.**
+  `Reports::monthly(...)` is first-class-callable syntax, which everywhere else means "call this with
+  arguments", so a reader who writes `monthly(int $month)` expects the binding. An entry that reads the
+  accessor cannot be called or tested as an ordinary function, and the copy is just as visible either
+  way: it is the `args:` key at the spawn site.
+- **An `fn` literal that captures nothing as the entry.** A closure minus its capture is a function
+  without a name, and the same literal one keyword away in `spawn worker` does capture, so it would be
+  one syntax with two meanings. Requiring the name costs one declaration and removes a capture-set
+  checker and its diagnostic.
+- **A `callable` variable as the entry, with a qualifier on the type saying it captures nothing.**
+  The rule is not worth a qualifier.
+- **Persistent isolates reused across requests.** Warm state is attractive, and it contradicts
+  shared-nothing directly ([`security/no-cross-request-state`](security.md#security-no-cross-request-state)).
+
+<sub>See also [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate), [`statements/an-isolate-has-its-own-statics`](statements.md#statements-an-isolate-has-its-own-statics).</sub>
 
 <a id="security-isolate-values-cross-by-copy"></a>
 
@@ -48,12 +102,26 @@ object whose class the receiving side cannot resolve is refused with a diagnosti
 never degraded into a stub. A `secret`-typed property is refused there too
 ([`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary)).
 
-There is one walk and one set of refusals, which is why it is the audited surface. Across cores the
+A value crosses exactly twice, and both crossings are the same walk. In, at the spawn, the `args:`
+value crosses from the parent's ownership root into the child's. Out, at the `await`, the child's
+top-level return value, its captured output and, on failure, its error as data cross back. Nothing
+else moves: the parent's output buffer, the backing state of its request accessor classes
+([`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)) and any open handle are not reachable from the child's
+root, and neither crossing makes them reachable.
+
+The out crossing runs before the child's root is released. Both contexts allocate from the same place
+([`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root)), so a move at refcount 1 is a pointer handoff with no copy
+and no bookkeeping, and a child returning a large array costs the walk and not the array.
+
+There is one walk and one set of refusals, which is why it is the audited surface. Two boundaries
+with different value rules would be two sets of rules for a developer to learn and two implementations
+to keep correct, and a refusal at the boundary is a diagnostic where the mistake was made rather than a
+surprise later. Across cores the
 walk is the same but the **move is not available**: refcounts are non-atomic because a value is
 reachable from one core only, so a cross-core crossing copies at every node. That cost belongs to the
 placement option, not to the boundary.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0023](../decisions/0023.md), [0116](../decisions/0116.md), [0033](../decisions/0033.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root).</sub>
 
 <a id="security-isolate-budget-is-the-trees"></a>
 
@@ -76,7 +144,18 @@ isolate that asks for more than its share is refused at the call that asked, wit
 naming the directive, and never by a page fault at an address nobody chose
 ([`errors/on-limit`](errors.md#errors-on-limit)).
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md), [0005](../decisions/0005.md), [0004](../decisions/0004.md).</sub>
+- **Memory:** an isolate adds no ceiling of its own. What it holds is charged to the root, so the
+  process's worst case does not change when programs spawn isolates.
+
+**Declined:**
+- **A budget per isolate on top of its parent's.** Memory would stop being attributable to a request,
+  so this is a hole in isolation and not a trade-off.
+- **An isolate that outlives its parent.** A job that survives the response needs its own lifetime and
+  accounting rules, because nobody's budget is left to spend once the parent is gone. `afterResponse`
+  is not that case: the connection ends there and the request tree does not
+  ([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)).
+
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`errors/on-limit`](errors.md#errors-on-limit).</sub>
 
 <a id="security-isolate-failure-is-a-value"></a>
 
@@ -86,18 +165,26 @@ naming the directive, and never by a page fault at an address nobody chose
 
 A child's failure arrives as **data on the result**, never as an exception unwinding into the parent.
 A top-level `return` gives `ok = true` and a copy of the value; an uncaught throw gives `ok = false`
-and an `error` carrying the class name, message, code and rendered trace **as copied data, not the
-exception object**; a limit breach names the directive it broke; a contained runtime panic leaves the
+and an `error` carrying the class name and message **as copied data, not the exception object**; a
+limit breach gives `ok = false` with a message naming the limit it broke; a contained runtime panic leaves the
 parent running, which is a strict improvement over losing a process. A cancelled parent cancels the
 child at its next safepoint and drops its arena, so there is no orphan.
 
-Rethrowing the child's exception object was rejected: it would have to copy an arbitrary object graph
-across a boundary that forbids exactly that ([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)), and it
-would encourage reading a spawn as a function call. Code that wants the terse form asks for it, and
-the diagnostic then names the isolate rather than a parent frame it never had. Nothing unwinds across
-the boundary, for the reason nothing unwinds across a JIT frame ([`errors/propagation`](errors.md#errors-propagation)).
+A child that runs to its end without a top-level `return` gives `null`, the value every Novis function
+without a `return` produces. It is not `require`'s `1` ([`statements/a-require-expression-is-mixed`](statements.md#statements-a-require-expression-is-mixed)):
+that value belongs to the construct PHP has, and `spawn script` is not one.
 
-<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy). Decided in [0006](../decisions/0006.md), [0002](../decisions/0002.md), [0020](../decisions/0020.md).</sub>
+Nothing unwinds across the boundary, for the reason nothing unwinds across a JIT frame
+([`errors/propagation`](errors.md#errors-propagation)): the status is checked, and tearing down the child's arena is explicit code
+on the failure path rather than an implicit landing pad.
+
+**Declined:**
+- **Rethrowing the child's exception object in the parent.** It would have to copy an arbitrary object
+  graph across a boundary that forbids exactly that ([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)), and
+  it would encourage reading a spawn as a function call. A caller who wants the failure to propagate
+  checks `ok` and throws.
+
+<sub>See also [`errors/propagation`](errors.md#errors-propagation), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy).</sub>
 
 <a id="security-isolate-output-is-captured"></a>
 
@@ -116,7 +203,7 @@ parent re-emit a captured result without escaping it twice, and it is why `'inhe
 separate rule: the two carriers already match. `Core\Cli`'s *members* still throw inside an isolate —
 that rule is about owning the terminal, which an isolate's buffered output never touches.
 
-<sub>See also [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0006](../decisions/0006.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing).</sub>
 
 <a id="security-isolate-teardown-is-a-drain-then-a-sweep"></a>
 
@@ -132,11 +219,23 @@ native drop runs on the way. A cancelled isolate takes the same path and no othe
 The drain frees only what the refcounts say is dead, and a cycle's members hold each other above zero.
 An object is the one shape that can close a cycle, so the drain is followed by a **sweep** over the
 context's intrusive live list. The sweep first tallies, per member, how many references come from
-another member's field slot; a member the tally does not exactly account for is reachable from outside
+another member's field slot or from an array that member solely owns; a member the tally does not exactly account for is reachable from outside
 and is left alone, along with everything under it. Freeing memory somebody still holds is a
 use-after-free, so security decides a question memory footprint would have answered the other way.
+A survivor is taken off the list, because the list dies with the context and the object does not.
+Only the remainder is dismantled, through the same worklist, so native teardown runs there too.
 
-<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md), [0274](../decisions/0274.md).</sub>
+The sweep is an obligation, not an option. Without it a cyclic object graph would be retained for the
+life of the process, and in the server that is a leak growing with requests served. The tally reads
+an array only when one member solely owns it; the elements of a shared array read as held from
+outside, so a cycle whose only closing edge runs through one survives the sweep rather than risk a
+use-after-free. `crates/nvs-runtime/src/object.rs` is the mechanism's one home.
+
+- **Memory:** reclamation is O(live values), not the O(1) of unmapping a region; in exchange the drain
+  is the runtime's only reclamation path, so it is the only one that can be wrong. The sweep spends two
+  pointers per live object and a few non-atomic stores at each object's allocation and death.
+
+<sub>See also [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="security-arena-is-an-ownership-root"></a>
 
@@ -157,7 +256,35 @@ reuse what it freed, so a loop appending to a string would make the footprint O(
 O(live), which [`programs/memory-priority`](programs.md#programs-memory-priority) calls a leak; and the latency a region is reached for
 is already collected by the pooled allocator.
 
-<sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees). Decided in [0116](../decisions/0116.md), [0006](../decisions/0006.md), [0004](../decisions/0004.md).</sub>
+Entering an isolate is a context construction and a pooled stack, with no mapping call in it, so
+spawn-to-result for a trivial child stays in microseconds. A region would put a map and an unmap on
+every isolate, which for a trivial child is most of its lifetime. Because both sides allocate from the
+same place, a move at refcount 1 across the boundary can hand the allocation over without copying it
+([`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy)).
+
+With no address range to fall back on, the graph copy is the only way state can bleed between
+isolates. That concentrates the audit in one file with one test suite, rather than spreading an
+invariant across every allocation site, and it is why [`classes/graph-copy`](classes.md#classes-graph-copy)'s one operation with
+two carriers carries weight here.
+
+**Declined:**
+- **A bump-pointer region per isolate, reclaimed with one call.** It skips native teardown, its
+  footprint tracks work done rather than live data, and it competes for a latency win the pooled
+  allocator has already taken.
+- **A separate allocator instance per isolate.** It costs a pointer in the context and a load on every
+  allocation to buy accounting that arithmetic at the allocation site already gives
+  ([`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees)), and it fragments the per-thread cache that made the
+  allocator worth having.
+- **An arena pointer in the context.** Compiled code loads the context's fields at fixed offsets, so a
+  new field is an ABI change, and once the arena is an ownership root there is nothing for it to point
+  at.
+- **Segregating isolates by address range and checking pointers at the boundary.** A check cheap enough
+  for the request path can only ask which region an address is in. It cannot see that a property is
+  `secret` or that a class is unresolvable on the far side, and the walk answers all three in one pass.
+- **An OS process per isolate.** It is the one design that gives an unreachable address range for free,
+  and it pays the cost and the ambient authority [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing) declines.
+
+<sub>See also [`security/isolate-teardown-is-a-drain-then-a-sweep`](security.md#security-isolate-teardown-is-a-drain-then-a-sweep), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/isolate-budget-is-the-trees`](security.md#security-isolate-budget-is-the-trees).</sub>
 
 <a id="security-one-isolation-implementation"></a>
 
@@ -175,7 +302,7 @@ state-bleed suite for isolates, and a fix on either path cannot forget the other
 property a second implementation would quietly give up, since two isolation mechanisms are two places
 for the same bug to be fixed once.
 
-<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root). Decided in [0006](../decisions/0006.md), [0116](../decisions/0116.md).</sub>
+<sub>See also [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`security/arena-is-an-ownership-root`](security.md#security-arena-is-an-ownership-root).</sub>
 
 <a id="security-script-spawn-capability"></a>
 
@@ -197,7 +324,7 @@ The child's grants are the parent's effective grants, optionally narrowed at the
 widens: a parent that has dropped `net.connect` cannot regain it by spawning
 ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0006](../decisions/0006.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed).</sub>
 
 <a id="security-request-state-throws-in-an-isolate"></a>
 
@@ -223,7 +350,7 @@ otherwise restricted: whether a shutdown has begun is a fact about the process r
 request, so it answers in a child exactly as it answers in a CLI program, and the members of that
 class that read the request are restricted with the other two.
 
-<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0012](../decisions/0012.md), [0006](../decisions/0006.md).</sub>
+<sub>See also [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="security-no-cross-request-state"></a>
 
@@ -247,7 +374,13 @@ operator's ceiling. The rule is about **userland calls whose effect outlives or 
 own request**. The replacement is a per-core or real shared cache, where the sharing is explicit,
 bounded, and visible in the grants.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call). Decided in [0052](../decisions/0052.md), [0059](../decisions/0059.md), [0006](../decisions/0006.md).</sub>
+**Declined:**
+- **A read-only shared segment for caches, with writes going through a coordinator.** Read-only is
+  not the property that matters: any shared mapping lets one request's failure leave another
+  request's view inconsistent, and the value it holds still crosses the boundary
+  [`classes/two-copy-depths`](classes.md#classes-two-copy-depths) governs.
+
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`statements/storage-that-outlives-a-call`](statements.md#statements-storage-that-outlives-a-call).</sub>
 
 <a id="security-closed-doors"></a>
 
@@ -261,6 +394,12 @@ cross-request state ([`security/no-cross-request-state`](security.md#security-no
 ([`security/no-eval`](security.md#security-no-eval)). Each closes a vulnerability class outright rather than defending against
 it.
 
+None of the four has a correct tier: each is unsafe in-process, unavailable in a sandbox, and unsafe
+as a build-time option, so asking which tier it belongs at is a category error. Each also has a real
+constituency in PHP, and none is closed for being unused; each trades away something ranked above
+it. They are written down as rules because a mechanism closed only by not having been built yet is
+an absence, and an absence gets filled by whoever needs it next.
+
 **Nothing here is revisitable by configuration.** There is deliberately no directive for any of the
 four, because an option that is off by default is still a mechanism that exists, and every safety
 claim downstream would have to be qualified with "unless it is enabled." That is the difference
@@ -271,7 +410,7 @@ whole purpose is process-global state or in-process native binding — and cross
 shared-memory latency is not available at any price. That spends latency to buy isolation, which is
 the ordering [`programs/memory-priority`](programs.md#programs-memory-priority) mandates.
 
-<sub>See also [`security/no-ffi`](security.md#security-no-ffi), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/no-eval`](security.md#security-no-eval). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md), [0059](../decisions/0059.md).</sub>
+<sub>See also [`security/no-ffi`](security.md#security-no-ffi), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/no-eval`](security.md#security-no-eval).</sub>
 
 <a id="security-no-ffi"></a>
 
@@ -292,7 +431,11 @@ The wasm component tier exists so this is unnecessary. Wrapping an existing C or
 stated purpose, and it delivers the same capability with a memory boundary, a capability grant, a CPU
 deadline and a memory cap — which is the whole of what an FFI gives up.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens). Decided in [0052](../decisions/0052.md), [0003](../decisions/0003.md).</sub>
+**Declined:**
+- **An FFI behind a capability grant.** Every other grant restricts what code may do, and the grants
+  are enforced by memory safety, so a capability that removes memory safety cannot be enforced by it.
+
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens).</sub>
 
 <a id="security-no-eval"></a>
 
@@ -315,7 +458,12 @@ Running code chosen at run time is `spawn script`: in an isolate, spending the p
 `script.spawn` — which is what a template engine or a plugin loader actually needs, with a boundary
 `eval` never had.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing). Decided in [0052](../decisions/0052.md), [0019](../decisions/0019.md), [0022](../decisions/0022.md), [0024](../decisions/0024.md), [0042](../decisions/0042.md), [0048](../decisions/0048.md).</sub>
+**Declined:**
+- **An `eval` restricted to code with no `require` and no closures**, so the static analyses
+  survive. The restriction is hard to state precisely and harder to enforce, and what remains is
+  strictly less capable than `spawn script`, which is already isolated.
+
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing).</sub>
 
 <a id="security-a-path-is-not-a-url"></a>
 
@@ -338,7 +486,12 @@ resolved statically. What is refused is specifically **dispatch on the textual c
 which is also what makes [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix) a total rule rather than
 one with a scheme-shaped hole in it.
 
-<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix). Decided in [0052](../decisions/0052.md), [0023](../decisions/0023.md).</sub>
+**Declined:**
+- **A built-in allow-list of schemes, `file://` alone, with no registration.** Close to harmless and
+  easier to migrate to, but it keeps a scheme-parsing step in every path-handling member forever to
+  support one scheme that is also the default: surface with no capability behind it.
+
+<sub>See also [`security/closed-doors`](security.md#security-closed-doors), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix).</sub>
 
 <a id="security-reflection-enforces-visibility"></a>
 
@@ -353,7 +506,9 @@ exactly the visibility check, and any declared property observer, that ordinary 
 would face. A reflective call from outside a class to one of its `private` methods fails the way an
 ordinary out-of-class call would. A `protected` member is where that promise is worth stating twice:
 a reflective read, write or call written inside a subclass's body reaches it, because an ordinary
-access there reaches it, while the same site is refused the class's `private` members.
+access there reaches it, while the same site is refused the class's `private` members. Constructing
+through reflection calls the constructor under the same check, so a `private` constructor is reached
+from its own class's bodies and from nowhere else.
 
 **There is no `setAccessible(true)` and no equivalent.** It is rejected outright rather than left
 undocumented, because an escape hatch for reaching a private member from anywhere is a structural
@@ -362,7 +517,7 @@ serializer or a test helper that reached into private state through reflection h
 the declaring class to offer the access, which is the same answer [`testing/private-in-the-same-file`](testing.md#testing-private-in-the-same-file)
 gives a test.
 
-<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0019](../decisions/0019.md), [0014](../decisions/0014.md), [0274](../decisions/0274.md).</sub>
+<sub>See also [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability), [`enums/reflection`](enums.md#enums-reflection). Decided in [0274](../decisions/0274.md).</sub>
 
 <a id="security-reflection-needs-no-capability"></a>
 
@@ -381,7 +536,7 @@ need a grant precisely because it would then be an effect. The two rules hold ea
 is free to be open because there is nothing behind it
 ([`security/no-eval`](security.md#security-no-eval), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
 
-<sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility). Decided in [0019](../decisions/0019.md), [0052](../decisions/0052.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/no-eval`](security.md#security-no-eval), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility).</sub>
 
 <a id="security-capability-check-at-the-door"></a>
 
@@ -402,9 +557,21 @@ modules, because an address parser and a process abort live beside the doors wit
 Every other placement leaves the check *beside* the effect, where omitting it is a silent hole that
 reviews are expected to catch. This one puts it *in* the effect, where omitting it means not
 performing the effect. The friction is the point: the door is where the check, the path rule and the
-diagnostic already are.
+diagnostic already are, so a member that goes through it inherits all three.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0118](../decisions/0118.md), [0005](../decisions/0005.md), [0112](../decisions/0112.md).</sub>
+**Declined:**
+- **A check emitted at every call site, driven by the member's row.** It costs a branch and a snapshot
+  read at every call site rather than one inside the effect, misses a member reached any way other
+  than a compiled call, and has to carry the scoped argument into the check at every site: more
+  machinery for less coverage.
+- **A guard the member-definition macro emits before every member body.** The macro cannot see the
+  row, so it would look the member up on every `Core` call, a table lookup on a string member to learn
+  that it needs nothing ([`security/capability-costs-nothing-unasked`](security.md#security-capability-costs-nothing-unasked)).
+- **The check written by hand as the first line of each body.** The completeness test would then have
+  to prove it by reading source for a call, a test about text rather than data; putting the check
+  inside the only door makes the same guarantee with no such test.
+
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/denial-is-a-runtime-error`](security.md#security-denial-is-a-runtime-error), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test).</sub>
 
 <a id="security-capability-question-is-grant-and-scope"></a>
 
@@ -425,7 +592,7 @@ The decision procedure is pure — a snapshot, a capability, an argument, a bool
 context, throws nothing, and is therefore testable without a compiler in front of it. Holding a
 capability is not a promise about any one argument; the scope is asked every time.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0118](../decisions/0118.md), [0078](../decisions/0078.md), [0005](../decisions/0005.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/path-scope-canonicalise-then-prefix`](security.md#security-path-scope-canonicalise-then-prefix), [`security/no-runtime-grant`](security.md#security-no-runtime-grant).</sub>
 
 <a id="security-capability-declaration-is-one-table"></a>
 
@@ -450,7 +617,7 @@ is empty on the overwhelming majority of rows documents nothing while being main
 The locality it gives up is bought back mechanically: a test fails on an entry naming a class or
 member that does not exist, and another fails on a member that owes an entry and has none.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed). Decided in [0118](../decisions/0118.md), [0117](../decisions/0117.md), [0063](../decisions/0063.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed).</sub>
 
 <a id="security-capability-roster-is-closed"></a>
 
@@ -474,7 +641,7 @@ A member that reaches nothing declares that by entering the table with no capabi
 being absent from it ([`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table)), so the standard library's
 own surface is a closed claim rather than a list with an exception column.
 
-<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0118](../decisions/0118.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades).</sub>
 
 <a id="security-authority-is-the-enclosing-namespace"></a>
 
@@ -499,7 +666,7 @@ it reaches code no package manager ever touched.
 
 **Not on disk.** Nothing in the tree reads a per-namespace grant table.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins), [`security/an-unmatched-namespace-holds-the-application`](security.md#security-an-unmatched-namespace-holds-the-application), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
 <a id="security-grants-are-keyed-on-a-namespace"></a>
 
@@ -519,10 +686,39 @@ The effective set at a call site is the **intersection** of the operator's confi
 application's grant, the package's own declaration and any narrowing an enclosing isolate applied —
 every one of which may only tighten ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 
+The key is a namespace because a path is the one thing about third-party code a developer is invited
+to change. Overriding one class of a dependency by putting a file in an earlier autoload root is a
+supported pattern, and under a path key that file would hold the application's authority. Code the
+package manager never fetched, such as a git submodule, a `discover` glob or a pasted file, has no
+package path at all, and most untrusted code arrives that way. A namespace is stable exactly where
+the path is not: an override must declare the namespace it overrides, and hand-vendored code keeps
+the namespace its own source declares.
+
+`Core` is never a grantee. The namespace `Core` and everything under it is reserved
+([`core-api/reserved-namespace`](core-api.md#core-api-reserved-namespace)), so no grant line can name a namespace that inherits the standard
+library's own authority.
+
+**Memory:** the grant table is compile-time input, and nothing of it is held per request.
+
+What this gives up is that the grant table and the package graph are no longer the same thing. One
+package may declare several prefixes, and hand-vendored code has a prefix and no package, so the line
+written for a package does not promise to cover exactly that package's code. That is the price of
+covering code no package manager fetched, which is the code a package key left holding everything.
+
+**Declined:**
+- **The package key kept, with the override diagnosed.** It closes the override and leaves
+  hand-vendored code, which never had a package, unprotected, and it makes a supported pattern argue
+  with its author.
+- **A `grants` clause on the `autoload` declaration.** A `require`d file may declare a namespace with
+  no `autoload` line involved, so grants on the import site protect only code that arrived by that
+  route. For a fetched package the clause would also sit in a generated file marked *do not edit*,
+  it would state a fact `[grants]` already states, and one `discover` line covers many prefixes, so
+  the clause has no single namespace to attach to.
+
 **Not on disk.** The tree reads the deployment's capability block; it has no per-namespace grant
 table, and the diagnostics this rule needs do not exist.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0064](../decisions/0064.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/longest-prefix-wins`](security.md#security-longest-prefix-wins).</sub>
 
 <a id="security-longest-prefix-wins"></a>
 
@@ -541,9 +737,13 @@ months from now holds the database. That is the opposite of the posture everywhe
 never the default reading of a bare prefix — the narrow thing is what a reader gets, and the broad
 thing costs two extra characters and is visible in review as its own token.
 
+**Declined:**
+- **A bare prefix meaning the subtree.** It saves one form and makes the dangerous reading the
+  default, so a grant would silently extend to modules that did not exist when it was written.
+
 **Not on disk.** No grant table is keyed this way in the tree.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0061](../decisions/0061.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace).</sub>
 
 <a id="security-an-unmatched-namespace-holds-the-application"></a>
 
@@ -565,9 +765,17 @@ namespace whose autoload root lies under a directory the grant table never menti
 correct strength, because the same shape describes a legitimate second source tree of the
 application's own.
 
+A discovery glob happens to skip a directory such as `vendor/` because its name is not legal
+`PascalCase`. That casing convention exists for another reason, and nothing here relies on it.
+
+**Declined:**
+- **Deny by default for an unmatched namespace.** It is safe and refuses to compile every program
+  that exists. A grant line written for every fetched package, empty ones included, gives the same
+  protection where it matters without charging the common case.
+
 **Not on disk.** There is no fetch step and no audit that writes or checks these lines.
 
-<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md).</sub>
+<sub>See also [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time).</sub>
 
 <a id="security-path-scope-canonicalise-then-prefix"></a>
 
@@ -594,7 +802,7 @@ A granted root that does not exist yet — a socket nothing has bound — is res
 so both sides are spelled by one resolution. A root left as typed could not match a canonical
 argument wherever a directory above it is a symlink, as `/tmp` and `/var` are on macOS.
 
-<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals). Decided in [0118](../decisions/0118.md), [0104](../decisions/0104.md).</sub>
+<sub>See also [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/a-path-is-not-a-url`](security.md#security-a-path-is-not-a-url), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`errors/path-component-refusals`](errors.md#errors-path-component-refusals).</sub>
 
 <a id="security-writes-open-beneath-a-handle"></a>
 
@@ -644,7 +852,13 @@ name is the string they will add to their configuration.
 A predicate that would otherwise answer `false` is refused rather than answered, so an ungranted
 deployment never looks like a negative result.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy). Decided in [0118](../decisions/0118.md), [0020](../decisions/0020.md).</sub>
+**Declined:**
+- **A dedicated `SecurityError` class.** It would let a program catch a denial specifically, but it
+  costs a class in the exception tree and its cross-references, and it invites `catch (SecurityError)`
+  as a way to make a policy refusal look handled. `RuntimeError` with the capability in the message is
+  enough for the program that wants to degrade.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder), [`errors/throwable-hierarchy`](errors.md#errors-throwable-hierarchy).</sub>
 
 <a id="security-optional-capability-degrades"></a>
 
@@ -662,7 +876,13 @@ The split exists because the compile-time check's granularity is **reachability,
 class no name reaches is never part of your program, but inside a class your program does name, every
 call site is checked including a branch that never runs. Without the split, the reachability of a
 *class* would be the unit of capability granularity, which is far too coarse for a class with two
-halves.
+halves. A library with an in-memory cache and an optional disk-persistence method would fail the build
+of every application that never persists anything, and its author's only remedy would be to split
+one coherent library into two packages over a capability question.
+
+The guard is one predictable branch, emitted only at call sites in a package that declared the
+capability optional. A program that uses no optional capability runs no guard, and the static check
+emits nothing at all.
 
 `Core\Cap::has` reports what the call site already holds. It is **not** a runtime grant: nothing
 widens ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
@@ -671,7 +891,13 @@ widens ([`security/no-runtime-grant`](security.md#security-no-runtime-grant)).
 checking. The required/optional manifest split, the guard at an optional call site and the compile
 error for a required one have no representation in the tree.
 
-<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace). Decided in [0112](../decisions/0112.md), [0081](../decisions/0081.md), [0061](../decisions/0061.md), [0020](../decisions/0020.md).</sub>
+**Declined:**
+- **Every ungranted capability degrading at run time**, with no required and optional split. It moves
+  every capability failure from the build to production and puts a branch on every `Core` call site on
+  the request path. The split keeps refusal as the default and makes degradation something an author
+  asks for, per capability, in writing.
+
+<sub>See also [`security/no-runtime-grant`](security.md#security-no-runtime-grant), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace).</sub>
 
 <a id="security-no-runtime-grant"></a>
 
@@ -694,7 +920,11 @@ in exchange for reintroducing the dynamic escape the language closed elsewhere �
 Static attribution is total in Novis only because those doors are shut. A runtime widen would be a
 further one opened, and every claim above it would have to be qualified.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades). Decided in [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0006](../decisions/0006.md), [0052](../decisions/0052.md), [0031](../decisions/0031.md), [0019](../decisions/0019.md).</sub>
+**Declined:**
+- **A runtime grant, symmetrical with the runtime narrow.** It would cost the compile-time property
+  outright. The guarantee that nothing widens is what lets the static check be trusted as total.
+
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/closed-doors`](security.md#security-closed-doors), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`security/optional-capability-degrades`](security.md#security-optional-capability-degrades).</sub>
 
 <a id="security-capability-costs-nothing-unasked"></a>
 
@@ -715,7 +945,7 @@ Every member that reaches this check is by construction about to make a syscall,
 never on a hot path**. That is the whole latency argument, and it holds because of *where* the check
 is rather than because of how it is written.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`programs/memory-priority`](programs.md#programs-memory-priority). Decided in [0118](../decisions/0118.md), [0004](../decisions/0004.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="security-package-authority-is-granted-one-line-at-a-time"></a>
 
@@ -735,9 +965,22 @@ socket, read a file, spawn a process, reach a database or spawn a script unless 
 in a grant line. The compromise of a transitive dependency degrades from *arbitrary action with the
 process's authority* to *arbitrary computation with no authority at all*.
 
+Grant lines are friction, and the friction is the point. Some users will grant everything without
+reading, the way some run containers as root; the design cannot prevent that, only make it visible and
+diffable. What it prevents is authority arriving without anybody writing anything.
+
+A package can never be the code that declares data safe. Only a `Core` member removes `tainted`
+([`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named)), so a package can compute over a `tainted` value and return
+it still `tainted`.
+
+**Declined:**
+- **Ambient capabilities: the process is granted, and every package inherits.** That is what every
+  mainstream package system does, and it is how a compromised transitive dependency becomes a breach.
+  No incumbent can retrofit the refusal.
+
 **Not on disk.** There is no package manager, no manifest, and no grant line writer in the tree.
 
-<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant). Decided in [0081](../decisions/0081.md), [0112](../decisions/0112.md), [0005](../decisions/0005.md), [0055](../decisions/0055.md).</sub>
+<sub>See also [`security/authority-is-the-enclosing-namespace`](security.md#security-authority-is-the-enclosing-namespace), [`security/grants-are-keyed-on-a-namespace`](security.md#security-grants-are-keyed-on-a-namespace), [`security/no-runtime-grant`](security.md#security-no-runtime-grant).</sub>
 
 <a id="security-process-exec-capability"></a>
 
@@ -765,7 +1008,7 @@ which is the resolution the grant was compared against, so the program the opera
 the one the check approved — a name a `PATH` entry would have answered instead is a program from a
 directory no grant named.
 
-<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target). Decided in [0044](../decisions/0044.md), [0118](../decisions/0118.md), [0112](../decisions/0112.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/sink-predicate`](security.md#security-sink-predicate), [`security/script-spawn-capability`](security.md#security-script-spawn-capability), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only), [`core-classes/process-refuses-a-shell-target`](core-classes.md#core-classes-process-refuses-a-shell-target).</sub>
 
 <a id="security-net-address-policy"></a>
 
@@ -786,6 +1029,13 @@ asked of a resolved address and a name would except whatever it resolved to afte
 because an operator writing a whole `/8` hands back most of the table without naming a host; and not
 `true`, which is the one place a capability's `true` does not mean everything.
 
+Link-local is the range whose omission is catastrophic rather than regrettable: `169.254.169.254` is the
+cloud instance-metadata endpoint, and reaching it turns a feature that fetches a URL into credential
+theft. The exception and the connect grant are independent and both required — `net.internal` reaches
+nothing `net.connect` has not granted by name — so an exception is a second thing an operator writes, not
+a way around the first. A deployment that calls internal services has to say so, and that is the point:
+the difference between an intended internal call and a forged one is whether somebody wrote it down.
+
 The one class of address it does not govern is an endpoint an operator wrote into root-owned
 configuration and granted by name — that address is not attacker-influenceable, and applying the
 policy there would deny every ordinary deployment. A program-supplied target stays governed in full.
@@ -801,11 +1051,19 @@ asked at the connect. What the table does **not** govern is a *bind*, whose term
 [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect) is that grant and says why it carries
 no policy of its own.
 
-<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0142](../decisions/0142.md), [0067](../decisions/0067.md), [0162](../decisions/0162.md), [0182](../decisions/0182.md).</sub>
+**Declined:**
+- **No exception syntax at all**, so a private range is never reachable from a program-supplied
+  address. Service-to-service calls are the normal case in any non-trivial deployment, and a rule that
+  has to be worked around is worse than one that has to be written down.
+- **The policy applied to an operator-written endpoint too.** A database or a shared store lives at a
+  private address, a container network or loopback, so every ordinary deployment would be denied
+  ([`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities), [`config/cache-shared-is-the-grant-over-the-configured-store`](config.md#config-cache-shared-is-the-grant-over-the-configured-store)).
+
+<sub>See also [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink), [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`security/net-listen-is-a-separate-grant-from-net-connect`](security.md#security-net-listen-is-a-separate-grant-from-net-connect), [`core-classes/db-capabilities`](core-classes.md#core-classes-db-capabilities).</sub>
 
 <a id="security-net-listen-is-a-separate-grant-from-net-connect"></a>
 
-## The grant follows what the program is doing rather than the transport: reaching out is `net.connect`, binding is `net.listen`, and neither widens the other  *(designed — not yet in the compiler)*
+## The grant follows what the program is doing rather than the transport: reaching out is `net.connect`, binding is `net.listen`, and neither widens the other
 
 `rule:security/net-listen-is-a-separate-grant-from-net-connect`
 
@@ -834,7 +1092,27 @@ reason: an operator writing a range hands back more than the endpoint they meant
 value is that a reviewer can see what a deployment opened. An entry that does not parse as an endpoint
 matches nothing.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports). Decided in [0162](../decisions/0162.md).</sub>
+Three grants are three keys, and that is a real cost: an operator whose program binds writes
+`net.listen` beside `net.connect`, and a reviewer reads both. It buys the property the roster exists
+for, a grant that says one thing. A refusal names the grant that was missing and what was asked for:
+the endpoint for `net.listen`, the canonical path for `net.local`, and for `net.connect` either the
+ungranted host or the denied address it resolved to. A datagram refused at its destination is refused
+at the send, not at the open.
+
+A datagram's check at each send is a resolution on a hot path, the same one a TCP connect pays once.
+If a datagram-heavy program shows it dominating, the answer is a pin cached on the socket for as long
+as the destination is unchanged, never a grant asked once at the bind.
+
+**Declined:**
+- **`net.connect` widened to cover binds and socket paths.** One name would cover three guarantees,
+  an operator granting an outbound host would silently grant a listener, and the address table it
+  carries would be wrong for two of the three.
+- **A datagram socket granted once, at the bind.** It makes UDP a way around the address policy.
+- **A denied-range table for `net.listen`, inverted so that public addresses are denied.** It reads
+  as symmetry and is a second policy to keep in step with the first, for a risk that naming the
+  endpoint already answers exactly.
+
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`config/net-local-is-named-and-not-on-the-roster`](config.md#config-net-local-is-named-and-not-on-the-roster), [`security/capability-roster-is-closed`](security.md#security-capability-roster-is-closed), [`core-classes/net-one-api-three-transports`](core-classes.md#core-classes-net-one-api-three-transports).</sub>
 
 <a id="security-the-policy-lives-in-the-capability"></a>
 
@@ -856,7 +1134,7 @@ The exception is the same one [`security/net-address-policy`](security.md#securi
 operator has already approved by writing it — and it is a property of the address, not of the client
 that dials it.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink). Decided in [0058](../decisions/0058.md), [0118](../decisions/0118.md), [0055](../decisions/0055.md).</sub>
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door), [`security/outbound-url-is-a-sink`](security.md#security-outbound-url-is-a-sink).</sub>
 
 <a id="security-tainted-qualifier"></a>
 
@@ -891,7 +1169,24 @@ every request-handling function would have to launder on its first line.
 `tainted` is written after `secret` when both appear, and `tainted secret string` is a diagnostic
 naming the required order rather than a second spelling ([`security/secret-qualifier`](security.md#security-secret-qualifier)).
 
-<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0033](../decisions/0033.md), [0157](../decisions/0157.md), [0279](../decisions/0279.md).</sub>
+**False positives are the accepted failure direction.** A value the program wrote itself can read back
+`tainted` once it round-trips through a store, and [`security/assert-trusted`](security.md#security-assert-trusted) exists for that case
+at the cost of one written reason per call site.
+
+**Declined:**
+- **Run-time taint tracking**, a tag carried on each value. It pays a representation and a per-operation
+  cost on the request path for a guarantee the checker gives for nothing, and it finds a leak only when
+  a test happens to drive the value into the sink.
+- **A separate analysis pass beside the checker.** An optional pass can be skipped or silenced, and that
+  is not the guarantee of a checker that refuses to compile the program.
+- **Tainting a shape hydrated from a request on its own**, without `tainted {…}` written. The
+  declaration would then understate the value, and a type that is not what it says is worse than a
+  long one.
+- **Writing `tainted` on each field of a request shape by hand, as the only form.** It is correct but
+  long enough that programs stop writing it, and [`security/tainted-sources`](security.md#security-tainted-sources) is only worth as much
+  as the declarations that carry it forward.
+
+<sub>See also [`security/tainted-sources`](security.md#security-tainted-sources), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/sink-predicate`](security.md#security-sink-predicate), [`types/grammar`](types.md#types-grammar). Decided in [0279](../decisions/0279.md).</sub>
 
 <a id="security-tainted-sources"></a>
 
@@ -925,7 +1220,7 @@ is `?tainted bytes`. The list of sources being **enumerable** is what lets the q
 automatically, and is exactly what `secret` has no equivalent of
 ([`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source)).
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0024](../decisions/0024.md), [0012](../decisions/0012.md), [0058](../decisions/0058.md), [0067](../decisions/0067.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="security-taint-propagation"></a>
 
@@ -983,7 +1278,7 @@ whether the content is safe for a given sink, and a conversion that laundered he
 bypass of every rule below. All of it is decided while checking: no tag at run time, nothing on the
 request path.
 
-<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0024](../decisions/0024.md), [0007](../decisions/0007.md), [0066](../decisions/0066.md), [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
+<sub>See also [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`types/conversion`](types.md#types-conversion), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0279](../decisions/0279.md), [0280](../decisions/0280.md).</sub>
 
 <a id="security-sink-predicate"></a>
 
@@ -1008,7 +1303,13 @@ grammars the library parses are all instructions by it
 ([`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink)), and a member nobody classified fails closed
 ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).
 
-<sub>See also [`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0063](../decisions/0063.md).</sub>
+**Declined:**
+- **Denying `tainted` at the process boundary, so it may leave only through a typed carrier.** Strictly
+  stronger and wrong: it refuses a file's contents, an outbound request body, a bound database parameter
+  and a log field, each of which is safe and common. The predicate is what separates them, so a boundary
+  rule would be this rule with its useful half deleted.
+
+<sub>See also [`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`core-classes/db-parameters`](core-classes.md#core-classes-db-parameters).</sub>
 
 <a id="security-unclassified-parameter-refuses-tainted"></a>
 
@@ -1023,7 +1324,14 @@ time in production; now it refuses where the call is written.
 
 The classification lives once, beside the parameter list and the return type in the member registry,
 and a member with an unclassified parameter **fails the library's own test suite** — the default is
-what a program sees, the test is what stops such a member from shipping at all.
+what a program sees, the test is what stops such a member from shipping at all. Userland was already
+fail-closed, because a plain `string` parameter of a user's function refuses a tainted argument, so the
+library's own table was the one fail-open surface, and flipping its default was one pass over one table
+rather than a language change. The pass marks most parameters *contagious*, because most genuinely
+are, and it never recurs: the next member added is safe until its author says otherwise.
+
+Every mark is checked before the program runs and erased before code is generated, so the default
+costs nothing on the request path: no representation, no branch.
 
 A **union parameter** carries the mark its arms declare — `Pattern|string` is a sink because the
 `string` arm is written as one — and carries none where its arms disagree or where an arm that could
@@ -1031,11 +1339,20 @@ hold a mark does not. The classification is still written once beside the parame
 has a cell for it, and the refusing default still covers everything nobody classified.
 
 A mark that admits `tainted` admits a union carrying it, arm by arm, and the contagion is read back
-out with at least that reach. The two directions are deliberately asymmetric: the answer that decides
+out with at least that reach. `Core\Env::get` returns `?tainted string`, so `$name ?? "default"` is a
+`string|tainted string`, and that is the shape every environment read arrives in: a launderer that
+took only the atom would refuse the one form its own source produces. The admission does not weaken,
+because each arm is narrowed and then compared, so one tainted arm at a sink still refuses the whole
+union. The two directions are deliberately asymmetric: the answer that decides
 whether to *set* the qualifier on a result reaches further than the narrowing that decides whether to
 *admit* an argument, because reaching too far over-taints in the first case and leaks in the second.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md).</sub>
+**Declined:**
+- **Keeping *contagious* as the default and stating the sink predicate as guidance.** The predicate was
+  already derivable, and a member taking a format template was still added unmarked. A rule held by
+  attention fails exactly when nobody is paying it.
+
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/tainted-qualifier`](security.md#security-tainted-qualifier), [`testing/capability-completeness-test`](testing.md#testing-capability-completeness-test).</sub>
 
 <a id="security-every-grammar-is-a-sink"></a>
 
@@ -1057,7 +1374,7 @@ A regex quoting member remains the one exception on the roster, because a regex 
 that routinely needs a runtime value *inside* it rather than *as* it
 ([`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink)).
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0088](../decisions/0088.md), [0063](../decisions/0063.md), [0057](../decisions/0057.md), [0056](../decisions/0056.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/regex-pattern-is-a-sink`](security.md#security-regex-pattern-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments).</sub>
 
 <a id="security-regex-pattern-is-a-sink"></a>
 
@@ -1079,7 +1396,7 @@ The **subject** may be tainted, and contagion applies unchanged: a substring mat
 subject is tainted ([`security/taint-propagation`](security.md#security-taint-propagation)). The denial-of-service half is answered
 separately, by tiering the pattern onto a linear-time engine and budgeting the backtracking tier.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers). Decided in [0056](../decisions/0056.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/assert-trusted`](security.md#security-assert-trusted), [`core-classes/regex-two-tiers`](core-classes.md#core-classes-regex-two-tiers).</sub>
 
 <a id="security-outbound-url-is-a-sink"></a>
 
@@ -1102,11 +1419,30 @@ Refusing at the call site is only half of it: the address is judged again at run
 capability's own policy ([`security/net-address-policy`](security.md#security-net-address-policy)), because a hardcoded hostname can still
 resolve into a private range.
 
-<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments). Decided in [0058](../decisions/0058.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
+Request forgery is an injection, but it is the one that cannot be settled at compile time alone: a
+well-formed URL is harmless or not according to the address it resolves to, which is known only at
+connect time and can differ between two resolutions of one name. Nor can it be settled at run time
+alone, since nothing in the source would show a developer which URL is attacker-influenced. So it gets
+both layers. Fetching a URL somebody supplied is a legitimate feature — webhooks, previews, imports — and
+stays two lines, the second of which is the launderer that records the decision.
+
+**Declined:**
+- **The run-time policy alone, with no `tainted` refusal.** The developer gets no signal at `nvs check`
+  and the failure appears in production, and this class alone would lose the compile-time audit every
+  other injection has.
+- **The compile-time refusal alone, with a launderer checking the URL's shape.** `http://169.254.169.254/`
+  is well-formed, so the attack passes straight through.
+- **A launderer answering a plain `string`.** It reopens the gap between the check and the connection
+  ([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)).
+- **Leaving it to the application, with documentation.** Every application re-implements it, most
+  incompletely, and a language that makes SQL and HTML injection compile errors would be treating this one
+  as a matter of care.
+
+<sub>See also [`security/net-address-policy`](security.md#security-net-address-policy), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/sink-predicate`](security.md#security-sink-predicate), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments).</sub>
 
 <a id="security-metric-label-refuses-tainted"></a>
 
-## A metric label value refuses `tainted`, and there is deliberately no launderer for one  *(designed — not yet in the compiler)*
+## A metric label value refuses `tainted`, and there is deliberately no launderer for one
 
 `rule:security/metric-label-refuses-tainted`
 
@@ -1124,10 +1460,16 @@ set, [`security/assert-trusted`](security.md#security-assert-trusted).
 `secret` is refused there too and needs no new rule: a metric export is output, and every output sink
 already refuses it ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)).
 
-The `Core\Metrics` surface this governs is not on disk: nothing in the tree exports a series or takes
-a label, so the refusal has no implementation to verify against.
+The cost is a compile error at exactly the line that would have taken the collector down, and it is
+there because the qualifier system already exists for injection. Labelling by a user id, a tenant
+name or an error message is what people reach for first, so this refusal is met often.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0076](../decisions/0076.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0077](../decisions/0077.md).</sub>
+**Declined:**
+- **Allowing `tainted` labels behind a runtime cardinality guard.** The guard fires after the
+  collector already has the series, and a compile error at the responsible line is strictly better
+  than a warning hours later on another machine.
+
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type).</sub>
 
 <a id="security-log-is-not-a-sink"></a>
 
@@ -1143,14 +1485,15 @@ log.
 
 The same holds for a bidirectional control, which the writer escapes by construction
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)), and for a JSON decode, whose input is data the parse returns to the
-program and whose result is `tainted`.
+program and whose result is `tainted`; its risk is bounded by the decoder's nesting cap, which is on
+by default.
 
 The `secret` axis does not follow: a log field **refuses** a `secret` value, because that axis is
 about confidentiality rather than structure and a log is an output
 ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)). Stating both here is what stops a future reader from applying
 one rule's answer to the other axis.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0020](../decisions/0020.md), [0087](../decisions/0087.md).</sub>
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/log-write`](errors.md#errors-log-write).</sub>
 
 <a id="security-launderers-are-sink-named"></a>
 
@@ -1173,13 +1516,25 @@ command line. It throws while a request is being answered, so request data never
 The user who typed the path can already open any file the process can, and the `fs` grants still
 bound every file its answer names. A request that opens a file named by its own data keeps
 `Core\IO::within($base, $path)`. `fromCwd` removes `tainted` and nothing else: a `secret` argument
-does not compile, as at every launderer.
+does not compile, as at every launderer. A queued job and a spawned isolate answer no request, so
+`fromCwd` runs there whatever text they were handed, and that isolate's `fs` grants bound the file its
+answer names. Without the exception, the one use the member exists for, a command-line tool opening
+the file its user named, needs `Core\Taint::assertTrusted` at every call.
 
 Which return type a launderer takes is a predicate rather than a per-member choice
 ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)). Where no built-in launderer fits, the way out is
 [`security/assert-trusted`](security.md#security-assert-trusted) — written, greppable, and carrying a reason — and never a silent cast.
 
-<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0024](../decisions/0024.md), [0133](../decisions/0133.md), [0055](../decisions/0055.md), [0248](../decisions/0248.md).</sub>
+**Declined:**
+
+- **A new `CoreTy` for "a path from the command line".** It marks the same fact the qualifier already
+  marks, and every path door would have to accept the new type.
+- **Keeping `fromCwd`'s answer `tainted` and documenting `Core\Taint::assertTrusted`.** The greppable
+  escape hatch becomes a line every command-line tool writes, so it stops marking the unusual call.
+- **Laundering `Core\Cli::arguments` itself.** An argument is also a shell word, an SQL value and HTML
+  text, and a launderer names one sink.
+
+<sub>See also [`security/assert-trusted`](security.md#security-assert-trusted), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/taint-propagation`](security.md#security-taint-propagation), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
 <a id="security-launderer-answers-a-carrier"></a>
 
@@ -1203,7 +1558,34 @@ visible in the source.
 A launderer written for a *new* sink is measured against the two conditions, not against today's
 table, and a sink that acquires an automatic launder reclassifies its own member the day it does.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source). Decided in [0133](../decisions/0133.md), [0024](../decisions/0024.md), [0067](../decisions/0067.md), [0086](../decisions/0086.md), [0056](../decisions/0056.md).</sub>
+**Why a `string` is the wrong answer at such a sink.** A `string` carries one bit where the domain has
+three states: untrusted, plain text nobody has escaped, and already escaped for this sink. The second
+and third are the same type, so an escaped value concatenated into tainted text is re-poisoned,
+correctly, and the sink then escapes it a second time: `&` becomes `&amp;amp;` with no diagnostic
+anywhere. With a carrier the three states are three types — `tainted string`, `string` and
+`Core\Html\Markup` — and no operator moves a value backwards between them, so every ordering of a
+concatenation is either correct or refused. Neither condition alone is a hazard: a non-idempotent
+transform at a sink that never launders on its own takes a visible second call to break, and a
+terminal escape is idempotent because its substitute contains no escape byte.
+
+A registry guard holds it: the whole roster of launderers is listed with whether each answers a
+carrier, so a launderer added in any class fails the guard until somebody places it against the
+predicate.
+
+**Memory:** nothing a program did not already spend. The sink's escape-and-lift makes a `Markup`
+anyway, so a carrier answer removes the second escape rather than adding a wrapper.
+
+**Declined:**
+- **The HTML sink detects already-escaped text and skips it.** `&amp;` in the input is text that said
+  `&amp;`, and it must come back as `&amp;amp;`; a sink that guesses is one an attacker can aim
+  ([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)).
+- **A third qualifier, `escaped string`.** New grammar, a new keyword and a third axis in the checker,
+  to say what a carrier class already says for free.
+- **A carrier for every non-idempotent launderer**, such as a URI component, a database identifier and
+  a regex pattern type. It forces a builder API onto four classes whose values are normally assembled
+  by concatenation, against a hazard that takes a visible second call to reach.
+
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source).</sub>
 
 <a id="security-capture-answers-the-carrier"></a>
 
@@ -1224,7 +1606,7 @@ This is the third instance of one rule rather than three members that each argue
 two being a laundering escape and an approved URL — and stating it once is what keeps a future
 capturing member from answering the wrong type ([`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier)).
 
-<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member). Decided in [0088](../decisions/0088.md), [0006](../decisions/0006.md), [0133](../decisions/0133.md).</sub>
+<sub>See also [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member).</sub>
 
 <a id="security-route-capture-is-laundered-by-its-type"></a>
 
@@ -1246,7 +1628,11 @@ that rate-limits it — the priority-1 objection this rule already makes to a re
 strictly more than a regex. The class's `parse` runs at the binding site instead, where the match
 crosses into the program, so a segment it refuses is a **`400`** over a route that did match rather than
 a `404` ([`routing/a-bad-query-value-is-a-400`](routing.md#routing-a-bad-query-value-is-a-400)). Two captures spelled the same way therefore fail
-two ways, and what decides which is who runs at the door.
+two ways, and what decides which is who runs at the door. The refusal is the class's own throw and
+travels unchanged, so a program that reads the match without a `catch` fails the request; a handler
+that wants the non-throwing answer calls the class's `tryParse` ([`expressions/try-parse`](expressions.md#expressions-try-parse)). The
+captures cross as `array<tainted string|int|uint|decimal|Core\Uuid|Parses>`, the last member an
+interface because the set of classes it means is open.
 
 **A converted capture arrives unqualified.** A checked conversion launders
 ([`security/taint-propagation`](security.md#security-taint-propagation)), so an integer or enum capture is a plain value, while a `string`
@@ -1257,12 +1643,27 @@ because `tainted` is a property of `string` and `bytes` and never of a class
 refused by the assignability rule that already stands. No new sink, no new launderer, no new rule — the
 existing one arriving somewhere useful.
 
-**A regex constraint is not among the admitted types and never will be.** An application-authored
-pattern over the request path runs before any rate limiting, which makes catastrophic backtracking an
-unauthenticated denial of service; a closed set is spelled as a set of allowed values or a subset of
-an enum's cases instead.
+**Memory:** a capture at a class built from text costs one call into the program on the matched route
+and nowhere else, and its row holds one extra string, the class's name. `Core\Request::route()` takes
+the match by clone, one reference-count bump on the row plus one string per capture. A request that
+matches nothing pays nothing.
 
-<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`types/single-value-types`](types.md#types-single-value-types). Decided in [0077](../decisions/0077.md), [0024](../decisions/0024.md), [0102](../decisions/0102.md), [0160](../decisions/0160.md).</sub>
+**Declined:**
+- **Arming a class table at the door, so the matcher calls `parse`.** It keeps one failure mode for
+  every capture, and puts an unbounded, application-authored body on the unauthenticated request path
+  ahead of any rate limit.
+- **Carrying a class-typed capture through as text.** The parameter's declared type would then be
+  false: a `Slug $slug` capture would arrive as a `tainted string`, and every handler would repeat the
+  conversion the declaration already names.
+- **A `null` capture for a segment the class refuses.** It needs `tryParse` at the binding site and
+  hands every handler a nullable it did not declare, moving the failure to wherever the program first
+  dereferences it.
+- **A regex constraint on a capture**, now or later. An application-authored pattern over the
+  request path runs before any rate limiting, which makes catastrophic backtracking an
+  unauthenticated denial of service; a closed set is spelled as a set of allowed values or a subset
+  of an enum's cases instead ([`routing/a-capture-narrows-to-a-closed-set`](routing.md#routing-a-capture-narrows-to-a-closed-set)).
+
+<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`types/single-value-types`](types.md#types-single-value-types).</sub>
 
 <a id="security-derived-codec-qualifiers"></a>
 
@@ -1274,7 +1675,9 @@ A derived codec introduces no qualifier rule of its own. A decoder assigns into 
 types, so a payload that carries `tainted` requires the fields receiving it to declare it, and the
 check happens where the qualifier is statically known — the **call site** that decodes, not inside the
 codec. Only `string` and `bytes` carry a qualifier, so an integer, a decimal, an enum or an instant
-field needs nothing.
+field needs nothing. Declaring `tainted` on a decoded field is friction at the moment somebody is
+trying to be quick, and it is the same declaration hand-written hydration already needed; the derive
+is only where a newcomer meets it first.
 
 A `secret` property on a class carrying a derive attribute is a **compile error at the declaration**,
 with skipping the field as the stated fix. This adds no sink — encoding was already one
@@ -1282,7 +1685,7 @@ with skipping the field as the stated fix. This adds no sink — encoding was al
 the encoder to the declaration that put it on the wire contract, and it replaces a silent omission
 with a written one.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/tainted-sources`](security.md#security-tainted-sources). Decided in [0071](../decisions/0071.md), [0024](../decisions/0024.md), [0033](../decisions/0033.md), [0067](../decisions/0067.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/taint-propagation`](security.md#security-taint-propagation), [`security/tainted-sources`](security.md#security-tainted-sources).</sub>
 
 <a id="security-assert-trusted"></a>
 
@@ -1307,7 +1710,7 @@ regex pattern, where no transform makes an attacker-authored pattern safe
 It removes `tainted` and nothing else: a `secret` operand is refused there, because confidentiality is
 a separate axis and this member makes no claim about it.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted). Decided in [0024](../decisions/0024.md), [0088](../decisions/0088.md), [0076](../decisions/0076.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/every-grammar-is-a-sink`](security.md#security-every-grammar-is-a-sink), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted).</sub>
 
 <a id="security-response-body-is-one-typed-member"></a>
 
@@ -1334,6 +1737,14 @@ so it cannot reach any other line. The event name and the id are **sinks**: a cl
 the name and echoes the id back in its next request's `Last-Event-ID`, so an attacker-chosen one is
 the cross-tenant hazard a tainted topic name is.
 
+**Every way a call could corrupt an event's framing throws a `LogicError`, and none is repaired.** An
+event name or id carrying `\n`, `\r` or NUL is refused: stripping the byte would change the name a
+client dispatches on, and a client discards an id containing a NUL outright. An empty payload is
+refused, because a client does not dispatch an event whose data buffer is empty, so the send could
+never arrive. A status set on a path that opens an event stream is refused, because an event stream
+is `200` by protocol. The streaming member takes any status, so that refusal is the event stream's
+alone.
+
 The JSON member accepts a tainted value freely, because the framing belongs to the serializer and
 never to concatenation — a tainted string becomes a JSON string value and cannot escape it. The text
 member accepts one only because a no-sniff header is on by default with nothing configured, so
@@ -1356,7 +1767,25 @@ the same compiled unit the command line runs, so nothing distinguishes the two u
 There the default decides instead of the refusal — `echo` alone means `text/html`, and a typed member
 written beside it wins the content type it declared last.
 
-<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape). Decided in [0088](../decisions/0088.md), [0024](../decisions/0024.md), [0074](../decisions/0074.md), [0177](../decisions/0177.md).</sub>
+**The file member, `sendFile(string $path)`, takes the path alone.** A download name is a
+`Content-Disposition` header, which `setHeader` already admits, and what the file's bytes are called
+is the static-file policy's media-type table, which also owns its `Range` and conditional handling.
+
+- **Memory:** a file body costs the request one path, and the connection one open handle and one
+  range's read buffer while the response is in flight. The file is never copied through the request.
+
+**Declined:**
+- **A filename parameter on the file member.** A download name is a header, and `setHeader` writes it.
+- **A content-type parameter on the file member.** It would let a response declare one type while
+  the static-file policy's range and conditional handling served the same path as another.
+- **Keying the body's rule on its `Content-Type` rather than on the member that wrote it.** The header
+  can be set after the first byte of the body is written, so the rule would depend on a fact not yet
+  decided where it must be enforced.
+- **One `Response::write` that takes `Core\Html\Markup` for every body.** One rule instead of several
+  members, but it makes [`security/assert-trusted`](security.md#security-assert-trusted) the ordinary way to write an API handler, which
+  trains the escape hatch on the most common handler there is.
+
+<sub>See also [`security/sink-predicate`](security.md#security-sink-predicate), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/launderer-answers-a-carrier`](security.md#security-launderer-answers-a-carrier), [`core-classes/html-auto-escape`](core-classes.md#core-classes-html-auto-escape).</sub>
 
 <a id="security-db-pool-reset-is-a-boundary"></a>
 
@@ -1376,9 +1805,40 @@ that property or is not pooled.
 **The pool key includes every credential**, so two configuration blocks are two pools and two database
 users never share a connection. It is additionally scoped to the configuration generation it was read
 from: a reload can publish the same block name under a different user, and a pool keyed on the name
-alone would hand the new generation's request a connection authenticated as the old one's.
+alone would hand the new generation's request a connection authenticated as the old one's. A reload
+is therefore two pools, and the superseded generation's connections retire against their own
+`lifetime`.
 
-<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/one-tls-client`](security.md#security-one-tls-client), [`security/net-address-policy`](security.md#security-net-address-policy), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named). Decided in [0067](../decisions/0067.md), [0078](../decisions/0078.md), [0074](../decisions/0074.md).</sub>
+The pool is **per core and never shared between cores**: a task never migrates, so the acquire path
+takes no lock, which is the reason to prefer it over one process-wide pool. Per backend, PostgreSQL
+rolls back, then runs `RESET ALL`, `CLOSE ALL`, `UNLISTEN *` and `pg_advisory_unlock_all()` and drops
+the session's temporary schema; MySQL, MariaDB and SQL Server use their atomic reset command, which
+also drops prepared statements, so the statement cache goes with it; a SQLite connection has no
+session state, and rolling back an open transaction is the whole reset. The pool exists to keep a
+connection's handshake and statement cache across requests; Novis code cannot observe whether a
+handshake happened.
+
+Bounds are finite with nothing configured: `[db.<name>.pool]` writes `max` (per core, default 16),
+`idle`, `lifetime` (a connection is retired regardless of health) and `acquire` (waiting for a free
+connection throws rather than hangs). `max` being per core makes a deployment's ceiling on the server
+`cores × max`, the number an operator sizes `max_connections` against. An `open` whose settings hash
+matches a block's takes that block's bounds, since it is already the same pool; any other settings
+literal gets the defaults. `pool = false` restores connect-per-request exactly, for an audited
+environment where each connection must map to one request, and may be written unscoped under `[db]`
+to reach every connection the process opens, including one a program's own settings named. Only the
+switch is unscoped: a `[db.pool]` table of bounds is refused at boot, because no one server's
+`max_connections` is what a pool keyed on a credential hash would be sized against.
+
+- **Memory:** each core holds up to `max` open connections per pool key, with their statement caches,
+  for as long as `lifetime` allows. That is per process and bounded by configuration, never by
+  traffic served.
+
+**Declined:**
+- **`DISCARD ALL` on PostgreSQL.** It also deallocates every prepared statement, which would throw
+  away the statement cache ([`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)) that pooling exists to preserve.
+- **One process-wide pool.** It needs a lock on every acquire.
+
+<sub>See also [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`security/one-tls-client`](security.md#security-one-tls-client), [`security/net-address-policy`](security.md#security-net-address-policy), [`core-classes/db-connection-is-named`](core-classes.md#core-classes-db-connection-is-named).</sub>
 
 <a id="security-ldap-pool-is-bound-as-its-block"></a>
 
@@ -1468,10 +1928,22 @@ a credential legitimately ([`security/secret-sinks-refuse`](security.md#security
 rule.
 
 Two orthogonal questions — trust and confidentiality — get their own checked axis instead of being
-conflated into one. They compose for the case that matters most in practice, a submitted password,
-without needing a third combined concept.
+conflated into one. `tainted` asks whether a value's shape is safe for a sink; `secret` asks where the
+value may go at all. A well-shaped API key is still catastrophic to leak, and a username safe to
+display is still attacker-controlled. They compose for the case that matters most in practice, a
+submitted password, without needing a third combined concept.
 
-<sub>See also [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/secret-propagation`](security.md#security-secret-propagation), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`types/grammar`](types.md#types-grammar). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0007](../decisions/0007.md).</sub>
+- **Memory:** none. The qualifier is erased before codegen, so a `secret` value is the same bytes as
+  the plain one.
+
+**Declined:**
+- **An opaque `Core\Secret` wrapper type instead of a qualifier.** It would be a second mechanism
+  beside `tainted`'s, with a wrapper's usual friction: no interpolation, and an explicit unwrap at
+  every use.
+- **Zeroing a `secret` value's memory when it goes out of scope.** That needs a destructor-shaped hook,
+  and there are none ([`classes/no-destructors`](classes.md#classes-no-destructors)); the qualifier stays compile-time only.
+
+<sub>See also [`security/secret-has-no-ambient-source`](security.md#security-secret-has-no-ambient-source), [`security/secret-propagation`](security.md#security-secret-propagation), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`types/grammar`](types.md#types-grammar).</sub>
 
 <a id="security-secret-has-no-ambient-source"></a>
 
@@ -1497,7 +1969,7 @@ That is a declared return type, not an ambient grant.
 The cost is stated: `secret` protects only what a developer remembers to annotate. That is a real
 coverage gap relative to `tainted`, not an oversight.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/secret-propagation`](security.md#security-secret-propagation), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments). Decided in [0033](../decisions/0033.md), [0086](../decisions/0086.md), [0012](../decisions/0012.md).</sub>
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/secret-propagation`](security.md#security-secret-propagation), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments).</sub>
 
 <a id="security-secret-propagation"></a>
 
@@ -1523,7 +1995,12 @@ accepted gap**, chosen for consistency and recorded here rather than discovered 
 Conversions between `string` and `bytes` preserve `secret` in either direction, the same way they
 preserve `tainted`.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/taint-propagation`](security.md#security-taint-propagation), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0066](../decisions/0066.md).</sub>
+**Declined:**
+- **A checked conversion keeps `secret` while it strips `tainted`.** It is the technically correct
+  answer, since a shape proof does not reduce confidentiality. It is held back for consistency between
+  the two axes, and is the change to make if numeric credentials are seen leaking past a conversion.
+
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/taint-propagation`](security.md#security-taint-propagation), [`expressions/conversion-keeps-qualifiers`](expressions.md#expressions-conversion-keeps-qualifiers).</sub>
 
 <a id="security-secret-sinks-refuse"></a>
 
@@ -1541,7 +2018,24 @@ credential is still a leaked credential, just HTML-safe.
 
 "Terminal" understates the reach, which is the argument for the row: a scheduled script, a job worker,
 a test method and a spawned isolate all write through that sink, so it covers a CI log, a job log and
-a test report — which is where a credential in practice leaks.
+a test report — which is where a credential in practice leaks. A terminal is the secret shown to a
+person, which is disclosure, not use; a command whose purpose is to print a token writes
+`Core\Secret::reveal()` with its reason on that one line. It also agrees with the way in:
+`Core\Cli::secret()` reads a password with terminal echo disabled
+([`tooling/a-prompt-is-a-core-member`](tooling.md#tooling-a-prompt-is-a-core-member)).
+
+The refusal costs the cheapest debugging tool there is: `echo $x` does not work for exactly the
+values hardest to reason about. A dump still shows a `secret`-typed property as a placeholder, so its
+presence is visible and its bytes are not, and `Core\Secret::reveal()` with a reason is one line when
+the bytes are what is being debugged.
+
+The log sink is the opposite default from `tainted`, which a log takes freely
+([`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink)). `Core\Log::write`'s `fields` bag is `array<string, mixed>` on
+purpose, so no parameter type can refuse a `secret` inside it; the checker reads the call site's
+written argument expressions instead. A `Throwable` message requires the plain type because a
+credential in an exception message ends up in a stack trace or an error page. The dump placeholder is
+a built-in rule keyed on the declared type, applied the same way to every class, and no class can hook
+or override it.
 
 **Three positions are deliberately not on the list**: bound database parameters, a process argv, and
 an outbound request's headers and body. A credential legitimately needs to reach a driver, a
@@ -1550,7 +2044,14 @@ purpose. This closes *accidental* exposure, not *intentional, narrow* use. An at
 one sink with no way out at all, being folded into the program's own metadata; the fix is to carry the
 name of where to read the secret from.
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../decisions/0033.md), [0024](../decisions/0024.md), [0086](../decisions/0086.md), [0088](../decisions/0088.md), [0092](../decisions/0092.md), [0028](../decisions/0028.md).</sub>
+**Declined:**
+- **A terminal refusal that depends on whether the output is a tty.** Output piped and read by a person
+  later is the common case ([`tooling/terminal-output-is-a-sink`](tooling.md#tooling-terminal-output-is-a-sink)).
+- **Letting `echo` write a `secret` for a command that prints a token.** `echo` reaches every captured
+  output ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)), which is what the refusal is for. If such commands turn
+  out to be common, the answer is a narrow, named `Core\Cli` member, never a wider `echo`.
+
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/secret-in-a-test-report`](security.md#security-secret-in-a-test-report), [`security/log-is-not-a-sink`](security.md#security-log-is-not-a-sink), [`errors/record-transformations`](errors.md#errors-record-transformations), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="security-secret-crosses-no-boundary"></a>
 
@@ -1573,7 +2074,12 @@ the intended escape — explicit, greppable, and at the one call site where the 
 this may add friction to a worker that exists specifically to isolate credential handling is a stated
 cost of keeping one copy operation rather than two.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0033](../decisions/0033.md), [0023](../decisions/0023.md), [0116](../decisions/0116.md), [0006](../decisions/0006.md).</sub>
+**Declined:**
+- **Refusing a `secret` only on the way to bytes, and letting it cross into a live worker or
+  isolate.** It splits the one graph copy into two operations with two behaviours to keep correct
+  ([`classes/two-copy-depths`](classes.md#classes-two-copy-depths)).
+
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`security/isolate-values-cross-by-copy`](security.md#security-isolate-values-cross-by-copy), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="security-secret-comparison-is-constant-time"></a>
 
@@ -1602,9 +2108,17 @@ program comparing its own session token, API key or signature with `==` sits out
 oracle, and receives no diagnostic anywhere.
 
 The cost, stated: roughly eight extra nanoseconds per comparison of two 32-byte values, invisible at
-any scale a request reaches, and the comparison cannot early-exit, which is the entire point.
+any scale a request reaches, and the comparison cannot early-exit, which is the entire point. Making
+the operator right by construction is the only version that does not depend on every future call site
+remembering.
 
-<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator). Decided in [0033](../decisions/0033.md), [0090](../decisions/0090.md), [0060](../decisions/0060.md).</sub>
+**Declined:**
+- **Refusing `==` on a `secret` and naming `Core\Hash::equals` in the diagnostic.** It is more explicit
+  at the call site, but `==` is the one equality operator for every type
+  ([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)), and comparing a credential is something programs
+  legitimately do.
+
+<sub>See also [`security/secret-qualifier`](security.md#security-secret-qualifier), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator).</sub>
 
 <a id="security-secret-in-a-test-report"></a>
 
@@ -1625,7 +2139,7 @@ Separately and always, the reporter escapes control characters in every value it
 string is not confidential and may be shown, but a fixture full of terminal escapes must not be able
 to rewrite the developer's terminal from inside a failure message.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0079](../decisions/0079.md), [0033](../decisions/0033.md), [0092](../decisions/0092.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`testing/failure-ledger`](testing.md#testing-failure-ledger), [`errors/record-transformations`](errors.md#errors-record-transformations).</sub>
 
 <a id="security-redaction-reaches-the-tools-own-renderings"></a>
 
@@ -1656,7 +2170,7 @@ dump this rule has already redacted.
 
 **Not on disk.** The dump emits no such placeholder.
 
-<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server). Decided in [0101](../decisions/0101.md), [0033](../decisions/0033.md), [0099](../decisions/0099.md), [0092](../decisions/0092.md), [0158](../decisions/0158.md).</sub>
+<sub>See also [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/record-transformations`](errors.md#errors-record-transformations), [`ide/redaction-ranges-come-from-the-server`](ide.md#ide-redaction-ranges-come-from-the-server).</sub>
 
 <a id="security-extension-manifest-only-tightens"></a>
 
@@ -1683,7 +2197,7 @@ refuses any other key, and refuses a `secret` or `tainted` written into a type
 `MethodSig` fields a `Core` row fills, and the call is checked by the code a `Core` call goes through
 (`crates/nvs-types/tests/extensions.rs`).
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi). Decided in [0055](../decisions/0055.md), [0003](../decisions/0003.md), [0088](../decisions/0088.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/extension-declares-sink-or-source`](security.md#security-extension-declares-sink-or-source), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`security/no-ffi`](security.md#security-no-ffi).</sub>
 
 <a id="security-extension-grants-are-an-intersection"></a>
 
@@ -1750,10 +2264,18 @@ number is still tainted. An extension cannot itself be a sink — it is a compon
 authority, so everything it does to the world outside travels through a `Core` member, and that member
 is classified ([`security/unclassified-parameter-refuses-tainted`](security.md#security-unclassified-parameter-refuses-tainted)).
 
+The boundary has to take part because a first-party component crosses it too. A `tainted` string from
+the request is routinely handed to the internationalization component and comes back formatted; if that
+round trip cleaned it, the standard library would itself be the bypass.
+
 **On disk.** A parameter with no declaration is `Qual::Contagious` in `nvs_types::ext_lib`
 (`tests/conformance/ext/an-extension-result-is-tainted-when-an-argument-was.nvst`).
 
-<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md), [0088](../decisions/0088.md).</sub>
+**Declined:**
+- **Stripping qualifiers at the boundary.** Nothing to design and nothing to freeze into the extension
+  ABI, but unsound rather than merely limited: passing a value through any `.nvsx` would launder it.
+
+<sub>See also [`security/taint-propagation`](security.md#security-taint-propagation), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/image-component-declares-nothing`](security.md#security-image-component-declares-nothing).</sub>
 
 <a id="security-extension-declares-sink-or-source"></a>
 
@@ -1771,11 +2293,20 @@ call site fail that would otherwise have compiled, and the second can only add a
 must then launder. The axis exists only in the manifest, for the compiler — a guest's generated
 bindings ignore both, since neither affects the wire representation.
 
+Extensions are most useful exactly where these two apply: a template engine, a query builder, an LDAP
+filter builder and a Markdown renderer are sinks, and an extension that fetches or decodes remote data
+is a source.
+
 **On disk.** A manifest's `"sink": true` parameter and `"source": true` method are both checked
 (`tests/conformance/reject/a-tainted-argument-to-an-extension-sink-does-not-compile.nvst`,
 `tests/conformance/ext/an-extension-declared-source-taints-its-result.nvst`).
 
-<sub>See also [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/extension-contagion`](security.md#security-extension-contagion), [`security/sink-predicate`](security.md#security-sink-predicate). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md).</sub>
+**Declined:**
+- **Sinks only, with no source declaration.** An extension that fetches remote data or decodes an
+  untrusted file would return plain output from plain arguments, so untrusted bytes would enter the
+  program clean.
+
+<sub>See also [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`security/extension-contagion`](security.md#security-extension-contagion), [`security/sink-predicate`](security.md#security-sink-predicate).</sub>
 
 <a id="security-extension-cannot-launder"></a>
 
@@ -1796,7 +2327,14 @@ the caller to say so out loud. The rejected option is the invisible one.
 **On disk.** A manifest key other than `sink` and `source` does not load, nor does a `tainted` written
 into a type, so no spelling reaches a parameter mark that launders (`crates/nvs-ext/tests/load.rs`).
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize). Decided in [0055](../decisions/0055.md), [0024](../decisions/0024.md), [0060](../decisions/0060.md).</sub>
+**Declined:**
+- **A signature-verified, operator-trusted extension that declares a laundering function.** It reopens
+  the false confidence [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named) closes, behind a trust gate, and it
+  breaks [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), the property that lets the analysis stand
+  without depending on signature checks being configured correctly. "The operator installed it" is a
+  much weaker guarantee than a `Core` member that names the one sink it is safe for.
+
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/assert-trusted`](security.md#security-assert-trusted), [`security/extension-manifest-only-tightens`](security.md#security-extension-manifest-only-tightens), [`core-classes/html-sanitize`](core-classes.md#core-classes-html-sanitize).</sub>
 
 <a id="security-secret-does-not-cross-an-extension"></a>
 
@@ -1821,7 +2359,13 @@ two reasons the protocol roster stays in `Core` ([`security/protocol-roster`](se
 (`tests/conformance/reject/a-secret-argument-to-an-extension-does-not-compile.nvst`), and a manifest
 declaring a `secret` return does not load (`crates/nvs-ext/tests/load.rs`).
 
-<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0055](../decisions/0055.md), [0033](../decisions/0033.md), [0060](../decisions/0060.md).</sub>
+**Declined:**
+- **A declared, capability-gated `secret` parameter**, so that protocol extensions could hold keys. It
+  is the argument serialization's refusal already answers, and the reveal already gives the escape
+  hatch with the property that matters: it is at the call site, in the application's own source, and
+  greppable.
+
+<sub>See also [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/extension-cannot-launder`](security.md#security-extension-cannot-launder), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal).</sub>
 
 <a id="security-image-component-declares-nothing"></a>
 
@@ -1843,7 +2387,7 @@ claim worth being able to check rather than an absence nobody looked at.
 **On disk.** `extensions/image/manifest.json` declares no qualifier and no capability; no test
 holds the absence yet.
 
-<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline). Decided in [0055](../decisions/0055.md), [0118](../decisions/0118.md).</sub>
+<sub>See also [`security/extension-contagion`](security.md#security-extension-contagion), [`security/capability-declaration-is-one-table`](security.md#security-capability-declaration-is-one-table), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension), [`core-classes/image-pipeline`](core-classes.md#core-classes-image-pipeline).</sub>
 
 <a id="security-one-tls-client"></a>
 
@@ -1866,7 +2410,17 @@ own. The plaintext phase of a connection is only ever the upgrade request itself
 What does not generalise is what belongs to the socket rather than to the session — the deadline and
 the peer address — so there is still one clock, on the thing that waits.
 
-<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary). Decided in [0132](../decisions/0132.md), [0067](../decisions/0067.md), [0058](../decisions/0058.md), [0180](../decisions/0180.md).</sub>
+The client's transport defaults to the plain TCP stream, so the bare type name the HTTP and mail
+clients use keeps its meaning with no second name to keep in step. Two shapes reach it: an in-band
+upgrade over the same socket (PostgreSQL's `SSLRequest`, MySQL and MariaDB's `CLIENT_SSL` flag), and
+SQL Server's handshake tunnelled inside TDS `PRELOGIN` packets, where the bytes the session produces
+are not the bytes on the socket.
+
+**Declined:**
+- **A second `rustls` session inside the database crate for TDS.** Two answers to the trust-anchor
+  question, one of which nobody would remember to update.
+
+<sub>See also [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/the-policy-lives-in-the-capability`](security.md#security-the-policy-lives-in-the-capability), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`core-classes/db-safe-connection-defaults`](core-classes.md#core-classes-db-safe-connection-defaults), [`core-classes/db-crate-boundary`](core-classes.md#core-classes-db-crate-boundary).</sub>
 
 <a id="security-tls-trust-is-relaxed-only-under-a-host-grant"></a>
 
@@ -1900,10 +2454,11 @@ a caller still cannot hand in a session — it hands in a policy value the modul
 policy is part of the pool key
 ([`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned)), so a connection opened
 under `tlsVerify: false` never serves a call that verifies. `tlsMinVersion: "1.3"` needs no grant,
-because it can only tighten. And the boot prints every relaxed grant, every start, one line per grant and
+because it can only tighten, and a value under `[http.client.tls] min_version` throws a `LogicError`
+rather than being raised silently. And the boot prints every relaxed grant, every start, one line per grant and
 host: a weakening nobody is reminded of outlives the incident it was added for.
 
-<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/a-reply-reports-its-tls-session`](http-server.md#http-server-a-reply-reports-its-tls-session). Decided in [0180](../decisions/0180.md).</sub>
+<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/capability-question-is-grant-and-scope`](security.md#security-capability-question-is-grant-and-scope), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/a-reply-reports-its-tls-session`](http-server.md#http-server-a-reply-reports-its-tls-session).</sub>
 
 <a id="security-protocol-roster"></a>
 
@@ -1916,6 +2471,12 @@ A closed roster of application-layer security protocols lives in `Core`: signed 
 shared key, and verified when another party issued it ([`security/jws-issued-subset`](security.md#security-jws-issued-subset)) — JWE
 ([`security/jwe-compact-subset`](security.md#security-jwe-compact-subset)), and detached signatures over a canonical payload. Nothing joins it
 without meeting the admission test ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
+
+Each entry is a protocol whose usual failure is a silent bug in the library, not in the application:
+a JWT verifier that accepts an unsigned token returns a valid-looking claim set, and nothing goes wrong
+until it does. Left to userland, such a protocol grows several implementations, and some of them carry
+that flaw. Novis removes the class of bug rather than documenting it. The roster is a surface of its
+own, and `Core\Crypto` stays primitives-only.
 
 They live in `Core` rather than in an extension for two reasons, and the second is structural. Token
 verification sits on the hot path of every authenticated request, so a boundary crossing per request
@@ -1931,7 +2492,19 @@ What the roster still owes is not a member but the flow around one: fetching, ca
 a key set are a package's job ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)), and every member here is
 stateless over the key it is handed.
 
-<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension). Decided in [0060](../decisions/0060.md), [0033](../decisions/0033.md), [0055](../decisions/0055.md), [0146](../decisions/0146.md), [0179](../decisions/0179.md).</sub>
+**Declined:**
+- **Nothing beyond primitives.** It is the cleanest boundary, and the one every other language drew;
+  the result there is a population of libraries with the same repeated flaw.
+- **First-party extensions.** A signing key is `secret`, and a `secret` cannot cross an extension
+  boundary, so every call would need a reveal (above).
+- **Session-adjacent entries only**, cookies and CSRF with JWT and TOTP left out. That draws the line
+  at what Novis already implements, not at where the risk is, and JWT has the worst failure history
+  of the roster.
+- **An open surface that grows as needs appear.** Without the admission test's boundary it becomes a
+  framework, and every entry is a permanent compatibility obligation
+  ([`security/protocol-admission-test`](security.md#security-protocol-admission-test)).
+
+<sub>See also [`security/protocol-admission-test`](security.md#security-protocol-admission-test), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/secret-does-not-cross-an-extension`](security.md#security-secret-does-not-cross-an-extension).</sub>
 
 <a id="security-protocol-admission-test"></a>
 
@@ -1955,7 +2528,7 @@ makes it a decision rather than a negotiation.
 
 **Not on disk.** Nothing enforces the test; it governs what a future member may be.
 
-<sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key). Decided in [0060](../decisions/0060.md).</sub>
+<sub>See also [`security/protocol-roster`](security.md#security-protocol-roster), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key).</sub>
 
 <a id="security-algorithm-comes-from-the-key"></a>
 
@@ -1975,7 +2548,7 @@ The same shape runs through the roster: a key of the wrong kind is a verdict on 
 value that is not a key at all is a bug in the program, and the two are reported differently
 ([`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time)).
 
-<sub>See also [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md).</sub>
+<sub>See also [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time), [`security/protocol-roster`](security.md#security-protocol-roster).</sub>
 
 <a id="security-jwt-expiry-is-mandatory"></a>
 
@@ -1995,7 +2568,7 @@ answer to a different question and is why the two are not one rule.
 Expiry being unrepresentably absent is what makes a leaked token bounded rather than permanent, which
 is the failure the historical implementations kept shipping ([`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key)).
 
-<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time). Decided in [0060](../decisions/0060.md), [0146](../decisions/0146.md).</sub>
+<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster), [`security/verification-throws-and-compares-in-constant-time`](security.md#security-verification-throws-and-compares-in-constant-time).</sub>
 
 <a id="security-verification-throws-and-compares-in-constant-time"></a>
 
@@ -2016,7 +2589,7 @@ credentials, the operator is right by construction anyway
 A refusal says one sentence and the same sentence for every forgery, so the failure carries no oracle
 about which part of the token was wrong.
 
-<sub>See also [`security/secret-comparison-is-constant-time`](security.md#security-secret-comparison-is-constant-time), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md), [0033](../decisions/0033.md), [0056](../decisions/0056.md).</sub>
+<sub>See also [`security/secret-comparison-is-constant-time`](security.md#security-secret-comparison-is-constant-time), [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/protocol-roster`](security.md#security-protocol-roster).</sub>
 
 <a id="security-verification-does-not-launder"></a>
 
@@ -2034,7 +2607,7 @@ own authenticated encryption unchanged, and they come back **unqualified** — s
 authenticated operation over a value that was already plain when it went in. The asymmetry between the
 two is the rule, not an inconsistency: one is a value we had, the other is a value we were handed.
 
-<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/protocol-roster`](security.md#security-protocol-roster). Decided in [0060](../decisions/0060.md), [0024](../decisions/0024.md).</sub>
+<sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/tainted-sources`](security.md#security-tainted-sources), [`security/protocol-roster`](security.md#security-protocol-roster).</sub>
 
 <a id="security-jwe-compact-subset"></a>
 
@@ -2076,7 +2649,18 @@ Every refusal is one `RuntimeError` with one sentence. Decrypt's key ring is tri
 a ring holding a password key holds exactly one key, because every try costs a full derivation and an
 attacker choosing the ring's length is the iteration ceiling defeated one layer up.
 
-<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jws-issued-subset`](security.md#security-jws-issued-subset), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound). Decided in [0179](../decisions/0179.md).</sub>
+- **Memory:** per call, the token's bytes, one derived key and one output buffer charged to the
+  request's budget. A `Jwe\Key` holds its material for as long as the program holds it, and nothing is
+  held between calls.
+
+**Declined:**
+- **One union parameter for the key** (`secret bytes|Crypto\PublicKey|secret string`). A union carries
+  no classification for `tainted` arguments, so it would refuse every password, and it would leave the
+  algorithm to whichever arm the argument matched (above).
+- **RSA-OAEP and RSA1_5 key management, and the `A*CBC-HS*` content encryptions.**
+  [`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier) keeps RSA encryption and CBC off the roster.
+
+<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jws-issued-subset`](security.md#security-jws-issued-subset), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier), [`core-classes/decompression-bound`](core-classes.md#core-classes-decompression-bound).</sub>
 
 <a id="security-jws-issued-subset"></a>
 
@@ -2108,8 +2692,10 @@ anything, the key having already decided the algorithm. The token is length-capp
 
 **The clock and the claims are reached only under a signature that held.** `exp` is required and `nbf` is
 checked when present, both under a `leeway` that is `60s` by default and a `LogicError` when negative or
-above `5m`. `iss` equals the issuer asked for; `aud` is the audience asked for or a list holding it, and
-a list of more than one requires `azp` equal to that audience. A `nonce` asked for is compared in
+above `5m`, because a leeway large enough to matter is an expiry policy the caller did not mean to
+write. `iss` equals the issuer asked for; `aud` is the audience asked for or a list holding it, and
+a list of more than one requires `azp` equal to that audience, which is OpenID Connect's own rule and
+stops a token minted for another client being replayed at this one. A `nonce` asked for is compared in
 constant time and an absent one is refused; `typ` is compared case-insensitively with any `application/`
 prefix removed; `maxAge` requires an `auth_time` no older than `maxAge + leeway`.
 
@@ -2134,9 +2720,27 @@ are a flow and therefore a package, not `Core` ([`security/protocol-admission-te
 
 **Structured claims are signed only under a key pair**, by a member whose key parameter is a
 `Crypto\KeyPair` alone, so a token this program signs under a shared key still carries only what
-`Jwt::verify` reads back.
+`Jwt::verify` reads back. `signObject` is a second member rather than a union arm on `sign` because a
+shape may not be a union member and the only union that admits both a shape and an object also admits
+an `int`. The split keeps `sign`'s `array<string>` claims typed, and it makes structured claims under a
+shared key a type mismatch the compiler reports rather than a runtime `LogicError`. Both members write
+their header canonically, sorted with no whitespace, so an RS256 or EdDSA token is reproducible byte for
+byte and the frozen vector set can hold it. `embedKey` writes the pair's public half as RFC 7638's JWK
+under `jwk`, which is what a DPoP proof carries.
 
-<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/derived-codec-qualifiers`](security.md#security-derived-codec-qualifiers), [`security/jwe-compact-subset`](security.md#security-jwe-compact-subset). Decided in [0179](../decisions/0179.md).</sub>
+- **Memory:** a `Jwt\KeySet` holds at most 16 public keys for as long as the program holds it, and a
+  verification costs at most one signature check. Nothing is held between calls.
+
+**Declined:**
+- **Trying every key in a `Jwt\KeySet`.** It would let a token with no `kid` verify against a large set,
+  and it makes verification cost linear in a number the token's sender influences. A single-key set for
+  a token with no `kid` gives the same guarantee without the loop.
+- **The JWS JSON serialization, and a detached or unencoded payload.** `b64` is refused in a header for
+  that reason, and compact serialization is the one form read.
+- **JWE-encrypted ID tokens.** They are rare and opt-in at every provider, and they need RSA-OAEP
+  ([`core-classes/crypto-interop-tier`](core-classes.md#core-classes-crypto-interop-tier)).
+
+<sub>See also [`security/algorithm-comes-from-the-key`](security.md#security-algorithm-comes-from-the-key), [`security/jwt-expiry-is-mandatory`](security.md#security-jwt-expiry-is-mandatory), [`security/verification-does-not-launder`](security.md#security-verification-does-not-launder), [`security/derived-codec-qualifiers`](security.md#security-derived-codec-qualifiers), [`security/jwe-compact-subset`](security.md#security-jwe-compact-subset).</sub>
 
 <a id="security-csrf-is-on-by-default"></a>
 
@@ -2168,11 +2772,14 @@ by a bearer token — says so **in its own declaration**, per route, in the attr
 carries: never a group and never a configuration key. Writing it on the route is what keeps the
 exemption reviewable next to the handler it exempts.
 
-Enforcing only when a session cookie is present was rejected within this rule. It sounds tighter,
-since forgery can only target cookie-authenticated requests, but it makes protection depend on what
-the client sent rather than on what the code says, which is harder to reason about and harder to test.
+**Declined:**
+- **Enforcing only when a session cookie is present.** It sounds tighter, since forgery can only
+  target cookie-authenticated requests, but it makes protection depend on what the client sent rather
+  than on what the code says, which is harder to reason about and harder to test.
+- **Tokens available, and enforcement left to the program.** An unprotected state-changing route would
+  look the same as a protected one at compile time and at run time.
 
-<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0060](../decisions/0060.md), [0074](../decisions/0074.md).</sub>
+<sub>See also [`security/access-is-checked-for-presence-not-meaning`](security.md#security-access-is-checked-for-presence-not-meaning), [`security/protocol-roster`](security.md#security-protocol-roster), [`attributes/access-payload`](attributes.md#attributes-access-payload).</sub>
 
 <a id="security-access-is-checked-for-presence-not-meaning"></a>
 
@@ -2205,12 +2812,18 @@ that it was *honoured*.** An application that hand-rolls dispatch and never read
 no enforcement from anyone. Closing that would require recognising a dispatch site, which is an
 opinion the route table refuses to hold.
 
+Object-level authorisation is outside it too. Most privilege escalation is a request for a row that
+belongs to another user, and no language-level mechanism answers that, because the check needs the
+row. The handler that loads the row makes that check.
+
 **Declined:**
 - **The decision readable only through `Core\Attributes::get` on the handler.** That call names the
   method, so the check is written once per `switch` arm. An arm that forgets it is an unguarded route,
   and nothing reports the omission.
+- **A compile error where an access decision is never read.** The compiler would have to recognise a
+  dispatch site, and it cannot follow a dispatch table a program builds from data.
 
-<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0096](../decisions/0096.md), [0102](../decisions/0102.md), [0077](../decisions/0077.md), [0082](../decisions/0082.md), [0255](../decisions/0255.md).</sub>
+<sub>See also [`attributes/access-is-a-required-sibling`](attributes.md#attributes-access-is-a-required-sibling), [`attributes/access-payload`](attributes.md#attributes-access-payload), [`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default), [`security/route-capture-is-laundered-by-its-type`](security.md#security-route-capture-is-laundered-by-its-type). Decided in [0255](../decisions/0255.md).</sub>
 
 <a id="security-bidi-predicate"></a>
 
@@ -2222,9 +2835,24 @@ Nine code points open or close a directional scope: four embedding and override 
 terminator, and three isolate forms closed by another. Two more are marks rather than scopes and are
 **not** covered, because they open nothing and therefore cannot be unterminated.
 
+| Code points | Role | Closed by |
+|---|---|---|
+| U+202A `LRE`, U+202B `RLE`, U+202D `LRO`, U+202E `RLO` | embedding and override, the legacy forms every published exploit uses | U+202C `PDF` |
+| U+2066 `LRI`, U+2067 `RLI`, U+2068 `FSI` | isolate, the forms Unicode recommends | U+2069 `PDI` |
+| U+200E `LRM`, U+200F `RLM` | mark: changes one character's resolved direction and opens no scope | *not covered* |
+
 **A span is rejected when it ends with a scope still open.** Two independent counters, one for
 embeddings and overrides and one for isolates: an opener increments, the matching terminator
-decrements with a floor of zero, and both must be zero at the end of the span.
+decrements with a floor of zero, and both must be zero at the end of the span. A stray terminator
+with no opener closes nothing and opens nothing, so it is accepted.
+
+The attack is Trojan Source: text that renders in an order its bytes do not have, so a reviewer
+approves one program and the compiler builds another. Code review is the control being defeated, and
+the published exploits live in comments and string literals. Identifiers are ASCII-only, which
+closes homoglyph and bidi identifiers structurally; what is left is comments, string literals,
+inline-HTML text and runtime data, and the condition is the same in all four. The line is drawn at
+*unterminated*, not at *present*, the line other compilers draw too, because balanced controls are
+what legitimate Arabic, Hebrew and mixed-direction text uses.
 
 This is deliberately simpler than the full bidirectional algorithm, whose directional status stack has
 interactions the counters flatten. That is correct here because the question is not *how does this
@@ -2233,7 +2861,14 @@ answer soundly. The simplification can only over-approximate towards rejecting, 
 direction. It costs nothing measurable: two counters carried through a walk that happens anyway, no
 allocation and no table lookup.
 
-<sub>See also [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`security/bidi-scope-is-the-whole-target`](security.md#security-bidi-scope-is-the-whole-target), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0087](../decisions/0087.md), [0029](../decisions/0029.md).</sub>
+**Declined:**
+- **Rejecting the eleven code points outright, terminated or not.** It breaks legitimate
+  mixed-direction literals: an Arabic message interpolating a Latin name needs an isolate to render
+  correctly. It also pushes developers to build such strings by concatenation to get past the check.
+- **The full bidirectional algorithm.** The question is whether a scope is left open, not how the
+  span renders ([`security/bidi-scope-is-the-whole-target`](security.md#security-bidi-scope-is-the-whole-target)).
+
+<sub>See also [`security/bidi-boundaries`](security.md#security-bidi-boundaries), [`security/bidi-scope-is-the-whole-target`](security.md#security-bidi-scope-is-the-whole-target), [`errors/record-transformations`](errors.md#errors-record-transformations).</sub>
 
 <a id="security-bidi-boundaries"></a>
 
@@ -2245,8 +2880,12 @@ The predicate has one implementation and several callers. **The lexer is an erro
 string literal, a comment, or an inline-HTML run — and additionally each line inside a multi-line one,
 so a heredoc cannot hide a scope across its lines. A doc comment is that same span and reuses that
 same check rather than growing a second one, so the tools that render one emit text the lexer has
-already accepted. **The sinks substitute**: terminal output and the HTML escape each replace an
-unmatched control with a visible replacement character.
+already accepted. **The sinks substitute**: terminal output, whose span is one `echo` operand or one
+`Core\Cli::write` call, and `Core\Html::escape`, whose span is one call, each replace an unmatched
+control with `�` (U+FFFD). The diagnostic record applies the same predicate once, when a record is
+built, so a log line, a dump and a stack trace carry the same answer into every rendering
+([`errors/record-transformations`](errors.md#errors-record-transformations)). Deciding the rule separately at each caller is how one rule
+acquires several slightly different definitions, so a second copy of the predicate is a bug.
 
 The asymmetry is deliberate. Source is written by a developer who can fix it, and a failed build names
 the file and line; runtime data arrives from outside, where refusing to print it would turn a display
@@ -2258,7 +2897,17 @@ a shorter string.
 exist, and an attribute that switched off a security check would be the first exception this project
 grants.
 
-<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`errors/record-transformations`](errors.md#errors-record-transformations). Decided in [0087](../decisions/0087.md), [0086](../decisions/0086.md), [0024](../decisions/0024.md), [0137](../decisions/0137.md).</sub>
+**Declined:**
+- **A warning rather than an error at the lexer.** A warning nobody fails a build on is not a
+  control, and the project has no suppression story for spelling rules
+  ([`core-api/identifier-casing`](core-api.md#core-api-identifier-casing)).
+- **Handling it only in `nvs fmt`.** The formatter is never wired into `nvs check`
+  ([`tooling/fmt-is-one-canonical-style`](tooling.md#tooling-fmt-is-one-canonical-style)), so a formatter-only rule is one an attacker's change
+  simply does not run.
+- **Handling it only at the sinks, not in source.** That inverts the severity: the source case is the
+  one with a working exploit against code review, and the runtime cases are display deception.
+
+<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`errors/record-transformations`](errors.md#errors-record-transformations).</sub>
 
 <a id="security-bidi-scope-is-the-whole-target"></a>
 
@@ -2269,7 +2918,8 @@ grants.
 Three neighbouring hazards are deliberately outside the check, and saying so is what stops a future
 session from adding a fourth mechanism.
 
-**Zero-width and invisible characters** are not targeted: the false-positive cost is real — one is
+**Zero-width and invisible characters** (U+200B `ZWSP`, U+200C `ZWNJ`, U+200D `ZWJ`, U+2060 `WJ`,
+U+FEFF) are not targeted: the false-positive cost is real — one is
 *required* in Persian, another in Indic scripts and in every multi-codepoint emoji sequence — and with
 identifiers ASCII-only they can no longer make two names look alike. They can pad a string, which is a
 deception with no mechanism behind it. **Homoglyphs** are closed structurally by the ASCII identifier
@@ -2281,7 +2931,7 @@ identifiers by construction, everything else by the predicate. One cost is accep
 editor or diff viewer that does not itself neutralize these controls still misrenders a file *before*
 the compiler sees it, so the check protects the merge and not the reading.
 
-<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/bidi-boundaries`](security.md#security-bidi-boundaries). Decided in [0087](../decisions/0087.md), [0029](../decisions/0029.md).</sub>
+<sub>See also [`security/bidi-predicate`](security.md#security-bidi-predicate), [`security/bidi-boundaries`](security.md#security-bidi-boundaries).</sub>
 
 <a id="security-hash-writes-argon2id-only"></a>
 
@@ -2302,7 +2952,11 @@ written by somebody else.
 The write-side parameters and their reasons live with the implementation rather than being spelled at
 a call site, so raising them is one change rather than a sweep.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker). Decided in [0129](../decisions/0129.md).</sub>
+**Declined:**
+- **An algorithm argument, or a bcrypt write path.** Either reopens the copied-call-site problem the
+  class exists to close, and no new hash should ever be bcrypt.
+
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker).</sub>
 
 <a id="security-bcrypt-read-roster"></a>
 
@@ -2311,18 +2965,35 @@ a call site, so raising them is one change rather than a sweep.
 `rule:security/bcrypt-read-roster`
 
 Verification accepts exactly two stored shapes: the modern hash this library writes, and a bcrypt hash
-under three prefixes — one algorithm under three tags, verified identically. **The roster grows only
-by amending this rule, never by accepting what a parser happens to read.**
+under the `$2y$`, `$2a$` or `$2b$` prefix — one algorithm under three tags, verified identically. **The
+roster grows only by amending this rule, never by accepting what a parser happens to read.**
 
-One further prefix is refused: it exists to be bug-compatible with an implementation's
-sign-extension overflow, and verifying it means reimplementing the bug.
+`$2x$` is refused: it exists to be bug-compatible with `crypt_blowfish`'s sign-extension overflow, and
+verifying it means reimplementing the bug.
+
+bcrypt is on the roster because it is what a real population's column holds. PHP's `PASSWORD_DEFAULT`
+has written bcrypt since `password_hash` appeared, and Argon2 never became the default, so the user
+table of almost every migrating application is a bcrypt column. Without a read path that population
+would catch the unreadable-hash throw around every verification, which launders the storage-bug signal
+the throw exists to raise ([`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws)), or build a dual-column
+scheme by hand.
 
 This is what lets an existing user table, hashed by another runtime, verify on day one and rewrite itself one
-successful login at a time ([`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker)). What it spends: a few
-kilobytes transiently per verification of a legacy row, on the calling task — bounded by in-flight
-logins, and shrinking as the table converges.
+successful login at a time ([`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker)). The reader is a pure-Rust
+bcrypt crate with a constant-time comparison of the digest.
 
-<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws). Decided in [0129](../decisions/0129.md).</sub>
+- **Memory:** about 4 KiB, the eksblowfish key schedule, held transiently per verification of a legacy
+  row on the calling task. It is bounded by in-flight logins, and shrinks as the table converges.
+
+**Declined:**
+- **Reading every algorithm a verifier library can read.** Each entry is a parser, an attack surface and
+  a promise kept forever, and two shapes cover the migrating population. A third shape is added the way
+  bcrypt was: by being what a real population's column holds.
+- **An offline tool that converts the column.** A stored hash is not invertible, so only a presented
+  password can be rehashed, and the login-time loop is the only migration path.
+- **A bcrypt write path.** No new hash should ever be bcrypt ([`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only)).
+
+<sub>See also [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws).</sub>
 
 <a id="security-needs-rehash-answers-weaker"></a>
 
@@ -2336,14 +3007,15 @@ always answers `true`.
 
 With the read roster that completes a migration with no flag, no tool and no second code path:
 verification proves the password, this member says the row has fallen behind, hashing rewrites it, and
-the legacy column converges to empty. It reads a legacy hash rather than throwing at it, which is the
+the legacy column converges to empty. A stored hash is not invertible, so a presented password at
+login is the only point where a row can be rewritten, and this loop is the migration. It reads a legacy hash rather than throwing at it, which is the
 one behaviour this member owes the roster.
 
 A check that compares the stored parameters for difference answers `true` when a deployment
 *lowers* its cost as readily as when it raises it. Measuring weakness rather than difference is the
 direction that never rewrites a strong row into a weaker one.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only). Decided in [0129](../decisions/0129.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/hash-writes-argon2id-only`](security.md#security-hash-writes-argon2id-only).</sub>
 
 <a id="security-bcrypt-cost-ceiling"></a>
 
@@ -2355,15 +3027,15 @@ A stored bcrypt hash carries its own cost, and the cost is the base-2 logarithm 
 CPU-time lever one `UPDATE` away from anyone who can write the table. Verification refuses a stored
 cost above **17** before doing any work, as an ordinary throw.
 
-Seventeen is far above what real deployments write and far below the ceiling's minutes of CPU per
-verification, so it costs no real table anything and closes the denial of service. Refusing *before*
+Seventeen is far above the 10 to 13 real deployments write and far below the minutes of CPU per
+verification that the format's maximum of 31 costs, so it costs no real table anything and closes the denial of service. Refusing *before*
 any work is what makes it a defence rather than a report: a check made afterwards has already spent
 the CPU the attacker was buying.
 
 The same shape guards the modern algorithm's memory parameter, which is the reason this is a ceiling
 on a stored value rather than a validation of a written one.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder). Decided in [0129](../decisions/0129.md), [0020](../decisions/0020.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/an-unreadable-stored-hash-throws`](security.md#security-an-unreadable-stored-hash-throws), [`errors/escalation-ladder`](errors.md#errors-escalation-ladder).</sub>
 
 <a id="security-bcrypt-truncation"></a>
 
@@ -2380,7 +3052,7 @@ password longer than the limit has a suffix that never mattered, and two passwor
 72 bytes both verify. That is one more reason every such row is marked for rehash under an algorithm
 without the edge ([`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker)).
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker). Decided in [0129](../decisions/0129.md).</sub>
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/needs-rehash-answers-weaker`](security.md#security-needs-rehash-answers-weaker).</sub>
 
 <a id="security-an-unreadable-stored-hash-throws"></a>
 
@@ -2400,7 +3072,11 @@ notices. A throw wakes an operator ([`errors/ambiguous-input-refused`](errors.md
 The roster having two entries instead of one does not change that property; it moves where the
 boundary sits, and this rule is the boundary's home.
 
-<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused). Decided in [0129](../decisions/0129.md), [0033](../decisions/0033.md).</sub>
+**Declined:**
+- **Answering `false` for an unreadable stored value, as PHP does.** It hides the storage bug behind
+  the login screen, and widening the roster gives no reason to reopen that.
+
+<sub>See also [`security/bcrypt-read-roster`](security.md#security-bcrypt-read-roster), [`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse), [`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused).</sub>
 
 <a id="security-a-session-id-the-store-did-not-issue-is-rejected"></a>
 
@@ -2419,4 +3095,4 @@ nothing, such as a signed cookie carrying the record itself, cannot answer it an
 session store ([`core-api/session-roster`](core-api.md#core-api-session-roster)). The acceptance test presents a fabricated id and
 asserts that a fresh one comes back.
 
-<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster). Decided in [0124](../decisions/0124.md), [0139](../decisions/0139.md), [0012](../decisions/0012.md).</sub>
+<sub>See also [`core-classes/session-is-started-explicitly`](core-classes.md#core-classes-session-is-started-explicitly), [`core-api/session-roster`](core-api.md#core-api-session-roster).</sub>

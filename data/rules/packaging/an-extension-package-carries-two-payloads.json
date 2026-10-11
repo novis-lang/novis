@@ -2,7 +2,6 @@
   "title": "An extension package may carry Novis source beside its `.nvsx`, under one namespace, and the component's manifest registers exactly one class",
   "status": "designed",
   "because": [
-    "0081",
     "0246"
   ],
   "seeAlso": [

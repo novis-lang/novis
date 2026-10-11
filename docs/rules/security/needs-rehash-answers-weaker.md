@@ -4,7 +4,8 @@ always answers `true`.
 
 With the read roster that completes a migration with no flag, no tool and no second code path:
 verification proves the password, this member says the row has fallen behind, hashing rewrites it, and
-the legacy column converges to empty. It reads a legacy hash rather than throwing at it, which is the
+the legacy column converges to empty. A stored hash is not invertible, so a presented password at
+login is the only point where a row can be rewritten, and this loop is the migration. It reads a legacy hash rather than throwing at it, which is the
 one behaviour this member owes the roster.
 
 A check that compares the stored parameters for difference answers `true` when a deployment

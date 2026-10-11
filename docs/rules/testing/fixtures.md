@@ -12,3 +12,8 @@ one that is not `public`, one returning `void`, and a method carrying both this 
 Only a fixture that a test which will actually run asks for is built — a skipped test's fixture is
 setup nobody wanted. Resolution runs once the whole class is collected rather than as the walk
 descends, because a test may be written above the fixture that supplies it.
+
+- **Memory:** a class's built fixtures are held from before its first test to after its last, and
+  each test that declares one holds its own copy of it, made with the one graph copy `spawn` uses,
+  for that test's life. A suite whose copies come to dominate its cost is answered by a copy-on-write
+  path for immutable fixtures, measured first, never by sharing an isolate between tests.

@@ -1,4 +1,4 @@
-//! [ADR 0006](/docs/decisions/0006.md) § *Decision*'s
+//! `rule:security/isolate-shares-nothing`'s
 //! operand rule: an isolate's entry is a path or a static method, decided
 //! syntactically at the spawn site, and the spellings that are neither are
 //! refused where they are written.

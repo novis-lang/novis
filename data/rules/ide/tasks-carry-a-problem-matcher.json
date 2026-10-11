@@ -1,9 +1,7 @@
 {
   "title": "`nvs run` and `nvs test` are Tasks with a `problemMatcher` over the renderer's own format, so a diagnostic is a Problems-panel entry",
   "status": "shipped",
-  "because": [
-    "0099"
-  ],
+  "because": [],
   "seeAlso": [
     "errors/renderings",
     "ide/contributions-are-frozen-and-only-ever-added"

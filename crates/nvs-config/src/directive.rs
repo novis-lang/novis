@@ -4,16 +4,17 @@
 //! A [`Directive`] carries its dotted [`key`](Directive::key), the changeability class
 //! `rule:config/three-changeability-classes` defines, and the reloadability field `rule:config/reloadability-is-its-own-field` adds
 //! **orthogonal** to it, and nothing else. The two answer different questions — [`Class`] is *who
-//! may set it*, [`Apply`] is *what applying a change requires* — and the reason 0078 gives
-//! reloadability a field of its own is that `System` would otherwise carry both meanings at once.
+//! may set it*, [`Apply`] is *what applying a change requires* — and reloadability has a field of
+//! its own because `System` would otherwise carry both meanings at once.
 //! A registry that derived either field from the other would re-create that conflation while still
 //! typechecking, so `tests/directives.rs` holds a census of the pairs and fails if it ever does.
 //!
 //! **A row covers the keys beneath it.** [`lookup`] is longest-prefix on dot boundaries, so the one
 //! `limits` row answers for `limits.memory` and every other key in that block, while the more
 //! specific `limits.hard` row answers for `limits.hard.memory`. That is how the ADRs state the
-//! classes in the first place — "every `[[schedule]]` key" is `System` (0005), `[server] listen`
-//! is `Boot` (0219 § 6) — so the registry holds one row per *stated* rule rather than a row per key invented
+//! classes in the first place — "every `[[schedule]]` key" is `System`
+//! (`rule:config/every-schedule-key-is-system`), `[server] listen`
+//! is `Boot` (`rule:config/reloadability-is-its-own-field`) — so the registry holds one row per *stated* rule rather than a row per key invented
 //! to fill the table out. It is therefore **not** the list of legal keys: refusing an unknown key is
 //! `serde`'s `deny_unknown_fields` over the typed tree, which is `rule:config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`'s.
 //!
@@ -194,7 +195,7 @@ pub const DIRECTIVES: &[Directive] = &[
     Directive { key: "log.keep", class: Class::System, apply: Apply::Reload },
     // `[cache]`'s three tiers, one row each. The artifact cache's directory is written
     // `opcache.file_cache_dir` further down: no `[cache]` key is an artifact directory at all
-    // (`docs/decisions/0175.md`). The only `Boot` rows are `[server]`'s, written with its block.
+    // (`rule:config/opcache-file-cache-directives-are-system`). The only `Boot` rows are `[server]`'s, written with its block.
     // `rule:core-api/two-cache-tiers`'s shared tier is `System` because where a fleet's coherent state lives is not a
     // decision a request may make for itself. `Reload` because a request dials the store its own
     // snapshot names, and the schedule ticker opens its fleet lease again when the block moves: the
@@ -223,8 +224,8 @@ pub const DIRECTIVES: &[Directive] = &[
     // the component's caller reads it from the snapshot its request cloned. The row names the key
     // and not the block, so a second key in `[image]` has no row until a rule argues one.
     Directive { key: "image.max_pixels", class: Class::System, apply: Apply::Reload },
-    // `rule:core-classes/temporary-dir-sweep`. `System` because § 5 gives the key to the operator alone — a request that could
-    // set it would be exempting its own files from cleanup, which is the hoarding that section
+    // `rule:core-classes/temporary-dir-sweep`. `System` because that rule gives the key to the operator alone — a request that could
+    // set it would be exempting its own files from cleanup, which is the hoarding the rule
     // refuses — and `Reload` because it is read by the next script that ends and applying it
     // re-creates nothing, which is what lets it be flipped on around one problematic request.
     Directive { key: "debug.keep_temporary", class: Class::System, apply: Apply::Reload },

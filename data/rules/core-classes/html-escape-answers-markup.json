@@ -1,11 +1,7 @@
 {
   "title": "`Core\\Html::escape` answers a `Markup`, so the eager-escape habit stops compiling",
   "status": "shipped",
-  "because": [
-    "0133",
-    "0024",
-    "0087"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/html-auto-escape",
     "core-classes/html-to-source",

@@ -1,11 +1,7 @@
 {
   "title": "`run` waits by suspending the coroutine, and hands back the exit code with both captures as `bytes`",
   "status": "shipped",
-  "because": [
-    "0044",
-    "0009",
-    "0005"
-  ],
+  "because": [],
   "seeAlso": [
     "core-classes/process-is-argv-only",
     "core-classes/process-options",

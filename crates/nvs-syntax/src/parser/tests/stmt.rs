@@ -645,8 +645,9 @@ fn destructure_with_string_keys() {
     assert!(key.is_some());
 }
 
-/// ADR 0050: `list(...)` is diagnosed naming `[...]`, and never reaches
-/// the AST as a live `StmtKind::Destructure` the way it used to.
+/// `rule:expressions/bracket-destructuring`: `list(...)` is diagnosed
+/// naming `[...]`, and never reaches the AST as a live
+/// `StmtKind::Destructure`.
 #[test]
 fn list_is_diagnosed_naming_bracket_destructuring() {
     for src in [

@@ -16,7 +16,7 @@ export interface CoreOption {
   type: string
 }
 
-/** A shape key documented by the registry (ADR 0117). */
+/** A shape key documented by the registry (`rule:core-api/reference-card`). */
 export interface CoreShapeKeyDoc {
   key: string
   type: string
@@ -30,7 +30,7 @@ export interface CoreParamDoc {
 }
 
 /**
- * Registry-carried documentation (ADR 0117): present only for members the
+ * Registry-carried documentation (`rule:core-api/reference-card`): present only for members the
  * `nvs` binary documents via `nvs meta --json`. Every field is optional; a
  * field the registry lacks falls back to the spec-derived default.
  */
@@ -65,7 +65,7 @@ export interface CoreMember {
 }
 
 /**
- * An enum's registry card (ADR 0117): its short description and, when any
+ * An enum's registry card (`rule:core-api/reference-card`): its short description and, when any
  * case is documented, one entry per spec-declared case in spec order with the
  * registry's description or '' for a case not written yet.
  */

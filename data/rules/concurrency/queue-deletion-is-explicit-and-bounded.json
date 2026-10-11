@@ -1,9 +1,7 @@
 {
   "title": "A queue row is removed by `delete` or `purge`, never while claimed, and never dead-lettered or pending unless the call says so",
-  "status": "designed",
-  "because": [
-    "0153"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "concurrency/queue-four-members",
     "concurrency/cancel-is-a-race-it-can-lose",
@@ -11,5 +9,18 @@
     "concurrency/a-tag-groups-jobs-and-a-key-dedupes-them",
     "security/capability-roster-is-closed"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "examples/queue-purge.nvs",
+    "tests/conformance/core/queue-delete-answers-whether-the-row-is-gone.nvst",
+    "tests/conformance/core/queue-delete-and-cancel-agree-on-the-receipt-and-the-answer.nvst",
+    "tests/conformance/core/queue-delete-is-asked-with-the-receipt-and-not-the-queue.nvst",
+    "tests/conformance/core/queue-delete-and-purge-answer-the-same-way-on-sqlite.nvst",
+    "tests/conformance/core/queue-purge-answers-how-many-rows-it-removed.nvst",
+    "tests/conformance/core/queue-purge-is-asked-about-a-queue-and-not-a-receipt.nvst",
+    "tests/conformance/core/queue-purge-takes-its-filter-as-one-trailing-shape.nvst",
+    "tests/hostile/core/Queue/purge/01-queues-and-limits-at-the-edge.nvs",
+    "crates/nvs-config/tests/capability.rs",
+    "crates/nvs-types/tests/intrinsics.rs",
+    "crates/nvs-stdlib/tests/queue_sqlite.rs"
+  ]
 }

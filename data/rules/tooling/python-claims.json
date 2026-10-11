@@ -1,15 +1,7 @@
 {
   "title": "Against Python, Novis claims the tool that gets handed over; \"faster than Python\" and \"replaces Python\" are forbidden",
   "status": "shipped",
-  "because": [
-    "0100",
-    "0080",
-    "0044",
-    "0033",
-    "0024",
-    "0048",
-    "0052"
-  ],
+  "because": [],
   "seeAlso": [
     "programs/audience",
     "programs/three-claims",

@@ -1,13 +1,7 @@
 {
   "title": "A closed roster of application-layer security protocols lives in `Core`, and nothing joins it without meeting the test",
   "status": "shipped",
-  "because": [
-    "0060",
-    "0033",
-    "0055",
-    "0146",
-    "0179"
-  ],
+  "because": [],
   "seeAlso": [
     "security/protocol-admission-test",
     "security/algorithm-comes-from-the-key",

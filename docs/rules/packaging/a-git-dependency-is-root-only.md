@@ -17,3 +17,11 @@ A private registry is a registry: the protocol is static signed files over HTTPS
 that cannot use the public one runs or mirrors its own, and nothing above changes.
 
 **Not on disk**, with the rest of the package system.
+
+**Declined:**
+- **Git URLs only, with no registry.** Nothing to operate, but the transparency log, retraction, the
+  advisory feed and `nvs audit` all need a namespace with an authority behind it, and every URL in the
+  transitive graph would be a trust root.
+- **A registry only, with git repositories mirrored into it as named packages.** One resolution path,
+  but too rigid for private code and monorepos, and not needed: the root-only rule already confines a
+  git source to the project that chose it.

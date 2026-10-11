@@ -1192,7 +1192,8 @@ type Repin<'a> = dyn FnMut(&str, bool) -> Result<Vec<IpAddr>, Fault> + 'a;
 
 /// Runs `call` to an answer, re-pinning through `repin` at every redirect hop.
 ///
-/// The loop is the ADR's: attempts inside, hops outside, one deadline over both.
+/// The loop is `rule:http-server/one-deadline-covers-the-whole-call`'s: attempts
+/// inside, hops outside, one deadline over both.
 /// A hop past [`Call::redirects`] is not an error — the redirect *is* the
 /// answer, and a program that asked to follow none gets the `301` back rather
 /// than a throw about a reply the origin was entitled to send.
@@ -1395,7 +1396,8 @@ fn attempts(
             Attempt::Failed(why) => {
                 // A failure that arrives with the budget already gone is the
                 // budget's, not the socket's: the wait this call was allowed
-                // is what ended it, and `TimeoutError` is the class § 5 names.
+                // is what ended it, and `TimeoutError` is the class
+                // `rule:http-server/no-spelling-for-an-unbounded-wait` names.
                 if Instant::now() >= call.deadline {
                     return Err(expired(call.member));
                 }
@@ -1409,7 +1411,8 @@ fn attempts(
             }
         };
 
-        // § 6: the deadline is not extended. A backoff that would end past it
+        // The deadline is not extended (`rule:http-server/one-deadline-covers-the-whole-call`).
+        // A backoff that would end past it
         // throws now rather than sleeping through the budget and then failing.
         if Instant::now() + wait >= call.deadline {
             return Err(expired(call.member));
@@ -1576,7 +1579,8 @@ fn dialled(
     }
     // The handshake's own bound, clamped by what is left of the total: a
     // `connectTimeout` longer than the remaining deadline would be the one
-    // spelling § 5 says does not exist, arrived at by arithmetic.
+    // spelling `rule:http-server/no-spelling-for-an-unbounded-wait` says does
+    // not exist, arrived at by arithmetic.
     let budget = call
         .connect_timeout
         .min(call.deadline.saturating_duration_since(Instant::now()));
@@ -1686,7 +1690,8 @@ pub(crate) struct Upgraded {
     pub(crate) protocol: Option<String>,
 }
 
-/// An outbound WebSocket's opening handshake — [ADR 0183](/docs/decisions/0183.md) § 4.
+/// An outbound WebSocket's opening handshake —
+/// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`.
 ///
 /// **The `Call` is the value a request carries**, and its exchange half is what
 /// an upgrade is: `GET`, no body, one attempt and no hop. That is not a
@@ -2611,7 +2616,8 @@ fn redirect_of(reply: &Streamed) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// § 6's roster, and nothing else: a `400` is an answer and retrying it is a
+/// `rule:http-server/retry-is-opt-in-jittered-and-closed`'s roster, and nothing
+/// else: a `400` is an answer and retrying it is a
 /// load generator.
 fn retryable(status: i64) -> bool {
     matches!(status, 429 | 502 | 503 | 504)
@@ -2713,9 +2719,10 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     era * 146_097 + day_of_era - 719_468
 }
 
-/// § 6's full jitter: uniform in `[0, base × 2^attempt]`.
+/// Full jitter: uniform in `[0, base × 2^attempt]`.
 ///
-/// Not optional and not configurable, for the reason the ADR gives — unjittered
+/// Not optional and not configurable, for the reason
+/// `rule:http-server/retry-is-opt-in-jittered-and-closed` gives — unjittered
 /// retries from many hosts synchronise into a burst against a service that is
 /// already failing, which is the failure retrying was supposed to relieve.
 fn backoff(base: Duration, attempt: u32) -> Duration {
@@ -2724,7 +2731,8 @@ fn backoff(base: Duration, attempt: u32) -> Duration {
     Duration::from_nanos(rand::rng().random_range(0..=nanos))
 }
 
-/// § 5's expiry, as the class that section names.
+/// The deadline's expiry, as the class
+/// `rule:http-server/no-spelling-for-an-unbounded-wait` names.
 fn expired(member: &str) -> Fault {
     Fault::thrown_as(
         ThrownClass::Timeout,
@@ -4018,7 +4026,8 @@ pub(crate) mod tests {
         assert!(drawn.len() > 1, "an unjittered backoff draws one value");
     }
 
-    /// § 6: the deadline is not extended. A backoff that would end past it
+    /// The deadline is not extended
+    /// (`rule:http-server/one-deadline-covers-the-whole-call`). A backoff that would end past it
     /// throws immediately rather than sleeping through the budget first.
     #[test]
     fn a_backoff_past_the_deadline_throws_rather_than_sleeping() {
@@ -5372,7 +5381,7 @@ pub(crate) mod tests {
     /// `verified` is the member the reporting slot exists for: a pinned call and
     /// a `tlsVerify: false` one both answer `false`, while `tlsCa` — which
     /// replaces the trust set and then checks the chain and the name against it —
-    /// still answers `true` (ADR 0180 § 13).
+    /// still answers `true` (`rule:http-server/a-reply-reports-its-tls-session`).
     ///
     /// All three against an origin no configured root vouches for, so every
     /// relaxation here is load-bearing: the same call under the default policy is
@@ -5848,8 +5857,8 @@ pub(crate) mod tests {
         );
     }
 
-    /// [ADR 0183](/docs/decisions/0183.md) § 4: an outbound socket is opened
-    /// like an outbound call, so the handshake is dialled at an address the
+    /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`:
+    /// an outbound socket is opened like an outbound call, so the handshake is dialled at an address the
     /// door approved and asks for the URL's own path.
     ///
     /// Asserted on the octets the origin read rather than on what [`asked`]
@@ -5884,7 +5893,8 @@ pub(crate) mod tests {
         );
     }
 
-    /// [ADR 0183](/docs/decisions/0183.md) § 4: the headers are the call's and
+    /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`:
+    /// the headers are the call's and
     /// the offered subprotocols are the socket's, and one handshake carries
     /// both.
     ///
@@ -5933,7 +5943,8 @@ pub(crate) mod tests {
         assert_eq!(fields, 1, "the offers are one field, not one each: {asked}");
     }
 
-    /// [ADR 0183](/docs/decisions/0183.md) § 4: a `101` naming a subprotocol
+    /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`:
+    /// a `101` naming a subprotocol
     /// the call never offered is refused, and the connection it arrived on is
     /// dropped rather than handed back.
     ///
@@ -5987,7 +5998,8 @@ pub(crate) mod tests {
     }
 
     /// `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`, as
-    /// [ADR 0183](/docs/decisions/0183.md) § 4 reads it for a socket: there is
+    /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+    /// reads it for a socket: there is
     /// no spelling for following a hop here, so a `3xx` answering the
     /// handshake is the end of the call.
     ///
@@ -6024,8 +6036,9 @@ pub(crate) mod tests {
         assert_eq!(asked.len(), 1, "nothing followed the hop: {asked:?}");
     }
 
-    /// `rule:security/one-tls-client`, as [ADR 0183](/docs/decisions/0183.md)
-    /// § 4 reads it for a socket: a `wss` handshake is a `ws` handshake inside
+    /// `rule:security/one-tls-client`, as
+    /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+    /// reads it for a socket: a `wss` handshake is a `ws` handshake inside
     /// a session the process's one outbound client established, built from the
     /// policy the `Call` carries, and what it leaves is the same [`Upgraded`].
     ///
@@ -6094,8 +6107,8 @@ pub(crate) mod tests {
     }
 
     /// `rule:http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`,
-    /// as [ADR 0183](/docs/decisions/0183.md) § 4 reads it for a socket: the
-    /// operator's tunnel is the call's, so a handshake goes through `CONNECT`
+    /// as `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`
+    /// reads it for a socket: the operator's tunnel is the call's, so a handshake goes through `CONNECT`
     /// to the address the door approved and the `101` comes back over it.
     ///
     /// The bypassed half is asserted beside it, because an end that tunnelled

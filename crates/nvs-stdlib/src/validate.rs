@@ -418,8 +418,8 @@ fn family(value: &Value) -> Result<Option<u8>, Fault> {
         Some(Tag::Int) => match value.as_int() {
             Some(4) => Ok(Some(4)),
             Some(6) => Ok(Some(6)),
-            // Unreachable from source: `IP_VERSION` declares the option as ADR
-            // 0047 § 1's set of allowed values `4|6`, so any other integer is
+            // Unreachable from source: `IP_VERSION` declares the option as the set of
+            // allowed values `4|6` (`rule:types/single-value-types`), so any other integer is
             // `E0401: expected `4|6`, found `int`` at the option's own value —
             // a literal and a binding alike, since the union is checked at the
             // argument rather than folded.

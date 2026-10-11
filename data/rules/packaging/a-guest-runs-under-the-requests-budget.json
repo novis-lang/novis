@@ -2,8 +2,6 @@
   "title": "A guest runs under the request's CPU and memory caps, and a runaway guest traps rather than hanging a core",
   "status": "designed",
   "because": [
-    "0003",
-    "0020",
     "0246"
   ],
   "seeAlso": [

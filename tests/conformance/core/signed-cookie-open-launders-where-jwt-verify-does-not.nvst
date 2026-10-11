@@ -32,8 +32,8 @@ string $payload = Core\SignedCookie::open($fromHeader, $ring);
 echo $payload, "\n";
 
 // The other half, under a key of the same kind and over the same text: a token
-// this program signed a moment ago, verified by the member next to it on ADR
-// 0060 § 1's roster, hands its claims back qualified. The signature is no
+// this program signed a moment ago, verified by the member next to it on
+// `rule:security/protocol-roster`, hands its claims back qualified. The signature is no
 // weaker here — it is the same HMAC over the same key — so what the qualifier
 // tracks is where the plaintext came from, which for a claim is an issuer and
 // for a cookie payload was this program.

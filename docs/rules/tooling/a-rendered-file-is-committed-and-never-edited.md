@@ -7,4 +7,8 @@ The command that writes it has a check form that writes nothing and fails when t
 matches its sources — `bun nv render --check` for the website's pages and data, `bun nv rules --render
 --check` for the rulebook's chapters and `docs/ground-rules.md`. CI's `docs` job runs both. After a
 merge conflict in a rendered file, it is rendered again from the merged
-records, never merged by hand.
+records, never merged by hand. A rendered file shows in a diff beside the record change that caused it.
+
+**Declined:**
+- **Rendering on demand and committing nothing generated.** GitHub would show no rulebook, and a
+  reader would need Bun to read the rules.

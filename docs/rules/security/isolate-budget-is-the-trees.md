@@ -12,3 +12,14 @@ The cap attaches as **arithmetic at the allocation that asks**, not as the bound
 isolate that asks for more than its share is refused at the call that asked, with a limit report
 naming the directive, and never by a page fault at an address nobody chose
 (`rule:errors/on-limit`).
+
+- **Memory:** an isolate adds no ceiling of its own. What it holds is charged to the root, so the
+  process's worst case does not change when programs spawn isolates.
+
+**Declined:**
+- **A budget per isolate on top of its parent's.** Memory would stop being attributable to a request,
+  so this is a hole in isolation and not a trade-off.
+- **An isolate that outlives its parent.** A job that survives the response needs its own lifetime and
+  accounting rules, because nobody's budget is left to spend once the parent is gone. `afterResponse`
+  is not that case: the connection ends there and the request tree does not
+  (`rule:concurrency/after-response-outlives-the-connection`).

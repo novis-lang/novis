@@ -30,3 +30,13 @@ distinguish that from a deployment that meant it.
 A program cannot tell which word is written. There is no member, option or constant reporting it, for the
 same reason there is no per-call spelling: whether this deployment's egress is proxied is not a thing
 program code decides or branches on.
+
+**Declined:**
+- **A proxy that always resolves**, `CONNECT` with the host name every time. It gives up the pin in every
+  deployment, including the many whose proxy can dial an address.
+- **A proxy that never resolves**, `CONNECT` with the approved address every time. It cannot run in a
+  network where Novis has no DNS route outward.
+- **A default for `resolve`, with an override.** Whichever default is picked is wrong somewhere, and
+  `proxy` as the default is wrong silently.
+- **Warning once per process, at the first proxied call.** A long-lived server writes that before anyone
+  is watching and never again; the boot log is where a deployment's posture is read.

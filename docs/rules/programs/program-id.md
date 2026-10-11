@@ -6,7 +6,10 @@ function Core\Program::id(): string;
 64 characters, never truncated by the runtime, because a caller that wants eight of them can take eight
 and one that wants all 32 cannot get them back. Program order rather than sorted order: a graph whose
 units resolve in a different order is a different program, and an identity that cannot see that is not
-one.
+one. Both inputs are the two halves of the artifact cache's address
+(`rule:packaging/an-artifact-is-one-immutable-content-addressed-file`), so a program's identity is one
+combine over digests the caches already hold, and `nvs_config::cache::program_id` owns the combine
+because it owns both inputs.
 
 It is the one member of its class with a body, and that is circularity rather than preference. Folding
 it into a constant would write the id into a unit as a literal, which changes that unit's bytes, hence
@@ -16,11 +19,15 @@ member reads that string back.
 
 **Computed at program resolution and at the hot-reload pointer swap, never per call and never lazily.**
 Those are the only two moments a running host's set of units changes; a lazy first-call compute would
-put a hash of every unit digest on one unlucky request's path. It holds 32 bytes per program and one
-BLAKE3 combine per resolution (`rule:programs/memory-priority`).
+put a hash of every unit digest on one unlucky request's path, and a per-call compute on every request.
 
 Plain `string`, never `secret`: every use of the id is an echo — a cache-busting URL segment, a
 response header, the field that tells one deployment's log lines from another's — and `secret` refuses
-an echo by design. A context nobody wrote an id onto makes the member **throw**, rather than answer an
+an echo by design. The id does tell a reader that a deployment's code changed, and when; that is a
+fingerprinting caveat rather than a disclosure, since a digest reveals no source and says nothing about
+what changed, and nothing enforces it. A context nobody wrote an id onto makes the member **throw**, rather than answer an
 empty string or invent one, because callers key caches and invalidate CDNs on this value and a wrong
 identity is worse than no answer.
+
+- **Memory:** 32 bytes per program and one BLAKE3 combine per resolution, nothing per request
+  (`rule:programs/memory-priority`).

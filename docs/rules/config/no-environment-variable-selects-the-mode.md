@@ -11,3 +11,9 @@ it is that application's own variable, not Novis's mode.
 The operator's runtime switch is saving the root-owned file, which the running server notices and
 publishes as a whole new snapshot with no restart (`rule:config/the-config-is-an-immutable-snapshot`)
 — strictly more capable than editing an environment variable, and root-owned.
+
+**Declined:**
+- **An `NVS_MODE` environment variable.** It is the twelve-factor shape, with genuinely lower
+  friction on Kubernetes, where a variable in a manifest beats templating a config file. It would
+  contradict `rule:statements/no-host-populated-variables` head-on and bring back the mechanism
+  behind each incident above; a reload of the root-owned file covers the operational need.

@@ -1,10 +1,7 @@
 {
   "title": "The exit queue drains once — at a normal end, at `exit`, at an uncaught throw and at `Core\\Script::finish()` — and the report says which ending it was",
   "status": "shipped",
-  "because": [
-    "0127",
-    "0178"
-  ],
+  "because": [],
   "seeAlso": [
     "observability/script-on-exit",
     "observability/a-fatal-and-a-cancellation-run-no-exit-hook",
@@ -17,6 +14,7 @@
     "tests/conformance/core/script-exit-report-carries-the-status-the-exit-named-with-no-error-beside-it.nvst",
     "tests/conformance/core/finish-runs-every-finally-on-the-way-out.nvst",
     "tests/conformance/core/finish-is-caught-by-no-catch-arm.nvst",
-    "tests/conformance/reject/a-catch-arm-naming-the-finish-marker-is-refused.nvst"
+    "tests/conformance/reject/a-catch-arm-naming-the-finish-marker-is-refused.nvst",
+    "crates/nvs-stdlib/src/script.rs"
   ]
 }

@@ -24,8 +24,8 @@ $m->value(...$rest);
 $m->value(n: 1);
 
 // An `inout` parameter list is packed and written back at the call site,
-// which a call that learns its callee at run time cannot do — the limit ADR
-// 0043 § 4's synthesized forward already names.
+// which a call that learns its callee at run time cannot do — the limit the
+// synthesized forward of `rule:classes/delegation-by-field` already names.
 int $n = 1;
 $m->value(inout $n);
 

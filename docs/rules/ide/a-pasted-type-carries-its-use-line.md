@@ -34,3 +34,7 @@ What it spends is one analysis of the source at copy time and one of the destina
 of documents the server already holds, and nothing between the two. The two answers have no `.lspt`
 spelling — a list of name pairs and a text edit — and are held by a Rust test on the wire shapes instead
 (`rule:ide/an-lsp-answer-is-frozen-as-an-lspt-case`).
+
+**Declined:**
+- **One request at paste time that re-reads the source.** By then the source may be closed, edited or
+  in another window. The clipboard is the only place the copy-time fact survives.

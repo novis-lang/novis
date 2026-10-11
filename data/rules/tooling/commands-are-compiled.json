@@ -1,12 +1,7 @@
 {
   "title": "`#[Command]` builds the command table while compiling, and a duplicate name or an unbindable option fails the build",
   "status": "shipped",
-  "because": [
-    "0086",
-    "0077",
-    "0061",
-    "0071"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/a-parameter-is-an-argument-unless-it-is-an-option",
     "tooling/command-run-dispatches-and-help-is-generated",

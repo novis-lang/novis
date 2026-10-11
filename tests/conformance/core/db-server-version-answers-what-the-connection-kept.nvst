@@ -1,5 +1,5 @@
 --TEST--
-Spec § 18's `serverVersion()` answers what this connection's handshake already delivered: a version that is there, kept on the connection rather than derived, and the same string on every call — `rule:core-classes/db-one-api` and ADR 0187 § 2
+Spec § 18's `serverVersion()` answers what this connection's handshake already delivered: a version that is there, kept on the connection rather than derived, and the same string on every call — `rule:core-classes/db-one-api`
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::serverVersion

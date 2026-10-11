@@ -1,10 +1,7 @@
 {
   "title": "`nvs serve` runs the accept loop, the schedule ticker and the queue's workers in one process, and the drain stops all three",
-  "status": "designed",
-  "because": [
-    "0154",
-    "0230"
-  ],
+  "status": "shipped",
+  "because": [],
   "seeAlso": [
     "concurrency/who-runs-a-job-is-configuration",
     "concurrency/queued-work-is-not-scheduled-work",
@@ -13,5 +10,9 @@
     "concurrency/no-broker-and-no-driver-interface",
     "config/reloadability-is-its-own-field"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-cli/src/worker.rs",
+    "crates/nvs-cli/src/main.rs",
+    "crates/nvs-cli/tests/live_config.rs"
+  ]
 }

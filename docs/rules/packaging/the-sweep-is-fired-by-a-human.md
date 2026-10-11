@@ -17,3 +17,14 @@ green CI does not decide a change's classification.
 is a defect**: it gets a hold with a date and a reason, or it gets updated. Being behind is never a
 neutral state, because the alternative is one enormous forced migration under a security deadline.
 The cadence applies in both of `rule:packaging/the-version-contract-starts-at-0-1-0`'s regimes.
+
+Staleness compounds in one direction only. A tree one minor behind updates in an afternoon; a tree
+two years behind updates under an advisory deadline, across an engine API rewrite, with the JIT broken
+in between. Deferring a bump never makes the next one cheaper.
+
+**Declined:**
+- **Pinning everything and updating at release time.** It turns continuous small work into a forced
+  migration under a deadline, and a guard premise that broke six months ago is found six months late
+  (`rule:packaging/a-dependency-move-proves-two-things`).
+- **A dependency policy per subsystem.** The premises the guards encode are shared, and a sweep that
+  is not one procedure is run inconsistently.

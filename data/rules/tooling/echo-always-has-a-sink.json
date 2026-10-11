@@ -1,13 +1,7 @@
 {
   "title": "Every execution context binds `echo` to a sink, and the default sink is the terminal",
   "status": "shipped",
-  "because": [
-    "0088",
-    "0086",
-    "0024",
-    "0092",
-    "0177"
-  ],
+  "because": [],
   "seeAlso": [
     "tooling/terminal-output-is-a-sink",
     "tooling/the-tty-belongs-to-the-main-task",

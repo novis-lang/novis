@@ -14,3 +14,12 @@ check that proves more than a suite becomes a test before its goal is reached.
 
 The runtime state stays git-ignored: the selection store in `.cache/select.sqlite`, and looper's run
 state under `.loop/`. It is per machine, and a fresh clone owes nothing it holds.
+
+**Declined:**
+- **Keeping the live goal in the git-ignored run state.** A fresh clone has no such file, so it has no
+  live goal: the orientation and CI read nothing, and a push hook that needs the live goal refuses
+  every push.
+- **Carrying a reached goal's test checks into a floor, whole or reduced to one check per crate and
+  per case tree.** Most of them re-run what `bun nv verify` already runs, and the floor grows with
+  every goal reached. A check written for an early goal also pins that goal's view of the engine, so
+  when the engine moves on a session has to edit the record of a goal it has never seen.

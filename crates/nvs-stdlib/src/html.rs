@@ -21,7 +21,8 @@
 //! idempotent, so that second application changes the output — `&` becomes
 //! `&amp;` becomes `&amp;amp;`. Answering [`MARKUP`] is what makes the eager
 //! `htmlspecialchars` habit stop compiling instead of shipping `&amp;amp;`,
-//! and [`nvs_core_html_to_source`] is § 3's one way back to the bytes. Every
+//! and [`nvs_core_html_to_source`] is the one way back to the bytes
+//! (`rule:core-classes/html-to-source`). Every
 //! other launderer in the registry keeps its plain type, which is the same
 //! predicate answering no.
 //!
@@ -2445,10 +2446,10 @@ mod tests {
     /// rather than of this one — the claim is a set, exactly as
     /// [`html_escape_launders_for_the_html_sink_and_for_no_other`]'s is.
     ///
-    /// § 1 makes the carrier a *derived* answer: a launderer answers one when
+    /// The predicate makes the carrier a *derived* answer: a launderer answers one when
     /// its sink launders on its own **and** its transform is not idempotent,
     /// and the plain unqualified type otherwise. So the roster below is the
-    /// table in that section, transcribed, and the test asserts agreement in
+    /// rule's table, transcribed, and the test asserts agreement in
     /// both directions. The HTML sink's two are the only yes, and for one
     /// reason: that sink auto-escapes, and neither transform is idempotent —
     /// `&` → `&amp;` → `&amp;amp;` for `escape`, and a rebuilt document
@@ -2461,7 +2462,7 @@ mod tests {
     /// Two rows read wrong at a glance and neither is a counterexample.
     /// `Core\Cli\Text::plain` and `styled` answer a carrier while their sink is
     /// idempotent, because they are *constructors* for the terminal's carrier
-    /// rather than that sink's escaper — which is why § 1's table has a row per
+    /// rather than that sink's escaper — which is why the rule's table has a row per
     /// sink and not per member, and why `Core\Cli::escape` is the row that
     /// speaks for the terminal. `Core\Http::allowUrl` answers
     /// `Core\Http\Target`, which is a pinned-address capability handle and not
@@ -2470,7 +2471,7 @@ mod tests {
     /// neither auto-launders nor escapes anything.
     ///
     /// `Core\Taint::assertTrusted` is the third, and the one row that names no
-    /// sink at all: § 1's predicate still answers, because the transform is the
+    /// sink at all: the predicate still answers, because the transform is the
     /// identity and so idempotent by inspection, and a value the developer has
     /// just sworn is trusted re-entering an auto-escaping sink is the case that
     /// predicate exists to let pass. `nvs_stdlib::registry`'s `Qual` doc
@@ -2743,7 +2744,7 @@ mod tests {
     /// WHATWG parse is an entry on **this** class, and neither door carries the
     /// other's mode.
     ///
-    /// The mode half is what makes this more than a row read back. § 1 retired
+    /// The mode half is what makes this more than a row read back. The rule retires
     /// `DOMDocument`'s `loadXML`/`loadHTML` pair — one object flipping between
     /// refuse-hard and recover-always — so the claim under test is that neither
     /// `parse` has anywhere to put a flag: one parameter each, no default and no

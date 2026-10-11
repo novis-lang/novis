@@ -50,7 +50,7 @@ class Handle {
         "{diags:?}"
     );
 
-    // The same file with one attribute added: § 2's "another class that itself
+    // The same file with one attribute added: `rule:core-classes/derive-field-list`'s "another class that itself
     // has a codec", still declared second.
     let diags = check_src(
         "<?nvs
@@ -68,7 +68,7 @@ class Handle {
     );
     assert!(!diags.has_errors(), "{diags:?}");
 
-    // § 7's hand-written half is a codec too — one declared half is enough,
+    // `rule:core-classes/derive-generates-what-is-missing`'s hand-written half is a codec too — one declared half is enough,
     // since the derive generates the other.
     let diags = check_src(
         "<?nvs
@@ -104,7 +104,7 @@ class Blob {
         "{diags:?}"
     );
 
-    // The scalars, `?T` of one, and an `array<T>` of one: § 2's list, none of
+    // The scalars, `?T` of one, and an `array<T>` of one: `rule:core-classes/derive-field-list`'s list, none of
     // which this refusal may reach. A `?int` is reachable exactly when `int`
     // is, which is what makes the check ask the null-stripped type.
     let diags = check_src(
@@ -140,7 +140,7 @@ class Wide {
 
 #[test]
 fn a_class_that_hand_writes_both_codec_halves_is_refused() {
-    // § 7: the attribute generates nothing, and an attribute with no effect is
+    // `rule:core-classes/derive-generates-what-is-missing`: the attribute generates nothing, and an attribute with no effect is
     // a mistake rather than a no-op.
     let diags = check_src(
         "<?nvs
@@ -198,7 +198,7 @@ class Row {
 
 #[test]
 fn a_derive_on_a_class_with_no_declared_properties_is_refused() {
-    // § 2's field list is the declared property list, so no property is an
+    // `rule:core-classes/derive-field-list`'s field list is the declared property list, so no property is an
     // empty wire contract.
     let diags = check_src("<?nvs\n#[Core\\Json\\Derive]\nclass Marker {}\n");
     assert!(reported(&diags, code::E_DERIVE_NO_FIELDS), "{diags:?}");
@@ -264,7 +264,7 @@ fn db_derive_and_db_field_are_on_the_attribute_roster() {
     // Matched *nominally* after `nvs_hir::resolve_ref`, so the `use`d short
     // form and the qualified spelling are one attribute reached two ways —
     // and `#[Db\Field]` is read on the property under either. Neither name is
-    // a declared shape alias, which is what § 1's carve-out is for.
+    // a declared shape alias, which is what `rule:core-classes/derive-attribute`'s carve-out is for.
     let diags = check_src(
         "<?nvs
 use Core\\Db\\Derive;
@@ -286,7 +286,8 @@ class Qualified {
     );
     assert!(!diags.has_errors(), "{diags:?}");
 
-    // The refusals of §§ 2 and 7 reach the second format unchanged: a class
+    // The refusals of `rule:core-classes/derive-field-list` and
+    // `rule:core-classes/derive-generates-what-is-missing` reach the second format unchanged: a class
     // with no declared property derives an empty row mapping.
     let diags = check_src("<?nvs\n#[Core\\Db\\Derive]\nclass Marker {}\n");
     assert!(reported(&diags, code::E_DERIVE_NO_FIELDS), "{diags:?}");
@@ -296,7 +297,7 @@ class Qualified {
     let diags = check_src("<?nvs\ntype Derive = {};\n#[Derive]\nclass Marker {}\n");
     assert!(!diags.has_errors(), "{diags:?}");
 
-    // § 7 one-directionally: `Core\\Db\\Codec` declares `fromRow` alone, so a
+    // `rule:core-classes/derive-generates-what-is-missing` one-directionally: `Core\\Db\\Codec` declares `fromRow` alone, so a
     // class that writes it has left the attribute nothing to generate.
     let diags = check_src(
         "<?nvs
@@ -316,7 +317,7 @@ fn a_db_derive_field_whose_type_has_no_column_mapping_is_refused_where_declared(
     // `rule:core-classes/db-column-types`'s type map has no row for an object: a row is a flat list
     // of columns, so a nested class is refused at the property that declared
     // it even when that class carries a `#[Db\Derive]` of its own. This is
-    // where the two formats' maps first disagree — § 2 admits exactly this
+    // where the two formats' maps first disagree — `rule:core-classes/derive-field-list` admits exactly this
     // field for JSON.
     let nested = "<?nvs
 #[Core\\{0}\\Derive]
@@ -364,7 +365,7 @@ class Row {
     );
 
     // The refusal is at the declaration and not at the `queryAs<T>` that would
-    // later run, so § 3's escape hatch takes the same property off the mapping
+    // later run, so `rule:core-classes/derive-field-list`'s escape hatch takes the same property off the mapping
     // and the file compiles — with the *row* attribute, not the JSON one.
     let diags = check_src(
         "<?nvs
@@ -391,7 +392,7 @@ class Handle {
 #[test]
 fn the_json_and_db_derives_share_one_pass() {
     // One class carrying both attributes has two contracts, read off one walk
-    // of its members — § 3's two `Field` spellings are independent overrides
+    // of its members — `rule:core-classes/derive-attribute`'s two `Field` spellings are independent overrides
     // of the same property, which is why they are two attributes at all.
     let (diags, exprs) = check_src_table(
         "<?nvs
@@ -451,7 +452,7 @@ class Late {
         "{named:?}"
     );
 
-    // § 3's option roster reaches the second format too, and the message names
+    // `rule:core-classes/derive-field-list`'s option roster reaches the second format too, and the message names
     // the attribute the reader wrote.
     let diags = check_src(
         "<?nvs

@@ -1622,7 +1622,7 @@ const EXPIRY_LEN: usize = 8;
 const LIFETIME_LEN: usize = 8;
 
 /// What fraction of a lifetime the refresh-ahead window is — the last fifth,
-/// fixed in [ADR 0181](/docs/decisions/0181.md).
+/// which `rule:concurrency/a-secret-fill-runs-once-per-process` fixes.
 ///
 /// A fraction rather than a duration because the tier does not know what a
 /// lifetime means to its caller: a fifth of a minute and a fifth of a day are

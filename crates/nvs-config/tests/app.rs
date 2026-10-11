@@ -1,7 +1,7 @@
 //! `rule:config/an-application-is-its-entry-file-path` and `rule:config/every-matching-app-block-applies-least-specific-first`: an entry file belongs to every `[[app]]` block whose key covers it.
 //!
 //! Every case runs against an in-memory [`Files`] for `tests/resolve.rs`'s reason, plus one of its
-//! own: § 1's whole claim is that the comparison happens on **canonical** paths, so the cases have
+//! own: `rule:config/app-keys-are-canonicalized-before-matching`'s whole claim is that the comparison happens on **canonical** paths, so the cases have
 //! to be able to plant a symlink and a `..` and watch them fail to match. A real directory could
 //! hold the `..`, but a symlink is a privileged operation on Windows and the case would be skipped
 //! on the platform where the trust boundary is hardest — so this reader resolves both, and
@@ -24,7 +24,7 @@ fn p(path: &str) -> PathBuf {
 }
 
 /// The filesystem the cases describe: a name-to-text map with directories implied by it, plus the
-/// symlinks § 1 exists to defeat.
+/// symlinks `rule:config/app-keys-are-canonicalized-before-matching` exists to defeat.
 #[derive(Default)]
 struct Fake {
     files: BTreeMap<PathBuf, String>,
@@ -95,7 +95,7 @@ impl Files for Fake {
         self.read(path).map(String::into_bytes)
     }
 
-    /// Nothing is exposed: § 7's advisory is about a secret file and no case here has one.
+    /// Nothing is exposed: `rule:config/a-secret-file-is-checked-for-integrity-and-advised-on-exposure`'s advisory is about a secret file and no case here has one.
     fn exposure(&self, _path: &Path) -> Option<String> {
         None
     }
@@ -129,7 +129,7 @@ fn refusal(fs: &Fake, root: &str) -> Diagnostic {
 }
 
 /// The `origin` key of every block matching `entry`, in the order they were returned — one short
-/// label per block, so a case asserts the *sequence* § 2 promises rather than a field at a time.
+/// label per block, so a case asserts the *sequence* `rule:config/every-matching-app-block-applies-least-specific-first` promises rather than a field at a time.
 fn blocks_for(fs: &Fake, resolved: &Resolved, entry: &str) -> Vec<String> {
     matching(&resolved.config.app, &p(entry), fs)
         .unwrap_or_else(|err| panic!("refused: {}", err.message))
@@ -171,7 +171,7 @@ fn shop() -> Fake {
     ])
 }
 
-/// § 1's prefix test is on **path-component boundaries**, which is the difference between a
+/// `rule:config/an-application-is-its-entry-file-path`'s prefix test is on **path-component boundaries**, which is the difference between a
 /// directory and a string: `shopfront` starts with `shop` and is not inside it. Both halves are
 /// asserted together because a member that compared strings passes either one alone.
 #[test]
@@ -190,7 +190,7 @@ fn a_root_matches_on_component_boundaries_and_never_on_part_of_a_name() {
     );
 }
 
-/// § 2's ordering, asserted as the whole sequence: least-specific first, and the `entry` block
+/// `rule:config/every-matching-app-block-applies-least-specific-first`'s ordering, asserted as the whole sequence: least-specific first, and the `entry` block
 /// last of all because its path is the longest of the three that match.
 // covers: tools:config/app-per-application-blocks
 #[test]
@@ -204,7 +204,7 @@ fn every_matching_app_block_applies_least_specific_first() {
     );
 }
 
-/// § 2's last line: an entry file matched by no block gets the global configuration, which is the
+/// `rule:config/an-application-is-its-entry-file-path`: an entry file matched by no block gets the global configuration, which is the
 /// ordinary case and not a refusal.
 #[test]
 fn an_entry_matched_by_no_block_is_not_an_error() {
@@ -214,7 +214,7 @@ fn an_entry_matched_by_no_block_is_not_an_error() {
     assert!(blocks_for(&fs, &resolved, "srv/other/x.nvs").is_empty());
 }
 
-/// § 1's reason for canonicalizing, in the shape M6's acceptance names it, and both halves of it in
+/// `rule:config/app-keys-are-canonicalized-before-matching`'s reason for canonicalizing, in the shape M6's acceptance names it, and both halves of it in
 /// one case because they are one rule: a path that *reaches* an application's tree through `..` is
 /// not inside it, and neither is a symlink *planted inside* that tree — the one an attacker writes —
 /// because the name a path resolves to is what is compared. Asserted together so an implementation
@@ -240,7 +240,7 @@ fn an_entry_path_reaching_an_app_root_through_dotdot_or_a_symlink_does_not_match
     );
 }
 
-/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` applies to both of § 1's keys, and the per-block origin is what makes it possible:
+/// `rule:config/a-relative-path-resolves-against-the-file-it-is-written-in` applies to both of `rule:config/an-application-is-its-entry-file-path`'s keys, and the per-block origin is what makes it possible:
 /// two files each write a relative `root` and each resolves against **its own** directory.
 #[test]
 fn a_relative_root_resolves_against_the_file_that_wrote_it() {
@@ -269,7 +269,7 @@ fn a_relative_root_resolves_against_the_file_that_wrote_it() {
     );
 }
 
-/// § 1 gives a block one key. Both is a refusal rather than a precedence rule, because a block
+/// `rule:config/an-application-is-its-entry-file-path` gives a block one key. Both is a refusal rather than a precedence rule, because a block
 /// naming a directory *and* a file has not said which of the two it means.
 // covers: tools:config/app-per-application-blocks
 #[test]
@@ -299,7 +299,7 @@ fn a_block_naming_neither_key_is_refused() {
     assert!(refusal.message.contains("neither `root` nor `entry`"));
 }
 
-/// § 2's duplicate, caught on the **canonical** path rather than on the spelling: two blocks that
+/// `rule:config/every-matching-app-block-applies-least-specific-first`'s duplicate, caught on the **canonical** path rather than on the spelling: two blocks that
 /// reach one directory by different routes are as much a duplicate as two copies of one string,
 /// and specificity has no order to separate them with.
 #[test]
@@ -333,7 +333,7 @@ fn a_key_naming_something_that_does_not_exist_refuses_the_boot() {
     assert!(refusal.message.contains("typo"));
 }
 
-/// `rule:config/an-application-is-its-entry-file-path`'s own example, split across two files so § 2's ordering can be told apart from
+/// `rule:config/an-application-is-its-entry-file-path`'s own example, split across two files so `rule:config/every-matching-app-block-applies-least-specific-first`'s ordering can be told apart from
 /// `rule:config/later-wins-and-every-override-is-recorded`'s: the *middle* block by specificity is the *last* one the tree read.
 fn layered_shop() -> Fake {
     Fake::with(&[
@@ -355,7 +355,7 @@ fn layered_shop() -> Fake {
     ])
 }
 
-/// § 2's worked example, asserted whole: `import.nvs` gets `512M` from the `shop` block and
+/// `rule:config/every-matching-app-block-applies-least-specific-first`'s worked example, asserted whole: `import.nvs` gets `512M` from the `shop` block and
 /// `600s` from its own while inheriting everything neither states, and the `256M` the widest block
 /// wrote is gone. Asserted together because a fold that dropped the inherited `origin` and one
 /// that ignored specificity each pass on a different half.
@@ -392,7 +392,7 @@ fn every_matching_blocks_directives_layer_least_specific_first() {
     );
 }
 
-/// § 2's condition on itself: layering is `rule:config/later-wins-and-every-override-is-recorded`'s later-wins with a different order, so
+/// `rule:config/every-matching-app-block-applies-least-specific-first`'s condition on itself: layering is `rule:config/later-wins-and-every-override-is-recorded`'s later-wins with a different order, so
 /// **every override is reported the same way** — both origins, and they are the two real files.
 #[test]
 fn a_directive_one_block_takes_from_another_is_reported_with_both_origins() {
@@ -424,7 +424,7 @@ fn a_directive_one_block_takes_from_another_is_reported_with_both_origins() {
     );
 }
 
-/// An entry file no block matches folds to nothing, which is § 2's ordinary case: the global
+/// An entry file no block matches folds to nothing, which is `rule:config/an-application-is-its-entry-file-path`'s ordinary case: the global
 /// configuration, unmodified, and no override to report.
 #[test]
 fn an_entry_matched_by_no_block_layers_to_nothing() {
@@ -452,7 +452,7 @@ fn bounded(asked: &str) -> Fake {
     ])
 }
 
-/// § 3's bound, asserted on both sides: a block may widen `[app.limits]` right up to the host's
+/// `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling`'s bound, asserted on both sides: a block may widen `[app.limits]` right up to the host's
 /// `[limits.hard]`, and the first value past it is refused. A check that is off by one prints
 /// plausibly against either half alone, so the two are one case.
 #[test]
@@ -461,7 +461,7 @@ fn an_app_block_may_widen_bounded_by_the_global_ceiling() {
     assert_eq!(
         tree_of(&at_the_ceiling, "nvs.toml").config.app.len(),
         1,
-        "a block at the ceiling is exactly what § 3 lets a block widen to",
+        "a block at the ceiling is exactly what `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` lets a block widen to",
     );
 
     let past_it = bounded("[app.limits]\nmemory = \"513M\"\n");
@@ -474,7 +474,7 @@ fn an_app_block_may_widen_bounded_by_the_global_ceiling() {
     );
 }
 
-/// The `[app.limits.hard]` half: lowering an application's own ceiling is the direction § 3 exists
+/// The `[app.limits.hard]` half: lowering an application's own ceiling is the direction `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` exists
 /// to allow, and raising it above the host's is the same refusal as widening a value past it.
 #[test]
 fn a_block_lowers_its_own_ceiling_and_may_not_raise_it() {

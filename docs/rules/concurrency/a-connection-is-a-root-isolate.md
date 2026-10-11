@@ -15,3 +15,16 @@ belongs to the request tree, sees the request's heap and spends the request's re
 a connection is a root, sees only what its arguments copied in, and ends when the peer closes, a
 timeout fires or a budget is exceeded. A fatal error inside one tears down the connection and nothing
 wider (`rule:errors/escalation-ladder`), and the peer is told with a defined close code.
+
+- **Memory:** each open connection holds an arena and a task stack for as long as the peer keeps it
+  open, idle or not. Memory scales with concurrent connections and not with the request rate, so a
+  connection-heavy deployment is sized for its connections, and ten thousand idle connections cost ten
+  thousand arenas.
+
+**Declined:**
+- **A connection as a suspended request.** A request's budget, teardown and observability all assume
+  it ends, and a request held open for hours would keep its session and cookies for the life of the
+  socket, which is what ending the upgrading request prevents.
+- **A dedicated connection worker pool outside the request path.** It is a second execution model,
+  with its own scheduling, isolation and security review, bought for connection counts the audience
+  does not have.

@@ -43,3 +43,12 @@ what a refused one leaves. The undo is built from the steps that were applied an
 a registration refused because the name is taken is followed by no deregistration, which would delete
 the service that holds the name. An undo that does not finish says what is left and that `nvs service
 uninstall` removes it.
+
+**Declined:**
+- **Any subcommand hostable, with the argv passed straight through.** Every *parameter* is passable;
+  the *subcommand* is what is constrained. That constraint alone keeps `--fault-inject` and a
+  crash-looping `nvs test` out of an argv a privileged account runs at every boot.
+- **A refusal for an install that names no output destination.** Its only reason was that stderr went
+  nowhere. With stderr captured by the platform log, it would refuse nothing real. A
+  `[log] target` never answered it anyway: a refused configuration's diagnostic, a boot warning and a
+  `FATAL` go to stderr, not to `Core\Log`.

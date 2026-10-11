@@ -16,3 +16,15 @@ structured input as `array<mixed>`, a scalar payload not yet asserted to be text
 an explicit `as` before it populates a typed binding.
 
 Each rejected spelling is diagnosed by name and names the `Core` class that replaces it.
+
+A superglobal is untrusted input with no declared boundary: it is simply present, readable and writable
+from any scope. A method call on a named class is a declared, traceable entry point, so a reviewer sees
+which class, and therefore which trust boundary, each line depends on. With this rule a script learns
+anything from outside itself in one way only — a declared class member, an object property or a
+parameter — the same answer `rule:statements/storage-that-outlives-a-call` gives for state.
+
+**Declined:**
+- **The superglobals kept as read-only variables.** A read-only bare variable is still not imported
+  or declared anywhere, and it fits no row of `rule:statements/storage-that-outlives-a-call`.
+- **One class for every request and server fact.** One class for unrelated concerns is a global
+  namespace with extra syntax (`rule:classes/no-free-functions-or-constants`).

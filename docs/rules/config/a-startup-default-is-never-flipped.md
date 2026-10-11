@@ -24,3 +24,9 @@ tables, and which table a future directive belongs in is decided by its changeab
 read (`nvs_config::cache::Revalidation::from_config`), and `dispatch` and `static` by
 `nvs_config::server::switches_for`, which the mount table is built from and which a reload compares
 to decide whether a core's table is rebuilt.
+
+**Declined:**
+- **One mode table with no `System` row.** It keeps one property in one sentence, but then
+  `nvs serve --mode=development` enables neither path dispatch nor static files, and a development
+  configuration becomes a file people copy without reading. The cost accepted is that every new
+  directive has to say which table it belongs in.

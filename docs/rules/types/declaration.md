@@ -25,4 +25,26 @@ No assignment, operator or call changes it; `settype()` joins the rejected list 
 naming `as` (`rule:types/conversion`). An `inout` binding ties two names to one slot, so both sides
 declare the **same** type (`rule:statements/inout-is-the-by-reference-spelling`); an alias that widens
 or narrows is a diagnostic. There is no function-scope `static` and no global constant, so neither has
-a binding site at all (`rule:statements/no-function-static-and-no-global`).
+a binding site at all (`rule:statements/no-function-static-and-no-global`), and definite assignment
+holds with no exception: no binding is live on a call whose path never ran its initialiser.
+
+A declared type is what makes the other priorities cheap. Untrusted input cannot coerce silently into
+a wrong but valid value — `"abc"` read as row id `0` — because no binding changes type without an
+`as`. The backend emits a native instruction wherever both operand types are known, which is every
+declared binding, instead of dispatching through a tag-testing helper
+(`benches/abi-probe/tests/perf_guards.rs` holds a typed arithmetic loop to that). And there is one type
+system rather than two: no inference engine to keep in agreement with the declarations, no unknown
+type in the IR, and no boundary between checked and unchecked code except `mixed`, which is written.
+A mistake arrives as a diagnostic at its cause rather than as a wrong value far from it.
+
+The cost is that PHP source does not run unconverted. PHP has no syntax for the type of a local, a
+`foreach` binding or a destructuring target, so no PHP file satisfies this rule as it stands.
+
+**Declined:**
+- **Gradual typing, declared types checked and locals inferred.** It is two type systems to keep in
+  agreement, and an unknown type the IR would have to carry. `var` takes a local's type from its
+  initializer once, at the declaration, and the type is then fixed like any other.
+- **An omitted return type defaulting to `mixed`.** It would be a second unchecked position, reached by
+  writing nothing rather than by writing `mixed`.
+- **`var` in a `catch`, a destructuring target and the other binding sites.** A `catch` type is the
+  filter rather than an annotation, and the others have no single expression to take a type from.

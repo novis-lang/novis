@@ -14,3 +14,11 @@ A named file never overrides a written table. One that is not among the mounted 
 **The named file selects no configuration.** One publish holds the host's snapshot, with no `[[app]]` block folded, and one snapshot per entry file, folded from the blocks that match that file (`rule:config/every-matching-app-block-applies-least-specific-first`). A served request runs under the snapshot of the file it runs, and a mount whose entry no block matches runs under the global configuration. The door, and every process-wide key, read the host's. A reload builds the whole publish again, host and every mounted entry, and a row a later expansion adds is folded into the publish standing then, its `[[app]] origin` included.
 
 `nvs service install` stores `serve` with no file only where the configuration the argv names writes a mount table that mounts at least one entry on disk, and refuses it otherwise (`E0630`): a server with nothing to serve exits at once, which a service manager reports as a crash loop. A table with no `[server] root` never gets that far, since the configuration does not resolve (`rule:http-server/a-mount-table-expands-at-boot`).
+
+The two refusals of a start are one sentence on standard error and exit status 1, with no span: the command line is what is incomplete, and every line of the configuration is well formed.
+
+**Declined:**
+- **The file optional wherever the mount table expands, the implicit mount included.** A bare `nvs serve` would then run a file that neither the command line nor the configuration named, found from a root that is itself a default.
+- **Keeping the argument required and letting the installer pick a mounted entry.** The stored argv would name a file nobody chose, and the service would still stop starting when that one module is removed.
+- **Folding into one snapshot every `[[app]]` block that matches any mounted entry.** A union is a configuration no one application was written against, and a capability one block grants would reach every mount.
+- **The configuration file's own path as the entry a start with no file folds by.** An `[[app]]` block whose `root` covers the configuration's directory would match it, which reads as applying to the host and is not what the block says.

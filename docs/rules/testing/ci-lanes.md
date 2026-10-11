@@ -12,3 +12,14 @@ it — and why a fast lane can never be bought by deleting a job, since that del
 release gate in the same edit.
 
 Nothing has left the suite. What a push skips is work whose answer its own diff cannot change.
+
+The lanes spend nothing from security, latency or simplicity of the language. The dependency policy
+still gates every change that can alter the dependency set, and the sanitizer still gates every
+change to a crate that holds unsafe code. What they cost is one table to read before a job is added,
+and a job the nightly shows the push lane should have run is one entry in that table.
+
+**Declined:**
+- **A second workflow holding the heavy jobs.** It needs a second copy of the toolchain and cache
+  setup, and the release gate would be put together from two files that drift apart.
+- **Deleting the jobs a push defers.** Miri and the fuzzers are the memory-safety evidence a
+  JIT-compiled runtime has to keep producing. The question is only how often they run.

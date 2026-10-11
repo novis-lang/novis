@@ -11,3 +11,9 @@ name is the string they will add to their configuration.
 
 A predicate that would otherwise answer `false` is refused rather than answered, so an ungranted
 deployment never looks like a negative result.
+
+**Declined:**
+- **A dedicated `SecurityError` class.** It would let a program catch a denial specifically, but it
+  costs a class in the exception tree and its cross-references, and it invites `catch (SecurityError)`
+  as a way to make a policy refusal look handled. `RuntimeError` with the capability in the message is
+  enough for the program that wants to degrade.

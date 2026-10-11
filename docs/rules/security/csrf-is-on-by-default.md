@@ -22,6 +22,9 @@ by a bearer token — says so **in its own declaration**, per route, in the attr
 carries: never a group and never a configuration key. Writing it on the route is what keeps the
 exemption reviewable next to the handler it exempts.
 
-Enforcing only when a session cookie is present was rejected within this rule. It sounds tighter,
-since forgery can only target cookie-authenticated requests, but it makes protection depend on what
-the client sent rather than on what the code says, which is harder to reason about and harder to test.
+**Declined:**
+- **Enforcing only when a session cookie is present.** It sounds tighter, since forgery can only
+  target cookie-authenticated requests, but it makes protection depend on what the client sent rather
+  than on what the code says, which is harder to reason about and harder to test.
+- **Tokens available, and enforcement left to the program.** An unprotected state-changing route would
+  look the same as a protected one at compile time and at run time.

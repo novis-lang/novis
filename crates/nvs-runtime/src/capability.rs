@@ -79,7 +79,7 @@ pub fn require(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Result<()
 /// `RuntimeError`: the operator said no to something the program set out to do, and a program that
 /// degrades instead is a reasonable program. A grant that unlocks a **relaxation** —
 /// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`'s four — is a `LogicError`, which
-/// is where [ADR 0180 § *Diagnostics*](/docs/decisions/0180.md) files it: the program asked
+/// is the class for a program's own mistake: the program asked
 /// for its own guarantee to be weakened at a host nobody said it could be, and that is a mistake in
 /// the program rather than a verdict on the world.
 ///
@@ -455,7 +455,7 @@ fn unresolved(host: &str, member: &str) -> Fault {
 ///
 /// **Split out because one member asks the capability question differently and the address
 /// question identically.** `Core\Db::open`'s grant is `db.open`, whose scope is the host its
-/// settings object named ([ADR 0067 § 3](/docs/decisions/0067.md)), so asking
+/// settings object named (`rule:core-classes/db-capabilities`), so asking
 /// `net.connect` as well would demand a second grant for the same host; what § 3 does say is that
 /// an `open` target "stays subject to that policy in full", and *that* policy is this function.
 /// Calling [`pin_host`] there instead would collapse two capabilities into one, and re-implementing
@@ -1180,17 +1180,17 @@ pub fn remove_dir(ctx: &Ctx, path: &Path, member: &str) -> Result<(), Fault> {
 ///
 /// **The root is Novis's own** (`rule:core-classes/temporary-dir-sweep`): `[io] temp_root` when an operator configured one,
 /// else `tmp/` in the data folder ([`nvs_config::data`]), created private on first use.
-/// That the runtime is the only writer there is the whole safety argument for § 4's orphan sweep,
+/// That the runtime is the only writer there is the whole safety argument for `rule:core-classes/temporary-dir-orphan-sweep`'s orphan sweep,
 /// which deletes entries a dead process left behind — sweeping a shared `/tmp`, with anyone's names
 /// and anyone's symlinks in it, is the classic TOCTOU surface and is what the owned root forbids.
 ///
 /// A root that **already exists** is used as it stands and its ownership is not re-examined here.
 /// That costs nothing an entry relies on — each one is still created atomically and privately, so a
-/// root somebody else made cannot expose what a program puts inside one — but § 4's sweep is the
+/// root somebody else made cannot expose what a program puts inside one — but `rule:core-classes/temporary-dir-orphan-sweep`'s sweep is the
 /// part that leans on exclusivity, and examining the root is that slice's to own.
 ///
 /// **Every directory this hands back is recorded on the context** ([`Ctx::track_temporary_dir`]),
-/// which is what makes § 3's end-of-script sweep possible at all — the program is never asked to
+/// which is what makes `rule:core-classes/temporary-dir-sweep`'s end-of-script sweep possible at all — the program is never asked to
 /// remember, and the runtime cannot delete what it did not write down. The record is taken after the
 /// directory exists and before the caller sees the path, so there is no ordering in which a program
 /// holds a directory the sweep does not know about. That is also why this takes `&mut Ctx` where
@@ -1308,7 +1308,7 @@ fn nonce() -> u64 {
 /// context with no configuration at all, or a door outside a context — gets the default rather than
 /// a refusal, since this decides *where* and the grant still decides *whether*.
 ///
-/// **Public because § 4's doors need the same answer this one does.** The `nvs serve` boot and
+/// **Public because `rule:core-classes/temporary-dir-orphan-sweep`'s doors need the same answer this one does.** The `nvs serve` boot and
 /// `nvs tmp clean` walk the root that [`temp_dir`] created under, and a second reading of `[io]
 /// temp_root` in the CLI is how the walk and the writer come to disagree; [`crate::sweep::orphans`]
 /// takes the path this hands back. It reads a tree rather than a [`Ctx`] for the same reason: those
@@ -2072,7 +2072,7 @@ mod tests {
 
         assert!(
             made.starts_with(&root),
-            "§ 2 creates under `[io] temp_root`: {} is not under {}",
+            "`rule:core-classes/temporary-dir-sweep` creates under `[io] temp_root`: {} is not under {}",
             made.display(),
             root.display()
         );
@@ -2089,7 +2089,7 @@ mod tests {
         );
     }
 
-    /// § 2's "created private on first use": the root need not exist, and creating it is the
+    /// `rule:core-classes/temporary-dir-sweep`'s "created private on first use": the root need not exist, and creating it is the
     /// runtime's own doing rather than something an operator has to prepare. The Unix half asserts
     /// the mode, which is the whole reason the root is created by the private create — a root left
     /// at the process umask would make every entry under it enumerable by anyone on the machine,
@@ -2145,7 +2145,7 @@ mod tests {
             "the list is what the member answered, in the order it answered it"
         );
 
-        // The same root, and a tree that grants nothing: § 2 chooses the name first and asks about
+        // The same root, and a tree that grants nothing: `rule:core-classes/temporary-dir-sweep` chooses the name first and asks about
         // it second, so this reaches the check and stops there.
         let mut refused = Ctx::buffered();
         refused.set_config(snapshot_of(&format!(
@@ -2208,7 +2208,7 @@ mod tests {
         );
         assert!(
             root.is_dir(),
-            "the owned root itself stays: § 4's sweeps are what empty it, and the next script \
+            "the owned root itself stays: `rule:core-classes/temporary-dir-orphan-sweep`'s sweeps are what empty it, and the next script \
              creates under it rather than remaking it"
         );
     }
