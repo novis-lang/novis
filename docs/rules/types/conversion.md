@@ -32,6 +32,14 @@ This is the whole conversion surface:
 | any row above, under a qualifier | a successful checked conversion to a non-text type strips `tainted` and `secret`; a text result keeps both, and `as` is never a launderer for a value that keeps its type |
 | any row above, out of `mixed` | the one place a qualifier is added: a text result is `tainted` wherever its type can carry it, and a non-text result is clean (`rule:security/taint-propagation`) |
 
+A shape target has no second test: `as` runs the walk `is` runs, the object tag first and then one
+presence probe and one tagged read per named field. So `as` succeeds exactly where `is` gives
+`true`, and an `int` field fails a `float` one, because the walk compares the tag the slot holds
+(`rule:types/shape-type`). A field typed `mixed` passes whenever its key is present. An operand that
+`is` would fold to `true` converts for free, and one it would fold to `false` is `E0708`, as a class
+target is. The failure message names the shape by its fields, because an alias is a name for the
+type and not a part of it.
+
 A conversion the operand disproves by itself is a **compile** error rather than a run-time throw:
 the target has to be a closed set and the operand has to name one value. Everything else is answered
 where it runs.
@@ -47,6 +55,9 @@ A conversion that throws is what keeps untrusted input from becoming a wrong but
 silent `0` for `"abc"` is often a real row id, which is the shape of an insecure direct object
 reference. A throw arrives at the conversion that caused it, with a span, rather than at whatever
 reads the wrong value later.
+
+**Memory:** a shape target allocates nothing; it costs one field walk, O(fields), at each
+conversion whose operand needs one.
 
 **Declined:**
 - **PHP's lossy casts kept beside `as`.** The lossy one would win by being shorter to type
