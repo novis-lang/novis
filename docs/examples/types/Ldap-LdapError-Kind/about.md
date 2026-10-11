@@ -1,5 +1,7 @@
 Says why a directory operation failed.
 
+`Core\Ldap\LdapError::Kind` is declared in the class `Core\Ldap\LdapError`. Its property `kind` has this type.
+
 When a directory operation fails, the `Core\Ldap\LdapError` your program catches has a `kind`
 property. It is one of these cases. `InvalidCredentials` means the login or the password is wrong.
 `NoSuchObject` means the entry does not exist. `Unavailable` and `Timeout` mean the server did not

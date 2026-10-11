@@ -5,7 +5,6 @@
 
 use Core\Db;
 use Core\Db\DbError;
-use Core\Db\ErrorKind;
 
 var $db = Db::connect('schema');
 $db->execute('create table people (email text not null primary key)', []);
@@ -16,7 +15,7 @@ foreach ($signups as string $email) {
         $db->execute('insert into people (email) values (?)', [$email]);
         echo 'welcome ', $email, "\n";
     } catch (DbError $refused) {
-        if ($refused->kind == ErrorKind::UniqueViolation) {
+        if ($refused->kind == DbError::Kind::UniqueViolation) {
             echo 'already signed up: ', $email, "\n";
         } else {
             echo 'could not sign up ', $email, "\n";

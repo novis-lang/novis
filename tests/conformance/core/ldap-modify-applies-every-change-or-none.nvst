@@ -23,7 +23,7 @@ try {
     ]);
     echo "not reached", "\n";
 } catch (Core\Ldap\LdapError $refused) {
-    echo "refused: ", $refused->kind == Core\Ldap\ErrorKind::ConstraintViolation ? "ConstraintViolation" : "other", "\n";
+    echo "refused: ", $refused->kind == Core\Ldap\LdapError::Kind::ConstraintViolation ? "ConstraintViolation" : "other", "\n";
 }
 ?Core\Ldap\Entry $shop = $corp->read("OU=Gallery,DC=example,DC=test", {select: ["description"]});
 var $before = $shop?->strings("description");
@@ -41,13 +41,13 @@ try {
     $corp->add("OU=Studio,DC=example,DC=test", ["objectClass" => "organizationalUnit"]);
     echo "not reached", "\n";
 } catch (Core\Ldap\LdapError $taken) {
-    echo "add: ", $taken->kind == Core\Ldap\ErrorKind::AlreadyExists ? "AlreadyExists" : "other", "\n";
+    echo "add: ", $taken->kind == Core\Ldap\LdapError::Kind::AlreadyExists ? "AlreadyExists" : "other", "\n";
 }
 try {
     $corp->rename("OU=Gallery,DC=example,DC=test", "OU=Studio,DC=example,DC=test");
     echo "not reached", "\n";
 } catch (Core\Ldap\LdapError $taken) {
-    echo "rename: ", $taken->kind == Core\Ldap\ErrorKind::AlreadyExists ? "AlreadyExists" : "other", "\n";
+    echo "rename: ", $taken->kind == Core\Ldap\LdapError::Kind::AlreadyExists ? "AlreadyExists" : "other", "\n";
 }
 $corp->delete("OU=Gallery,DC=example,DC=test");
 $corp->delete("OU=Studio,DC=example,DC=test");

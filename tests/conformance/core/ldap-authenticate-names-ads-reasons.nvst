@@ -26,7 +26,7 @@ try {
     $corp->authenticate($patrons, "Patrons-first-Pass-7");
     echo "must change: not reached", "\n";
 } catch (Core\Ldap\LdapError $refused) {
-    echo "must change: ", $refused->kind == Core\Ldap\ErrorKind::MustChangePassword ? "MustChangePassword" : "other", "\n";
+    echo "must change: ", $refused->kind == Core\Ldap\LdapError::Kind::MustChangePassword ? "MustChangePassword" : "other", "\n";
 }
 
 // The password is right, and the account is disabled.
@@ -35,7 +35,7 @@ try {
     $corp->authenticate($patrons, "Patrons-first-Pass-7");
     echo "disabled: not reached", "\n";
 } catch (Core\Ldap\LdapError $refused) {
-    echo "disabled: ", $refused->kind == Core\Ldap\ErrorKind::AccountDisabled ? "AccountDisabled" : "other", "\n";
+    echo "disabled: ", $refused->kind == Core\Ldap\LdapError::Kind::AccountDisabled ? "AccountDisabled" : "other", "\n";
 }
 
 // An empty login is refused before anything is sent, so there is no result code.
@@ -43,7 +43,7 @@ try {
     $corp->authenticate("", "Patrons-first-Pass-7");
     echo "empty login: not reached", "\n";
 } catch (Core\Ldap\LdapError $refused) {
-    echo "empty login: ", $refused->kind == Core\Ldap\ErrorKind::InvalidCredentials ? "InvalidCredentials" : "other", "\n";
+    echo "empty login: ", $refused->kind == Core\Ldap\LdapError::Kind::InvalidCredentials ? "InvalidCredentials" : "other", "\n";
     echo "code: ", $refused->code ?? "null", "\n";
 }
 

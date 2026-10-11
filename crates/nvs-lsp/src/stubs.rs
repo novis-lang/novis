@@ -128,6 +128,22 @@ pub fn render() -> Tree {
             tree.add_lines(name, lines);
         }
     }
+    // An error class has no registry row, so an enum one owns is written in
+    // a stub of the error class that declares nothing else.
+    let mut error_owners: Vec<&str> = registry::ENUMS
+        .iter()
+        .filter_map(CoreEnum::owner)
+        .filter(|owner| registry::class(owner).is_none())
+        .collect();
+    error_owners.sort_unstable();
+    error_owners.dedup();
+    for owner in error_owners {
+        let (text, lines, owned) = error_class_stub(owner);
+        tree.add(owner, text, lines);
+        for (name, lines) in owned {
+            tree.add_lines(name, lines);
+        }
+    }
     // An enum a class owns is written inside that class's stub, above.
     for core in registry::ENUMS.iter().filter(|core| core.owner().is_none()) {
         let (text, lines) = enum_stub(core);
@@ -572,6 +588,38 @@ fn quoted(text: &str) -> String {
     }
     out.push('"');
     out
+}
+
+/// An error class that owns an enum, `Core\Db\DbError`: its declaration line
+/// and every enum it owns. Its properties and its constructor come from
+/// `nvs_hir::errors`, and the stub does not write them.
+fn error_class_stub(name: &str) -> (String, Vec<(Option<String>, Line)>, OwnedLines) {
+    let mut writer = Writer::open(name);
+    let mut lines = Vec::new();
+    writer.doc(
+        "",
+        &format!("`{name}` is an error class. This file shows the enums it declares."),
+    );
+    writer.push("class ");
+    lines.push((None, writer.name(short(name))));
+    if let Some((_, Some(parent))) = nvs_hir::errors::TREE
+        .iter()
+        .find(|(entry, _)| *entry == name)
+    {
+        writer.push(&format!(" extends {parent}"));
+    }
+    writer.push("\n{\n");
+    let mut first = true;
+    let mut owned = Vec::new();
+    for core in registry::ENUMS
+        .iter()
+        .filter(|core| core.owner() == Some(name))
+    {
+        separate(&mut writer, &mut first);
+        owned.push((core.name, enum_decl(&mut writer, core, "    ")));
+    }
+    writer.push("}\n");
+    (writer.text, lines, owned)
 }
 
 /// One enum its namespace declares, in a file of its own.

@@ -3212,6 +3212,7 @@ dependencies = [
  "nvs-diagnostics",
  "nvs-ext",
  "nvs-footprint",
+ "nvs-hir",
  "nvs-host",
  "nvs-ldap",
  "nvs-render",

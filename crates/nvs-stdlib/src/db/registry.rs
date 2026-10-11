@@ -1022,7 +1022,7 @@ pub(super) const ISOLATION_DOC: EnumDoc = EnumDoc {
 /// `Core\Db\DbError::$kind`'s type and cannot reach a `pub(crate)` const here;
 /// `the_kind_property_names_a_registered_enum` is what holds the two spellings
 /// together rather than this sentence.
-pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\ErrorKind";
+pub(crate) const ERROR_KIND_NAME: &str = r"Core\Db\DbError::Kind";
 
 /// `rule:core-classes/db-error`'s `ErrorKind` — the
 /// eleven conditions an application branches on, as the registry half of

@@ -735,7 +735,7 @@ impl Ctx {
     ///
     /// `class` is not decoration. `KIND_SLOT` and `ISSUES_SLOT` are the same
     /// number, so a slot index alone would read a `ParseError`'s issue array
-    /// as a `Core\Db\ErrorKind`; the answer is `None` unless the pending
+    /// as a `Core\Db\DbError::Kind`; the answer is `None` unless the pending
     /// failure is an instance of `class`, by [`Self::pending_conforms_to`]'s
     /// reading of that word — the one a `catch` naming it would bind.
     ///

@@ -1705,7 +1705,7 @@ nothing there; PostgreSQL is transactional for DDL. No API shape prevents this.
 `rule:core-classes/db-error`
 
 `Core\Db\DbError extends RuntimeError` and is readonly: `kind`, `sqlState`, `driverCode`,
-`constraint`, `sql`. `ErrorKind` normalises the conditions applications actually branch on —
+`constraint`, `sql`. `DbError::Kind` normalises the conditions applications actually branch on —
 `UniqueViolation`, `ForeignKeyViolation`, `NotNullViolation`, `CheckViolation`, `Deadlock`,
 `SerializationFailure`, `ConnectionLost`, `Timeout`, `Syntax`, `Permission`, `Other` — across four
 drivers and five dialects, MariaDB carrying its own code table rather than MySQL's. SQLite's
@@ -2482,7 +2482,7 @@ keeps the server's case.
 
 `rule:core-classes/ldap-error`
 
-Every failure the directory or the wire reports is one class, `Ldap\LdapError`, with `$kind`, an `Ldap\ErrorKind` a program branches on, and `$code`, the LDAP result code, or `null` where no server sent one. A malformed attribute name, DN or URL is the program's own `LogicError` or `RuntimeError`, and a pool with no free slot is an `IOError`, as for `Core\Db`.
+Every failure the directory or the wire reports is one class, `Ldap\LdapError`, with `$kind`, an `Ldap\LdapError::Kind` a program branches on, and `$code`, the LDAP result code, or `null` where no server sent one. A malformed attribute name, DN or URL is the program's own `LogicError` or `RuntimeError`, and a pool with no free slot is an `IOError`, as for `Core\Db`.
 
 The kinds are `InvalidCredentials`, `AccountDisabled` (AD `data 533`), `AccountLocked` (775),
 `PasswordExpired` (532), `MustChangePassword` (773), `AccountExpired` (701), `NotAllowedNow` (530,

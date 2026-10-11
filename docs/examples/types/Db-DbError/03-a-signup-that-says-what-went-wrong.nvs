@@ -6,7 +6,6 @@
 use Core\Db;
 use Core\Db\Connection;
 use Core\Db\DbError;
-use Core\Db\ErrorKind;
 
 final class Signup {
     public static function add(Connection $db, string $email): string {
@@ -14,7 +13,7 @@ final class Signup {
             $db->execute('insert into accounts (email) values (?)', [$email]);
             return "welcome";
         } catch (DbError $refused) {
-            if ($refused->kind == ErrorKind::UniqueViolation) {
+            if ($refused->kind == DbError::Kind::UniqueViolation) {
                 return "that address is already registered";
             }
             throw $refused;

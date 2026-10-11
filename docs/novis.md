@@ -26473,7 +26473,7 @@ Returns the entry's DN as a `Core\Ldap\Dn`.
 
 **Returns** `Core\Ldap\Dn` — The DN, such as `CN=Administrator,CN=Users,DC=example,DC=test`.
 
-**Throws** `Core\Ldap\LdapError` — The server sent a DN that is not correct DN text. `$kind` is `ErrorKind::Protocol`.
+**Throws** `Core\Ldap\LdapError` — The server sent a DN that is not correct DN text. `$kind` is `LdapError::Kind::Protocol`.
 
 <a id="core-core-ldap-entry-has"></a>
 #### `Core\Ldap\Entry->has`
@@ -29616,24 +29616,24 @@ What a result column was declared as, which is a description of the column and n
 | `Core\Db\Column::Type::Json` | A column the backend types as JSON. The value still reads back as a `tainted string`, since JSON is never decoded for you; a backend that has no JSON type of its own reports the column as `Text` instead. |
 | `Core\Db\Column::Type::Other` | Every other column: one with no Novis type of its own, and every array. This is the total case rather than a failure, so a column list describes every column a server can send. |
 
-<a id="enum-core-db-errorkind"></a>
-#### `Core\Db\ErrorKind`
+<a id="enum-core-db-dberror-kind"></a>
+#### `Core\Db\DbError::Kind`
 
 Why the server refused a statement, normalised across the drivers so that a program branches on the condition rather than on a vendor code. `Core\Db\DbError::$kind` answers with one of these, and the raw `SQLSTATE` beside it covers what normalising does not reach.
 
 | Case | Meaning |
 |---|---|
-| `Core\Db\ErrorKind::UniqueViolation` | A row with this key already exists. |
-| `Core\Db\ErrorKind::ForeignKeyViolation` | A referenced row does not exist, or a referencing one still does. |
-| `Core\Db\ErrorKind::NotNullViolation` | A column that may not be null was written null. |
-| `Core\Db\ErrorKind::CheckViolation` | A `CHECK` constraint refused the row. |
-| `Core\Db\ErrorKind::Deadlock` | Two transactions each hold what the other waits for, and the server aborted this one to break it. SQLite's `SQLITE_BUSY` and `SQLITE_LOCKED` arrive here too, so that a retry works there as well. |
-| `Core\Db\ErrorKind::SerializationFailure` | The transaction could not be serialised against a concurrent one and was aborted — the ordinary outcome under `REPEATABLE READ` or stronger. |
-| `Core\Db\ErrorKind::ConnectionLost` | The connection is gone, or the server is going away. |
-| `Core\Db\ErrorKind::Timeout` | A statement or an idle transaction ran past a bound and was cancelled. |
-| `Core\Db\ErrorKind::Syntax` | The statement is not something the server will run: a syntax error, an undefined table, a type it cannot resolve. |
-| `Core\Db\ErrorKind::Permission` | The role may not do this. |
-| `Core\Db\ErrorKind::Other` | Anything the driver's own table does not name, including a condition one backend has and the others do not. It is also what a `Core\Db\DbError` constructed by hand carries, no server having classified it. |
+| `Core\Db\DbError::Kind::UniqueViolation` | A row with this key already exists. |
+| `Core\Db\DbError::Kind::ForeignKeyViolation` | A referenced row does not exist, or a referencing one still does. |
+| `Core\Db\DbError::Kind::NotNullViolation` | A column that may not be null was written null. |
+| `Core\Db\DbError::Kind::CheckViolation` | A `CHECK` constraint refused the row. |
+| `Core\Db\DbError::Kind::Deadlock` | Two transactions each hold what the other waits for, and the server aborted this one to break it. SQLite's `SQLITE_BUSY` and `SQLITE_LOCKED` arrive here too, so that a retry works there as well. |
+| `Core\Db\DbError::Kind::SerializationFailure` | The transaction could not be serialised against a concurrent one and was aborted — the ordinary outcome under `REPEATABLE READ` or stronger. |
+| `Core\Db\DbError::Kind::ConnectionLost` | The connection is gone, or the server is going away. |
+| `Core\Db\DbError::Kind::Timeout` | A statement or an idle transaction ran past a bound and was cancelled. |
+| `Core\Db\DbError::Kind::Syntax` | The statement is not something the server will run: a syntax error, an undefined table, a type it cannot resolve. |
+| `Core\Db\DbError::Kind::Permission` | The role may not do this. |
+| `Core\Db\DbError::Kind::Other` | Anything the driver's own table does not name, including a condition one backend has and the others do not. It is also what a `Core\Db\DbError` constructed by hand carries, no server having classified it. |
 
 <a id="enum-core-db-plan-step-grade"></a>
 #### `Core\Db\Plan\Step::Grade`
@@ -29646,34 +29646,34 @@ What one step of a schema plan can cost at worst, so that a deployment can run t
 | `Core\Db\Plan\Step::Grade::Locking` | Cannot lose data, but can fail on existing rows or block writes for a long time — a unique key over data that already collides, `NOT NULL` on a populated column, a type change that rewrites the table. |
 | `Core\Db\Plan\Step::Grade::Destructive` | Can lose data. Every drop is here, and so is SQLite's create-copy-drop-rename rebuild, which is a data copy however it is spelled. |
 
-<a id="enum-core-ldap-errorkind"></a>
-#### `Core\Ldap\ErrorKind`
+<a id="enum-core-ldap-ldaperror-kind"></a>
+#### `Core\Ldap\LdapError::Kind`
 
 Why an LDAP operation failed. `Core\Ldap\LdapError::$kind` is one of these, and `$code` beside it is the LDAP result code the server sent.
 
 | Case | Meaning |
 |---|---|
-| `Core\Ldap\ErrorKind::InvalidCredentials` | The login or the password is wrong. An account that does not exist gives this kind too, so the error does not show which accounts exist. |
-| `Core\Ldap\ErrorKind::AccountDisabled` | The account is disabled. Active Directory sends this as `data 533`. |
-| `Core\Ldap\ErrorKind::AccountLocked` | The account is locked after too many wrong passwords. Active Directory sends this as `data 775`. |
-| `Core\Ldap\ErrorKind::PasswordExpired` | The password has expired. Active Directory sends this as `data 532`. |
-| `Core\Ldap\ErrorKind::MustChangePassword` | The user must set a new password before they can log in. Active Directory sends this as `data 773`. |
-| `Core\Ldap\ErrorKind::AccountExpired` | The account has expired. Active Directory sends this as `data 701`. |
-| `Core\Ldap\ErrorKind::NotAllowedNow` | The account may not log in at this time or from this computer. Active Directory sends this as `data 530` or `data 531`. |
-| `Core\Ldap\ErrorKind::EncryptionRequired` | The server needs an encrypted connection for this operation. |
-| `Core\Ldap\ErrorKind::PasswordPolicy` | The new password does not meet the directory's password rules. |
-| `Core\Ldap\ErrorKind::NoSuchObject` | The entry, or the base of the search, does not exist. |
-| `Core\Ldap\ErrorKind::AlreadyExists` | The entry, or the attribute value, already exists. |
-| `Core\Ldap\ErrorKind::InsufficientAccess` | The connection's account is not allowed to do this. |
-| `Core\Ldap\ErrorKind::ConstraintViolation` | The directory's schema does not allow this value or this change. |
-| `Core\Ldap\ErrorKind::SizeLimitExceeded` | The search found more entries than the server or the search allows. |
-| `Core\Ldap\ErrorKind::TimeLimitExceeded` | The search ran longer than the server allows. |
-| `Core\Ldap\ErrorKind::Referral` | The server sent a referral to another server. Novis never follows a referral. |
-| `Core\Ldap\ErrorKind::ReadOnly` | The server only allows reads, and the operation was a write. |
-| `Core\Ldap\ErrorKind::Unsupported` | The server does not support this operation or this option. |
-| `Core\Ldap\ErrorKind::Unavailable` | The server cannot be reached, or it closed the connection. |
-| `Core\Ldap\ErrorKind::Timeout` | The operation took longer than the connection's `timeout`. |
-| `Core\Ldap\ErrorKind::Protocol` | The server sent a message the LDAP protocol does not allow, or a result code no other kind covers. A `LdapError` you create yourself has this kind. |
+| `Core\Ldap\LdapError::Kind::InvalidCredentials` | The login or the password is wrong. An account that does not exist gives this kind too, so the error does not show which accounts exist. |
+| `Core\Ldap\LdapError::Kind::AccountDisabled` | The account is disabled. Active Directory sends this as `data 533`. |
+| `Core\Ldap\LdapError::Kind::AccountLocked` | The account is locked after too many wrong passwords. Active Directory sends this as `data 775`. |
+| `Core\Ldap\LdapError::Kind::PasswordExpired` | The password has expired. Active Directory sends this as `data 532`. |
+| `Core\Ldap\LdapError::Kind::MustChangePassword` | The user must set a new password before they can log in. Active Directory sends this as `data 773`. |
+| `Core\Ldap\LdapError::Kind::AccountExpired` | The account has expired. Active Directory sends this as `data 701`. |
+| `Core\Ldap\LdapError::Kind::NotAllowedNow` | The account may not log in at this time or from this computer. Active Directory sends this as `data 530` or `data 531`. |
+| `Core\Ldap\LdapError::Kind::EncryptionRequired` | The server needs an encrypted connection for this operation. |
+| `Core\Ldap\LdapError::Kind::PasswordPolicy` | The new password does not meet the directory's password rules. |
+| `Core\Ldap\LdapError::Kind::NoSuchObject` | The entry, or the base of the search, does not exist. |
+| `Core\Ldap\LdapError::Kind::AlreadyExists` | The entry, or the attribute value, already exists. |
+| `Core\Ldap\LdapError::Kind::InsufficientAccess` | The connection's account is not allowed to do this. |
+| `Core\Ldap\LdapError::Kind::ConstraintViolation` | The directory's schema does not allow this value or this change. |
+| `Core\Ldap\LdapError::Kind::SizeLimitExceeded` | The search found more entries than the server or the search allows. |
+| `Core\Ldap\LdapError::Kind::TimeLimitExceeded` | The search ran longer than the server allows. |
+| `Core\Ldap\LdapError::Kind::Referral` | The server sent a referral to another server. Novis never follows a referral. |
+| `Core\Ldap\LdapError::Kind::ReadOnly` | The server only allows reads, and the operation was a write. |
+| `Core\Ldap\LdapError::Kind::Unsupported` | The server does not support this operation or this option. |
+| `Core\Ldap\LdapError::Kind::Unavailable` | The server cannot be reached, or it closed the connection. |
+| `Core\Ldap\LdapError::Kind::Timeout` | The operation took longer than the connection's `timeout`. |
+| `Core\Ldap\LdapError::Kind::Protocol` | The server sent a message the LDAP protocol does not allow, or a result code no other kind covers. A `LdapError` you create yourself has this kind. |
 
 <a id="enum-core-ldap-tls"></a>
 #### `Core\Ldap::Tls`

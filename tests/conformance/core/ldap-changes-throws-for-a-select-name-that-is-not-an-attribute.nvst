@@ -20,7 +20,7 @@ try {
     $corp->changes($units, {base: "CN=Users,DC=example,DC=test"});
     echo "not the root: no error\n";
 } catch (Core\Ldap\LdapError $error) {
-    var $unsupported = $error->kind == Core\Ldap\ErrorKind::Unsupported;
+    var $unsupported = $error->kind == Core\Ldap\LdapError::Kind::Unsupported;
     echo "not the root: ", $unsupported ? "Unsupported" : "another kind", ", code ", $error->code, "\n";
 }
 --COPY--

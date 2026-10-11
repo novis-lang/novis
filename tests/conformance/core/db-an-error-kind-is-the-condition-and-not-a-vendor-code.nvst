@@ -1,8 +1,8 @@
 --TEST--
-`Core\Db\DbError::$kind` answers a normalised `Core\Db\ErrorKind` case for a refusal a running engine made, and `Other` for an error no server classified — spec § 18, `rule:core-classes/db-error`
+`Core\Db\DbError::$kind` answers a normalised `Core\Db\DbError::Kind` case for a refusal a running engine made, and `Other` for an error no server classified — spec § 18, `rule:core-classes/db-error`
 --FILE--
 <?nvs
-// covers: Core\Db\ErrorKind
+// covers: Core\Db\DbError::Kind
 // SQLite needs no server, so these are refusals a real engine really made —
 // which is what makes the case an answer read off the driver's own table
 // rather than a value this program put there.
@@ -17,7 +17,7 @@ try {
     echo "duplicate: accepted\n";
 } catch (Core\Db\DbError $duplicate) {
     echo "duplicate: ",
-        $duplicate->kind == Core\Db\ErrorKind::UniqueViolation ? "UniqueViolation" : "something else",
+        $duplicate->kind == Core\Db\DbError::Kind::UniqueViolation ? "UniqueViolation" : "something else",
         "\n";
 }
 
@@ -28,7 +28,7 @@ try {
     echo "missing table: accepted\n";
 } catch (Core\Db\DbError $missing) {
     echo "missing table: ",
-        $missing->kind == Core\Db\ErrorKind::Syntax ? "Syntax" : "something else",
+        $missing->kind == Core\Db\DbError::Kind::Syntax ? "Syntax" : "something else",
         "\n";
 }
 
@@ -37,7 +37,7 @@ try {
 try {
     throw new Core\Db\DbError("something this program noticed by itself");
 } catch (Core\Db\DbError $own) {
-    echo "by hand: ", $own->kind == Core\Db\ErrorKind::Other ? "Other" : "something else", "\n";
+    echo "by hand: ", $own->kind == Core\Db\DbError::Kind::Other ? "Other" : "something else", "\n";
 }
 --FILE nvs.toml--
 [capabilities.db]

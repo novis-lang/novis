@@ -5,10 +5,10 @@
 // retry there only makes the outage longer.
 
 class Retry {
-    public static function worthIt(Core\Db\ErrorKind $kind): bool {
+    public static function worthIt(Core\Db\DbError::Kind $kind): bool {
         return match ($kind) {
-            Core\Db\ErrorKind::Deadlock => true,
-            Core\Db\ErrorKind::SerializationFailure => true,
+            Core\Db\DbError::Kind::Deadlock => true,
+            Core\Db\DbError::Kind::SerializationFailure => true,
             default => false,
         };
     }
@@ -16,14 +16,14 @@ class Retry {
 
 // What a transfer between two accounts came back with, attempt by attempt,
 // with three attempts allowed.
-array<Core\Db\ErrorKind> $attempts = [
-    Core\Db\ErrorKind::Deadlock,
-    Core\Db\ErrorKind::SerializationFailure,
-    Core\Db\ErrorKind::UniqueViolation,
+array<Core\Db\DbError::Kind> $attempts = [
+    Core\Db\DbError::Kind::Deadlock,
+    Core\Db\DbError::Kind::SerializationFailure,
+    Core\Db\DbError::Kind::UniqueViolation,
 ];
 
 uint $attempt = 0;
-foreach ($attempts as Core\Db\ErrorKind $kind) {
+foreach ($attempts as Core\Db\DbError::Kind $kind) {
     $attempt = $attempt + 1;
     if (Retry::worthIt($kind)) {
         echo "attempt ", $attempt, ": lost a race, sending it again\n";

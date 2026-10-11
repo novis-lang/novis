@@ -25,10 +25,10 @@ class Login {
             $corp->authenticate($login, $password);
             return "accepted";
         } catch (Core\Ldap\LdapError $error) {
-            if ($error->kind == Core\Ldap\ErrorKind::AccountDisabled) {
+            if ($error->kind == Core\Ldap\LdapError::Kind::AccountDisabled) {
                 return "the account is turned off";
             }
-            if ($error->kind == Core\Ldap\ErrorKind::InvalidCredentials) {
+            if ($error->kind == Core\Ldap\LdapError::Kind::InvalidCredentials) {
                 return "wrong login or password";
             }
             return "another reason";

@@ -24,7 +24,7 @@ try {
     $corp->compare("OU=Nowhere,DC=example,DC=test", "description", "Books");
     echo "missing: not reached", "\n";
 } catch (Core\Ldap\LdapError $missing) {
-    echo "missing: ", $missing->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "other", "\n";
+    echo "missing: ", $missing->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? "NoSuchObject" : "other", "\n";
 }
 
 // The connection still works after each error.

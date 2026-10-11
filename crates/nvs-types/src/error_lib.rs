@@ -200,7 +200,7 @@ fn own_properties(name: &str, interner: &mut TypeInterner) -> FxHashMap<String, 
 /// a second copy of it, because that const is `pub(crate)` and the module is
 /// private — `the_kind_property_names_a_registered_enum` is what stops the two
 /// drifting.
-const ERROR_KIND: &str = r"Core\Db\ErrorKind";
+const ERROR_KIND: &str = r"Core\Db\DbError::Kind";
 
 /// The class whose `kind` is [`LDAP_ERROR_KIND`] rather than [`ERROR_KIND`].
 const LDAP_ERROR: &str = r"Core\Ldap\LdapError";
@@ -208,7 +208,7 @@ const LDAP_ERROR: &str = r"Core\Ldap\LdapError";
 /// `Core\Ldap\LdapError::$kind`'s enum, by name — a second copy of
 /// `nvs_stdlib::ldap::ERROR_KIND_NAME`, for [`ERROR_KIND`]'s reason.
 /// `the_ldap_kind_property_names_a_registered_enum` holds the two together.
-const LDAP_ERROR_KIND: &str = r"Core\Ldap\ErrorKind";
+const LDAP_ERROR_KIND: &str = r"Core\Ldap\LdapError::Kind";
 
 /// `type Core\Issue = {path: string, message: string}` —
 /// `rule:core-classes/derive-reports-every-field`'s one shape.
@@ -436,7 +436,7 @@ mod tests {
         let registered = nvs_stdlib::registry::ENUMS
             .iter()
             .find(|entry| entry.name == ERROR_KIND)
-            .expect("`Core\\Db\\ErrorKind` is a registered enum");
+            .expect("`Core\\Db\\DbError::Kind` is a registered enum");
         assert_eq!(
             registered.cases.iter().find(|(name, _)| *name == "Other"),
             Some(&("Other", 10)),
@@ -473,7 +473,7 @@ mod tests {
         let registered = nvs_stdlib::registry::ENUMS
             .iter()
             .find(|entry| entry.name == LDAP_ERROR_KIND)
-            .expect("`Core\\Ldap\\ErrorKind` is a registered enum");
+            .expect("`Core\\Ldap\\LdapError::Kind` is a registered enum");
         assert_eq!(
             registered
                 .cases

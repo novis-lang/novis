@@ -259,7 +259,7 @@ pub(super) fn statement_failure(
 /// A [`nvs_db::DbErrorKind`] as the [`ERROR_KIND`] case a program matches on,
 /// which at runtime is that case's ordinal
 /// (`rule:enums/closed-integer-type`) — so a
-/// `match ($e->kind) { Core\Db\ErrorKind::Deadlock => … }` reads what the
+/// `match ($e->kind) { Core\Db\DbError::Kind::Deadlock => … }` reads what the
 /// server itself said.
 ///
 /// [`column_type_value`]'s rule, for its reason: the ordinal is looked up
@@ -277,7 +277,7 @@ pub(super) fn error_kind_value(of: nvs_db::DbErrorKind) -> Value {
     Value::int(*ordinal)
 }
 
-/// The [`nvs_db::DbErrorKind`] a `Core\Db\ErrorKind` value is, or `None` for
+/// The [`nvs_db::DbErrorKind`] a `Core\Db\DbError::Kind` value is, or `None` for
 /// anything that is not one of its ordinals — [`error_kind_value`] read
 /// backwards, which is how § 7's retry rule asks what a *thrown* `Db\DbError`
 /// carries when there is no [`nvs_db::ServerError`] left to ask.

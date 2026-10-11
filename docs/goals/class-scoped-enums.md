@@ -44,7 +44,7 @@ stages:
         shapes: []
   - id: 7
     title: "every `Core` enum moves to the class that uses it"
-    status: open
+    status: done
     extra:
       context:
         playbook: ["Writing Novis > the enum a core member returns", "Writing Novis > widening a member's declared type"]
@@ -525,11 +525,13 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 6 are done. In Stage 7 every rename the placement test can see has landed, the last three being `db` (`Db\Column::Type`, `Db\Plan\Step::Grade`, `Db::Tls`), `ldap` (`Ldap\Connection::Scope`, `Ldap\Entry::AccountType`, `Ldap::Tls`) and `queue` (`Queue::State`). All three Stage 7 checks pass, and `bun nv verify` is green. Two enums are left: `Core\Db\ErrorKind` and `Core\Ldap\ErrorKind`.**
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 7 are done. Every `Core` enum is at its place, the last two being `Core\Db\DbError::Kind` and `Core\Ldap\LdapError::Kind`. Stage 8, the built-in components, is next.**
 
 - `CoreEnum::name` is `Core\Arr::Order` for an owned enum, and `CoreEnum::owner()` and `short_name()` read it. The checker finds a `Core` owner's enum through `lower::owned_enum` (`crates/nvs-types/src/lower.rs:521`), because `Core` declares nothing in the symbol table.
 - `crates/nvs-stdlib/tests/enum_owners.rs` decides placement. Its `NOT_YET_MOVED` list is gone, and its `walk` now reads a settings shape's fields too. That walk showed `Core\Db\Driver` shared by `Db` and `Db\Connection`, and `Core\Db\Isolation` shared by `Db\Connection` and `Db\Transaction`. Both stay, and the fragment's and this goal's tables say so.
-- The two `ErrorKind`s are the `kind` property of `Core\Db\DbError` and `Core\Ldap\LdapError`. Those are error classes with no `CLASSES` row, so the test cannot see the use. The rule counts a property, so by the rule each moves into its error class. The property's type lives in `nvs_types::error_lib::own_properties` (`crates/nvs-types/src/error_lib.rs:112`, the names at `:203` and `:211`), and the names alone in `nvs_hir::errors::OWN_PROPERTIES` (`crates/nvs-hir/src/errors.rs:183`).
+- An error class has no `CLASSES` row, so `enum_owners.rs` reads its use from a table, `ERROR_PROPERTIES`, of `(error class, property, enum)`. A fourth test holds each row against `nvs_hir::errors::own_properties` and `ENUMS`, through a new `nvs-hir` dev-dependency of `nvs-stdlib`. An error-class owner resolves through `lower::owned_enum` like a registry class: the Db and Ldap conformance cases pass.
+- An error class has no class stub, so `crates/nvs-lsp/src/stubs.rs`'s `error_class_stub` writes one with only its declaration line and its enums.
+- `docs/spec/01-core-library.md`'s Db enum block still said `ColumnType` and `Tls` after their slices. It now writes `Column::Type`, `Db::Tls` and `DbError::Kind`.
 - A slice is mechanical. Rename the relative form (`Mime\Type` → `Mime::Type`), which also covers `Core\…` and the doubled-backslash Rust and JSON strings, across every tracked file but `docs/rules/enums*`, `docs/goals/`, `docs/agent/playbook*` and `enum_owners.rs`. A reject case's `--> case.nvs:L:C` columns move by the one character `::` adds over `\`, and only the conformance run shows it. Then `git mv` the proof directory to `docs/examples/types/<classTail>/` (`tools/nv/proofs/roster.ts:79`) and add one sentence to its `about.md` naming the declaring class. Then `cargo build` and `bun nv site --stamp syntax/values/enums.mdx --nvs target/debug/nvs.exe`: the stamp needs the new binary. `bun nv proofs --verify --no-perf --nvs target/debug/nvs.exe --group 'Core\Mime'` checks a touched class's examples.
 - A small bun script under `.agent-tmp/` does the rename: for each tracked file outside the exclusions, replace `(?<![A-Za-z0-9_])Ns\\{1,2}Name(?![A-Za-z0-9_])` with the new form. `git ls-files` needs a large `maxBuffer` in `execFileSync`. A text may also name the enum without `Core\` (`Script\ExitReason` in a rule fragment and in `docs/spec/01-core-library.md`), so a second pass renames that form, then `bun nv rules --render` and `bun nv render` rewrite the generated copies.
 - A program that imported the old name (`use Core\Queue\State;`) is refused after the rename, because a member is not imported. Drop that `use`, import the owner, and write `Queue::State::Pending` where the code wrote `State::Pending`. `nvs.toml`'s `[[app]] root` lines name proof directories and move with a `git mv`.
@@ -544,11 +546,11 @@ Both rules stay `designed`. `bun nv links` still reports `AGENTS.md:403 -> docs/
 
 ### Next
 
-**Stage 7's last slice, the two error kinds, then Stage 7 closes** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file set is `crates/nvs-stdlib/tests/enum_owners.rs`, `crates/nvs-types/src/error_lib.rs` and the two registries.
+**Stage 8, the manifest learns an enum's owner** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file set is `crates/nvs-ext/src/manifest.rs`, `crates/nvs-types/src/ext_lib.rs` and the two `extensions/*/manifest.json`.
 
-- [ ] Teach `enum_owners.rs` that an error class with an own property uses that property's enum. Read the type from `nvs_types::error_lib` (`crates/nvs-types/src/error_lib.rs:112`), or give the test a table of `(error class, property, enum)` that a second assertion holds against `nvs_hir::errors::OWN_PROPERTIES` (`crates/nvs-hir/src/errors.rs:183`). Then the test fails on both `ErrorKind`s.
-- [ ] Rename `Core\Db\ErrorKind` → `Core\Db\DbError::Kind` (`crates/nvs-stdlib/src/db/registry.rs:1025`, `crates/nvs-types/src/error_lib.rs:203`) and `Core\Ldap\ErrorKind` → `Core\Ldap\LdapError::Kind` (`crates/nvs-stdlib/src/ldap/registry.rs:2891`, `crates/nvs-types/src/error_lib.rs:211`). First check that `Core\Db\DbError::Kind::Deadlock` resolves, since the owner is an error class and `lower::owned_enum` has only been reached with a registry class. Then set Stage 7 to done.
-- [ ] Stage 8 starts: the `Novis\Image` and `Novis\Intl` enums, starting from a manifest's enum list (`crates/nvs-ext/src/manifest.rs:86`) and `crates/nvs-types/src/ext_lib.rs`.
+- [ ] Decide what an owner is first. A manifest declares one class, `Novis\Image\Codec` (`extensions/image/manifest.json:4`) or `Novis\Intl\Icu` (`extensions/intl/manifest.json:4`), and its enums (`extensions/image/manifest.json:79`, `extensions/intl/manifest.json:136`). The owners the table names (`Image`, `QrCode`, `Collator`, …) are Novis source under `extensions/*/nvs/`, not manifest classes. The check `an_enum_owner_the_manifest_does_not_declare_is_refused` reads "declare" narrowly. Not checked: whether a `.nvs` class counts as declared by the manifest.
+- [ ] Give `Enum` an optional `owner` (`crates/nvs-ext/src/manifest.rs:228`), and key an owned enum under `Owner::Name` in `declared_name` (`crates/nvs-types/src/ext_lib.rs:130`). Pin it with the three `manifest` tests the Stage 8 check names.
+- [ ] Then the `Novis\Image` renames, one slice, with the same rename script shape as Stage 7. The enums' users are in `extensions/image/nvs/Image.nvs:1` and `extensions/image/nvs/QrCode.nvs:1`.
 
 ### Backlog
 

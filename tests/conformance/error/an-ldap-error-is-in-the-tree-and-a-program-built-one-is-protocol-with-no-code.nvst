@@ -21,13 +21,13 @@ try {
 // No server classified this error, so its kind is `Protocol`, the kind for a
 // result code no other kind covers, and there is no result code at all.
 Core\Ldap\LdapError $built = new Core\Ldap\LdapError("built by hand");
-echo $built->kind == Core\Ldap\ErrorKind::Protocol ? "kind: Protocol" : "kind: other", "\n";
+echo $built->kind == Core\Ldap\LdapError::Kind::Protocol ? "kind: Protocol" : "kind: other", "\n";
 echo $built->code == null ? "code: null" : "code: set", "\n";
 
 // `$kind` is a closed enum, so a `match` names its cases.
 echo match ($built->kind) {
-    Core\Ldap\ErrorKind::InvalidCredentials => "a wrong login",
-    Core\Ldap\ErrorKind::Unavailable => "no server",
+    Core\Ldap\LdapError::Kind::InvalidCredentials => "a wrong login",
+    Core\Ldap\LdapError::Kind::Unavailable => "no server",
     default => "something else",
 }, "\n";
 --EXPECT--

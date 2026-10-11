@@ -2068,7 +2068,7 @@
         ],
         [
           "`Column`",
-          "`->name(): string`, `->type(): ColumnType`, `->nullable(): bool`"
+          "`->name(): string`, `->type(): Column::Type`, `->nullable(): bool`"
         ],
         [
           "`InList`",

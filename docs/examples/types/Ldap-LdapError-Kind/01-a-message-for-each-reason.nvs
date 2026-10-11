@@ -5,15 +5,15 @@
 var $corp = Core\Ldap::connect("corp");
 
 class Reason {
-    // `kind` of the error is a `Core\Ldap\ErrorKind` case.
+    // `kind` of the error is a `Core\Ldap\LdapError::Kind` case.
     public static function of(Core\Ldap\LdapError $error): string {
-        if ($error->kind == Core\Ldap\ErrorKind::InvalidCredentials) {
+        if ($error->kind == Core\Ldap\LdapError::Kind::InvalidCredentials) {
             return "wrong login or password";
         }
-        if ($error->kind == Core\Ldap\ErrorKind::NoSuchObject) {
+        if ($error->kind == Core\Ldap\LdapError::Kind::NoSuchObject) {
             return "that entry does not exist";
         }
-        if ($error->kind == Core\Ldap\ErrorKind::Unavailable) {
+        if ($error->kind == Core\Ldap\LdapError::Kind::Unavailable) {
             return "the directory is not available, try again later";
         }
         return "the directory rejected the request";

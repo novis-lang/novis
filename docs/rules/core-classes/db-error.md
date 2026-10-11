@@ -1,5 +1,5 @@
 `Core\Db\DbError extends RuntimeError` and is readonly: `kind`, `sqlState`, `driverCode`,
-`constraint`, `sql`. `ErrorKind` normalises the conditions applications actually branch on —
+`constraint`, `sql`. `DbError::Kind` normalises the conditions applications actually branch on —
 `UniqueViolation`, `ForeignKeyViolation`, `NotNullViolation`, `CheckViolation`, `Deadlock`,
 `SerializationFailure`, `ConnectionLost`, `Timeout`, `Syntax`, `Permission`, `Other` — across four
 drivers and five dialects, MariaDB carrying its own code table rather than MySQL's. SQLite's

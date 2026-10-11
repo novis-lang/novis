@@ -21,7 +21,7 @@ $corp->add($blog, ["objectClass" => "organizationalUnit"]);
 try {
     $corp->rename($shop, $blog);
 } catch (Core\Ldap\LdapError $error) {
-    if ($error->kind == Core\Ldap\ErrorKind::AlreadyExists) {
+    if ($error->kind == Core\Ldap\LdapError::Kind::AlreadyExists) {
         echo "the name is taken", "\n";
     }
 }

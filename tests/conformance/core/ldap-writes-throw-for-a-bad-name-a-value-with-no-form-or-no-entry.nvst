@@ -39,17 +39,17 @@ try {
 try {
     $corp->modify($missing, [Core\Ldap\Change::replace("description", "x")]);
 } catch (Core\Ldap\LdapError $none) {
-    echo "modify: ", $none->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "other", "\n";
+    echo "modify: ", $none->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? "NoSuchObject" : "other", "\n";
 }
 try {
     $corp->rename($missing, "OU=Elsewhere,DC=example,DC=test");
 } catch (Core\Ldap\LdapError $none) {
-    echo "rename: ", $none->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "other", "\n";
+    echo "rename: ", $none->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? "NoSuchObject" : "other", "\n";
 }
 try {
     $corp->delete($missing);
 } catch (Core\Ldap\LdapError $none) {
-    echo "delete: ", $none->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "other", "\n";
+    echo "delete: ", $none->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? "NoSuchObject" : "other", "\n";
 }
 --COPY--
 ../../db/ca.crt

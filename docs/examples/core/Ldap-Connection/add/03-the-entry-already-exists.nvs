@@ -16,7 +16,7 @@ $corp->add($unit, ["objectClass" => "organizationalUnit", "description" => "Book
 try {
     $corp->add($unit, ["objectClass" => "organizationalUnit", "description" => "Films"]);
 } catch (Core\Ldap\LdapError $error) {
-    echo $error->kind == Core\Ldap\ErrorKind::AlreadyExists ? "AlreadyExists" : "another error", "\n";
+    echo $error->kind == Core\Ldap\LdapError::Kind::AlreadyExists ? "AlreadyExists" : "another error", "\n";
 }
 
 // The first entry did not change. This prints `Books`.

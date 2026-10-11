@@ -1299,7 +1299,7 @@ the call site naming the field.
 | `Rows<T>` | `->all(): array<T>`, `->first(): ?T`, `->value(): mixed`, `->column(int\|string $key): array<mixed>`, `->count(): uint`, `->columns(): array<Column>`; `Iterable<T>` |
 | `Row` | `->has(string $name): bool` *(neutral)*, `->get(string $name): mixed`, `->toArray(): array<string, mixed>`, and the typed readers below |
 | `Write` | `->affected(): uint`, `->changed(): ?uint`, `->lastId(): ?uint` |
-| `Column` | `->name(): string`, `->type(): ColumnType`, `->nullable(): bool` |
+| `Column` | `->name(): string`, `->type(): Column::Type`, `->nullable(): bool` |
 | `InList` | opaque; produced by `Db::inList`, accepted only as a bound parameter |
 
 `Rows` is one generic class and not two: `query` answers `Rows<Row>`, `queryAs<T>` the same class at the
@@ -1319,12 +1319,12 @@ is an inline shape (`rule:types/object-top`), validated per row.
 ### Enums, settings and errors
 
 ```
-Driver     { MySql, MariaDb, Postgres, Sqlite, SqlServer }   // detected from the handshake
-Isolation  { ReadUncommitted, ReadCommitted, RepeatableRead, Snapshot, Serializable }
-Tls        { Disabled, Required, VerifyCa, VerifyFull }      // VerifyFull is the default over TCP
-ColumnType { Int, Uint, Float, Decimal, Text, Bytes, Bool, Date, Time, DateTime, Instant, Uuid, Json, Other }
-ErrorKind  { UniqueViolation, ForeignKeyViolation, NotNullViolation, CheckViolation, Deadlock,
-             SerializationFailure, ConnectionLost, Timeout, Syntax, Permission, Other }
+Driver        { MySql, MariaDb, Postgres, Sqlite, SqlServer }   // detected from the handshake
+Isolation     { ReadUncommitted, ReadCommitted, RepeatableRead, Snapshot, Serializable }
+Db::Tls       { Disabled, Required, VerifyCa, VerifyFull }      // VerifyFull is the default over TCP
+Column::Type  { Int, Uint, Float, Decimal, Text, Bytes, Bool, Date, Time, DateTime, Instant, Uuid, Json, Other }
+DbError::Kind { UniqueViolation, ForeignKeyViolation, NotNullViolation, CheckViolation, Deadlock,
+                SerializationFailure, ConnectionLost, Timeout, Syntax, Permission, Other }
 ```
 
 `Db\Settings` is a discriminated union over `rule:types/single-value-types`'s
@@ -1333,14 +1333,14 @@ enum-case types — a `host` on a SQLite literal is a compile error:
 ```
 {driver: Driver::MySql|Driver::MariaDb|Driver::Postgres|Driver::SqlServer,
  host: string, port?: uint, database: tainted string, user: tainted string,
- password: secret tainted string, tls?: Tls, timeZone?: Core\Time\Zone,
+ password: secret tainted string, tls?: Db::Tls, timeZone?: Core\Time\Zone,
  timeout?: Duration, statementCache?: uint}
 | {driver: Driver::Sqlite, path: string, timeZone?: Core\Time\Zone, timeout?: Duration}
 ```
 
 Two `Throwable`s join § 10's tree, both under `Core\Db`:
 
-- `DbError extends RuntimeError` — readonly `kind: ErrorKind`, `sqlState: ?string`, `driverCode: ?int`,
+- `DbError extends RuntimeError` — readonly `kind: DbError::Kind`, `sqlState: ?string`, `driverCode: ?int`,
   `constraint: ?string`, `sql: ?string`. Bound parameter values never appear on it
   (`rule:security/secret-qualifier`).
 - `RolledBack extends RuntimeError` — readonly `reason: string`; thrown by `Transaction::rollBack` and

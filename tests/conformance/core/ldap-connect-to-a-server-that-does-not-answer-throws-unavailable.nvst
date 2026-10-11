@@ -7,7 +7,7 @@ try {
     var $corp = Core\Ldap::connect("corp");
     echo "opened corp", "\n";
 } catch (Core\Ldap\LdapError $down) {
-    echo $down->kind == Core\Ldap\ErrorKind::Unavailable ? "kind: Unavailable" : "kind: other", "\n";
+    echo $down->kind == Core\Ldap\LdapError::Kind::Unavailable ? "kind: Unavailable" : "kind: other", "\n";
     echo $down->code == null ? "code: null" : "code: set", "\n";
 }
 

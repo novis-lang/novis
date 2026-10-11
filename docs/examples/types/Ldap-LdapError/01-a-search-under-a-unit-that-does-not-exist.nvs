@@ -12,7 +12,7 @@ try {
     }
 } catch (Core\Ldap\LdapError $error) {
     // `kind` says why the operation failed. This prints `NoSuchObject`.
-    echo $error->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "another reason", "\n";
+    echo $error->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? "NoSuchObject" : "another reason", "\n";
     // `code` is the number the server sent. This prints `32`.
     echo $error->code ?? "no code", "\n";
 }

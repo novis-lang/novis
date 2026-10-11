@@ -9,5 +9,5 @@ var $corp = Core\Ldap::connect("corp-accounts");
 try {
     $corp->delete("OU=Nobody Here 3,DC=example,DC=test");
 } catch (Core\Ldap\LdapError $error) {
-    echo $error->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "another error", "\n";
+    echo $error->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? "NoSuchObject" : "another error", "\n";
 }

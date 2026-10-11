@@ -20,7 +20,7 @@ try {
         Core\Ldap\Change::remove("description", "Games"),
     ]);
 } catch (Core\Ldap\LdapError $error) {
-    echo $error->kind == Core\Ldap\ErrorKind::ConstraintViolation ? "ConstraintViolation" : "another error", "\n";
+    echo $error->kind == Core\Ldap\LdapError::Kind::ConstraintViolation ? "ConstraintViolation" : "another error", "\n";
 }
 
 // The first change was not made either. This prints `Books`.

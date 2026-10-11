@@ -130,7 +130,7 @@ var $dated = $db->queryAs<Day>("select date '2024-03-05' as day", [])->first();
 echo 'typed day=', $dated?->day?->format('yyyy-MM-dd') ?? 'null', "\n";
 
 // § 8: a refusal is not a message to parse. The server's own code is
-// normalised to one of `Db\ErrorKind`'s eleven cases and carried on the thrown
+// normalised to one of `Db\DbError::Kind`'s eleven cases and carried on the thrown
 // `Db\DbError` as `$kind`, so a program branches on the condition and reads
 // the same way on all five drivers — `23505` here, `1062` on MySQL, and
 // neither number appears. Row 1 is already in `people` from the `executeMany`
@@ -144,7 +144,7 @@ try {
     // scale, so a program that names one of them still has to say what it does
     // with the other ten.
     echo 'kind=', match ($refused->kind) {
-        Core\Db\ErrorKind::UniqueViolation => 'UniqueViolation',
+        Core\Db\DbError::Kind::UniqueViolation => 'UniqueViolation',
         default => 'other',
     }, "\n";
     // The raw half of the same refusal, beside the normalised one. `sqlState`

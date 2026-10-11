@@ -1,5 +1,7 @@
 Says why the database refused a statement, in the same words on every backend.
 
+`Core\Db\DbError::Kind` is declared in the class `Core\Db\DbError`. Its property `kind` has this type.
+
 When a statement fails, the error your program catches carries one of these cases beside the server's
 own message. They are conditions rather than codes: a duplicate key is a duplicate key whether the
 server called it `23505`, `1062` or `SQLITE_CONSTRAINT_UNIQUE`, so a program written against one

@@ -1216,7 +1216,7 @@ root = "tests/hostile/types/Ldap-LdapError"
 connect = ["corp"]
 
 [[app]]
-root = "docs/examples/types/Ldap-ErrorKind"
+root = "docs/examples/types/Ldap-LdapError-Kind"
 
 [app.capabilities.ldap]
 connect = ["corp"]

@@ -1,4 +1,4 @@
-Every failure the directory or the wire reports is one class, `Ldap\LdapError`, with `$kind`, an `Ldap\ErrorKind` a program branches on, and `$code`, the LDAP result code, or `null` where no server sent one. A malformed attribute name, DN or URL is the program's own `LogicError` or `RuntimeError`, and a pool with no free slot is an `IOError`, as for `Core\Db`.
+Every failure the directory or the wire reports is one class, `Ldap\LdapError`, with `$kind`, an `Ldap\LdapError::Kind` a program branches on, and `$code`, the LDAP result code, or `null` where no server sent one. A malformed attribute name, DN or URL is the program's own `LogicError` or `RuntimeError`, and a pool with no free slot is an `IOError`, as for `Core\Db`.
 
 The kinds are `InvalidCredentials`, `AccountDisabled` (AD `data 533`), `AccountLocked` (775),
 `PasswordExpired` (532), `MustChangePassword` (773), `AccountExpired` (701), `NotAllowedNow` (530,

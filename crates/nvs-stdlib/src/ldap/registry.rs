@@ -1329,7 +1329,7 @@ const ENTRY_DN_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "Core\\Ldap\\LdapError",
         desc: "The server sent a DN that is not correct DN text. `$kind` is \
-               `ErrorKind::Protocol`.",
+               `LdapError::Kind::Protocol`.",
     }],
 };
 
@@ -2888,7 +2888,7 @@ const TLS_DOC: EnumDoc = EnumDoc {
 /// `Core\Ldap\LdapError::$kind`'s type and cannot reach a `pub(crate)` const
 /// here. `the_ldap_kind_property_names_a_registered_enum` holds the two
 /// spellings together.
-pub(crate) const ERROR_KIND_NAME: &str = r"Core\Ldap\ErrorKind";
+pub(crate) const ERROR_KIND_NAME: &str = r"Core\Ldap\LdapError::Kind";
 
 /// `rule:core-classes/ldap-error`'s `ErrorKind`, the registry half of [`nvs_ldap::Kind`].
 ///

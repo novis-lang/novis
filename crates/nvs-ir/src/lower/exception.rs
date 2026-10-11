@@ -931,7 +931,7 @@ pub(crate) const DB_ERROR: &str = "Core\\Db\\DbError";
 /// `Core\Db\DbError::$kind`.
 pub(crate) const KIND_FIELD: &str = "kind";
 
-/// The `Core\Db\ErrorKind::Other` ordinal — `nvs_stdlib::db::ERROR_KIND` is
+/// The `Core\Db\DbError::Kind::Other` ordinal — `nvs_stdlib::db::ERROR_KIND` is
 /// that roster's home and this crate depends on it no more than it depends on
 /// `nvs-hir`, so the one value it needs is restated for [`PARSE_ERROR`]'s
 /// reason. `nvs_types::error_lib`'s `the_kind_property_names_a_registered_enum`
@@ -942,7 +942,7 @@ pub(crate) const ERROR_KIND_OTHER: i64 = 10;
 /// and a `?int` `code`. Restated here for [`PARSE_ERROR`]'s reason.
 pub(crate) const LDAP_ERROR: &str = "Core\\Ldap\\LdapError";
 
-/// The `Core\Ldap\ErrorKind::Protocol` ordinal — `nvs_stdlib::ldap::ERROR_KIND`
+/// The `Core\Ldap\LdapError::Kind::Protocol` ordinal — `nvs_stdlib::ldap::ERROR_KIND`
 /// is that roster's home, and `nvs_types::error_lib`'s
 /// `the_ldap_kind_property_names_a_registered_enum` pins this copy against it.
 pub(crate) const LDAP_KIND_PROTOCOL: i64 = 20;

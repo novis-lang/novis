@@ -34,7 +34,7 @@ try {
 try {
     $corp->rename("OU=Nowhere," . $second, "OU=Elsewhere," . $second);
 } catch (Core\Ldap\LdapError $missing) {
-    echo $missing->kind == Core\Ldap\ErrorKind::NoSuchObject ? "NoSuchObject" : "other", "\n";
+    echo $missing->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? "NoSuchObject" : "other", "\n";
 }
 
 $corp->delete("OU=Counter," . $second);

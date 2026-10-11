@@ -7,7 +7,6 @@
 // anywhere near it: what this pins is which `catch` clause a refusal reaches,
 // which is decided by `crates/nvs-hir/src/errors.rs` alone.
 use Core\Db\DbError;
-use Core\Db\ErrorKind;
 use Core\Db\RolledBack;
 
 final class Tree {
@@ -50,7 +49,7 @@ final class Tree {
         try {
             throw new DbError("a condition with no name");
         } catch (DbError $refused) {
-            if ($refused->kind == ErrorKind::Other) {
+            if ($refused->kind == DbError::Kind::Other) {
                 return "Other";
             }
             return "something else";

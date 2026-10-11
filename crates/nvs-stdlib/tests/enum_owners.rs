@@ -7,8 +7,21 @@
 //! shape, a return type or a constant of one of its members names it. An enum no class names is one an
 //! attribute takes — `Core\Http\Method` through `#[Route]`, `Core\Audience`
 //! through `#[Access]` — and that has no class to live in.
+//!
+//! An error class has no `CLASSES` row, so it uses an enum through an own
+//! property, and [`ERROR_PROPERTIES`] lists each one. The property's type is
+//! seeded in `nvs_types::error_lib`, which this crate cannot reach, so the
+//! table restates it and its own test holds it against
+//! `nvs_hir::errors::OWN_PROPERTIES` and [`ENUMS`].
 
 use nvs_stdlib::registry::{CLASSES, Const, CoreEnum, CoreTy, ENUMS};
+
+/// Every error class's own property that holds a `Core` enum: the class, the
+/// property and the enum.
+const ERROR_PROPERTIES: &[(&str, &str, &str)] = &[
+    (r"Core\Db\DbError", "kind", r"Core\Db\DbError::Kind"),
+    (r"Core\Ldap\LdapError", "kind", r"Core\Ldap\LdapError::Kind"),
+];
 
 /// Every enum `ty` names, appended to `into`.
 fn walk(ty: &CoreTy, into: &mut Vec<&'static str>) {
@@ -68,6 +81,12 @@ fn users(core: &CoreEnum) -> Vec<&'static str> {
         })
         .map(|class| class.name)
         .collect();
+    found.extend(
+        ERROR_PROPERTIES
+            .iter()
+            .filter(|(_, _, named)| *named == core.name)
+            .map(|(class, _, _)| *class),
+    );
     found.sort_unstable();
     found
 }
@@ -75,6 +94,20 @@ fn users(core: &CoreEnum) -> Vec<&'static str> {
 /// The last segment of a class name: `Arr` for `Core\Arr`.
 fn short(class: &str) -> &str {
     class.rsplit('\\').next().unwrap_or(class)
+}
+
+#[test]
+fn every_error_property_names_a_declared_property_and_a_registered_enum() {
+    for (class, property, named) in ERROR_PROPERTIES {
+        assert!(
+            nvs_hir::errors::own_properties(class).contains(property),
+            "`{class}` declares no own property `{property}`"
+        );
+        assert!(
+            ENUMS.iter().any(|core| core.name == *named),
+            "`{named}` is not a registered enum"
+        );
+    }
 }
 
 #[test]
