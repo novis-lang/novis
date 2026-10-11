@@ -17,3 +17,28 @@ point that is not a name surrogate, such as a cloud placeholder, is a real folde
 A link that already exists when the door is called is unchanged in meaning: the resolution follows it,
 the grant is checked on its target, and the walk opens the target. Only a link that appears between the
 check and the open is refused.
+
+The grant is asked about the resolved path as written, never resolved again inside the check, because a
+second resolution could see a different path than the one the walk opens. On Windows an overwrite
+opens the existing file without emptying it, refuses it if it is a link, and only then sets its length
+to zero, so a link is never emptied. A folder the process may search but not list is walked on Linux,
+where a level is opened `O_PATH`; on every other platform it fails the walk. A volume mount point
+inside a granted tree on Windows has a name-surrogate tag, so the walk refuses it unless the resolved
+path is spelled through its volume.
+
+The walk costs one open per level of the path, the count the operating system's own lookup makes, plus
+one attribute read per level on Windows.
+
+- **Memory:** nothing past the call: every handle but the deepest is closed as soon as the next one is
+  open.
+
+**Declined:**
+
+- **The walk for `Core\Zip::extract` alone.** Its per-folder comparison against the destination left
+  the moment between the last comparison and the create, and did nothing for `Core\IO`'s own writes.
+- **Keeping the window and stating it as a bound.** A folder swapped for a link would still send a
+  write outside the grant.
+- **`openat2` with `RESOLVE_BENEATH` on Linux.** It would be a third platform half for one kernel, and
+  the walk already gives the same guarantee there.
+- **Anchoring the walk at the granted root** instead of the filesystem root. It would refuse a link
+  inside a granted tree that points to another place in the same tree, which a write may follow.
