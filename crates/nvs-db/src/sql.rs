@@ -232,7 +232,7 @@ impl Statement {
 /// A request runs a handful of distinct statements, and this holds them all
 /// without asking a server to keep a hundred plans alive for a connection that
 /// is idle in a pool.
-pub const DEFAULT_STATEMENT_CACHE: usize = 16;
+pub const DEFAULT_STATEMENT_CACHE: usize = nvs_config::defaults::DB_STATEMENT_CACHE;
 
 /// § 1's size for one connection, read from its `[db.<name>]` block.
 ///

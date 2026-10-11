@@ -7359,10 +7359,10 @@ mod tests {
         let untracked =
             nvs_config::Request::new(crate::tests::granting("[limits]\nmax_tasks = 4\n"));
         assert_eq!(
-            super::limits_recorded(Some(&untracked)),
-            None,
+            super::limits_recorded(Some(&untracked)).as_deref(),
+            Some(r#"{"memory":"128M"}"#),
             "`max_tasks` is read by no scheduler, so recording it would put a value on the row that \
-             no isolate applies"
+             no isolate applies; the memory default is in force, so it is recorded"
         );
     }
 

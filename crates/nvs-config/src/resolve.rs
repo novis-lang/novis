@@ -630,7 +630,9 @@ fn include_targets(
     files: &dyn Files,
     probed: &mut Vec<PathBuf>,
 ) -> Result<Vec<PathBuf>, Diagnostic> {
-    let optional = include.optional.unwrap_or(false);
+    let optional = include
+        .optional
+        .unwrap_or(crate::defaults::INCLUDE_OPTIONAL);
     match (&include.path, &include.dir) {
         (Some(one), None) => {
             let target = absolute(base, Path::new(one));

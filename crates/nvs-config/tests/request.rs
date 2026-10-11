@@ -544,9 +544,9 @@ fn a_mode_flip_is_bounded_derived_and_request_local() {
     assert_eq!(request.get("log.level").as_deref(), Some("Debug"));
     assert_eq!(request.get("http.errors.detail").as_deref(), Some("full"));
     assert_eq!(
-        beside.get("log.level"),
-        None,
-        "a flip is this request's own"
+        beside.get("log.level").as_deref(),
+        Some("Info"),
+        "a flip is this request's own, so beside it the production default is in force"
     );
     assert_eq!(
         beside.get(nvs_config::mode::KEY).as_deref(),
@@ -652,4 +652,119 @@ fn errors_deprecated_is_runtime_class() {
     assert_eq!(Deprecated::in_force(&next), Deprecated::Ignore);
     first.restore(KEY);
     assert_eq!(Deprecated::in_force(&first), Deprecated::Ignore);
+}
+
+/// `rule:config/no-configuration-file-is-a-complete-configuration`: with nothing written, `get`
+/// gives the built-in default in force, rendered the way the shipped file writes it.
+#[test]
+fn get_gives_the_built_in_default_where_nothing_is_written() {
+    let mut request = Request::new(snapshot_of(""));
+
+    assert_eq!(request.get("memory").as_deref(), Some("128M"));
+    assert_eq!(request.get("limits.memory").as_deref(), Some("128M"));
+    assert_eq!(request.get("max_regex_steps").as_deref(), Some("1000000"));
+    assert_eq!(request.get("mode.default").as_deref(), Some("production"));
+    assert_eq!(request.get("mode.ceiling").as_deref(), Some("production"));
+    assert_eq!(request.get("log.level").as_deref(), Some("Info"));
+    assert_eq!(request.get("limits.hard.memory").as_deref(), Some("128M"));
+    assert_eq!(request.get("wall_time"), None, "`wall_time` has no default");
+
+    assert_eq!(
+        request.get("cpu_time"),
+        None,
+        "a CLI program or a `#[Command]` run is not server work, so it has no CPU ceiling"
+    );
+    assert_eq!(request.get("limits.hard.cpu_time"), None);
+    request.serve();
+    assert_eq!(request.get("cpu_time").as_deref(), Some("30s"));
+    assert_eq!(request.get("limits.hard.cpu_time").as_deref(), Some("30s"));
+}
+
+/// A written value beats the default, a request's own value beats both, and `restore` brings
+/// back the default where the file writes none.
+#[test]
+fn a_written_value_beats_the_default_and_restore_returns_to_it() {
+    let written = Request::new(snapshot_of("[limits]\nmax_regex_steps = 500\n"));
+    assert_eq!(written.get("max_regex_steps").as_deref(), Some("500"));
+
+    let mut request = Request::new(snapshot_of(""));
+    assert!(
+        request.set("memory", "64M"),
+        "a narrowing set is within the default ceiling"
+    );
+    assert_eq!(request.get("memory").as_deref(), Some("64M"));
+    assert!(
+        !request.set("memory", "256M"),
+        "the default is also the ceiling where no `[limits.hard]` is written"
+    );
+    request.restore("memory");
+    assert_eq!(request.get("memory").as_deref(), Some("128M"));
+    assert_eq!(
+        request.all().get("limits.memory").map(String::as_str),
+        Some("128M")
+    );
+}
+
+/// `all` lists every default in force beside what the file wrote, and agrees with `get` on each.
+#[test]
+fn all_lists_the_defaults_in_force() {
+    let mut request = Request::new(snapshot_of(BOUNDED));
+    request.serve();
+    let all = request.all();
+
+    assert_eq!(all.get("limits.memory").map(String::as_str), Some("256M"));
+    assert_eq!(
+        all.get("limits.max_regex_steps").map(String::as_str),
+        Some("1000000")
+    );
+    assert_eq!(all.get("limits.cpu_time").map(String::as_str), Some("30s"));
+    assert_eq!(
+        all.get("server.max_in_flight").map(String::as_str),
+        Some("10000")
+    );
+    assert_eq!(
+        all.get("http.cookies.same_site").map(String::as_str),
+        Some("Lax")
+    );
+    assert!(
+        !all.contains_key("limits.wall_time"),
+        "a key with no default is not in force"
+    );
+    assert!(
+        !all.contains_key("http.cors.methods"),
+        "a list has no text `set` takes back"
+    );
+    for (name, value) in &all {
+        assert_eq!(
+            request.get(name).as_ref(),
+            Some(value),
+            "`get` and `all` disagree about {name}"
+        );
+    }
+}
+
+/// A default inside a named block is in force only where the file writes that block, so a host
+/// with no `[db.<name>]` has no `db.*` key at all.
+#[test]
+fn a_named_block_default_is_in_force_only_where_the_block_is_written() {
+    let bare = Request::new(snapshot_of(""));
+    assert!(
+        bare.all().keys().all(|key| !key.starts_with("db.")),
+        "a host with no `[db.<name>]` block has no `db.*` key"
+    );
+    assert_eq!(bare.get("db.main.statement_cache"), None);
+    assert_eq!(bare.get("db.pool.max"), None);
+
+    let named = Request::new(snapshot_of(
+        "[db.main]\ndriver = \"sqlite\"\npath = \"app.sqlite\"\n",
+    ));
+    assert_eq!(named.get("db.main.statement_cache").as_deref(), Some("16"));
+    assert_eq!(named.get("db.main.pool.max").as_deref(), Some("16"));
+    assert_eq!(named.get("db.other.statement_cache"), None);
+    let all = named.all();
+    assert_eq!(
+        all.get("db.main.time_zone").map(String::as_str),
+        Some("+00:00")
+    );
+    assert!(all.keys().all(|key| !key.starts_with("db.other.")));
 }

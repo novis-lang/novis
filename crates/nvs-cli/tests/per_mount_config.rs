@@ -587,7 +587,7 @@ fn a_mount_the_rescan_adds_runs_under_its_own_app_blocks() {
     );
     let one = server.body("/one");
     assert!(
-        one.starts_with("development unset https://one.example.test/"),
+        one.starts_with("development 128M https://one.example.test/"),
         "{one}"
     );
 

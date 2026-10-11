@@ -51,11 +51,11 @@ use crate::tree::{Config, Log, Setting};
 use crate::value::{Quantity, Unit, as_written};
 
 /// The size at which a `file:` target is renamed when `[log] max_size` is not written: 10 MiB.
-pub const MAX_SIZE: u64 = 10 * 1024 * 1024;
+pub const MAX_SIZE: u64 = crate::defaults::LOG_MAX_SIZE;
 
 /// How many renamed files a `file:` target keeps when `[log] keep` is not written, so the default
 /// target holds at most `(5 + 1) * 10 MiB` on disk.
-pub const KEEP: usize = 5;
+pub const KEEP: usize = crate::defaults::LOG_KEEP;
 
 /// The written `max_size` and `keep` of the `[log]` block in force, as the sink's two bounds.
 ///

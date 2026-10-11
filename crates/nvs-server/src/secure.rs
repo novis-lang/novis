@@ -67,10 +67,10 @@ use nvs_config::tree::{Http, HttpHeaders};
 use nvs_config::{Quantity, Setting, Unit};
 
 /// § 1's `referrer_policy` with nothing written.
-const REFERRER: &str = "strict-origin-when-cross-origin";
+const REFERRER: &str = nvs_config::defaults::HTTP_HEADERS_REFERRER_POLICY;
 
 /// § 1's `hsts` with nothing written — `365d`, in the seconds the header is spelled in.
-const MAX_AGE: u64 = 365 * 24 * 60 * 60;
+const MAX_AGE: u64 = nvs_config::defaults::HTTP_HEADERS_HSTS.as_secs();
 
 /// § 1's `frame_ancestors` with nothing written, as the CSP source it renders to.
 const NO_ANCESTOR: &str = "'none'";

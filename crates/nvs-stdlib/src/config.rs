@@ -17,10 +17,12 @@
 //! request on the same core. No member here reaches a process-wide table,
 //! because there is none to reach.
 //!
-//! **A context nobody configured answers as an empty configuration**: `get` is
-//! `null`, `all` is empty, `set` is `false` and `restore` does nothing. That is
-//! every test context and any embedder that has not built a snapshot, and it is
-//! deliberately not a throw — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 makes "no configuration
+//! **A host with no configuration file answers with the built-in defaults**:
+//! `get` and `all` give every default in force, as `nvs_config::request` says.
+//! **A context that was handed no configuration at all answers as an empty
+//! one**: `get` is `null`, `all` is empty, `set` is `false` and `restore` does
+//! nothing. That is a test context and any embedder that has not built a
+//! snapshot, and it is deliberately not a throw — `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3 makes "no configuration
 //! file anywhere" a valid host and not an error, so a program has to be able to
 //! ask on one.
 
@@ -396,15 +398,32 @@ mod tests {
 
         let reported = all(&mut ctx);
         let names: Vec<&str> = reported.iter().map(|(name, _)| name.as_str()).collect();
-        assert_eq!(names, ["limits.max_tasks", "limits.memory", "log.level"]);
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        assert_eq!(names, sorted, "`all` reports in name order");
+        let value = |name: &str| {
+            reported
+                .iter()
+                .find(|(reported, _)| reported == name)
+                .map(|(_, value)| value.as_str())
+        };
         assert_eq!(
-            reported[0].1, "8",
+            value("limits.max_tasks"),
+            Some("8"),
             "a number is reported the way the file spelled it"
         );
+        assert_eq!(value("limits.memory"), Some("256M"));
         assert_eq!(
-            reported[2].1, "debug",
+            value("log.level"),
+            Some("debug"),
             "the overlay is folded over the file"
         );
+        assert_eq!(
+            value("limits.max_regex_steps"),
+            Some("1000000"),
+            "a default the file does not write is in force, and reported"
+        );
+        assert_eq!(value("debug.mode"), None, "a list is not reported");
 
         for (name, value) in &reported {
             assert_eq!(

@@ -134,11 +134,15 @@ impl Inbound {
             star_origin: cors
                 .and_then(|cors| cors.origins.as_deref())
                 .is_some_and(|origins| origins.iter().any(|origin| origin == "*")),
-            credentials: cors.and_then(|cors| cors.credentials).unwrap_or(false),
+            credentials: cors
+                .and_then(|cors| cors.credentials)
+                .unwrap_or(crate::defaults::HTTP_CORS_CREDENTIALS),
             same_site_none: cookies
                 .and_then(|cookies| cookies.same_site.as_deref())
                 .is_some_and(is_none_same_site),
-            secure: cookies.and_then(|cookies| cookies.secure).unwrap_or(true),
+            secure: cookies
+                .and_then(|cookies| cookies.secure)
+                .unwrap_or(crate::defaults::HTTP_COOKIES_SECURE),
         }
     }
 
@@ -307,17 +311,20 @@ impl Cookies {
     pub fn of(http: Option<&Http>) -> Self {
         let cookies = http.and_then(|http| http.cookies.as_ref());
         Self {
-            secure: cookies.and_then(|cookies| cookies.secure).unwrap_or(true),
+            secure: cookies
+                .and_then(|cookies| cookies.secure)
+                .unwrap_or(crate::defaults::HTTP_COOKIES_SECURE),
             http_only: cookies
                 .and_then(|cookies| cookies.http_only)
-                .unwrap_or(true),
+                .unwrap_or(crate::defaults::HTTP_COOKIES_HTTP_ONLY),
             same_site: cookies
                 .and_then(|cookies| cookies.same_site.as_deref())
                 .and_then(SameSite::parse)
+                .or_else(|| SameSite::parse(crate::defaults::HTTP_COOKIES_SAME_SITE))
                 .unwrap_or(SameSite::Lax),
             path: cookies
                 .and_then(|cookies| cookies.path.as_deref())
-                .unwrap_or("/")
+                .unwrap_or(crate::defaults::HTTP_COOKIES_PATH)
                 .to_owned(),
         }
     }

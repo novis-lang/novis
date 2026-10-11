@@ -513,11 +513,11 @@ pub struct Revalidation {
 
 /// `settle`'s startup row (`rule:config/a-startup-default-is-never-flipped`) in `production`, and
 /// the default for a mode that is neither.
-pub const SETTLE_PRODUCTION: Duration = Duration::from_secs(1);
+pub const SETTLE_PRODUCTION: Duration = crate::defaults::OPCACHE_SETTLE[0];
 
 /// `settle`'s startup row in `development`: short enough that a saved file reaches the next reload
 /// of a browser tab, and long enough that an editor's write-then-rename is one change.
-pub const SETTLE_DEVELOPMENT: Duration = Duration::from_millis(100);
+pub const SETTLE_DEVELOPMENT: Duration = crate::defaults::OPCACHE_SETTLE[1];
 
 impl Default for Revalidation {
     /// `mtime`, checked at most once every two seconds, and settled for production's one second.
@@ -533,7 +533,7 @@ impl Default for Revalidation {
     fn default() -> Self {
         Self {
             validate: Validate::Mtime,
-            freq: Duration::from_secs(2),
+            freq: crate::defaults::OPCACHE_REVALIDATE_FREQ,
             settle: SETTLE_PRODUCTION,
         }
     }

@@ -7,6 +7,7 @@ Every `Core\Config::set` refusal answers `false` and leaves the value in force u
 // and leaves the value in place. Both halves are asserted here, because the
 // half a bare `false` does not prove is that nothing moved — a member that
 // refused *and* wrote would print identically on the first three lines.
+uint $before = Core\Arr::count(Core\Config::all());
 Core\Config::set("memory", "128M");
 
 // Not a quantity in the unit `memory` takes. The value has to spell the same
@@ -23,10 +24,10 @@ echo "unknown=", (Core\Config::set("no.such.directive", "1") ? "ok" : "refused")
 
 // What survived all three: the one accepted set, and nothing else.
 echo "value=", Core\Config::get("memory") ?? "unset", "\n";
-echo "all=", Core\Arr::count(Core\Config::all()), "\n";
+echo "all=", Core\Arr::count(Core\Config::all()) == $before ? "same" : "grew", "\n";
 
-// None of which stops `restore` from putting the file's own value back — here,
-// on a host with no file, nothing.
+// None of which stops `restore` from putting the value in force back — here,
+// on a host with no file, the default.
 Core\Config::restore("memory");
 echo "restored=", Core\Config::get("memory") ?? "unset", "\n";
 --EXPECT--
@@ -34,5 +35,5 @@ unit=refused
 system=refused
 unknown=refused
 value=128M
-all=1
-restored=unset
+all=same
+restored=128M

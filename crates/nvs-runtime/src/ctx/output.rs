@@ -1006,15 +1006,14 @@ fn log_target(config: Option<&nvs_config::Request>) -> LogTarget {
 /// What `[log] level` names, or [`Level::Debug`] where it names nothing —
 /// [`Ctx::write_log_record`]'s floor, resolved with the target above.
 ///
-/// `Debug` for an unset directive rather than `rule:config/a-mode-is-five-defaults`'s per-mode
-/// `Info`: that default belongs to the *tree* — not yet applied at boot,
-/// which `nvs_config::mode`'s module doc carries as its open gap — so a
-/// resolved configuration is where it will arrive, and a caller configured by
-/// something other than a resolved tree has said nothing about which
-/// records it wants. The safe answer to that is all of them. A word the
-/// grammar does not carry reads the same way and never boots — `E0614`
-/// refuses it at the file, for the reason `nvs_config::log`'s module doc
-/// gives about doing this at boot rather than at the first record.
+/// A configured context always names a level: `get` gives the mode's default
+/// (`rule:config/a-mode-is-five-defaults`) where the file writes none, which
+/// is `Info` in production and `Debug` in development. So `Debug` is the
+/// answer here only for a context with no configuration at all, which has
+/// said nothing about which records it wants, and the safe answer to that is
+/// all of them. A word the grammar does not carry reads the same way and never
+/// boots: `E0614` refuses it at the file, for the reason `nvs_config::log`'s
+/// module doc gives about doing this at boot rather than at the first record.
 fn log_minimum(config: Option<&nvs_config::Request>) -> Level {
     config
         .and_then(|config| config.get("log.level"))

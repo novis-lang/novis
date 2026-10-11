@@ -1208,9 +1208,9 @@ impl Default for Eviction {
     /// rarer roll would let the overshoot grow for no saving worth having.
     fn default() -> Self {
         Self {
-            max_size: 256 * 1024 * 1024,
-            probability: 1,
-            divisor: 100,
+            max_size: nvs_config::defaults::OPCACHE_FILE_CACHE_MAX_SIZE,
+            probability: nvs_config::defaults::OPCACHE_FILE_CACHE_GC_PROBABILITY,
+            divisor: nvs_config::defaults::OPCACHE_FILE_CACHE_GC_DIVISOR,
         }
     }
 }

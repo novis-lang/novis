@@ -401,7 +401,7 @@ fn line(written: Option<&[String]>, default: &str) -> Option<HeaderValue> {
 /// which only reaches `0`: a browser may not cache the preflight, which is the honest reading of a
 /// duration written shorter than the unit the header can state.
 fn seconds_of(written: Option<&str>) -> HeaderValue {
-    const SHIPPED: u64 = 600;
+    const SHIPPED: u64 = nvs_config::defaults::HTTP_CORS_MAX_AGE.as_secs();
     let seconds = written
         .and_then(|written| {
             let value = Setting::Text(written.to_owned());

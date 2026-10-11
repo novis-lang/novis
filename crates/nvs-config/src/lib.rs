@@ -55,6 +55,9 @@
 //! and `Core\Config::set` share it, and it is directed by the unit the key takes because no
 //! spelling can tell mega from minutes on its own.
 //!
+//! [`mod@defaults`] is what every key with a default is when no file writes it: one table, read
+//! by `Core\Config::get` and by every piece of code that enforces the value.
+//!
 //! [`mod@request`] is the last step: one request's view of a [`Snapshot`], and the copy-on-write
 //! overlay `rule:config/ini-set-is-core-config-set`'s `Core\Config::set` writes over it. It is a caller
 //! [`mod@value`] exists to keep in agreement with the boot path — that path checks a ceiling out
@@ -73,6 +76,7 @@ pub mod cache;
 pub mod capability;
 pub mod data;
 pub mod db;
+pub mod defaults;
 pub mod directive;
 pub mod errors;
 pub mod export;
@@ -106,7 +110,7 @@ pub use resolve::{Origin, Override, Resolved, Roots};
 pub use server::{Capacity, ConnectionBounds, Waits};
 pub use snapshot::{AppBlocks, Current, Published, Reload, Snapshot};
 pub use tree::{Config, Setting};
-pub use value::{DEFAULT_CPU_TIME, DEFAULT_MEMORY, Quantity, Unit};
+pub use value::{Quantity, Unit};
 
 /// The `nvs.toml` this project ships: every key [`mod@tree`] parses, commented out, under the prose
 /// that says what it does. Its `[block]` headers are live, so setting a key is removing one `#`;

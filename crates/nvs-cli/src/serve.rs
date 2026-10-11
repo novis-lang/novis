@@ -247,9 +247,9 @@ pub(crate) fn run(
         Err(diagnostic) => return report(diagnostic, &sources),
     };
     // `[server] watchdog_margin`, read once here because the process builds its one watchdog
-    // once, below; `None` keeps `nvs_host::watchdog::DEFAULT_MARGIN`.
+    // once, below; `None` is the built-in default.
     let margin = match watchdog_margin_for(&snapshot.config, &origins) {
-        Ok(written) => written.unwrap_or(nvs_host::watchdog::DEFAULT_MARGIN),
+        Ok(written) => written.unwrap_or(nvs_config::defaults::SERVER_WATCHDOG_MARGIN),
         Err(diagnostic) => return report(diagnostic, &sources),
     };
     // `rule:http-server/secure-headers-with-nothing-written`'s header set, resolved once beside the valve: with nothing

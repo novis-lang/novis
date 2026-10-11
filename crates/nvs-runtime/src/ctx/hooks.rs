@@ -422,7 +422,7 @@ impl Ctx {
 
     /// § 7's printed default for [`Self::deferred_max_concurrent`], for a tree
     /// that writes no `[deferred] max_concurrent` of its own.
-    const DEFAULT_DEFERRED_MAX_CONCURRENT: u64 = 256;
+    const DEFAULT_DEFERRED_MAX_CONCURRENT: u64 = nvs_config::defaults::DEFERRED_MAX_CONCURRENT;
 
     /// `[deferred] max_concurrent` — how many request trees this core may hold
     /// open for after-response work at once (§ 7).

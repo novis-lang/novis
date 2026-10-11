@@ -123,7 +123,7 @@ impl Ctx {
     /// A connection's context is not server work itself, so where no
     /// `[limits] cpu_time` is written the parent states no ceiling. The
     /// request's own [`Self::set_inbound`] then gives this root
-    /// [`nvs_config::DEFAULT_CPU_TIME`] ([`Self::now_serving`]).
+    /// [`nvs_config::defaults::LIMITS_CPU_TIME`] ([`Self::now_serving`]).
     pub fn take_tree_cpu_limit(&mut self, parent: &Self) {
         self.cpu_limit = parent.cpu_limit;
         self.fatal_reserve_time = parent.fatal_reserve_time;

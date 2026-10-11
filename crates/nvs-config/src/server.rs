@@ -90,7 +90,7 @@
 //!
 
 use std::collections::BTreeMap;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -137,11 +137,11 @@ impl Default for Waits {
     /// systemd's own default with room for a distribution that lowered it.
     fn default() -> Self {
         Self {
-            header: Duration::from_secs(10),
-            body_idle: Duration::from_secs(30),
-            write_idle: Duration::from_secs(30),
-            keepalive: Duration::from_secs(75),
-            drain: Duration::from_secs(30),
+            header: crate::defaults::SERVER_HEADER_TIMEOUT,
+            body_idle: crate::defaults::SERVER_BODY_IDLE_TIMEOUT,
+            write_idle: crate::defaults::SERVER_WRITE_IDLE_TIMEOUT,
+            keepalive: crate::defaults::SERVER_KEEPALIVE_TIMEOUT,
+            drain: crate::defaults::SERVER_DRAIN_TIMEOUT,
         }
     }
 }
@@ -499,10 +499,6 @@ pub enum Listen {
     Unix(PathBuf),
 }
 
-/// § 5's own default, in both modes: loopback is the proxied shape as well as the development one,
-/// so requiring an explicit `listen` in production would be friction with no safety in it.
-const DEFAULT_PORT: u16 = 8000;
-
 /// The sockets the tree's `[server] listen` asks for, in the order written.
 ///
 /// A tree with no `[server]` block, and one that leaves the key out, are both § 5's default —
@@ -518,11 +514,14 @@ pub fn listen_on(
     config: &Config,
     origins: &BTreeMap<String, Origin>,
 ) -> Result<Vec<Listen>, Diagnostic> {
+    // § 5's own default, in both modes: loopback is the proxied shape as well as the development
+    // one, so requiring an explicit `listen` in production would be friction with no safety in it.
     let default = || {
-        vec![Listen::Tcp(SocketAddr::from((
-            Ipv4Addr::LOCALHOST,
-            DEFAULT_PORT,
-        )))]
+        crate::defaults::SERVER_LISTEN
+            .iter()
+            .filter_map(|entry| entry.parse::<SocketAddr>().ok())
+            .map(Listen::Tcp)
+            .collect()
     };
     let Some(written) = config
         .server
@@ -579,7 +578,7 @@ fn classify(entry: &str, origins: &BTreeMap<String, Origin>) -> Result<Listen, D
 /// Not the umask's answer, for `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
 /// reason — an ordinary `022` would create the socket world-connectable, and on this transport
 /// that is world-trusted.
-const DEFAULT_SOCKET_MODE: u32 = 0o660;
+const DEFAULT_SOCKET_MODE: u32 = crate::defaults::SERVER_SOCKET_MODE;
 
 /// The mode every Unix-domain entry of `listen` is created with, and [`DEFAULT_SOCKET_MODE`]
 /// where the block writes none.
@@ -779,15 +778,17 @@ pub fn switches_for(config: &Config) -> Switches {
         .and_then(|mode| mode.default.as_deref())
         == Some(crate::mode::DEVELOPMENT);
     let server = config.server.as_ref();
-    let dispatch = match server.and_then(|server| server.dispatch.as_deref()) {
-        Some("path") => Dispatch::Path,
-        Some(_) => Dispatch::Entry,
-        None if development => Dispatch::Path,
-        None => Dispatch::Entry,
+    let started = usize::from(development);
+    let dispatch = match server
+        .and_then(|server| server.dispatch.as_deref())
+        .unwrap_or(crate::defaults::SERVER_DISPATCH[started])
+    {
+        "path" => Dispatch::Path,
+        _ => Dispatch::Entry,
     };
     let serve_static = server
         .and_then(|server| server.serve_static)
-        .unwrap_or(development);
+        .unwrap_or(crate::defaults::SERVER_STATIC[started]);
     Switches {
         dispatch,
         serve_static,
@@ -795,7 +796,7 @@ pub fn switches_for(config: &Config) -> Switches {
 }
 
 /// § 5's own number, transcribed rather than chosen — the ADR writes it out.
-const DEFAULT_MAX_IN_FLIGHT: u64 = 10_000;
+const DEFAULT_MAX_IN_FLIGHT: u64 = crate::defaults::SERVER_MAX_IN_FLIGHT;
 
 /// The numbers `rule:http-server/admission-is-arithmetic-not-a-number`'s admission arithmetic is over: what the file asked for, what
 /// one request may hold, and what this machine has.
@@ -919,7 +920,7 @@ fn per_request_cap(
     let (key, written) = match (hard, limits.and_then(|limits| limits.memory.as_ref())) {
         (Some(hard), _) => ("limits.hard.memory", hard),
         (None, Some(start)) => ("limits.memory", start),
-        (None, None) => return Ok(Some(crate::value::DEFAULT_MEMORY)),
+        (None, None) => return Ok(Some(crate::defaults::LIMITS_MEMORY)),
     };
     let quantity = Quantity::parse(key, Unit::Bytes, written)
         .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
@@ -1034,6 +1035,8 @@ mod platform {
 
 #[cfg(test)]
 mod tests {
+    use std::net::Ipv4Addr;
+
     use super::*;
 
     fn tree(text: &str) -> Config {

@@ -54,7 +54,7 @@ pub enum RunKind {
 impl RunKind {
     /// Whether this kind of run is server work: a request, a connection, a
     /// scheduled run or a queued job. Server work takes
-    /// [`nvs_config::DEFAULT_CPU_TIME`] where `[limits] cpu_time` is not
+    /// [`nvs_config::defaults::LIMITS_CPU_TIME`] where `[limits] cpu_time` is not
     /// written, and a CLI program and a test take no CPU ceiling
     /// (`rule:config/no-configuration-file-is-a-complete-configuration`).
     /// [`Self::Isolate`] is not on the list: a child takes whatever the run it
@@ -609,7 +609,8 @@ impl Ctx {
     /// runs a callable the request already loaded — and 16 MiB is spent here
     /// under `rule:programs/memory-priority`'s
     /// ordering: a handler that cannot report is a failure nobody hears about.
-    pub const DEFAULT_HANDLER_RESERVE_MEMORY: usize = 16 << 20;
+    pub const DEFAULT_HANDLER_RESERVE_MEMORY: usize =
+        nvs_config::defaults::LOG_HANDLER_RESERVE_MEMORY;
 
     /// The CPU ceiling [`Self::handler_isolate`] runs under where
     /// `[log] handler_reserve_time` states none.
@@ -619,7 +620,8 @@ impl Ctx {
     /// on, which is a log target or a socket. The number is larger than the tier-1
     /// reserve's 50 ms for the reason the memory half is larger — this one compiles a
     /// script first — and it is a ceiling on a report, not a budget for work.
-    pub const DEFAULT_HANDLER_RESERVE_TIME: u64 = 5_000_000_000;
+    pub const DEFAULT_HANDLER_RESERVE_TIME: u64 =
+        nvs_config::defaults::nanos(nvs_config::defaults::LOG_HANDLER_RESERVE_TIME);
 
     /// A context for `rule:errors/handler-script`'s **tier-3 handler** — [`Self::isolate`] with the failing request's
     /// budget left behind.

@@ -32,7 +32,7 @@ use crate::value::{Quantity, Unit, as_written};
 pub const KEY: &str = "image.max_pixels";
 
 /// The cap with nothing written: `"24M"`, read as every other `M` in the file is read.
-pub const DEFAULT: u64 = 24 << 20;
+pub const DEFAULT: u64 = crate::defaults::IMAGE_MAX_PIXELS;
 
 /// The cap `written` spells, or `None` for a value that is not one — a malformed size, `false`,
 /// or zero.

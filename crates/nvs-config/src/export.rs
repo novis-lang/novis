@@ -70,7 +70,7 @@ impl Exporter {
 /// `nvs run` that writes a metric accumulates into one this file never described, and
 /// `rule:observability/past-max-series-a-new-series-is-refused` holds it to the same number rather
 /// than to a second one written somewhere else.
-pub const DEFAULT_MAX_SERIES: u64 = 10_000;
+pub const DEFAULT_MAX_SERIES: u64 = crate::defaults::METRICS_MAX_SERIES;
 
 /// `rule:observability/metrics-and-trace-blocks-are-system`'s `[metrics]` block, resolved into what one core is asked to build: where its
 /// series ship to, and § 7's bound on how many of them it may hold.
@@ -148,7 +148,7 @@ impl<'a> Tracing<'a> {
 
 /// § 6's own `sample`, for a tree that writes no fraction: a trace this process starts is recorded
 /// by nothing until an operator says how much of it to record.
-const DEFAULT_SAMPLE: f64 = 0.0;
+const DEFAULT_SAMPLE: f64 = crate::defaults::TRACE_SAMPLE;
 
 /// `rule:observability/sampling-is-head-based`'s fraction, resolved: the probability that a request
 /// which *starts* a trace is recorded.

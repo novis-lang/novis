@@ -572,13 +572,13 @@ const COOKIE: &str = "session.cookie";
 /// number trades is how long a stolen id stays useful against how often an idle user is signed out,
 /// and two hours is the ordinary answer to that pair. It is deliberately not "until the browser
 /// closes": a session with no server-side expiry is one an attacker's copy never loses either.
-const DEFAULT_TTL: Duration = Duration::from_secs(2 * 60 * 60);
+const DEFAULT_TTL: Duration = nvs_config::defaults::SESSION_TTL;
 
 /// The cookie name a deployment that configured none inherits.
 ///
 /// Not `PHPSESSID` and not anything naming a framework: a cookie name is the one part of a session
 /// that a scanner reads to decide what it is talking to, and there is nothing to gain by answering.
-const DEFAULT_COOKIE: &str = "nvsid";
+const DEFAULT_COOKIE: &str = nvs_config::defaults::SESSION_COOKIE;
 
 /// How many bytes an identifier is drawn from — 128 bits, per the module doc.
 const ID_BYTES: usize = 16;

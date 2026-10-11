@@ -22,11 +22,10 @@
 //! is what makes a production host — one that wrote no configuration at all — refuse every flip
 //! without an operator having to know this feature exists.
 //!
-//! **What is not here yet:** the mode table's defaults are applied only by `rule:config/a-program-may-read-and-flip-its-mode`'s runtime flip, not at
-//! boot. A tree that writes `mode = "development"` and nothing else still resolves `[log] format` to
-//! nothing rather than to `"text"`, so a reader must treat an unset directive as its production
-//! default. Closing that means the same table read where the snapshot is built, which is this
-//! module's next caller and not a second copy of the rows.
+//! **An unwritten row is the mode's value.** [`crate::defaults`] names each row of the table as a
+//! default computed by the mode in force, so `Request::get` of `[log] format` on a tree that writes
+//! `mode = "development"` and nothing else is `"text"`. A flip also writes the rows into the
+//! request's overlay, so flipping back leaves what the flip set.
 //!
 
 /// The dotted key a mode is written and flipped at — `rule:config/a-program-may-read-and-flip-its-mode`'s own spelling, and the only one.

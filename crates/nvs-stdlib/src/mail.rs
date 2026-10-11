@@ -104,14 +104,14 @@ pub(crate) const NAME: &str = r"Core\Mail";
 /// timeout multiplied by the number of steps is the unbounded wait spelled
 /// long-hand, and an SMTP conversation has as many steps as there are
 /// recipients.
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+const DEFAULT_TIMEOUT: Duration = nvs_config::defaults::MAIL_TIMEOUT;
 
 /// The submission port a block that names none is read as meaning.
 ///
 /// 25 rather than 587, because a block that names no port is the unauthenticated
 /// local-relay shape and 587 is the *authenticated* submission port. An operator
 /// writing the `user` that port exists for writes `port = 587` beside it.
-const DEFAULT_PORT: u16 = 25;
+const DEFAULT_PORT: u16 = nvs_config::defaults::MAIL_PORT;
 
 /// The ABI slot each parameter and each flattened option lands in — the bag
 /// expands to one argument per option, in declaration order, after the four

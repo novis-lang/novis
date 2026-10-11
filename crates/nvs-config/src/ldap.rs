@@ -34,7 +34,7 @@ use crate::tree::{Config, LdapDirectory, Setting};
 
 /// How long one operation may take where the block names no `timeout`, connect and bind included.
 /// There is no spelling for unlimited (`rule:core-classes/ldap-capabilities`).
-pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
+pub const DEFAULT_TIMEOUT: Duration = crate::defaults::LDAP_TIMEOUT;
 
 /// What a block's `tls` says: the encrypted default, or plain `ldap://` for a granted host.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

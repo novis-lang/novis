@@ -825,7 +825,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// may widen or narrow it for itself up to `[limits.hard] max_regex_steps`.
 /// Where that is not written, a `[limits] max_regex_steps` the file wrote is
 /// the ceiling, and this unwritten default is not one.
-const BACKTRACK_BUDGET: usize = 1_000_000;
+const BACKTRACK_BUDGET: usize = nvs_config::defaults::LIMITS_MAX_REGEX_STEPS;
 
 /// `[limits] max_regex_steps` — the directive [`step_budget`] reads.
 const STEPS_KEY: &str = "max_regex_steps";

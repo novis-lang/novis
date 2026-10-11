@@ -8,8 +8,8 @@
 // of `rule:config/ini-set-is-core-config-set`'s API has to have an answer on it, and none of them throws —
 // there is nothing in this file to `catch`.
 
-// Nothing writes `[limits] memory`, so `get` has no value to give: the
-// 128M default in force is not written anywhere.
+// Nothing writes `[limits] memory`, so `get` gives the built-in default in
+// force, the way the shipped file writes it.
 echo "get=", Core\Config::get("memory") ?? "unset", "\n";
 
 // `rule:config/three-changeability-classes`: `[limits]` states the default and `[limits.hard]` the ceiling. With
@@ -36,18 +36,19 @@ if (Core\Config::set("opcache.file_cache_dir", "/tmp/nvs")) {
     echo "system=refused", "\n";
 }
 
-// `restore` puts the file's own value back — here, nothing.
+// `restore` puts the value in force back — here, the default.
 Core\Config::restore("memory");
 echo "restored=", Core\Config::get("memory") ?? "unset", "\n";
 
 // And `all` is what the request can see: the overlay it has just emptied, over
-// a tree with nothing in it.
-echo "all=", Core\Arr::count(Core\Config::all()), "\n";
+// the defaults in force.
+array<string> $settings = Core\Config::all();
+echo "all=", $settings["limits.memory"], "\n";
 --EXPECT--
-get=unset
+get=128M
 raise=refused
 set=ok
 after=64M
 system=refused
-restored=unset
-all=0
+restored=128M
+all=128M

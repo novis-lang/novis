@@ -1594,35 +1594,35 @@ const TARGET_ADDRESSES_SLOT: usize = 1;
 /// The section's own TOML is the home of these three numbers; they are repeated
 /// here because a default no code holds is a default nothing applies, and
 /// [`bound_of`] reads the directive first in every case.
-const DEFAULT_DEADLINE: Duration = Duration::from_secs(30);
+const DEFAULT_DEADLINE: Duration = nvs_config::defaults::HTTP_CLIENT_DEADLINE;
 /// See [`DEFAULT_DEADLINE`].
-const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+const DEFAULT_CONNECT_TIMEOUT: Duration = nvs_config::defaults::HTTP_CLIENT_CONNECT_TIMEOUT;
 /// See [`DEFAULT_DEADLINE`]. `[http.client] idle`'s shipped value.
-const DEFAULT_IDLE: Duration = Duration::from_secs(30);
+const DEFAULT_IDLE: Duration = nvs_config::defaults::HTTP_CLIENT_IDLE;
 /// See [`DEFAULT_DEADLINE`]. `[http.client] max_duration`'s shipped value.
-const DEFAULT_MAX_DURATION: Duration = Duration::from_secs(300);
+const DEFAULT_MAX_DURATION: Duration = nvs_config::defaults::HTTP_CLIENT_MAX_DURATION;
 /// § 6's base delay, which the same section leaves out of the block because it
 /// is only reachable once a program has opted into retrying at all.
 const DEFAULT_BACKOFF: Duration = Duration::from_millis(100);
 /// See [`DEFAULT_DEADLINE`]. `[http.client] pool_idle`'s shipped value: enough
 /// idle connections for a handful of upstream APIs, per core
 /// (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`).
-const DEFAULT_POOL_IDLE: usize = 16;
+const DEFAULT_POOL_IDLE: usize = nvs_config::defaults::HTTP_CLIENT_POOL_IDLE;
 /// See [`DEFAULT_DEADLINE`]. `[http.client] pool_idle_timeout`'s shipped value,
 /// which sits under the idle timeout of every common proxy so that this client
 /// is normally the side that closes — the side that cannot lose a request to
 /// the race.
-const DEFAULT_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+const DEFAULT_POOL_IDLE_TIMEOUT: Duration = nvs_config::defaults::HTTP_CLIENT_POOL_IDLE_TIMEOUT;
 /// See [`DEFAULT_DEADLINE`]. `[http.client.socket] max_message`'s shipped
 /// value, in octets: what `nvs_server::bounds` already applies to the inbound
 /// half of RFC 6455, because one process holding two opinions about the size of
 /// one message is how a program comes to work in one direction and not the
 /// other.
-const DEFAULT_MAX_MESSAGE: u64 = 4 << 20;
+const DEFAULT_MAX_MESSAGE: u64 = nvs_config::defaults::HTTP_CLIENT_SOCKET_MAX_MESSAGE;
 /// See [`DEFAULT_DEADLINE`]. `[http.client.socket] send_timeout`'s shipped
 /// value: how long one frame may wait to be written before the peer that
 /// stopped reading is a peer this end stops writing to.
-const DEFAULT_SEND_TIMEOUT: Duration = Duration::from_secs(30);
+const DEFAULT_SEND_TIMEOUT: Duration = nvs_config::defaults::HTTP_CLIENT_SOCKET_SEND_TIMEOUT;
 
 /// `rule:http-server/no-spelling-for-an-unbounded-wait`'s request members, over `rule:security/outbound-url-is-a-sink`'s sink.
 ///
@@ -2846,7 +2846,7 @@ fn tls_version_rank(version: &str) -> Option<u8> {
 
 /// The floor a deployment that configured none speaks over — `[http.client.tls]
 /// min_version`'s shipped value, which is this client's lowest.
-const DEFAULT_MIN_VERSION: &str = "1.2";
+const DEFAULT_MIN_VERSION: &str = nvs_config::defaults::HTTP_CLIENT_TLS_MIN_VERSION;
 
 /// The five relaxing keys as one value, for the session the handshake builds.
 ///
@@ -4483,7 +4483,7 @@ fn redirects_of(ctx: &Ctx, args: &[Value]) -> u32 {
                 .and_then(|config| config.get("http.client.max_redirects"))
                 .and_then(|text| text.trim().parse::<u64>().ok())
         })
-        .unwrap_or(0)
+        .unwrap_or(u64::from(nvs_config::defaults::HTTP_CLIENT_MAX_REDIRECTS))
         .try_into()
         .unwrap_or(u32::MAX)
 }

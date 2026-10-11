@@ -498,7 +498,7 @@ pub struct Ctx {
     /// `[limits] memory` as a byte count, or `0` for a request under no cap —
     /// `rule:errors/on-limit`'s
     /// first resource limit. A configuration that writes none gives
-    /// [`nvs_config::DEFAULT_MEMORY`], so `0` is a `false` the operator wrote
+    /// [`nvs_config::defaults::LIMITS_MEMORY`], so `0` is a `false` the operator wrote
     /// or a context with no configuration.
     ///
     /// **Cached, not re-derived.** The value on disk is a string with a suffix
@@ -568,7 +568,7 @@ pub struct Ctx {
     /// `rule:errors/on-limit`'s
     /// second resource limit, cached for [`Self::memory_limit`]'s reason. A
     /// configuration that writes none gives server work
-    /// [`nvs_config::DEFAULT_CPU_TIME`] and a CLI program or a test no cap.
+    /// [`nvs_config::defaults::LIMITS_CPU_TIME`] and a CLI program or a test no cap.
     ///
     /// **What measures it is the request thread's own CPU clock, and never the
     /// wall clock [`Self::deadline`] is written from.** The two are different

@@ -201,7 +201,7 @@ pub fn high_water(config: &Config, origins: &BTreeMap<String, Origin>) -> Result
 
 /// `disconnect_grace` with nothing written: finite, as
 /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` requires of every wait.
-pub const DISCONNECT_GRACE: std::time::Duration = std::time::Duration::from_secs(30);
+pub const DISCONNECT_GRACE: std::time::Duration = crate::defaults::LIMITS_DISCONNECT_GRACE;
 
 /// What `rule:http-server/a-request-outlives-a-client-that-goes-away` reads from one block.
 #[derive(Clone, Debug, PartialEq, Eq)]

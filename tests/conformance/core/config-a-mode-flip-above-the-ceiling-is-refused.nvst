@@ -6,15 +6,15 @@ A host that configured nothing is production with a production ceiling, so no co
 // `production` and the unset ceiling equals it. This is the case the default
 // exists for — a production deployment refuses the flip without its operator
 // having had to know the feature exists.
+uint $before = Core\Arr::count(Core\Config::all());
 echo "flip=", Core\Config::set("mode.default", "development") ? "true" : "false", "\n";
 
-// A refusal moves nothing: the mode table's rows are still unset, so a reader that treats
-// an unset directive as its production default reads the mode the host started
-// in and not a half-applied one.
+// A refusal moves nothing: the mode table's rows still give their production
+// defaults, the mode the host started in, and not a half-applied one.
 echo "mode=", Core\Config::get("mode.default") ?? "unset", "\n";
 echo "detail=", Core\Config::get("http.errors.detail") ?? "unset", "\n";
 echo "inline=", Core\Config::get("debug.inline") ?? "unset", "\n";
-echo "set=", Core\Arr::count(Core\Config::all()), "\n";
+echo "set=", Core\Arr::count(Core\Config::all()) == $before ? "nothing" : "something", "\n";
 
 // The restrictive end of the order is always within the ceiling, so a request
 // may pin itself to production even where nothing let it leave.
@@ -22,9 +22,9 @@ echo "pin=", Core\Config::set("mode.default", "production") ? "true" : "false", 
 echo "mode=", Core\Config::get("mode.default") ?? "unset", "\n";
 --EXPECT--
 flip=false
-mode=unset
-detail=unset
-inline=unset
-set=0
+mode=production
+detail=generic
+inline=false
+set=nothing
 pin=true
 mode=production

@@ -174,12 +174,12 @@ impl Default for Connection {
     /// any one client is away. The spreading is [`reconnect_hint`]'s.
     fn default() -> Self {
         Self {
-            max_open: 10_000,
-            frame: 1 << 20,
-            message: 4 << 20,
-            idle: Duration::from_secs(5 * 60),
-            lifetime: Duration::from_secs(24 * 60 * 60),
-            send: Duration::from_secs(30),
+            max_open: nvs_config::defaults::SERVER_CONNECTION_MAX_OPEN,
+            frame: nvs_config::defaults::SERVER_CONNECTION_MAX_FRAME,
+            message: nvs_config::defaults::SERVER_CONNECTION_MAX_MESSAGE,
+            idle: nvs_config::defaults::SERVER_CONNECTION_IDLE_TIMEOUT,
+            lifetime: nvs_config::defaults::SERVER_CONNECTION_MAX_LIFETIME,
+            send: nvs_config::defaults::SERVER_CONNECTION_SEND_TIMEOUT,
             drain: Duration::from_secs(1),
             subscriber_queue: nvs_runtime::INBOX_CAP,
             reconnect: Duration::from_secs(3),

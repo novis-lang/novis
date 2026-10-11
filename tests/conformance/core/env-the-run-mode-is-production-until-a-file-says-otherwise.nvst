@@ -11,11 +11,9 @@ if (Core\Env::mode() == Core\Env::Mode::Production) {
     echo "mode=Development", "\n";
 }
 
-// The boundary the two readers do not share. `mode.default` is a directive like
-// any other and nothing set it here, so `Core\Config::get` answers `null` —
-// while the *mode* is answered all the same. An absent directive is not an
-// absent mode, which is the whole reason this is a member rather than a
-// `?? "production"` every caller would have to remember to write.
+// `mode.default` is a directive like any other and nothing set it here, so
+// `Core\Config::get` gives its built-in default — the same mode the member
+// answers, read from the one table of defaults.
 echo "directive=", Core\Config::get("mode.default") ?? "unset", "\n";
 
 // Two cases, and a program can name either: the comparison above is a choice
@@ -23,5 +21,5 @@ echo "directive=", Core\Config::get("mode.default") ?? "unset", "\n";
 echo "development=", (Core\Env::mode() == Core\Env::Mode::Development) ? "true" : "false", "\n";
 --EXPECT--
 mode=Production
-directive=unset
+directive=production
 development=false

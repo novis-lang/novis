@@ -535,7 +535,9 @@ mod tests {
 
     /// `rule:errors/debug-dump`'s HTTP rows: inside a request a dump is a
     /// **record** at `Debug`, not the plaintext line the row above it writes,
-    /// and with `[debug] inline` unset nothing reaches the body at all.
+    /// and with `[debug] inline` unset nothing reaches the body at all. The
+    /// case writes `[log] level = "Debug"`, because the production default
+    /// `Info` drops a `Debug` record.
     ///
     /// Asserted on the rendering's frame rather than on the whole line, because
     /// which envelope keys a record carries is `nvs_render::json`'s own test and
@@ -544,7 +546,7 @@ mod tests {
     // covers: Core\Debug::dump
     #[test]
     fn a_dump_inside_a_request_is_a_record_and_not_a_line() {
-        let mut ctx = requesting("");
+        let mut ctx = requesting("[log]\nlevel = \"Debug\"\n");
         dump_in(&mut ctx);
         let written = ctx
             .take_buffered_diagnostic()

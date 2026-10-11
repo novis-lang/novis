@@ -514,7 +514,7 @@ const TIMEOUT: &str = "cache.shared.timeout";
 /// is deliberately not "unbounded unless configured", which
 /// `rule:http-server/no-spelling-for-an-unbounded-wait`
 /// refuses to give any outbound wait a spelling for.
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
+const DEFAULT_TIMEOUT: Duration = nvs_config::defaults::CACHE_SHARED_TIMEOUT;
 
 /// `Core\Cache\Store::put`'s reference card — `rule:core-api/reference-card`.
 const PUT_DOC: MethodDoc = MethodDoc {
@@ -800,7 +800,7 @@ const MAX_SIZE: &str = "cache.local.max_size";
 /// for the extension `rule:core-api/tier-placement` records this class as answering, read per core
 /// rather than per host. Eight cores hold up to eight of it, which is § 3's
 /// O(cores × working set) with a number in front of it.
-const DEFAULT_MAX_SIZE: usize = 32 * 1024 * 1024;
+const DEFAULT_MAX_SIZE: usize = nvs_config::defaults::CACHE_MAX_SIZE;
 
 /// What one entry costs beyond its own bytes: a map bucket, an `Rc` header, a
 /// queue slot, the deadline held beside the payload, and the fat pointers over
@@ -1207,7 +1207,7 @@ const PROCESS_FILL_WAIT: &str = "cache.process.fill_wait";
 /// Long enough for a token endpoint on the other side of the internet to answer
 /// once, and short enough that a request behind a fetch that will never answer
 /// ends as a request rather than holding a core for as long as the fetch takes.
-const DEFAULT_FILL_WAIT: Duration = Duration::from_secs(5);
+const DEFAULT_FILL_WAIT: Duration = nvs_config::defaults::CACHE_PROCESS_FILL_WAIT;
 
 /// How many pieces the process map is cut into, so that two cores writing keys
 /// that hash apart do not wait on each other.

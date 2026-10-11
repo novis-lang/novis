@@ -556,9 +556,10 @@ impl Ctx {
     /// `[limits] cpu_time` in nanoseconds, or `0` for a request under no cap.
     ///
     /// See [`Self::cpu_limit`]'s field doc for what the number measures. Where
-    /// the configuration writes no such directive it is
-    /// [`nvs_config::DEFAULT_CPU_TIME`] for server work
-    /// ([`nvs_config::Request::serves`]) and `0` for a CLI program or a test. A
+    /// the configuration writes no such directive, `get` gives its default:
+    /// [`nvs_config::defaults::LIMITS_CPU_TIME`] for server work
+    /// ([`nvs_config::Request::serves`]) and nothing, so `0`, for a CLI program
+    /// or a test. A context with no configuration is `0` too. A
     /// malformed value answers "no cap" for the reason
     /// [`Self::configured_memory_limit`] does, and `false` — `rule:config/three-changeability-classes`'s
     /// spelling of no ceiling at all — answers the same `0`, because a request
@@ -566,14 +567,12 @@ impl Ctx {
     /// the same request to everything downstream.
     ///
     fn configured_cpu_time(&self) -> u64 {
-        let Some(config) = self.config.as_ref() else {
+        let Some(written) = self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("cpu_time"))
+        else {
             return 0;
-        };
-        let Some(written) = config.get("cpu_time") else {
-            return match config.serves() {
-                true => nvs_config::DEFAULT_CPU_TIME,
-                false => 0,
-            };
         };
         let setting = nvs_config::Setting::Text(written);
         match nvs_config::Quantity::parse("cpu_time", nvs_config::Unit::Duration, &setting) {
@@ -587,11 +586,12 @@ impl Ctx {
     /// [`Self::set_run_kind`], [`Self::set_inbound`], [`Self::set_peer`] and
     /// the connection door of [`Self::mark_event_stream`] call it.
     ///
-    /// Where no `[limits] cpu_time` is written and nothing has given this
-    /// context a CPU ceiling yet, it takes [`nvs_config::DEFAULT_CPU_TIME`] now,
-    /// with the reserve carved out of it as [`Self::refresh_limits`] carves it,
-    /// and publishes it to the tree where this context is the root. A context
-    /// that already serves, or that has no configuration, is left alone.
+    /// Where nothing has given this context a CPU ceiling yet, it takes the
+    /// `[limits] cpu_time` in force for server work now — the written one, or
+    /// [`nvs_config::defaults::LIMITS_CPU_TIME`] — with the reserve carved out
+    /// of it as [`Self::refresh_limits`] carves it, and publishes it to the
+    /// tree where this context is the root. A context that already serves, or
+    /// that has no configuration, is left alone.
     pub(super) fn now_serving(&mut self) {
         let Some(config) = self.config.as_mut() else {
             return;
@@ -600,10 +600,13 @@ impl Ctx {
             return;
         }
         config.serve();
-        if self.cpu_limit != 0 || config.get("cpu_time").is_some() {
+        if self.cpu_limit != 0 {
             return;
         }
-        let ceiling = nvs_config::DEFAULT_CPU_TIME;
+        let ceiling = self.configured_cpu_time();
+        if ceiling == 0 {
+            return;
+        }
         self.fatal_reserve_time =
             Self::reserve_time_within(ceiling, self.configured_fatal_reserve_time());
         self.cpu_limit = ceiling.saturating_sub(self.fatal_reserve_time);
@@ -686,7 +689,7 @@ impl Ctx {
     /// notice, so that the refusal that arrives says what is actually wrong —
     /// [`Self::max_script_depth`]'s field doc owns why that ordering is the
     /// whole reason the default exists.
-    pub const DEFAULT_MAX_SCRIPT_DEPTH: u32 = 64;
+    pub const DEFAULT_MAX_SCRIPT_DEPTH: u32 = nvs_config::defaults::LIMITS_MAX_SCRIPT_DEPTH;
 
     /// How deep a chain of `spawn script` may nest, or `0` for a tree under no
     /// ceiling — see [`Self::max_script_depth`]'s field doc, which owns why an
@@ -852,7 +855,11 @@ impl Ctx {
         if ceiling == 0 {
             return 0;
         }
-        asked.unwrap_or(50_000_000).min(ceiling / 4)
+        asked
+            .unwrap_or(nvs_config::defaults::nanos(
+                nvs_config::defaults::LIMITS_FATAL_RESERVE_TIME,
+            ))
+            .min(ceiling / 4)
     }
 
     /// The reserved slice a request with this `ceiling` gets, given what its
@@ -873,13 +880,15 @@ impl Ctx {
         if ceiling == 0 {
             return 0;
         }
-        asked.unwrap_or(1 << 20).min(ceiling / 4)
+        asked
+            .unwrap_or(nvs_config::defaults::LIMITS_FATAL_RESERVE_MEMORY)
+            .min(ceiling / 4)
     }
 
     /// `[limits] memory` as bytes. Where the configuration writes no such
-    /// directive it is [`nvs_config::DEFAULT_MEMORY`], for every kind of run.
-    /// It is `0` (no cap) for `false`, for a context with no configuration at
-    /// all, and for a value that is not a size.
+    /// directive, `get` gives [`nvs_config::defaults::LIMITS_MEMORY`], for
+    /// every kind of run. It is `0` (no cap) for `false`, for a context with no
+    /// configuration at all, and for a value that is not a size.
     ///
     /// A malformed value answers "no cap" rather than refusing here: the
     /// configuration was already parsed and refused once, at the boundary that
@@ -887,12 +896,7 @@ impl Ctx {
     /// ), and a second refusal from inside a running request could only be
     /// a worse-worded copy of it.
     fn configured_memory_limit(&self) -> usize {
-        match &self.config {
-            Some(config) if config.get("memory").is_none() => {
-                usize::try_from(nvs_config::DEFAULT_MEMORY).unwrap_or(usize::MAX)
-            }
-            _ => self.configured_bytes("memory"),
-        }
+        self.configured_bytes("memory")
     }
 
     /// `[limits] max_output` as bytes, or `0` when there is no configuration,

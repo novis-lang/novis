@@ -41,6 +41,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, OnceLock};
 
+use crate::defaults;
 use crate::directive::{Class, lookup};
 use crate::mode;
 use crate::snapshot::{Snapshot, value_at};
@@ -59,7 +60,7 @@ pub struct Request {
     overlay: BTreeMap<String, String>,
     /// Whether this run is server work — a request, a connection, a scheduled run, a queued job,
     /// or an isolate inside one of those. It decides whether an unwritten `[limits] cpu_time` is
-    /// [`value::DEFAULT_CPU_TIME`] or nothing ([`value::unwritten_limit`]). `false` until
+    /// [`defaults::LIMITS_CPU_TIME`] or nothing ([`defaults::Value::Serving`]). `false` until
     /// [`serve`](Self::serve), and a clone carries it, so a child of server work is server work.
     serving: bool,
 }
@@ -95,7 +96,13 @@ impl Request {
         &self.base
     }
 
-    /// `Core\Config::get`: the value in force for `name`, or `None` where nothing set one.
+    /// `Core\Config::get`: the value in force for `name`, or `None` where nothing is in force.
+    ///
+    /// The order is what this request set, then a secret, then what the file wrote, then the
+    /// built-in default ([`defaults`]). A default is rendered the way the shipped file writes it —
+    /// `128M`, `30s`, `1000000` — so it reads back through `set` as exactly the value in force.
+    /// `None` is a key with no default (`wall_time`), a key whose default is nothing for this run
+    /// (`cpu_time` outside server work), and a key in a named block the file does not write.
     ///
     /// Values cross as text (§ 5), so a directive the file wrote as an integer, a float or a
     /// boolean answers with the way TOML spells it — `64`, `0.01`, `true`. A key naming a table or
@@ -114,7 +121,27 @@ impl Request {
         if let Some(secret) = self.base.secrets.get(key.as_ref()) {
             return Some(secret.value.clone());
         }
-        value_at(&self.base.table, &key).and_then(as_text)
+        match value_at(&self.base.table, &key) {
+            Some(written) => as_text(written),
+            None => self.default_of(&key),
+        }
+    }
+
+    /// The built-in default in force for the canonical `key` on this run, rendered as `get`
+    /// renders it.
+    fn default_of(&self, key: &str) -> Option<String> {
+        let (mode, started) = (self.mode(), self.started());
+        defaults::in_force(key, &self.at(&mode, &started))
+    }
+
+    /// What a computed default is computed from, for this run.
+    fn at<'a>(&'a self, mode: &'a str, started: &'a str) -> defaults::At<'a> {
+        defaults::At {
+            table: &self.base.table,
+            serving: self.serving,
+            mode,
+            started,
+        }
     }
 
     /// `Core\Config::set`: `true` when the change was made for this request, `false` when it was
@@ -286,23 +313,29 @@ impl Request {
         inbound.meaningless().is_none()
     }
 
-    /// `Core\Config::restore`: drops what this request set for `name`, leaving the snapshot's own
-    /// value in force again. A name this request never set is not an error — there is nothing to
-    /// undo and nothing to report.
+    /// `Core\Config::restore`: drops what this request set for `name`, leaving the file's value in
+    /// force again, or the built-in default where the file writes none. A name this request never
+    /// set is not an error — there is nothing to undo and nothing to report.
     pub fn restore(&mut self, name: &str) {
         self.overlay.remove(canonical(name).as_ref());
     }
 
-    /// `Core\Config::all`: every directive in force for this request, by dotted name, with what
-    /// this request set folded over the snapshot.
+    /// `Core\Config::all`: every directive in force for this request, by dotted name — the
+    /// built-in defaults, then what the file wrote, then the secrets, then what this request set,
+    /// each folded over the one before.
     ///
     /// One entry per scalar leaf, on [`get`](Self::get)'s rule: a table is not a value and a list
-    /// has no rendering `set` would take back. § 7's secrets are folded in for the same reason they
-    /// are in `get` — a key this answers `None` for and `get` answers a value for would be two
-    /// readers disagreeing about what is set — so `all` and `get` are one answer set.
+    /// has no rendering `set` would take back. § 7's secrets and the defaults are folded in for the
+    /// same reason — a key this answers `None` for and `get` answers a value for would be two
+    /// readers disagreeing about what is in force — so `all` and `get` are one answer set.
+    ///
+    /// Cost: one `String` pair per key in force, about a hundred with nothing written, built per
+    /// call and dropped by the caller.
     #[must_use]
     pub fn all(&self) -> BTreeMap<String, String> {
         let mut out = BTreeMap::new();
+        let (mode, started) = (self.mode(), self.started());
+        defaults::fill(&self.at(&mode, &started), &mut out);
         flatten(&self.base.table, "", &mut out);
         for (key, secret) in &self.base.secrets {
             out.insert(key.clone(), secret.value.clone());
@@ -316,10 +349,11 @@ impl Request {
     /// The ceiling bounding a `set` of `key`, or `None` where nothing bounds it.
     ///
     /// The `[limits.hard]` value where the operator wrote one. Where they did not, the ceiling is
-    /// the `[limits]` value this run started with: the one the file wrote, after the `[app.limits]`
-    /// blocks folded into it, or else [`value::unwritten_limit`]'s default. So a program cannot
-    /// raise its own limit unless the operator wrote a ceiling above it. A limit with neither a
-    /// written value nor a default has no ceiling, which is `cpu_time` under `nvs run`.
+    /// the built-in default of the `[limits.hard]` key ([`defaults`]), which is the `[limits]`
+    /// value this run started with: the one the file wrote, after the `[app.limits]` blocks folded
+    /// into it, or else that key's own default. So a program cannot raise its own limit unless the
+    /// operator wrote a ceiling above it. A limit with neither a written value nor a default has no
+    /// ceiling, which is `cpu_time` under `nvs run`.
     ///
     /// The bounded limits are the rows of [`app::ceilings`](crate::app::ceilings), which is the
     /// one table naming them — another one is a row there and not a new place to forget.
@@ -344,19 +378,8 @@ impl Request {
         if let Some(written) = written {
             return Some(written.clone());
         }
-        if let Some(started) = value_at(&self.base.table, key) {
-            return started.clone().try_into().ok();
-        }
-        value::unwritten_limit(leaf, self.serving).map(|default| match default {
-            // A bare number is bytes under a size, and `ns` is the smallest duration, so each
-            // reads back through the one parser as exactly the default.
-            value::Quantity::Nanos(nanos) => Setting::Text(format!("{nanos}ns")),
-            value::Quantity::Bytes(amount) | value::Quantity::Count(amount) => {
-                Setting::Text(amount.to_string())
-            }
-            value::Quantity::Unbounded => Setting::Bool(false),
-            value::Quantity::Ratio(fraction) => Setting::Float(fraction),
-        })
+        self.default_of(&format!("limits.hard.{leaf}"))
+            .map(Setting::Text)
     }
 
     /// The value currently in force at a canonical key, as the boot path would have read it.
@@ -427,7 +450,7 @@ fn leaf_keys(file: &str) -> BTreeSet<String> {
 }
 
 /// A TOML scalar as the text § 5 crosses it as, and `None` for anything that is not one.
-fn as_text(value: &toml::Value) -> Option<String> {
+pub(crate) fn as_text(value: &toml::Value) -> Option<String> {
     match value {
         toml::Value::String(text) => Some(text.clone()),
         toml::Value::Integer(number) => Some(number.to_string()),

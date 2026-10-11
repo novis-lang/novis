@@ -561,7 +561,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 /// operator who has said nothing has said "the shipped bound", and one who has
 /// written a smaller one has lowered every call that did not already ask for
 /// less.
-pub(crate) const DEFAULT_MAX_BYTES: u64 = 64 << 20;
+pub(crate) const DEFAULT_MAX_BYTES: u64 = nvs_config::defaults::LIMITS_MAX_DECOMPRESSED;
 
 /// The output-per-input ceiling a call gets when it names none, and the value
 /// `[limits] max_decompression_ratio` itself defaults to.
@@ -570,7 +570,7 @@ pub(crate) const DEFAULT_MAX_BYTES: u64 = 64 << 20;
 /// class of input this bound exists for: the published zip bombs run from
 /// 10^4:1 into 10^9:1, because they are built out of one repeated byte and a
 /// real document is not.
-pub(crate) const DEFAULT_MAX_RATIO: u64 = 1000;
+pub(crate) const DEFAULT_MAX_RATIO: u64 = nvs_config::defaults::LIMITS_MAX_DECOMPRESSION_RATIO;
 
 /// `[limits] max_decompressed`, the byte half of the ceiling a call may lower
 /// and may not raise.

@@ -252,10 +252,10 @@ impl PoolBounds {
     /// numbers out, so they are transcribed here rather than chosen.
     pub const DEFAULT: PoolBounds = PoolBounds {
         enabled: true,
-        max: 16,
-        idle: 2,
-        lifetime: Duration::from_secs(30 * 60),
-        acquire: Duration::from_secs(5),
+        max: crate::defaults::DB_POOL_MAX,
+        idle: crate::defaults::DB_POOL_IDLE,
+        lifetime: crate::defaults::DB_POOL_LIFETIME,
+        acquire: crate::defaults::DB_POOL_ACQUIRE,
     };
 
     /// § 13's `pool = false`: the default set with the pool switched off, so a caller that reads a
