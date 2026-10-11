@@ -526,26 +526,28 @@ One file set: `docs/reference/lang/55-enums.md` (its new section), `docs/example
 
 ### State
 
-**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 6 are done. In Stage 7 the registry slice and the `arr`, `str`, `hash`, `compress`, `crypto`, `mime` and `xml` renames have landed, all three Stage 7 checks pass, and `bun nv verify` is green.**
+**Goal `class-scoped-enums`: an enum is declared in the class that uses it, `Order::Status::Paid`, for programs and for every `Core` and built-in enum. Stages 2 to 6 are done. In Stage 7 the registry slice and the `arr`, `str`, `hash`, `compress`, `crypto`, `mime`, `xml`, `log`, `env` and `response` renames have landed, all three Stage 7 checks pass, and `bun nv verify` is green.**
 
 - `CoreEnum::name` is `Core\Arr::Order` for an owned enum, and `CoreEnum::owner()` and `short_name()` read it. The checker finds a `Core` owner's enum through `lower::owned_enum` (`crates/nvs-types/src/lower.rs:521`), because `Core` declares nothing in the symbol table.
 - `crates/nvs-stdlib/tests/enum_owners.rs` decides placement, and its `NOT_YET_MOVED` list (`:16`) shrinks one namespace per slice. Each slice's commit carries its own rows' deletion, so every commit passes that test.
 - `Core\Db\Tls`, `Db\Isolation`, `Db\ErrorKind`, `Ldap\Tls` and `Ldap\ErrorKind` are in the table, but the test sees no single class using them. The `db` and `ldap` slices decide by the rule. The two `ErrorKind`s are used by error classes with no registry row (`nvs_hir::errors::TREE`).
-- A slice is mechanical. Rename the relative form (`Mime\Type` → `Mime::Type`), which also covers `Core\…` and the doubled-backslash Rust and JSON strings, across every tracked file but `docs/rules/enums*`, `docs/goals/` and `enum_owners.rs`. Then `git mv` the proof directory to `docs/examples/types/<classTail>/` (`tools/nv/proofs/roster.ts:79`) and add one sentence to its `about.md` naming the declaring class. Then `cargo build` and `bun nv site --stamp syntax/values/enums.mdx --nvs target/debug/nvs.exe`: the stamp needs the new binary. `bun nv proofs --verify --no-perf --nvs target/debug/nvs.exe --group 'Core\Mime'` checks a touched class's examples.
-- `nvs agent show` matches the exact symbol first, so an enum may share a word with a method of its owner (`Core\Xml\Node::Kind` and `kind`). Each of the next three slices has such a pair: `Log::level`, `Env::mode` and `Response::redirect` (`crates/nvs-stdlib/src/log.rs:176`, `crates/nvs-stdlib/src/env.rs:138`, `crates/nvs-stdlib/src/response.rs:427`).
+- A slice is mechanical. Rename the relative form (`Mime\Type` → `Mime::Type`), which also covers `Core\…` and the doubled-backslash Rust and JSON strings, across every tracked file but `docs/rules/enums*`, `docs/goals/`, `docs/agent/playbook*` and `enum_owners.rs`. A reject case's `--> case.nvs:L:C` columns move by the one character `::` adds over `\`, and only the conformance run shows it. Then `git mv` the proof directory to `docs/examples/types/<classTail>/` (`tools/nv/proofs/roster.ts:79`) and add one sentence to its `about.md` naming the declaring class. Then `cargo build` and `bun nv site --stamp syntax/values/enums.mdx --nvs target/debug/nvs.exe`: the stamp needs the new binary. `bun nv proofs --verify --no-perf --nvs target/debug/nvs.exe --group 'Core\Mime'` checks a touched class's examples.
+- Several slices in one session share `docs/novis.md`, `docs/spec/01-core-library.md`, `website/src/data/core.json` and `enum_owners.rs`. Each slice's commit stages HEAD's copy of those with only its own renames applied (`git hash-object -w` and `git update-index --cacheinfo`), and the last slice takes `website/site.lock.json` and `enums.mdx`.
+- `nvs agent show` matches the exact symbol first, so an enum may share a word with a method of its owner (`Core\Xml\Node::Kind` and `kind`, `Core\Env::Mode` and `mode`).
+- Under the debug binary `tests/hostile/core/Response/redirect/01-addresses-that-try-to-split-the-response.nvs` runs about 13 seconds alone and timed out at 10 in a parallel `proofs --verify`. Its change was the spelling only. Whether it was as slow before is not checked.
 - The website's `website/src/data/core.json` is stale for reasons this goal did not cause. The `lang:enums/core-enums` bench is marked perf-stale.
 
 Both rules stay `designed`. `bun nv links` still reports `AGENTS.md:403 -> docs/decisions/README.md`, which this goal did not cause.
 
 ### Next
 
-**Stage 7, the renames of `log`, `env` and `response`, one slice each** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file sets are the declaring file, the rows in `crates/nvs-stdlib/tests/enum_owners.rs:16`, and everything `git grep` finds on the old name. The `xml` slice's commit, `refactor(stdlib): Core\Xml\NodeKind moves into Core\Xml\Node`, is the latest worked example.
+**Stage 7, the `cli` and `command` renames, then `reflect` and `io`, one slice each** (`rule:enums/an-enum-lives-in-the-class-that-uses-it`). The file sets are the declaring file, the rows in `crates/nvs-stdlib/tests/enum_owners.rs:16`, and everything `git grep` finds on the old name. The `log`, `env` and `response` commits are the latest worked examples.
 
-- [ ] `Core\Log\Level` → `Core\Log::Level` (`crates/nvs-stdlib/src/log.rs:90`).
-- [ ] `Core\Env\Mode` → `Core\Env::Mode` (`crates/nvs-stdlib/src/env.rs:272`).
-- [ ] `Core\Response\Redirect` → `Core\Response::Redirect` and `Core\Response\SameSite` → `Core\Response::SameSite` (`crates/nvs-stdlib/src/response.rs:906`, `crates/nvs-stdlib/src/response.rs:954`).
+- [ ] `Core\Cli\Stream` → `Core\Cli::Stream` and `Core\Cli\ColorDepth` → `Core\Cli::ColorDepth` (`crates/nvs-stdlib/src/cli.rs:951`, `crates/nvs-stdlib/src/cli.rs:985`).
+- [ ] `Core\Cli\Shell` → `Core\Command::Shell`: the const stays in `cli.rs` and `Core\Command` takes it (`crates/nvs-stdlib/src/cli.rs:1024`, `crates/nvs-stdlib/src/command.rs:148`). Its proof directory moves from `types/Cli-Shell` to `types/Command-Shell`.
+- [ ] `Core\Reflect\TypeKind` → `Core\Reflect::TypeKind` and `Core\IO\FileMode` → `Core\IO::FileMode` (`crates/nvs-stdlib/src/io.rs:1246`).
 
-Before each rename, `git grep` the relative form for a longer word it is a prefix of (`Log\LevelX`), and rename only the exact name.
+Before each rename, `git grep` the relative form for a longer word it is a prefix of (`Cli\StreamX`), and rename only the exact name.
 
 ### Backlog
 
