@@ -791,26 +791,25 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 is under way, and all 10 of its checked names pass.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes its 15 tests, now including `an_inline_svg_is_vector_content_in_the_output`. The stage stays open for the split and the properties the Backlog names.
+**Stage 7 is under way, and all 10 of its checked names pass.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes 18 tests, now with `object_fit_and_object_position_place_the_picture_in_its_box`, `text_indent_moves_the_first_line_of_each_block` and `vertical_align_raises_and_lowers_a_span_from_its_baseline`. The stage stays open for the text properties under Next.
 
-- SVG: `layout::Picture` (`extensions/pdf/src/layout.rs:180`) is `Raster(Image)` or `Vector(Box<usvg::Tree>)`, and `Laid::images` holds pictures. `Builder::decode` sniffs an SVG (`is_svg`) and `Builder::svg` parses it with `usvg`, its `<image>` hrefs resolved through the asset map; a missing one returns the map's error. An inline `<svg>` is written out again by `svg_markup` and placed by `Builder::place`, which `<img>` shares. `write.rs`'s `draw_picture` draws a vector picture with `krilla-svg`'s `draw_svg`, and a background `url()` of an SVG is drawn the same way. SVG `<text>` draws nothing: the `usvg` font database is empty.
-- `krilla-svg` 0.8.1 pulls `usvg`/`resvg` 0.47 with their default features (`fontdb`'s `fs` and `memmap` among them). Nothing calls `load_system_fonts`, and the component has no filesystem. `THIRD-PARTY-LICENSES.txt` is regenerated.
-- Boxes: a shape is `Item::Path`, and `Item::Begin`/`Item::End` wrap a group with an opacity or a clip. `extensions/pdf/src/layout/boxes.rs` is the box painting, called from `Flow::close`; its module doc says what is drawn and what is not.
-- Hyphenation, bidi, counters and markers are as the layout module doc says (`extensions/pdf/src/layout.rs:1`).
+- The layout is split. `extensions/pdf/src/layout.rs` keeps the public types, `Span`, `Para`, `Block`, `Frame` and the style helpers, and its module doc lists the submodules: `inline.rs` (the walk, `Builder`, counters, hyphenation), `image.rs` (`Picture`, `place`, `decode`, `svg`, `object_position`), `block.rs` (`BoxGeometry`, `geometry`, `Flow`), `text.rs` (`layout` and the line loop) and `boxes.rs`.
+- `object-fit` sets `Block::Image`'s `draw` rectangle in `Builder::place`. A picture past its box is drawn inside an `Item::Begin` clip group, which `write.rs` already handles.
+- `text-indent` and `vertical-align` use `parley` 0.12's own `Layout::set_text_indent` and `StyleProperty::VerticalAlign`. The line loop takes each span's baseline from `line.items()`' glyph runs. The ranged builder is flat, so `vertical_align` (`extensions/pdf/src/layout/inline.rs:63`) adds a parent span's shift itself. `middle`, `text-top` and `text-bottom` measure against `parley`'s root style, which sets no font (the layout module doc says so).
+- SVG, boxes, hyphenation, bidi, counters and markers are as the layout module doc says (`extensions/pdf/src/layout.rs:1`). SVG `<text>` draws nothing: the `usvg` font database is empty.
 - `cargo clippy --manifest-path extensions/pdf/Cargo.toml` has 5 warnings in `css/value.rs` and `css/mod.rs` that are older than this stage. `bun nv verify` does not run clippy over the extension's own workspace.
-- `layout.rs` is one file of about 1850 lines. `layout/boxes.rs` is its first submodule.
 
 ### Next
 
-**Stage 7, the split and the remaining properties**: the file set is `extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/` and `extensions/pdf/tests/layout.rs`.
+**Stage 7, the remaining text properties**: the file set is `extensions/pdf/src/layout/text.rs`, `extensions/pdf/src/layout/inline.rs` and `extensions/pdf/tests/layout.rs`.
 
-- [ ] **Split the layout**: the rest of `extensions/pdf/src/layout.rs` moves beside `boxes.rs` into `block.rs` (`Flow`, `BoxGeometry`, `geometry` at `extensions/pdf/src/layout.rs:324`), `inline.rs` (`Builder`, `Counters`, `blocks`, `hyphenated`) and `text.rs` (the line loop in `layout`, `push_span`, `hyphen`, `break_lines`). The SVG half (`Picture`, `is_svg`, `svg_markup`, `Builder::svg`) goes to `image.rs`. Behaviour stays the same and the 15 tests pass unchanged (`rule:core-classes/pdf-css-subset`).
-- [ ] **`object-fit`** for `<img>` and inline `<svg>` in `Builder::place` (`extensions/pdf/src/layout.rs:898`), drawn through a clip group in `write.rs` (`rule:core-classes/pdf-css-subset-table`).
-- [ ] **`text-indent` and `vertical-align`** in the line loop of `layout` (`extensions/pdf/src/layout.rs:1460`, `rule:core-classes/pdf-css-subset-table`).
+- [ ] **`text-overflow: ellipsis`** on a line cut under `white-space: nowrap` with `overflow: hidden`, in the line loop at `extensions/pdf/src/layout/text.rs:135`, shaped like the hyphen of `hyphen` (`extensions/pdf/src/layout/text.rs:362`, `rule:core-classes/pdf-css-subset-table`).
+- [ ] **`hyphenate-character`** for the drawn hyphen in `hyphen` (`extensions/pdf/src/layout/text.rs:362`), and a list marker in a right-to-left item drawn at the right edge (`extensions/pdf/src/layout/inline.rs:746`, `rule:core-classes/pdf-css-subset-table`).
+- [ ] **A block `::before`/`::after`** (`display: block` on the generated box) in `Builder::generated` (`extensions/pdf/src/layout/inline.rs:499`), and `middle`, `text-top` and `text-bottom` against the paragraph's font by setting the ranged builder's default style (`extensions/pdf/src/layout/text.rs:92`).
 
 ### Backlog
 
-- `background-position`, `background-size`, elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `text-overflow`, inline boxes with borders, a block `::before`/`::after`, a marker in a right-to-left item and `hyphenate-character` are not laid out yet (`extensions/pdf/src/layout.rs`).
+- `background-position`, `background-size`, elliptical radii and repeating gradients are not laid out (`extensions/pdf/src/layout/boxes.rs`). `inline-block` and inline boxes with borders are not laid out yet (`extensions/pdf/src/layout/inline.rs`).
 - SVG `<text>` in the PDF and in `Novis\Image`: fill `usvg`'s font database with the Liberation faces (`extensions/pdf/src/layout.rs`, `rule:core-classes/image-format-roster`).
 - Stage 10 reaches `first` through `Pass`'s `First` case, whose shape is `{document, headerHeight, footerHeight}` (`extensions/pdf/manifest.json`, `wit/pdf.wit`).
 - `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`), and the cascade reads CSS on its own. One reading for both is still open.
