@@ -14,7 +14,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 2
     title: "`lateinit` takes every type, and `isinit`"
-    status: open
+    status: done
     context: [crates/nvs-types/src/signatures.rs, crates/nvs-types/src/lateinit.rs, crates/nvs-syntax/src/parser/expr.rs, crates/nvs-ir/src/lower/expr.rs]
     extra:
       context:
@@ -193,8 +193,8 @@ throws "`initProperty` returned, but `$author` is still not initialized." Withou
 throws "`Post`'s property `$author` is read before it is initialized." — the existing message in
 `crates/nvs-ir/src/lower/expr.rs:4995` and `crates/nvs-runtime/src/object.rs:4977`, reworded to
 "initialized". `rule:classes/lateinit-read-before-write`'s static check (`E0428`) does not fire in a
-class implementing `LateInit`, because there a read before a write is the trigger. Home:
-`rule:classes/late-init-initializes-on-the-first-read`.
+class implementing `LateInit`, because there a read before a write is the trigger. Home: the new
+fragment `classes/late-init-initializes-on-the-first-read`.
 
 **Plain writes.** While `initProperty` runs in a task, a write in that task that *initializes* an
 uninitialized `lateinit` property, on any object and through any write form including
@@ -220,7 +220,7 @@ runs. It returns `void`, so it never changes a value. It gets the change, never 
 `["0", "1"]` for `$p->cells["0"]["1"] = $v`, and `$value` is the new element. `unset` of an element
 calls `beforePropertyUnset` with at least one key. A `static` property reaches no guard, as it reaches
 no observer. Cost: one small key array per element write in a guarded class, and nothing anywhere
-else. Home: `rule:classes/property-guard-runs-before-the-write`.
+else. Home: the new fragment `classes/property-guard-runs-before-the-write`.
 
 **`PropertyObserver` and element writes.** An element write — `=`, a compound assignment, an increment
 — reports one `onPropertySet` with the whole array after it is stored, and no `onPropertyGet`. An
@@ -256,12 +256,12 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 
 **Does:** `lateinit` is allowed on every type, its read checks the tag, and `isinit` exists.
 
-- [ ] Drop `E0424` and `E0425`. `crates/nvs-types/src/signatures.rs:1444`
-- [ ] The compiled read checks the tag byte on every `lateinit` type. `crates/nvs-ir/src/lower/expr.rs:4986`
-- [ ] `isinit` in the lexer, parser and AST, beside `isset`. `crates/nvs-syntax/src/parser/expr.rs:2266`
-- [ ] `isinit` type-checked, with its two compile errors. `crates/nvs-types/src/expr/mod.rs:956`
-- [ ] `isinit` lowered to the slot load and tag compare. `crates/nvs-ir/src/lower/expr.rs:611`
-- [ ] The Rust tests and the conformance cases. `crates/nvs-codegen/tests/late_init.rs:1`
+- [x] Drop `E0424` and `E0425`. `crates/nvs-types/src/signatures.rs:1444`
+- [x] The compiled read checks the tag byte on every `lateinit` type. `crates/nvs-ir/src/lower/expr.rs:4986`
+- [x] `isinit` in the lexer, parser and AST, beside `isset`. `crates/nvs-syntax/src/parser/expr.rs:2266`
+- [x] `isinit` type-checked, with its two compile errors. `crates/nvs-types/src/expr/mod.rs:956`
+- [x] `isinit` lowered to the slot load and tag compare. `crates/nvs-ir/src/lower/expr.rs:611`
+- [x] The Rust tests and the conformance cases. `crates/nvs-codegen/tests/late_init.rs:1`
 
 ### 3. `LateInit` initializes on the first read
 
@@ -301,21 +301,26 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 
 ### State
 
-Stage 1 is done. An element write or element `unset` on an observed property reports one
-`onPropertySet` with the whole array from `write_back_array`'s property arm, and the root read is
-silenced through `Lowering::silenced_gets` (`crates/nvs-ir/src/lower/mod.rs:1712`), pushed by
-`silence_root_get` in the three element-write paths. The pipeline fragment says so. Stage 5's guard
-call before an element write belongs at the same three paths.
+Stages 1 and 2 are done. `lateinit` takes every type, and `E0424`/`E0425` are retired. The compiled
+`lateinit` read tests the slot's tag through the new `InstKind::FieldIsInit`
+(`crates/nvs-ir/src/ir.rs`), emitted by `emit_never_written_guard`
+(`crates/nvs-ir/src/lower/expr.rs:4985`). `isinit` is a keyword, `ExprKind::IsInit`, checked by
+`presence::check_isinit_operand` (`E0853`, `E0854`) and lowered by `lower_isinit`
+(`crates/nvs-ir/src/lower/expr.rs:5011`) to that same instruction. `rule:classes/isinit-reads-nothing`
+exists. The unwritten-read message still says "written"; the rewording to "initialized" is stage 3's,
+in `crates/nvs-runtime/src/object.rs:4978`, `crates/nvs-ir/src/lower/call.rs:1478`, the guard, and
+the cases and docs that pin the text.
 
 ### Next
 
-**Stage 2: `lateinit` takes every type, and `isinit`**, one file set: `crates/nvs-types/src/signatures.rs`, `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-syntax/src/parser/expr.rs`.
+**Stage 3: `LateInit` initializes on the first read**, one file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-runtime/src/object.rs`, `crates/nvs-hir/src/interfaces.rs`.
 
-- [ ] Drop `E0424` and `E0425`, retired as conventions.md § *A diagnostic* says (`rule:classes/lateinit-restrictions`). `crates/nvs-types/src/signatures.rs:1444`
-- [ ] The compiled read checks the tag byte of `Tag::Unset` on every `lateinit` type (`rule:classes/an-unwritten-property-read-throws`). `crates/nvs-ir/src/lower/expr.rs:4990`
-- [ ] `isinit` in the lexer, parser and AST beside `isset` (§ *Standing decisions*, `isinit`). `crates/nvs-syntax/src/parser/expr.rs:1496`
-- [ ] Rewrite `lateinit-restrictions` and `an-unwritten-property-read-throws` whole. `docs/rules/classes/lateinit-restrictions.md:1`
+- [ ] `LateInit` registered beside `PropertyObserver` (§ *Standing decisions*, `LateInit`). `crates/nvs-hir/src/interfaces.rs:48`
+- [ ] The compiled read's unset branch calls `initProperty`, tests again, and throws the two new messages; the guard is `emit_never_written_guard`. `crates/nvs-ir/src/lower/expr.rs:4985`
+- [ ] The erased read does the same, and every "read before it is written" becomes "initialized". `crates/nvs-runtime/src/object.rs:4978`
+- [ ] `E0428` skips a class implementing `LateInit`, and `lateinit-read-before-write` is rewritten whole. `crates/nvs-types/src/lateinit.rs:80`
 
 ### Backlog
 
 - Whether `PropertyGuard` and `PropertyObserver` give their methods empty default bodies, since interfaces may have default methods (`docs/reference/lang/50-classes.md:381`); ask the user.
+- `isinit` on a hooked `lateinit` property reports `E0853`; decide in stage 6 whether it should test the slot (`crates/nvs-types/src/expr/presence.rs`).
