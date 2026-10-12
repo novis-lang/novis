@@ -457,6 +457,22 @@
           "key": "log.target",
           "class": "System",
           "apply": "Reload"
+        },
+        {
+          "id": "directive:log.max_size",
+          "title": "log.max_size",
+          "examples": "config/log-max_size",
+          "key": "log.max_size",
+          "class": "System",
+          "apply": "Reload"
+        },
+        {
+          "id": "directive:log.keep",
+          "title": "log.keep",
+          "examples": "config/log-keep",
+          "key": "log.keep",
+          "class": "System",
+          "apply": "Reload"
         }
       ]
     },
@@ -993,6 +1009,19 @@
         "id": "tools:cli/nvs-ast",
         "title": "nvs ast",
         "examples": "tools/cli/nvs-ast"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
+      "slug": "nvs-code",
+      "url": "/reference/cli/nvs-code/",
+      "title": "nvs code",
+      "group": "Commands",
+      "intro": {
+        "id": "tools:cli/nvs-code",
+        "title": "nvs code",
+        "examples": "tools/cli/nvs-code"
       },
       "keys": []
     },

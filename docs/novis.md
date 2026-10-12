@@ -226,6 +226,7 @@ Conventions the whole file uses:
 | [`Core\Queue`](#core-core-queue) |  |
 | [`Core\Queue\Id`](#core-core-queue-id) |  |
 | [`Core\Queue\Stats`](#core-core-queue-stats) |  |
+| [`Novis\Image\Barcode`](#core-novis-image-barcode) |  |
 | [`Novis\Image\Color`](#core-novis-image-color) |  |
 | [`Novis\Image\Diff`](#core-novis-image-diff) |  |
 | [`Novis\Image\Font`](#core-novis-image-font) |  |
@@ -241,6 +242,9 @@ Conventions the whole file uses:
 | [`Novis\Intl\RelativeTime`](#core-novis-intl-relativetime) |  |
 | [`Novis\Intl\Segmenter`](#core-novis-intl-segmenter) |  |
 | [`Novis\Intl\Icu`](#core-novis-intl-icu) |  |
+| [`Novis\Pdf\Document`](#core-novis-pdf-document) |  |
+| [`Novis\Pdf\Rendered`](#core-novis-pdf-rendered) |  |
+| [`Novis\Pdf\Engine`](#core-novis-pdf-engine) |  |
 | [`Core` enums](#core-enums) | every enum a member takes, with its cases |
 
 ### Part C — The toolchain
@@ -28120,6 +28124,40 @@ The total number of attempts the jobs in the dead-letter table used. Divide it b
 
 **Returns** `uint` — A `uint` for the dead-letter table only. Every attempt is counted in this number or in `attempts`, never in both. Add the two to get the total.
 
+<a id="core-novis-image-barcode"></a>
+### `Novis\Image\Barcode`
+
+Keywords: render, svg
+
+| Member | Signature |
+|---|---|
+| [`Novis\Image\Barcode::render`](#core-novis-image-barcode-render) | `render(string $data, Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format} $options = null): bytes` |
+| [`Novis\Image\Barcode::svg`](#core-novis-image-barcode-svg) | `svg(string $data, Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool} $options = null): string` |
+
+<a id="core-novis-image-barcode-render"></a>
+#### `Novis\Image\Barcode::render`
+
+```nvs skip
+Novis\Image\Barcode::render(string $data, Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool, format?: Format} $options = null): bytes
+```
+
+`Barcode::render` returns `data` as a barcode image of the type `symbology`. By default it is a PNG.
+A wrong check digit, or a character the type cannot hold, throws a `LogicError`.
+
+**Returns** `bytes`
+
+<a id="core-novis-image-barcode-svg"></a>
+#### `Novis\Image\Barcode::svg`
+
+```nvs skip
+Novis\Image\Barcode::svg(string $data, Symbology $symbology, ?{height?: uint, module?: uint, margin?: uint, text?: bool} $options = null): string
+```
+
+`Barcode::svg` returns `data` as an SVG document of a barcode of the type `symbology`.
+The options are the same as for `Barcode::render`. A wrong check digit throws a `LogicError`.
+
+**Returns** `string`
+
 <a id="core-novis-image-color"></a>
 ### `Novis\Image\Color`
 
@@ -28228,7 +28266,7 @@ image/jpeg 6x4
 
 | Member | Signature |
 |---|---|
-| [`Novis\Image\Image::open`](#core-novis-image-image-open) | `open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint} $options = null): Image` |
+| [`Novis\Image\Image::open`](#core-novis-image-image-open) | `open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float} $options = null): Image` |
 | [`Novis\Image\Image::create`](#core-novis-image-image-create) | `create(uint $width, uint $height, ?Color $fill = null): Image` |
 | [`Novis\Image\Image::fromRaw`](#core-novis-image-image-fromraw) | `fromRaw(Raw $raw): Image` |
 | [`Novis\Image\Image::info`](#core-novis-image-image-info) | `info(bytes $data): Info` |
@@ -28265,11 +28303,13 @@ image/jpeg 6x4
 #### `Novis\Image\Image::open`
 
 ```nvs skip
-Novis\Image\Image::open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint} $options = null): Image
+Novis\Image\Image::open(bytes $data, ?{autoOrient?: bool, toSrgb?: bool, maxPixels?: uint, page?: uint, dpi?: float} $options = null): Image
 ```
 
 `Image::open` starts from the bytes of an encoded image. It turns the image upright and
 converts its colours to sRGB, unless `autoOrient` or `toSrgb` is `false`.
+`page` chooses one page of a document, starting at 1. `dpi` is the resolution of that page, 150 by default.
+An image with one page has only page 1, and a page past the end throws an error.
 Bytes that are not an image throw an error when `encode`, `variants` or `raw` runs.
 
 **Returns** `Image`
@@ -28504,7 +28544,8 @@ $image->text(string $text, Font $font, {size: float, color: Color, gravity?: Gra
 `text` draws `$text` on the image with `$font`, in `color`. `size` is the font size in pixels.
 `x` and `y` place the top-left corner of the text. Without them, `gravity` places it, and
 the default is `Gravity::Center`. With `maxWidth`, lines break at spaces to stay that wide.
-`align` sets how the lines line up, and the default is `Align::Left`. Only Latin text is supported.
+`align` sets how the lines line up, and the default is `Align::Left`. Text in any script
+is drawn as the font defines it. A line of Arabic or Hebrew runs from right to left.
 
 **Returns** `Image`
 
@@ -28638,11 +28679,13 @@ Transparent pixels are not counted. A `count` above 256 throws a `LogicError`.
 <a id="core-novis-image-qrcode"></a>
 ### `Novis\Image\QrCode`
 
-Keywords: render
+Keywords: render, svg, giroCode
 
 | Member | Signature |
 |---|---|
 | [`Novis\Image\QrCode::render`](#core-novis-image-qrcode-render) | `render(string $data, ?{size?: uint, margin?: uint, level?: Level, format?: Format} $options = null): bytes` |
+| [`Novis\Image\QrCode::svg`](#core-novis-image-qrcode-svg) | `svg(string $data, ?{margin?: uint, level?: Level} $options = null): string` |
+| [`Novis\Image\QrCode::giroCode`](#core-novis-image-qrcode-girocode) | `giroCode({name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string} $payment): string` |
 
 <a id="core-novis-image-qrcode-render"></a>
 #### `Novis\Image\QrCode::render`
@@ -28656,10 +28699,34 @@ Data too long for the `level`, or a `size` too small for the code, throws a `Log
 
 **Returns** `bytes`
 
+<a id="core-novis-image-qrcode-svg"></a>
+#### `Novis\Image\QrCode::svg`
+
+```nvs skip
+Novis\Image\QrCode::svg(string $data, ?{margin?: uint, level?: Level} $options = null): string
+```
+
+`QrCode::svg` returns `data` as an SVG document of a QR code, 256 by 256 pixels.
+An SVG stays sharp at any size. Data too long for the `level` throws a `LogicError`.
+
+**Returns** `string`
+
+<a id="core-novis-image-qrcode-girocode"></a>
+#### `Novis\Image\QrCode::giroCode`
+
+```nvs skip
+Novis\Image\QrCode::giroCode({name: string, iban: string, amount?: decimal, bic?: string, reference?: string, text?: string} $payment): string
+```
+
+`QrCode::giroCode` returns the text of a SEPA bank transfer, for a QR code that a banking app reads.
+A wrong IBAN, a field that is too long, or both `reference` and `text` throw a `LogicError`.
+
+**Returns** `string`
+
 <a id="core-novis-image-codec"></a>
 ### `Novis\Image\Codec`
 
-Keywords: info, run, variants, compare, hash, placeholder, palette, qr
+Keywords: info, run, variants, compare, hash, placeholder, palette, qr, barcode
 
 | Member | Signature |
 |---|---|
@@ -28671,6 +28738,7 @@ Keywords: info, run, variants, compare, hash, placeholder, palette, qr
 | [`Novis\Image\Codec::placeholder`](#core-novis-image-codec-placeholder) | `placeholder(bytes $data, PlaceholderKind $kind): string` |
 | [`Novis\Image\Codec::palette`](#core-novis-image-codec-palette) | `palette(bytes $data, uint $count): array<{r: uint, g: uint, b: uint, alpha: float}>` |
 | [`Novis\Image\Codec::qr`](#core-novis-image-codec-qr) | `qr(string $data, {size: ?uint, margin: ?uint, level: ?Level, format: ?Format} $options): bytes` |
+| [`Novis\Image\Codec::barcode`](#core-novis-image-codec-barcode) | `barcode(string $data, Symbology $symbology, {height: ?uint, module: ?uint, margin: ?uint, text: ?bool, format: ?Format} $options): bytes` |
 
 <a id="core-novis-image-codec-info"></a>
 #### `Novis\Image\Codec::info`
@@ -28797,6 +28865,23 @@ Returns a text as an encoded QR code image. Data too long for the level, or a si
 |---|---|---|
 | `$data` | `string` |  |
 | `$options` | `{size: ?uint, margin: ?uint, level: ?Level, format: ?Format}` |  |
+
+**Returns** `bytes`
+
+<a id="core-novis-image-codec-barcode"></a>
+#### `Novis\Image\Codec::barcode`
+
+```nvs skip
+Novis\Image\Codec::barcode(string $data, Symbology $symbology, {height: ?uint, module: ?uint, margin: ?uint, text: ?bool, format: ?Format} $options): bytes
+```
+
+Returns a text as an encoded barcode image. A wrong check digit, or a character the barcode type cannot hold, throws a `LogicError`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `string` |  |
+| `$symbology` | `Symbology` |  |
+| `$options` | `{height: ?uint, module: ?uint, margin: ?uint, text: ?bool, format: ?Format}` |  |
 
 **Returns** `bytes`
 
@@ -29323,6 +29408,195 @@ Returns the best of the offered locales for an `Accept-Language` header value. I
 | `$default` | `string` |  |
 
 **Returns** `string`
+
+<a id="core-novis-pdf-document"></a>
+### `Novis\Pdf\Document`
+
+Keywords: fromHtml, asset, standard, invoiceXml, password, created, render
+
+| Member | Signature |
+|---|---|
+| [`Novis\Pdf\Document::fromHtml`](#core-novis-pdf-document-fromhtml) | `fromHtml(Core\Html\Markup\|string $html): Document` |
+| [`Novis\Pdf\Document->asset`](#core-novis-pdf-document-asset) | `asset(string $name, bytes $data): Document` |
+| [`Novis\Pdf\Document->standard`](#core-novis-pdf-document-standard) | `standard(Standard $standard): Document` |
+| [`Novis\Pdf\Document->invoiceXml`](#core-novis-pdf-document-invoicexml) | `invoiceXml(string $xml): Document` |
+| [`Novis\Pdf\Document->password`](#core-novis-pdf-document-password) | `password(string $password): Document` |
+| [`Novis\Pdf\Document->created`](#core-novis-pdf-document-created) | `created(Core\Time\Instant $at): Document` |
+| [`Novis\Pdf\Document->render`](#core-novis-pdf-document-render) | `render(): Rendered` |
+
+<a id="core-novis-pdf-document-fromhtml"></a>
+#### `Novis\Pdf\Document::fromHtml`
+
+```nvs skip
+Novis\Pdf\Document::fromHtml(Core\Html\Markup|string $html): Document
+```
+
+`Document::fromHtml` starts a document from its HTML.
+The HTML may name assets, such as `<img src="logo.png">`. Add each one with `asset`.
+
+**Returns** `Document`
+
+<a id="core-novis-pdf-document-asset"></a>
+#### `Novis\Pdf\Document->asset`
+
+```nvs skip
+$document->asset(string $name, bytes $data): Document
+```
+
+`asset` adds a file the HTML names, such as an image or a stylesheet.
+A render reads only these files and `data:` URIs. Any other name throws a `LogicError`.
+
+**Returns** `Document`
+
+<a id="core-novis-pdf-document-standard"></a>
+#### `Novis\Pdf\Document->standard`
+
+```nvs skip
+$document->standard(Standard $standard): Document
+```
+
+`standard` sets the PDF standard the file follows.
+
+**Returns** `Document`
+
+<a id="core-novis-pdf-document-invoicexml"></a>
+#### `Novis\Pdf\Document->invoiceXml`
+
+```nvs skip
+$document->invoiceXml(string $xml): Document
+```
+
+`invoiceXml` attaches the XML of an electronic invoice to the file.
+It needs the standard `Standard::PdfA3b`. With any other standard, `render` throws a `LogicError`.
+
+**Returns** `Document`
+
+<a id="core-novis-pdf-document-password"></a>
+#### `Novis\Pdf\Document->password`
+
+```nvs skip
+$document->password(string $password): Document
+```
+
+`password` encrypts the file. A reader needs the password to open it.
+A PDF/A standard does not allow a password, so `render` then throws a `LogicError`.
+
+**Returns** `Document`
+
+<a id="core-novis-pdf-document-created"></a>
+#### `Novis\Pdf\Document->created`
+
+```nvs skip
+$document->created(Core\Time\Instant $at): Document
+```
+
+`created` sets the creation time in the file. Without it, the file has no creation time.
+
+**Returns** `Document`
+
+<a id="core-novis-pdf-document-render"></a>
+#### `Novis\Pdf\Document->render`
+
+```nvs skip
+$document->render(): Rendered
+```
+
+`render` returns the PDF file and its pages.
+Two renders of the same document give the same bytes.
+
+**Returns** `Rendered`
+
+<a id="core-novis-pdf-rendered"></a>
+### `Novis\Pdf\Rendered`
+
+Keywords: constructor
+
+| Member | Signature |
+|---|---|
+| [`Novis\Pdf\Rendered::constructor`](#core-novis-pdf-rendered-constructor) | `constructor(bytes $bytes, uint $pageCount, array<Dropped> $dropped, array<MissingGlyph> $missingGlyphs, array<Overflow> $overflows)` |
+
+<a id="core-novis-pdf-rendered-constructor"></a>
+#### `Novis\Pdf\Rendered::constructor`
+
+```nvs skip
+new Novis\Pdf\Rendered(bytes $bytes, uint $pageCount, array<Dropped> $dropped, array<MissingGlyph> $missingGlyphs, array<Overflow> $overflows)
+```
+
+`new Rendered` makes a result from its values. `Document::render` makes one for you.
+`dropped` lists the CSS the render does not support. `missingGlyphs` lists text that no font has.
+
+<a id="core-novis-pdf-engine"></a>
+### `Novis\Pdf\Engine`
+
+Keywords: render, merge, read, readText
+
+| Member | Signature |
+|---|---|
+| [`Novis\Pdf\Engine::render`](#core-novis-pdf-engine-render) | `render(Pass $pass): {data: bytes, pageCount: uint, pages: array<{number: uint, name: ?string, strings: array<{name: string, value: string}>, marks: array<{name: string, value: string}>}>, dropped: array<{property: string, value: string, selector: string, line: uint, column: uint}>, missingGlyphs: array<{text: string, fonts: array<string>, page: uint}>, overflows: array<{page: uint, area: string, text: string}>}` |
+| [`Novis\Pdf\Engine::merge`](#core-novis-pdf-engine-merge) | `merge(array<{data: bytes, pages: ?array<uint>}> $parts): bytes` |
+| [`Novis\Pdf\Engine::read`](#core-novis-pdf-engine-read) | `read(bytes $data): {pageCount: uint, metadata: {title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string}, attachments: array<{name: string, data: bytes}>, invoiceXml: ?string}` |
+| [`Novis\Pdf\Engine::readText`](#core-novis-pdf-engine-readtext) | `readText(bytes $data, array<uint> $pages): array<string>` |
+
+<a id="core-novis-pdf-engine-render"></a>
+#### `Novis\Pdf\Engine::render`
+
+```nvs skip
+Novis\Pdf\Engine::render(Pass $pass): {data: bytes, pageCount: uint, pages: array<{number: uint, name: ?string, strings: array<{name: string, value: string}>, marks: array<{name: string, value: string}>}>, dropped: array<{property: string, value: string, selector: string, line: uint, column: uint}>, missingGlyphs: array<{text: string, fonts: array<string>, page: uint}>, overflows: array<{page: uint, area: string, text: string}>}
+```
+
+Renders an HTML document to a PDF file. Returns the file, its pages, and what the render could not draw.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$pass` | `Pass` |  |
+
+**Returns** `{data: bytes, pageCount: uint, pages: array<{number: uint, name: ?string, strings: array<{name: string, value: string}>, marks: array<{name: string, value: string}>}>, dropped: array<{property: string, value: string, selector: string, line: uint, column: uint}>, missingGlyphs: array<{text: string, fonts: array<string>, page: uint}>, overflows: array<{page: uint, area: string, text: string}>}`
+
+<a id="core-novis-pdf-engine-merge"></a>
+#### `Novis\Pdf\Engine::merge`
+
+```nvs skip
+Novis\Pdf\Engine::merge(array<{data: bytes, pages: ?array<uint>}> $parts): bytes
+```
+
+Returns one PDF file with the chosen pages of each part, in order. An encrypted part throws a `ParseError`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$parts` | `array<{data: bytes, pages: ?array<uint>}>` |  |
+
+**Returns** `bytes`
+
+<a id="core-novis-pdf-engine-read"></a>
+#### `Novis\Pdf\Engine::read`
+
+```nvs skip
+Novis\Pdf\Engine::read(bytes $data): {pageCount: uint, metadata: {title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string}, attachments: array<{name: string, data: bytes}>, invoiceXml: ?string}
+```
+
+Reads the page count, the metadata and the attached files of a PDF file.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes` |  |
+
+**Returns** `{pageCount: uint, metadata: {title: ?string, author: ?string, subject: ?string, keywords: ?string, creator: ?string, producer: ?string}, attachments: array<{name: string, data: bytes}>, invoiceXml: ?string}`
+
+<a id="core-novis-pdf-engine-readtext"></a>
+#### `Novis\Pdf\Engine::readText`
+
+```nvs skip
+Novis\Pdf\Engine::readText(bytes $data, array<uint> $pages): array<string>
+```
+
+Returns the text of each page in `pages` of a PDF file. Pages count from 1.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes` |  |
+| `$pages` | `array<uint>` |  |
+
+**Returns** `array<string>`
 
 <a id="core-enums"></a>
 ### `Core` enums
@@ -29976,6 +30250,14 @@ How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 pe
 | Case | Meaning |
 |---|---|
 
+<a id="enum-novis-image-barcode-symbology"></a>
+#### `Novis\Image\Barcode::Symbology`
+
+The type of barcode `Barcode::render` and `Barcode::svg` draw. `DataMatrix` is a square code. The others are lines of bars.
+
+| Case | Meaning |
+|---|---|
+
 <a id="enum-novis-intl-collator-strength"></a>
 #### `Novis\Intl\Collator::Strength`
 
@@ -30084,6 +30366,14 @@ The words that join a list: "a, b and c" is `And`, the default, "a, b or c" is `
 #### `Novis\Intl\Locale::Service`
 
 The data `Icu::resolveLocales` checks: the rules for sorting, numbers, plurals, dates, relative times, lists or splitting text.
+
+| Case | Meaning |
+|---|---|
+
+<a id="enum-novis-pdf-document-standard"></a>
+#### `Novis\Pdf\Document::Standard`
+
+A PDF standard the file follows. `PdfA2b` and `PdfA3b` are for archiving, and `PdfUa1` is for screen readers.
 
 | Case | Meaning |
 |---|---|
@@ -31583,6 +31873,7 @@ file_cache_dir: refused
 unknown: refused
 limits.memory = 256M
 log.level = debug
+session.ttl = 2h
 restored: 128M
 ```
 
@@ -31673,7 +31964,6 @@ limits.wall_time       = "30s"
 ## C.4 The HTTP server
 
 Keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, ignore_user_abort, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, php -S, php-fpm, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
-session.ttl = 2h
 
 ### nvs serve
 
@@ -31736,12 +32026,15 @@ does neither. A mode switch made while the server runs changes neither key, and 
 change either. `workers` is how many cores accept; every core holds its own handle on every
 listener. `max_in_flight` answers a fixed `503` with `Retry-After` before any program runs.
 
-The server also runs no more requests at the same time than its memory can hold. It takes the
-memory of the machine, or of the container, and keeps `128M` for itself. It divides the rest by the
-memory limit of one request. That limit is `[limits.hard] memory`, else `[limits] memory`, else
-`128M`. With the defaults, 2 GB of memory runs about 15 requests at the same time, 8 GB runs 63 and
-32 GB runs 255. When this number is lower than `max_in_flight`, it is the limit, and the server
-writes both numbers to its log when it starts. `memory = false` leaves `max_in_flight` alone.
+The server also checks its memory before it starts a request. It takes the memory of the machine,
+or of the container, and keeps `128M` for itself. A new request starts only when the memory that
+the running requests use now, plus the memory limit of one request, fits in the rest. That limit is
+`[limits.hard] memory`, else `[limits] memory`, else `128M`. It is the most memory one request may
+use. The server does not count it as the memory each request uses. With `memory = false`, a request
+starts while the running requests use less than the rest. When no request is running, a request
+always starts. A request that cannot start gets the status `503`. If the running requests together
+grow past the rest, the server stops the request that grew, with an error that says the server's
+memory is full.
 
 The four waits are idle waits, never a total, and none can be turned off. `[server.connection]`
 bounds a connection that was upgraded out of a request — a WebSocket, or an event stream — with
