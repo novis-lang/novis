@@ -6,6 +6,7 @@ use nvs_pdf::layout::{self, Item, Laid, MARGIN};
 use nvs_pdf::{Asset, Document, assets, css, fonts, parse, render};
 
 const SERIF: &[u8] = include_bytes!("../../fonts/LiberationSerif-Regular.ttf");
+const ARABIC: &[u8] = include_bytes!("../../image/fixtures/NotoSansArabic-Regular.ttf");
 
 fn lay_with(html: &str, list: &[Asset]) -> Laid {
     let dom = parse::parse(html);
@@ -125,6 +126,76 @@ fn cjk_breaks_between_ideographs() {
     assert!(lines.len() > 3, "{lines:?}");
     for (_, right) in &lines {
         assert!(*right <= MARGIN + 60.5, "{lines:?}");
+    }
+}
+
+/// Each text item's glyphs as the characters their clusters cover, left to right.
+fn drawn(laid: &Laid) -> Vec<String> {
+    laid.pages[0]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Text { glyphs, text, .. } => {
+                let mut clusters: Vec<_> = glyphs.iter().map(|g| g.text.clone()).collect();
+                clusters.dedup();
+                Some(clusters.into_iter().map(|r| &text[r]).collect())
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn arabic_and_hebrew_lay_out_right_to_left() {
+    // Hebrew is in Liberation: a right-to-left block starts at its right edge, and its first
+    // letter is drawn rightmost.
+    let laid = lay("<body style='margin: 0'><p dir='rtl' style='width: 300pt'>שלום</p>");
+    assert!(laid.missing.is_empty(), "{:?}", laid.missing);
+    let (left, right) = lines(&laid)[0];
+    assert!((right - (MARGIN + 300.0)).abs() < 0.5, "{left} {right}");
+    assert_eq!(drawn(&laid), ["םולש"]);
+
+    // A Latin word in a right-to-left paragraph is its own left-to-right run. It comes first, so
+    // it is drawn right of the Hebrew.
+    let laid = lay("<body style='margin: 0'><p dir='rtl'>Shop שלום</p>");
+    let texts = drawn(&laid);
+    let runs = runs(&laid);
+    let latin = texts.iter().position(|t| t.contains("Shop")).unwrap();
+    let hebrew = texts.iter().position(|t| t.contains("םולש")).unwrap();
+    assert!(runs[latin].1 > runs[hebrew].3, "{texts:?} {runs:?}");
+
+    // An override draws Latin letters right to left, and an isolate keeps its own order.
+    let laid = lay(
+        "<p><bdo dir='rtl'>abc</bdo> <span style='unicode-bidi: isolate; direction: rtl'>xyz</span></p>",
+    );
+    let texts = drawn(&laid).join("");
+    assert!(texts.starts_with("cba"), "{texts:?}");
+    assert!(texts.ends_with("xyz"), "{texts:?}");
+
+    // Arabic comes from an `@font-face`: its letters join, so a letter drawn inside a word is
+    // another glyph from the same letter drawn alone.
+    let arabic = [Asset {
+        name: "arabic.ttf".to_owned(),
+        data: ARABIC.to_vec(),
+    }];
+    let html = "<style>@font-face { font-family: Kufi; src: url(arabic.ttf) }\
+                p { font-family: Kufi; direction: rtl; width: 300pt }</style>\
+                <body style='margin: 0'><p>بحب</p><p>ح</p>";
+    let laid = lay_with(html, &arabic);
+    assert!(laid.missing.is_empty(), "{:?}", laid.missing);
+    let glyphs: Vec<Vec<u32>> = laid.pages[0]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Text { glyphs, .. } => Some(glyphs.iter().map(|g| g.id).collect()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(glyphs.len(), 2, "{glyphs:?}");
+    assert!(!glyphs[0].contains(&glyphs[1][0]), "{glyphs:?}");
+    assert_eq!(drawn(&laid)[0], "بحب");
+    for (_, right) in lines(&laid) {
+        assert!((right - (MARGIN + 300.0)).abs() < 0.5, "{right}");
     }
 }
 

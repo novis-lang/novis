@@ -103,6 +103,12 @@ center, th { text-align: center }
 u, ins { text-decoration-line: underline }
 s, strike, del { text-decoration-line: line-through }
 hr { border-top: 1px solid #808080; margin-top: 0.5em; margin-bottom: 0.5em }
+[dir], bdi { unicode-bidi: isolate }
+bdo { unicode-bidi: bidi-override }
+bdo[dir] { unicode-bidi: isolate-override }
+[dir=rtl] { direction: rtl }
+[dir=ltr] { direction: ltr }
+[dir=auto] { unicode-bidi: plaintext }
 ";
 
 /// The 16 margin boxes an `@page` rule may hold.

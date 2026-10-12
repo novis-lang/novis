@@ -24,6 +24,12 @@
 //! character no font in its chain has is drawn as the first font's empty box and listed in
 //! [`Laid::missing`] with the chain and the page.
 //!
+//! A block's base direction is its `direction`, or the first strong character of its text under
+//! `unicode-bidi: plaintext`, and `parley` runs the Unicode bidi algorithm over each paragraph.
+//! An inline box's `unicode-bidi` is written into its paragraph's text as the bidi control
+//! characters that open and close it, and a block's override is written around its text; a
+//! cluster of control characters draws nothing.
+//!
 //! A `list-item` starts with its marker, from `list-style-type` and its number among the list's
 //! items, `<ol start>` and `<li value>` included. An `<img>` whose bytes are PNG, JPEG, GIF or
 //! WebP is a block at its CSS `width` and `height`, else its `width` and `height` attributes,
@@ -39,7 +45,7 @@ use std::ops::Range;
 use krilla::Data;
 use krilla::image::Image;
 use parley::{
-    Alignment, AlignmentOptions, FontFamily, FontFamilyName, FontFeatures, FontStyle, FontWeight,
+    Alignment, AlignmentOptions, BaseDirection, FontFamily, FontFamilyName, FontFeatures, FontStyle, FontWeight,
     LayoutContext, LineHeight, OverflowWrap, StyleProperty, TextWrapMode, WordBreak,
 };
 
@@ -151,6 +157,7 @@ struct Span {
 /// What a block's lines are broken and aligned with.
 #[derive(Debug, Clone, Copy)]
 struct Para {
+    direction: BaseDirection,
     align: Alignment,
     line_height: LineHeight,
     wrap: TextWrapMode,
@@ -351,6 +358,11 @@ fn para_of(style: &Style) -> Para {
     let size = style.font_size();
     let white = keyword(style, "white-space");
     Para {
+        direction: match (keyword(style, "unicode-bidi"), keyword(style, "direction")) {
+            (Some("plaintext"), _) => BaseDirection::Auto,
+            (_, Some("rtl")) => BaseDirection::Rtl,
+            _ => BaseDirection::Ltr,
+        },
         align: match keyword(style, "text-align") {
             Some("left") => Alignment::Left,
             Some("right") => Alignment::Right,
@@ -381,6 +393,31 @@ fn para_of(style: &Style) -> Para {
             _ => OverflowWrap::Normal,
         },
     }
+}
+
+/// The bidi control characters that open and close a box's `unicode-bidi` in its paragraph's
+/// text, by its `direction`. A block is its own paragraph, so only an override changes it.
+fn bidi_controls(style: &Style, block: bool) -> Option<(&'static str, &'static str)> {
+    let rtl = keyword(style, "direction") == Some("rtl");
+    let pick = |ltr: &'static str, rtl_: &'static str| if rtl { rtl_ } else { ltr };
+    match keyword(style, "unicode-bidi") {
+        Some("embed") if !block => Some((pick("\u{202a}", "\u{202b}"), "\u{202c}")),
+        Some("isolate") if !block => Some((pick("\u{2066}", "\u{2067}"), "\u{2069}")),
+        Some("plaintext") if !block => Some(("\u{2068}", "\u{2069}")),
+        Some("isolate-override") if !block => Some((
+            pick("\u{2066}\u{202d}", "\u{2067}\u{202e}"),
+            "\u{202c}\u{2069}",
+        )),
+        Some("bidi-override" | "isolate-override") => {
+            Some((pick("\u{202d}", "\u{202e}"), "\u{202c}"))
+        }
+        _ => None,
+    }
+}
+
+/// Whether `c` is one of the characters [`bidi_controls`] writes.
+fn is_bidi_control(c: char) -> bool {
+    matches!(c, '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
 }
 
 fn spaces_of(style: &Style) -> Spaces {
@@ -520,9 +557,25 @@ impl Builder<'_, '_> {
         }
     }
 
-    /// Ends the text block being collected, if it has anything to draw.
+    /// Adds bidi control characters in `frame`'s text style, leaving the collapsing of spaces as
+    /// it was.
+    fn push_control(&mut self, controls: &str, frame: &Frame) {
+        let start = self.text.len();
+        self.text.push_str(controls);
+        if self.owner.is_none() {
+            self.owner = Some((frame.para, frame.x, frame.width));
+        }
+        self.runs.push((start..self.text.len(), frame.span));
+    }
+
+    /// Ends the text block being collected, if it has anything to draw. A control character
+    /// that closes the paragraph is trimmed with its trailing spaces, because the paragraph's end
+    /// closes it too.
     fn flush(&mut self) {
-        let trimmed = self.text.trim_end_matches([' ', '\n']).len();
+        let trimmed = self
+            .text
+            .trim_end_matches(|c| c == ' ' || c == '\n' || is_bidi_control(c))
+            .len();
         self.text.truncate(trimmed);
         self.runs.retain_mut(|(range, _)| {
             range.end = range.end.min(trimmed);
@@ -621,9 +674,11 @@ impl Builder<'_, '_> {
 /// One step of the walk in [`blocks`].
 enum Step {
     Enter(usize),
-    /// Leaves the element whose frame is on top, closing its box when it is a block.
+    /// Leaves the element whose frame is on top, writing the bidi controls that close it and
+    /// closing its box when it is a block.
     Exit {
         block: bool,
+        close: Option<&'static str>,
     },
 }
 
@@ -660,8 +715,11 @@ fn blocks(
     while let Some(step) = work.pop() {
         let at = match step {
             Step::Enter(at) => at,
-            Step::Exit { block } => {
-                frames.pop();
+            Step::Exit { block, close } => {
+                let frame = frames.pop().expect("an exit follows its enter");
+                if let Some(close) = close {
+                    builder.push_control(close, &frame);
+                }
                 if block {
                     builder.flush();
                     builder.blocks.push(Block::Close);
@@ -756,8 +814,15 @@ fn blocks(
                         builder.after_space = true;
                     }
                 }
+                let controls = bidi_controls(style, block);
+                if let Some((open, _)) = controls {
+                    builder.push_control(open, &inner);
+                }
                 frames.push(inner);
-                work.push(Step::Exit { block });
+                work.push(Step::Exit {
+                    block,
+                    close: controls.map(|(_, close)| close),
+                });
                 work.extend(node.children.iter().rev().map(|&c| Step::Enter(c)));
             }
         }
@@ -942,6 +1007,7 @@ pub fn layout(
                 width,
             } => {
                 let mut builder = lcx.ranged_builder(&mut fonts.context, &text, 1.0, false);
+                builder.set_base_direction(para.direction);
                 builder.push_default(para.line_height);
                 builder.push_default(StyleProperty::WordBreak(para.word_break));
                 builder.push_default(StyleProperty::OverflowWrap(para.overflow_wrap));
@@ -1056,7 +1122,10 @@ pub fn layout(
                             let range = cluster.text_range();
                             let cluster_text = &text[range.clone()];
                             x += cluster.advance();
-                            if cluster_text.chars().all(char::is_control) {
+                            if cluster_text
+                                .chars()
+                                .all(|c| c.is_control() || is_bidi_control(c))
+                            {
                                 match c.2.last_mut() {
                                     Some(last) => {
                                         last.advance += cluster.advance();
