@@ -791,25 +791,28 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 7 is under way.** The layout reads the computed styles. `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes its 11 tests, and `--lib`, `--test css` and `--test render` still pass. Of the stage's 10 checked names, 5 are written: `text_wraps_and_justifies_inside_its_box`, `cjk_breaks_between_ideographs`, `a_missing_glyph_is_drawn_as_the_empty_box_and_reported_with_its_chain`, `a_font_face_from_the_asset_map_is_used_and_subset` and `arial_helvetica_times_and_courier_map_to_liberation`. The other names still do not run: `arabic_and_hebrew_lay_out_right_to_left`, `hyphens_auto_breaks_by_the_language`, `lists_and_counters_number_their_items`, `borders_radius_backgrounds_and_gradients_lay_out` and `an_inline_svg_is_vector_content_in_the_output`.
+**Stage 7 is under way.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout` passes its 12 tests. Of the stage's 10 checked names, 7 are written, now including `arabic_and_hebrew_lay_out_right_to_left` and `lists_and_counters_number_their_items`. Three still do not run: `hyphens_auto_breaks_by_the_language`, `borders_radius_backgrounds_and_gradients_lay_out` and `an_inline_svg_is_vector_content_in_the_output`.
+
+- Bidi: `Para::direction` is `parley`'s base direction (`para_of`, `extensions/pdf/src/layout.rs:368`). An inline `unicode-bidi` is written into the text as bidi control characters (`bidi_controls`, `extensions/pdf/src/layout.rs:411`), and a cluster of them draws nothing. `USER_AGENT` maps `dir`, `<bdi>` and `<bdo>`. The Arabic fixture is `extensions/image/fixtures/NotoSansArabic-Regular.ttf`, through `@font-face`.
+- Counters: `Counters` (`extensions/pdf/src/layout.rs:518`) is scoped by frame depth. `list-item` is the implicit counter, and `ul, ol` reset it in `USER_AGENT`. An outside marker is a `Block::Text` with `marker: true`, laid at baseline 0 and moved down onto the next line placed. `::before`/`::after` are inline text from `content_text` (`extensions/pdf/src/layout.rs:598`). A `display: block` pseudo-element is still laid inline.
+- `cargo clippy --manifest-path extensions/pdf/Cargo.toml` has 6 errors in `css/value.rs` and `css/mod.rs` that were there before this session. `bun nv verify` does not run clippy over the extension's own workspace.
 
 - `css::USER_AGENT` (`extensions/pdf/src/css/mod.rs`) is HTML's default sheet. It sorts below every document rule through the `Key`'s second field. `font-weight` computes to a number.
 - `css::UNRENDERED` elements are `display: none` and are reported in `dropped` as `<name>` at their start tag.
 - `fonts::Fonts` registers `@font-face` from the asset map under the rule's family name. `Fonts::chain` gives the fallback list, and `Laid::faces` is what `write.rs` embeds.
-- `layout.rs` is one file still. It does block boxes (margins collapse, padding, solid borders as rectangles, background colour, sizes, `box-sizing`, auto margins), text spans through `parley` with the span index as the brush, inside list markers and `<img>` sizing.
+- `layout.rs` is one file of about 1450 lines. It does block boxes (margins collapse, padding, solid borders as rectangles, background colour, sizes, `box-sizing`, auto margins), text through `parley` with the span index as the brush, bidi, counters and markers, and `<img>` sizing.
 
 ### Next
 
-**Stage 7, lists, boxes and bidi**: the file set is `extensions/pdf/src/layout.rs` (split into `extensions/pdf/src/layout/` with block, inline and text first), `extensions/pdf/src/write.rs` and `extensions/pdf/tests/layout.rs`.
+**Stage 7, the split and the boxes**: the file set is `extensions/pdf/src/layout.rs`, `extensions/pdf/src/write.rs` and `extensions/pdf/tests/layout.rs`.
 
-- [ ] **Lists and counters**: `counter-reset`, `counter-increment` and `::before`/`::after` `content` from `Styles::before` and `Styles::after` (`extensions/pdf/src/css/mod.rs:181`), and markers outside the content box. The marker today is inline text pushed at `extensions/pdf/src/layout.rs:742` (`rule:core-classes/pdf-css-subset-table`). Rename `lists_number_their_items` to `lists_and_counters_number_their_items` when it covers counters.
-- [ ] **Boxes**: dashed, dotted and double borders, `border-radius`, `outline`, `opacity`, gradients and `background-image` as paths in `Flow::close` (`extensions/pdf/src/layout.rs:828`) and `write.rs`. `Item::Rect` becomes a path item there. Pinned by `borders_radius_backgrounds_and_gradients_lay_out`.
-- [ ] **Bidi**: `direction` and `unicode-bidi` reach `parley` through `para_of` (`extensions/pdf/src/layout.rs:350`). Liberation has Hebrew and no Arabic, so the Arabic half of `arabic_and_hebrew_lay_out_right_to_left` needs an `@font-face` fixture (`rule:core-classes/pdf-default-fonts`).
+- [ ] **Split the layout**: `extensions/pdf/src/layout.rs` becomes `extensions/pdf/src/layout/` with `block.rs` (`Flow`, `BoxGeometry`, `geometry` at `extensions/pdf/src/layout.rs:273`), `inline.rs` (`Builder`, `Counters`, `blocks`) and `text.rs` (the line loop in `layout`). Behaviour stays the same and the 12 tests pass unchanged (`rule:core-classes/pdf-css-subset`).
+- [ ] **Boxes**: dashed, dotted and double borders, `border-radius`, `outline`, `opacity`, gradients and `background-image` as paths in `Flow::close` (`extensions/pdf/src/layout.rs:1119`) and `extensions/pdf/src/write.rs:90`. `Item::Rect` becomes a path item there. Pinned by `borders_radius_backgrounds_and_gradients_lay_out` (`rule:core-classes/pdf-css-subset-table`).
 
 ### Backlog
 
 - Hyphenation: `hypher` is not a dependency yet, and `hyphens: auto` with `lang` is `hyphens_auto_breaks_by_the_language` (stage 7 in `docs/goals/pdf.md`). Run `bun nv gen-attribution` after adding it.
-- Inline `<svg>` and an SVG `<img>` through `krilla-svg` are `an_inline_svg_is_vector_content_in_the_output`. `object-fit`, `text-indent`, `vertical-align`, `text-overflow` and inline boxes with borders are not laid out yet (`extensions/pdf/src/layout.rs`).
+- Inline `<svg>` and an SVG `<img>` through `krilla-svg` are `an_inline_svg_is_vector_content_in_the_output`. `object-fit`, `text-indent`, `vertical-align`, `text-overflow`, inline boxes with borders, a block `::before`/`::after` and a marker in a right-to-left item are not laid out yet (`extensions/pdf/src/layout.rs`).
 - Stage 10 reaches `first` through `Pass`'s `First` case, whose shape is `{document, headerHeight, footerHeight}` (`extensions/pdf/manifest.json`, `wit/pdf.wit`).
 - `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`), and the cascade reads CSS on its own. One reading for both is still open.
 - `Grammar::Free` properties are not checked past their tokens (`extensions/pdf/src/css/properties.rs`). SVG `<text>` through `usvg`'s `text` feature (`rule:core-classes/image-format-roster`).
