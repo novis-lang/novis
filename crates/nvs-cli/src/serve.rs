@@ -4627,8 +4627,11 @@ echo Core\Router::{member}("Docs::here", []);
         let mut listener = socket
             .accepting()
             .expect("the platform refused a parking listener");
+        // The header wait is the client's own patience: a client thread a
+        // loaded host leaves unscheduled between its connect and its write
+        // must not find the connection closed before it has asked.
         let waits = nvs_config::server::Waits {
-            header: KEPT_ALIVE_FOR,
+            header: CLIENT_PATIENCE,
             keepalive: KEPT_ALIVE_FOR,
             ..nvs_config::server::Waits::default()
         };
