@@ -363,15 +363,20 @@ fn every_row_of_the_value_table_round_trips_through_a_guest() {
 }
 
 #[test]
-fn a_uint_crosses_as_u64_with_no_conversion() {
+fn a_uint_crosses_as_u64_and_takes_a_non_negative_int() {
     let uint = ty("uint");
     assert_eq!(
         to_wit(&uint, Value::Uint(u64::MAX)).expect("a uint converts"),
         Val::U64(u64::MAX)
     );
+    assert_eq!(
+        to_wit(&ty("array<uint>"), list(vec![Value::Int(3)])).expect("a written list converts"),
+        Val::List(vec![Val::U64(3)]),
+        "an element of a written `[3]` is int-tagged and crosses as its u64"
+    );
     assert!(
-        to_wit(&uint, Value::Int(1)).is_err(),
-        "an int is not a uint"
+        to_wit(&uint, Value::Int(-1)).is_err(),
+        "a negative int is not a uint"
     );
     let (host, extension) = fixture();
     let request = request(&host);

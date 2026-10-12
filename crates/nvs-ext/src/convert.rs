@@ -26,6 +26,11 @@
 //! stores a decimal string key as an `int`; a `string` key from a guest comes back as it is, and the
 //! runtime normalizes it on insert as it does any other.
 //!
+//! **A `uint` takes an `int` that is not negative.** A written `[3, 1]` type-checks against
+//! `array<uint>` and its elements stay int-tagged at runtime, while a scalar `uint` argument is
+//! materialized at its type by the call site, so an element of a `uint` list reaches [`to_wit`] as
+//! either [`Value::Uint`] or a non-negative [`Value::Int`]. A negative `int` is refused.
+//!
 //! **What the conversion refuses** is a value the type does not describe: a `null` where the type is
 //! not `?T`, a required shape field that is absent, a key that is neither `int` nor `string`, and a
 //! `Val` of another shape than the type's. The checker has already typed the call, so a refusal is a
@@ -174,6 +179,7 @@ pub fn to_wit_with(ty: &NovisType, value: Value, call: &mut dyn Crossing) -> Res
         (NovisType::Bool, Value::Bool(b)) => Val::Bool(b),
         (NovisType::Int, Value::Int(n)) => Val::S64(n),
         (NovisType::Uint, Value::Uint(n)) => Val::U64(n),
+        (NovisType::Uint, Value::Int(n)) if let Ok(n) = u64::try_from(n) => Val::U64(n),
         (NovisType::Float, Value::Float(x)) => Val::Float64(x),
         (NovisType::String, Value::String(s)) => Val::String(s),
         (NovisType::Bytes, Value::Bytes(bytes)) => {
