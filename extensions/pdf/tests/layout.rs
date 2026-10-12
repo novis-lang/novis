@@ -847,3 +847,92 @@ fn object_fit_and_object_position_place_the_picture_in_its_box() {
         render(&document).unwrap().data
     );
 }
+
+#[test]
+fn text_indent_moves_the_first_line_of_each_block() {
+    let body = |css: &str, html: &str| {
+        lines(&lay(&format!(
+            "<body style='margin: 0'><div style='width: 200pt; {css}'>{html}</div>"
+        )))
+    };
+    // The first line starts 20pt in and is 20pt narrower, and the lines after it are not moved.
+    let indented = body("text-indent: 20pt", WORDS);
+    assert!(indented.len() > 2, "{indented:?}");
+    assert!(close(indented[0].0, MARGIN + 20.0), "{indented:?}");
+    assert!(indented[0].1 <= MARGIN + 200.0 + 0.05, "{indented:?}");
+    assert!(close(indented[1].0, MARGIN), "{indented:?}");
+    // A percentage is of the content box's width, and a negative indent hangs out to the left.
+    assert!(close(body("text-indent: 10%", WORDS)[0].0, MARGIN + 20.0));
+    assert!(close(body("text-indent: -10pt", WORDS)[0].0, MARGIN - 10.0));
+    // The property is inherited, so each paragraph's first line is indented. Text after a
+    // paragraph inside the same block is not its first line.
+    let blocks = body("text-indent: 20pt", "Shop<p style='margin: 0'>Blog</p>More");
+    let starts: Vec<f32> = blocks.iter().map(|(left, _)| left - MARGIN).collect();
+    assert_eq!(starts.len(), 3, "{blocks:?}");
+    assert!(
+        close(starts[0], 20.0) && close(starts[1], 20.0),
+        "{starts:?}"
+    );
+    assert!(close(starts[2], 0.0), "{starts:?}");
+    // In a right-to-left block the indent is at the right edge, so the first line ends 20pt
+    // before the line under it.
+    let rtl = body("text-indent: 20pt; direction: rtl", WORDS);
+    assert!(rtl.len() > 2, "{rtl:?}");
+    assert!(close(rtl[1].1 - rtl[0].1, 20.0), "{rtl:?}");
+}
+
+#[test]
+fn vertical_align_raises_and_lowers_a_span_from_its_baseline() {
+    // The baseline of each text item on the first page, in order.
+    let baselines = |html: &str| -> Vec<f32> {
+        lay(&format!(
+            "<body style='margin: 0; font-size: 12pt; line-height: 20pt'><p>{html}</p>"
+        ))
+        .pages[0]
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Text { y, .. } => Some(*y),
+                _ => None,
+            })
+            .collect()
+    };
+    let span = |css: &str, text: &str| format!("<span style='vertical-align: {css}'>{text}</span>");
+    let got = baselines(&format!(
+        "Shop{}{}{}{}",
+        span("super", "a"),
+        span("sub", "b"),
+        span("6pt", "c"),
+        span("50%", "d")
+    ));
+    assert_eq!(got.len(), 5, "{got:?}");
+    let base = got[0];
+    // `super` raises by a third of the parent's 12pt and `sub` lowers by a fifth. A length
+    // raises by itself, and a percentage is of the line height.
+    for (at, rise) in [(1, 4.0), (2, -2.4), (3, 6.0), (4, 10.0)] {
+        assert!(close(base - got[at], rise), "{at}: {got:?}");
+    }
+    // A raised span inside a raised span adds its own shift to its parent's.
+    let nested = baselines(&format!(
+        "Shop{}",
+        span("super", &format!("a{}", span("super", "b")))
+    ));
+    assert!(close(nested[0] - nested[2], 8.0), "{nested:?}");
+    // A span raised past the line's own height makes the line taller.
+    let plain = lay("<p style='margin: 0'>Shop</p><p style='margin: 0'>Blog</p>");
+    let raised = lay(&format!(
+        "<p style='margin: 0'>Shop{}</p><p style='margin: 0'>Blog</p>",
+        span("20pt", "a")
+    ));
+    let last_baseline = |laid: &Laid| {
+        laid.pages[0]
+            .items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Text { y, .. } => Some(*y),
+                _ => None,
+            })
+            .fold(0.0, f32::max)
+    };
+    assert!(last_baseline(&raised) > last_baseline(&plain) + 10.0);
+}

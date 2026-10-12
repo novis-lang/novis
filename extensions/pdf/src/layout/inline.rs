@@ -6,7 +6,10 @@ use std::ops::Range;
 
 use cssparser::{Parser, Token};
 use hypher::Lang;
-use parley::{Alignment, BaseDirection, LineHeight, OverflowWrap, TextWrapMode, WordBreak};
+use parley::{
+    Alignment, AlignmentBaseline, BaseDirection, BaselineShift, LineHeight, OverflowWrap,
+    TextWrapMode, VerticalAlign, WordBreak,
+};
 
 use super::block::geometry;
 use super::{
@@ -49,10 +52,55 @@ fn span_of(style: &Style, fonts: &Fonts, parent: Option<&Span>) -> Span {
         },
         underline: has("underline").or(parent.and_then(|p| p.underline)),
         strike: has("line-through").or(parent.and_then(|p| p.strike)),
+        align: vertical_align(style, parent),
     }
 }
 
-fn para_of(style: &Style) -> Para {
+/// `style`'s `vertical-align` inside the span `parent`. `sub`, `super` and a length or
+/// percentage add to the parent's shift: `sub` lowers by a fifth of the parent's font size,
+/// `super` raises by a third, and a percentage is of the element's own line height. `top` and
+/// `bottom` align with the line box, and `baseline` keeps the parent's alignment.
+fn vertical_align(style: &Style, parent: Option<&Span>) -> VerticalAlign {
+    let inherited = parent.map_or(VerticalAlign::BASELINE, |p| p.align);
+    let rise = match inherited.shift {
+        BaselineShift::Length(rise) => rise,
+        _ => 0.0,
+    };
+    let parent_size = parent.map_or(style.font_size(), |p| p.size);
+    let raised = |by: f32| VerticalAlign {
+        alignment: AlignmentBaseline::Baseline,
+        shift: BaselineShift::Length(rise + by),
+    };
+    let aligned = |alignment| VerticalAlign {
+        alignment,
+        shift: BaselineShift::Length(rise),
+    };
+    match style.get("vertical-align") {
+        Some(Value::Keyword(word)) => match word.as_str() {
+            "sub" => raised(-parent_size / 5.0),
+            "super" => raised(parent_size / 3.0),
+            "top" => VerticalAlign::TOP,
+            "bottom" => VerticalAlign::BOTTOM,
+            "middle" => aligned(AlignmentBaseline::Middle),
+            "text-top" => aligned(AlignmentBaseline::TextTop),
+            "text-bottom" => aligned(AlignmentBaseline::TextBottom),
+            _ => inherited,
+        },
+        Some(Value::Length(l)) => {
+            let size = style.font_size();
+            let line_height = match style.get("line-height") {
+                Some(Value::Number(n)) => n * size,
+                Some(Value::Length(h)) => h.pt + h.percent / 100.0 * size,
+                _ => 1.2 * size,
+            };
+            raised(l.pt + l.percent / 100.0 * line_height)
+        }
+        _ => inherited,
+    }
+}
+
+/// `style`'s paragraph, in a content box `width` wide.
+fn para_of(style: &Style, width: f32) -> Para {
     let size = style.font_size();
     let white = keyword(style, "white-space");
     Para {
@@ -90,6 +138,7 @@ fn para_of(style: &Style) -> Para {
             _ if keyword(style, "word-break") == Some("break-word") => OverflowWrap::BreakWord,
             _ => OverflowWrap::Normal,
         },
+        indent: length(style, "text-indent", width).unwrap_or(0.0),
     }
 }
 
@@ -365,6 +414,8 @@ pub(super) struct Builder<'a, 'd> {
     owner: Option<(Para, f32, f32)>,
     /// Whether the text so far ends in a collapsible space, or is empty.
     after_space: bool,
+    /// Whether the innermost open block has laid out text, so its `text-indent` is spent.
+    indented: bool,
     /// The root element's font size, which `rem` is relative to.
     pub(super) rem: f32,
 }
@@ -492,9 +543,13 @@ impl Builder<'_, '_> {
             range.end = range.end.min(trimmed);
             range.start < range.end
         });
-        if let Some((para, x, width)) = self.owner.take()
+        if let Some((mut para, x, width)) = self.owner.take()
             && !self.runs.is_empty()
         {
+            if self.indented {
+                para.indent = 0.0;
+            }
+            self.indented = true;
             self.blocks.push(Block::Text {
                 text: std::mem::take(&mut self.text),
                 spans: std::mem::take(&mut self.runs),
@@ -546,6 +601,7 @@ pub(super) fn blocks(
         runs: Vec::new(),
         owner: None,
         after_space: true,
+        indented: false,
         rem,
     };
     let root = Frame {
@@ -553,7 +609,7 @@ pub(super) fn blocks(
         width: CONTENT_WIDTH,
         span: 0,
         spaces: Spaces::Collapse,
-        para: para_of(&empty),
+        para: para_of(&empty, CONTENT_WIDTH),
         transform: None,
         lang: None,
         hyphenate: None,
@@ -652,8 +708,9 @@ pub(super) fn blocks(
                         - geometry.padding[1]
                         - geometry.padding[3])
                         .max(0.0);
-                    inner.para = para_of(style);
+                    inner.para = para_of(style, inner.width);
                     builder.blocks.push(Block::Open(geometry));
+                    builder.indented = false;
                 }
                 let depth = frames.len();
                 counters.apply(style, depth);
@@ -693,6 +750,7 @@ pub(super) fn blocks(
                                     direction: BaseDirection::Ltr,
                                     align: Alignment::Left,
                                     wrap: TextWrapMode::NoWrap,
+                                    indent: 0.0,
                                     ..inner.para
                                 },
                                 x: inner.x,

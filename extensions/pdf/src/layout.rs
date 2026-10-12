@@ -19,9 +19,15 @@
 //! **Text** is the inline content of a block, shaped and broken into lines by `parley` over
 //! `harfrust` and `skrifa`. Each run takes its font chain (`fonts`' module doc), `font-size`,
 //! `font-weight`, `font-style`, `color`, `letter-spacing`, `word-spacing`,
-//! `font-feature-settings`, `text-transform` and the underline or line-through it is inside;
-//! each block takes `text-align`, `line-height`, `white-space`, `word-break` and
-//! `overflow-wrap`. A line that does not fit under the last on the page starts the next page. A
+//! `font-feature-settings`, `text-transform`, `vertical-align` and the underline or line-through
+//! it is inside; each block takes `text-align`, `line-height`, `white-space`, `word-break`,
+//! `overflow-wrap` and `text-indent`. The indent moves the first line laid out in a block, and
+//! text after a child block in the same block is not indented again. A `vertical-align` shift is
+//! measured from the paragraph's baseline, the shifts of nested spans adding up. `middle`,
+//! `text-top` and `text-bottom` are measured against the root style of `parley`'s flat builder,
+//! which sets no font, and not against the enclosing inline box, so they are not yet where CSS
+//! puts them. A raised or lowered run makes its line taller where it needs to.
+//! A line that does not fit under the last on the page starts the next page. A
 //! character no font in its chain has is drawn as the first font's empty box and listed in
 //! [`Laid::missing`] with the chain and the page.
 //!
@@ -68,7 +74,9 @@
 use std::ops::Range;
 
 use hypher::Lang;
-use parley::{Alignment, BaseDirection, LineHeight, OverflowWrap, TextWrapMode, WordBreak};
+use parley::{
+    Alignment, BaseDirection, LineHeight, OverflowWrap, TextWrapMode, VerticalAlign, WordBreak,
+};
 
 mod block;
 mod boxes;
@@ -188,6 +196,9 @@ struct Span {
     features: Option<String>,
     underline: Option<Color>,
     strike: Option<Color>,
+    /// Its `vertical-align`, with the parent's shift added to its own because each span's
+    /// shift is given against the paragraph's baseline.
+    align: VerticalAlign,
 }
 
 /// What a block's lines are broken and aligned with.
@@ -199,6 +210,8 @@ struct Para {
     wrap: TextWrapMode,
     word_break: WordBreak,
     overflow_wrap: OverflowWrap,
+    /// The first line's `text-indent` in points.
+    indent: f32,
 }
 
 /// How a text node's whitespace is kept.

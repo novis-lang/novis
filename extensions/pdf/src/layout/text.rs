@@ -5,8 +5,9 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use parley::{
-    AlignmentOptions, FontFamily, FontFamilyName, FontFeatures, FontStyle, FontWeight, Layout,
-    LayoutContext, RangedBuilder, StyleProperty, YieldData,
+    AlignmentOptions, FontFamily, FontFamilyName, FontFeatures, FontStyle, FontWeight,
+    IndentOptions, Layout, LayoutContext, PositionedLayoutItem, RangedBuilder, StyleProperty,
+    VerticalAlign, YieldData,
 };
 
 use super::block::Flow;
@@ -98,6 +99,7 @@ pub fn layout(
                     push_span(&mut builder, &spans[*index], *index, range.clone());
                 }
                 let mut shaped = builder.build(&text);
+                shaped.set_text_indent(para.indent, IndentOptions::default());
                 let widest = hyphens.iter().map(|(_, h)| h.advance).fold(0.0, f32::max);
                 break_lines(&mut shaped, &text, width, widest);
                 shaped.align(para.align, AlignmentOptions::default());
@@ -111,6 +113,22 @@ pub fn layout(
                         0.0
                     } else {
                         MARGIN + top + (metrics.baseline - metrics.block_min_coord)
+                    };
+                    // Each span's baseline on the page, which its `vertical-align` moves.
+                    let shifted: Vec<(usize, f32)> = line
+                        .items()
+                        .filter_map(|item| match item {
+                            PositionedLayoutItem::GlyphRun(run) => {
+                                Some((run.style().brush, run.baseline()))
+                            }
+                            PositionedLayoutItem::InlineBox(_) => None,
+                        })
+                        .collect();
+                    let baseline_of = |index: usize| {
+                        shifted
+                            .iter()
+                            .find(|(at, _)| *at == index)
+                            .map_or(baseline, |(_, y)| baseline + y - metrics.baseline)
                     };
                     let line_range = line.text_range();
                     let line_text = &text[line_range.clone()];
@@ -135,6 +153,7 @@ pub fn layout(
                                 return;
                             };
                             let span = &spans[index];
+                            let baseline = baseline_of(index);
                             for (color, offset, size) in [
                                 (
                                     span.underline,
@@ -248,7 +267,7 @@ pub fn layout(
                             face: h.face,
                             size: h.size,
                             x,
-                            y: baseline,
+                            y: baseline_of(*index),
                             color: spans[*index].color,
                             glyphs: vec![Glyph {
                                 id: h.id,
@@ -323,6 +342,9 @@ fn push_span(
             StyleProperty::FontFeatures(FontFeatures::Source(Cow::Borrowed(features.as_str()))),
             range.clone(),
         );
+    }
+    if span.align != VerticalAlign::BASELINE {
+        builder.push(StyleProperty::VerticalAlign(span.align), range.clone());
     }
     builder.push(StyleProperty::Brush(index), range);
 }
