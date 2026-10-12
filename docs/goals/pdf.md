@@ -77,7 +77,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 12
     title: "standards, Factur-X and passwords"
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/pdf-output-is-inert]
@@ -797,20 +797,21 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 12 is under way: tagging, PDF/A-2b, PDF/A-3b, PDF/UA-1 and Factur-X are done.** Six of the eight tests of `nvs-ext-standards-factur-x-and-passwords` pass, and `pdf-an-e-invoice-renders` is green. The two password tests are not written, so that check stays red until the password lands.
+**Stage 12 is done: tagging, PDF/A-2b, PDF/A-3b, PDF/UA-1, Factur-X and the password.** All eight tests of `nvs-ext-standards-factur-x-and-passwords` pass, and `pdf-an-e-invoice-renders` is green.
 
-- `extensions/pdf/src/factur_x.rs` is the invoice: `check` parses the XML with `roxmltree` and no DTD and reads the profile from its guideline id, `embed` attaches `factur-x.xml` through `krilla`'s `embed_file`, and `xmp` adds the `fx` extension schema and fields to the finished file's metadata stream, moving the `/Length`, the cross-reference offsets and `startxref`. Its module doc says how.
-- `first` (`extensions/pdf/src/lib.rs`) checks the XML before layout and keeps its level in `Kept`; `write` takes it as a fourth argument.
-- Whether veraPDF accepts the Factur-X file is *not checked*: `krilla`'s PDF/A-3b validator accepts it, and `pdf_standards.rs`'s `assert_xref_points_at_objects` checks the rewritten table.
+- `extensions/pdf/src/encrypt.rs` is the password: AES-256, revision 6, over the file `write` returns. It reads `pdf-writer`'s shape (a cross-reference table, direct stream lengths), encrypts every string and stream, adds the `/Encrypt` object and the trailer's entry, and writes the table again. The file key is a SHA-256 of the password and the file, and the salts and IVs are SHA-256s of the key, so equal input is byte-equal. Its module doc says how.
+- The password is both the user and the owner password, so `hayro-syntax` (the test's independent reader, a dev-dependency of `nvs-ext`) opens it through the owner path. The user path (`/U`, `/UE`) is *not checked* by a reader other than the writer, and neither is `/Perms`, which `hayro-syntax` does not read.
+- The header stays `%PDF-1.7` with no `/Extensions` entry for AES-256: whether a strict reader wants Adobe's extension level 8 there is *not checked*. SASLprep is not applied to the password.
+- `nvs-cli`'s `live_edit` test `a_file_that_changes_during_a_compile_discards_that_compile` failed once beside the other test binaries, passed alone, and passed on the next full `bun nv verify`. That is load, outside this goal's files.
 
 ### Next
 
-**Stage 12, the password**: the file set is `extensions/pdf/src/write.rs`, `extensions/pdf/src/encrypt.rs` (new) and `crates/nvs-ext/tests/pdf_standards.rs`.
+**Stage 13, existing PDFs**: the file set is `extensions/pdf/src/read.rs` (new), `extensions/pdf/src/merge.rs` (new), `extensions/pdf/src/lib.rs`, `extensions/pdf/nvs/` (`Pages.nvs`, `Reader.nvs`, both new) and `crates/nvs-ext/tests/pdf_read.rs` (new).
 
-- [x] **Output is tagged** (`rule:core-classes/pdf-one-engine`, Stage 12's *Tagging*).
-- [x] **PDF/A-2b, PDF/A-3b and PDF/UA-1** (`rule:core-classes/pdf-standards-and-passwords`). Whether PDF/UA also wants each link annotation tagged is *not checked*.
-- [x] **Factur-X** (`rule:core-classes/pdf-factur-x-is-the-one-attachment`).
-- [ ] **The password** (`rule:core-classes/pdf-standards-and-passwords`): `krilla` 0.8 writes no encryption, so AES-256 revision 6 is `extensions/pdf/src/encrypt.rs` over the finished file `write` returns (`extensions/pdf/src/write.rs:686`), its salts and file key derived from a hash of the document and the password so equal input stays byte-equal. Every string and stream is encrypted, the `/Encrypt` dictionary and the trailer's are added, and the cross-reference table is rewritten as `factur_x::xmp` does (`extensions/pdf/src/factur_x.rs:121`). The tests are `a_password_encrypts_with_aes_256_and_stays_byte_equal` and `a_password_with_a_pdf_a_standard_throws`. Then Stage 12 is done.
+- [ ] **`Reader`** (`rule:core-classes/pdf-roster`): `read` and `read-text` (`wit/pdf.wit:163`), stubbed at `extensions/pdf/src/lib.rs:523`, over `hayro`: the page count, the metadata, the Factur-X attachment and a page's text. An encrypted source throws.
+- [ ] **`merge`** (`wit/pdf.wit:160`, stubbed at `extensions/pdf/src/lib.rs:519`): parts with page lists into one PDF, through `krilla`'s `pdf` feature.
+- [ ] **Placing** a PDF page in an `<img>` and as an `@page` background (`rule:core-classes/pdf-page-is-an-image-source`): a third `Picture` case beside `Vector` (`extensions/pdf/src/layout/image.rs:17`), and SVG `<text>` drawn with the Liberation faces.
+- The tests are the `nvs-ext-existing-pdfs` check's eight names in `crates/nvs-ext/tests/pdf_read.rs`, and the two `.nvst` cases of `pdf-merge-and-read-run`.
 
 ### Backlog
 
@@ -819,4 +820,4 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 - Positioning: an absolute box without a `width` is not stretched by `left` with `right`, a percentage `top` or `bottom` of a relative box is 0, an inline element's `position` and `transform` do nothing, and a transformed box is not a containing block (`extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/block.rs`).
 - Floats: an `<img>` with `float` stays a block, a float in the middle of a paragraph is placed at its top, and a float does not go on to the next page (`extensions/pdf/src/layout/block.rs`). Grid: `calc()` tracks and the `grid-template` and `grid` shorthands (`extensions/pdf/src/layout/grid.rs`). Flex: `::before`, `::after` and `<br>` are not items, baseline alignment and an item's `margin: auto` (`extensions/pdf/src/layout/flex.rs`).
 - Elliptical radii and repeating gradients (`extensions/pdf/src/layout/boxes.rs`), `hyphenate-character` (`extensions/pdf/subset.json`), an inline box in a right-to-left line, and Clippy's `large_enum_variant` on `layout::Block` and `inline::Step` (`cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets`).
-- Header functions: the markup is styled by its own `<style>`, it sits at the top of its area, and `Page::string` has no conformance case (`extensions/pdf/src/lib.rs`, `extensions/pdf/nvs/Page.nvs`). `Document.nvs`'s `invoiceXml` doc names `Standard::PdfA3b` where a program writes `Document::Standard::PdfA3b` (`extensions/pdf/nvs/Document.nvs:52`). The guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, veraPDF in CI (the user's call), and Stage 14's growth.
+- Header functions: the markup is styled by its own `<style>`, it sits at the top of its area, and `Page::string` has no conformance case (`extensions/pdf/src/lib.rs`, `extensions/pdf/nvs/Page.nvs`). `Document.nvs`'s `invoiceXml` doc names `Standard::PdfA3b` where a program writes `Document::Standard::PdfA3b` (`extensions/pdf/nvs/Document.nvs:52`). The password's user path and `/Perms` checked by a second reader, the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, veraPDF in CI (the user's call), and Stage 14's growth (`extensions/pdf/src/encrypt.rs`).
