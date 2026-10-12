@@ -24,8 +24,9 @@ The component's fixtures owe a fixture using an unsupported property that render
 in the dropped list, and a clean fixture whose three lists are empty.
 
 **Partly on disk.** `extensions/pdf/src/css/` is the cascade, and `Rendered::dropped` lists what it
-drops with its selector and position. The layout does not read the computed styles yet, an element
-the subset does not render is not listed yet, and the missing-glyph and overflow lists are empty.
+drops with its selector and position, and each element the subset does not render as `<name>` at its
+start tag. `extensions/pdf/src/layout.rs` lays out block boxes and text from the computed styles,
+with no flex, grid, floats, positioning or tables yet, and the overflow list is empty.
 
 **Declined:**
 - **A strict mode that throws on the first dropped declaration.** A test asserting `dropped` is empty

@@ -10,9 +10,15 @@
 //! property outside it, and a value its property does not take are dropped and reported in
 //! [`Styles::dropped`] with the selector and the source position, never guessed at.
 //!
-//! For each element, the declarations that apply are sorted by `!important`, then a `style`
-//! attribute over a sheet, then specificity, then source order, and the last one sets each
-//! longhand. A shorthand sets all of its longhands (`properties`' module doc). Custom
+//! [`USER_AGENT`] is read before the document's sheets and sorts below every one of them: it gives
+//! HTML's elements their `display`, their default margins and their fonts. An element the subset
+//! does not render ([`UNRENDERED`]) is `display: none` there and is reported in
+//! [`Styles::dropped`] as `<name>` with an empty property, at its start tag.
+//!
+//! For each element, the declarations that apply are sorted by `!important`, then the document
+//! over the user-agent sheet, then a `style` attribute over a sheet, then specificity, then source
+//! order, and the last one sets each longhand. `font-weight` computes to a number, so `bolder`
+//! counts from the parent's. A shorthand sets all of its longhands (`properties`' module doc). Custom
 //! properties inherit, and a `var()` is substituted when the element is computed. A value that is
 //! no longer valid after substitution is reported once and leaves its longhands unset. An
 //! inherited longhand an element does not set takes its parent's computed value. A longhand absent
@@ -59,6 +65,45 @@ pub const FONT_FACE_DESCRIPTORS: &[&str] = &[
     "font-stretch",
     "unicode-range",
 ];
+
+/// The elements the subset does not render: each is drawn as nothing and reported.
+pub const UNRENDERED: &[&str] = &[
+    "iframe", "video", "audio", "canvas", "object", "embed", "input", "select", "textarea",
+    "button",
+];
+
+/// The user-agent sheet: HTML's default display, margins and fonts for print.
+pub const USER_AGENT: &str = "
+html, body, div, p, ul, ol, dl, dt, dd, pre, blockquote, figure, figcaption, h1, h2, h3, h4,
+h5, h6, hr, section, article, header, footer, main, nav, aside, address, form, fieldset,
+legend, details, summary, center, table, caption, thead, tbody, tfoot, tr, td, th
+    { display: block }
+li { display: list-item }
+head, script, style, title, meta, link, base, template, noscript, iframe, video, audio, canvas,
+object, embed, input, select, textarea, button, math, datalist, source, track, area, map
+    { display: none }
+body { margin: 8px }
+p, pre, blockquote, figure, ul, ol, dl { margin-top: 1em; margin-bottom: 1em }
+blockquote, figure { margin-left: 40px; margin-right: 40px }
+dd { margin-left: 40px }
+ul, ol { padding-left: 40px }
+ul { list-style-type: disc }
+ol { list-style-type: decimal }
+h1 { font-size: 2em; margin-top: 0.67em; margin-bottom: 0.67em }
+h2 { font-size: 1.5em; margin-top: 0.83em; margin-bottom: 0.83em }
+h3 { font-size: 1.17em; margin-top: 1em; margin-bottom: 1em }
+h4 { margin-top: 1.33em; margin-bottom: 1.33em }
+h5 { font-size: 0.83em; margin-top: 1.67em; margin-bottom: 1.67em }
+h6 { font-size: 0.67em; margin-top: 2.33em; margin-bottom: 2.33em }
+h1, h2, h3, h4, h5, h6, b, strong, th { font-weight: bolder }
+i, em, cite, var, dfn, address { font-style: italic }
+pre, code, kbd, samp, tt { font-family: monospace }
+pre { white-space: pre }
+center, th { text-align: center }
+u, ins { text-decoration-line: underline }
+s, strike, del { text-decoration-line: line-through }
+hr { border-top: 1px solid #808080; margin-top: 0.5em; margin-bottom: 0.5em }
+";
 
 /// The 16 margin boxes an `@page` rule may hold.
 pub const MARGIN_BOXES: &[&str] = &[
@@ -566,6 +611,8 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
         font_faces: Vec::new(),
         dropped: Vec::new(),
     };
+    collector.sheet(USER_AGENT, Origin::START, 0);
+    let user_agent = collector.rules.len();
     let order = rendered_order(dom);
     let mut attributes: BTreeMap<usize, Vec<Decl>> = BTreeMap::new();
     for &at in &order {
@@ -573,6 +620,16 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
         let Kind::Element { name, space, .. } = &node.kind else {
             continue;
         };
+        if *space == Space::Html && UNRENDERED.contains(&name.as_str()) {
+            let origin = source.find(&format!("<{name}"));
+            collector.dropped.push(Dropped {
+                property: String::new(),
+                value: String::new(),
+                selector: format!("<{name}>"),
+                line: origin.line,
+                column: origin.column,
+            });
+        }
         if *space != Space::Other
             && name == "style"
             && media_applies(node.attr("media").unwrap_or(""))
@@ -611,6 +668,7 @@ pub fn cascade(dom: &Dom, html: &str, assets: &Assets<'_>) -> Styles {
     let mut cascade = Cascade {
         tree: Tree::new(dom),
         rules: &collector.rules,
+        user_agent,
         caches: SelectorCaches::default(),
         root_font_size: DEFAULT_FONT_SIZE,
         reported: BTreeSet::new(),
@@ -696,15 +754,17 @@ fn rendered_order(dom: &Dom) -> Vec<usize> {
 struct Cascade<'d, 'r> {
     tree: Tree<'d>,
     rules: &'r [Rule],
+    /// How many of `rules`, from the first, are [`USER_AGENT`]'s.
+    user_agent: usize,
     caches: SelectorCaches,
     root_font_size: f32,
     reported: BTreeSet<(u64, u64, String)>,
     dropped: Vec<Dropped>,
 }
 
-/// Where a declaration sorts: `!important`, then a `style` attribute, then specificity, then
-/// source order.
-type Key = (bool, bool, u32, usize, usize);
+/// Where a declaration sorts: `!important`, then the document over the user-agent sheet, then a
+/// `style` attribute, then specificity, then source order.
+type Key = (bool, bool, bool, u32, usize, usize);
 
 impl<'r> Cascade<'_, 'r> {
     fn tree_parent(&self, at: usize) -> Option<usize> {
@@ -742,13 +802,14 @@ impl<'r> Cascade<'_, 'r> {
                 .map(|s| s.specificity())
                 .max();
             if let Some(specificity) = specificity {
+                let author = index >= self.user_agent;
                 for (n, decl) in rule.decls.iter().enumerate() {
-                    out.push(((decl.important, false, specificity, index, n), decl));
+                    out.push(((decl.important, author, false, specificity, index, n), decl));
                 }
             }
         }
         for (n, decl) in attribute.iter().enumerate() {
-            out.push(((decl.important, true, 0, usize::MAX, n), decl));
+            out.push(((decl.important, true, true, 0, usize::MAX, n), decl));
         }
         out.sort_by_key(|(key, _)| *key);
         out
@@ -778,13 +839,13 @@ impl<'r> Cascade<'_, 'r> {
     ) -> Style {
         let matched = self.matched(at, pseudo, attribute);
         let selector_of = |key: &Key| -> String {
-            if key.1 {
+            if key.2 {
                 let name = self.tree.dom.nodes[at]
                     .element(Space::Html)
                     .unwrap_or("element");
                 format!("<{name} style>")
             } else {
-                self.rules[key.3].text.clone()
+                self.rules[key.4].text.clone()
             }
         };
 
@@ -902,6 +963,22 @@ impl<'r> Cascade<'_, 'r> {
                 },
                 percent: 0.0,
             })),
+            Specified::Keyword(word) if name == "font-weight" => {
+                let parent = match parent.values.get("font-weight") {
+                    Some(Value::Number(n)) => *n,
+                    _ => 400.0,
+                };
+                Some(Value::Number(match word.as_str() {
+                    "bold" => 700.0,
+                    "bolder" if parent < 350.0 => 400.0,
+                    "bolder" if parent < 550.0 => 700.0,
+                    "bolder" => 900.0,
+                    "lighter" if parent < 550.0 => 100.0,
+                    "lighter" if parent < 750.0 => 400.0,
+                    "lighter" => 700.0,
+                    _ => 400.0,
+                }))
+            }
             Specified::Length(sum) if name == "font-size" => Some(Value::Length(Length {
                 pt: sum.pt + (sum.em + sum.percent / 100.0) * size + sum.rem * self.root_font_size,
                 percent: 0.0,

@@ -1,7 +1,8 @@
 //! The writer: laid-out pages as a PDF file, by `krilla` (`rule:core-classes/pdf-output-is-inert`).
 //!
-//! Each page is A4, and each glyph run is drawn in its embedded face, which `krilla` subsets to
-//! the glyphs the document draws. Each image is drawn at its box.
+//! Each page is A4, and each glyph run is drawn in its colour and its face, a default or an
+//! `@font-face` font, which `krilla` subsets to the glyphs the document draws. Each rectangle is
+//! filled in its colour, and each image is drawn at its box.
 //!
 //! The file is the same bytes for the same input. Nothing here reads a clock: the creation
 //! time is written only when the program passes one, in UTC. The file's `/ID` and its XMP
@@ -14,15 +15,27 @@
 //! standards, the password and the invoice attachment are Stage 12 and Stage 10's
 //! (`render`'s doc in the crate root says what each option does until then).
 
-use krilla::Document;
-use krilla::SerializeSettings;
-use krilla::geom::{Point, Size, Transform};
+use krilla::color::rgb;
+use krilla::geom::{PathBuilder, Point, Rect, Size, Transform};
 use krilla::metadata::{DateTime, Metadata};
+use krilla::num::NormalizedF32;
 use krilla::page::PageSettings;
+use krilla::paint::Fill;
+use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
+use krilla::{Data, Document, SerializeSettings};
 
+use crate::css::Color;
 use crate::layout::{self, Item, Laid};
-use crate::{Error, Instant, fonts};
+use crate::{Error, Instant};
+
+fn fill(surface: &mut Surface<'_>, color: Color) {
+    surface.set_fill(Some(Fill {
+        paint: rgb::Color::new(color.r, color.g, color.b).into(),
+        opacity: NormalizedF32::new(color.a.clamp(0.0, 1.0)).unwrap_or(NormalizedF32::ONE),
+        ..Fill::default()
+    }));
+}
 
 /// The PDF file of `laid`, created at `created` when there is one.
 pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
@@ -30,7 +43,7 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
     if let Some(created) = created {
         document.set_metadata(Metadata::new().creation_date(date(created)?));
     }
-    let mut faces: Vec<Option<Font>> = vec![None; fonts::FACES.len()];
+    let mut faces: Vec<Option<Font>> = vec![None; laid.faces.len()];
     let size = PageSettings::from_wh(layout::PAGE_WIDTH, layout::PAGE_HEIGHT)
         .expect("A4 is a valid page size");
     for laid_page in &laid.pages {
@@ -43,14 +56,17 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
                     size,
                     x,
                     y,
+                    color,
                     glyphs,
                     text,
                 } => {
                     let font = match &faces[*face] {
                         Some(font) => font.clone(),
                         None => {
-                            let font = Font::new(fonts::FACES[*face].into(), 0)
-                                .expect("the embedded faces parse");
+                            let font = Font::new(Data::from(laid.faces[*face].clone()), 0)
+                                .ok_or_else(|| {
+                                    Error::Parse("a font of the document does not parse".to_owned())
+                                })?;
                             faces[*face] = Some(font.clone());
                             font
                         }
@@ -68,7 +84,25 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
                             location: None,
                         })
                         .collect();
+                    fill(&mut surface, *color);
                     surface.draw_glyphs(Point::from_xy(*x, *y), &glyphs, font, text, *size, false);
+                }
+                Item::Rect {
+                    x,
+                    y,
+                    width,
+                    height,
+                    color,
+                } => {
+                    let Some(rect) = Rect::from_xywh(*x, *y, *width, *height) else {
+                        continue;
+                    };
+                    let mut path = PathBuilder::new();
+                    path.push_rect(rect);
+                    if let Some(path) = path.finish() {
+                        fill(&mut surface, *color);
+                        surface.draw_path(&path);
+                    }
                 }
                 Item::Image {
                     image,

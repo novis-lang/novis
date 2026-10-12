@@ -3734,8 +3734,9 @@ The component's fixtures owe a fixture using an unsupported property that render
 in the dropped list, and a clean fixture whose three lists are empty.
 
 **Partly on disk.** `extensions/pdf/src/css/` is the cascade, and `Rendered::dropped` lists what it
-drops with its selector and position. The layout does not read the computed styles yet, an element
-the subset does not render is not listed yet, and the missing-glyph and overflow lists are empty.
+drops with its selector and position, and each element the subset does not render as `<name>` at its
+start tag. `extensions/pdf/src/layout.rs` lays out block boxes and text from the computed styles,
+with no flex, grid, floats, positioning or tables yet, and the overflow list is empty.
 
 **Declined:**
 - **A strict mode that throws on the first dropped declaration.** A test asserting `dropped` is empty
@@ -4069,8 +4070,8 @@ and no code under OFL-1.1 is admitted by it.
 
 **Partly on disk.** The twelve files are under `extensions/fonts/` with their release recorded in
 `SOURCE.json`, and the image and PDF components embed them. `extensions/pdf/src/fonts.rs` maps the
-family names above to them. The font chain, `@font-face` and the missing-glyph list are not written
-yet.
+family names above to them, registers each `@font-face` font from the asset map, and builds the
+chain; `extensions/pdf/src/layout.rs` lists the missing glyphs.
 
 **Declined:**
 - **Noto or another font with wide script coverage as a default.** Its size grows the binary by tens of
