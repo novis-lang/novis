@@ -236,6 +236,8 @@ pub struct Page {
     pub blank: bool,
     /// Its size and margins, from the `@page` rules that match it.
     pub geometry: PageBox,
+    /// Its name, from the `page` of the first block box on it.
+    pub name: Option<String>,
 }
 
 /// Text no font in its chain has: the characters, the chain by family name, and the page, from 1.
@@ -347,6 +349,12 @@ enum Block {
         atom: usize,
         name: String,
     },
+    /// A named string an element's `string-set` sets, on the page the next box placed starts
+    /// on. It takes no room in the flow.
+    String {
+        name: String,
+        value: String,
+    },
     Text {
         text: String,
         spans: Vec<(Range<usize>, usize)>,
@@ -399,6 +407,8 @@ struct Frame {
     lang: Option<Lang>,
     /// The language this element's words are hyphenated in, under `hyphens: auto`.
     hyphenate: Option<Lang>,
+    /// The name of the pages its block boxes are on.
+    page: Option<String>,
 }
 
 fn keyword<'s>(style: &'s Style, name: &str) -> Option<&'s str> {

@@ -252,7 +252,11 @@ fn break_before_after_and_inside_avoid_are_kept() {
     // `page-break-before` starts a page, and a box taller than a page is split where it is.
     assert_eq!(pages[2][0], "Team", "{pages:?}");
     assert_eq!(pages[2][1..], vec!["Tall"; 9], "{pages:?}");
-    assert_eq!(pages[3], [vec!["Tall"; 3], vec!["Last"]].concat(), "{pages:?}");
+    assert_eq!(
+        pages[3],
+        [vec!["Tall"; 3], vec!["Last"]].concat(),
+        "{pages:?}"
+    );
     // `page-break-after` puts what follows on the next page.
     assert_eq!(pages[4], ["After"], "{pages:?}");
     assert_eq!(pages.len(), 5);
@@ -302,4 +306,97 @@ fn orphans_and_widows_hold_lines_together() {
     ));
     let pages = lines(&laid);
     assert_eq!((pages[0].len(), pages[1].len()), (10, 2), "{pages:?}");
+}
+
+/// The text runs on `page` whose baseline is between `top` and `bottom` and that start left of
+/// `split`, or at it and right of it when `right`, joined in order.
+fn corner(laid: &Laid, page: usize, (top, bottom): (f32, f32), split: f32, right: bool) -> String {
+    texts(laid, page)
+        .into_iter()
+        .filter(|(_, x, y)| *y > top && *y < bottom && (*x >= split) == right)
+        .map(|(t, ..)| t)
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+#[test]
+fn string_set_carries_the_chapter_title() {
+    let filler = "<p>Line</p>".repeat(12);
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>
+        @page {{
+            @top-left {{ content: 'Chapter: ' string(chapter) }}
+            @top-right {{ content: string(Chapter, last) }}
+            @bottom-left {{ content: string(chapter, start) }}
+            @bottom-right {{ content: string(chapter, first-except) }}
+        }}
+        h1 {{ string-set: chapter content(text); break-before: page; margin: 0; font-size: 12pt }}
+        .part {{ string-set: chapter 'Shop ' attr(data-part) }}
+        </style>
+        <p>Intro</p>
+        <h1>Shop   Prices</h1><p class=part data-part=two>Team</p>{filler}
+        <h1>Blog</h1>"
+    ));
+    assert_eq!(laid.pages.len(), 4);
+    let head = |page, right| corner(&laid, page, (0.0, 50.0), 200.0, right);
+    let foot = |page, right| corner(&laid, page, (250.0, 300.0), 200.0, right);
+
+    // Before the first `string-set` the string is empty.
+    assert_eq!(
+        (head(0, false), head(0, true)),
+        ("Chapter:".to_owned(), String::new())
+    );
+    // The first value set on the page, with its spaces collapsed, and the last one.
+    assert_eq!(head(1, false), "Chapter: Shop Prices");
+    assert_eq!(head(1, true), "Shop two");
+    // `start` takes the value set at the top of the page, and `first-except` is empty there.
+    assert_eq!(foot(1, false), "Shop Prices");
+    assert_eq!(foot(1, true), "");
+    // A page that sets nothing has the last value of an earlier page, in every box.
+    assert_eq!(head(2, false), "Chapter: Shop two");
+    assert_eq!(
+        (foot(2, false), foot(2, true)),
+        ("Shop two".to_owned(), "Shop two".to_owned())
+    );
+    assert_eq!(head(3, false), "Chapter: Blog");
+}
+
+#[test]
+fn named_pages_switch_page_size() {
+    let words = "Shop ".repeat(80);
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>
+        @page wide {{ size: 600pt 300pt; @top-center {{ content: 'Wide' }} }}
+        .wide {{ page: wide }}
+        </style>
+        <p>Intro</p><div class=wide><p>{words}</p>{}</div><p>News</p>",
+        "<p>Blog</p>".repeat(12)
+    ));
+    let names: Vec<Option<&str>> = laid.pages.iter().map(|p| p.name.as_deref()).collect();
+    // A box with another page name starts a page, and a page it goes on to keeps the name.
+    assert_eq!(names, [None, Some("wide"), Some("wide"), None]);
+    for (page, width) in [(0, 400.0), (1, 600.0), (2, 600.0), (3, 400.0)] {
+        assert!(close(laid.pages[page].geometry.width, width), "page {page}");
+        let header = band(&laid, page, 0.0, 50.0).0;
+        assert_eq!(
+            header,
+            if width > 400.0 { "Wide" } else { "" },
+            "page {page}"
+        );
+    }
+    assert_eq!(lines(&laid)[3], ["News"]);
+    // The lines on a wide page are as wide as its content box.
+    let (_, left, right) = band(&laid, 1, 50.0, 70.0);
+    assert!(
+        close(left, 50.0) && right > 500.0 && right <= 550.05,
+        "{left} {right}"
+    );
+
+    // A first box with a page name names the first page, with no page before it.
+    let laid = lay(&format!(
+        "{TEN_LINES}<style>@page wide {{ size: 600pt 300pt }}</style>
+        <div style='page: wide'>Shop</div>"
+    ));
+    assert_eq!(laid.pages.len(), 1);
+    assert!(close(laid.pages[0].geometry.width, 600.0));
 }

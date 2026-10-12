@@ -16,9 +16,14 @@
 //! box's own margins, borders, padding and background are not drawn. A running element inside an
 //! inline-block, a float or a flex item counts as on the first page.
 //!
+//! **Named strings.** An element's `string-set` is kept with the page it is set on, and a box's
+//! `string()` reads it by `paginate`'s module doc. A `string-set` inside an inline-block, a float
+//! or a flex item counts as on the first page.
+//!
 //! Cost: one layout of a short paragraph for each margin box with text on each page, and a copy
 //! of a running element's items for each page that draws it. Memory: its items on its page, one
-//! text style for each, and each running element's items until the render ends.
+//! text style for each, and each running element's items and each named string's value until the
+//! render ends.
 
 use parley::VerticalAlign;
 
@@ -28,7 +33,7 @@ use super::text::{Cx, carry, shift};
 use super::{Block, Item, Missing, Page, Span, keyword};
 use crate::css::{MARGIN_BOXES, Style, Value};
 use crate::fonts::Fonts;
-use crate::paginate::{self, Sheet};
+use crate::paginate::{self, Sheet, Which};
 
 /// A running element laid out: its name, the index of the page it is on, its items with its
 /// margin box's top-left corner at 0, 0, the margin box's width and height, and the text no font
@@ -39,6 +44,31 @@ pub(super) struct Running {
     pub(super) items: Vec<Item>,
     pub(super) size: [f32; 2],
     pub(super) missing: Vec<Missing>,
+}
+
+/// A named string an element's `string-set` sets: its lower-cased name, its value, the index of
+/// the page it is set on, and whether it is set at that page's top.
+pub(super) struct Set {
+    pub(super) name: String,
+    pub(super) value: String,
+    pub(super) page: usize,
+    pub(super) top: bool,
+}
+
+/// The value of the named string `name` that `which` takes on the page at `page`.
+fn string(strings: &[Set], name: &str, page: usize, which: Which) -> Option<String> {
+    let mut on = strings.iter().filter(|s| s.name == name && s.page == page);
+    let entry = || strings.iter().rfind(|s| s.name == name && s.page < page);
+    let one = match which {
+        Which::First => on.next().or_else(entry),
+        Which::Last => on.next_back().or_else(entry),
+        Which::Start => on.next().filter(|s| s.top).or_else(entry),
+        Which::FirstExcept => match on.next() {
+            Some(_) => None,
+            None => entry(),
+        },
+    };
+    one.map(|s| s.value.clone())
 }
 
 /// What a margin box draws: its blocks, or a copy of a running element's items with their
@@ -82,13 +112,14 @@ pub(super) fn collect(
     sheet: &Sheet,
     root: &Style,
     fonts: &Fonts,
-    running: &[Running],
+    (running, strings): (&[Running], &[Set]),
     spans: &mut Vec<Span>,
 ) -> Vec<MarginBox> {
     let count = pages.len() as i64;
     let mut out = Vec::new();
     for (index, page) in pages.iter().enumerate() {
-        let matched = sheet.matched(index, page.blank);
+        let matched = sheet.matched(index, page.blank, page.name.as_deref());
+        let named = |name: &str, which| string(strings, name, index, which);
         let fills: Vec<(&str, Fill)> = MARGIN_BOXES
             .iter()
             .filter_map(|name| {
@@ -98,7 +129,8 @@ pub(super) fn collect(
                     let one = pick(running, &element, index, last)?;
                     return Some((*name, Fill::Element(one)));
                 }
-                let text = paginate::content(content, index as i64 + 1, count, &counter_text)?;
+                let number = index as i64 + 1;
+                let text = paginate::content(content, number, count, &counter_text, &named)?;
                 Some((*name, Fill::Text(text)))
             })
             .collect();
@@ -155,20 +187,26 @@ pub(super) fn collect(
                 page: index,
                 rect,
                 vertical,
-                content: Content::Blocks(vec![
-                    Block::Open(g),
-                    Block::Text {
-                        text: text.clone(),
-                        spans: vec![(0..text.len(), span)],
-                        para: para_of(&style, width, span),
-                        x,
-                        width,
-                        marker: false,
-                        inline: Vec::new(),
-                        atoms: Vec::new(),
-                    },
-                    Block::Close,
-                ]),
+                content: Content::Blocks(
+                    // An empty `string()` leaves the box with no text to lay out.
+                    [
+                        Some(Block::Open(g)),
+                        (!text.is_empty()).then(|| Block::Text {
+                            text: text.clone(),
+                            spans: vec![(0..text.len(), span)],
+                            para: para_of(&style, width, span),
+                            x,
+                            width,
+                            marker: false,
+                            inline: Vec::new(),
+                            atoms: Vec::new(),
+                        }),
+                        Some(Block::Close),
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+                ),
             });
         }
     }

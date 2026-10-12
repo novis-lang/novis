@@ -47,6 +47,8 @@ pub(super) struct BoxGeometry {
     /// Its `z-index` when it is positioned and the value is not `auto`.
     pub(super) z: Option<i64>,
     pub(super) decor: Decor,
+    /// The name of the pages it is on, its own `page` or else its parent's.
+    pub(super) page: Option<String>,
 }
 
 /// A block box's `position`.
@@ -205,6 +207,7 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
             .then(|| z_index(style))
             .flatten(),
         decor: boxes::decor(style),
+        page: None,
     }
 }
 
@@ -259,6 +262,9 @@ struct Area {
     bottom: (usize, f32),
 }
 
+/// The content height of the page at an index, named by a page name or by none.
+pub(super) type Heights = Box<dyn Fn(usize, Option<&str>) -> f32>;
+
 /// The vertical flow: the pages so far and where the next block goes.
 pub(super) struct Flow {
     pub(super) pages: Vec<Page>,
@@ -267,9 +273,9 @@ pub(super) struct Flow {
     pub(super) open: Vec<Open>,
     /// How tall each page's content is, or unbounded for an inline-block's one page.
     limits: Vec<f32>,
-    /// The content height of the page at an index, for a flow of the document's pages. A flow
-    /// without it has one page, and reads no forced break.
-    heights: Option<Box<dyn Fn(usize) -> f32>>,
+    /// The content height of the page at an index with a page name, for a flow of the
+    /// document's pages. A flow without it has one page, and reads no forced break.
+    heights: Option<Heights>,
     /// A `break-after` that has not been taken, because nothing has been placed after it yet.
     forced: Option<Break>,
     /// The baseline of the last line placed, from the top of its page's content.
@@ -315,9 +321,9 @@ impl Flow {
         }
     }
 
-    /// The flow of the document's pages, the page at each index `heights` tall.
-    pub(super) fn paged(heights: Box<dyn Fn(usize) -> f32>) -> Flow {
-        let mut flow = Flow::new(heights(0));
+    /// The flow of the document's pages, the page at each index and name `heights` tall.
+    pub(super) fn paged(heights: Heights) -> Flow {
+        let mut flow = Flow::new(heights(0, None));
         flow.heights = Some(heights);
         flow
     }
@@ -358,6 +364,12 @@ impl Flow {
         }
     }
 
+    /// Whether the next box placed starts at the top of its page: nothing is on the last page
+    /// yet, or a `break-after` is waiting to be taken.
+    pub(super) fn at_top(&self) -> bool {
+        self.empty() || self.forced.is_some() && self.heights.is_some()
+    }
+
     /// Whether the flow breaks into the document's pages.
     pub(super) fn paginates(&self) -> bool {
         self.heights.is_some()
@@ -374,7 +386,8 @@ impl Flow {
             return;
         }
         let top = self.cursor + self.pending.max(margin);
-        if top + height > self.limit() && height <= heights(self.pages.len()) {
+        let name = self.pages.last().and_then(|p| p.name.as_deref());
+        if top + height > self.limit() && height <= heights(self.pages.len(), name) {
             self.new_page();
         }
     }
@@ -412,12 +425,17 @@ impl Flow {
         }
     }
 
+    /// Starts a page, named as the innermost open box's pages are.
     fn new_page(&mut self) {
-        self.pages.push(Page::default());
+        let name = self.open.last().and_then(|o| o.geometry.page.clone());
         let limit = match &self.heights {
-            Some(heights) => heights(self.pages.len() - 1),
+            Some(heights) => heights(self.pages.len(), name.as_deref()),
             None => self.limit(),
         };
+        self.pages.push(Page {
+            name,
+            ..Page::default()
+        });
         self.limits.push(limit);
         self.cursor = 0.0;
         self.floats.clear();
@@ -553,6 +571,16 @@ impl Flow {
         let after = self.forced.take();
         if let Some(side) = geometry.breaks[0].or(after) {
             self.force(side);
+        }
+        // The first box placed on a page names it.
+        let last = self.pages.len() - 1;
+        if let Some(heights) = &self.heights
+            && self.empty()
+            && self.pages[last].name != geometry.page
+        {
+            let limit = heights(last, geometry.page.as_deref());
+            *self.limits.last_mut().expect("a limit for each page") = limit;
+            self.pages[last].name.clone_from(&geometry.page);
         }
         self.pending = self.pending.max(geometry.margin[0]);
         // A box that clears a float starts with its border edge below it.

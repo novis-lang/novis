@@ -6,8 +6,10 @@
 //! source order, the last value of a property kept: a page name counts most, then `:first` and
 //! `:blank`, then `:left` and `:right`. The first page is `:first` and a right page, and the pages
 //! alternate right and left from there. A page is `:blank` when a forced break to a `left` or
-//! `right` page left it empty (`layout`'s module doc). A selector with a page name matches no page
-//! yet, because no element names a page.
+//! `right` page left it empty (`layout`'s module doc). A selector with a page name matches a page
+//! of that name only. A page's name is the `page` of the first block box placed on it, or of the
+//! box it goes on with, and a block box whose `page` is `auto` has its parent's. A block box
+//! whose page name differs from the block box before it starts a new page.
 //!
 //! `size` is `auto`, a named size (`A3`, `A4`, `A5`, `B4`, `B5`, `letter`, `legal`, `ledger`) with
 //! `portrait` or `landscape` or neither, an orientation alone, or one or two positive lengths, the
@@ -20,9 +22,18 @@
 //! A page with none draws the last one of an earlier page, and the box is not made before the
 //! first. Any other second argument reads as `first`.
 //!
-//! The content is laid out at the first page's content width. Every page then has its own content
-//! height, and its content is moved to its own content box's top-left corner, so a page whose
-//! content box is wider or narrower than the first page's keeps the first page's line widths.
+//! A margin box's `string(name)` is the value an element's `string-set` gave that name: the first
+//! set on the page, or with a second argument `last` the last, `start` the one in force when the
+//! page starts, or the one set at its top, and `first-except` nothing on a page that sets one.
+//! A page that sets none takes the one in force when it starts, and before the first it is
+//! empty. A string is set on the page its block box starts on, or for an inline element on the
+//! page its paragraph starts on. Names are compared without case.
+//!
+//! The content is laid out at the first page's content width, and a block box that changes the
+//! page name at the content width the first page would have under the new name. Every page then
+//! has its own content height, and its content is moved to its own content box's top-left corner,
+//! so a `:left` or `:right` page whose content box is wider or narrower than the first page's
+//! keeps the line widths of its name.
 //!
 //! Cost: each page's rules are matched when the page is made, a few comparisons a rule. Memory: a
 //! copy of the `@page` rules for the render.
@@ -100,10 +111,10 @@ impl Selector {
         )
     }
 
-    /// Whether the selector matches the page at `index`, from 0.
-    fn matches(&self, index: usize, blank: bool) -> bool {
+    /// Whether the selector matches the page at `index`, from 0, named `name`.
+    fn matches(&self, index: usize, blank: bool, name: Option<&str>) -> bool {
         let right = index.is_multiple_of(2);
-        self.name.is_none()
+        self.name.as_deref().is_none_or(|own| Some(own) == name)
             && (!self.first || index == 0)
             && (!self.blank || blank)
             && (!self.left || !right)
@@ -135,13 +146,14 @@ impl Sheet {
         Sheet { rules }
     }
 
-    /// What the rules matching the page at `index` give, `blank` when it is a blank page.
-    pub fn matched(&self, index: usize, blank: bool) -> Matched<'_> {
+    /// What the rules matching the page at `index` named `name` give, `blank` when it is a
+    /// blank page.
+    pub fn matched(&self, index: usize, blank: bool, name: Option<&str>) -> Matched<'_> {
         let mut matched = Matched::default();
         for (_, rule) in self
             .rules
             .iter()
-            .filter(|(selector, _)| selector.matches(index, blank))
+            .filter(|(selector, _)| selector.matches(index, blank, name))
         {
             for (name, value) in &rule.values {
                 matched.values.insert(name, value);
@@ -156,9 +168,10 @@ impl Sheet {
         matched
     }
 
-    /// The size and margins of the page at `index`, `blank` when it is a blank page.
-    pub fn page(&self, index: usize, blank: bool) -> PageBox {
-        let matched = self.matched(index, blank);
+    /// The size and margins of the page at `index` named `name`, `blank` when it is a blank
+    /// page.
+    pub fn page(&self, index: usize, blank: bool, name: Option<&str>) -> PageBox {
+        let matched = self.matched(index, blank, name);
         let (width, height) = size(matched.values.get("size").copied());
         let margin = ["margin-top", "margin-right", "margin-bottom", "margin-left"]
             .iter()
@@ -242,14 +255,70 @@ pub fn alignment(name: &str) -> (&'static str, &'static str) {
     (horizontal, vertical)
 }
 
+/// Which value of a named string a margin box takes on a page, from `string(name, which)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Which {
+    /// The first set on the page, else the one in force when the page starts.
+    First,
+    /// The one in force when the page starts, unless one is set at the page's top.
+    Start,
+    /// The last set on the page, else the one in force when the page starts.
+    Last,
+    /// Nothing when one is set on the page, else the one in force when the page starts.
+    FirstExcept,
+}
+
+/// The named strings an element's `string-set` sets, each name lower-cased with its value.
+/// `content()` and `content(text)` are `text`, the element's text with its spaces collapsed,
+/// and `attr(name)` is the attribute `attr` gives, or nothing. Any other part adds nothing.
+pub fn string_set(
+    value: Option<&Value>,
+    text: &str,
+    attr: &dyn Fn(&str) -> Option<String>,
+) -> Vec<(String, String)> {
+    let Some(Value::Text(value)) = value else {
+        return Vec::new();
+    };
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut open = false;
+    for comp in components(value).unwrap_or_default() {
+        match comp {
+            Comp::Comma => open = false,
+            Comp::Ident(word) if !open => {
+                if word == "none" {
+                    return Vec::new();
+                }
+                out.push((word, String::new()));
+                open = true;
+            }
+            _ if !open => {}
+            Comp::Str(s) => out.last_mut().expect("open").1.push_str(&s),
+            Comp::Function(f, args) if f == "content" => {
+                if matches!(args.trim(), "" | "text") {
+                    let words: Vec<&str> = text.split_whitespace().collect();
+                    out.last_mut().expect("open").1.push_str(&words.join(" "));
+                }
+            }
+            Comp::Function(f, args) if f == "attr" => {
+                let found = attr(args.trim()).unwrap_or_default();
+                out.last_mut().expect("open").1.push_str(&found);
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 /// The text of a margin box's `content` on page `page` of `pages`, both from 1, or `None` when
 /// it makes no box. `counter(page)` and `counter(pages)` are the two numbers, in the counter
-/// style `style` writes; any other counter is 0.
+/// style `style` writes; any other counter is 0. `string(name)` is the value `strings` gives
+/// for the lower-cased name, or nothing.
 pub fn content(
     value: Option<&Value>,
     page: i64,
     pages: i64,
     style: &dyn Fn(&str, i64) -> Option<String>,
+    strings: &dyn Fn(&str, Which) -> Option<String>,
 ) -> Option<String> {
     let Some(Value::Text(text)) = value else {
         return None;
@@ -268,6 +337,17 @@ pub fn content(
                 };
                 let kind = args.next().unwrap_or("decimal");
                 out.push_str(&style(kind, n).unwrap_or_else(|| n.to_string()));
+            }
+            Comp::Function(name, args) if name == "string" => {
+                let mut args = args.split(',').map(str::trim);
+                let name = args.next().unwrap_or("").to_ascii_lowercase();
+                let which = match args.next().map(str::to_ascii_lowercase).as_deref() {
+                    Some("start") => Which::Start,
+                    Some("last") => Which::Last,
+                    Some("first-except") => Which::FirstExcept,
+                    _ => Which::First,
+                };
+                out.push_str(&strings(&name, which).unwrap_or_default());
             }
             _ => {}
         }
