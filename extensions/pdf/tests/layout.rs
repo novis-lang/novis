@@ -106,6 +106,64 @@ fn text_wraps_and_justifies_inside_its_box() {
     assert!(last < MARGIN + 190.0, "{lines:?}");
 }
 
+/// Each line that ends in a drawn hyphen: its own text and the hyphen's right end.
+fn hyphenated_lines(laid: &Laid) -> Vec<(String, f32)> {
+    let items = &laid.pages[0].items;
+    items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Text {
+                x, y, glyphs, text, ..
+            } if text == "-" => {
+                let line = items.iter().find_map(|other| match other {
+                    Item::Text { y: at, text, .. } if text != "-" && (at - y).abs() < 0.01 => {
+                        Some(text.clone())
+                    }
+                    _ => None,
+                })?;
+                Some((line, x + glyphs[0].advance))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn hyphens_auto_breaks_by_the_language() {
+    let words = "internationalization responsibilities characteristically";
+    let para = |lang: &str, hyphens: &str| {
+        format!(
+            "<html lang='{lang}'><body style='margin: 0'>\
+             <p style='width: 80pt; hyphens: {hyphens}; text-align: justify'>{words}</p>"
+        )
+    };
+    let laid = lay(&para("en-GB", "auto"));
+    let hyphenated = hyphenated_lines(&laid);
+    assert!(hyphenated.len() >= 2, "{hyphenated:?}");
+    for (text, right) in &hyphenated {
+        // The line ends at a break point of the English patterns, and the hyphen is in the box.
+        assert!(text.ends_with('\u{ad}'), "{text:?}");
+        assert!(*right <= MARGIN + 80.0 + 0.01, "{hyphenated:?}");
+    }
+    for (_, right) in lines(&laid) {
+        assert!(right <= MARGIN + 80.0 + 0.01, "{right}");
+    }
+
+    // German breaks a German compound by its own patterns.
+    let laid = lay("<html lang='de'><body style='margin: 0'>\
+         <p style='width: 60pt; hyphens: auto'>Donaudampfschifffahrtsgesellschaft</p>");
+    assert!(!hyphenated_lines(&laid).is_empty());
+
+    // No hyphen is drawn under `hyphens: manual`, or for a language with no patterns.
+    assert!(hyphenated_lines(&lay(&para("en", "manual"))).is_empty());
+    assert!(hyphenated_lines(&lay(&para("ja", "auto"))).is_empty());
+    // An author's soft hyphen breaks under `manual` too.
+    let laid = lay(
+        "<body style='margin: 0'><p style='width: 60pt'>Shop\u{ad}keeper\u{ad}assistant\u{ad}ship</p>",
+    );
+    assert!(!hyphenated_lines(&laid).is_empty());
+}
+
 #[test]
 fn centred_and_right_aligned_lines_end_where_their_box_says() {
     let laid = lay("<body style='margin: 0'><p style='width: 300pt; text-align: right'>Total</p>");

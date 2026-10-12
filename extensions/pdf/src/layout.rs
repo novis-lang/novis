@@ -30,6 +30,13 @@
 //! characters that open and close it, and a block's override is written around its text; a
 //! cluster of control characters draws nothing.
 //!
+//! **Hyphenation**: under `hyphens: auto`, each word of a left-to-right paragraph whose `lang`
+//! `hypher` knows gets a soft hyphen at each of its break points, from that language's patterns.
+//! A soft hyphen draws nothing. A line that ends at one, written by `hypher` or by the author, is
+//! broken and aligned narrower by the width of a hyphen, and a hyphen is drawn at its end. Each
+//! such line costs one more line-breaking pass over its paragraph, and the patterns of every
+//! language are in the component.
+//!
 //! **Counters** follow CSS: `counter-reset` makes a counter that the element's following
 //! siblings and every descendant see, and `counter-increment` changes the innermost one of that
 //! name. A `list-item` increments `list-item`, which `<ul>` and `<ol>` reset and `<ol start>`
@@ -50,11 +57,13 @@
 use std::borrow::Cow;
 use std::ops::Range;
 
+use hypher::Lang;
 use krilla::Data;
 use krilla::image::Image;
 use parley::{
-    Alignment, AlignmentOptions, BaseDirection, FontFamily, FontFamilyName, FontFeatures, FontStyle, FontWeight,
-    LayoutContext, LineHeight, OverflowWrap, StyleProperty, TextWrapMode, WordBreak,
+    Alignment, AlignmentOptions, BaseDirection, FontFamily, FontFamilyName, FontFeatures,
+    FontStyle, FontWeight, Layout, LayoutContext, LineHeight, OverflowWrap, RangedBuilder,
+    StyleProperty, TextWrapMode, WordBreak, YieldData,
 };
 
 use cssparser::{Parser, Token};
@@ -230,6 +239,10 @@ struct Frame {
     spaces: Spaces,
     para: Para,
     transform: Option<&'static str>,
+    /// The language of the element's `lang`, if `hypher` has its patterns.
+    lang: Option<Lang>,
+    /// The language this element's words are hyphenated in, under `hyphens: auto`.
+    hyphenate: Option<Lang>,
 }
 
 fn keyword<'s>(style: &'s Style, name: &str) -> Option<&'s str> {
@@ -498,9 +511,11 @@ fn counter_text(kind: &str, n: i64) -> Option<String> {
         "upper-roman" if (1..4000).contains(&n) => roman(n).to_uppercase(),
         "lower-alpha" | "lower-latin" if n > 0 => alpha(n, b'a', 26),
         "upper-alpha" | "upper-latin" if n > 0 => alpha(n, b'A', 26),
-        "lower-greek" if (1..=24).contains(&n) => char::from_u32(0x3b0 + n as u32 + u32::from(n > 17))
-            .unwrap_or('?')
-            .to_string(),
+        "lower-greek" if (1..=24).contains(&n) => {
+            char::from_u32(0x3b0 + n as u32 + u32::from(n > 17))
+                .unwrap_or('?')
+                .to_string()
+        }
         _ => n.to_string(),
     })
 }
@@ -520,7 +535,11 @@ struct Counters(Vec<Counter>);
 impl Counters {
     /// `counter-reset`: a new counter, in place of one a sibling made.
     fn reset(&mut self, name: &str, value: i64, scope: usize) {
-        match self.0.iter_mut().rfind(|c| c.name == name && c.scope == scope) {
+        match self
+            .0
+            .iter_mut()
+            .rfind(|c| c.name == name && c.scope == scope)
+        {
             Some(c) => c.value = value,
             None => self.0.push(Counter {
                 name: name.to_owned(),
@@ -542,11 +561,19 @@ impl Counters {
 
     /// The innermost counter's value, and every counter's from the outermost.
     fn get(&self, name: &str) -> i64 {
-        self.0.iter().rfind(|c| c.name == name).map_or(0, |c| c.value)
+        self.0
+            .iter()
+            .rfind(|c| c.name == name)
+            .map_or(0, |c| c.value)
     }
 
     fn all(&self, name: &str) -> Vec<i64> {
-        let all: Vec<i64> = self.0.iter().filter(|c| c.name == name).map(|c| c.value).collect();
+        let all: Vec<i64> = self
+            .0
+            .iter()
+            .filter(|c| c.name == name)
+            .map(|c| c.value)
+            .collect();
         if all.is_empty() { vec![0] } else { all }
     }
 
@@ -628,7 +655,9 @@ fn content_text(style: &Style, dom: &Dom, at: usize, counters: &Counters) -> Opt
                     let kind = idents.get(1).map_or("decimal", String::as_str);
                     match name.as_str() {
                         "counter" => {
-                            out.push_str(&counter_text(kind, counters.get(first)).unwrap_or_default());
+                            out.push_str(
+                                &counter_text(kind, counters.get(first)).unwrap_or_default(),
+                            );
                         }
                         "counters" => {
                             let parts: Vec<String> = counters
@@ -684,6 +713,12 @@ impl Builder<'_, '_> {
                 out.into()
             }
             _ => text.into(),
+        };
+        let text = match frame.hyphenate {
+            Some(lang) if frame.para.direction != BaseDirection::Rtl => {
+                hyphenated(&text, lang).into()
+            }
+            _ => text,
         };
         for c in text.chars() {
             let space = matches!(c, ' ' | '\t' | '\n' | '\x0c' | '\r');
@@ -909,6 +944,8 @@ fn blocks(
         spaces: Spaces::Collapse,
         para: para_of(&empty),
         transform: None,
+        lang: None,
+        hyphenate: None,
     };
     let mut counters = Counters::default();
     // An explicit stack, so a deep tree costs heap and never the call stack.
@@ -976,6 +1013,14 @@ fn blocks(
                     },
                     ..frame.clone()
                 };
+                if let Some(lang) = node.attr("lang") {
+                    inner.lang = lang_of(lang);
+                }
+                inner.hyphenate = if keyword(style, "hyphens") == Some("auto") {
+                    inner.lang
+                } else {
+                    None
+                };
                 let block = display != "inline";
                 if block {
                     builder.flush();
@@ -993,7 +1038,9 @@ fn blocks(
                 let depth = frames.len();
                 counters.apply(style, depth);
                 if name == "ol"
-                    && let Some(start) = node.attr("start").and_then(|s| s.trim().parse::<i64>().ok())
+                    && let Some(start) = node
+                        .attr("start")
+                        .and_then(|s| s.trim().parse::<i64>().ok())
                 {
                     counters.reset("list-item", start.saturating_sub(1), depth);
                 }
@@ -1235,6 +1282,16 @@ pub fn layout(
                 width,
                 marker: is_marker,
             } => {
+                // The hyphen of each span a soft hyphen is in, by the span's index.
+                let mut hyphens: Vec<(usize, Hyphen)> = Vec::new();
+                for (range, index) in &runs {
+                    if text[range.clone()].contains(SOFT_HYPHEN)
+                        && !hyphens.iter().any(|(at, _)| at == index)
+                        && let Some(hyphen) = hyphen(&mut lcx, &mut fonts, &spans[*index], *index)
+                    {
+                        hyphens.push((*index, hyphen));
+                    }
+                }
                 let mut builder = lcx.ranged_builder(&mut fonts.context, &text, 1.0, false);
                 builder.set_base_direction(para.direction);
                 builder.push_default(para.line_height);
@@ -1242,46 +1299,11 @@ pub fn layout(
                 builder.push_default(StyleProperty::OverflowWrap(para.overflow_wrap));
                 builder.push_default(StyleProperty::TextWrapMode(para.wrap));
                 for (range, index) in &runs {
-                    let span = &spans[*index];
-                    let range = range.clone();
-                    let chain: Vec<FontFamilyName<'_>> = span
-                        .chain
-                        .iter()
-                        .map(|name| FontFamilyName::Named(Cow::Borrowed(name.as_str())))
-                        .collect();
-                    builder.push(
-                        StyleProperty::FontFamily(FontFamily::List(Cow::Owned(chain))),
-                        range.clone(),
-                    );
-                    builder.push(StyleProperty::FontSize(span.size), range.clone());
-                    builder.push(
-                        StyleProperty::FontWeight(FontWeight::new(span.weight)),
-                        range.clone(),
-                    );
-                    if span.italic {
-                        builder.push(StyleProperty::FontStyle(FontStyle::Italic), range.clone());
-                    }
-                    if span.letter_spacing != 0.0 {
-                        builder.push(
-                            StyleProperty::LetterSpacing(span.letter_spacing),
-                            range.clone(),
-                        );
-                    }
-                    if span.word_spacing != 0.0 {
-                        builder.push(StyleProperty::WordSpacing(span.word_spacing), range.clone());
-                    }
-                    if let Some(features) = &span.features {
-                        builder.push(
-                            StyleProperty::FontFeatures(FontFeatures::Source(Cow::Borrowed(
-                                features.as_str(),
-                            ))),
-                            range.clone(),
-                        );
-                    }
-                    builder.push(StyleProperty::Brush(*index), range);
+                    push_span(&mut builder, &spans[*index], *index, range.clone());
                 }
                 let mut shaped = builder.build(&text);
-                shaped.break_all_lines(Some(width));
+                let widest = hyphens.iter().map(|(_, h)| h.advance).fold(0.0, f32::max);
+                break_lines(&mut shaped, &text, width, widest);
                 shaped.align(para.align, AlignmentOptions::default());
                 for line in shaped.lines() {
                     let metrics = line.metrics();
@@ -1362,7 +1384,7 @@ pub fn layout(
                             x += cluster.advance();
                             if cluster_text
                                 .chars()
-                                .all(|c| c.is_control() || is_bidi_control(c))
+                                .all(|c| c.is_control() || is_bidi_control(c) || c == SOFT_HYPHEN)
                             {
                                 match c.2.last_mut() {
                                     Some(last) => {
@@ -1419,6 +1441,27 @@ pub fn layout(
                             report(&mut missing, missed, &spans[at], page_number);
                         }
                     }
+                    let last = line_range.end.saturating_sub(SOFT_HYPHEN.len_utf8());
+                    if line_text.ends_with(SOFT_HYPHEN)
+                        && let Some((_, index)) = runs.iter().find(|(r, _)| r.contains(&last))
+                        && let Some((_, h)) = hyphens.iter().find(|(at, _)| at == index)
+                    {
+                        items.push(Item::Text {
+                            face: h.face,
+                            size: h.size,
+                            x,
+                            y: baseline,
+                            color: spans[*index].color,
+                            glyphs: vec![Glyph {
+                                id: h.id,
+                                text: 0..1,
+                                advance: h.advance,
+                                x: 0.0,
+                                y: 0.0,
+                            }],
+                            text: "-".to_owned(),
+                        });
+                    }
                     if is_marker {
                         marker = Some(items);
                         break;
@@ -1440,6 +1483,140 @@ pub fn layout(
         faces: fonts.faces,
         missing,
     })
+}
+
+const SOFT_HYPHEN: char = '\u{ad}';
+
+/// The language of a `lang` attribute, by its primary subtag, if `hypher` has its patterns.
+fn lang_of(tag: &str) -> Option<Lang> {
+    let primary = tag.trim().split(['-', '_']).next()?.to_ascii_lowercase();
+    let code: [u8; 2] = primary.as_bytes().try_into().ok()?;
+    Lang::from_iso(code)
+}
+
+/// `text` with a soft hyphen at each point `hypher` breaks its words at in `lang`.
+fn hyphenated(text: &str, lang: Lang) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find(char::is_alphabetic) {
+        out.push_str(&rest[..start]);
+        rest = &rest[start..];
+        let end = rest
+            .find(|c: char| !c.is_alphabetic())
+            .unwrap_or(rest.len());
+        out.push_str(&hypher::hyphenate(&rest[..end], lang).join("\u{ad}"));
+        rest = &rest[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Pushes `span`'s text style onto `range` of the text, with `index` as its brush.
+fn push_span(
+    builder: &mut RangedBuilder<'_, usize>,
+    span: &Span,
+    index: usize,
+    range: Range<usize>,
+) {
+    let chain: Vec<FontFamilyName<'_>> = span
+        .chain
+        .iter()
+        .map(|name| FontFamilyName::Named(Cow::Borrowed(name.as_str())))
+        .collect();
+    builder.push(
+        StyleProperty::FontFamily(FontFamily::List(Cow::Owned(chain))),
+        range.clone(),
+    );
+    builder.push(StyleProperty::FontSize(span.size), range.clone());
+    builder.push(
+        StyleProperty::FontWeight(FontWeight::new(span.weight)),
+        range.clone(),
+    );
+    if span.italic {
+        builder.push(StyleProperty::FontStyle(FontStyle::Italic), range.clone());
+    }
+    if span.letter_spacing != 0.0 {
+        builder.push(
+            StyleProperty::LetterSpacing(span.letter_spacing),
+            range.clone(),
+        );
+    }
+    if span.word_spacing != 0.0 {
+        builder.push(StyleProperty::WordSpacing(span.word_spacing), range.clone());
+    }
+    if let Some(features) = &span.features {
+        builder.push(
+            StyleProperty::FontFeatures(FontFeatures::Source(Cow::Borrowed(features.as_str()))),
+            range.clone(),
+        );
+    }
+    builder.push(StyleProperty::Brush(index), range);
+}
+
+/// The hyphen drawn at the end of a line broken at a soft hyphen: its face, size, glyph and
+/// advance.
+struct Hyphen {
+    face: usize,
+    size: f32,
+    id: u32,
+    advance: f32,
+}
+
+/// The hyphen of `span`, shaped through its font chain.
+fn hyphen(
+    lcx: &mut LayoutContext<usize>,
+    fonts: &mut Fonts,
+    span: &Span,
+    index: usize,
+) -> Option<Hyphen> {
+    let mut builder = lcx.ranged_builder(&mut fonts.context, "-", 1.0, false);
+    push_span(&mut builder, span, index, 0..1);
+    let mut shaped = builder.build("-");
+    shaped.break_all_lines(None);
+    let line = shaped.lines().next()?;
+    let run = line.runs().next()?;
+    let face = fonts.face_index(run.font().data.data())?;
+    let glyph = run.visual_clusters().next()?.glyphs().next()?;
+    Some(Hyphen {
+        face,
+        size: run.font_size(),
+        id: glyph.id,
+        advance: glyph.advance,
+    })
+}
+
+/// Breaks `shaped` into lines `width` wide. A line that ends at a soft hyphen is broken again
+/// `hyphen` narrower, and is aligned in that width, so the hyphen drawn after it stays in the
+/// box. The lines before the one narrowed do not change, so each pass narrows a later line.
+fn break_lines(shaped: &mut Layout<usize>, text: &str, width: f32, hyphen: f32) {
+    let mut narrow: Vec<usize> = Vec::new();
+    loop {
+        let mut breaker = shaped.break_lines();
+        breaker.state_mut().set_layout_max_advance(width);
+        let mut line = 0;
+        loop {
+            let max = if narrow.contains(&line) {
+                width - hyphen
+            } else {
+                width
+            };
+            breaker.state_mut().set_line_max_advance(max);
+            match breaker.break_next() {
+                None => break,
+                Some(YieldData::LineBreak(_)) => line += 1,
+                Some(_) => {}
+            }
+        }
+        breaker.finish();
+        let next = shaped
+            .lines()
+            .enumerate()
+            .find(|(i, l)| !narrow.contains(i) && text[l.text_range()].ends_with(SOFT_HYPHEN));
+        match next {
+            Some((i, _)) if hyphen > 0.0 => narrow.push(i),
+            _ => return,
+        }
+    }
 }
 
 /// `item` moved down by `by`.
