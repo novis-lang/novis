@@ -2,7 +2,7 @@
 // `data/gaps/<crate>/<slug>.json`, and a designed rule is a rule record, `data/rules/<topic>/<slug>.json`,
 // whose `status` is `designed`. Each names one owner: a goal by slug, or a milestone by id. This command
 // classifies each owner against the chain, the goal files and the plan, and `--check` is the gate over
-// the gaps' classification.
+// both classifications.
 //
 // The kinds a gap's owner falls into, and what `--check` does with each:
 //
@@ -29,9 +29,9 @@
 // A designed rule's owner falls into the same kinds with one difference: any goal whose file is under
 // `docs/goals/`, live or not, is an accepted owner, because deleting that file makes the owner `broken`.
 // So a designed rule is accepted when it names such a goal or a milestone at M9 or later that is not
-// done, and refused when it is `broken`, `past` or `untagged`. The roster, `--json`, `--check` and
-// `--closes` all report the designed rules, but their verdict is advisory: `ruleVerdict` returns 0
-// until every designed rule names an owner, and making it return the verdict switches the gate on.
+// done, and refused when it is `broken`, `past` or `untagged`. The roster and `--json` report the
+// designed rules, `--check` exits 1 while any is refused, and `--closes <slug>` exits 1 while any names
+// that goal, because a designed rule is reached when it ships.
 //
 // `--registers` counts every place owed work is written down: the gap records, the refusal runs in
 // `docs/agent/carried-refusals.md`, the keys in `crates/nvs-stdlib/tests/*-outstanding.txt`, the
@@ -40,8 +40,8 @@
 // A module doc heading that words owed work outside a gap block is listed too, as a warning.
 //
 //   bun nv owners                 the roster, by kind, gaps and then designed rules
-//   bun nv owners --check         the gate; exit 1 with a line per refused gap
-//   bun nv owners --closes SLUG   exit 1 while any gap names that goal; lists the designed rules it owns
+//   bun nv owners --check         the gate; exit 1 with a line per refused gap or designed rule
+//   bun nv owners --closes SLUG   exit 1 while any gap or designed rule names that goal, each listed
 //   bun nv owners --deferrals     each milestone owner against its plan file's scope
 //   bun nv owners --registers     one line per register, and how many items each holds
 //   bun nv owners --untagged | --unowned   only the gaps of that kind
@@ -450,12 +450,9 @@ function reportRules(kinds: RuleKinds, found: DesignedRule[]): void {
   console.log(out.join("\n"));
 }
 
-/**
- * The exit code the designed rules' owner gate adds to `--check` and `--closes`. It is advisory until
- * every designed rule names an owner, so it returns 0; returning `code` switches the gate on.
- */
-function ruleVerdict(_code: number): number {
-  return 0;
+/** The exit code the designed rules' owner gate adds to `--check` and `--closes`: the rules' own verdict. */
+function ruleVerdict(code: number): number {
+  return code;
 }
 
 /** The designed rules' gate: a line per refused rule and the counts. Returns 1 when any is refused. */
