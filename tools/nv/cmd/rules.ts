@@ -112,6 +112,8 @@ interface Rule {
   status: string;
   seeAlso: string[];
   guardedBy: string[];
+  /** A designed rule's owner: `M10`, or `goal <slug>`. Empty when it names none. */
+  owner: string;
   bodyPath: string;
 }
 
@@ -189,6 +191,7 @@ export class Rulebook {
           status: r.value.status,
           seeAlso: r.value.seeAlso,
           guardedBy: r.value.guardedBy,
+          owner: r.value.milestone ?? (r.value.goal ? `goal ${r.value.goal}` : ""),
           bodyPath: join(RULES_DIR, topic, `${slug}.md`),
         };
         t.rules.push(rule);
@@ -253,7 +256,7 @@ export class Rulebook {
       );
     }
     for (const r of t.rules) {
-      const mark = r.status === "shipped" ? "" : "  *(designed — not yet in the compiler)*";
+      const mark = r.status === "shipped" ? "" : `  *(${designedMark(r)})*`;
       lines.push(`<a id="${anchor(r)}"></a>`, `\n## ${r.title}${mark}\n`, `\`rule:${r.id}\`\n`);
       const text = body(r);
       if (text) lines.push(this.linkify(text) + "\n");
@@ -305,6 +308,11 @@ export class Rulebook {
     if (this.topics.length > 0) out.push([join(ROOT, "docs", "ground-rules.md"), this.renderGroundRules()]);
     return out;
   }
+}
+
+/** What a designed rule's heading says after its title: the owner that ships it, when it names one. */
+export function designedMark(r: { owner: string }): string {
+  return r.owner ? `designed — owned by ${r.owner}` : "designed — not yet in the compiler";
 }
 
 /** One rule, as the markdown link every generated file points at it with. */
@@ -444,6 +452,7 @@ export async function run(args: string[]): Promise<number> {
       return 1;
     }
     out.push(`# ${r.title}   rule:${r.id}`, `status:   ${r.status}`);
+    if (r.owner) out.push(`owner:    ${r.owner}`);
     if (r.seeAlso.length > 0) out.push(`seeAlso:  ${r.seeAlso.join(", ")}`);
     out.push("", body(r));
     flush();
