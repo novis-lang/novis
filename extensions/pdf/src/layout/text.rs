@@ -12,14 +12,13 @@ use parley::{
 
 use super::block::Flow;
 use super::inline::{blocks, is_bidi_control};
-use super::{
-    Atom, Block, CONTENT_HEIGHT, CONTENT_WIDTH, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint,
-    Para, Span, boxes,
-};
+use super::margin;
+use super::{Atom, Block, Glyph, Inline, Item, Laid, MARGIN, Missing, Paint, Para, Span, boxes};
 use crate::Error;
 use crate::assets::Assets;
 use crate::css::{Color, Styles};
 use crate::fonts::Fonts;
+use crate::paginate::Sheet;
 use crate::parse::Dom;
 
 /// Lays `dom` out in pages with its computed `styles` and `fonts`.
@@ -29,7 +28,15 @@ pub fn layout(
     assets: &Assets<'_>,
     fonts: Fonts,
 ) -> Result<Laid, Error> {
-    let (blocks, atoms, images, spans) = blocks(dom, styles, &fonts, assets)?;
+    let sheet = Sheet::new(&styles.pages);
+    let first = sheet.page(0, false);
+    let (blocks, atoms, images, spans) = blocks(
+        dom,
+        styles,
+        &fonts,
+        assets,
+        [first.content_width(), first.content_height()],
+    )?;
     let mut cx = Cx {
         lcx: LayoutContext::new(),
         fonts,
@@ -50,12 +57,53 @@ pub fn layout(
             cx.waiting.push(None);
         }
     }
-    let mut flow = Flow::new(CONTENT_HEIGHT);
+    let heights = sheet.clone();
+    let mut flow = Flow::paged(Box::new(move |page| {
+        heights.page(page, false).content_height()
+    }));
     cx.run(blocks, &mut flow);
     while !flow.open.is_empty() {
         flow.close();
     }
-    flow.finish([MARGIN, CONTENT_WIDTH, 0.0, CONTENT_HEIGHT]);
+    flow.finish([MARGIN, first.content_width(), 0.0], None);
+    // Each page was laid out with its content box at `MARGIN`, `MARGIN`, and is moved to its own.
+    for (index, page) in flow.pages.iter_mut().enumerate() {
+        let geometry = sheet.page(index, page.blank);
+        let (dx, dy) = (geometry.margin[3] - MARGIN, geometry.margin[0] - MARGIN);
+        if dx != 0.0 || dy != 0.0 {
+            page.items = std::mem::take(&mut page.items)
+                .into_iter()
+                .map(|item| shift(item, dx, dy))
+                .collect();
+        }
+        page.geometry = geometry;
+    }
+    // The margin boxes come last, when the page count is known, each with a text style of its
+    // own after the document's.
+    let root = styles
+        .elements
+        .iter()
+        .flatten()
+        .next()
+        .cloned()
+        .unwrap_or_default();
+    let Cx {
+        lcx,
+        fonts,
+        missing,
+        ..
+    } = cx;
+    let mut spans = spans;
+    let boxes = margin::collect(&flow.pages, &sheet, &root, &fonts, &mut spans);
+    let mut cx = Cx {
+        lcx,
+        fonts,
+        spans: &spans,
+        missing,
+        placed: Vec::new(),
+        waiting: Vec::new(),
+    };
+    margin::draw(&mut cx, boxes, &mut flow.pages);
     Ok(Laid {
         pages: flow.pages,
         images,
@@ -154,7 +202,8 @@ impl Cx<'_> {
             flow.close();
         }
         let [left, room, top, bottom] = padding_box;
-        flow.finish([left, room, top, flow.cursor - bottom]);
+        let bottom = flow.cursor - bottom;
+        flow.finish([left, room, top], Some(bottom));
         let missing = std::mem::replace(&mut self.missing, outside);
         Placed {
             items: flow

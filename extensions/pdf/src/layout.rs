@@ -1,8 +1,8 @@
 //! The layout: the parsed document and its computed styles as pages of positioned glyph runs,
 //! rectangles and images (`rule:core-classes/pdf-css-subset`).
 //!
-//! A page is A4 with a 2 cm margin on every side, and every length here is in PDF points (1/72
-//! inch, three quarters of a CSS pixel). An element's `display` comes from the cascade, whose
+//! A page's size and margins are its `@page` rules' (`paginate`'s module doc), and every length
+//! here is in PDF points (1/72 inch, three quarters of a CSS pixel). An element's `display` comes from the cascade, whose
 //! user-agent sheet gives HTML's defaults: `none` draws nothing, `block`, `list-item` and the
 //! display type a later stage lays out (`table`) start a block box, `flex` and `inline-flex`
 //! start a flex container (`flex`'s module doc), `grid` and `inline-grid` a grid container
@@ -18,6 +18,11 @@
 //! A box's background, borders and outline are drawn under its content as paths (`boxes`'
 //! module doc), and a box under `opacity` is drawn with its content in one group. A box that
 //! goes on past a page is drawn in a slice on each page, closed at its first and last edge.
+//! A block box's `break-before` of `page`, `left` or `right` (`always`, `verso` and `recto` the
+//! same) starts it on a new page, or on the next left or right one with an empty `:blank` page
+//! before it when it must, and does nothing on a page nothing has been placed on yet. Its
+//! `break-after` does the same for what is placed after it, so the last box's adds no page. A
+//! blank page draws no slice of a box around it, and an image or an inline-block reads no break.
 //!
 //! **Inline boxes.** An inline element with a horizontal margin, a border, padding or a
 //! background is an [`Inline`] of its text block. Its left margin, border and padding are an empty
@@ -126,7 +131,7 @@
 //! The submodules: `inline` walks the document into [`Block`]s, `image` loads the pictures they
 //! draw, `block` is the vertical flow of boxes, `text` shapes and places each block's lines,
 //! `flex` lays out a flex or grid container's items, `grid` reads a grid's tracks and
-//! placements, and `boxes` paints a box.
+//! placements, `boxes` paints a box, and `margin` lays out each page's margin boxes.
 //!
 //! Memory: one shaped `parley` layout at a time, and the positioned items of every page until
 //! the writer has drawn them.
@@ -144,6 +149,7 @@ mod flex;
 mod grid;
 mod image;
 mod inline;
+mod margin;
 mod text;
 mod transform;
 
@@ -156,15 +162,14 @@ use block::{BoxGeometry, SIDES};
 
 use crate::css::{Color, Style, Value};
 use crate::fonts::FaceData;
+use crate::paginate::PageBox;
 
-/// A4's width and height in points.
+/// A4's width and height in points, the page size when no `@page` rule gives one.
 pub const PAGE_WIDTH: f32 = 595.275_6;
 pub const PAGE_HEIGHT: f32 = 841.889_8;
-/// 2 cm in points.
+/// 2 cm in points: a page's margin when no `@page` rule gives one, and the left and top edge of
+/// the content box every page is laid out in before it is moved to its own.
 pub const MARGIN: f32 = 56.692_9;
-
-const CONTENT_WIDTH: f32 = PAGE_WIDTH - 2.0 * MARGIN;
-const CONTENT_HEIGHT: f32 = PAGE_HEIGHT - 2.0 * MARGIN;
 
 const BLACK: Color = Color {
     r: 0,
@@ -226,6 +231,10 @@ pub enum Item {
 #[derive(Debug, Clone, Default)]
 pub struct Page {
     pub items: Vec<Item>,
+    /// Whether a forced break to a left or right page left it empty.
+    pub blank: bool,
+    /// Its size and margins, from the `@page` rules that match it.
+    pub geometry: PageBox,
 }
 
 /// Text no font in its chain has: the characters, the chain by family name, and the page, from 1.
