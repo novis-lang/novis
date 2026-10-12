@@ -169,9 +169,10 @@ a property default must be a
 
 ## `lateinit`: a property written after construction
 
-`lateinit` on a class- or interface-typed property exempts it from the constructor rule. A read
-before any write throws; a read the compiler can see is unreachable-before-write is a compile
-error. `lateinit` is refused on a scalar or array property — give those a default.
+`lateinit` on a property exempts it from the constructor rule. The property can have any type. A
+read before the first write throws a `LogicError`. If the compiler can see that a read comes before
+every write, the read is a compile error. `isinit($post->author)` returns `true` once the property
+has a value. It does not read the property, so it never throws.
 <!-- src: `rule:classes/lateinit` -->
 
 ```nvs
@@ -204,16 +205,20 @@ threw: `Widget`'s property `$logger` is read before it is written
 log
 ```
 
-```nvs error
+```nvs
 <?nvs
-class Box {
-    public lateinit int $n;
-
-    public function constructor() {}
+class Post {
+    public lateinit ?string $note;
 }
+
+var $p = new Post();
+echo isinit($p->note) ? "yes" : "no", "\n";
+$p->note = null;
+echo isinit($p->note) ? "yes" : "no", "\n";
 ```
 ```output
-only allowed on a class- or interface-typed property
+no
+yes
 ```
 
 ## `readonly`

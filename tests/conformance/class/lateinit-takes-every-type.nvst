@@ -1,0 +1,55 @@
+--TEST--
+`lateinit` takes a scalar, a string, an array and a nullable type; a read before the first write throws on each, and `null` is a value a `?T lateinit` holds — `rule:classes/lateinit-restrictions`, `rule:classes/an-unwritten-property-read-throws`
+--FILE--
+<?nvs
+// covers: lang:classes/lateinit
+class Author {
+    public string $name = "Ada";
+}
+
+class Post {
+    public lateinit int $views;
+    public lateinit bool $draft;
+    public lateinit float $score;
+    public lateinit string $title;
+    public lateinit array<string> $tags;
+    public lateinit ?Author $author;
+}
+
+Post $p = new Post();
+
+// Each read below happens before the first write, so each one throws.
+int $throws = 0;
+try { echo $p->views, "\n"; } catch (LogicError $e) { $throws = $throws + 1; echo $e->message, "\n"; }
+try { echo $p->draft ? "y" : "n", "\n"; } catch (LogicError $e) { $throws = $throws + 1; }
+try { echo $p->score, "\n"; } catch (LogicError $e) { $throws = $throws + 1; }
+try { echo $p->title, "\n"; } catch (LogicError $e) { $throws = $throws + 1; }
+try { echo Core\Json::encode($p->tags), "\n"; } catch (LogicError $e) { $throws = $throws + 1; }
+try { echo $p->author?->name ?? "none", "\n"; } catch (LogicError $e) { $throws = $throws + 1; echo $e->message, "\n"; }
+echo "throws=", $throws as string, "\n";
+
+// A zero, `false`, an empty string and an empty array are values like any other.
+$p->views = 0;
+$p->draft = false;
+$p->score = 0.0;
+$p->title = "";
+$p->tags = [];
+echo "views=", $p->views, " draft=", $p->draft ? "y" : "n", " score=", $p->score, "\n";
+echo "title=[", $p->title, "] tags=", Core\Json::encode($p->tags), "\n";
+
+// `null` is a value too, so this read does not throw.
+$p->author = null;
+echo "author=", $p->author?->name ?? "none", "\n";
+
+$p->author = new Author();
+$p->tags[] = "news";
+$p->views = $p->views + 3;
+echo "author=", $p->author?->name ?? "none", " tags=", Core\Json::encode($p->tags), " views=", $p->views, "\n";
+--EXPECT--
+`Post`'s property `$views` is read before it is written
+`Post`'s property `$author` is read before it is written
+throws=6
+views=0 draft=n score=0
+title=[] tags=[]
+author=none
+author=Ada tags=["news"] views=3

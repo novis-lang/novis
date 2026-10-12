@@ -1464,6 +1464,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
         | ExprKind::Print(expr)
         | ExprKind::Throw(expr)
         | ExprKind::Empty(expr)
+        | ExprKind::IsInit(expr)
         | ExprKind::Paren(expr) => e!(expr),
         ExprKind::Binary { lhs, rhs, .. } => {
             e!(lhs);

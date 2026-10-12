@@ -9,10 +9,11 @@ property is discharged at its constructor (`rule:classes/definite-property-initi
 reflection builds no object without running its constructor
 (`rule:security/reflection-enforces-visibility`).
 
-Internally the slot carries one non-user-observable "never written" marker, distinct from every legal
-value including `null`. It is not an entry in the type system and no expression produces one. The
-compiled read goes by the payload, which is null in this state and in no other, because `lateinit` is
-restricted to a non-nullable class or interface type: one compare on a pointer already loaded.
+Internally the slot carries the tag `Unset`, distinct from every legal value including `null`. It is
+not an entry in the type system and no expression produces one. The compiled read of a `lateinit`
+property loads that tag byte and compares it before it uses the value. The payload cannot answer,
+because `lateinit` takes every type (`rule:classes/lateinit-restrictions`) and a written `0`, `false`
+or `null` has the same zero payload as the unset state. A read of any other property carries no test.
 
 - **Memory:** zero additional bytes per property. The marker is a spare discriminant of the tagged
   value every property already has.

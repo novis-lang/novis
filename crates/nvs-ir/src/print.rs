@@ -248,6 +248,11 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             class,
             field,
         } => format!("field.get v{}, {class}::{field}", object.index()),
+        InstKind::FieldIsInit {
+            object,
+            class,
+            field,
+        } => format!("field.isinit v{}, {class}::{field}", object.index()),
         InstKind::StaticGet { class, name } => format!("static.get {class}::${name}"),
         InstKind::SlotGet {
             object,

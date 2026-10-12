@@ -1387,20 +1387,9 @@ pub mod code {
         "The type `parent` is used in a class that does not extend another class. Write the name \
          of the class you mean, or add `extends` to the class.",
     );
-    /// `lateinit` on a scalar-, enum-, or shape-typed property — only a
-    /// class/interface (`object`-subtyped) property has no free real default
-    /// for `lateinit` to defer past. See `rule:classes/lateinit-restrictions`.
-    pub const E_LATEINIT_NOT_OBJECT_TYPE: Code = Code::new("E0424").card(
-        "`lateinit` is allowed only on a property whose type is a class or an interface. Give \
-         this property a default value instead, such as `= 0`.",
-    );
-    /// `lateinit` on a `?T` property — nullability already spells "may
-    /// legitimately hold no value," so there is no second "not yet written"
-    /// state left for `lateinit` to add. See `rule:classes/lateinit-restrictions`.
-    pub const E_LATEINIT_NULLABLE: Code = Code::new("E0425").card(
-        "`lateinit` cannot be used on a property with a `?` type, because `null` already means \
-         that no value is set. Remove `lateinit` or the `?`.",
-    );
+    // `E0424` and `E0425` are retired and are never reused: they refused
+    // `lateinit` on a type that is not a class or an interface, and on a `?T`.
+    // `lateinit` takes every type (`rule:classes/lateinit-restrictions`).
     /// `lateinit` on a promoted constructor parameter — binding the
     /// parameter is already the assignment `rule:classes/definite-property-initialization` requires, so there is
     /// nothing left to defer. See `rule:classes/lateinit-restrictions`.
@@ -5477,6 +5466,20 @@ pub mod code {
         "The result of this call is not used. The program needs the result to finish what the \
          call started. Keep the result in a variable and use it. For example, keep the handle \
          that `Core\\Process::spawn` returns, and call `wait()` or `kill()` on it.",
+    );
+    /// An `isinit(...)` operand that is not a `lateinit` property read with
+    /// `->`: a property that always has a value, a variable, or any other
+    /// expression. See `rule:classes/isinit-reads-nothing`.
+    pub const E_ISINIT_NOT_LATEINIT: Code = Code::new("E0853").card(
+        "`isinit` needs a `lateinit` property, written as `$object->property`. Any other \
+         property always has a value, so the test is not needed.",
+    );
+    /// An `isinit(...)` operand whose receiver has no class known at compile
+    /// time, such as `object` or a shape, so no slot can be named. See
+    /// `rule:classes/isinit-reads-nothing`.
+    pub const E_ISINIT_UNKNOWN_CLASS: Code = Code::new("E0854").card(
+        "`isinit` needs an object of a known class. Test the class first with `is`, for \
+         example `if ($value is Post)`.",
     );
 
     // --- E09xx internal ----------------------------------------------------

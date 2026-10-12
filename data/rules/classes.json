@@ -15,6 +15,7 @@
     "classes/an-unwritten-property-read-throws",
     "classes/lateinit",
     "classes/lateinit-restrictions",
+    "classes/isinit-reads-nothing",
     "classes/readonly-is-written-once",
     "classes/lateinit-read-before-write",
     "classes/no-dynamic-properties",

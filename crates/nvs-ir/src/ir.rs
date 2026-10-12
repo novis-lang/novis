@@ -994,6 +994,24 @@ pub enum InstKind {
         /// The field's own name, `$`-sigil not included.
         field: String,
     },
+    /// Whether a compile-time-known field's slot holds a value — `false` while
+    /// it still has `nvs_runtime::Tag::Unset`, the state a `lateinit` property
+    /// starts in (`rule:classes/an-unwritten-property-read-throws`).
+    /// [`crate::ty::Ty::Bool`], one load of the tag byte and one compare.
+    ///
+    /// It reads the tag and never the value, so it is the same test on every
+    /// type a `lateinit` property may declare: a `null` is a value here. Its
+    /// producers are `nvs_ir::lower`'s guard on a `lateinit` read and
+    /// `isinit` (`rule:classes/isinit-reads-nothing`). It borrows its receiver
+    /// and allocates nothing. `class`/`field` are [`Self::FieldGet`]'s labels.
+    FieldIsInit {
+        /// The receiver, already lowered.
+        object: ValueId,
+        /// The class that declares the field.
+        class: String,
+        /// The field's own name, `$`-sigil not included.
+        field: String,
+    },
     /// Writes a compile-time-known field on an object — `$obj->prop = expr;`
     /// whose receiver's static type resolved to a known declaring class,
     /// exactly the same [`ExprInfo::Property`](nvs_types::expr_table::ExprInfo::Property)
@@ -1595,9 +1613,10 @@ pub enum InstKind {
     /// A [`crate::ty::Ty::Object`] operand is admitted too, and is the same
     /// compare one representation down: an object is a bare pointer and a
     /// null one *is* `null` (`nvs_runtime::object`'s own decision). Its one
-    /// producer is `nvs_ir::lower`'s `emit_never_written_guard`, where the
-    /// null pointer is `rule:classes/an-unwritten-property-read-throws`'s never-written slot rather than a value
-    /// any expression produced.
+    /// producer is `rule:classes/delegation-by-field`'s forward
+    /// (`nvs_ir::lower::call::delegation_forward`), whose delegate field is a
+    /// non-nullable object, so a null pointer there is a `lateinit` field that
+    /// was never written.
     IsNull {
         /// The tagged value being tested.
         operand: ValueId,

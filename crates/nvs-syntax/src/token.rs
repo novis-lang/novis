@@ -445,6 +445,7 @@ keywords! {
     Int => "int",
     Interface => "interface",
     Is => "is",
+    Isinit => "isinit",
     Isset => "isset",
     Iterable => "iterable",
     Lateinit => "lateinit",

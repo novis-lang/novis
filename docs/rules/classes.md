@@ -3,7 +3,7 @@
 
 # Classes
 
-*3 of 43 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 44 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="classes-no-free-functions-or-constants"></a>
 
@@ -311,10 +311,11 @@ property is discharged at its constructor ([`classes/definite-property-initializ
 reflection builds no object without running its constructor
 ([`security/reflection-enforces-visibility`](security.md#security-reflection-enforces-visibility)).
 
-Internally the slot carries one non-user-observable "never written" marker, distinct from every legal
-value including `null`. It is not an entry in the type system and no expression produces one. The
-compiled read goes by the payload, which is null in this state and in no other, because `lateinit` is
-restricted to a non-nullable class or interface type: one compare on a pointer already loaded.
+Internally the slot carries the tag `Unset`, distinct from every legal value including `null`. It is
+not an entry in the type system and no expression produces one. The compiled read of a `lateinit`
+property loads that tag byte and compares it before it uses the value. The payload cannot answer,
+because `lateinit` takes every type ([`classes/lateinit-restrictions`](classes.md#classes-lateinit-restrictions)) and a written `0`, `false`
+or `null` has the same zero payload as the unset state. A read of any other property carries no test.
 
 - **Memory:** zero additional bytes per property. The marker is a spare discriminant of the tagged
   value every property already has.
@@ -329,10 +330,10 @@ restricted to a non-nullable class or interface type: one compare on a pointer a
 
 A property declared `lateinit` is exempt from the constructor-must-assign obligation, for the pattern
 that obligation cannot express: a container, an ORM, or any setter injection that populates a property
-after `new` returns. It adds no new type and no new value — a `lateinit` property is exactly as
-non-nullable as any other, and reading it before its first write throws the error
-[`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws) already defines, now reachable from ordinary code
-rather than only through reflection.
+after `new` returns. It adds no new type and no new value: a `lateinit` property holds exactly the
+values its declared type holds, and reading it before its first write throws the error
+[`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws) defines. `isinit` tests the state without reading
+the property ([`classes/isinit-reads-nothing`](classes.md#classes-isinit-reads-nothing)).
 
 Writing it, the first time or any later time, is an ordinary property write. There is no write-once
 tracking: once assigned it is indistinguishable from a property the constructor set.
@@ -358,25 +359,64 @@ same rule.
 
 <a id="classes-lateinit-restrictions"></a>
 
-## `lateinit` is admitted only on a non-nullable class- or interface-typed property that is neither promoted nor `readonly`
+## `lateinit` takes every type, and is refused on a promoted parameter and beside `readonly`
 
 `rule:classes/lateinit-restrictions`
 
-`lateinit` is admitted only on a non-nullable property whose type is a class or an interface. A scalar
-is refused, naming the fix — a scalar's "no value yet" is already free, spelled `= 0`, which is exactly
-the placeholder an object type does not have. `?T lateinit` is refused, because nullability already
-spells "may hold no value" and a nullable `lateinit` read would leave open whether a `null` is the
-deliberate value or the unwritten marker surfacing. A promoted constructor parameter is refused,
-because binding the parameter already is the assignment there is nothing left to defer.
+`lateinit` is admitted on a property of every type: a class or an interface, a scalar, a string, an
+array and a nullable `?T`. Its "no value yet" state is a tag of its own
+([`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws)), so it never collides with a value of the declared
+type: `0`, `false`, `""`, `[]` and `null` are all values a `lateinit` property holds once written. A
+promoted constructor parameter is refused (`E0426`), because binding the parameter already is the
+assignment and there is nothing left to defer.
 
-`lateinit readonly` is refused as well. `readonly` promises "assigned exactly once, during
+`lateinit readonly` is refused as well (`E0427`). `readonly` promises "assigned exactly once, during
 construction"; `lateinit` promises "assigned after construction, and freely reassignable". They are
 opposite claims about one property rather than a composable pair.
 
-Each refusal is its own diagnostic, which is one more modifier and three more rejected combinations a
-developer has to learn are refused rather than silently allowed.
+- **Memory:** none. The tag already exists on every slot, and only a `lateinit` read pays the one
+  extra load of it.
+
+**Declined:**
+- **`lateinit` on a class or an interface type alone.** A scalar would then need a placeholder such as
+  `= 0`, which reads as a real value and cannot be told apart from one, while the tag test costs the
+  same on every type.
+- **Refusing `?T lateinit`.** A `null` that is a decided answer, such as "this post has no author",
+  still needs a separate state for "not looked up yet", and `isinit` tells the two apart
+  ([`classes/isinit-reads-nothing`](classes.md#classes-isinit-reads-nothing)).
 
 <sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/no-undefined-value`](classes.md#classes-no-undefined-value), [`types/declaration`](types.md#types-declaration).</sub>
+
+<a id="classes-isinit-reads-nothing"></a>
+
+## `isinit($obj->prop)` tests whether a `lateinit` property has a value, and reads nothing
+
+`rule:classes/isinit-reads-nothing`
+
+`isinit($obj->prop)` is a construct, parsed like `isset`, whose value is a `bool`: `true` once the
+`lateinit` property has been written, `false` before. It does not read the property. No `get` hook
+runs, no `onPropertyGet` is told, and nothing throws: it compiles to the receiver, one load of the
+slot's tag and one compare ([`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws)). A written `null` is a
+value, so `isinit` is `true` after `$p->author = null`.
+
+It is a compile error (`E0853`) on a property that is not `lateinit`, which always has a value, and on
+an operand that is not a `->` property read. It is a compile error (`E0854`) on a receiver whose class
+is not known at compile time, such as `object` or a shape, because the slot is named from the class;
+an `is` test first narrows the receiver to one.
+
+It is a construct and not a method because a method call evaluates its argument, and reading the
+property is the one thing that throws here.
+
+- **Memory:** none. It allocates nothing and holds nothing.
+
+**Declined:**
+- **A `Core\Reflect` method taking the property's name.** A misspelt name would be a runtime error,
+  and the test would no longer compile to one tag compare.
+- **Letting `isset` answer it.** `isset($x)` is `$x != null`
+  ([`classes/unset-is-refused-on-a-property`](classes.md#classes-unset-is-refused-on-a-property)), and on a `?T lateinit` "written as `null`" and "not
+  written yet" need different answers.
+
+<sub>See also [`classes/lateinit`](classes.md#classes-lateinit), [`classes/an-unwritten-property-read-throws`](classes.md#classes-an-unwritten-property-read-throws), [`classes/property-observer-pipeline`](classes.md#classes-property-observer-pipeline).</sub>
 
 <a id="classes-readonly-is-written-once"></a>
 
@@ -565,6 +605,12 @@ This is a pipeline and not a fallback: a hooked property is not exempt, and a ho
 reaches the observer. An observer that throws still fails the access, propagated like any other call
 ([`errors/propagation`](errors.md#errors-propagation)).
 
+An element write is a write of the property that holds the array. `$p->tags["a"] = $v`, a compound
+assignment, an increment, `??=` and `unset($p->tags["a"])` each report one `onPropertySet` with the
+whole array after it is stored, at any depth of the path, and no `onPropertyGet`: the read of the
+root that the write makes to separate the array is part of the write, not an access of its own.
+Passing the array copies nothing.
+
 Three boundaries follow from writing it about a receiver. An access inside the property's own hooks
 is the backing slot and carries no observer, or one write would be reported twice. A `static`
 property has no receiving instance and reaches nothing. An observer that touches a property of its own
@@ -576,6 +622,8 @@ when a `set` hook transformed it. Logic that computes or transforms a value belo
 property's own hook ([`classes/property-hooks`](classes.md#classes-property-hooks)); the observer only watches the result.
 
 **Declined:**
+- **An element write reports an `onPropertyGet` for its root as well.** One write would then reach
+  the observer twice, once as a read nobody wrote.
 - **The observer runs only for a property with no hook of its own.** Logging or dirty-tracking every
   write would then be copied into every hook instead of declared once.
 - **The observer may override what a read returns or a write stores.** A second authority over a

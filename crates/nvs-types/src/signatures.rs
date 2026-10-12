@@ -1069,7 +1069,7 @@ fn collect_members(
                 let name = strip_sigil(text).to_owned();
                 let is_lateinit = p.modifiers.contains(&Modifier::Lateinit);
                 if is_lateinit {
-                    check_lateinit_property(p, ty, env);
+                    check_lateinit_property(p, env);
                 }
                 let required = p.default.is_none()
                     && p.hooks.is_none()
@@ -1434,32 +1434,10 @@ fn declared_hooks(p: &PropertyMember) -> PropertyHooks {
     out
 }
 
-/// Validates a `lateinit` property against `rule:classes/lateinit-restrictions`'s three rejected
-/// shapes — nullability, a non-object type, and `readonly` — reporting each
-/// diagnostic that applies. `ty` is `p`'s already-lowered type.
-fn check_lateinit_property(p: &PropertyMember, ty: TypeId, env: &mut Env<'_>) {
-    if env.interner.is_nullable(ty) {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_LATEINIT_NULLABLE,
-                "`lateinit` cannot be combined with a nullable type",
-            )
-            .with_primary(p.name, "declared `lateinit` here")
-            .with_help(
-                "a nullable property already has a value for \"not set yet\" — drop either \
-                 `lateinit` or the `?`",
-            ),
-        );
-    } else if !matches!(env.interner.get(ty), Ty::Object | Ty::Class(..)) {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_LATEINIT_NOT_OBJECT_TYPE,
-                "`lateinit` is only allowed on a class- or interface-typed property",
-            )
-            .with_primary(p.name, "declared `lateinit` here")
-            .with_help("give this property a real default value instead, e.g. `= 0`"),
-        );
-    }
+/// Validates a `lateinit` property against `rule:classes/lateinit-restrictions`: every type is
+/// admitted, and `readonly` beside it is refused. A promoted parameter is refused where promotion
+/// is recorded.
+fn check_lateinit_property(p: &PropertyMember, env: &mut Env<'_>) {
     if p.modifiers.contains(&Modifier::Readonly) {
         env.diags.report(
             Diagnostic::error(
@@ -2196,27 +2174,19 @@ mod tests {
     }
 
     #[test]
-    fn lateinit_on_a_scalar_property_is_diagnosed() {
-        let (_table, _module, _interner, diags) =
-            build("<?nvs\nclass Widget { public lateinit int $count; }\n");
-        assert!(
-            diags
-                .iter()
-                .any(|d| d.code == Some(code::E_LATEINIT_NOT_OBJECT_TYPE)),
-            "{diags:?}"
+    fn lateinit_takes_a_scalar_an_array_and_a_nullable_type() {
+        let (table, _module, _interner, diags) = build(
+            "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit int $count;\n  \
+             public lateinit array<string> $tags;\n  public lateinit ?Logger $logger;\n}\n",
         );
-    }
-
-    #[test]
-    fn lateinit_on_a_nullable_property_is_diagnosed() {
-        let (_table, _module, _interner, diags) =
-            build("<?nvs\nclass Logger {}\nclass Widget { public lateinit ?Logger $logger; }\n");
-        assert!(
-            diags
-                .iter()
-                .any(|d| d.code == Some(code::E_LATEINIT_NULLABLE)),
-            "{diags:?}"
-        );
+        assert!(!diags.has_errors(), "{diags:?}");
+        let sig = table
+            .get(&QName::parse("Widget"))
+            .expect("signature recorded");
+        for name in ["count", "tags", "logger"] {
+            assert!(sig.lateinit_properties.contains(name), "{name}");
+        }
+        assert!(sig.required_properties.is_empty());
     }
 
     #[test]

@@ -36,6 +36,7 @@
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{Expr, ExprKind};
 
+use crate::expr_table::ExprInfo;
 use crate::locals::{Live, LocalScope};
 use crate::ty::TypeId;
 use crate::{Ctx, Env};
@@ -60,6 +61,71 @@ pub(crate) fn check_isset_operand(
     // Checked even when it was refused above, so a mistake inside the operand
     // arrives in the same run rather than one edit later.
     check_expr(operand, None, live, scope, ctx, env)
+}
+
+/// Checks `isinit(...)`'s one operand, `rule:classes/isinit-reads-nothing`: a `->` read of a
+/// `lateinit` property on a receiver whose class is known statically.
+///
+/// The operand is checked as an ordinary read so it records the
+/// [`ExprInfo::Property`] entry `nvs-ir` names the slot from, and so a mistake
+/// inside it arrives in the same run. Nothing reads the slot: `nvs-ir` lowers
+/// the construct to a load of the slot's tag.
+///
+/// [`ExprInfo::Property`]: crate::expr_table::ExprInfo::Property
+pub(crate) fn check_isinit_operand(
+    operand: &Expr,
+    live: &mut Live,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    check_expr(operand, None, live, scope, ctx, env);
+    let ExprKind::PropertyAccess {
+        nullsafe: false, ..
+    } = &operand.kind
+    else {
+        report_isinit_not_lateinit(operand, "not a property read with `->`", env);
+        return;
+    };
+    match env.exprs.lookup(operand.span) {
+        Some(ExprInfo::Property { class, name, .. }) => {
+            let (class, name) = (class.clone(), name.clone());
+            let lateinit =
+                crate::signatures::resolve_property_owned(&class, &name, env.signatures, env.graph)
+                    .and_then(|(owner, _)| env.signatures.get(&owner))
+                    .is_some_and(|sig| sig.lateinit_properties.contains(&name));
+            if !lateinit {
+                report_isinit_not_lateinit(operand, &format!("`${name}` always has a value"), env);
+            }
+        }
+        Some(ExprInfo::HookedProperty { name, .. }) => {
+            let label = format!("`${name}` always has a value");
+            report_isinit_not_lateinit(operand, &label, env);
+        }
+        // An unresolved access was reported by `check_expr` already.
+        None => {}
+        Some(_) => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ISINIT_UNKNOWN_CLASS,
+                    "`isinit` needs an object of a known class",
+                )
+                .with_primary(operand.span, "the class of this object is not known here")
+                .with_help("test the class first with `is`"),
+            );
+        }
+    }
+}
+
+fn report_isinit_not_lateinit(operand: &Expr, label: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ISINIT_NOT_LATEINIT,
+            "`isinit` needs a `lateinit` property",
+        )
+        .with_primary(operand.span, label)
+        .with_help("only a `lateinit` property can be without a value"),
+    );
 }
 
 /// Checks `empty(...)`'s one operand and records its [`ExprInfo`] entries.

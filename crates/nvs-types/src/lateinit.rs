@@ -347,6 +347,14 @@ fn scan_expr(
             }
             return;
         }
+        // `isinit` reads nothing (`rule:classes/isinit-reads-nothing`), so only
+        // its receiver is a read.
+        ExprKind::IsInit(operand) => {
+            if let ExprKind::PropertyAccess { object, .. } = &operand.kind {
+                scan_expr(object, written, tracked, env);
+            }
+            return;
+        }
         ExprKind::PropertyAccess {
             object,
             property: MemberName::Ident(name_span),

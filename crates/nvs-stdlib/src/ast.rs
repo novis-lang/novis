@@ -317,6 +317,7 @@ productions![
     "Int",
     "InterfaceDecl",
     "Interpolated",
+    "IsInit",
     "Isset",
     "LocalDecl",
     "Match",

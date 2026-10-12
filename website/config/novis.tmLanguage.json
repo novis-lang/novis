@@ -249,7 +249,7 @@
         },
         {
           "name": "keyword.other.nvs",
-          "match": "(?<![$\\w])(?<!->)(?<!::)(?:autoload|clone|declare|die|echo|empty|eval|exit|extract|global|include_once|include|isset|list|namespace|new|print|require_once|require|settype|unset|use)\\b"
+          "match": "(?<![$\\w])(?<!->)(?<!::)(?:autoload|clone|declare|die|echo|empty|eval|exit|extract|global|include_once|include|isinit|isset|list|namespace|new|print|require_once|require|settype|unset|use)\\b"
         },
         {
           "name": "storage.type.class.nvs",

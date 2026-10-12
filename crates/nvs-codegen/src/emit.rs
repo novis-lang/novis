@@ -733,6 +733,14 @@ impl Emitter<'_, '_> {
                 let value = self.emit_field_get(inst, *object, class, field)?;
                 self.define(inst, value)?;
             }
+            InstKind::FieldIsInit {
+                object,
+                class,
+                field,
+            } => {
+                let value = self.emit_field_is_init(*object, class, field)?;
+                self.define(inst, value)?;
+            }
             InstKind::SlotGet {
                 object,
                 field,
@@ -913,9 +921,7 @@ impl Emitter<'_, '_> {
                 let (value, from) = self.value(*operand)?;
                 // An object-typed operand is a bare pointer, and a null one
                 // *is* Novis's `null` (`nvs_runtime::object`'s own decision).
-                // The one producer is `nvs_ir::lower`'s `rule:classes/an-unwritten-property-read-throws` guard,
-                // whose doc comment owns why a never-written `lateinit` slot
-                // is exactly this compare.
+                // `nvs_ir::ir::InstKind::IsNull` names its one producer.
                 if from == Ty::Object {
                     let value = self.b.ins().icmp_imm_u(IntCC::Equal, value, 0);
                     self.define(inst, value)?;
@@ -2897,6 +2903,26 @@ impl Emitter<'_, '_> {
             .ty
             .ok_or_else(|| internal("a property read with no representation"))?;
         self.load_value(base, offset, ty)
+    }
+
+    /// Whether the slot of `class`'s field `field` holds a value: one load of
+    /// its tag byte and one compare against `Tag::Unset`. The payload is not
+    /// read, so the test is the same for every representation the field has.
+    fn emit_field_is_init(
+        &mut self,
+        object: ValueId,
+        class: &str,
+        field: &str,
+    ) -> Result<Value, CodegenError> {
+        let offset = self.field_offset(class, field)?;
+        let tag_offset =
+            offset + i32::try_from(NvsValue::TAG_OFFSET).map_err(|_| internal("a tag past i32"))?;
+        let (base, _) = self.value(object)?;
+        let tag = self.b.ins().load(types::I8, trusted(), base, tag_offset);
+        Ok(self
+            .b
+            .ins()
+            .icmp_imm_u(IntCC::NotEqual, tag, i64::from(Tag::Unset as u8)))
     }
 
     /// `$issue->path`: one call to `nvs_runtime::nvs_object_slot_get`, which

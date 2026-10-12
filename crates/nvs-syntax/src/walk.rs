@@ -204,6 +204,7 @@ pub const KINDS: &[&str] = &[
     "Int",
     "InterfaceDecl",
     "Interpolated",
+    "IsInit",
     "Isset",
     "LocalDecl",
     "Match",
@@ -791,6 +792,10 @@ fn expr(e: &Expr) -> Node {
         ExprKind::Empty(operand) => {
             kids.push(expr(operand));
             "Empty"
+        }
+        ExprKind::IsInit(operand) => {
+            kids.push(expr(operand));
+            "IsInit"
         }
         ExprKind::Exit(status) => {
             push_opt(&mut kids, status.as_deref());

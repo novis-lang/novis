@@ -1,0 +1,28 @@
+--TEST--
+`isinit` is a compile error on a property that is not `lateinit`, on an operand that is not a property, and on a receiver whose class is not known — `rule:classes/isinit-reads-nothing`
+--FILE--
+<?nvs
+class Post {
+    public string $title = "";
+    public lateinit int $views;
+}
+
+Post $p = new Post();
+object $o = $p;
+echo isinit($p->title) ? "y" : "n", "\n";
+echo isinit($p) ? "y" : "n", "\n";
+echo isinit($o->views) ? "y" : "n", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0853]: `isinit` needs a `lateinit` property
+  --> case.nvs:9:13
+%A
+error[E0853]: `isinit` needs a `lateinit` property
+   --> case.nvs:10:13
+%A
+error[E0854]: `isinit` needs an object of a known class
+   --> case.nvs:11:13
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

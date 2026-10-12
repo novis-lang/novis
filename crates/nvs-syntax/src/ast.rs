@@ -1149,6 +1149,9 @@ pub enum ExprKind {
     Throw(Box<Expr>),
     /// `isset(expr, ...)`
     Isset(Vec<Expr>),
+    /// `isinit($obj->prop)` — whether a `lateinit` property is initialized,
+    /// tested without reading it (`rule:classes/isinit-reads-nothing`).
+    IsInit(Box<Expr>),
     /// `empty(expr)`
     Empty(Box<Expr>),
     /// `exit`, optionally with a status/message expression. `die` is a

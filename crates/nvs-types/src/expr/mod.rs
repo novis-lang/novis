@@ -959,6 +959,12 @@ pub(crate) fn infer(
             }
             env.interner.bool_ty()
         }
+        // `isinit($obj->prop)` tests a `lateinit` slot without reading it.
+        // `presence` owns its two refusals.
+        ExprKind::IsInit(operand) => {
+            presence::check_isinit_operand(operand, live, scope, ctx, env);
+            env.interner.bool_ty()
+        }
         // `empty($x)` is `!$x` — `rule:expressions/truthy-table`'s table negated — over any
         // expression at all, so it shares `isset`'s guarded-read rule and
         // none of its shape check. `presence` owns both.

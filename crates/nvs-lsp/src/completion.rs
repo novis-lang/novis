@@ -1610,6 +1610,7 @@ const STATEMENT_WORDS: &[(&str, Slot, Within)] = &[
     ("foreach", Slot::Statement, Within::Anything),
     ("if", Slot::Statement, Within::Anything),
     ("interface", Slot::Statement, Within::NoBody),
+    ("isinit", Slot::Expression, Within::Anything),
     ("isset", Slot::Expression, Within::Anything),
     ("match", Slot::Expression, Within::Anything),
     ("namespace", Slot::Statement, Within::NoBody),

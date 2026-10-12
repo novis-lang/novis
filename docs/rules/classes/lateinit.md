@@ -1,9 +1,9 @@
 A property declared `lateinit` is exempt from the constructor-must-assign obligation, for the pattern
 that obligation cannot express: a container, an ORM, or any setter injection that populates a property
-after `new` returns. It adds no new type and no new value — a `lateinit` property is exactly as
-non-nullable as any other, and reading it before its first write throws the error
-`rule:classes/an-unwritten-property-read-throws` already defines, now reachable from ordinary code
-rather than only through reflection.
+after `new` returns. It adds no new type and no new value: a `lateinit` property holds exactly the
+values its declared type holds, and reading it before its first write throws the error
+`rule:classes/an-unwritten-property-read-throws` defines. `isinit` tests the state without reading
+the property (`rule:classes/isinit-reads-nothing`).
 
 Writing it, the first time or any later time, is an ordinary property write. There is no write-once
 tracking: once assigned it is indistinguishable from a property the constructor set.

@@ -1494,6 +1494,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 }
             }
             TokenKind::Keyword(Keyword::Isset) => self.parse_isset(),
+            TokenKind::Keyword(Keyword::Isinit) => self.parse_isinit(),
             TokenKind::Keyword(Keyword::Empty) => self.parse_empty(),
             // `rule:statements/let-and-is-are-reserved`: either spelling
             // where an expression begins is a name, and the error node keeps
@@ -2275,6 +2276,18 @@ impl<'src, 'd> Parser<'src, 'd> {
         Expr {
             span,
             kind: ExprKind::Isset(args),
+        }
+    }
+
+    pub(super) fn parse_isinit(&mut self) -> Expr {
+        let start = self.bump().span;
+        self.expect(TokenKind::LParen, "`(`");
+        let e = self.parse_expr();
+        self.expect(TokenKind::RParen, "`)`");
+        let span = start.to(self.last_span);
+        Expr {
+            span,
+            kind: ExprKind::IsInit(Box::new(e)),
         }
     }
 

@@ -99,6 +99,7 @@ pub fn each_child_expr<'a>(e: &'a Expr, f: &mut dyn FnMut(&'a Expr)) {
         | ExprKind::Print(operand)
         | ExprKind::Throw(operand)
         | ExprKind::Empty(operand)
+        | ExprKind::IsInit(operand)
         | ExprKind::Await(operand)
         | ExprKind::Paren(operand) => f(operand),
         ExprKind::Binary { lhs, rhs, .. } => {

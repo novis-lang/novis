@@ -1,0 +1,14 @@
+{
+  "title": "`isinit($obj->prop)` tests whether a `lateinit` property has a value, and reads nothing",
+  "status": "shipped",
+  "seeAlso": [
+    "classes/lateinit",
+    "classes/an-unwritten-property-read-throws",
+    "classes/property-observer-pipeline"
+  ],
+  "guardedBy": [
+    "tests/conformance/class/isinit-tests-a-lateinit-without-reading-it.nvst",
+    "tests/conformance/class/isinit-is-refused-on-a-property-that-always-has-a-value.nvst",
+    "crates/nvs-codegen/tests/late_init.rs"
+  ]
+}

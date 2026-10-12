@@ -609,6 +609,7 @@ impl<'a> Lowering<'a> {
             // `rule:classes/unset-is-refused-on-a-property`'s `isset($x)` is `$x != null`, and a list of them
             // is the conjunction — see `Self::lower_isset`.
             ExprKind::Isset(operands) => (self.lower_isset(operands, env, cur), Ty::Bool),
+            ExprKind::IsInit(operand) => self.lower_isinit(operand, env, cur),
             // `empty($x)` is `!$x` — `rule:expressions/truthy-table`'s truthy table negated — so
             // it *is* `Self::lower_not`, down to the release a fresh operand
             // owes. `nvs_types::expr::presence` marks its subscripts guarded,
@@ -4897,7 +4898,7 @@ impl<'a> Lowering<'a> {
                 );
                 if never_written {
                     self.emit_never_written_guard(
-                        read.0,
+                        object_v,
                         &class_label,
                         &observed_name,
                         expr.span,
@@ -4960,21 +4961,15 @@ impl<'a> Lowering<'a> {
         self.close_nullsafe(guard, v, ty, env, cur)
     }
 
-    /// `rule:classes/an-unwritten-property-read-throws`'s never-written storage state, on the compiled read: `value` is
-    /// the object `class`'s slot for `$field` just handed back, and this
-    /// leaves `cur` on the block where it is a real instance.
+    /// `rule:classes/an-unwritten-property-read-throws`'s never-written storage state, on the compiled read of
+    /// `object`'s `lateinit` property `$field`: it throws while the slot has
+    /// no value, and leaves `cur` on the block where it has one.
     ///
-    /// **The test is the payload, not the tag**, and that is the whole reason
-    /// this is an inline branch rather than a call. The state is only
-    /// reachable on a `lateinit` property (`rule:classes/lateinit`), whose declared type
-    /// `rule:classes/lateinit-restrictions` restricts to a non-nullable class or interface — one
-    /// pointer, null in this state and in no other, since `rule:classes/definite-property-initialization`
-    /// discharges every other non-nullable property at its constructor and a
-    /// `?T` is not a `lateinit` at all. So [`InstKind::IsNull`] over the
-    /// [`Ty::Object`] already loaded answers the same question
-    /// `nvs_runtime::Tag::Unset` answers for a reader holding the whole slot,
-    /// at one compare and no second load. `nvs_runtime::Value::unset` is that
-    /// argument's other end.
+    /// **The test is the tag, not the payload** ([`InstKind::FieldIsInit`]).
+    /// A `lateinit` property takes every type (`rule:classes/lateinit-restrictions`), so a zero
+    /// payload is a real `0`, `false` or `null`. Only the tag byte tells the
+    /// unset state apart, at one load and one compare. Only a `lateinit` read
+    /// carries the test, so every other property read stays one load.
     ///
     /// **It borrows.** `InstKind::FieldGet` took no reference and this takes
     /// none either: the throw edge abandons nothing the slot still owns, and
@@ -4989,15 +4984,63 @@ impl<'a> Lowering<'a> {
     /// report one failure one way.
     fn emit_never_written_guard(
         &mut self,
-        value: ValueId,
+        object: ValueId,
         class: &str,
         field: &str,
         span: Span,
         env: &mut Env,
         cur: &mut BlockId,
     ) {
+        let (is_init, _) = self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::FieldIsInit {
+                object,
+                class: class.to_owned(),
+                field: field.to_owned(),
+            },
+        );
         let message = format!("`{class}`'s property `${field}` is read before it is written");
-        self.emit_null_guard(value, message, span, env, cur);
+        self.emit_logic_error_when(is_init, false, message, span, env, cur);
+    }
+
+    /// `isinit($obj->prop)` (`rule:classes/isinit-reads-nothing`): the receiver is evaluated,
+    /// and then [`InstKind::FieldIsInit`] tests the slot's tag. The property
+    /// is not read, so no `get` hook, observer or guard runs. The checker
+    /// admitted only a `->` read of a `lateinit` property on a known class.
+    fn lower_isinit(&mut self, operand: &Expr, env: &mut Env, cur: &mut BlockId) -> (ValueId, Ty) {
+        let ExprKind::PropertyAccess { object, .. } = &operand.kind else {
+            panic!(
+                "nvs-ir: `isinit` at {:?} has an operand that is not a property access, which \
+                 `nvs_types::expr::presence::check_isinit_operand` refuses",
+                operand.span
+            );
+        };
+        let (class, field) = match self.exprs.lookup(operand.span) {
+            Some(ExprInfo::Property { class, name, .. }) => (class.to_string(), name.clone()),
+            _ => panic!(
+                "nvs-ir: `isinit` at {:?} names no resolved property, which \
+                 `nvs_types::expr::presence::check_isinit_operand` refuses",
+                operand.span
+            ),
+        };
+        let mark = self.temporaries_mark();
+        let (object_v, receiver_ty, guard) =
+            self.open_nullsafe(object, false, ReceiverProof::Proven, env, cur);
+        if receiver_ty.is_refcounted() && !self.aliasing_read(object) {
+            self.own_temporary(object_v);
+        }
+        let (is_init, _) = self.emit(
+            *cur,
+            Ty::Bool,
+            InstKind::FieldIsInit {
+                object: object_v,
+                class,
+                field,
+            },
+        );
+        self.release_temporaries_since(mark, *cur);
+        self.close_nullsafe(guard, is_init, Ty::Bool, env, cur)
     }
 
     /// A read of a `readonly` property a dominating test narrowed
@@ -5058,19 +5101,38 @@ impl<'a> Lowering<'a> {
         env: &mut Env,
         cur: &mut BlockId,
     ) {
-        let (is_unset, _) = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: value });
+        let (is_null, _) = self.emit(*cur, Ty::Bool, InstKind::IsNull { operand: value });
+        self.emit_logic_error_when(is_null, true, message, span, env, cur);
+    }
+
+    /// Throws a `LogicError` carrying `message` where `cond` equals
+    /// `throws_on`, and leaves `cur` on the block where it does not.
+    fn emit_logic_error_when(
+        &mut self,
+        cond: ValueId,
+        throws_on: bool,
+        message: String,
+        span: Span,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) {
         let unset = self.new_block();
         let written = self.new_block();
         let unset_edge = self.ids.next_edge(span);
         let written_edge = self.ids.next_edge(span);
+        let ((then_block, then_edge), (else_block, else_edge)) = if throws_on {
+            ((unset, unset_edge), (written, written_edge))
+        } else {
+            ((written, written_edge), (unset, unset_edge))
+        };
         self.seal(
             *cur,
             Terminator::Branch {
-                cond: is_unset,
-                then_block: unset,
-                then_edge: unset_edge,
-                else_block: written,
-                else_edge: written_edge,
+                cond,
+                then_block,
+                then_edge,
+                else_block,
+                else_edge,
             },
         );
         let (message, _) = self.emit(unset, Ty::Str, InstKind::ConstStr(message));
