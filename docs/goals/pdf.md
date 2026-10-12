@@ -84,7 +84,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 13
     title: "existing PDFs: placing, merging and reading"
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/pdf-decode-refusals]
@@ -797,20 +797,19 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 13's Novis half is done: `Novis\Pdf\Pages` and `Novis\Pdf\Reader` exist, and `pdf-merge-and-read-run` is green.** Only SVG `<text>` is left in Stage 13, so the stage is not set done.
+**Stage 13 is done: SVG `<text>` is drawn in a `Novis\Pdf` render and in `Novis\Image`, and both Stage 13 checks are green.**
 
-- `extensions/pdf/nvs/Pages.nvs` is `Pages::of` and `Pages::merge`, and `extensions/pdf/nvs/Reader.nvs` is `Reader::open`, `pageCount`, `metadata`, `attachments()`, `invoiceXml()` and `text()`. Both rule fragments say they exist, and `docs/novis.md` lists them.
-- A written page list such as `[3, 1]` reached the component int-tagged and was refused. `crates/nvs-ext/src/convert.rs` now takes a non-negative `int` as a `uint`, and its module doc says why.
-- `cargo deny` over the PDF component found RUSTSEC-2026-0206 (`rustybuzz` unmaintained, through `krilla` 0.8 and `usvg` 0.47). `deny.toml` ignores it with a reason, like `ttf-parser`. It now passes.
-- `looper verify` is green. Clippy over the component has only older warnings (Backlog).
+- `extensions/pdf/src/fonts.rs`'s `svg_database` and `extensions/image/src/svg.rs`'s `database` are `usvg` font databases over the twelve Liberation faces, built once per instance and borrowing the embedded bytes. An unknown family falls back to Liberation Serif, `usvg`'s own fallback. `rule:core-classes/image-format-roster` says so.
+- The image component turns on `resvg`'s `text` feature, which brings `rustybuzz` and `fontdb` into its graph: its `.nvsx` is 15.1 MiB, up about 0.7 MiB, and `extensions/image/src/lib.rs` records it. The PDF component already had them through `krilla-svg` and grows by about 16 KiB.
+- `cargo deny` passes for both components, and `looper verify` is green. `nvs-cli`'s `live_edit` tests failed once under load and passed on the re-run.
 
 ### Next
 
-**Stage 13, the last item: SVG `<text>`**. The file set is `extensions/pdf/Cargo.toml`, `extensions/pdf/src/layout/image.rs`, `extensions/image/Cargo.toml` and `extensions/image/src/svg.rs`.
+**Stage 14: the growth, the benches and a bundle.** The file set is `extensions/pdf/src/lib.rs`, `crates/nvs-ext/tests/builtin.rs`, `crates/nvs-cli/tests/bundle.rs` and `benches/members/novis/`.
 
-- [ ] **SVG `<text>` in the PDF** (`rule:core-classes/image-format-roster`): turn on `usvg`'s `text` feature (`extensions/pdf/Cargo.toml:30`) and fill `usvg::Options::fontdb` from `fonts::FACES` (`extensions/pdf/src/fonts.rs:85`) in `svg` (`extensions/pdf/src/layout/image.rs:235`). Then `bun nv gen-attribution`, `cargo deny --manifest-path extensions/pdf/Cargo.toml --target wasm32-wasip2 --locked check`, and a host test that a `<text>` draws glyphs.
-- [ ] **SVG `<text>` in `Novis\Image`**: the same in `extensions/image/src/svg.rs:45`, over `resvg` 0.48's `usvg` (`extensions/image/Cargo.toml:34`), with the Liberation faces the image component already embeds. Measure the growth of both components and put it in the commit and in `extensions/image/src/lib.rs`'s size line.
-- Then set Stage 13 done in the front matter and go to Stage 14.
+- [ ] **The PDF growth** (`rule:packaging/the-first-party-components-are-built-in`): add the PDF component to `the_recorded_growth_matches_the_embedded_components` (`crates/nvs-ext/tests/builtin.rs:160`), state its size in `extensions/pdf/src/lib.rs:1`'s module doc as the image one does (`extensions/image/src/lib.rs:28`; the `.nvsx` measured 14.3 MiB this session, above the goal writer's 6 to 9 MB, so the question goes in the Backlog), and write `the_pdf_component_is_one_of_three_built_in` beside `image` (`crates/nvs-ext/tests/builtin.rs:52`).
+- [ ] **A bundle calls all three** (`rule:packaging/a-nvsx-dependency-embeds-in-the-same-payload`): `a_bundle_calls_all_three_built_in_components` in `crates/nvs-cli/tests/bundle.rs`, beside `a_bundle_carrying_an_extension_calls_it_with_no_nvsx_beside_it` (`crates/nvs-cli/tests/bundle.rs:383`).
+- [ ] **Two render benchmarks** (`rule:core-classes/pdf-page-is-an-image-source`): an invoice and a 200-page report under `benches/members/novis/`, shaped like `benches/members/novis/Image-Image/open.nvs:1`, plus the text-page and image-page rasterising benchmark the rule owes.
 
 ### Backlog
 
@@ -818,5 +817,5 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 - Pagination: a `:left` or `:right` page wider or narrower than the first page of its name keeps that page's line widths, a margin box's counter other than `page` and `pages` is 0, a running element or `string-set` inside an inline-block, float or flex item counts as on the first page, and `element()`'s `start` and `first-except` read as `first` (`extensions/pdf/src/layout/margin.rs`). An `id` inside an inline-block, float, flex item, table cell or running element lands on no page, and `target-counter()` reads only `page` (`extensions/pdf/src/layout/inline.rs`). `break-inside: avoid` keeps only block boxes, and `break-after: avoid` and `break-before: avoid` do nothing (`extensions/pdf/src/layout/text.rs`). A link inside a transformed box keeps its box before the transform, and a heading inside an inline-block, float, flex item or table cell has no bookmark (`extensions/pdf/src/write.rs`).
 - Positioning: an absolute box without a `width` is not stretched by `left` with `right`, a percentage `top` or `bottom` of a relative box is 0, an inline element's `position` and `transform` do nothing, and a transformed box is not a containing block (`extensions/pdf/src/layout.rs`, `extensions/pdf/src/layout/block.rs`).
 - Floats: an `<img>` with `float` stays a block, a float in the middle of a paragraph is placed at its top, and a float does not go on to the next page (`extensions/pdf/src/layout/block.rs`). Grid: `calc()` tracks and the `grid-template` and `grid` shorthands (`extensions/pdf/src/layout/grid.rs`). Flex: `::before`, `::after` and `<br>` are not items, baseline alignment and an item's `margin: auto` (`extensions/pdf/src/layout/flex.rs`).
-- Elliptical radii and repeating gradients (`extensions/pdf/src/layout/boxes.rs`), `hyphenate-character` (`extensions/pdf/subset.json`), an inline box in a right-to-left line, and Clippy over the component: `large_enum_variant` on `layout::Block` and `inline::Step`, and five small warnings in `extensions/pdf/src/css/value.rs:113` and `extensions/pdf/src/css/mod.rs:294` (`cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets`).
-- Header functions: the markup is styled by its own `<style>`, it sits at the top of its area, and `Page::string` has no conformance case (`extensions/pdf/src/lib.rs`, `extensions/pdf/nvs/Page.nvs`). `Document.nvs`'s `invoiceXml` doc names `Standard::PdfA3b` where a program writes `Document::Standard::PdfA3b` (`extensions/pdf/nvs/Document.nvs:52`). The password's user path and `/Perms` checked by a second reader, the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, veraPDF in CI (the user's call), and Stage 14's growth (`extensions/pdf/src/encrypt.rs`).
+- Elliptical radii and repeating gradients (`extensions/pdf/src/layout/boxes.rs`), `hyphenate-character` (`extensions/pdf/subset.json`), an inline box in a right-to-left line, an SVG `font-family` of Arial, Helvetica or Courier, which falls back to Liberation Serif instead of mapping as HTML's does (`extensions/pdf/src/fonts.rs`), and Clippy over the component: `large_enum_variant` on `layout::Block` and `inline::Step`, and five small warnings in `extensions/pdf/src/css/value.rs:113` and `extensions/pdf/src/css/mod.rs:294` (`cargo clippy --manifest-path extensions/pdf/Cargo.toml --all-targets`).
+- Header functions: the markup is styled by its own `<style>`, it sits at the top of its area, and `Page::string` has no conformance case (`extensions/pdf/src/lib.rs`, `extensions/pdf/nvs/Page.nvs`). `Document.nvs`'s `invoiceXml` doc names `Standard::PdfA3b` where a program writes `Document::Standard::PdfA3b` (`extensions/pdf/nvs/Document.nvs:52`). The password's user path and `/Perms` checked by a second reader, the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`, `hayro`'s `embed-cmaps`, and veraPDF in CI (the user's call) (`extensions/pdf/src/encrypt.rs`).
