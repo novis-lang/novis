@@ -1,11 +1,14 @@
 {
   "title": "Everything an extension manifest may declare is a restriction, so a hostile manifest cannot make a calling program less safe",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/extension-contagion",
     "security/extension-declares-sink-or-source",
     "security/extension-cannot-launder",
     "security/no-ffi"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/load.rs",
+    "crates/nvs-types/tests/extensions.rs"
+  ]
 }

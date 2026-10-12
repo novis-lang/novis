@@ -1,6 +1,6 @@
 {
   "title": "Three conditions and one boundary decide what may join the roster, and a flow never does",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/protocol-roster",
     "security/algorithm-comes-from-the-key"

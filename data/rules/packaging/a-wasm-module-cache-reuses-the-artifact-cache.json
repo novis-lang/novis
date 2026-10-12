@@ -1,9 +1,11 @@
 {
   "title": "A compiled extension module is cached in the same store, under the same key, header and verify shape",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/an-artifact-is-one-immutable-content-addressed-file",
     "packaging/an-extension-is-a-sandboxed-wasm-component"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/cache.rs"
+  ]
 }

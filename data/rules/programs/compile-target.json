@@ -1,6 +1,6 @@
 {
   "title": "A compile target changes the host context, never the language",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "programs/bundle-trust-domain",
     "programs/no-runtime-autoload"

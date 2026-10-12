@@ -1,6 +1,6 @@
 {
   "title": "A change a dependency forced ships as a patch, a minor or a major by who can see it, never by how big the diff was",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/the-versioned-surface-is-enumerated",
     "packaging/a-dependency-break-is-absorbed-never-forwarded",

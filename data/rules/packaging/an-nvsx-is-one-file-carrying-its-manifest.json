@@ -1,6 +1,6 @@
 {
   "title": "A `.nvsx` is a single WebAssembly component whose manifest is an `nvs.manifest` custom section",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/extension-calls-are-statically-typed",
     "security/extension-manifest-only-tightens",
@@ -8,6 +8,7 @@
   ],
   "guardedBy": [
     "crates/nvs-ext/tests/manifest.rs",
-    "crates/nvs-ext/tests/load.rs"
+    "crates/nvs-ext/tests/load.rs",
+    "crates/nvs-stdlib/tests/ext_world.rs"
   ]
 }

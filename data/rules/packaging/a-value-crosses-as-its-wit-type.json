@@ -1,12 +1,15 @@
 {
   "title": "A value crosses into an extension as the WIT type one closed table gives its Novis type, copied whole",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/values-cross-as-handles",
     "packaging/the-boundary-is-the-cost",
     "packaging/extension-calls-are-statically-typed"
   ],
   "guardedBy": [
-    "crates/nvs-stdlib/tests/ext_world.rs"
+    "crates/nvs-stdlib/tests/ext_world.rs",
+    "crates/nvs-ext/tests/convert.rs",
+    "tests/conformance/ext/an-extension-call-crosses-every-row-of-the-value-table.nvst",
+    "tests/conformance/ext/an-extension-resource-is-held-by-the-program-and-passed-back.nvst"
   ]
 }

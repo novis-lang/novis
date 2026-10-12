@@ -1,6 +1,6 @@
 {
   "title": "An extension package may carry Novis source beside its `.nvsx`, under one namespace, and the component's manifest registers exactly one class",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "core-classes/image-pipeline",
     "core-classes/spreadsheet-has-no-io",
@@ -9,5 +9,8 @@
     "packaging/the-boundary-is-the-cost",
     "packaging/a-package-is-its-digest"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-ext/tests/load.rs",
+    "tests/conformance/ext/an-extension-source-class-resolves-with-no-autoload-line.nvst"
+  ]
 }

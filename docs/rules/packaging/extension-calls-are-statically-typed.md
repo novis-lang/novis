@@ -10,15 +10,16 @@ The registered methods carry the manifest's qualifier declarations in the same s
 read the manifests of the resolved configuration's set and never instantiate a component.
 
 Consequently `nvs check` type-checks a call into an extension at compile time, and codegen emits a
-**direct call** to a per-export trampoline that converts the arguments by
-`rule:packaging/a-value-crosses-as-its-wit-type`'s table, rather than a dynamic dispatch.
+**direct call** of one runtime helper, with the export's `Class::method` name in its first slot and
+the arguments after it, rather than a dynamic dispatch. The host finds the export by that name and
+converts the arguments by `rule:packaging/a-value-crosses-as-its-wit-type`'s table. What one helper
+costs beside a trampoline per export is that lookup of the name on every call.
 
-The direct call is why the loaded extension set is a codegen input: an artifact compiled against one set
-holds a jump into a trampoline that another set may have moved, so the set is part of every compiled
-unit's key and a changed set is an ordinary cache miss
-(`rule:config/the-extension-set-is-in-every-unit-key`).
+The typed call is why the loaded extension set is a codegen input: a unit compiled against one set
+names exports another set may not declare, so the set is part of every compiled unit's key and a
+changed set is an ordinary cache miss (`rule:config/the-extension-set-is-in-every-unit-key`).
 
-**Not on disk.** The checker layer is: `nvs_types::ext_lib` seeds a set's manifests into the
+**On disk.** The checker layer is: `nvs_types::ext_lib` seeds a set's manifests into the
 signature table and `nvs_hir::resolve_file_with_extensions` declares their classes
 (`crates/nvs-types/tests/extensions.rs`). `nvs check` and `nvs run` read the configuration's set with
 `nvs_ext::load::read_manifests` and type a program against it

@@ -1,6 +1,6 @@
 {
   "title": "A guest's error result throws its mapped class, a trap throws `ExtensionError`, and only a CPU or memory limit is a `FATAL`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "packaging/a-guest-runs-under-the-requests-budget",
     "errors/on-limit",
@@ -8,6 +8,8 @@
   ],
   "guardedBy": [
     "crates/nvs-hir/src/errors.rs",
-    "crates/nvs-ext/tests/failure.rs"
+    "crates/nvs-ext/tests/failure.rs",
+    "tests/conformance/ext/an-extension-error-throws-its-class-and-a-trap-throws-extension-error.nvst",
+    "tests/conformance/ext/an-extension-that-reaches-the-memory-limit-runs-the-limit-handler.nvst"
   ]
 }

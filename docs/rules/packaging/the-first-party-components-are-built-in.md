@@ -31,9 +31,8 @@ A clean build compiles all three for wasm, ICU4X's compiled data among them, and
 their target directory. The one C library is prebuilt
 (`rule:packaging/a-prebuilt-wasm-library-is-rebuilt-in-ci`).
 
-**Partly on disk.** The image crate is `extensions/image/`, excluded from the workspace, and builds for
-`wasm32-wasip2` with `simd128` on. Its implemented exports are `info`, `run` and `variants`; the others return `runtime`.
-Its Novis source half is every `.nvs` file in `extensions/image/nvs/`, which the build packs into `nvs.source`.
+**On disk.** The image crate is `extensions/image/`, excluded from the workspace, and builds for
+`wasm32-wasip2` with `simd128` on. Its Novis source half is every `.nvs` file in `extensions/image/nvs/`, which the build packs into `nvs.source`.
 `crates/nvs-ext/build.rs` builds it into `target/ext/`, packs it with `extensions/image/manifest.json`
 and embeds it as `nvs_ext::builtin::IMAGE` with its digest. `nvs_ext::load::Loader::builtins` reads
 its manifest without compiling, and `Builtin::extension` compiles and checks it on first use
@@ -44,13 +43,14 @@ call (`crates/nvs-cli/src/extensions.rs`), so `Novis\Image\Codec::info` answers 
 (`tests/conformance/novis/image-info-answers-with-no-configuration.nvst`). The loader refuses a
 `Novis\` class from every `[[extension]]` entry. The intl crate is `extensions/intl/`, built and
 embedded the same way as `nvs_ext::builtin::INTL` with its digest folded in beside the image's. Its
-manifest class is `Novis\Intl\Icu`, of whose exports `collateOrder` and `sortKeys` are implemented and
-the others return `runtime`; its Novis half is `Novis\Intl\Collator` (`crates/nvs-ext/tests/intl.rs`).
+manifest class is `Novis\Intl\Icu`, and its Novis half is the `Novis\Intl` classes
+(`crates/nvs-ext/tests/intl.rs`, `tests/conformance/novis/intl-answers-with-no-configuration.nvst`).
 The PDF crate is `extensions/pdf/`, built and embedded the same way as `nvs_ext::builtin::PDF`
 with its digest folded in beside the other two. Its manifest class is `Novis\Pdf\Engine`, the
-interface `wit/pdf.wit`, of whose exports `render`'s `whole` pass is implemented and the others
-return `runtime`; its Novis half is `Novis\Pdf\Document` and `Novis\Pdf\Rendered`
+interface `wit/pdf.wit`, and its Novis half is `Novis\Pdf\Document` and `Novis\Pdf\Rendered`
 (`crates/nvs-ext/tests/pdf.rs`, `tests/conformance/novis/pdf-renders-with-no-configuration.nvst`).
+`render`'s `whole` pass is implemented, and the exports `rule:core-classes/pdf-roster` still owes
+return `runtime`.
 
 **Declined:**
 - **Embedded, but removable by a setting or a Cargo feature.** Whether `Novis\Image` exists would

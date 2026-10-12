@@ -9,12 +9,12 @@ In-guest compute is measured against the same crate built native in
 guest takes two to three times as long as native when only its size header comes back. A whole call
 that returns the pixels takes over twenty times as long, for a resize as for a decode, because a byte list
 crosses as one wasmtime `Val` per byte
-(`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`). So today the copy, not the compute, is
-what a large image pays.
+(`data/gaps/nvs-ext/bytes-cross-one-val-per-byte.json`). So the copy, not the compute, is what a
+large image pays.
 
 That is noise for coarse-grained work — image codecs, compression, crypto, document parsing — and
 decisive for fine-grained work, which is why primitives are Tier 0 and performance-critical first-party
-subsystems are Tier 2 (`rule:packaging/three-tiers`). An extension author controls the boundary, not the
+subsystems are Tier 2 (`rule:core-api/five-placements`). An extension author controls the boundary, not the
 compute, so an extension's API is designed **coarse**: whole inputs in, whole outputs out, a batch where
 a library would usually offer a per-item call. Collation exposes sort-key generation and whole-array sort rather than
 a comparator, because sorting ten thousand strings through a per-comparison boundary would be about

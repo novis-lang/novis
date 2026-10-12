@@ -1,15 +1,18 @@
 {
-  "title": "The image and intl components are built into every `nvs` binary, sandboxed, and always present under `Novis\\`",
-  "status": "designed",
+  "title": "The image, intl and PDF components are built into every `nvs` binary, sandboxed, and always present under `Novis\\`",
+  "status": "shipped",
   "seeAlso": [
     "core-api/core-means-always-present",
-    "packaging/three-tiers",
+    "core-api/five-placements",
     "core-api/tier-roster",
     "core-classes/intl-roster"
   ],
   "guardedBy": [
     "tests/conformance/novis/image-info-answers-with-no-configuration.nvst",
+    "tests/conformance/novis/intl-answers-with-no-configuration.nvst",
+    "tests/conformance/novis/pdf-renders-with-no-configuration.nvst",
     "crates/nvs-ext/tests/builtin.rs",
-    "crates/nvs-ext/tests/intl.rs"
+    "crates/nvs-ext/tests/intl.rs",
+    "crates/nvs-ext/tests/pdf.rs"
   ]
 }
