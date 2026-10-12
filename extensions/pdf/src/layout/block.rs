@@ -1,5 +1,12 @@
 //! Block boxes: a box's geometry from its style, and the vertical flow that places boxes and
 //! lines down the pages and paints each box under its content when it closes.
+//!
+//! The flow holds the floats of its last page, and a new page starts with none: a float does
+//! not go on past its page. A float's top is the top the next box would have, or the top of the
+//! float before it if that is lower, and it goes down past the floats beside it until it fits
+//! between them. A line is as wide as the room the floats leave it ([`Flow::band`]), and a box
+//! with `clear` starts below the floats it clears. An `inline-block` box or a flex item holds
+//! its floats: its own flow ends below them ([`Flow::contain`]).
 
 use super::boxes::{self, Decor};
 use super::{Item, MARGIN, Page, keyword, length};
@@ -19,7 +26,23 @@ pub(super) struct BoxGeometry {
     /// Whether its width is its containing block's less its margins, so it narrows when that
     /// block does.
     pub(super) fill: bool,
+    /// Whether its `clear` moves it below the left floats and below the right ones.
+    pub(super) clear: [bool; 2],
     pub(super) decor: Decor,
+}
+
+/// Which side a `float` or `clear` value names, `inline-start` and `inline-end` by the box's
+/// `direction`: `[left, right]`.
+pub(super) fn sides(style: &Style, name: &str) -> [bool; 2] {
+    let rtl = keyword(style, "direction") == Some("rtl");
+    match keyword(style, name) {
+        Some("left") => [true, false],
+        Some("right") => [false, true],
+        Some("both") => [true, true],
+        Some("inline-start") => [!rtl, rtl],
+        Some("inline-end") => [rtl, !rtl],
+        _ => [false, false],
+    }
 }
 
 pub(super) const SIDES: [&str; 4] = ["top", "right", "bottom", "left"];
@@ -94,6 +117,7 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
         padding,
         min_content,
         fill,
+        clear: sides(style, "clear"),
         decor: boxes::decor(style),
     }
 }
@@ -116,6 +140,18 @@ pub(super) struct Flow {
     limit: f32,
     /// The baseline of the last line placed, from the top of its page's content.
     pub(super) baseline: Option<f32>,
+    /// The floats on the last page, in the order they were placed.
+    floats: Vec<Floated>,
+}
+
+/// A float's margin box on its page: its left and right edge, its top and bottom from the top
+/// of the page's content, and whether it floats right.
+struct Floated {
+    left: f32,
+    right: f32,
+    top: f32,
+    bottom: f32,
+    on_right: bool,
 }
 
 impl Flow {
@@ -127,6 +163,124 @@ impl Flow {
             open: Vec::new(),
             limit,
             baseline: None,
+            floats: Vec::new(),
+        }
+    }
+
+    /// Whether nothing is drawn on the last page and nothing has taken space on it.
+    fn empty(&self) -> bool {
+        self.cursor <= 0.0 && self.pages.last().is_some_and(|p| p.items.is_empty())
+    }
+
+    /// The margin the next box is placed under: the pending one, which the top of a page after
+    /// the first drops.
+    fn margin(&self) -> f32 {
+        if self.empty() && self.pages.len() > 1 {
+            0.0
+        } else {
+            self.pending
+        }
+    }
+
+    fn new_page(&mut self) {
+        self.pages.push(Page::default());
+        self.cursor = 0.0;
+        self.floats.clear();
+    }
+
+    /// Where the next box's top would be, before it is placed.
+    pub(super) fn next_top(&self) -> f32 {
+        self.cursor + self.margin()
+    }
+
+    /// The lowest bottom of the floats on the sides `clear` names, or 0 when there is none.
+    fn cleared(&self, clear: [bool; 2]) -> f32 {
+        self.floats
+            .iter()
+            .filter(|f| clear[usize::from(f.on_right)])
+            .map(|f| f.bottom)
+            .fold(0.0, f32::max)
+    }
+
+    /// The part of the content box at `x`, `width` wide, that a line from `top` to `bottom`
+    /// has beside the floats: its left edge and its width.
+    pub(super) fn band(&self, top: f32, bottom: f32, x: f32, width: f32) -> (f32, f32) {
+        let (mut lo, mut hi) = (x, x + width);
+        for f in self
+            .floats
+            .iter()
+            .filter(|f| f.top < bottom && f.bottom > top)
+        {
+            if f.on_right {
+                hi = hi.min(f.left);
+            } else {
+                lo = lo.max(f.right);
+            }
+        }
+        (lo, (hi - lo).max(0.0))
+    }
+
+    /// Whether any float is on the last page.
+    pub(super) fn has_floats(&self) -> bool {
+        !self.floats.is_empty()
+    }
+
+    /// Places a float `width` by `height` in the content box at `x`, `width` wide: at the
+    /// top the next box would have, or lower where the floats placed before it leave no room,
+    /// and on the next page when it does not fit under the last block. Returns its left edge
+    /// and its top. The flow's cursor does not move.
+    pub(super) fn float(
+        &mut self,
+        size: (f32, f32),
+        containing: (f32, f32),
+        on_right: bool,
+        clear: [bool; 2],
+    ) -> (f32, f32) {
+        let (width, height) = size;
+        let (x, room) = containing;
+        let mut top = self
+            .next_top()
+            .max(self.cleared(clear))
+            .max(self.floats.last().map_or(0.0, |f| f.top));
+        if !self.empty() && top + height > self.limit {
+            self.new_page();
+            top = 0.0;
+        }
+        let left = loop {
+            let (lo, free) = self.band(top, top + height, x, room);
+            let beside: Vec<f32> = self
+                .floats
+                .iter()
+                .filter(|f| f.top < top + height && f.bottom > top)
+                .map(|f| f.bottom)
+                .collect();
+            if free >= width - 0.01 || beside.is_empty() {
+                break if on_right { lo + free - width } else { lo };
+            }
+            top = beside.into_iter().fold(f32::MAX, f32::min);
+        };
+        let page = self.pages.len() - 1;
+        let item = self.pages[page].items.len();
+        let at = self.next_top();
+        for open in &mut self.open {
+            open.top.get_or_insert((page, item, at));
+        }
+        self.floats.push(Floated {
+            left,
+            right: left + width,
+            top,
+            bottom: top + height,
+            on_right,
+        });
+        (left, top)
+    }
+
+    /// Moves the cursor below every float, so the box being laid out holds them.
+    pub(super) fn contain(&mut self) {
+        let bottom = self.cleared([true, true]);
+        if bottom > self.cursor {
+            self.cursor = bottom;
+            self.pending = 0.0;
         }
     }
 
@@ -135,15 +289,10 @@ impl Flow {
     /// nothing is drawn on it and nothing has taken space on it, so a tall box that draws
     /// nothing still moves the next block down.
     pub(super) fn place(&mut self, height: f32) -> f32 {
-        let empty = self.cursor <= 0.0 && self.pages.last().is_some_and(|p| p.items.is_empty());
-        let margin = if empty && self.pages.len() > 1 {
-            0.0
-        } else {
-            self.pending
-        };
+        let empty = self.empty();
+        let margin = self.margin();
         if !empty && self.cursor + margin + height > self.limit {
-            self.pages.push(Page::default());
-            self.cursor = 0.0;
+            self.new_page();
         } else {
             self.cursor += margin;
         }
@@ -164,6 +313,12 @@ impl Flow {
 
     pub(super) fn open(&mut self, geometry: BoxGeometry) {
         self.pending = self.pending.max(geometry.margin[0]);
+        // A box that clears a float starts with its border edge below it.
+        let below = self.cleared(geometry.clear);
+        if self.next_top() < below {
+            self.cursor = below;
+            self.pending = 0.0;
+        }
         let inset = geometry.border[0] + geometry.padding[0];
         self.open.push(Open {
             geometry,

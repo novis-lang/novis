@@ -1580,3 +1580,109 @@ fn grid_places_items_in_tracks() {
     let first = render(&document).unwrap();
     assert_eq!(first.data, render(&document).unwrap().data);
 }
+
+/// The baseline of the first text item that starts with `text`.
+fn baseline_of(laid: &Laid, text: &str) -> f32 {
+    laid.pages[0]
+        .items
+        .iter()
+        .find_map(|item| match item {
+            Item::Text { y, text: t, .. } if t.starts_with(text) => Some(*y),
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("no text {text}"))
+}
+
+#[test]
+fn a_float_right_wraps_the_text_beside_it() {
+    const FLOAT: &str = "width: 100pt; height: 60pt; background-color: #0000ff";
+    let right = layout::PAGE_WIDTH - MARGIN;
+
+    // A right float is at the right of its containing block, and the lines beside it end
+    // before it. The lines below it are as wide as the box again.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='float: right; {FLOAT}'></div><p style='margin: 0'>{WORDS} {WORDS} {WORDS} {WORDS} {WORDS}</p>"
+    ));
+    let [float] = boxes_of(&laid, &[BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(float.0 + float.2, right) && close(float.1, MARGIN),
+        "{float:?}"
+    );
+    assert!(close(float.2, 100.0) && close(float.3, 60.0), "{float:?}");
+    let drawn = lines(&laid);
+    let baselines: Vec<f32> = {
+        let mut b: Vec<f32> = runs(&laid).iter().map(|r| r.2).collect();
+        b.sort_by(f32::total_cmp);
+        b.dedup_by(|a, b| close(*a, *b));
+        b
+    };
+    let beside: Vec<_> = drawn
+        .iter()
+        .zip(&baselines)
+        .filter(|(_, y)| **y < MARGIN + 60.0)
+        .collect();
+    let below: Vec<_> = drawn
+        .iter()
+        .zip(&baselines)
+        .filter(|(_, y)| **y > MARGIN + 80.0)
+        .collect();
+    assert!(beside.len() >= 3 && below.len() >= 2, "{drawn:?}");
+    for ((l, r), _) in &beside {
+        assert!(close(*l, MARGIN) && *r <= float.0 + 0.05, "{drawn:?}");
+    }
+    assert!(
+        below.iter().any(|((_, r), _)| *r > float.0 + 20.0),
+        "{drawn:?}"
+    );
+
+    // A left float moves the lines beside it to the right, and an inline element can float.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><p style='margin: 0'><span style='float: left; {FLOAT}'></span>{WORDS}</p>"
+    ));
+    let [float] = boxes_of(&laid, &[BLUE])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(float.0, MARGIN) && close(float.1, MARGIN),
+        "{float:?}"
+    );
+    let first = lines(&laid)[0];
+    assert!(close(first.0, MARGIN + 100.0), "{first:?}");
+
+    // `clear` moves a block below the float. Without it, a short paragraph sits beside it.
+    let short = |clear: &str| {
+        lay(&format!(
+            "<body style='margin: 0'><div style='float: right; {FLOAT}'></div><p style='margin: 0'>Shop</p><p style='margin: 0; {clear}'>Blog</p>"
+        ))
+    };
+    let beside = baseline_of(&short(""), "Blog");
+    let cleared = baseline_of(&short("clear: right"), "Blog");
+    assert!(beside < MARGIN + 60.0, "{beside}");
+    assert!(cleared > MARGIN + 60.0, "{cleared}");
+    assert!(baseline_of(&short("clear: left"), "Blog") < MARGIN + 60.0);
+    assert!(baseline_of(&short("clear: both"), "Blog") > MARGIN + 60.0);
+
+    // Two right floats sit side by side, the second to the left of the first, and a float
+    // with no width is as wide as its content.
+    let laid = lay(&format!(
+        "<body style='margin: 0'><div style='float: right; {FLOAT}'></div><div style='float: right; height: 20pt; background-color: #ff0000'>Shop</div><p style='margin: 0'>Blog</p>"
+    ));
+    let [blue, red] = boxes_of(&laid, &[BLUE, RED])[..] else {
+        unreachable!()
+    };
+    assert!(
+        close(red.0 + red.2, blue.0) && close(red.1, blue.1),
+        "{blue:?} {red:?}"
+    );
+    assert!(red.2 > 10.0 && red.2 < 60.0, "{red:?}");
+
+    // It renders, and twice to the same bytes.
+    let document = Document {
+        html: format!("<div style='float: right; {FLOAT}'></div><p>{WORDS}</p>"),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    assert_eq!(first.data, render(&document).unwrap().data);
+}

@@ -39,6 +39,14 @@
 //! inner one is laid out before the one around it, each once, so nesting costs no recursion.
 //! The inline box around it draws around its text and not around the inline-block.
 //!
+//! **Floats.** An element whose `float` is not `none`, and that is not a flex or grid item, is
+//! laid out as an inline-block is, whatever its `display`, and narrows to its content the same
+//! way. It is placed at the left or right of its containing block's content box, at the top of
+//! the paragraph it is in or of the next box after it (`block`'s module doc). Each line beside
+//! it is shortened by the room it takes, and is aligned in what is left. A box's background and
+//! borders are not shortened, as in CSS. `clear` on a block box moves it below the floats it
+//! names. A float in an `<img>` is not read yet, so the picture stays a block.
+//!
 //! **Text** is the inline content of a block, shaped and broken into lines by `parley` over
 //! `harfrust` and `skrifa`. Each run takes its font chain (`fonts`' module doc), `font-size`,
 //! `font-weight`, `font-style`, `color`, `letter-spacing`, `word-spacing`,
@@ -274,6 +282,16 @@ enum Block {
     Close,
     /// A flex container's content.
     Flex(flex::Flex),
+    /// A float: its index in the list of [`Atom`]s, laid out as an `inline-block` box is, the
+    /// left edge and width of its containing block's content box, whether it floats right, and
+    /// the sides its own `clear` names.
+    Float {
+        atom: usize,
+        x: f32,
+        width: f32,
+        right: bool,
+        clear: [bool; 2],
+    },
     Text {
         text: String,
         spans: Vec<(Range<usize>, usize)>,

@@ -11,7 +11,7 @@ use parley::{
     TextWrapMode, VerticalAlign, WordBreak,
 };
 
-use super::block::geometry;
+use super::block::{geometry, sides};
 use super::flex::{self, Flex};
 use super::{
     Atom, BLACK, Block, CONTENT_WIDTH, Frame, Images, Inline, MARGIN, Para, Spaces, Span, color,
@@ -645,6 +645,27 @@ impl Builder<'_, '_> {
         self.after_space = false;
     }
 
+    /// Closes the innermost open float, which floats right when `right` is true and clears the
+    /// sides `clear` names, inside the content box of `frame`. It is placed before the text
+    /// collected around it, at the top of that text's paragraph.
+    fn close_float(&mut self, right: bool, clear: [bool; 2], frame: &Frame) {
+        let Some(blocks) = self.close_box() else {
+            return;
+        };
+        self.blocks.push(Block::Float {
+            atom: self.atoms.len(),
+            x: frame.x,
+            width: frame.width,
+            right,
+            clear,
+        });
+        self.atoms.push(Atom {
+            blocks,
+            align: VerticalAlign::BASELINE,
+            item: false,
+        });
+    }
+
     /// Whether an element or text at the stack's `depth` is a child of the innermost open flex
     /// container.
     fn in_container(&self, depth: usize) -> bool {
@@ -859,6 +880,8 @@ enum Step {
         atom: Option<VerticalAlign>,
         /// The `order` and `taffy` style of a flex item, which closes into its container.
         item: Option<(i64, taffy::Style)>,
+        /// Whether a float floats right, and the sides its `clear` names.
+        float: Option<(bool, [bool; 2])>,
         /// Whether the element is a flex container.
         flex: bool,
         /// Whether the element opened an inline box, which closes after its `::after`.
@@ -926,6 +949,7 @@ pub(super) fn blocks(
                 block,
                 atom,
                 item,
+                float,
                 flex,
                 inline,
                 close,
@@ -948,6 +972,9 @@ pub(super) fn blocks(
                 }
                 if let Some((order, style)) = item {
                     builder.close_item(order, style);
+                } else if let Some((right, clear)) = float {
+                    let outer = frames.last().expect("the root frame stays");
+                    builder.close_float(right, clear, outer);
                 } else if let Some(align) = atom {
                     let outer = frames.last().expect("the root frame stays");
                     builder.close_atom(align, outer);
@@ -1046,9 +1073,12 @@ pub(super) fn blocks(
                 let block = display != "inline";
                 let flex = matches!(display, "flex" | "inline-flex" | "grid" | "inline-grid");
                 let item = item.then(|| flex::item(style, frame.width, builder.row()));
-                let atom = (item.is_none() && display == "inline-block")
+                let side = sides(style, "float");
+                let float = (item.is_none() && side != [false, false])
+                    .then(|| (side[1], sides(style, "clear")));
+                let atom = (item.is_none() && float.is_none() && display == "inline-block")
                     .then(|| vertical_align(style, None));
-                let inline = if item.is_some() || atom.is_some() {
+                let inline = if item.is_some() || atom.is_some() || float.is_some() {
                     builder.open_atom(style, &frame, &mut inner)?;
                     false
                 } else if block {
@@ -1125,6 +1155,7 @@ pub(super) fn blocks(
                     block,
                     atom,
                     item,
+                    float,
                     flex,
                     inline,
                     close: controls.map(|(_, close)| close),

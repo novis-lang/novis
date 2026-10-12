@@ -139,6 +139,7 @@ impl Cx<'_> {
             flow.place(0.0);
         }
         self.run(blocks, &mut flow);
+        flow.contain();
         flow.place(0.0);
         while !flow.open.is_empty() {
             flow.close();
@@ -266,6 +267,26 @@ impl Cx<'_> {
                 Block::Open(geometry) => flow.open(geometry),
                 Block::Close => flow.close(),
                 Block::Flex(flex) => self.flex(flex, flow),
+                Block::Float {
+                    atom,
+                    x,
+                    width,
+                    right,
+                    clear,
+                } => {
+                    let placed = &mut self.placed[atom];
+                    let size = (placed.width, placed.height);
+                    let items = std::mem::take(&mut placed.items);
+                    let lost = std::mem::take(&mut placed.missing);
+                    let (left, top) = flow.float(size, (x, width), right, clear);
+                    let page_number = flow.pages.len() as u64;
+                    flow.page().items.extend(
+                        items
+                            .into_iter()
+                            .map(|item| shift(item, left, MARGIN + top)),
+                    );
+                    carry(&mut self.missing, lost, page_number);
+                }
                 Block::Image {
                     image,
                     x,
@@ -339,10 +360,35 @@ impl Cx<'_> {
                         ..
                     } = &mut *self;
                     let widest = hyphens.iter().map(|(_, h)| h.advance).fold(0.0, f32::max);
-                    break_lines(&mut shaped, &text, width, widest);
+                    // The left edge and width of each line beside a float. A line's room
+                    // depends on its height and the lines above it, so the text is broken
+                    // again until the lines keep the room they were broken in.
+                    let mut bands: Vec<(f32, f32)> = Vec::new();
+                    for pass in 0..4 {
+                        break_lines(&mut shaped, &text, width, &bands, widest);
+                        if is_marker || !flow.has_floats() || pass == 3 {
+                            break;
+                        }
+                        let mut top = flow.next_top();
+                        let next: Vec<(f32, f32)> = shaped
+                            .lines()
+                            .map(|line| {
+                                let m = line.metrics();
+                                let bottom = top + m.block_max_coord - m.block_min_coord;
+                                let band = flow.band(top, bottom, left, width);
+                                top = bottom;
+                                band
+                            })
+                            .collect();
+                        if next == bands {
+                            break;
+                        }
+                        bands = next;
+                    }
                     shaped.align(para.align, AlignmentOptions::default());
                     let rtl = shaped.is_rtl();
-                    for line in shaped.lines() {
+                    for (i, line) in shaped.lines().enumerate() {
+                        let (left, width) = bands.get(i).copied().unwrap_or((left, width));
                         let metrics = line.metrics();
                         let height = metrics.block_max_coord - metrics.block_min_coord;
                         // A marker is drawn on baseline 0 and moved down to the next line's.
@@ -802,20 +848,28 @@ fn mark(
     })
 }
 
-/// Breaks `shaped` into lines `width` wide. A line that ends at a soft hyphen is broken again
-/// `hyphen` narrower, and is aligned in that width, so the hyphen drawn after it stays in the
-/// box. The lines before the one narrowed do not change, so each pass narrows a later line.
-fn break_lines(shaped: &mut Layout<usize>, text: &str, width: f32, hyphen: f32) {
+/// Breaks `shaped` into lines `width` wide, or as wide as `bands` gives a line beside a float.
+/// A line that ends at a soft hyphen is broken again `hyphen` narrower, and is aligned in that
+/// width, so the hyphen drawn after it stays in the box. The lines before the one narrowed do
+/// not change, so each pass narrows a later line.
+fn break_lines(
+    shaped: &mut Layout<usize>,
+    text: &str,
+    width: f32,
+    bands: &[(f32, f32)],
+    hyphen: f32,
+) {
     let mut narrow: Vec<usize> = Vec::new();
     loop {
         let mut breaker = shaped.break_lines();
         breaker.state_mut().set_layout_max_advance(width);
         let mut line = 0;
         loop {
+            let room = bands.get(line).map_or(width, |b| b.1);
             let max = if narrow.contains(&line) {
-                width - hyphen
+                room - hyphen
             } else {
-                width
+                room
             };
             breaker.state_mut().set_line_max_advance(max);
             match breaker.break_next() {
