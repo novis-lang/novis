@@ -23,7 +23,9 @@ correct apart from them and a throw would lose the whole file over one character
 The component's fixtures owe a fixture using an unsupported property that renders with that property
 in the dropped list, and a clean fixture whose three lists are empty.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `extensions/pdf/src/css/` is the cascade, and `Rendered::dropped` lists what it
+drops with its selector and position. The layout does not read the computed styles yet, an element
+the subset does not render is not listed yet, and the missing-glyph and overflow lists are empty.
 
 **Declined:**
 - **A strict mode that throws on the first dropped declaration.** A test asserting `dropped` is empty

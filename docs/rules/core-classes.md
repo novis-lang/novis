@@ -3680,9 +3680,10 @@ wholesale and must still meet them.
   milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
   queue.
 
-**Partly on disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap, shapes
-with `parley` and writes with `krilla`. Its layout is block flow and wrapped lines on A4 pages; the
-cascade, `taffy`, `hypher`, `usvg` and `hayro` are not in it yet.
+**Partly on disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap,
+computes styles with its cascade over `cssparser` and `selectors`, shapes with `parley` and writes
+with `krilla`. Its layout is block flow and wrapped lines on A4 pages, and it does not read the
+computed styles yet. `taffy`, `hypher`, `usvg` and `hayro` are not in it yet.
 
 **Declined:**
 - **A Novis-side document builder** that appends headings, tables and page breaks and emits HTML. It
@@ -3732,7 +3733,9 @@ correct apart from them and a throw would lose the whole file over one character
 The component's fixtures owe a fixture using an unsupported property that renders with that property
 in the dropped list, and a clean fixture whose three lists are empty.
 
-**Not shipped.** There is no PDF component in the tree.
+**Partly on disk.** `extensions/pdf/src/css/` is the cascade, and `Rendered::dropped` lists what it
+drops with its selector and position. The layout does not read the computed styles yet, an element
+the subset does not render is not listed yet, and the missing-glyph and overflow lists are empty.
 
 **Declined:**
 - **A strict mode that throws on the first dropped declaration.** A test asserting `dropped` is empty
@@ -3781,8 +3784,9 @@ vector file draws badly (shadows, filters, masks, blend modes).
 
 - **Memory:** none at run time beyond the cascade's computed styles, which are part of the layout tree.
 
-**Not shipped.** There is no PDF component in the tree, and `extensions/pdf/subset.json` is written
-with the cascade.
+**Partly on disk.** `extensions/pdf/subset.json` is the list, and `extensions/pdf/tests/css.rs`
+holds it equal to the properties `extensions/pdf/src/css/properties.rs` parses. The editor's data is
+not generated from it yet.
 
 **Declined:**
 - **The subset as prose only.** A list nothing reads drifts from what the engine parses, and the

@@ -28,9 +28,10 @@ wholesale and must still meet them.
   milliseconds for an invoice and seconds for a long report, so a bulk or slow render belongs in the
   queue.
 
-**Partly on disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap, shapes
-with `parley` and writes with `krilla`. Its layout is block flow and wrapped lines on A4 pages; the
-cascade, `taffy`, `hypher`, `usvg` and `hayro` are not in it yet.
+**Partly on disk.** `extensions/pdf/` parses with the patched `html5ever` under the same cap,
+computes styles with its cascade over `cssparser` and `selectors`, shapes with `parley` and writes
+with `krilla`. Its layout is block flow and wrapped lines on A4 pages, and it does not read the
+computed styles yet. `taffy`, `hypher`, `usvg` and `hayro` are not in it yet.
 
 **Declined:**
 - **A Novis-side document builder** that appends headings, tables and page breaks and emits HTML. It

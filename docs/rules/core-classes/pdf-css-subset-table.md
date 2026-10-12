@@ -33,8 +33,9 @@ vector file draws badly (shadows, filters, masks, blend modes).
 
 - **Memory:** none at run time beyond the cascade's computed styles, which are part of the layout tree.
 
-**Not shipped.** There is no PDF component in the tree, and `extensions/pdf/subset.json` is written
-with the cascade.
+**Partly on disk.** `extensions/pdf/subset.json` is the list, and `extensions/pdf/tests/css.rs`
+holds it equal to the properties `extensions/pdf/src/css/properties.rs` parses. The editor's data is
+not generated from it yet.
 
 **Declined:**
 - **The subset as prose only.** A list nothing reads drifts from what the engine parses, and the

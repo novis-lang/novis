@@ -34,7 +34,7 @@ stages:
         shapes: ["A `.nvst` test case"]
   - id: 6
     title: the cascade
-    status: open
+    status: done
     extra:
       context:
         rules: [core-classes/pdf-css-subset]
@@ -791,27 +791,27 @@ One file set: `docs/examples/novis/`, `tests/hostile/novis/`, `benches/members/n
 
 ### State
 
-**Stage 5 is done.** `cargo test --test pdf` passes its nine tests, and both Stage 5 conformance cases pass. `bun nv verify` is green up to conformance. Conformance fails only on the 54 `ldap-*` cases, because no directory server answers on `localhost:16636` on this host. That also turns the `pdf-renders-with-no-configuration` check red, since `bun nv suite` re-runs the still-red cases. Clippy over all targets is clean when run directly.
+**Stage 6 is done.** `cargo test --manifest-path extensions/pdf/Cargo.toml --test css` passes its eight tests, and `--lib` and `--test render` still pass. The three red suite checks were the 54 `ldap-*` cases: `docker compose -f tests/db/compose.yaml up -d --wait samba-ad` started the directory server, and `bun nv suite` on the PDF cases went green after that.
 
-- `extensions/pdf/` is the third built-in component (`crates/nvs-ext/build.rs`'s `COMPONENTS`, `nvs_ext::builtin::PDF`). `render`'s `whole` pass works. `first`, `second`, `merge`, `read` and `read-text` return `runtime` (`extensions/pdf/src/lib.rs`'s `not_yet`).
-- The layout is a placeholder: block flow and wrapped lines on A4 pages with 2 cm margins, shaped by `parley` 0.12, written by `krilla` 0.8.2. There is no cascade, so a `<style>` is scanned only for its references (`extensions/pdf/src/assets.rs:160`). The output is not tagged yet (Stage 12).
-- `wit/pdf.wit`'s `first` pass now carries a `first-pass` record (the document, `header-height` and `footer-height`), because the manifest refuses two union cases with one shape. The heights left `render-options`.
-- The element-cap check was named `..._throws_as_core_html_does`. `rule:core-classes/html-parsing` says nesting past the cap flattens and never throws, so the test and the check are now `..._flattens_as_core_html_does`.
-- The Novis half is `Document` (no `header`, `footer` or `slots` yet) and `Rendered`. `Page`, `Pages` and `Reader` are not written.
-- The release wasm is about 8.3 MB before packing. Stage 14 measures the packed growth.
+- `extensions/pdf/src/css/` is the cascade over `cssparser` 0.38 and `selectors` 0.41: `mod.rs` (sheets, `@media`, `@import`, `@page` with its margin boxes, `@font-face`, the sort, inheritance, custom properties), `select.rs` (the `selectors` glue over `Dom`), `value.rs` (grammars, `calc()` as a sum of units, `var()`, shorthand expansion, colours), `properties.rs` (the engine's longhands and shorthands).
+- `extensions/pdf/subset.json` is the list. `tests/css.rs` holds it equal to `properties.rs` in both directions, and parses every listed property from its `example`.
+- `render` returns `dropped` and the guest maps it to `dropped-item` (`extensions/pdf/src/lib.rs`). The layout does not read `Styles` yet: `css::cascade`'s result is only used for `dropped`.
+- `tools/nv/cmd/gen-attribution.ts` listed only the image component, so `THIRD-PARTY-LICENSES.txt` was missing intl's and pdf's crates. It lists all three now.
+- `first`, `second`, `merge`, `read` and `read-text` still return `runtime`. The Novis half is `Document` and `Rendered`.
 
 ### Next
 
-**Stage 6, the cascade**: the file set is `extensions/pdf/src/css/` (new), `extensions/pdf/subset.json` (new), `extensions/pdf/tests/css.rs` (new) and `extensions/pdf/Cargo.toml`.
+**Stage 7, text, blocks, lists and images**: the file set is `extensions/pdf/src/layout/` (new, from `extensions/pdf/src/layout.rs`), `extensions/pdf/src/fonts.rs` and `extensions/pdf/tests/layout.rs` (new).
 
-- [ ] **The subset as data**: `extensions/pdf/subset.json` lists every property, value function, at-rule, selector and PDF attribute the subset admits, with one plain line each, beside the crate's manifest at `extensions/pdf/Cargo.toml:1` (`rule:core-classes/pdf-css-subset-table`, `rule:core-classes/pdf-css-subset`).
-- [ ] **The cascade** over `cssparser` 0.38 (already in `extensions/pdf/Cargo.toml`) and `selectors`: specificity, inheritance, `!important`, `var()`, `calc()` and `@media print`, computed for each node of `extensions/pdf/src/parse.rs:108`'s `Dom` (`rule:core-classes/pdf-css-subset`).
-- [ ] **Dropped and reported**: a declaration outside the subset fills `rendered.dropped` with its selector, line and column. The guest maps it in `extensions/pdf/src/lib.rs:128`. Pinned by `cargo test --manifest-path extensions/pdf/Cargo.toml --test css`.
+- [ ] **The layout reads `Styles`**: `extensions/pdf/src/lib.rs:123` passes `css::cascade`'s result to `extensions/pdf/src/layout.rs:427`, and block boxes take margin, padding, borders, sizes and `display: none` from `css::Style` (`extensions/pdf/src/css/mod.rs:96`). A user-agent sheet gives `display` and the default margins (`rule:core-classes/pdf-css-subset`).
+- [ ] **Text and the font chain**: `font-family`, `font-size`, weight, style, alignment and `line-height` reach `parley`. `@font-face` from `Styles::font_faces` comes before the defaults at `extensions/pdf/src/fonts.rs:75`, and a missing glyph is listed in `missingGlyphs` (`rule:core-classes/pdf-default-fonts`).
+- [ ] **Unrendered elements are listed**: `<iframe>`, `<video>`, `<canvas>` and form fields go into `dropped` beside the cascade's own at `extensions/pdf/src/css/mod.rs:539`, and draw nothing (`rule:core-classes/pdf-css-subset`). Pinned by `cargo test --manifest-path extensions/pdf/Cargo.toml --test layout`.
 
 ### Backlog
 
 - Stage 10 reaches `first` through `Pass`'s `First` case, whose shape is `{document, headerHeight, footerHeight}` (`extensions/pdf/manifest.json`, `wit/pdf.wit`).
-- `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`). The cascade in Stage 6 should keep one reading for both.
+- `cssparser` enters at most 75 nested blocks. Past that, the reference scan reads every string as a URL (`extensions/pdf/src/assets.rs:206`), and the cascade reads CSS on its own (`extensions/pdf/src/css/mod.rs`). One reading for both is still open.
+- `Grammar::Free` properties (grid templates, `content`, `background-position` and others) are not checked past their tokens, so a bad value there is not reported yet (`extensions/pdf/src/css/properties.rs`).
 - SVG `<text>`: turn on `usvg`'s `text` feature with the Liberation fonts as its only `fontdb` (`rule:core-classes/image-format-roster`).
 - The PDF fixtures still owed by `rule:core-classes/pdf-decode-refusals`, and the guest-against-native benchmark owed by `rule:core-classes/pdf-page-is-an-image-source`.
 - `hayro`'s `embed-cmaps` is not taken, and its size is not measured (`rule:core-classes/pdf-page-is-an-image-source`).
