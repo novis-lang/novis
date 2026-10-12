@@ -671,3 +671,99 @@ fn iframe_video_canvas_and_form_fields_are_dropped_and_draw_nothing() {
     let laid = lay("<p>Shop</p><canvas>fallback</canvas><button>Buy</button>");
     assert_eq!(runs(&laid).len(), 1);
 }
+
+/// Each image item's width and height, and whether its picture is an SVG.
+fn pictures(laid: &Laid) -> Vec<(f32, f32, bool)> {
+    laid.pages[0]
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Image {
+                image,
+                width,
+                height,
+                ..
+            } => Some((
+                *width,
+                *height,
+                matches!(laid.images[*image].0, layout::Picture::Vector(_)),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn an_inline_svg_is_vector_content_in_the_output() {
+    const LOGO: &str = "<svg width='40' height='20' viewBox='0 0 4 2'>\
+                        <rect width='4' height='2' fill='#ff0000'/>\
+                        <circle cx='1' cy='1' r='1' style='fill: blue'/></svg>";
+
+    // An inline `<svg>` is one picture at its own size, a pixel being three quarters of a point.
+    // A CSS `width` replaces the `width` attribute, and the `height` attribute still applies.
+    let laid = lay(&format!("<body style='margin: 0'><p>Shop</p>{LOGO}"));
+    assert_eq!(pictures(&laid), [(30.0, 15.0, true)]);
+    let laid = lay(&format!(
+        "<body>{}</body>",
+        LOGO.replace("<svg ", "<svg style='width: 60pt' ")
+    ));
+    assert_eq!(pictures(&laid), [(60.0, 15.0, true)]);
+    let laid = lay(&format!(
+        "<body>{}</body>",
+        LOGO.replace("<svg ", "<svg style='display: none' ")
+    ));
+    assert!(pictures(&laid).is_empty());
+
+    // An SVG `<img>` is a picture too, and an `<image>` inside it loads from the asset map.
+    let file = "<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8'>\
+                <image href='tile.png' width='8' height='8'/></svg>";
+    let assets = [
+        Asset {
+            name: "logo.svg".to_owned(),
+            data: file.as_bytes().to_vec(),
+        },
+        Asset {
+            name: "tile.png".to_owned(),
+            data: png(),
+        },
+    ];
+    let laid = lay_with("<img src='logo.svg'>", &assets);
+    assert_eq!(pictures(&laid), [(6.0, 6.0, true)]);
+    let err = render(&Document {
+        html: "<img src='logo.svg'>".to_owned(),
+        assets: assets[..1].to_vec(),
+        ..Document::default()
+    })
+    .unwrap_err();
+    assert!(
+        matches!(&err, nvs_pdf::Error::Invalid(why) if why.contains("tile.png")),
+        "{err:?}"
+    );
+
+    // The output draws paths and holds no raster image, and two renders are byte-equal.
+    let document = Document {
+        html: format!("<p>Shop</p>{LOGO}"),
+        ..Document::default()
+    };
+    let first = render(&document).unwrap();
+    let raster = render(&Document {
+        html: "<img src='tile.png'>".to_owned(),
+        assets: assets[1..].to_vec(),
+        ..Document::default()
+    })
+    .unwrap();
+    let has = |data: &[u8], what: &[u8]| data.windows(what.len()).any(|w| w == what);
+    assert!(has(&raster.data, b"/Subtype/Image"));
+    assert!(!has(&first.data, b"/Subtype/Image"));
+    assert!(
+        first.data.len()
+            > render(&Document {
+                html: "<p>Shop</p>".to_owned(),
+                ..Document::default()
+            })
+            .unwrap()
+            .data
+            .len()
+    );
+    assert_eq!(first.data, render(&document).unwrap().data);
+}

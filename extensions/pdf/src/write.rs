@@ -29,10 +29,22 @@ use krilla::paint::{
 use krilla::surface::Surface;
 use krilla::text::{Font, GlyphId, KrillaGlyph};
 use krilla::{Data, Document, SerializeSettings};
+use krilla_svg::{SurfaceExt, SvgSettings};
 
 use crate::css::Color;
-use crate::layout::{self, Item, Laid, Paint, Seg};
+use crate::layout::{self, Item, Laid, Paint, Picture, Seg};
 use crate::{Error, Instant};
+
+/// Draws `picture` with its top-left corner at the surface's origin, stretched to `size`. An
+/// SVG is drawn as vector paths.
+fn draw_picture(surface: &mut Surface<'_>, picture: &Picture, size: Size) {
+    match picture {
+        Picture::Raster(image) => surface.draw_image(image.clone(), size),
+        Picture::Vector(tree) => {
+            surface.draw_svg(tree, size, SvgSettings::default());
+        }
+    }
+}
 
 fn fill(surface: &mut Surface<'_>, color: Color) {
     surface.set_fill(Some(Fill {
@@ -136,7 +148,7 @@ fn paint_of(
             let size = Size::from_wh(*width, *height)?;
             let mut builder = surface.stream_builder();
             let mut tile = builder.surface();
-            tile.draw_image(laid.images[*image].0.clone(), size);
+            draw_picture(&mut tile, &laid.images[*image].0, size);
             tile.finish();
             let stream = builder.finish();
             (
@@ -273,7 +285,7 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
                         continue;
                     };
                     surface.push_transform(&Transform::from_translate(*x, *y));
-                    surface.draw_image(laid.images[*image].0.clone(), box_size);
+                    draw_picture(&mut surface, &laid.images[*image].0, box_size);
                     surface.pop();
                 }
             }
@@ -289,7 +301,7 @@ pub fn write(laid: &Laid, created: Option<Instant>) -> Result<Vec<u8>, Error> {
             let name = laid
                 .images
                 .iter()
-                .find(|(each, _)| *each == image)
+                .find(|(each, _)| matches!(each, Picture::Raster(each) if *each == image))
                 .map_or("an image", |(_, name)| name.as_str());
             Error::Parse(format!("`{name}` does not decode as an image: {why}"))
         }
