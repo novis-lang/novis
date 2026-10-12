@@ -228,7 +228,7 @@ impl Ctx {
     /// collector is going to be handed this request's graph. **A debugger is
     /// attached**: [`DebugFlags::TRACE`] is on, which additionally files a
     /// `call` event per compiled call site — the cost
-    /// `rule:observability/a-call-never-becomes-a-span` refuses on a served
+    /// `rule:observability/four-kinds-become-a-span` refuses on a served
     /// request outright, and the reason the two cannot be one bit. A sampled
     /// request never pays it, because the call probes read that bit and this
     /// answer is not it.
@@ -1163,7 +1163,7 @@ mod tests {
     /// filed because the trace is recorded, with no debug flag anywhere — and
     /// the fourth, a `call`, still is not, because the probes read their own bit
     /// and a span per compiled call site is the cost
-    /// `rule:observability/a-call-never-becomes-a-span` refuses.
+    /// `rule:observability/four-kinds-become-a-span` refuses.
     #[test]
     fn a_recorded_run_files_a_spans_events_and_still_no_call_event() {
         let mut ctx = Ctx::buffered();

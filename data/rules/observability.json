@@ -13,7 +13,6 @@
     "observability/past-max-series-a-new-series-is-refused",
     "observability/metrics-and-trace-blocks-are-system",
     "observability/four-kinds-become-a-span",
-    "observability/a-call-never-becomes-a-span",
     "observability/trace-events-carry-a-kind",
     "observability/a-query-is-a-trace-event",
     "observability/a-slow-query-is-logged-past-a-threshold",

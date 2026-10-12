@@ -3,7 +3,7 @@
 
 # Observability
 
-*2 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
+*2 of 31 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -36,26 +36,35 @@ What it exports is [`observability/default-series`](observability.md#observabili
 
 <a id="observability-a-trace-id-exists-for-every-request"></a>
 
-## A trace id exists for every request whatever the sampling decision, and it is the only request identifier
+## A trace id exists for every request whatever the sampling decision, is the only request identifier and is emitted on the response, and an inbound `X-Request-ID` is ignored  *(designed — owned by goal server-rule-debts)*
 
 `rule:observability/a-trace-id-exists-for-every-request`
 
 A trace id is drawn for every request when its context is built, whatever the sampling decision.
 Sampling ([`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based)) governs whether a trace is *exported*, never
-whether an id is generated — and that is what lets one id be Novis's only request identifier.
-`Core\Server::traceId()` reads it, every `[log]` record and every error rendering carries it as
-`request_id` ([`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active)), and it is
-emitted on the response so a proxy can log it with one `log_format` line.
+whether an id is generated, so the id exists with `[trace] sample` at zero as well — and that is what
+lets one id be Novis's only request identifier, the one that joins a log line to an error page to a
+proxy's log entry. An inbound `traceparent` is continued and a missing one is generated
+([`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued)). `Core\Server::traceId()` reads it, every
+`[log]` record and every error rendering carries it as `request_id`
+([`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`errors/log-fields`](errors.md#errors-log-fields)),
+and it is emitted on the response so a proxy can log it with one `log_format` line.
 
-There is deliberately **no second identifier and no inbound `X-Request-ID`**. Two identifiers for
-one request is two things that can disagree, and a subsystem minting an id of its own where a
-record is written would produce a line no backend could join to anything. The id is generated where
-the request's state lives, eagerly, rather than by whichever subsystem asks first.
+There is deliberately **no second identifier, and an inbound `X-Request-ID` is ignored** and appears
+nowhere. Two identifiers for one request is two things that can disagree and two things to grep, and
+honouring the header would need a validation rule against log injection for a fact Novis already has.
+A subsystem minting an id of its own where a record is written would produce a line no backend could
+join to anything, so the id is generated where the request's state lives, eagerly, rather than by
+whichever subsystem asks first.
 
 **A trace id never becomes a metric label.** It is unbounded by construction, and
 [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted) would refuse it anyway.
 
-<sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted).</sub>
+**Not on disk.** No response header carries the id yet. Everything else here is built: the id is drawn
+with every context (`crates/nvs-runtime/src/trace_context.rs:98`) and continued or generated at the
+door whatever the sampling (`crates/nvs-server/src/trace.rs:120`).
+
+<sub>See also [`observability/an-inbound-traceparent-is-continued`](observability.md#observability-an-inbound-traceparent-is-continued), [`observability/a-log-record-carries-trace-ids-when-a-trace-is-active`](observability.md#observability-a-log-record-carries-trace-ids-when-a-trace-is-active), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`security/metric-label-refuses-tainted`](security.md#security-metric-label-refuses-tainted), [`errors/log-fields`](errors.md#errors-log-fields), [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default).</sub>
 
 <a id="observability-a-log-record-carries-trace-ids-when-a-trace-is-active"></a>
 
@@ -307,38 +316,22 @@ event ([`observability/a-query-is-a-trace-event`](observability.md#observability
 histogram in [`observability/default-series`](observability.md#observability-default-series), not a span — a collection pause is not a unit of
 work in a request's causal graph.
 
-The spans are derived from the same events the timeline already files; there is no second set of
-probes for tracing, and export cost stays off the hot path the debug probes deliberately keep cheap.
-A retried outbound call is one span carrying an attempt count, not one span per attempt.
+The spans are derived from the same events the timeline already files: production telemetry reads
+the four event kinds the trace records and adds no instrumentation of its own. A retried outbound call
+is one span carrying an attempt count, not one span per attempt.
+
+The set is closed because of what one more kind would cost. [`testing/debug-probes`](testing.md#testing-debug-probes) keeps the
+per-call path to a load and a predicted-not-taken branch, and every other kind was placed off that
+path for the same reason ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event),
+[`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)). A `call` span would put export cost back on it.
 
 **Declined:**
 - **A span per `call` event**, which would reuse the instrumentation with no filtering. The trace is
-  unstorable and unreadable, and export cost lands on the per-call path
-  ([`observability/a-call-never-becomes-a-span`](observability.md#observability-a-call-never-becomes-a-span)).
+  unstorable and unreadable, and export cost lands on the per-call path.
 - **One span per attempt of a retried outbound call.** Each attempt's latency is not yet worth the
   multiplication of spans; the attempt count on the one span carries the fact.
 
-<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event).</sub>
-
-<a id="observability-a-call-never-becomes-a-span"></a>
-
-## A `call` event never becomes a span; the root, a `query`, an outbound HTTP call and a `spawn` do, and `gc` becomes a metric  *(designed — not yet in the compiler)*
-
-`rule:observability/a-call-never-becomes-a-span`
-
-Production telemetry reads the same four event kinds the trace records and adds no instrumentation
-of its own — and it is bound by one rule the taxonomy owns: **a `call`-kind event never becomes a
-distributed-tracing span.** Exactly four things do: the request or scheduled-run root, a `query`, an
-outbound HTTP call, and a `spawn`. A `gc` event becomes a metric, not a span, because a collection
-pause is not a unit of work in a request's causal graph.
-
-The set is closed for two reasons. A trace with one span per function call is unstorable by any
-backend. And admitting one would put export cost on the per-call path that
-[`testing/debug-probes`](testing.md#testing-debug-probes) keeps to a load and a predicted-not-taken branch — the cost class every
-other kind was placed off of on purpose ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event),
-[`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)).
-
-<sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event), [`observability/default-series`](observability.md#observability-default-series), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it).</sub>
+<sub>See also [`observability/a-query-is-a-trace-event`](observability.md#observability-a-query-is-a-trace-event), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event), [`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event), [`observability/default-series`](observability.md#observability-default-series), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it).</sub>
 
 <a id="observability-trace-events-carry-a-kind"></a>
 
@@ -445,7 +438,7 @@ cost nothing relative to the run itself.
 What the event buys is honest attribution. Without it a pause is silently folded into the self time
 of whichever function happened to be executing, and `PROFILE`'s self/inclusive figures carry a cost
 that function did not cause. With it the pause is its own bar on the timeline, and in production
-telemetry it becomes a metric rather than a span ([`observability/a-call-never-becomes-a-span`](observability.md#observability-a-call-never-becomes-a-span)).
+telemetry it becomes a metric rather than a span ([`observability/four-kinds-become-a-span`](observability.md#observability-four-kinds-become-a-span)).
 
 <sub>See also [`observability/trace-events-carry-a-kind`](observability.md#observability-trace-events-carry-a-kind), [`testing/debug-probes`](testing.md#testing-debug-probes), [`observability/a-registry-is-per-core-and-nothing-reads-it`](observability.md#observability-a-registry-is-per-core-and-nothing-reads-it).</sub>
 

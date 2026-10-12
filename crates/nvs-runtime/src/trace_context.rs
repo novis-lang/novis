@@ -11,10 +11,9 @@
 //!
 //! **An id exists for every request, whatever the sampling decision** (§ 2). Sampling governs
 //! whether a trace is *exported*, never whether an id is generated, and that is what lets this be
-//! Novis's only request identifier: `Core\Server::traceId()` reads this same id, every `[log]`
-//! record and every error rendering carries it, and it is emitted on the response so a proxy can log
-//! it with one `log_format` line. There is deliberately no second identifier and no inbound
-//! `X-Request-ID` (`rule:http-server/the-trace-id-is-the-request-identifier`).
+//! Novis's only request identifier: `Core\Server::traceId()` reads this same id, and every `[log]`
+//! record and every error rendering carries it. There is deliberately no second identifier and no
+//! inbound `X-Request-ID` (`rule:observability/a-trace-id-exists-for-every-request`).
 //! So the id is generated where a request's state lives — in [`Ctx::new`](crate::Ctx::new), eagerly
 //! — rather than by whichever subsystem asks for it first, which is what would let two of them
 //! disagree.

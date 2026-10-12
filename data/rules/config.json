@@ -38,7 +38,6 @@
     "config/a-reload-names-what-it-could-not-apply",
     "config/check-and-dump-audit-the-tree-offline",
     "config/two-modes-and-the-default-is-production",
-    "config/the-mode-flag-wins-over-the-file",
     "config/no-environment-variable-selects-the-mode",
     "config/a-mode-is-five-defaults",
     "config/a-startup-default-is-never-flipped",

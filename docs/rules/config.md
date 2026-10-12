@@ -3,7 +3,7 @@
 
 # Configuration
 
-*4 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
+*3 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
@@ -1390,37 +1390,6 @@ isolate; it is not a third value either.
 
 <sub>See also [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type).</sub>
 
-<a id="config-the-mode-flag-wins-over-the-file"></a>
-
-## The mode a server starts in comes from `nvs.toml` or from `nvs serve --mode=`, and the flag is the last word  *(designed — not yet in the compiler)*
-
-`rule:config/the-mode-flag-wins-over-the-file`
-
-```toml
-[mode]
-default = "production"      # Runtime — the mode an application starts in
-ceiling = "development"     # System  — the most permissive mode any code may select
-```
-
-`nvs.toml` is one source: `[mode] default` is `Runtime`-class, which is what makes a runtime flip
-possible at all. **`nvs serve --mode=development` is the other, and it overrides the file** —
-ordinary CLI precedence, the flag being the last word about the mode the server starts in. The flag
-replaces the **global** value; a matching `[[app]]` block still layers over it, so a flag never drags
-an application that pins its own mode along with it. The flag set is closed and there is no `--set`.
-
-The ceiling bounds a runtime flip, not the startup value: `nvs serve --mode=development` in a
-directory with no `nvs.toml` simply works, and the ceiling follows it.
-
-**Declined:**
-- **A `--mode` flag refused when it contradicts the file.** It would catch a deploy script carrying a
-  stale `--mode` at startup, but it trades away ordinary CLI precedence for one safety catch. What
-  covers that case instead is the banner and `Warn` record a development-mode server emits when it
-  binds a public interface
-  ([`http-server/a-development-server-on-a-public-interface-warns-and-serves`](http-server.md#http-server-a-development-server-on-a-public-interface-warns-and-serves)), so the payment
-  for flag-over-file is visible rather than silent.
-
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/no-environment-variable-selects-the-mode`](config.md#config-no-environment-variable-selects-the-mode), [`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer), [`config/an-application-is-its-entry-file-path`](config.md#config-an-application-is-its-entry-file-path), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy).</sub>
-
 <a id="config-no-environment-variable-selects-the-mode"></a>
 
 ## No environment variable selects the run mode — not `NVS_MODE`, not `APP_ENV`, not `NODE_ENV`
@@ -1447,7 +1416,7 @@ publishes as a whole new snapshot with no restart ([`config/the-config-is-an-imm
   contradict [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables) head-on and bring back the mechanism
   behind each incident above; a reload of the root-owned file covers the operational need.
 
-<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot).</sub>
+<sub>See also [`config/two-modes-and-the-default-is-production`](config.md#config-two-modes-and-the-default-is-production), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot).</sub>
 
 <a id="config-a-mode-is-five-defaults"></a>
 
@@ -1525,7 +1494,7 @@ to decide whether a core's table is rebuilt.
 
 **Declined:**
 - **One mode table with no `System` row.** It keeps one property in one sentence, but then
-  `nvs serve --mode=development` enables neither path dispatch nor static files, and a development
+  `[mode] default = "development"` enables neither path dispatch nor static files, and a development
   configuration becomes a file people copy without reading. The cost accepted is that every new
   directive has to say which table it belongs in.
 

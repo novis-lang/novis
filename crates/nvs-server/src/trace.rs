@@ -7,7 +7,7 @@
 //! § 2 gives every request a trace id whatever the sampling decision, and makes
 //! that id Novis's *only* request identifier — `Core\Server::traceId()` reads
 //! it, every `[log]` record carries it, and there is deliberately no second one
-//! and no inbound `X-Request-ID` (`rule:http-server/the-trace-id-is-the-request-identifier`). An id that a subsystem drew
+//! and no inbound `X-Request-ID` (`rule:observability/a-trace-id-exists-for-every-request`). An id that a subsystem drew
 //! for itself on first ask would be a second place for two readers to disagree
 //! about which trace a request is in, so [`nvs_runtime::Ctx::new`] draws a root
 //! eagerly and the only question left is whether *this* request continues
@@ -80,7 +80,7 @@
 //! rare, so a recorded request files all three while paying nothing a normal one
 //! does not. `nvs_runtime::DebugFlags::TRACE` answers that question too and adds
 //! a `call` event per compiled call site, which is why the two are one question
-//! and not one bit — `rule:observability/a-call-never-becomes-a-span` refuses
+//! and not one bit — `rule:observability/four-kinds-become-a-span` refuses
 //! that cost on a served request outright, and [`spans`] drops the kind here as
 //! well. What a recorded request holds is bounded where it is filed
 //! (`nvs_runtime::SPAN_EVENT_CEILING`), which is what [`SPAN_CEILING`] counts.
@@ -709,7 +709,7 @@ mod tests {
     /// the graphs taken out of it are this case's two and nothing else's. The
     /// span count is the second claim: a `call` event among the events is
     /// filed and does not become a span
-    /// (`rule:observability/a-call-never-becomes-a-span`).
+    /// (`rule:observability/four-kinds-become-a-span`).
     #[cfg(feature = "exporter")]
     #[test]
     fn a_recorded_runs_spans_reach_the_queue_and_an_unsampled_runs_do_not() {

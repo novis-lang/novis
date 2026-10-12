@@ -8,7 +8,9 @@
     "testing/debug-probes",
     "observability/trace-events-carry-a-kind",
     "observability/gc-pause-is-its-own-event",
-    "observability/spawn-is-its-own-event"
+    "observability/spawn-is-its-own-event",
+    "observability/default-series",
+    "observability/a-registry-is-per-core-and-nothing-reads-it"
   ],
   "guardedBy": [
     "crates/nvs-server/src/trace.rs",

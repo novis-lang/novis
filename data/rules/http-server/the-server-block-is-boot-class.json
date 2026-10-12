@@ -8,9 +8,9 @@
     "http-server/the-accept-fan-out-is-one-worker-per-core",
     "http-server/a-unix-socket-listener",
     "config/three-changeability-classes",
-    "config/the-mode-flag-wins-over-the-file",
     "http-server/a-wedged-core-is-detected-by-its-deadline",
-    "http-server/the-accept-loop-backs-off"
+    "http-server/the-accept-loop-backs-off",
+    "config/a-directive-flag-is-a-closed-list-at-the-global-layer"
   ],
   "guardedBy": [
     "crates/nvs-config/src/server.rs",

@@ -114,8 +114,7 @@ pub enum Level {
     Debug,
     /// Ordinary progress.
     Info,
-    /// `rule:http-server/a-development-server-on-a-public-interface-warns-and-serves`
-    /// 's public-bind record.
+    /// Something an operator should look at, while the program keeps running.
     Warn,
     /// An uncaught `Throwable`.
     Error,

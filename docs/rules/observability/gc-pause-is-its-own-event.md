@@ -10,4 +10,4 @@ cost nothing relative to the run itself.
 What the event buys is honest attribution. Without it a pause is silently folded into the self time
 of whichever function happened to be executing, and `PROFILE`'s self/inclusive figures carry a cost
 that function did not cause. With it the pause is its own bar on the timeline, and in production
-telemetry it becomes a metric rather than a span (`rule:observability/a-call-never-becomes-a-span`).
+telemetry it becomes a metric rather than a span (`rule:observability/four-kinds-become-a-span`).

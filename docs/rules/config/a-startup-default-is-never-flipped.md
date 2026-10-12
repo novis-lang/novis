@@ -27,6 +27,6 @@ to decide whether a core's table is rebuilt.
 
 **Declined:**
 - **One mode table with no `System` row.** It keeps one property in one sentence, but then
-  `nvs serve --mode=development` enables neither path dispatch nor static files, and a development
+  `[mode] default = "development"` enables neither path dispatch nor static files, and a development
   configuration becomes a file people copy without reading. The cost accepted is that every new
   directive has to say which table it belongs in.

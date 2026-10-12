@@ -4,7 +4,6 @@
   "seeAlso": [
     "config/a-program-may-read-and-flip-its-mode",
     "config/ceilings-are-their-own-directives",
-    "config/the-mode-flag-wins-over-the-file",
     "config/a-mount-routes-and-an-app-block-sets-policy",
     "http-server/a-mount-carries-no-policy"
   ],

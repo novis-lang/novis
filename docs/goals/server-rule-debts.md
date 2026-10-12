@@ -195,8 +195,8 @@ whichever arrives first. Today a delivery cannot wake a park that is already run
 (`crates/nvs-stdlib/src/socket.rs:1017-1019`, `nvs_runtime::Ctx::deliver`'s gap). The overflow check
 stays before the wait.
 
-**The trace id on the response.** `http-server/the-trace-id-is-the-request-identifier` is merged into
-`rule:observability/a-trace-id-exists-for-every-request`, which claims the header and owns this stage.
+**The trace id on the response.** `rule:observability/a-trace-id-exists-for-every-request` claims the
+header and owns this stage.
 The writer's call on the name: W3C Trace Context's `traceresponse` header, so a proxy and a tracing
 backend read one standard header. It is written on every response, sampled or not. An inbound
 `X-Request-ID` stays ignored.

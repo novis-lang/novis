@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*6 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 80 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -53,7 +53,7 @@ watchdog_margin    = "5s"                 # restart required; how far past its d
 
 The whole block is `System`-class ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)): `header_timeout` and `keepalive_timeout` apply before any Novis code exists on a connection, so a `Runtime` class would be a promise the block could not keep. **Four keys need a restart: `listen`, `socket_mode`, `workers` and `watchdog_margin`** ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)). Every other key applies without one. `dispatch`, `static`, `trusted_proxies`, `health_path` and `max_in_flight` are read from the snapshot a request cloned, so a reload reaches the next request. The four waits, `drain_timeout` and `[server.connection]` are read from the snapshot published when a connection is accepted, so a reload reaches the next connection, and a connection already open keeps what it was accepted under. `root` and `[[server.mount]]` are read from the snapshot a reload published, and a change to either expands the mount table again ([`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)).
 
-`listen` is one flat array — an entry beginning with a separator is a Unix socket ([`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener)), and no `host:port` can be spelled that way. **The default is `127.0.0.1:8000` in both modes**: loopback is the proxied shape as well as the development one, so demanding an explicit `listen` in production would be friction with no safety in it. `nvs serve --listen`/`--port` overrides the file, on the same precedent that makes the mode flag the last word ([`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file)); `--port` alone keeps the host the file chose.
+`listen` is one flat array — an entry beginning with a separator is a Unix socket ([`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener)), and no `host:port` can be spelled that way. **The default is `127.0.0.1:8000` in both modes**: loopback is the proxied shape as well as the development one, so demanding an explicit `listen` in production would be friction with no safety in it. `nvs serve --listen`/`--port` overrides the file ([`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer)); `--port` alone keeps the host the file chose.
 
 `workers` is the one key here the machine answers a default for, and it is the only one that says how many accept loops there are rather than what one of them does: [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core) owns the count, what a core holds of its own and what every core shares.
 
@@ -65,7 +65,7 @@ The accept loop backs off on descriptor exhaustion and logs once per window rath
 - **Resizing `workers` while the server runs.** Each core holds its own runtime state, and resizing
   that live is a large change for a key set once per machine.
 
-<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off).</sub>
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer).</sub>
 
 <a id="http-server-a-mount-table-expands-at-boot"></a>
 
@@ -213,31 +213,14 @@ A Unix-socket listener is implicitly trusted for the forwarded headers ([`http-s
 | Deployment | Written | Result |
 |---|---|---|
 | Production host | nothing | Started in `production`, ceiling `production`. No code path anywhere reaches development mode. |
-| Developer's machine | `nvs serve --mode=development` | Ceiling `development`. Flips are free; nothing to configure. |
+| Developer's machine | `[mode] default = "development"` | Ceiling `development`. Flips are free; nothing else to configure. |
 | One host, mixed applications | `[mode] default = "production"`, `[mode] ceiling = "development"` | Production by default, and each application selects its own — in its `[[app]]` block, or in code. |
 
-**The ceiling bounds a runtime flip, not the startup value.** `nvs serve --mode=development` in a directory with no `nvs.toml` simply works: the flag sets the startup mode ([`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file)) and the ceiling follows it. A ceiling that also bound startup would have made the most common first-run command fail. Above the ceiling, `Core\Config::set("mode.default", …)` returns `false` and leaves the mode unchanged ([`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode)).
+**The ceiling bounds a runtime flip, not the startup value.** An `nvs.toml` that writes `[mode] default = "development"` and no ceiling simply works: the file sets the startup mode and the ceiling follows it. A ceiling that also bound startup would make every development configuration write the mode twice. Above the ceiling, `Core\Config::set("mode.default", …)` returns `false` and leaves the mode unchanged ([`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode)).
 
 For the mixed host, per-app configuration is the primary answer and the in-code flip is the escape hatch: the `[[app]]` block involves no application code and nothing the application can get wrong ([`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy)). `Core\Config::set` is for when the application knows something the operator does not.
 
-<sub>See also [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy).</sub>
-
-<a id="http-server-a-development-server-on-a-public-interface-warns-and-serves"></a>
-
-## A development-mode server binding a non-loopback address prints a banner, writes one `Warn` record naming the address, and serves  *(designed — not yet in the compiler)*
-
-`rule:http-server/a-development-server-on-a-public-interface-warns-and-serves`
-
-When the server binds a non-loopback address while the mode is `development`, it emits an unmissable startup banner **and** a `Warn` record naming the bound address ([`errors/log-level`](errors.md#errors-log-level)), then serves. Bound to loopback it emits neither.
-
-The banner alone is not enough — it scrolls past in a container log — which is why it is *also* a `Warn` record: it lands in the same JSON-Lines stream everything else does, queryable after the fact rather than only observable at the moment of startup.
-
-This is the one place where letting the mode flag win over the file ([`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file)) is paid for, and the payment is deliberately visible: the banner is what stands between a stale `--mode=development` in a deploy script and a public debug surface.
-
-**Declined:**
-- **Refusing the bind behind an `allow_public_development` unlock.** It would turn a development server exposed to the internet into a startup error for the price of one directive, but binding `0.0.0.0` inside a container or a VM is the normal case, not the exceptional one, and a refusal would put a required directive in front of every containerised development workflow.
-
-<sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`errors/log-level`](errors.md#errors-log-level).</sub>
+<sub>See also [`config/a-program-may-read-and-flip-its-mode`](config.md#config-a-program-may-read-and-flip-its-mode), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-mount-routes-and-an-app-block-sets-policy`](config.md#config-a-mount-routes-and-an-app-block-sets-policy), [`http-server/a-mount-carries-no-policy`](http-server.md#http-server-a-mount-carries-no-policy).</sub>
 
 <a id="http-server-an-unsafe-or-unbounded-default-is-a-defect"></a>
 
@@ -614,20 +597,6 @@ It performs **no dependency checks** — a health endpoint that pings the databa
 
 <sub>See also [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`concurrency/a-drain-closes-a-connection-cleanly`](concurrency.md#concurrency-a-drain-closes-a-connection-cleanly).</sub>
 
-<a id="http-server-the-trace-id-is-the-request-identifier"></a>
-
-## The trace id exists on every request regardless of sampling, is the only request identifier, is emitted on the response, and an inbound `X-Request-ID` is ignored  *(designed — not yet in the compiler)*
-
-`rule:http-server/the-trace-id-is-the-request-identifier`
-
-The trace id is the request identifier, and there is no second one. A trace id exists for every request because W3C TraceContext generates one regardless of the sampling decision — sampling governs only whether the trace is *exported* — so the id needed to join a log line to an error page to a proxy log entry is already present on every request, with `[trace] sample` at zero included.
-
-`Core\Server::traceId()` reads it, every log record and every error rendering carries it ([`errors/log-fields`](errors.md#errors-log-fields)), and it is emitted on the response so a proxy can log it with one `log_format` line. An inbound `traceparent` is continued; a missing one is generated.
-
-**An inbound `X-Request-ID` is ignored** and appears nowhere. Honouring it would need a validation rule against log injection for a fact Novis already has, and two identifiers for one fact is how people grep the wrong one.
-
-<sub>See also [`http-server/the-access-log-is-a-mode-default`](http-server.md#http-server-the-access-log-is-a-mode-default), [`errors/log-fields`](errors.md#errors-log-fields), [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request).</sub>
-
 <a id="http-server-the-access-log-is-a-mode-default"></a>
 
 ## `[log] access` is a mode default — on in development, off in production — and a `5xx` is logged whatever it says  *(designed — owned by goal server-rule-debts)*
@@ -643,7 +612,7 @@ It renders through the one diagnostic record — text in development, JSON in pr
 **Not on disk.** The mode table has the `log.access` row (`crates/nvs-config/src/mode.rs:85`), and
 nothing reads it: no access line is written, for a `5xx` or for any other response.
 
-<sub>See also [`http-server/the-trace-id-is-the-request-identifier`](http-server.md#http-server-the-trace-id-is-the-request-identifier), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/renderings`](errors.md#errors-renderings), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures).</sub>
+<sub>See also [`observability/a-trace-id-exists-for-every-request`](observability.md#observability-a-trace-id-exists-for-every-request), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`config/a-mode-is-five-defaults`](config.md#config-a-mode-is-five-defaults), [`errors/log-fields`](errors.md#errors-log-fields), [`errors/renderings`](errors.md#errors-renderings), [`observability/the-runtime-exports-what-it-already-measures`](observability.md#observability-the-runtime-exports-what-it-already-measures).</sub>
 
 <a id="http-server-secure-headers-with-nothing-written"></a>
 
