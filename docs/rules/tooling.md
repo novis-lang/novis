@@ -3,7 +3,7 @@
 
 # Tooling
 
-*10 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
+*8 of 64 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="tooling-shebang-opens-code-mode"></a>
 
@@ -419,22 +419,35 @@ which is an application framework, not a language surface.
 
 <a id="tooling-the-tty-belongs-to-the-main-task"></a>
 
-## The tty belongs to the main task of a CLI program, so a `Core\Cli` member throws in a request and in a spawned isolate  *(designed — not yet in the compiler)*
+## Only the main task of a CLI program reads the terminal: a prompt anywhere else answers its default or throws, and `Core\Cli::arguments` is empty in a request
 
 `rule:tooling/the-tty-belongs-to-the-main-task`
 
-The tty belongs to the main task of a CLI program. In a request context and inside a spawned isolate,
-every `Core\Cli` member throws: two tasks interleaving escape sequences on one terminal produce output
-no one can reason about, and there is no locking scheme that makes it coherent.
+Only the main task of a CLI program reads the terminal. A `Core\Cli` prompt reads it only when the
+code's output reaches the process's own standard streams and the process has a terminal
+(`crates/nvs-stdlib/src/cli.rs:1449`). In an HTTP request, inside a `Core\Out::capture` block, and in a
+spawned isolate, whose output is a buffer its parent owns ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)),
+a prompt answers its `default` or throws `Core\Cli\NotInteractive` ([`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks)).
+A question written into a response body reaches nobody, and a read after it would hold the core for a
+keystroke that never comes.
 
-**`echo` is not one of those members, and does not throw.** It binds to whatever sink its context has
-— the response body under a request, the terminal sink everywhere else, including a scheduled script,
-a job worker, a test and a spawned isolate's buffer ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)). What
-throws is claiming the *terminal*; writing text never does. An isolate's `echo` reaches a buffer its
-parent owns, never a tty ([`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured)), which is why the two rules are
-consistent rather than in tension.
+`Core\Cli::arguments()` is an empty list in a request ([`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments)). A served
+request was not started with any words, so empty is the true answer, and a library that reads its own
+arguments to pick a default keeps working when a handler reaches it.
 
-<sub>See also [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments).</sub>
+**Writing is not claiming the terminal.** `echo` and `Core\Cli::write` write to whatever sink their
+context has: the response body under a request, the terminal sink everywhere else, and a buffer its
+parent owns in a spawned isolate ([`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink)). Neither throws for the
+context it runs in, and a live region renders nothing when its stream is not a terminal
+([`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region)).
+
+**Declined:**
+- **Every `Core\Cli` member throws outside the main task.** A library that writes with
+  `Core\Cli::write` or reads `Core\Cli::arguments()` would then fail when a handler calls it, for
+  output that has a sink anyway. Only a read from the terminal needs a person, so only the prompts
+  check.
+
+<sub>See also [`tooling/a-prompt-never-blocks`](tooling.md#tooling-a-prompt-never-blocks), [`tooling/echo-always-has-a-sink`](tooling.md#tooling-echo-always-has-a-sink), [`tooling/the-terminal-is-restored-on-every-exit-path`](tooling.md#tooling-the-terminal-is-restored-on-every-exit-path), [`tooling/in-place-output-is-a-scoped-live-region`](tooling.md#tooling-in-place-output-is-a-scoped-live-region), [`security/isolate-output-is-captured`](security.md#security-isolate-output-is-captured), [`core-classes/cli-arguments`](core-classes.md#core-classes-cli-arguments).</sub>
 
 <a id="tooling-in-place-output-is-a-scoped-live-region"></a>
 
@@ -1298,7 +1311,7 @@ sentence — that is a lint's design and belongs with the publisher.
 
 <a id="tooling-a-todo-is-a-comment-the-tools-list"></a>
 
-## A `// TODO:` comment is a list the editor and `nvs check --todos` print, never a diagnostic, and `nvs check` gains `--deny` and `--fix`  *(designed — not yet in the compiler)*
+## A `// TODO:` comment is a list the editor and `nvs check --todos` print, never a diagnostic, and `nvs check` has `--deny` and `--fix`
 
 `rule:tooling/a-todo-is-a-comment-the-tools-list`
 
@@ -1319,7 +1332,7 @@ prints `path:line: text` for every one, in path and line order; under `--json` t
 `todos` array ([`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document)). `nvs check` without
 `--todos` prints none.
 
-**`nvs check` gains two more flags with it.**
+**`nvs check` has two more flags beside it.**
 
 - `--deny <kind>`, repeatable, over the closed list `deprecated` and `todo`. The command prints
   everything it would have printed, then exits with failure when one of those kinds is found in a file

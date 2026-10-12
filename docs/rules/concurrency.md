@@ -3,7 +3,7 @@
 
 # Concurrency
 
-*7 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*6 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="concurrency-one-scheduler"></a>
 
@@ -1432,7 +1432,7 @@ a fourth such construct takes the same shape or says why not.
 
 <a id="concurrency-a-jobs-budget-and-grants-are-recorded-at-enqueue"></a>
 
-## A job's budget and grants are recorded when it is enqueued, and narrowed from that context rather than widened  *(designed — not yet in the compiler)*
+## A job's budget and grants are recorded when it is enqueued, and narrowed from that context rather than widened
 
 `rule:concurrency/a-jobs-budget-and-grants-are-recorded-at-enqueue`
 

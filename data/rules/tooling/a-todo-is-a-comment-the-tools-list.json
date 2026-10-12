@@ -1,10 +1,14 @@
 {
-  "title": "A `// TODO:` comment is a list the editor and `nvs check --todos` print, never a diagnostic, and `nvs check` gains `--deny` and `--fix`",
-  "status": "designed",
+  "title": "A `// TODO:` comment is a list the editor and `nvs check --todos` print, never a diagnostic, and `nvs check` has `--deny` and `--fix`",
+  "status": "shipped",
   "seeAlso": [
     "tooling/doc-comment-is-three-slashes",
     "attributes/a-deprecation-names-its-replacement-as-code",
     "ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows"
   ],
-  "guardedBy": []
+  "guardedBy": [
+    "crates/nvs-syntax/tests/todos.rs",
+    "crates/nvs-cli/tests/check_flags.rs",
+    "crates/nvs-lsp/tests/todos.rs"
+  ]
 }

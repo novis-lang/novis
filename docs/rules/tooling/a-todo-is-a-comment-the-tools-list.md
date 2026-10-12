@@ -15,7 +15,7 @@ prints `path:line: text` for every one, in path and line order; under `--json` t
 `todos` array (`rule:ide/check-json-is-the-diagnostic-record-as-a-document`). `nvs check` without
 `--todos` prints none.
 
-**`nvs check` gains two more flags with it.**
+**`nvs check` has two more flags beside it.**
 
 - `--deny <kind>`, repeatable, over the closed list `deprecated` and `todo`. The command prints
   everything it would have printed, then exits with failure when one of those kinds is found in a file

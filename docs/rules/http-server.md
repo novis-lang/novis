@@ -3,7 +3,7 @@
 
 # The HTTP server
 
-*7 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
+*6 of 82 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="http-server-two-deployments-and-nothing-a-proxy-owns"></a>
 
@@ -1917,7 +1917,7 @@ a program's cost.
 
 <a id="http-server-a-requests-blast-radius-is-bounded-at-four-tiers"></a>
 
-## Nothing a request can send terminates or wedges a worker: its blast radius is bounded at four named tiers, and the residue is one stated fault class  *(designed — not yet in the compiler)*
+## Nothing a request can send terminates or wedges a worker: its blast radius is bounded at four named tiers, and the residue is one stated fault class
 
 `rule:http-server/a-requests-blast-radius-is-bounded-at-four-tiers`
 

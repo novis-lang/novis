@@ -3,7 +3,7 @@
 
 # Configuration
 
-*7 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
+*4 of 65 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
@@ -889,14 +889,20 @@ what widening trades.
 
 <a id="config-a-directive-flag-is-a-closed-list-at-the-global-layer"></a>
 
-## A CLI flag that sets a directive is one of a closed list, wins over every file, and there is no `--set`  *(designed — not yet in the compiler)*
+## A CLI flag that sets a directive is one of a closed list, `--listen` and `--port`, wins over every file, and there is no `--set`
 
 `rule:config/a-directive-flag-is-a-closed-list-at-the-global-layer`
 
 A command-line flag that maps to a directive **wins over every file, and the set of such flags is
-closed** — `--mode`, `--listen`, `--port`, and whatever a later rule argues for by name where it
-introduces the directive. Stated once, so that no rule introducing a flag has to assert its own
-"ordinary CLI precedence".
+closed**: `nvs serve --listen` and `nvs serve --port`, both over `[server] listen`
+(`crates/nvs-cli/src/main.rs:535-551`). A later rule that wants another one argues for it by name
+where it introduces the directive. Stated once, so that no rule introducing a flag has to assert its
+own "ordinary CLI precedence".
+
+`--listen` names one address and replaces the whole `[server] listen` set. `--port` keeps the host
+each entry chose and replaces only its port. The two conflict, because two spellings of one address
+are two requests and guessing which was meant is worse than saying so
+(`crates/nvs-cli/src/serve.rs:2176`).
 
 **There is no `--set <key>=<value>`.** It would be a second spelling for every directive in the
 format; it would put values into argv, which is world-readable through `ps` and `/proc/*/cmdline`, so a
@@ -915,10 +921,14 @@ shipped defaults
        -> Core\Config::set  (per-request overlay, unchanged)
 ```
 
-So `nvs serve --mode=development` on a mixed host does not drag an application that pins `production`
-along with it, and `[mode] ceiling` still bounds what any of them may select.
+**Declined:**
+- **`nvs serve --mode`.** The mode a server starts in is `[mode] default` in the root-owned file and
+  nowhere else, so a review of the file shows the mode a server runs in, and saving it changes the
+  mode with no restart ([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot)). A flag would be a second
+  source the file does not show, and a stale `--mode=development` in a deploy script would start a
+  public server in development mode.
 
-<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`config/the-mode-flag-wins-over-the-file`](config.md#config-the-mode-flag-wins-over-the-file), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped).</sub>
+<sub>See also [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/every-matching-app-block-applies-least-specific-first`](config.md#config-every-matching-app-block-applies-least-specific-first), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set), [`http-server/the-server-block-is-boot-class`](http-server.md#http-server-the-server-block-is-boot-class), [`config/a-startup-default-is-never-flipped`](config.md#config-a-startup-default-is-never-flipped).</sub>
 
 <a id="config-reloadability-is-its-own-field"></a>
 
@@ -2111,7 +2121,7 @@ only over endpoints an operator wrote. Every program-supplied endpoint — `Core
 
 <a id="config-a-unix-socket-is-admitted-only-where-an-operator-wrote-it"></a>
 
-## A Unix socket is admitted in `[cache.shared] url` and `[db.<name>] host`, and refused from any program-supplied endpoint  *(designed — not yet in the compiler)*
+## A Unix socket is admitted in `[cache.shared] url` and `[db.<name>] host`, and refused from any program-supplied endpoint
 
 `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`
 
@@ -2145,7 +2155,7 @@ path would need is [`config/net-local-is-named-and-not-on-the-roster`](config.md
 
 <a id="config-unix-scheme-in-a-url-and-a-bare-path-in-a-host"></a>
 
-## A socket is `unix:` where the key is a URL and a bare absolute path where the key is a host  *(designed — not yet in the compiler)*
+## A socket is `unix:` where the key is a URL and a bare absolute path where the key is a host
 
 `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`
 

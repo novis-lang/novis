@@ -1,11 +1,12 @@
 {
   "title": "A job's budget and grants are recorded when it is enqueued, and narrowed from that context rather than widened",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "security/capability-check-at-the-door",
     "concurrency/a-job-runs-as-a-root-isolate"
   ],
   "guardedBy": [
-    "tests/conformance/core/queue-push-refuses-a-grant-the-request-does-not-hold.nvst"
+    "tests/conformance/core/queue-push-refuses-a-grant-the-request-does-not-hold.nvst",
+    "crates/nvs-stdlib/src/queue.rs"
   ]
 }
