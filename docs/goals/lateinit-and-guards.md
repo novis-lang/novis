@@ -283,10 +283,11 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 
 **Does:** `beforePropertySet` and `beforePropertyUnset` run before every write and may stop it.
 
-- [ ] `PropertyGuard` registered as a global interface. `crates/nvs-hir/src/interfaces.rs:48`
-- [ ] The guard call before a whole write and before the `set` hook. `crates/nvs-ir/src/lower/stmt.rs:1247`
-- [ ] The guard call with the key path before an element write. `crates/nvs-ir/src/lower/mod.rs:3056`
-- [ ] The guard call before an element `unset`. `crates/nvs-ir/src/lower/stmt.rs:1700`
+- [x] `PropertyGuard` registered as a global interface. `crates/nvs-hir/src/interfaces.rs:48`
+- [x] The guard call before a whole write and before the `set` hook. `crates/nvs-ir/src/lower/stmt.rs:1247`
+- [x] The guard call with the key path before an element write. `crates/nvs-ir/src/lower/mod.rs:3056`
+- [x] The guard call before an element `unset`. `crates/nvs-ir/src/lower/stmt.rs:1700`
+- [ ] The pipeline fragment rewritten with the guard step, and a test of the erased write's guard. `docs/rules/classes/property-observer-pipeline.md:1`
 
 ### 6. the rules, the reference and the feature proofs
 
@@ -301,28 +302,31 @@ by stages 1 and 5, `lateinit-read-before-write` by stage 3.
 
 ### State
 
-Stages 1 to 4 are done. The in-flight `initProperty` calls are two tables
-(`crates/nvs-runtime/src/ctx/late_init.rs`, whose module doc owns the mechanism and its cost): the
-task's own `Vec` (`Ctx::late_inits`) answers recursion and `late_init_running`, so "plain" stays
-per task, and a request's `Rc<Table>`, which `Ctx::child` shares with every task
-(`crates/nvs-runtime/src/ctx/isolate.rs:447`), holds the running keys and the parked reads.
-`initialize_late` (`crates/nvs-runtime/src/object.rs:5014`) loops: `Started` calls `initProperty`,
-`Recursive` throws, and `Running` parks through `Host::park`. A `LateInitCall` dropped during an
-unwind wakes its waiters with `Settled::Failed`, so a cancelled call is retried. Both stage 4 cases
-are in `tests/conformance/core/`, and the `LateInit` fragment has an *Across tasks* paragraph.
-`an_ordinary_write_inside_init_property_runs_guard_and_observer`
-(`crates/nvs-codegen/tests/late_init.rs:192`) tests only the observer so far. Stage 5 adds the guard.
+Stages 1 to 4 are done, and stage 5's code is on disk with the `property-guard` check green.
+`PropertyGuard` is on the roster and seeded with both members. The checker records a `GuardCalls`
+beside `ObserverCalls` on `ExprInfo::Property` and `HookedProperty`
+(`crates/nvs-types/src/expr/members.rs:1348`). Like the observer, it is skipped inside a property's
+own hook. `Lowering::emit_guard_call` (`crates/nvs-ir/src/lower/expr.rs:4780`) runs before the
+store or the `set` hook. A fresh value sits on `owned_temporaries` while the guard runs, so a throw
+releases it. A plain write during `initProperty` skips the guard through `open_unless_plain`.
+`emit_element_guard` (`crates/nvs-ir/src/lower/stmt.rs:1722`) builds the raw key path, and the new
+helper `nvs_guard_key_path` (`crates/nvs-runtime/src/helpers.rs:333`) turns it into an
+`array<string>`, with an append's next index. An `unset` calls the guard before the descent. The
+erased write calls `guard_erased_write` (`crates/nvs-runtime/src/object.rs:5313`). The stage 3 test
+has its guard half. Not done: the pipeline fragment still lacks the guard step, and no test covers the
+erased write's guard.
 
 ### Next
 
-**Stage 5: `PropertyGuard` runs before every write**, one file set: `crates/nvs-ir/src/lower/stmt.rs`, `crates/nvs-ir/src/lower/mod.rs`, `crates/nvs-hir/src/interfaces.rs`.
+**Stage 5's last item, then stage 6 starts.** The file set is `docs/rules/classes/` and `crates/nvs-codegen/tests/late_init.rs`.
 
-- [ ] `PropertyGuard` on the roster and seeded beside `LateInit` (§ *Standing decisions*, *`PropertyGuard`*). `crates/nvs-hir/src/interfaces.rs:48`
-- [ ] `beforePropertySet` before a whole write and before the `set` hook, with the caller's value, `$keys` `[]`. `crates/nvs-ir/src/lower/stmt.rs:1251`
-- [ ] The key path before an element write, and `beforePropertyUnset` before an element `unset` (`rule:classes/unset-is-refused-on-a-property`). `crates/nvs-ir/src/lower/mod.rs:3056`, `crates/nvs-ir/src/lower/stmt.rs:1699`
-- [ ] The erased write does the same, plain writes skip it, and the stage 3 test gains its guard half. `crates/nvs-runtime/src/object.rs:5170`, `crates/nvs-codegen/tests/late_init.rs:192`
+- [ ] Rewrite `docs/rules/classes/property-observer-pipeline.md` whole with the order in § *Standing decisions*, *The order*: the guard first, then the hook or storage, then the observer. `docs/rules/classes/property-observer-pipeline.md:1`
+- [ ] A Rust test: a guarded class written through a `mixed` receiver runs `beforePropertySet` and a throw keeps the old value. `crates/nvs-runtime/src/object.rs:5313`, `crates/nvs-codegen/tests/late_init.rs:192`
+- [ ] Stage 6: the new fragment `classes/property-guard-runs-before-the-write` (§ *Standing decisions*, *`PropertyGuard`*), which the `// covers: lang:classes/propertyguard` lines in the three guard cases already name. `tests/conformance/class/property-guard-stops-a-write-and-keeps-the-old-value.nvst:3`
 
 ### Backlog
 - A delegation forward over a `lateinit` field still throws without calling `initProperty` (`crates/nvs-ir/src/lower/call.rs:1478`); decide in stage 6.
 - Whether `PropertyGuard` and `PropertyObserver` give their methods empty default bodies, since interfaces may have default methods (`docs/reference/lang/50-classes.md:381`); ask the user.
 - `isinit` on a hooked `lateinit` property reports `E0853`; decide in stage 6 whether it should test the slot (`crates/nvs-types/src/expr/presence.rs`).
+- An element `unset` lowers the root's receiver a second time for the guard, as `write_back_array` already does. `$b->self()->rows["k"]` would call `self()` again (`crates/nvs-ir/src/lower/stmt.rs:1722`).
+- A `set` hook on a `lateinit` property is not plain during `initProperty`; only the slot write takes `open_unless_plain` (`crates/nvs-ir/src/lower/stmt.rs:1251`).
