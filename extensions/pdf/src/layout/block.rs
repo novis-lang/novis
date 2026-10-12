@@ -7,8 +7,17 @@
 //! between them. A line is as wide as the room the floats leave it ([`Flow::band`]), and a box
 //! with `clear` starts below the floats it clears. An `inline-block` box or a flex item holds
 //! its floats: its own flow ends below them ([`Flow::contain`]).
+//!
+//! A positioned box leaves its pages when it closes and becomes a layer on each page it is on
+//! ([`Flow::lift`]), and [`Flow::finish`] draws the layers back by `z-index`, then in document
+//! order: below 0 under the page's other items, and the rest over them. A box with a
+//! `z-index` draws the layers inside it as part of its own, so it stacks them only among
+//! themselves. An absolute box waits in the innermost positioned box open, its containing
+//! block, until that box closes and its padding box is known, or in the flow when there is none,
+//! where the page's content box is its containing block.
 
 use super::boxes::{self, Decor};
+use super::text::shift;
 use super::{Item, MARGIN, Page, keyword, length};
 use crate::css::{Style, Value};
 
@@ -28,7 +37,38 @@ pub(super) struct BoxGeometry {
     pub(super) fill: bool,
     /// Whether its `clear` moves it below the left floats and below the right ones.
     pub(super) clear: [bool; 2],
+    pub(super) position: Position,
+    /// Its `z-index` when it is positioned and the value is not `auto`.
+    pub(super) z: Option<i64>,
     pub(super) decor: Decor,
+}
+
+/// A block box's `position`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum Position {
+    Static,
+    /// Moved right and down by these offsets after it is laid out. The flow keeps its place.
+    Relative([f32; 2]),
+    /// Placed by its insets against its containing block. The box is an [`super::Atom`].
+    Absolute,
+}
+
+/// An absolute box's `top`, `right`, `bottom` and `left`, each as points and a percentage of
+/// its containing block, or `None` for `auto`.
+pub(super) type Insets = [Option<(f32, f32)>; 4];
+
+pub(super) fn insets(style: &Style) -> Insets {
+    SIDES.map(|s| match style.get(s) {
+        Some(Value::Length(l)) => Some((l.pt, l.percent)),
+        _ => None,
+    })
+}
+
+pub(super) fn z_index(style: &Style) -> Option<i64> {
+    match style.get("z-index") {
+        Some(Value::Integer(z)) => Some(*z),
+        _ => None,
+    }
 }
 
 /// Which side a `float` or `clear` value names, `inline-start` and `inline-end` by the box's
@@ -109,6 +149,21 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
     let min_content = fixed("height")
         .unwrap_or(0.0)
         .max(fixed("min-height").unwrap_or(0.0));
+    // A relative offset's percentage counts against a height the containing block does not
+    // have, so only `left` and `right` read one.
+    let offset = |start: &str, end: &str, basis: f32| {
+        length(style, start, basis)
+            .or_else(|| length(style, end, basis).map(|v| -v))
+            .unwrap_or(0.0)
+    };
+    let position = match keyword(style, "position") {
+        Some("relative") => Position::Relative([
+            offset("left", "right", containing),
+            offset("top", "bottom", 0.0),
+        ]),
+        Some("absolute") => Position::Absolute,
+        _ => Position::Static,
+    };
     BoxGeometry {
         x: x + margin[3],
         width,
@@ -118,6 +173,10 @@ pub(super) fn geometry(style: &Style, x: f32, containing: f32) -> BoxGeometry {
         min_content,
         fill,
         clear: sides(style, "clear"),
+        position,
+        z: (position != Position::Static)
+            .then(|| z_index(style))
+            .flatten(),
         decor: boxes::decor(style),
     }
 }
@@ -128,6 +187,48 @@ pub(super) struct Open {
     /// Where its border box starts: the page, the index its items are drawn under, and the top.
     /// `None` until something inside it, or its own top border or padding, is placed.
     top: Option<(usize, usize, f32)>,
+    /// What it carries until it closes, when it is positioned.
+    stack: Option<Stack>,
+}
+
+/// A positioned box's part in the stacking order: its `z-index`, its place in the document,
+/// the number of layers before it opened, and the absolute boxes it is the containing block of.
+struct Stack {
+    z: Option<i64>,
+    order: usize,
+    layers: usize,
+    absolute: Vec<Absolute>,
+}
+
+/// An absolute box waiting for its containing block to close: its items with its margin box's
+/// top-left corner at 0, 0, its margin box's size, its insets, the page, left edge and top it
+/// would have in the flow, its `z-index` and its place in the document.
+struct Absolute {
+    items: Vec<Item>,
+    size: (f32, f32),
+    insets: Insets,
+    page: usize,
+    x: f32,
+    y: f32,
+    z: i64,
+    order: usize,
+}
+
+/// The items of a positioned box on one page, drawn by `z`, then by `order`.
+struct Layer {
+    page: usize,
+    z: i64,
+    order: usize,
+    items: Vec<Item>,
+}
+
+/// A containing block's padding box: its left edge and width, and its page and top, and its
+/// page and bottom, each from the top of its page's content.
+struct Area {
+    left: f32,
+    width: f32,
+    top: (usize, f32),
+    bottom: (usize, f32),
 }
 
 /// The vertical flow: the pages so far and where the next block goes.
@@ -142,6 +243,12 @@ pub(super) struct Flow {
     pub(super) baseline: Option<f32>,
     /// The floats on the last page, in the order they were placed.
     floats: Vec<Floated>,
+    /// The positioned boxes placed so far, which [`Flow::finish`] draws in order.
+    layers: Vec<Layer>,
+    /// The absolute boxes with no positioned box around them.
+    loose: Vec<Absolute>,
+    /// The number of positioned boxes met so far, which orders those of equal `z-index`.
+    order: usize,
 }
 
 /// A float's margin box on its page: its left and right edge, its top and bottom from the top
@@ -164,6 +271,9 @@ impl Flow {
             limit,
             baseline: None,
             floats: Vec::new(),
+            layers: Vec::new(),
+            loose: Vec::new(),
+            order: 0,
         }
     }
 
@@ -320,9 +430,19 @@ impl Flow {
             self.pending = 0.0;
         }
         let inset = geometry.border[0] + geometry.padding[0];
+        let stack = (geometry.position != Position::Static).then(|| {
+            self.order += 1;
+            Stack {
+                z: geometry.z,
+                order: self.order,
+                layers: self.layers.len(),
+                absolute: Vec::new(),
+            }
+        });
         self.open.push(Open {
             geometry,
             top: None,
+            stack,
         });
         if inset > 0.0 {
             self.place(inset);
@@ -330,16 +450,21 @@ impl Flow {
     }
 
     pub(super) fn close(&mut self) {
-        let Some(open) = self.open.pop() else {
+        let Some(Open {
+            geometry,
+            mut top,
+            stack,
+        }) = self.open.pop()
+        else {
             return;
         };
-        let g = &open.geometry;
+        let g = &geometry;
         let inset = g.border[2] + g.padding[2];
-        let mut top = open.top;
         if top.is_none() && (inset > 0.0 || g.min_content > 0.0) {
             self.open.push(Open {
                 geometry: g.clone(),
                 top: None,
+                stack: None,
             });
             self.place(0.0);
             top = self.open.pop().and_then(|o| o.top);
@@ -360,6 +485,8 @@ impl Flow {
         if inset > 0.0 {
             self.place(inset);
         }
+        // How many items the box's own paint is on each of its pages.
+        let mut painted = Vec::new();
         if let Some((first, item, at)) = top {
             let last = self.pages.len() - 1;
             for page in first..=last {
@@ -386,6 +513,7 @@ impl Flow {
                     );
                 }
                 let under = if page == first { item } else { 0 };
+                painted.push(items.len());
                 let page = &mut self.pages[page].items;
                 page.splice(under..under, items);
                 if opacity {
@@ -393,6 +521,172 @@ impl Flow {
                 }
             }
         }
-        self.pending = self.pending.max(open.geometry.margin[2]);
+        if let Some(stack) = stack {
+            self.lift(g, top, stack, &painted);
+        }
+        self.pending = self.pending.max(geometry.margin[2]);
+    }
+
+    /// Takes a positioned box that has just closed out of its pages into layers: places the
+    /// absolute boxes it is the containing block of against its padding box, moves it and them
+    /// by its relative offset, and, when it has a `z-index`, draws the layers inside it as part
+    /// of its own: those below 0 after its background and the rest after its content.
+    fn lift(
+        &mut self,
+        g: &BoxGeometry,
+        top: Option<(usize, usize, f32)>,
+        stack: Stack,
+        painted: &[usize],
+    ) {
+        let last = self.pages.len() - 1;
+        let (first, under, at) = top.unwrap_or((last, self.pages[last].items.len(), self.cursor));
+        let area = Area {
+            left: g.x + g.border[3],
+            width: g.width - g.border[1] - g.border[3],
+            top: (first, at + g.border[0]),
+            bottom: (last, self.cursor - g.border[2]),
+        };
+        for absolute in stack.absolute {
+            self.place_absolute(absolute, &area);
+        }
+        let [dx, dy] = match g.position {
+            Position::Relative(offset) => offset,
+            _ => [0.0, 0.0],
+        };
+        let mut inner = self.layers.split_off(stack.layers);
+        for layer in &mut inner {
+            layer.items = std::mem::take(&mut layer.items)
+                .into_iter()
+                .map(|item| shift(item, dx, dy))
+                .collect();
+        }
+        inner.sort_by_key(|l| (l.z, l.order));
+        let opacity = g.decor.opacity < 1.0;
+        for page in first..=last {
+            let from = if page == first { under } else { 0 };
+            let mut items: Vec<Item> = self.pages[page]
+                .items
+                .drain(from..)
+                .map(|item| shift(item, dx, dy))
+                .collect();
+            if stack.z.is_some() {
+                let mut layers = |below: bool| {
+                    inner
+                        .iter_mut()
+                        .filter(move |l| l.page == page && (l.z < 0) == below)
+                        .flat_map(|l| std::mem::take(&mut l.items))
+                        .collect::<Vec<Item>>()
+                };
+                let above = layers(false);
+                let end = items.len() - usize::from(opacity && top.is_some());
+                items.splice(end..end, above);
+                let paint = painted.get(page - first).copied().unwrap_or(0);
+                let below = layers(true);
+                items.splice(paint..paint, below);
+            }
+            self.layers.push(Layer {
+                page,
+                z: stack.z.unwrap_or(0),
+                order: stack.order,
+                items,
+            });
+        }
+        // A box with no `z-index` stacks the positioned boxes inside it beside its own.
+        if stack.z.is_none() {
+            self.layers.extend(inner);
+        }
+    }
+
+    /// Places an absolute box `size` big, whose items have its margin box's top-left corner at
+    /// 0, 0, at the static place this flow has reached, to wait for its containing block: the
+    /// innermost positioned box open, or the page.
+    pub(super) fn absolute(
+        &mut self,
+        items: Vec<Item>,
+        size: (f32, f32),
+        x: f32,
+        insets: Insets,
+        z: Option<i64>,
+    ) {
+        self.order += 1;
+        let absolute = Absolute {
+            items,
+            size,
+            insets,
+            page: self.pages.len() - 1,
+            x,
+            y: self.next_top(),
+            z: z.unwrap_or(0),
+            order: self.order,
+        };
+        match self.open.iter_mut().rev().find_map(|o| o.stack.as_mut()) {
+            Some(stack) => stack.absolute.push(absolute),
+            None => self.loose.push(absolute),
+        }
+    }
+
+    /// Places `absolute` against `area` as a layer. `left` wins over `right` and `top` over
+    /// `bottom`, and a side with neither keeps the place the flow gave it. A percentage of the
+    /// height counts against the area's height when it is on one page.
+    fn place_absolute(&mut self, absolute: Absolute, area: &Area) {
+        let (width, height) = absolute.size;
+        let inset = |side: usize, basis: f32| {
+            absolute.insets[side].map(|(pt, percent)| pt + percent / 100.0 * basis)
+        };
+        let x = match (inset(3, area.width), inset(1, area.width)) {
+            (Some(left), _) => area.left + left,
+            (None, Some(right)) => area.left + area.width - right - width,
+            (None, None) => absolute.x,
+        };
+        let tall = if area.top.0 == area.bottom.0 {
+            area.bottom.1 - area.top.1
+        } else {
+            0.0
+        };
+        let (page, y) = match (inset(0, tall), inset(2, tall)) {
+            (Some(top), _) => (area.top.0, area.top.1 + top),
+            (None, Some(bottom)) => (area.bottom.0, area.bottom.1 - bottom - height),
+            (None, None) => (absolute.page, absolute.y),
+        };
+        self.layers.push(Layer {
+            page,
+            z: absolute.z,
+            order: absolute.order,
+            items: absolute
+                .items
+                .into_iter()
+                .map(|item| shift(item, x, MARGIN + y))
+                .collect(),
+        });
+    }
+
+    /// Places the absolute boxes with no positioned box around them against `area`, the
+    /// content box's left edge, width, top and bottom on the page each one is on, and draws
+    /// every layer onto its page: those below 0 under the page's items and the rest over them.
+    pub(super) fn finish(&mut self, area: [f32; 4]) {
+        let [left, width, top, bottom] = area;
+        for absolute in std::mem::take(&mut self.loose) {
+            let page = absolute.page;
+            let area = Area {
+                left,
+                width,
+                top: (page, top),
+                bottom: (page, bottom),
+            };
+            self.place_absolute(absolute, &area);
+        }
+        let mut layers = std::mem::take(&mut self.layers);
+        layers.sort_by_key(|l| (l.z, l.order));
+        let mut below: Vec<Vec<Item>> = vec![Vec::new(); self.pages.len()];
+        for layer in layers {
+            if layer.z < 0 {
+                below[layer.page].extend(layer.items);
+            } else {
+                self.pages[layer.page].items.extend(layer.items);
+            }
+        }
+        for (page, items) in self.pages.iter_mut().zip(below) {
+            page.items.splice(0..0, items);
+        }
     }
 }

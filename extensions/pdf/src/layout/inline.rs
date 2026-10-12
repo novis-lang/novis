@@ -11,7 +11,7 @@ use parley::{
     TextWrapMode, VerticalAlign, WordBreak,
 };
 
-use super::block::{geometry, sides};
+use super::block::{Insets, geometry, insets, sides, z_index};
 use super::flex::{self, Flex};
 use super::{
     Atom, BLACK, Block, CONTENT_WIDTH, Frame, Images, Inline, MARGIN, Para, Spaces, Span, color,
@@ -666,6 +666,25 @@ impl Builder<'_, '_> {
         });
     }
 
+    /// Closes the innermost open absolute box, with its `insets` and `z-index`, inside the
+    /// content box of `frame`. It is placed before the text collected around it.
+    fn close_absolute(&mut self, insets: Insets, z: Option<i64>, frame: &Frame) {
+        let Some(blocks) = self.close_box() else {
+            return;
+        };
+        self.blocks.push(Block::Absolute {
+            atom: self.atoms.len(),
+            x: frame.x,
+            insets,
+            z,
+        });
+        self.atoms.push(Atom {
+            blocks,
+            align: VerticalAlign::BASELINE,
+            item: false,
+        });
+    }
+
     /// Whether an element or text at the stack's `depth` is a child of the innermost open flex
     /// container.
     fn in_container(&self, depth: usize) -> bool {
@@ -882,6 +901,8 @@ enum Step {
         item: Option<(i64, taffy::Style)>,
         /// Whether a float floats right, and the sides its `clear` names.
         float: Option<(bool, [bool; 2])>,
+        /// An absolute box's insets and `z-index`.
+        absolute: Option<(Insets, Option<i64>)>,
         /// Whether the element is a flex container.
         flex: bool,
         /// Whether the element opened an inline box, which closes after its `::after`.
@@ -950,6 +971,7 @@ pub(super) fn blocks(
                 atom,
                 item,
                 float,
+                absolute,
                 flex,
                 inline,
                 close,
@@ -972,6 +994,9 @@ pub(super) fn blocks(
                 }
                 if let Some((order, style)) = item {
                     builder.close_item(order, style);
+                } else if let Some((insets, z)) = absolute {
+                    let outer = frames.last().expect("the root frame stays");
+                    builder.close_absolute(insets, z, outer);
                 } else if let Some((right, clear)) = float {
                     let outer = frames.last().expect("the root frame stays");
                     builder.close_float(right, clear, outer);
@@ -1072,21 +1097,29 @@ pub(super) fn blocks(
                 };
                 let block = display != "inline";
                 let flex = matches!(display, "flex" | "inline-flex" | "grid" | "inline-grid");
-                let item = item.then(|| flex::item(style, frame.width, builder.row()));
+                // An absolute box is neither a flex item nor a float.
+                let absolute = (keyword(style, "position") == Some("absolute"))
+                    .then(|| (insets(style), z_index(style)));
+                let item = (item && absolute.is_none())
+                    .then(|| flex::item(style, frame.width, builder.row()));
                 let side = sides(style, "float");
-                let float = (item.is_none() && side != [false, false])
+                let float = (item.is_none() && absolute.is_none() && side != [false, false])
                     .then(|| (side[1], sides(style, "clear")));
-                let atom = (item.is_none() && float.is_none() && display == "inline-block")
+                let atom = (item.is_none()
+                    && float.is_none()
+                    && absolute.is_none()
+                    && display == "inline-block")
                     .then(|| vertical_align(style, None));
-                let inline = if item.is_some() || atom.is_some() || float.is_some() {
-                    builder.open_atom(style, &frame, &mut inner)?;
-                    false
-                } else if block {
-                    builder.open(style, &frame, &mut inner)?;
-                    false
-                } else {
-                    builder.open_inline(style, &frame)?
-                };
+                let inline =
+                    if item.is_some() || atom.is_some() || float.is_some() || absolute.is_some() {
+                        builder.open_atom(style, &frame, &mut inner)?;
+                        false
+                    } else if block {
+                        builder.open(style, &frame, &mut inner)?;
+                        false
+                    } else {
+                        builder.open_inline(style, &frame)?
+                    };
                 let depth = frames.len();
                 counters.apply(style, depth);
                 if name == "ol"
@@ -1156,6 +1189,7 @@ pub(super) fn blocks(
                     atom,
                     item,
                     float,
+                    absolute,
                     flex,
                     inline,
                     close: controls.map(|(_, close)| close),
